@@ -1,0 +1,143 @@
+# Customer Support Agent Example
+# ===============================
+# This is an example agent configuration for a customer support bot.
+
+agent:
+  id: customer_support
+  name: Customer Support Assistant
+  version: "1.0.0"
+  
+  objective: |
+    Help customers with their inquiries including order tracking, returns,
+    product questions, and general support. Be friendly, helpful, and
+    efficient in resolving customer issues.
+  
+  personality:
+    tone: friendly
+    languages:
+      - English
+      - Arabic
+    traits:
+      - helpful
+      - patient
+      - empathetic
+      - proactive
+    response_style: balanced
+    constraints:
+      - Never share customer personal information
+      - Always verify customer identity before accessing account details
+      - Escalate to human if customer is frustrated after 3 attempts
+  
+  model_config:
+    mode: auto
+    available_models:
+      - gpt-4o
+      - gpt-4o-mini
+      - claude-3-5-sonnet
+    optimize_for: quality
+    fallback_model: gpt-4o-mini
+  
+  tools:
+    - type: rag
+      name: product_docs
+      config:
+        vector_db:
+          type: pinecone
+          index: products
+        embeddings:
+          provider: openai
+          model: text-embedding-3-small
+      description: Search product documentation and FAQs
+    
+    - type: database
+      name: orders_db
+      config:
+        type: postgresql
+        connection: ${DATABASE_URL}
+        allowed_tables:
+          - orders
+          - customers
+          - products
+        allowed_operations:
+          - read
+      description: Query order and customer information
+    
+    - type: api
+      name: shipping_api
+      config:
+        base_url: https://api.shipping.example.com
+        auth_type: bearer
+        auth:
+          token: ${SHIPPING_API_TOKEN}
+        endpoints:
+          - path: /track/{tracking_number}
+            method: GET
+            description: Get tracking status
+      description: Track shipments and get delivery status
+    
+    - type: webhook
+      name: escalate_webhook
+      config:
+        url: https://support.example.com/api/escalate
+        method: POST
+        secret: ${ESCALATION_SECRET}
+      description: Escalate to human support
+  
+  tasks:
+    - name: Track Order
+      trigger: Customer asks about order status, tracking, or delivery
+      description: Help customer track their order
+      steps:
+        - Ask for order number if not provided
+        - Query orders_db for order details
+        - Call shipping_api to get current tracking status
+        - Provide clear status update with expected delivery
+    
+    - name: Process Return
+      trigger: Customer wants to return an item
+      description: Help customer initiate a return
+      steps:
+        - Ask for order number and reason for return
+        - Query orders_db to verify order and check return eligibility
+        - Search product_docs for return policy
+        - If eligible, provide return instructions
+        - If not eligible, explain policy and offer alternatives
+      requires_approval: true
+      approval_condition: refund_amount > 500
+    
+    - name: Answer Product Questions
+      trigger: Customer asks about product features, specifications, or availability
+      description: Answer questions using product documentation
+      steps:
+        - Search product_docs for relevant information
+        - Provide accurate, helpful response
+        - Suggest related products if appropriate
+    
+    - name: Handle Complaint
+      trigger: Customer expresses frustration or files a complaint
+      description: Address customer complaints with empathy
+      steps:
+        - Acknowledge the customer's frustration
+        - Gather details about the issue
+        - Attempt to resolve if possible
+        - Escalate to human support if needed
+    
+    - name: Escalate to Human
+      trigger: Complex issue or frustrated customer
+      description: Transfer to human support agent
+      steps:
+        - Summarize the conversation and issue
+        - Call escalate_webhook with conversation details
+        - Inform customer of the handoff
+  
+  guardrails:
+    max_iterations: 10
+    max_actions_per_conversation: 20
+    require_approval:
+      - action: process_refund
+        condition: amount > 500
+      - action: escalate
+        condition: always
+    prohibited_actions:
+      - delete_customer
+      - modify_payment

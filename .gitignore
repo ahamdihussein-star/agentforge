@@ -1,0 +1,45 @@
+# === Secrets (NEVER commit) ===
+.env
+.env.local
+*.pem
+*.key
+
+# === macOS ===
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# === Large images ===
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# === Data directories ===
+data/*
+!data/.gitkeep
+uploads/*
+!uploads/.gitkeep
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+*.egg-info/
+
+# === IDE ===
+.idea/
+.vscode/
+*.swp
+
+# === Logs ===
+*.log
+
+# === Broken folders ===
+{core/
+
+# === ChromaDB ===
+chroma_data/

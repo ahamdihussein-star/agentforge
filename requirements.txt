@@ -1,0 +1,56 @@
+# AgentForge v3.2 - Complete Requirements
+
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+
+# LLM Providers
+openai==1.12.0
+anthropic==0.18.1
+
+# HTTP Client
+httpx==0.26.0
+
+# Document Processing
+pymupdf==1.23.8
+python-docx==1.1.0
+openpyxl==3.1.2
+pdfplumber==0.10.3
+python-pptx==0.6.23
+fpdf2==2.7.6
+
+# Image Generation for Demo Assets
+Pillow==10.2.0
+
+# Vector Databases
+chromadb==0.4.22
+
+# IMPORTANT: NumPy <2.0 required for ChromaDB compatibility
+numpy<2.0
+
+# Embeddings (Local) - Optional, will work without it
+# sentence-transformers==2.3.1
+
+# File Upload
+python-multipart==0.0.6
+
+# Async Support
+aiofiles==23.2.1
+
+# Utils
+python-dotenv==1.0.0
+
+# Web Scraping with JavaScript rendering
+playwright==1.40.0
+
+# YAML parsing for OpenAPI specs
+pyyaml==6.0.1
+
+# ============================================
+# Security Module Dependencies
+# ============================================
+email-validator>=2.0.0
+pyotp>=2.8.0
+qrcode[pil]>=7.4.2
+ldap3>=2.9.1
