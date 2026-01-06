@@ -465,7 +465,12 @@ class EmailService:
                         ]
                     }
                 )
-                return response.status_code in [200, 201, 202]
+                success = response.status_code in [200, 201, 202]
+                if success:
+                    print(f"✅ Email sent to {to_email}")
+                else:
+                    print(f"❌ SendGrid error {response.status_code}: {response.text}")
+                return success
         except Exception as e:
             print(f"❌ Error sending email: {e}")
             return False

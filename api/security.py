@@ -796,9 +796,13 @@ async def reset_password(request: ConfirmResetPasswordRequest):
     
     return {"status": "success"}
 
+class VerifyEmailRequest(BaseModel):
+    token: str
+
 @router.post("/auth/verify-email")
-async def verify_email(token: str):
+async def verify_email(request: VerifyEmailRequest):
     """Verify email with token"""
+    token = request.token
     user = None
     for u in security_state.users.values():
         if u.verification_token == token:

@@ -16846,7 +16846,96 @@ async function resendVerification(email) {
 
 // Show forgot password
 function showForgotPassword() {
-    showToast('Password reset: Contact your administrator', 'info');
+    document.getElementById('auth-container').innerHTML = `
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-3 mb-4">
+                <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">
+                <h1 class="text-3xl font-bold gradient-text">AgentForge</h1>
+            </div>
+            <p class="text-gray-400">Reset your password</p>
+        </div>
+        <div class="card rounded-2xl p-8">
+            <h2 class="text-xl font-bold mb-2">Forgot Password?</h2>
+            <p class="text-gray-400 text-sm mb-6">Enter your email and we'll send you a reset link.</p>
+            
+            <form onsubmit="handleForgotPassword(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Email</label>
+                        <input type="email" id="forgot-email" required 
+                               class="input-field w-full px-4 py-3 rounded-lg"
+                               placeholder="you@company.com">
+                    </div>
+                    
+                    <button type="submit" id="forgot-btn"
+                            class="btn-primary w-full py-3 rounded-lg font-semibold">
+                        Send Reset Link
+                    </button>
+                </div>
+            </form>
+            
+            <p class="text-center text-gray-400 text-sm mt-6">
+                Remember your password? 
+                <button onclick="location.reload()" class="text-purple-400 hover:text-purple-300">Sign in</button>
+            </p>
+        </div>
+    `;
+}
+
+// Handle forgot password
+async function handleForgotPassword(event) {
+    event.preventDefault();
+    
+    const email = document.getElementById('forgot-email').value;
+    const btn = document.getElementById('forgot-btn');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> Sending...';
+    
+    try {
+        const res = await fetch('/api/security/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        
+        // Always show success (don't reveal if email exists)
+        showForgotPasswordSuccess(email);
+        
+    } catch (e) {
+        showForgotPasswordSuccess(email);
+    }
+}
+
+// Show forgot password success
+function showForgotPasswordSuccess(email) {
+    document.getElementById('auth-container').innerHTML = `
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-3 mb-4">
+                <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">
+                <h1 class="text-3xl font-bold gradient-text">AgentForge</h1>
+            </div>
+        </div>
+        <div class="card rounded-2xl p-8 text-center">
+            <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold mb-2">Check your email</h2>
+            <p class="text-gray-400 mb-4">
+                If an account exists for<br>
+                <strong class="text-white">${email}</strong><br>
+                you will receive a password reset link.
+            </p>
+            <p class="text-sm text-gray-500 mb-6">
+                Check your spam folder if you don't see it.
+            </p>
+            <button onclick="location.reload()" class="btn-primary w-full py-3 rounded-lg font-semibold">
+                Back to Sign In
+            </button>
+        </div>
+    `;
 }
 
 // Logout
@@ -16970,12 +17059,34 @@ function renderSecurityUsers() {
             </td>
             <td class="p-4 text-center">${u.mfa_enabled ? '<span class="text-green-400">✓</span>' : '<span class="text-gray-500">—</span>'}</td>
             <td class="p-4 text-sm text-gray-400">${u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never'}</td>
-            <td class="p-4">
-                <button onclick="editSecurityUser('${u.id}')" class="text-blue-400 hover:text-blue-300 mr-2">✏️</button>
-                ${u.id !== currentUser?.id ? `<button onclick="deleteSecurityUser('${u.id}')" class="text-red-400 hover:text-red-300">🗑️</button>` : ''}
+            <td class="p-4 flex gap-2">
+                <button onclick="editSecurityUser('${u.id}')" class="text-blue-400 hover:text-blue-300" title="Edit">✏️</button>
+                ${u.status === 'pending' && !u.email_verified ? `<button onclick="resendVerificationEmail('${u.id}', '${u.email}')" class="text-yellow-400 hover:text-yellow-300" title="Resend Verification">📧</button>` : ''}
+                ${u.id !== currentUser?.id ? `<button onclick="deleteSecurityUser('${u.id}')" class="text-red-400 hover:text-red-300" title="Delete">🗑️</button>` : ''}
             </td>
         </tr>
     `).join('');
+}
+
+// Resend verification email to user
+async function resendVerificationEmail(userId, email) {
+    if (!confirm(`Send verification email to ${email}?`)) return;
+    
+    try {
+        const res = await fetch(`/api/security/users/${userId}/resend-verification`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        
+        if (res.ok) {
+            showToast(`Verification email sent to ${email}`, 'success');
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Failed to send email', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
 }
 
 // Filter security users
@@ -17334,8 +17445,255 @@ navigate = function(p, updateHash = true) {
     }
 };
 
+// Handle reset password page
+function showResetPasswordPage(token) {
+    document.getElementById('auth-container').innerHTML = `
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-3 mb-4">
+                <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">
+                <h1 class="text-3xl font-bold gradient-text">AgentForge</h1>
+            </div>
+            <p class="text-gray-400">Create new password</p>
+        </div>
+        <div class="card rounded-2xl p-8">
+            <h2 class="text-xl font-bold mb-6">Reset Password</h2>
+            
+            <form onsubmit="handleResetPassword(event, '${token}')">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">New Password</label>
+                        <div class="relative">
+                            <input type="password" id="reset-password" required minlength="8"
+                                   class="input-field w-full px-4 py-3 pr-12 rounded-lg"
+                                   placeholder="Min 8 characters"
+                                   oninput="checkPasswordStrength(this.value)">
+                            <button type="button" onclick="togglePassword('reset-password', this)" 
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1">
+                                <span class="eye-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg></span>
+                            </button>
+                        </div>
+                        <div class="mt-2">
+                            <div class="flex gap-1 mb-1">
+                                <div id="str-1" class="h-1 flex-1 rounded bg-gray-600"></div>
+                                <div id="str-2" class="h-1 flex-1 rounded bg-gray-600"></div>
+                                <div id="str-3" class="h-1 flex-1 rounded bg-gray-600"></div>
+                                <div id="str-4" class="h-1 flex-1 rounded bg-gray-600"></div>
+                            </div>
+                            <p id="str-text" class="text-xs text-gray-500"></p>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Confirm Password</label>
+                        <div class="relative">
+                            <input type="password" id="reset-password2" required
+                                   class="input-field w-full px-4 py-3 pr-12 rounded-lg"
+                                   placeholder="Repeat password">
+                            <button type="button" onclick="togglePassword('reset-password2', this)" 
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1">
+                                <span class="eye-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg></span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="reset-btn"
+                            class="btn-primary w-full py-3 rounded-lg font-semibold">
+                        Reset Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+}
+
+// Handle reset password submit
+async function handleResetPassword(event, token) {
+    event.preventDefault();
+    
+    const password = document.getElementById('reset-password').value;
+    const password2 = document.getElementById('reset-password2').value;
+    
+    if (password !== password2) {
+        showToast('Passwords do not match', 'error');
+        return;
+    }
+    
+    if (password.length < 8) {
+        showToast('Password must be at least 8 characters', 'error');
+        return;
+    }
+    
+    const btn = document.getElementById('reset-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> Resetting...';
+    
+    try {
+        const res = await fetch('/api/security/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, new_password: password })
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+            showResetPasswordSuccess();
+        } else {
+            showToast(data.detail || 'Reset failed. Link may have expired.', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Reset Password';
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Reset Password';
+    }
+}
+
+// Show reset password success
+function showResetPasswordSuccess() {
+    document.getElementById('auth-container').innerHTML = `
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-3 mb-4">
+                <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">
+                <h1 class="text-3xl font-bold gradient-text">AgentForge</h1>
+            </div>
+        </div>
+        <div class="card rounded-2xl p-8 text-center">
+            <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold mb-2">Password Reset!</h2>
+            <p class="text-gray-400 mb-6">
+                Your password has been reset successfully.<br>
+                You can now sign in with your new password.
+            </p>
+            <button onclick="location.reload()" class="btn-primary w-full py-3 rounded-lg font-semibold">
+                Sign In Now
+            </button>
+        </div>
+    `;
+}
+
+// Handle email verification page
+function showVerifyEmailPage(token) {
+    document.getElementById('auth-container').innerHTML = `
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-3 mb-4">
+                <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">
+                <h1 class="text-3xl font-bold gradient-text">AgentForge</h1>
+            </div>
+        </div>
+        <div class="card rounded-2xl p-8 text-center">
+            <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="animate-spin text-2xl">⏳</span>
+            </div>
+            <h2 class="text-xl font-bold mb-2">Verifying Email...</h2>
+            <p class="text-gray-400">Please wait while we verify your email.</p>
+        </div>
+    `;
+    
+    // Call verify API
+    verifyEmail(token);
+}
+
+// Verify email API call
+async function verifyEmail(token) {
+    try {
+        const res = await fetch('/api/security/auth/verify-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+        
+        if (res.ok) {
+            showVerifyEmailSuccess();
+        } else {
+            const data = await res.json();
+            showVerifyEmailError(data.detail || 'Verification failed');
+        }
+    } catch (e) {
+        showVerifyEmailError('Error verifying email');
+    }
+}
+
+// Show verification success
+function showVerifyEmailSuccess() {
+    document.getElementById('auth-container').innerHTML = `
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-3 mb-4">
+                <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">
+                <h1 class="text-3xl font-bold gradient-text">AgentForge</h1>
+            </div>
+        </div>
+        <div class="card rounded-2xl p-8 text-center">
+            <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold mb-2">Email Verified!</h2>
+            <p class="text-gray-400 mb-6">
+                Your email has been verified successfully.<br>
+                You can now sign in to your account.
+            </p>
+            <button onclick="location.reload()" class="btn-primary w-full py-3 rounded-lg font-semibold">
+                Sign In Now
+            </button>
+        </div>
+    `;
+}
+
+// Show verification error
+function showVerifyEmailError(message) {
+    document.getElementById('auth-container').innerHTML = `
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-3 mb-4">
+                <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">
+                <h1 class="text-3xl font-bold gradient-text">AgentForge</h1>
+            </div>
+        </div>
+        <div class="card rounded-2xl p-8 text-center">
+            <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold mb-2">Verification Failed</h2>
+            <p class="text-gray-400 mb-6">${message}</p>
+            <button onclick="location.reload()" class="btn-primary w-full py-3 rounded-lg font-semibold">
+                Back to Sign In
+            </button>
+        </div>
+    `;
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
+    // Check for special pages in hash
+    const hash = window.location.hash;
+    
+    // Handle reset-password page
+    if (hash && hash.includes('reset-password')) {
+        const params = new URLSearchParams(hash.split('?')[1]);
+        const token = params.get('token');
+        if (token) {
+            showResetPasswordPage(token);
+            return;
+        }
+    }
+    
+    // Handle verify-email page
+    if (hash && hash.includes('verify-email')) {
+        const params = new URLSearchParams(hash.split('?')[1]);
+        const token = params.get('token');
+        if (token) {
+            showVerifyEmailPage(token);
+            return;
+        }
+    }
+    
     // Get token from localStorage first
     authToken = localStorage.getItem('agentforge_token');
     const savedUser = localStorage.getItem('agentforge_user');

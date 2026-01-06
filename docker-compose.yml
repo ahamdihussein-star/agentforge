@@ -18,6 +18,10 @@ services:
       - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
       - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET}
       - APP_URL=${APP_URL:-http://localhost:8000}
+      # SendGrid Email
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM:-noreply@agentforge.to}
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
     restart: unless-stopped
     # Give more memory for Playwright browser (long pages like Oracle Price List)
     deploy:
