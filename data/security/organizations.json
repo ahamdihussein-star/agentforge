@@ -1,0 +1,28 @@
+{
+  "org_default": {
+    "id": "org_default",
+    "name": "Default Organization",
+    "slug": "default",
+    "domain": null,
+    "logo_url": null,
+    "settings": {},
+    "allowed_auth_providers": [
+      "local",
+      "google"
+    ],
+    "require_mfa": false,
+    "allowed_email_domains": [],
+    "google_client_id": null,
+    "google_client_secret": null,
+    "microsoft_client_id": null,
+    "microsoft_client_secret": null,
+    "microsoft_tenant_id": null,
+    "ldap_config_id": null,
+    "max_users": 100,
+    "max_agents": 50,
+    "max_tools": 100,
+    "status": "active",
+    "created_at": "2026-01-05T09:05:05.283748",
+    "updated_at": "2026-01-05T09:05:05.283752"
+  }
+}

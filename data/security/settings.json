@@ -1,0 +1,59 @@
+{
+  "tenancy_mode": "single",
+  "settings": {
+    "org_default": {
+      "id": "security_settings",
+      "org_id": "org_default",
+      "registration_mode": "open",
+      "email_verification_required": true,
+      "allowed_email_domains": [],
+      "password_min_length": 8,
+      "password_max_length": 128,
+      "password_require_uppercase": true,
+      "password_require_lowercase": true,
+      "password_require_numbers": true,
+      "password_require_symbols": true,
+      "password_expiry_days": 0,
+      "password_history_count": 5,
+      "password_min_age_hours": 0,
+      "session_timeout_minutes": 480,
+      "remember_me_days": 30,
+      "max_concurrent_sessions": 5,
+      "force_logout_on_password_change": true,
+      "single_session_per_device": false,
+      "account_lockout_enabled": true,
+      "account_lockout_attempts": 5,
+      "account_lockout_duration_minutes": 30,
+      "account_lockout_reset_after_minutes": 30,
+      "mfa_enforcement": "optional",
+      "mfa_remember_device_days": 30,
+      "mfa_allowed_methods": [
+        "totp",
+        "email"
+      ],
+      "ip_whitelist_enabled": false,
+      "ip_whitelist": [],
+      "ip_blacklist_enabled": false,
+      "ip_blacklist": [],
+      "api_rate_limit_enabled": true,
+      "api_rate_limit_requests": 1000,
+      "api_key_expiry_days": 365,
+      "audit_retention_days": 365,
+      "audit_log_level": "all",
+      "audit_log_ip_addresses": true,
+      "audit_log_user_agents": true,
+      "notify_on_new_login": false,
+      "notify_on_password_change": true,
+      "notify_on_failed_login": false,
+      "notify_admin_on_lockout": true,
+      "allow_api_token_auth": true,
+      "cors_allowed_origins": [
+        "*"
+      ],
+      "csrf_protection_enabled": true,
+      "created_at": "2026-01-05T13:09:43.154759",
+      "updated_at": "2026-01-05T13:09:43.154760",
+      "updated_by": null
+    }
+  }
+}

@@ -19,6 +19,7 @@
 # === Data directories ===
 data/*
 !data/.gitkeep
+!data/security/
 uploads/*
 !uploads/.gitkeep
 
