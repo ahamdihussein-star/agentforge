@@ -599,5 +599,79 @@
     "success": true,
     "error_message": null,
     "timestamp": "2026-01-06T09:14:42.572011"
+  },
+  {
+    "id": "4728e63b-5af5-4429-8625-9b22928c326d",
+    "org_id": "org_default",
+    "user_id": "2e407982-5484-4497-882c-afed11c653ae",
+    "user_email": "omar.ah.ha.hu@gmail.com",
+    "user_name": "omar Ahmed",
+    "session_id": null,
+    "action": "create",
+    "resource_type": "user",
+    "resource_id": "2e407982-5484-4497-882c-afed11c653ae",
+    "resource_name": "omar.ah.ha.hu@gmail.com",
+    "details": {
+      "registration_method": "self"
+    },
+    "changes": null,
+    "ip_address": null,
+    "user_agent": null,
+    "request_id": null,
+    "request_path": null,
+    "request_method": null,
+    "success": true,
+    "error_message": null,
+    "timestamp": "2026-01-06T10:07:55.772304"
+  },
+  {
+    "id": "61f7f661-94db-413f-8bfd-5de5b55ee0d1",
+    "org_id": "org_default",
+    "user_id": "5339d5b6-3dec-454a-8682-78ef75de1580",
+    "user_email": "ahamdi.hussein@gmail.com",
+    "user_name": "Ahmed Hamdy",
+    "session_id": "b9328d24-0139-42d9-ab3b-adbb36b60a83",
+    "action": "login",
+    "resource_type": "user",
+    "resource_id": "5339d5b6-3dec-454a-8682-78ef75de1580",
+    "resource_name": null,
+    "details": {
+      "remember_me": false,
+      "mfa_used": false
+    },
+    "changes": null,
+    "ip_address": "172.66.0.243",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:146.0) Gecko/20100101 Firefox/146.0",
+    "request_id": null,
+    "request_path": null,
+    "request_method": null,
+    "success": true,
+    "error_message": null,
+    "timestamp": "2026-01-06T11:06:08.769004"
+  },
+  {
+    "id": "6efb981e-8aa9-4e9a-8c6c-87b4ee6f622f",
+    "org_id": "org_default",
+    "user_id": "5339d5b6-3dec-454a-8682-78ef75de1580",
+    "user_email": "ahamdi.hussein@gmail.com",
+    "user_name": "Ahmed Hamdy",
+    "session_id": "42047812-d1d7-4417-9e8f-dc0fb036b485",
+    "action": "login",
+    "resource_type": "user",
+    "resource_id": "5339d5b6-3dec-454a-8682-78ef75de1580",
+    "resource_name": null,
+    "details": {
+      "remember_me": false,
+      "mfa_used": false
+    },
+    "changes": null,
+    "ip_address": "172.66.0.243",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:146.0) Gecko/20100101 Firefox/146.0",
+    "request_id": null,
+    "request_path": null,
+    "request_method": null,
+    "success": true,
+    "error_message": null,
+    "timestamp": "2026-01-06T11:07:43.154476"
   }
 ]

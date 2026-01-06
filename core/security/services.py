@@ -837,8 +837,12 @@ class OAuthService:
         state = state or secrets.token_urlsafe(32)
         
         if provider.value == "google":
+            # Use org credentials or fallback to environment variables
+            client_id = org.google_client_id or os.environ.get("GOOGLE_CLIENT_ID")
+            if not client_id:
+                raise ValueError("Google OAuth not configured - missing client_id")
             params = {
-                "client_id": org.google_client_id,
+                "client_id": client_id,
                 "redirect_uri": redirect_uri,
                 "response_type": "code",
                 "scope": "openid email profile",
@@ -849,9 +853,13 @@ class OAuthService:
             return f"{cls.GOOGLE_AUTH_URL}?{urlencode(params)}"
         
         elif provider.value == "microsoft":
-            tenant = org.microsoft_tenant_id or "common"
+            # Use org credentials or fallback to environment variables
+            client_id = org.microsoft_client_id or os.environ.get("MICROSOFT_CLIENT_ID")
+            tenant = org.microsoft_tenant_id or os.environ.get("MICROSOFT_TENANT_ID", "common")
+            if not client_id:
+                raise ValueError("Microsoft OAuth not configured - missing client_id")
             params = {
-                "client_id": org.microsoft_client_id,
+                "client_id": client_id,
                 "redirect_uri": redirect_uri,
                 "response_type": "code",
                 "scope": "openid email profile User.Read",
@@ -871,12 +879,16 @@ class OAuthService:
         
         async with httpx.AsyncClient() as client:
             if provider.value == "google":
+                # Use org credentials or fallback to environment variables
+                client_id = org.google_client_id or os.environ.get("GOOGLE_CLIENT_ID")
+                client_secret = org.google_client_secret or os.environ.get("GOOGLE_CLIENT_SECRET")
+                
                 # Exchange code for tokens
                 token_response = await client.post(
                     cls.GOOGLE_TOKEN_URL,
                     data={
-                        "client_id": org.google_client_id,
-                        "client_secret": org.google_client_secret,
+                        "client_id": client_id,
+                        "client_secret": client_secret,
                         "code": code,
                         "redirect_uri": redirect_uri,
                         "grant_type": "authorization_code"
@@ -901,15 +913,18 @@ class OAuthService:
                 return userinfo_response.json()
             
             elif provider.value == "microsoft":
-                tenant = org.microsoft_tenant_id or "common"
+                # Use org credentials or fallback to environment variables
+                client_id = org.microsoft_client_id or os.environ.get("MICROSOFT_CLIENT_ID")
+                client_secret = org.microsoft_client_secret or os.environ.get("MICROSOFT_CLIENT_SECRET")
+                tenant = org.microsoft_tenant_id or os.environ.get("MICROSOFT_TENANT_ID", "common")
                 token_url = cls.MICROSOFT_TOKEN_URL.replace("{tenant}", tenant)
                 
                 # Exchange code for tokens
                 token_response = await client.post(
                     token_url,
                     data={
-                        "client_id": org.microsoft_client_id,
-                        "client_secret": org.microsoft_client_secret,
+                        "client_id": client_id,
+                        "client_secret": client_secret,
                         "code": code,
                         "redirect_uri": redirect_uri,
                         "grant_type": "authorization_code",

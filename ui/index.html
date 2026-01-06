@@ -1193,6 +1193,25 @@
             <div class="card rounded-2xl p-8">
                 <h2 class="text-xl font-bold mb-6">Welcome Back</h2>
                 
+                <!-- OAuth Buttons -->
+                <div class="space-y-3 mb-6">
+                    <button onclick="oauthLogin('google')" class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-gray-600 hover:bg-gray-700 transition">
+                        <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        <span>Continue with Google</span>
+                    </button>
+                    <button onclick="oauthLogin('microsoft')" class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-gray-600 hover:bg-gray-700 transition">
+                        <svg width="20" height="20" viewBox="0 0 23 23"><path fill="#f35325" d="M1 1h10v10H1z"/><path fill="#81bc06" d="M12 1h10v10H12z"/><path fill="#05a6f0" d="M1 12h10v10H1z"/><path fill="#ffba08" d="M12 12h10v10H12z"/></svg>
+                        <span>Continue with Microsoft</span>
+                    </button>
+                </div>
+                
+                <!-- Divider -->
+                <div class="flex items-center gap-4 mb-6">
+                    <div class="flex-1 h-px bg-gray-600"></div>
+                    <span class="text-sm text-gray-400">or sign in with email</span>
+                    <div class="flex-1 h-px bg-gray-600"></div>
+                </div>
+                
                 <form id="login-form" onsubmit="handleLogin(event)">
                     <div class="space-y-4">
                         <div>
@@ -1210,7 +1229,7 @@
                                        placeholder="••••••••">
                                 <button type="button" onclick="togglePassword('login-password', this)" 
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1">
-                                    <span class="eye-icon">👁️</span>
+                                    <span class="eye-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg></span>
                                 </button>
                             </div>
                         </div>
@@ -16387,6 +16406,19 @@ let securityRoles = [];
 
 // Check authentication on page load
 function checkAuth() {
+    // Check for OAuth token in URL hash
+    const hash = window.location.hash;
+    if (hash && hash.includes('token=')) {
+        const params = new URLSearchParams(hash.split('?')[1]);
+        const oauthToken = params.get('token');
+        if (oauthToken) {
+            authToken = oauthToken;
+            localStorage.setItem('agentforge_token', authToken);
+            // Clear the hash
+            window.history.replaceState(null, '', '/ui/');
+        }
+    }
+    
     if (!authToken) {
         showLoginPage();
         return false;
@@ -16403,8 +16435,8 @@ function checkAuth() {
         }
         return res.json();
     }).then(data => {
-        if (data && data.user) {
-            currentUser = data.user;
+        if (data && data.id) {
+            currentUser = data;
             localStorage.setItem('agentforge_user', JSON.stringify(currentUser));
             showApp();
             updateUserDisplay();
@@ -16467,10 +16499,20 @@ function checkPasswordStrength(password) {
 }
 
 // OAuth login
-function oauthLogin(provider) {
-    showToast('OAuth with ' + provider + ' coming soon!', 'info');
-    // TODO: Implement OAuth flow
-    // window.location.href = '/api/security/auth/oauth/' + provider;
+async function oauthLogin(provider) {
+    try {
+        showToast('Redirecting to ' + provider + '...', 'info');
+        const res = await fetch('/api/security/oauth/' + provider + '/login');
+        const data = await res.json();
+        
+        if (data.auth_url) {
+            window.location.href = data.auth_url;
+        } else {
+            showToast(data.detail || 'OAuth not configured', 'error');
+        }
+    } catch (e) {
+        showToast('OAuth error: ' + e.message, 'error');
+    }
 }
 
 // Toggle password visibility
@@ -17294,10 +17336,20 @@ navigate = function(p, updateHash = true) {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
-    // Check for token in session storage too
+    // Get token from localStorage first
+    authToken = localStorage.getItem('agentforge_token');
+    const savedUser = localStorage.getItem('agentforge_user');
+    if (savedUser) {
+        try { currentUser = JSON.parse(savedUser); } catch(e) {}
+    }
+    
+    // Fallback to sessionStorage
     if (!authToken) {
         authToken = sessionStorage.getItem('agentforge_token');
-        currentUser = JSON.parse(sessionStorage.getItem('agentforge_user') || 'null');
+        const sessionUser = sessionStorage.getItem('agentforge_user');
+        if (sessionUser) {
+            try { currentUser = JSON.parse(sessionUser); } catch(e) {}
+        }
     }
     
     checkAuth();
