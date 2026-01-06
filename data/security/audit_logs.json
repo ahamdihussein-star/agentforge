@@ -550,5 +550,54 @@
     "success": true,
     "error_message": null,
     "timestamp": "2026-01-06T06:58:18.315755"
+  },
+  {
+    "id": "52f932ce-9b5f-4ddb-a36f-a0f29299355f",
+    "org_id": "org_default",
+    "user_id": "5339d5b6-3dec-454a-8682-78ef75de1580",
+    "user_email": "ahamdi.hussein@gmail.com",
+    "user_name": "Ahmed Hamdy",
+    "session_id": "9ed5c183-9d2c-45e1-8f33-f6b3c2504394",
+    "action": "login",
+    "resource_type": "user",
+    "resource_id": "5339d5b6-3dec-454a-8682-78ef75de1580",
+    "resource_name": null,
+    "details": {
+      "remember_me": false,
+      "mfa_used": false
+    },
+    "changes": null,
+    "ip_address": "172.66.0.243",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:146.0) Gecko/20100101 Firefox/146.0",
+    "request_id": null,
+    "request_path": null,
+    "request_method": null,
+    "success": true,
+    "error_message": null,
+    "timestamp": "2026-01-06T07:13:05.535385"
+  },
+  {
+    "id": "e543ea11-54c1-409e-986d-6bcfc4fa8fad",
+    "org_id": "org_default",
+    "user_id": "e25d487b-dcc3-4d14-b063-88203baf23e0",
+    "user_email": "ahmedhamdi81@yahoo.com",
+    "user_name": "Ahmed Hussein",
+    "session_id": null,
+    "action": "create",
+    "resource_type": "user",
+    "resource_id": "e25d487b-dcc3-4d14-b063-88203baf23e0",
+    "resource_name": "ahmedhamdi81@yahoo.com",
+    "details": {
+      "registration_method": "self"
+    },
+    "changes": null,
+    "ip_address": null,
+    "user_agent": null,
+    "request_id": null,
+    "request_path": null,
+    "request_method": null,
+    "success": true,
+    "error_message": null,
+    "timestamp": "2026-01-06T09:14:42.572011"
   }
 ]
