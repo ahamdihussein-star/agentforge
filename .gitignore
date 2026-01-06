@@ -44,4 +44,4 @@ venv/
 
 # === ChromaDB ===
 chroma_data/
-\!AgentForge_Logo.png
+!AgentForge_Logo.png
