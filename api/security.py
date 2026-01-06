@@ -821,6 +821,46 @@ async def verify_email(request: VerifyEmailRequest):
     
     return {"status": "success"}
 
+
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+@router.post("/auth/resend-verification")
+async def resend_verification(request: ResendVerificationRequest):
+    """Resend verification email"""
+    user = security_state.get_user_by_email(request.email)
+    
+    if user and not user.email_verified:
+        if not user.verification_token:
+            user.verification_token = secrets.token_urlsafe(32)
+            security_state.save_to_disk()
+        
+        await EmailService.send_verification_email(user)
+    
+    return {"status": "success", "message": "If the email exists and is unverified, a verification link has been sent"}
+
+@router.post("/users/{user_id}/resend-verification")
+async def admin_resend_verification(user_id: str, admin: User = Depends(require_admin)):
+    """Admin: Resend verification email to a user"""
+    user = security_state.users.get(user_id)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.email_verified:
+        raise HTTPException(status_code=400, detail="Email already verified")
+    
+    if not user.verification_token:
+        user.verification_token = secrets.token_urlsafe(32)
+        security_state.save_to_disk()
+    
+    sent = await EmailService.send_verification_email(user)
+    
+    if sent:
+        return {"status": "success", "message": f"Verification email sent to {user.email}"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send email")
+
 # ============================================================================
 # MFA ENDPOINTS
 # ============================================================================
