@@ -1,22 +1,51 @@
 # 🔥 AgentForge
 
-**Build Intelligent AI Agents, No Code Required**
+**Enterprise AI Agent Builder Platform**
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-green.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-teal.svg)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com)
 
-AgentForge is an open-source platform for building, deploying, and managing AI agents. Create powerful agents that can reason, take actions, and integrate with any system - all through a simple interface or natural language.
+AgentForge is an enterprise platform for building, deploying, and managing AI agents. Create powerful agents with custom tools, knowledge bases, and guardrails - all through a simple web interface.
+
+**🌐 Live Demo:** [https://agentforge.up.railway.app](https://agentforge.up.railway.app)
+
+![AgentForge](agent-hub.png)
+
+---
 
 ## ✨ Features
 
-- **🤖 AI-Assisted Agent Creation** - Describe what you want, AI generates the agent
-- **🔌 Any LLM** - OpenAI, Anthropic, Azure, Ollama, or any custom model
-- **🛠️ Pluggable Tools** - RAG, databases, APIs, webhooks, custom code
-- **🔀 Smart Model Router** - Auto-select best model per task
-- **📱 Multi-Channel** - Web, Slack, WhatsApp, Teams, API
-- **🏪 Marketplace** - Share and discover community agents
-- **🚀 Deploy Anywhere** - Cloud, on-premise, or hybrid
+### Core Features
+- **🤖 AI-Assisted Agent Creation** - Describe your goal, AI generates the full configuration
+- **💬 Agent Chat** - Real-time chat with tool calling and memory
+- **🛡️ Guardrails** - Anti-hallucination, PII protection, topic control
+- **📝 Agent Memory** - Cross-session memory persistence
+
+### LLM Support
+- **OpenAI** - GPT-4o, GPT-4, GPT-3.5 ✅
+- **Anthropic** - Claude 3.5, Claude 3 ✅
+- **Ollama** - Local models (Llama, Mistral, etc.) ✅
+- **Azure OpenAI** - Via configuration ✅
+
+### Tools
+- **📚 Knowledge Base (RAG)** - Upload documents, scrape websites
+- **🔌 API Tool** - Connect to any REST API
+- **🗄️ Database Tool** - Query SQL databases
+- **📧 Email Tool** - Send emails via Gmail/SendGrid
+
+### Security
+- **🔐 Authentication** - Email/password + Google OAuth
+- **👥 RBAC** - Role-based access control (5 default roles)
+- **🔑 MFA** - Two-factor authentication (TOTP)
+- **📋 Audit Logs** - Complete activity logging
+
+### Demo Lab
+- **🧪 Mock API Generation** - AI generates realistic API responses
+- **📄 Mock Documents** - Generate test PDFs and images
+- **🎯 Industry Templates** - Healthcare, Finance, HR, and more
+
+---
 
 ## 🚀 Quick Start
 
@@ -24,24 +53,24 @@ AgentForge is an open-source platform for building, deploying, and managing AI a
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/agentforge.git
+git clone https://github.com/ahamdihussein-star/agentforge.git
 cd agentforge
 
 # Copy environment file
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys (at minimum: OPENAI_API_KEY)
 
 # Start with Docker Compose
 docker-compose up -d
 
-# Open http://localhost:8080
+# Open http://localhost:8000
 ```
 
 ### Manual Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/agentforge.git
+git clone https://github.com/ahamdihussein-star/agentforge.git
 cd agentforge
 
 # Create virtual environment
@@ -51,23 +80,56 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
+# Install Playwright for web scraping
+playwright install chromium
+
 # Set environment variables
 export OPENAI_API_KEY=your-key-here
 
 # Run the server
-uvicorn api.main:app --reload
+uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 # Open http://localhost:8000
 ```
 
+---
+
+## 🔧 Environment Variables
+
+Create a `.env` file with:
+
+```env
+# Required
+OPENAI_API_KEY=sk-...
+
+# Optional - Additional LLM Providers
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional - OAuth (for Google login)
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+
+# Optional - Email (for verification emails)
+SENDGRID_API_KEY=SG....
+EMAIL_FROM=noreply@yourdomain.com
+BASE_URL=http://localhost:8000
+```
+
+---
+
 ## 📖 Documentation
 
-- [Getting Started](docs/getting-started.md)
-- [Creating Agents](docs/creating-agents.md)
-- [Adding Custom Tools](docs/custom-tools.md)
-- [LLM Configuration](docs/llm-configuration.md)
-- [Deployment Guide](docs/deployment.md)
-- [API Reference](docs/api-reference.md)
+Full documentation is available at: [docs/MASTER_DOCUMENTATION.md](docs/MASTER_DOCUMENTATION.md)
+
+### Quick Links
+- [Architecture Overview](docs/MASTER_DOCUMENTATION.md#-system-architecture)
+- [Features List](docs/MASTER_DOCUMENTATION.md#-features---complete-list)
+- [LLM Providers](docs/MASTER_DOCUMENTATION.md#-llm-providers)
+- [Security Module](docs/MASTER_DOCUMENTATION.md#-security-module)
+- [Deployment Guide](docs/MASTER_DOCUMENTATION.md#-deployment-architecture)
+- [API Reference](docs/MASTER_DOCUMENTATION.md#-api-reference)
+
+---
 
 ## 🏗️ Architecture
 
@@ -75,145 +137,123 @@ uvicorn api.main:app --reload
 ┌─────────────────────────────────────────────────────────┐
 │                    AgentForge Platform                   │
 ├─────────────────────────────────────────────────────────┤
-│  Agent Builder (UI/API)                                  │
-│  ├── AI-Assisted Mode (describe → generate)              │
-│  └── Manual Mode (full control)                          │
+│  Frontend (ui/index.html)                                │
+│  └── Single Page Application (Tailwind CSS)              │
 ├─────────────────────────────────────────────────────────┤
-│  Agent Engine                                            │
-│  ├── Planner (reasoning & task decomposition)            │
-│  ├── Executor (tool execution)                           │
-│  └── Memory (state management)                           │
+│  API Layer (FastAPI)                                     │
+│  ├── api/main.py (Agents, Tools, RAG, Settings)          │
+│  └── api/security.py (Auth, Users, Roles)                │
 ├─────────────────────────────────────────────────────────┤
-│  LLM Layer                                               │
-│  ├── Registry (any model)                                │
-│  ├── Router (smart selection)                            │
-│  └── Adapters (OpenAI, Anthropic, Ollama, etc.)          │
+│  Core Modules                                            │
+│  ├── core/agent/ (Engine, Generator)                     │
+│  ├── core/llm/ (Providers, Router, Registry)             │
+│  ├── core/tools/ (API, Database, RAG)                    │
+│  └── core/security/ (Services, State)                    │
 ├─────────────────────────────────────────────────────────┤
-│  Tool System                                             │
-│  ├── RAG/Knowledge Base                                  │
-│  ├── Database (SQL/NoSQL)                                │
-│  ├── API (REST/GraphQL)                                  │
-│  ├── Actions (Email, Webhook, etc.)                      │
-│  └── Custom Tools                                        │
-├─────────────────────────────────────────────────────────┤
-│  Channels: Web │ Slack │ WhatsApp │ Teams │ API          │
+│  Data Layer                                              │
+│  ├── JSON Storage (data/*.json)                          │
+│  └── ChromaDB (Vector Store)                             │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## 🛠️ Creating Your First Agent
+---
 
-### Option 1: AI-Assisted (Recommended)
-
-```python
-from agentforge import AgentForge
-
-forge = AgentForge()
-
-# Just describe what you want
-agent = await forge.create_from_description("""
-    I need an agent that helps customers track their orders,
-    process returns, and answer product questions. It should
-    be friendly and support both English and Arabic.
-""")
-
-# AI generates: name, personality, tasks, suggested tools
-print(agent.config)
-
-# Add your tools
-agent.add_tool("knowledge_base", config={...})
-agent.add_tool("database", config={...})
-
-# Deploy
-agent.deploy()
-```
-
-### Option 2: Manual Configuration
-
-```yaml
-# agents/my_agent.yaml
-agent:
-  name: "Customer Support Agent"
-  
-  objective: |
-    Help customers with orders and product questions
-    
-  personality:
-    tone: "friendly"
-    languages: ["English", "Arabic"]
-    
-  model_config:
-    mode: "auto"  # Smart model selection
-    available_models: ["gpt-4o", "claude-3-5-sonnet"]
-    optimize_for: "quality"
-    
-  tools:
-    - type: "rag"
-      name: "product_docs"
-      config:
-        vector_db: {type: "pinecone", index: "products"}
-        
-    - type: "database"
-      name: "orders_db"
-      config:
-        type: "postgresql"
-        connection: "${DATABASE_URL}"
-        
-  tasks:
-    - name: "track_order"
-      trigger: "Customer asks about order status"
-      steps:
-        - "Query orders_db for order details"
-        - "Provide status update"
-```
-
-```python
-from agentforge import AgentForge
-
-forge = AgentForge()
-agent = forge.load_agent("agents/my_agent.yaml")
-agent.deploy()
-```
-
-## 🔌 Supported Integrations
+## 🔌 Integration Status
 
 ### LLM Providers
-| Provider | Models | Status |
-|----------|--------|--------|
-| OpenAI | GPT-4o, GPT-4, GPT-3.5 | ✅ |
-| Anthropic | Claude 3.5, Claude 3 | ✅ |
-| Azure OpenAI | All Azure models | ✅ |
-| Google | Gemini Pro, PaLM | ✅ |
-| Ollama | Llama, Mistral, etc. | ✅ |
-| AWS Bedrock | All Bedrock models | ✅ |
-| Custom | Any OpenAI-compatible | ✅ |
+| Provider | Status | Notes |
+|----------|--------|-------|
+| OpenAI | ✅ Ready | Full support with tool calling |
+| Anthropic | ✅ Ready | Full support with tool calling |
+| Ollama | ✅ Ready | Local model support |
+| Azure OpenAI | ✅ Ready | Via OpenAI provider |
+| Google Gemini | 🔜 Planned | UI ready |
+| AWS Bedrock | 🔜 Planned | UI ready |
 
 ### Vector Databases
-| Database | Status |
-|----------|--------|
-| Pinecone | ✅ |
-| Qdrant | ✅ |
-| ChromaDB | ✅ |
-| Weaviate | ✅ |
-| Milvus | ✅ |
+| Database | Status | Notes |
+|----------|--------|-------|
+| ChromaDB | ✅ Ready | Default, fully tested |
+| Pinecone | 🔜 Planned | Config ready |
+| Qdrant | 🔜 Planned | Config ready |
 
-### Channels
-| Channel | Status |
-|---------|--------|
-| Web Widget | ✅ |
-| REST API | ✅ |
-| Slack | ✅ |
-| WhatsApp | ✅ |
-| Microsoft Teams | ✅ |
-| Telegram | ✅ |
+### Authentication
+| Method | Status |
+|--------|--------|
+| Email/Password | ✅ Ready |
+| Google OAuth | ✅ Ready |
+| Microsoft OAuth | 🔜 Planned |
+| SAML SSO | 🔜 Planned |
+
+---
+
+## 📁 Project Structure
+
+```
+agentforge/
+├── api/
+│   ├── main.py          # Main API endpoints
+│   └── security.py      # Security endpoints
+├── core/
+│   ├── agent/           # Agent engine
+│   ├── llm/             # LLM providers
+│   ├── tools/           # Built-in tools
+│   └── security/        # Security services
+├── ui/
+│   └── index.html       # Frontend SPA
+├── data/
+│   ├── security/        # Users, roles, etc.
+│   └── *.json           # App data
+├── docs/
+│   └── MASTER_DOCUMENTATION.md
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 🛣️ Roadmap
+
+### In Progress
+- [ ] Database migration (JSON → PostgreSQL)
+- [ ] Additional LLM providers (Gemini, Bedrock)
+- [ ] Streaming responses
+
+### Planned
+- [ ] Frontend modernization (React)
+- [ ] Multi-tenancy support
+- [ ] Kubernetes deployment
+- [ ] Agent marketplace
+
+See full roadmap in [MASTER_DOCUMENTATION.md](docs/MASTER_DOCUMENTATION.md#-recommendations--roadmap)
+
+---
 
 ## 🤝 Contributing
 
-We love contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
 
 ## 📄 License
 
-Apache 2.0 - See [LICENSE](LICENSE) for details.
+This project is licensed under the Apache 2.0 License.
 
-## 🙏 Acknowledgments
+---
 
-Built with ❤️ by the AgentForge community.
+## 🙏 Support
+
+- **Issues:** [GitHub Issues](https://github.com/ahamdihussein-star/agentforge/issues)
+- **Documentation:** [MASTER_DOCUMENTATION.md](docs/MASTER_DOCUMENTATION.md)
+
+---
+
+Built with ❤️ for the AI community
