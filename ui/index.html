@@ -17433,16 +17433,11 @@ function updateSelectAllState() {
 function showAddRoleModal() {
     const allPermissions = [
         { category: 'Menu Access', permissions: [
-            { id: 'chat:use', name: 'Chat Page' },
-            { id: 'agents:view', name: 'Agent Hub Page' },
-            { id: 'tools:view', name: 'Tools Page' },
-            { id: 'agents:create', name: 'AgentForge Studio Page' },
-            { id: 'agents:test', name: 'Demo Lab Page' },
-            { id: 'system:settings', name: 'Settings Page' },
-            { id: 'users:view', name: 'Security Page' },
+            { id: 'chat:use', name: 'Chat' },
+            { id: 'system:settings', name: 'Settings' },
         ]},
         { category: 'User Management', permissions: [
-            { id: 'users:view', name: 'View Users' },
+            { id: 'users:view', name: 'View Users (Security Page)' },
             { id: 'users:create', name: 'Create/Invite Users' },
             { id: 'users:edit', name: 'Edit Users' },
             { id: 'users:delete', name: 'Delete Users' },
@@ -17454,15 +17449,15 @@ function showAddRoleModal() {
             { id: 'roles:delete', name: 'Delete Roles' },
         ]},
         { category: 'Agents', permissions: [
-            { id: 'agents:view', name: 'View Agents' },
-            { id: 'agents:create', name: 'Create Agents' },
+            { id: 'agents:view', name: 'View Agents (Agent Hub)' },
+            { id: 'agents:create', name: 'Create Agents (Studio)' },
             { id: 'agents:edit', name: 'Edit Agents' },
             { id: 'agents:delete', name: 'Delete Agents' },
             { id: 'agents:publish', name: 'Publish Agents' },
-            { id: 'agents:test', name: 'Test Agents' },
+            { id: 'agents:test', name: 'Test Agents (Demo Lab)' },
         ]},
         { category: 'Tools & Resources', permissions: [
-            { id: 'tools:view', name: 'View Tools' },
+            { id: 'tools:view', name: 'View Tools (Tools Page)' },
             { id: 'tools:create', name: 'Create Tools' },
             { id: 'tools:edit', name: 'Edit Tools' },
             { id: 'tools:delete', name: 'Delete Tools' },
@@ -17536,16 +17531,11 @@ function showEditRoleModal(roleId) {
     
     const allPermissions = [
         { category: 'Menu Access', permissions: [
-            { id: 'chat:use', name: 'Chat Page' },
-            { id: 'agents:view', name: 'Agent Hub Page' },
-            { id: 'tools:view', name: 'Tools Page' },
-            { id: 'agents:create', name: 'AgentForge Studio Page' },
-            { id: 'agents:test', name: 'Demo Lab Page' },
-            { id: 'system:settings', name: 'Settings Page' },
-            { id: 'users:view', name: 'Security Page' },
+            { id: 'chat:use', name: 'Chat' },
+            { id: 'system:settings', name: 'Settings' },
         ]},
         { category: 'User Management', permissions: [
-            { id: 'users:view', name: 'View Users' },
+            { id: 'users:view', name: 'View Users (Security Page)' },
             { id: 'users:create', name: 'Create/Invite Users' },
             { id: 'users:edit', name: 'Edit Users' },
             { id: 'users:delete', name: 'Delete Users' },
@@ -17557,15 +17547,15 @@ function showEditRoleModal(roleId) {
             { id: 'roles:delete', name: 'Delete Roles' },
         ]},
         { category: 'Agents', permissions: [
-            { id: 'agents:view', name: 'View Agents' },
-            { id: 'agents:create', name: 'Create Agents' },
+            { id: 'agents:view', name: 'View Agents (Agent Hub)' },
+            { id: 'agents:create', name: 'Create Agents (Studio)' },
             { id: 'agents:edit', name: 'Edit Agents' },
             { id: 'agents:delete', name: 'Delete Agents' },
             { id: 'agents:publish', name: 'Publish Agents' },
-            { id: 'agents:test', name: 'Test Agents' },
+            { id: 'agents:test', name: 'Test Agents (Demo Lab)' },
         ]},
         { category: 'Tools & Resources', permissions: [
-            { id: 'tools:view', name: 'View Tools' },
+            { id: 'tools:view', name: 'View Tools (Tools Page)' },
             { id: 'tools:create', name: 'Create Tools' },
             { id: 'tools:edit', name: 'Edit Tools' },
             { id: 'tools:delete', name: 'Delete Tools' },
