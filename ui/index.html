@@ -6008,7 +6008,7 @@ Option 3"></textarea>
         </div>
     </div>
 
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+    <script>
         const API='';
         
         // Utility function - define early
@@ -17783,7 +17783,7 @@ function showVerifyEmailError(message) {
 // Show invitation register form
 function showInvitationRegister(token) {
     document.getElementById('page-login').classList.remove('hidden');
-    document.getElementById('page-app').classList.add('hidden');
+    document.getElementById('app').classList.add('hidden');
     document.getElementById('auth-container').innerHTML = 
         '<div class="text-center mb-8">' +
             '<div class="inline-flex items-center gap-3 mb-4">' +
