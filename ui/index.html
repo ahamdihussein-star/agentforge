@@ -16571,7 +16571,6 @@ function checkAuth() {
         if (oauthToken) {
             authToken = oauthToken;
             localStorage.setItem('agentforge_token', authToken);
-            // Clear the hash
             window.history.replaceState(null, '', '/ui/');
         }
     }
@@ -16581,28 +16580,46 @@ function checkAuth() {
         return false;
     }
     
-    // Verify token is still valid
+    // We have a token - show app immediately while we verify
+    // This prevents the login flash
+    if (currentUser && currentUser.id) {
+        showApp();
+        updateUserDisplay();
+        updateUIByPermissions();
+    }
+    
+    // Verify token is still valid in background
     fetch('/api/security/auth/me', {
         headers: { 'Authorization': 'Bearer ' + authToken }
     }).then(res => {
         if (!res.ok) {
             clearAuth();
             showLoginPage();
-            return;
+            return null;
         }
         return res.json();
     }).then(data => {
         if (data && data.id) {
             currentUser = data;
             localStorage.setItem('agentforge_user', JSON.stringify(currentUser));
-            if (data.must_change_password) { btn.disabled = false; btn.textContent = 'Sign In'; showFirstLoginPasswordModal(); return; } showApp();
+            if (data.must_change_password) {
+                showFirstLoginPasswordModal();
+                return;
+            }
+            showApp();
             updateUserDisplay();
             updateUIByPermissions();
-            updateUIByPermissions();
+            
+            // Navigate to hash if present
+            const pageHash = window.location.hash.slice(1);
+            if (pageHash && !pageHash.includes('token') && document.getElementById('page-' + pageHash)) {
+                navigate(pageHash, false);
+            }
         }
-    }).catch(() => {
-        // Token might be invalid, but let's try to use the app
-        if (data.must_change_password) { btn.disabled = false; btn.textContent = 'Sign In'; showFirstLoginPasswordModal(); return; } showApp();
+    }).catch((err) => {
+        console.error('Auth check failed:', err);
+        clearAuth();
+        showLoginPage();
     });
     
     return true;
@@ -18465,40 +18482,9 @@ async function handleInvitationRegister(event, token) {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
-    // Check for special pages in hash
     const hash = window.location.hash;
     
-    // Handle reset-password page
-    if (hash && hash.includes('reset-password')) {
-        const params = new URLSearchParams(hash.split('?')[1]);
-        const token = params.get('token');
-        if (token) {
-            showResetPasswordPage(token);
-            return;
-        }
-    }
-    
-    // Handle invitation register
-    if (hash && hash.includes('register')) {
-        const params = new URLSearchParams(hash.split('?')[1]);
-        const token = params.get('token');
-        if (token) {
-            showInvitationRegister(token);
-            return;
-        }
-    }
-    
-    // Handle verify-email page
-    if (hash && hash.includes('verify-email')) {
-        const params = new URLSearchParams(hash.split('?')[1]);
-        const token = params.get('token');
-        if (token) {
-            showVerifyEmailPage(token);
-            return;
-        }
-    }
-    
-    // Get token from localStorage first
+    // Get token from localStorage FIRST
     authToken = localStorage.getItem('agentforge_token');
     const savedUser = localStorage.getItem('agentforge_user');
     if (savedUser) {
@@ -18514,6 +18500,40 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Handle special PUBLIC pages (no auth required)
+    if (hash) {
+        // Reset password page
+        if (hash.includes('reset-password')) {
+            const params = new URLSearchParams(hash.split('?')[1]);
+            const token = params.get('token');
+            if (token) {
+                showResetPasswordPage(token);
+                return;
+            }
+        }
+        
+        // Invitation register page
+        if (hash.includes('register')) {
+            const params = new URLSearchParams(hash.split('?')[1]);
+            const token = params.get('token');
+            if (token) {
+                showInvitationRegister(token);
+                return;
+            }
+        }
+        
+        // Verify email page
+        if (hash.includes('verify-email')) {
+            const params = new URLSearchParams(hash.split('?')[1]);
+            const token = params.get('token');
+            if (token) {
+                showVerifyEmailPage(token);
+                return;
+            }
+        }
+    }
+    
+    // Normal auth flow
     checkAuth();
 });
 
