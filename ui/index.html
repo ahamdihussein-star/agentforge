@@ -1557,6 +1557,7 @@
                                             <option value="custom">Custom OpenAI-compatible</option>
                                         </optgroup>
                                     </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                 </div>
                                 <div id="llm-api-key-group">
                                     <label class="text-sm text-gray-400 mb-1 block">API Key</label>
@@ -1613,12 +1614,14 @@
                                     <option value="">-- Select Provider --</option>
                                     <!-- Populated from configured providers -->
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div>
                                 <label class="text-sm text-gray-400 mb-1 block">Default Model</label>
                                 <select id="default-llm-model" class="input-field w-full rounded-lg px-4 py-2">
                                     <option value="">-- Select Model --</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                     </div>
@@ -1640,6 +1643,7 @@
                                     <option value="sentence_transformers">Sentence Transformers (Local)</option>
                                     <option value="ollama">Ollama Embeddings</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div id="emb-model-group">
                                 <label class="text-sm text-gray-400 mb-1 block">Model</label>
@@ -1648,6 +1652,7 @@
                                     <option value="text-embedding-3-large">text-embedding-3-large (3072 dim)</option>
                                     <option value="text-embedding-ada-002">text-embedding-ada-002 (1536 dim)</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div id="emb-local-model-group" class="hidden">
                                 <label class="text-sm text-gray-400 mb-1 block">Local Model</label>
@@ -1656,6 +1661,7 @@
                                     <option value="all-mpnet-base-v2">all-mpnet-base-v2 (768 dim, Better)</option>
                                     <option value="paraphrase-multilingual-MiniLM-L12-v2">Multilingual (384 dim)</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div id="emb-api-key-group">
                                 <label class="text-sm text-gray-400 mb-1 block">API Key</label>
@@ -1682,6 +1688,7 @@
                                     <option value="chromadb">ChromaDB (Local Vector DB)</option>
                                     <option value="pinecone">Pinecone (Cloud)</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div id="vdb-chroma-path-group" class="hidden">
                                 <label class="text-sm text-gray-400 mb-1 block">Storage Path</label>
@@ -1817,6 +1824,7 @@
                                 <option value="pending">Pending</option>
                                 <option value="locked">Locked</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full">
@@ -1859,6 +1867,7 @@
                                 <option value="update">Update</option>
                                 <option value="delete">Delete</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             <button onclick="exportAuditLogs()" class="btn-secondary px-4 py-2 rounded-lg">📥 Export CSV</button>
                         </div>
                         <div class="overflow-x-auto">
@@ -1918,6 +1927,7 @@
                                             <option value="invite_only">Invite Only</option>
                                             <option value="disabled">Disabled</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-2">Email Verification</label>
@@ -1926,6 +1936,7 @@
                                             <option value="optional">Optional</option>
                                             <option value="disabled">Disabled</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                 </div>
                             </div>
@@ -1997,6 +2008,7 @@
                                             <option value="admins">Required for Admins</option>
                                             <option value="all">Required for All Users</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                 </div>
                             </div>
@@ -2637,6 +2649,7 @@
                                         <option value="long">Long (detailed explanations)</option>
                                         <option value="unlimited">Unlimited</option>
                                     </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                 </div>
                                 <div>
                                     <label class="text-sm text-gray-400 mb-2 block">Language</label>
@@ -2646,6 +2659,7 @@
                                         <option value="ar">Arabic only</option>
                                         <option value="multi">Multilingual</option>
                                     </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                 </div>
                             </div>
                         </div>
@@ -2884,6 +2898,7 @@
                                             <option>eu-west-1 (Ireland)</option>
                                             <option>ap-southeast-1 (Singapore)</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                     <div>
                                         <label class="text-sm text-gray-400 mb-1 block">Instance Type</label>
@@ -2892,6 +2907,7 @@
                                             <option>t3.large (2 vCPU, 8 GB)</option>
                                             <option>m5.large (2 vCPU, 8 GB)</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                     <div>
                                         <label class="text-sm text-gray-400 mb-1 block">Access Key ID</label>
@@ -2915,6 +2931,7 @@
                                             <option>West Europe</option>
                                             <option>Southeast Asia</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                     <div>
                                         <label class="text-sm text-gray-400 mb-1 block">Resource Group</label>
@@ -2946,6 +2963,7 @@
                                             <option>europe-west1</option>
                                             <option>asia-east1</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                     <div class="md:col-span-2">
                                         <label class="text-sm text-gray-400 mb-1 block">Service Account JSON</label>
@@ -2969,6 +2987,7 @@
                                             <option>me-jeddah-1 (Saudi Arabia)</option>
                                             <option>me-dubai-1 (UAE)</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                     <div>
                                         <label class="text-sm text-gray-400 mb-1 block">Compartment OCID</label>
@@ -2993,6 +3012,7 @@
                                             <option>VM.Standard3.Flex</option>
                                             <option>VM.Standard.A1.Flex (ARM)</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                     <div class="md:col-span-2">
                                         <label class="text-sm text-gray-400 mb-1 block">Private Key (PEM)</label>
@@ -3015,6 +3035,7 @@
                                             <option value="vm">Virtual Machine</option>
                                             <option value="bare">Bare Metal</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                     <div>
                                         <label class="text-sm text-gray-400 mb-1 block">Environment</label>
@@ -3023,6 +3044,7 @@
                                             <option>Staging</option>
                                             <option>Development</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                 </div>
                                 
@@ -3390,6 +3412,7 @@ Example: I need an HR agent that can:
                                     <option value="document">Document</option>
                                     <option value="image">Image</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                         <div class="p-4 border-t border-gray-700 flex justify-end gap-2">
@@ -3406,10 +3429,12 @@ Example: I need an HR agent that can:
                     <select id="chat-agent" onchange="onAgentChange()" class="input-field rounded-lg px-3 py-2 flex-1 sm:flex-none sm:min-w-[200px]">
                         <option value="">Select Agent...</option>
                     </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     <div class="flex gap-2 flex-1">
                         <select id="chat-conv" onchange="onConvChange()" class="input-field rounded-lg px-3 py-2 flex-1">
                             <option value="">New Chat</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         <button onclick="clearChat()" class="text-gray-400 hover:text-white px-3">🗑️</button>
                     </div>
                 </div>
@@ -3669,6 +3694,7 @@ Example: I need an HR agent that can:
                                     <option value="openai">OpenAI</option>
                                     <option value="local">Sentence Transformers (Free)</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div>
                                 <label class="text-xs text-gray-400 mb-1 block">Model</label>
@@ -3676,6 +3702,7 @@ Example: I need an HR agent that can:
                                     <option value="text-embedding-3-small">text-embedding-3-small</option>
                                     <option value="text-embedding-3-large">text-embedding-3-large</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                     </div>
@@ -3703,6 +3730,7 @@ Example: I need an HR agent that can:
                                     <option value="semantic">Semantic</option>
                                     <option value="keyword">Keyword</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                     </div>
@@ -3788,6 +3816,7 @@ Example: I need an HR agent that can:
                                 <option value="arangodb">ArangoDB</option>
                             </optgroup>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- Standard Connection Fields -->
@@ -3831,6 +3860,7 @@ Example: I need an HR agent that can:
                                     <option value="connection_string">Connection String</option>
                                     <option value="wallet">Wallet (Cloud)</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div id="oracle-service-field">
                                 <label class="text-sm text-gray-400 mb-1 block">Service Name / SID</label>
@@ -3873,6 +3903,7 @@ Example: I need an HR agent that can:
                                     <option value="ajd">Autonomous JSON Database (AJD)</option>
                                     <option value="apex">APEX Service</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div>
                                 <label class="text-sm text-gray-400 mb-1 block">Connection Service</label>
@@ -3883,6 +3914,7 @@ Example: I need an HR agent that can:
                                     <option value="tp">TP (Transaction Processing)</option>
                                     <option value="tpurgent">TP Urgent</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                         <div>
@@ -3979,6 +4011,7 @@ Example: I need an HR agent that can:
                                     <option value="euclidean">Euclidean Distance</option>
                                     <option value="dotproduct">Dot Product</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                     </div>
@@ -4028,6 +4061,7 @@ Example: I need an HR agent that can:
                                 <option>PUT</option>
                                 <option>DELETE</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                     </div>
                     <div>
@@ -4042,6 +4076,7 @@ Example: I need an HR agent that can:
                                 <option value="api_key">API Key</option>
                                 <option value="bearer">Bearer Token</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div id="api-auth-val-group" class="hidden">
                             <label class="text-sm text-gray-400 mb-1 block">Auth Value</label>
@@ -4181,6 +4216,7 @@ Example: I need an HR agent that can:
                                 <option>POST</option>
                                 <option>PUT</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div>
                             <label class="text-sm text-gray-400 mb-1 block">Secret (optional)</label>
@@ -4198,6 +4234,7 @@ Example: I need an HR agent that can:
                             <option value="serper">Serper (Google)</option>
                             <option value="bing">Bing Search</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     <div>
                         <label class="text-sm text-gray-400 mb-1 block">API Key *</label>
@@ -4214,6 +4251,7 @@ Example: I need an HR agent that can:
                             <option value="generate">Generate Code from Description (AI)</option>
                             <option value="both">Both (Generate & Execute)</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- Code Generation Section -->
@@ -4241,6 +4279,7 @@ Example: A tool that fetches weather data from OpenWeatherMap API. It should acc
                                     <option value="boolean">Boolean</option>
                                     <option value="array">Array</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                         <div>
@@ -4270,6 +4309,7 @@ OTHER_API_KEY=yyyyy"></textarea>
                                 <option value="go">Go</option>
                                 <option value="rust">Rust</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div id="code-manual-input">
                             <label class="text-sm text-gray-400 mb-1 block">Code Template (optional)</label>
@@ -4337,6 +4377,7 @@ def run(input_data):
                             <option value="review">Review & Edit</option>
                             <option value="escalation">Escalation to Human</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- Approval Fields -->
@@ -4421,6 +4462,7 @@ Option 3"></textarea>
                                         <option value="file">File Upload</option>
                                         <option value="rating">Rating (1-5)</option>
                                     </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     <label class="flex items-center gap-1 text-sm">
                                         <input type="checkbox" class="hitl-field-required">
                                         Required
@@ -4454,6 +4496,7 @@ Option 3"></textarea>
                                             <option value="7d">7 Days</option>
                                             <option value="30d">30 Days</option>
                                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                     </div>
                                 </div>
                                 <div class="flex flex-wrap gap-4">
@@ -4494,6 +4537,7 @@ Option 3"></textarea>
                                     <option value="reject">Auto Reject</option>
                                     <option value="escalate">Escalate</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-4 mt-3">
@@ -4522,6 +4566,7 @@ Option 3"></textarea>
                             <option value="airtable">Airtable</option>
                             <option value="excel">Excel Online</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     <div id="sheet-google-fields">
                         <div>
@@ -4553,6 +4598,7 @@ Option 3"></textarea>
                             <option value="cloud">Cloud Storage</option>
                             <option value="local">Local / Network Storage</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- Cloud Storage Providers -->
@@ -4595,6 +4641,7 @@ Option 3"></textarea>
                                     <option value="minio">MinIO (S3 Compatible)</option>
                                 </optgroup>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         
                         <!-- Standard S3-Compatible Fields -->
@@ -4655,6 +4702,7 @@ Option 3"></textarea>
                                         <option value="me-dubai-1">UAE (Dubai)</option>
                                         <option value="sa-saopaulo-1">Brazil (Sao Paulo)</option>
                                     </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                                 </div>
                             </div>
                             <div>
@@ -4696,6 +4744,7 @@ Option 3"></textarea>
                                     <option value="service_principal">Service Principal</option>
                                     <option value="managed_identity">Managed Identity</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                             <div id="azure-conn-string-field">
                                 <label class="text-sm text-gray-400 mb-1 block">Connection String</label>
@@ -4750,6 +4799,7 @@ Option 3"></textarea>
                                 <option value="ftp">FTP</option>
                                 <option value="webdav">WebDAV</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         
                         <!-- Local Path -->
@@ -4830,6 +4880,7 @@ Option 3"></textarea>
                             <option value="outlook">Microsoft Outlook</option>
                             <option value="caldav">CalDAV</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     <div>
                         <label class="text-sm text-gray-400 mb-1 block">Calendar ID</label>
@@ -4861,6 +4912,7 @@ Option 3"></textarea>
                             <option value="zoho">Zoho CRM</option>
                             <option value="pipedrive">Pipedrive</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     <div id="crm-salesforce-fields">
                         <div class="grid md:grid-cols-2 gap-4">
@@ -4905,6 +4957,7 @@ Option 3"></textarea>
                             <option value="netsuite">NetSuite</option>
                             <option value="dynamics">Microsoft Dynamics</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     <div>
                         <label class="text-sm text-gray-400 mb-1 block">Server URL</label>
@@ -4963,6 +5016,7 @@ Option 3"></textarea>
                                 <option value="apns">Apple Push Notifications</option>
                             </optgroup>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- Slack Fields -->
@@ -4990,6 +5044,7 @@ Option 3"></textarea>
                                 <option value="bot">Bot Framework</option>
                                 <option value="graph">Microsoft Graph API</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div id="teams-webhook-field">
                             <label class="text-sm text-gray-400 mb-1 block">Webhook URL</label>
@@ -5027,6 +5082,7 @@ Option 3"></textarea>
                                 <option value="360dialog">360dialog</option>
                                 <option value="gupshup">Gupshup</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div id="whatsapp-meta-fields" class="space-y-4">
                             <div>
@@ -5181,6 +5237,7 @@ Option 3"></textarea>
                             <option value="stability">Stability AI</option>
                             <option value="replicate">Replicate</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     <div>
                         <label class="text-sm text-gray-400 mb-1 block">API Key</label>
@@ -5194,6 +5251,7 @@ Option 3"></textarea>
                                 <option value="1792x1024">1792x1024 (Wide)</option>
                                 <option value="1024x1792">1024x1792 (Tall)</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div>
                             <label class="text-sm text-gray-400 mb-1 block">Quality</label>
@@ -5201,6 +5259,7 @@ Option 3"></textarea>
                                 <option value="standard">Standard</option>
                                 <option value="hd">HD</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                     </div>
                 </div>
@@ -5230,6 +5289,7 @@ Option 3"></textarea>
                                 <option value="coqui">Coqui STT</option>
                             </optgroup>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- Cloud API Fields -->
@@ -5262,6 +5322,7 @@ Option 3"></textarea>
                                     <option value="eu-frankfurt-1">Germany (Frankfurt)</option>
                                     <option value="uk-london-1">UK (London)</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                         <div>
@@ -5305,6 +5366,7 @@ Option 3"></textarea>
                                     <option value="large">Large (Most Accurate)</option>
                                     <option value="large-v3">Large V3</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                         <div>
@@ -5331,6 +5393,7 @@ Option 3"></textarea>
                                 <option value="ru">Russian</option>
                                 <option value="hi">Hindi</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div>
                             <label class="text-sm text-gray-400 mb-1 block">Audio Format</label>
@@ -5342,6 +5405,7 @@ Option 3"></textarea>
                                 <option value="flac">FLAC</option>
                                 <option value="webm">WebM</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-4">
@@ -5390,6 +5454,7 @@ Option 3"></textarea>
                                 <option value="mimic">Mycroft Mimic</option>
                             </optgroup>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- Cloud API Fields -->
@@ -5417,6 +5482,7 @@ Option 3"></textarea>
                                     <option value="us-phoenix-1">US West (Phoenix)</option>
                                     <option value="eu-frankfurt-1">Germany (Frankfurt)</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                         <div>
@@ -5467,6 +5533,7 @@ Option 3"></textarea>
                                 <option value="sarah">Sarah</option>
                             </optgroup>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- TTS Options -->
@@ -5489,6 +5556,7 @@ Option 3"></textarea>
                                 <option value="ogg">OGG</option>
                                 <option value="opus">Opus</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                     </div>
                 </div>
@@ -5514,6 +5582,7 @@ Option 3"></textarea>
                                 <option value="opus_mt">Opus-MT (Hugging Face)</option>
                             </optgroup>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     <div>
                         <label class="text-sm text-gray-400 mb-1 block">API Key</label>
@@ -5535,6 +5604,7 @@ Option 3"></textarea>
                                 <option value="pt">Portuguese</option>
                                 <option value="ru">Russian</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div>
                             <label class="text-sm text-gray-400 mb-1 block">Target Language</label>
@@ -5550,6 +5620,7 @@ Option 3"></textarea>
                                 <option value="pt">Portuguese</option>
                                 <option value="ru">Russian</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                     </div>
                 </div>
@@ -5591,6 +5662,7 @@ Option 3"></textarea>
                                 <option value="surya">Surya OCR</option>
                             </optgroup>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                     
                     <!-- Cloud API Fields -->
@@ -5624,6 +5696,7 @@ Option 3"></textarea>
                                     <option value="uk-london-1">UK (London)</option>
                                     <option value="ap-tokyo-1">Japan (Tokyo)</option>
                                 </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                             </div>
                         </div>
                         <div>
@@ -5710,6 +5783,7 @@ Option 3"></textarea>
                             <option value="medical">Medical Document</option>
                             <option value="contract">Contract / Legal</option>
                         </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                     </div>
                 </div>
 
@@ -10663,6 +10737,7 @@ Option 3"></textarea>
                                 <option value="ai">🤖 AI Answer</option>
                                 <option value="raw">📄 Raw Search</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                     </div>
                     <div class="flex gap-3 mb-4">
@@ -10804,6 +10879,7 @@ Option 3"></textarea>
                                 <option value="PUT" ${apiConfig.http_method === 'PUT' ? 'selected' : ''}>PUT</option>
                                 <option value="DELETE" ${apiConfig.http_method === 'DELETE' ? 'selected' : ''}>DELETE</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div>
                             <label class="text-xs text-gray-400 block mb-1">Auth Type</label>
@@ -10813,6 +10889,7 @@ Option 3"></textarea>
                                 <option value="bearer" ${apiConfig.auth_type === 'bearer' ? 'selected' : ''}>Bearer Token</option>
                                 <option value="basic" ${apiConfig.auth_type === 'basic' ? 'selected' : ''}>Basic Auth</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                     </div>
                     
@@ -13124,6 +13201,7 @@ Option 3"></textarea>
                                 <option value="integer" ${p.data_type==='integer'?'selected':''}>Integer</option>
                                 <option value="boolean" ${p.data_type==='boolean'?'selected':''}>Boolean</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                         <div>
                             <label class="text-xs text-gray-400">Location</label>
@@ -13133,6 +13211,7 @@ Option 3"></textarea>
                                 <option value="header" ${p.location==='header'?'selected':''}>Header</option>
                                 <option value="body" ${p.location==='body'?'selected':''}>Body</option>
                             </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                         </div>
                     </div>
                     <div>
@@ -17330,6 +17409,7 @@ function showInviteModal() {
                     <select id="invite-role" class="input-field w-full px-4 py-2 rounded-lg">
                         ${securityRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
                     </select>
+                            <button onclick="showAddUserModal()" class="btn-primary px-4 py-2 rounded-lg whitespace-nowrap">+ Add User</button>
                 </div>
                 <div class="flex gap-2 pt-4">
                     <button onclick="document.getElementById('invite-modal').remove()" class="btn-secondary px-4 py-2 rounded-lg flex-1">Cancel</button>
