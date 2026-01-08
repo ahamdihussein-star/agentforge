@@ -1853,7 +1853,7 @@
                         </div>
                         <div class="flex justify-between mb-4">
                             <h3 class="text-lg font-semibold">System & Custom Roles</h3>
-                            <button onclick="showCreateRoleModal()" class="btn-secondary px-4 py-2 rounded-lg">+ Create Role</button>
+                            
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="sec-roles-grid">
                             <div class="card rounded-xl p-4 text-center text-gray-500">Loading roles...</div>
@@ -17405,43 +17405,75 @@ async function loadSecurityRoles() {
 
 // Render security roles
 
+
+// Toggle all permissions
+function toggleAllPermissions(checked) {
+    document.querySelectorAll('.role-perm').forEach(cb => cb.checked = checked);
+    document.querySelectorAll('.select-cat').forEach(cb => cb.checked = checked);
+}
+
+// Toggle category permissions
+function toggleCategoryPermissions(catIdx, checked) {
+    document.querySelectorAll('.cat-' + catIdx).forEach(cb => cb.checked = checked);
+    updateSelectAllState();
+}
+
+// Update select all checkbox state
+function updateSelectAllState() {
+    const allPerms = document.querySelectorAll('.role-perm');
+    const checkedPerms = document.querySelectorAll('.role-perm:checked');
+    const selectAll = document.getElementById('select-all-perms');
+    if (selectAll) {
+        selectAll.checked = allPerms.length === checkedPerms.length;
+        selectAll.indeterminate = checkedPerms.length > 0 && checkedPerms.length < allPerms.length;
+    }
+}
+
 // Show Add Role Modal
 function showAddRoleModal() {
     const allPermissions = [
-        { category: 'Platform Security', permissions: [
-            { id: 'system:admin', name: 'System Admin' },
-            { id: 'system:settings', name: 'System Settings' },
+        { category: 'Menu Access', permissions: [
+            { id: 'chat:use', name: 'Chat Page' },
+            { id: 'agents:view', name: 'Agent Hub Page' },
+            { id: 'tools:view', name: 'Tools Page' },
+            { id: 'agents:create', name: 'AgentForge Studio Page' },
+            { id: 'agents:test', name: 'Demo Lab Page' },
+            { id: 'system:settings', name: 'Settings Page' },
+            { id: 'users:view', name: 'Security Page' },
+        ]},
+        { category: 'User Management', permissions: [
             { id: 'users:view', name: 'View Users' },
-            { id: 'users:create', name: 'Create Users' },
+            { id: 'users:create', name: 'Create/Invite Users' },
             { id: 'users:edit', name: 'Edit Users' },
             { id: 'users:delete', name: 'Delete Users' },
+        ]},
+        { category: 'Role Management', permissions: [
             { id: 'roles:view', name: 'View Roles' },
             { id: 'roles:create', name: 'Create Roles' },
             { id: 'roles:edit', name: 'Edit Roles' },
             { id: 'roles:delete', name: 'Delete Roles' },
-            { id: 'audit:view', name: 'View Audit Logs' },
-            { id: 'audit:export', name: 'Export Audit Logs' },
         ]},
-        { category: 'Agent & Data Security', permissions: [
+        { category: 'Agents', permissions: [
             { id: 'agents:view', name: 'View Agents' },
             { id: 'agents:create', name: 'Create Agents' },
             { id: 'agents:edit', name: 'Edit Agents' },
             { id: 'agents:delete', name: 'Delete Agents' },
             { id: 'agents:publish', name: 'Publish Agents' },
             { id: 'agents:test', name: 'Test Agents' },
+        ]},
+        { category: 'Tools & Resources', permissions: [
             { id: 'tools:view', name: 'View Tools' },
             { id: 'tools:create', name: 'Create Tools' },
             { id: 'tools:edit', name: 'Edit Tools' },
             { id: 'tools:delete', name: 'Delete Tools' },
             { id: 'tools:execute', name: 'Execute Tools' },
-            { id: 'kb:view', name: 'View Knowledge Base' },
-            { id: 'kb:create', name: 'Create Knowledge Base' },
-            { id: 'kb:edit', name: 'Edit Knowledge Base' },
-            { id: 'kb:delete', name: 'Delete Knowledge Base' },
-            { id: 'kb:upload', name: 'Upload Documents' },
-            { id: 'chat:use', name: 'Use Chat' },
-            { id: 'chat:view_all', name: 'View All Chats' },
-        ]}
+            { id: 'tools:manage_permissions', name: 'Manage Tool Permissions' },
+        ]},
+        { category: 'Audit & System', permissions: [
+            { id: 'audit:view', name: 'View Audit Logs' },
+            { id: 'audit:export', name: 'Export Audit Logs' },
+            { id: 'system:admin', name: 'Full System Admin' },
+        ]},
     ];
     
     const modal = document.createElement('div');
@@ -17491,39 +17523,47 @@ function showEditRoleModal(roleId) {
     if (!role) return;
     
     const allPermissions = [
-        { category: 'Platform Security', permissions: [
-            { id: 'system:admin', name: 'System Admin' },
-            { id: 'system:settings', name: 'System Settings' },
+        { category: 'Menu Access', permissions: [
+            { id: 'chat:use', name: 'Chat Page' },
+            { id: 'agents:view', name: 'Agent Hub Page' },
+            { id: 'tools:view', name: 'Tools Page' },
+            { id: 'agents:create', name: 'AgentForge Studio Page' },
+            { id: 'agents:test', name: 'Demo Lab Page' },
+            { id: 'system:settings', name: 'Settings Page' },
+            { id: 'users:view', name: 'Security Page' },
+        ]},
+        { category: 'User Management', permissions: [
             { id: 'users:view', name: 'View Users' },
-            { id: 'users:create', name: 'Create Users' },
+            { id: 'users:create', name: 'Create/Invite Users' },
             { id: 'users:edit', name: 'Edit Users' },
             { id: 'users:delete', name: 'Delete Users' },
+        ]},
+        { category: 'Role Management', permissions: [
             { id: 'roles:view', name: 'View Roles' },
             { id: 'roles:create', name: 'Create Roles' },
             { id: 'roles:edit', name: 'Edit Roles' },
             { id: 'roles:delete', name: 'Delete Roles' },
-            { id: 'audit:view', name: 'View Audit Logs' },
-            { id: 'audit:export', name: 'Export Audit Logs' },
         ]},
-        { category: 'Agent & Data Security', permissions: [
+        { category: 'Agents', permissions: [
             { id: 'agents:view', name: 'View Agents' },
             { id: 'agents:create', name: 'Create Agents' },
             { id: 'agents:edit', name: 'Edit Agents' },
             { id: 'agents:delete', name: 'Delete Agents' },
             { id: 'agents:publish', name: 'Publish Agents' },
             { id: 'agents:test', name: 'Test Agents' },
+        ]},
+        { category: 'Tools & Resources', permissions: [
             { id: 'tools:view', name: 'View Tools' },
             { id: 'tools:create', name: 'Create Tools' },
             { id: 'tools:edit', name: 'Edit Tools' },
             { id: 'tools:delete', name: 'Delete Tools' },
             { id: 'tools:execute', name: 'Execute Tools' },
-            { id: 'kb:view', name: 'View Knowledge Base' },
-            { id: 'kb:create', name: 'Create Knowledge Base' },
-            { id: 'kb:edit', name: 'Edit Knowledge Base' },
-            { id: 'kb:delete', name: 'Delete Knowledge Base' },
-            { id: 'kb:upload', name: 'Upload Documents' },
-            { id: 'chat:use', name: 'Use Chat' },
-            { id: 'chat:view_all', name: 'View All Chats' },
+            { id: 'tools:manage_permissions', name: 'Manage Tool Permissions' },
+        ]},
+        { category: 'Audit & System', permissions: [
+            { id: 'audit:view', name: 'View Audit Logs' },
+            { id: 'audit:export', name: 'Export Audit Logs' },
+            { id: 'system:admin', name: 'Full System Admin' },
         ]}
     ];
     
