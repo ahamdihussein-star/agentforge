@@ -74,15 +74,16 @@ class FirstLoginPasswordChangeRequest(BaseModel):
     new_password: str
     confirm_password: str
 
-class ConfirmResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
 class AcceptInvitationRequest(BaseModel):
     token: str
     first_name: str
     last_name: str
     password: str
+
+class ConfirmResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
 
 # MFA Requests
 class EnableMFARequest(BaseModel):
