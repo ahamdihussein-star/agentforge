@@ -1057,7 +1057,10 @@
         ::-webkit-scrollbar-thumb:hover{background:var(--border-hover)}
         /* Line clamp */
         /* Login page scroll fix */
-        #page-login { position:fixed; top:0; left:0; right:0; bottom:0; overflow-y:auto !important; z-index:100; background:var(--bg-primary); }
+        #page-login { position:fixed; top:0; left:0; right:0; bottom:0; overflow-y:auto !important; z-index:100; background:var(--bg-primary); display:none; }
+        #page-login.visible { display:block; }
+        #loading-screen { position:fixed; top:0; left:0; right:0; bottom:0; z-index:200; background:var(--bg-primary); display:flex; align-items:center; justify-content:center; flex-direction:column; }
+        #loading-screen.hidden { display:none; }
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis}
         .line-clamp-1{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis}
         /* Grid fix for text overflow */
@@ -1177,6 +1180,11 @@
     </style>
 </head>
 <body class="text-white" style="height:100vh;overflow:hidden;margin:0;background:var(--bg-primary);color:var(--text-primary);">
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-20 h-20 rounded-xl mb-4 animate-pulse">
+        <p class="text-gray-400">Loading...</p>
+    </div>
     <!-- Login Page - Shown when not authenticated -->
     <section id="page-login" class="min-h-screen py-8 px-4 overflow-y-auto">
         <div id="auth-container" class="w-full max-w-md mx-auto">
@@ -16627,13 +16635,15 @@ function checkAuth() {
 
 // Show login page
 function showLoginPage() {
-    document.getElementById('page-login').classList.remove('hidden');
+    document.getElementById('loading-screen')?.classList.add('hidden');
+    document.getElementById('page-login').classList.add('visible');
     document.getElementById('app').classList.add('hidden');
 }
 
 // Show main app
 function showApp() {
-    document.getElementById('page-login').classList.add('hidden');
+    document.getElementById('loading-screen')?.classList.add('hidden');
+    document.getElementById('page-login').classList.remove('visible');
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('app').classList.add('flex');
     // Initialize app data after showing
@@ -18162,7 +18172,14 @@ navigate = function(p, updateHash = true) {
 };
 
 // Handle reset password page
+function showSpecialPage() {
+    document.getElementById('loading-screen')?.classList.add('hidden');
+    document.getElementById('page-login').classList.add('visible');
+    document.getElementById('app').classList.add('hidden');
+}
+
 function showResetPasswordPage(token) {
+    showSpecialPage();
     document.getElementById('auth-container').innerHTML = `
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-3 mb-4">
@@ -18294,6 +18311,7 @@ function showResetPasswordSuccess() {
 
 // Handle email verification page
 function showVerifyEmailPage(token) {
+    showSpecialPage();
     document.getElementById('auth-container').innerHTML = `
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-3 mb-4">
@@ -18388,6 +18406,7 @@ function showVerifyEmailError(message) {
 
 // Show invitation register form
 function showInvitationRegister(token) {
+    showSpecialPage();
     document.getElementById('page-login').classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
     
