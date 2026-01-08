@@ -880,7 +880,7 @@ async def accept_invitation(request: AcceptInvitationRequest, req: Request):
     
     # Mark invitation as accepted
     invitation.accepted_at = datetime.utcnow().isoformat()
-    invitation.accepted_by = user.id
+    # invitation.accepted_by = user.id
     
     security_state.save_to_disk()
     
