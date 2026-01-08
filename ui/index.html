@@ -16482,6 +16482,72 @@ let authToken = localStorage.getItem('agentforge_token') || null;
 let currentUser = JSON.parse(localStorage.getItem('agentforge_user') || 'null');
 let securityUsers = [];
 let securityRoles = [];
+// ============================================================================
+// PERMISSION SYSTEM
+// ============================================================================
+
+function hasPermission(permission) {
+    if (!currentUser || !currentUser.permissions) return false;
+    if (currentUser.permissions.includes('system:admin')) return true;
+    return currentUser.permissions.includes(permission);
+}
+
+function hasAnyPermission(permissions) {
+    return permissions.some(p => hasPermission(p));
+}
+
+function hasAllPermissions(permissions) {
+    return permissions.every(p => hasPermission(p));
+}
+
+const MENU_PERMISSIONS = {
+    "chat": "chat:use",
+    "agents": "agents:view",
+    "tools": "tools:view",
+    "create": "agents:create",
+    "demo": "agents:test",
+    "settings": "system:settings",
+    "security": "users:view",
+};
+
+function updateUIByPermissions() {
+    if (!currentUser) return;
+    
+    Object.entries(MENU_PERMISSIONS).forEach(([menu, permission]) => {
+        const navItem = document.getElementById('nav-' + menu);
+        const mobItem = document.getElementById('mob-' + menu);
+        
+        if (hasPermission(permission)) {
+            if (navItem) navItem.classList.remove('hidden');
+            if (mobItem) mobItem.classList.remove('hidden');
+        } else {
+            if (navItem) navItem.classList.add('hidden');
+            if (mobItem) mobItem.classList.add('hidden');
+        }
+    });
+    
+    const secNav = document.getElementById('nav-security');
+    if (secNav) {
+        if (hasAnyPermission(['users:view', 'roles:view', 'system:admin'])) {
+            secNav.classList.remove('hidden');
+        } else {
+            secNav.classList.add('hidden');
+        }
+    }
+    
+    document.querySelectorAll('[data-permission]').forEach(el => {
+        const perms = el.dataset.permission.split(',').map(p => p.trim());
+        if (hasAnyPermission(perms)) {
+            el.style.display = '';
+        } else {
+            el.style.display = 'none';
+        }
+    });
+    
+    console.log('Permissions updated:', currentUser.email);
+}
+
+
 
 // Check authentication on page load
 function checkAuth() {
