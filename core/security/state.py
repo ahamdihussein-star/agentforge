@@ -83,7 +83,7 @@ class SecurityState:
             default_admin = User(
                 id="user_super_admin",
                 org_id="org_default",
-                email="admin@agentforge.local",
+                email="admin@agentforge.app",
                 password_hash=PasswordService.hash_password("Admin@123"),
                 profile=UserProfile(first_name="Super", last_name="Admin"),
                 role_ids=["role_super_admin"],
@@ -92,7 +92,7 @@ class SecurityState:
             )
             self.users[default_admin.id] = default_admin
             self.save_to_disk()
-            print("✅ Created default super admin: admin@agentforge.local / Admin@123")
+            print("✅ Created default super admin: admin@agentforge.app / Admin@123")
     
     def _init_defaults(self):
         """Initialize default organization, roles, and settings"""
