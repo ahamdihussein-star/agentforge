@@ -17896,6 +17896,9 @@ function showVerifyEmailError(message) {
 function showInvitationRegister(token) {
     document.getElementById('page-login').classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
+    
+    var eyeIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>';
+    
     document.getElementById('auth-container').innerHTML = 
         '<div class="text-center mb-8">' +
             '<div class="inline-flex items-center gap-3 mb-4">' +
@@ -17914,10 +17917,21 @@ function showInvitationRegister(token) {
                         '<div><label class="block text-sm text-gray-400 mb-2">Last Name</label>' +
                         '<input type="text" id="inv-lastname" required class="input-field w-full px-4 py-3 rounded-lg" placeholder="Doe"></div>' +
                     '</div>' +
-                    '<div><label class="block text-sm text-gray-400 mb-2">Password</label><div class="relative">' +
-                    '<input type="password" id="inv-password" required minlength="8" class="input-field w-full px-4 py-3 rounded-lg" placeholder="Min 8 characters"></div>' +
-                    '<div><label class="block text-sm text-gray-400 mb-2">Confirm Password</label>' +
-                    '<input type="password" id="inv-confirm-password" required minlength="8" class="input-field w-full px-4 py-3 rounded-lg" placeholder="Confirm password"></div>' +
+                    '<div>' +
+                        '<label class="block text-sm text-gray-400 mb-2">Password</label>' +
+                        '<div class="relative">' +
+                            '<input type="password" id="inv-password" required minlength="8" class="input-field w-full px-4 py-3 pr-12 rounded-lg" placeholder="Min 8 characters" oninput="checkPasswordStrength(this.value)">' +
+                            '<button type="button" onclick="togglePassword(\'inv-password\', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1"><span class="eye-icon">' + eyeIcon + '</span></button>' +
+                        '</div>' +
+                        '<div class="mt-2"><div class="flex gap-1 mb-1"><div id="str-1" class="h-1 flex-1 rounded bg-gray-600"></div><div id="str-2" class="h-1 flex-1 rounded bg-gray-600"></div><div id="str-3" class="h-1 flex-1 rounded bg-gray-600"></div><div id="str-4" class="h-1 flex-1 rounded bg-gray-600"></div></div><p id="str-text" class="text-xs text-gray-500"></p></div>' +
+                    '</div>' +
+                    '<div>' +
+                        '<label class="block text-sm text-gray-400 mb-2">Confirm Password</label>' +
+                        '<div class="relative">' +
+                            '<input type="password" id="inv-confirm-password" required minlength="8" class="input-field w-full px-4 py-3 pr-12 rounded-lg" placeholder="Confirm password">' +
+                            '<button type="button" onclick="togglePassword(\'inv-confirm-password\', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1"><span class="eye-icon">' + eyeIcon + '</span></button>' +
+                        '</div>' +
+                    '</div>' +
                     '<div id="inv-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg text-sm"></div>' +
                     '<button type="submit" id="inv-submit-btn" class="w-full py-3 rounded-lg font-semibold text-white" style="background: var(--accent-gradient);">Create Account</button>' +
                 '</div>' +
