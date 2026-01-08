@@ -1524,7 +1524,9 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
         role.parent_id = request.parent_id
     
     role.updated_at = datetime.utcnow().isoformat()
+    print(f"🔧 Updating role {role.name}: {role.permissions}")
     security_state.save_to_disk()
+    print(f"💾 Role saved to disk")
     
     security_state.add_audit_log(
         user=user,
