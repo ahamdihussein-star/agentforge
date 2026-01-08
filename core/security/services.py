@@ -555,7 +555,7 @@ class EmailService:
     async def send_invitation_email(cls, invitation, inviter) -> bool:
         """Send invitation email"""
         accept_url = f"{cls.BASE_URL}/ui/#register?token={invitation.token}"
-        inviter_name = inviter.get_display_name() if hasattr(inviter, 'get_display_name') else inviter.email
+        inviter_name = inviter if isinstance(inviter, str) else (inviter.get_display_name() if hasattr(inviter, 'get_display_name') else inviter.email)
         
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
