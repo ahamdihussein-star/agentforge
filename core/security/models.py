@@ -115,6 +115,90 @@ class Permission(str, Enum):
     ORG_EDIT = "org:edit"
     ORG_MANAGE = "org:manage"
 
+
+
+# Permission Categories
+PLATFORM_PERMISSIONS = [
+    # System
+    "system:admin", "system:settings",
+    # Users
+    "users:view", "users:create", "users:edit", "users:delete",
+    # Roles
+    "roles:view", "roles:create", "roles:edit", "roles:delete",
+    # Policies
+    "policies:view", "policies:create", "policies:edit", "policies:delete",
+    # Audit
+    "audit:view", "audit:export",
+    # Organization
+    "org:view", "org:edit", "org:manage",
+]
+
+AGENT_PERMISSIONS = [
+    # Agents
+    "agents:view", "agents:create", "agents:edit", "agents:delete", "agents:publish", "agents:test",
+    # Tools
+    "tools:view", "tools:create", "tools:edit", "tools:delete", "tools:execute", "tools:manage_permissions",
+    # Knowledge Base
+    "kb:view", "kb:create", "kb:edit", "kb:delete", "kb:upload", "kb:manage_permissions",
+    # Database
+    "db:view", "db:create", "db:edit", "db:delete", "db:manage_permissions",
+    # Chat
+    "chat:use", "chat:view_all", "chat:delete",
+]
+
+# Menu permission mapping
+MENU_PERMISSIONS = {
+    "chat": "chat:use",
+    "agents": "agents:view",
+    "tools": "tools:view",
+    "create": "agents:create",
+    "demo": "agents:test",
+    "settings": "system:settings",
+    "security": "users:view",
+}
+
+
+
+# Permission Categories
+PLATFORM_PERMISSIONS = [
+    # System
+    "system:admin", "system:settings",
+    # Users
+    "users:view", "users:create", "users:edit", "users:delete",
+    # Roles
+    "roles:view", "roles:create", "roles:edit", "roles:delete",
+    # Policies
+    "policies:view", "policies:create", "policies:edit", "policies:delete",
+    # Audit
+    "audit:view", "audit:export",
+    # Organization
+    "org:view", "org:edit", "org:manage",
+]
+
+AGENT_PERMISSIONS = [
+    # Agents
+    "agents:view", "agents:create", "agents:edit", "agents:delete", "agents:publish", "agents:test",
+    # Tools
+    "tools:view", "tools:create", "tools:edit", "tools:delete", "tools:execute", "tools:manage_permissions",
+    # Knowledge Base
+    "kb:view", "kb:create", "kb:edit", "kb:delete", "kb:upload", "kb:manage_permissions",
+    # Database
+    "db:view", "db:create", "db:edit", "db:delete", "db:manage_permissions",
+    # Chat
+    "chat:use", "chat:view_all", "chat:delete",
+]
+
+# Menu permission mapping
+MENU_PERMISSIONS = {
+    "chat": "chat:use",
+    "agents": "agents:view",
+    "tools": "tools:view",
+    "create": "agents:create",
+    "demo": "agents:test",
+    "settings": "system:settings",
+    "security": "users:view",
+}
+
 class ActionType(str, Enum):
     """Audit action types"""
     # Auth actions
