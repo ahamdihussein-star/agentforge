@@ -1847,6 +1847,10 @@
 
                     <!-- Roles Tab -->
                     <div id="sec-content-roles" class="hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold">Manage Roles</h3>
+                            <button onclick="showAddRoleModal()" class="btn-primary px-4 py-2 rounded-lg" data-permission="roles:create">+ Add Role</button>
+                        </div>
                         <div class="flex justify-between mb-4">
                             <h3 class="text-lg font-semibold">System & Custom Roles</h3>
                             <button onclick="showCreateRoleModal()" class="btn-secondary px-4 py-2 rounded-lg">+ Create Role</button>
@@ -17400,6 +17404,262 @@ async function loadSecurityRoles() {
 }
 
 // Render security roles
+
+// Show Add Role Modal
+function showAddRoleModal() {
+    const allPermissions = [
+        { category: 'Platform Security', permissions: [
+            { id: 'system:admin', name: 'System Admin' },
+            { id: 'system:settings', name: 'System Settings' },
+            { id: 'users:view', name: 'View Users' },
+            { id: 'users:create', name: 'Create Users' },
+            { id: 'users:edit', name: 'Edit Users' },
+            { id: 'users:delete', name: 'Delete Users' },
+            { id: 'roles:view', name: 'View Roles' },
+            { id: 'roles:create', name: 'Create Roles' },
+            { id: 'roles:edit', name: 'Edit Roles' },
+            { id: 'roles:delete', name: 'Delete Roles' },
+            { id: 'audit:view', name: 'View Audit Logs' },
+            { id: 'audit:export', name: 'Export Audit Logs' },
+        ]},
+        { category: 'Agent & Data Security', permissions: [
+            { id: 'agents:view', name: 'View Agents' },
+            { id: 'agents:create', name: 'Create Agents' },
+            { id: 'agents:edit', name: 'Edit Agents' },
+            { id: 'agents:delete', name: 'Delete Agents' },
+            { id: 'agents:publish', name: 'Publish Agents' },
+            { id: 'agents:test', name: 'Test Agents' },
+            { id: 'tools:view', name: 'View Tools' },
+            { id: 'tools:create', name: 'Create Tools' },
+            { id: 'tools:edit', name: 'Edit Tools' },
+            { id: 'tools:delete', name: 'Delete Tools' },
+            { id: 'tools:execute', name: 'Execute Tools' },
+            { id: 'kb:view', name: 'View Knowledge Base' },
+            { id: 'kb:create', name: 'Create Knowledge Base' },
+            { id: 'kb:edit', name: 'Edit Knowledge Base' },
+            { id: 'kb:delete', name: 'Delete Knowledge Base' },
+            { id: 'kb:upload', name: 'Upload Documents' },
+            { id: 'chat:use', name: 'Use Chat' },
+            { id: 'chat:view_all', name: 'View All Chats' },
+        ]}
+    ];
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
+    modal.id = 'role-modal';
+    modal.innerHTML = `
+        <div class="card rounded-2xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold mb-4">Create New Role</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Role Name *</label>
+                    <input type="text" id="role-name" class="input-field w-full px-4 py-2 rounded-lg" placeholder="e.g. Marketing Team">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Description</label>
+                    <textarea id="role-description" class="input-field w-full px-4 py-2 rounded-lg" rows="2" placeholder="Role description..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-3">Permissions</label>
+                    ${allPermissions.map(cat => `
+                        <div class="mb-4">
+                            <h5 class="text-sm font-semibold text-purple-400 mb-2">${cat.category}</h5>
+                            <div class="grid grid-cols-2 gap-2">
+                                ${cat.permissions.map(p => `
+                                    <label class="flex items-center gap-2 text-sm">
+                                        <input type="checkbox" class="role-perm rounded" value="${p.id}">
+                                        <span>${p.name}</span>
+                                    </label>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button onclick="document.getElementById('role-modal').remove()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
+                    <button onclick="saveNewRole()" class="btn-primary flex-1 py-2 rounded-lg">Create Role</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// Show Edit Role Modal
+function showEditRoleModal(roleId) {
+    const role = securityRoles.find(r => r.id === roleId);
+    if (!role) return;
+    
+    const allPermissions = [
+        { category: 'Platform Security', permissions: [
+            { id: 'system:admin', name: 'System Admin' },
+            { id: 'system:settings', name: 'System Settings' },
+            { id: 'users:view', name: 'View Users' },
+            { id: 'users:create', name: 'Create Users' },
+            { id: 'users:edit', name: 'Edit Users' },
+            { id: 'users:delete', name: 'Delete Users' },
+            { id: 'roles:view', name: 'View Roles' },
+            { id: 'roles:create', name: 'Create Roles' },
+            { id: 'roles:edit', name: 'Edit Roles' },
+            { id: 'roles:delete', name: 'Delete Roles' },
+            { id: 'audit:view', name: 'View Audit Logs' },
+            { id: 'audit:export', name: 'Export Audit Logs' },
+        ]},
+        { category: 'Agent & Data Security', permissions: [
+            { id: 'agents:view', name: 'View Agents' },
+            { id: 'agents:create', name: 'Create Agents' },
+            { id: 'agents:edit', name: 'Edit Agents' },
+            { id: 'agents:delete', name: 'Delete Agents' },
+            { id: 'agents:publish', name: 'Publish Agents' },
+            { id: 'agents:test', name: 'Test Agents' },
+            { id: 'tools:view', name: 'View Tools' },
+            { id: 'tools:create', name: 'Create Tools' },
+            { id: 'tools:edit', name: 'Edit Tools' },
+            { id: 'tools:delete', name: 'Delete Tools' },
+            { id: 'tools:execute', name: 'Execute Tools' },
+            { id: 'kb:view', name: 'View Knowledge Base' },
+            { id: 'kb:create', name: 'Create Knowledge Base' },
+            { id: 'kb:edit', name: 'Edit Knowledge Base' },
+            { id: 'kb:delete', name: 'Delete Knowledge Base' },
+            { id: 'kb:upload', name: 'Upload Documents' },
+            { id: 'chat:use', name: 'Use Chat' },
+            { id: 'chat:view_all', name: 'View All Chats' },
+        ]}
+    ];
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
+    modal.id = 'role-modal';
+    modal.innerHTML = `
+        <div class="card rounded-2xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold mb-4">Edit Role: ${escHtml(role.name)}</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Role Name *</label>
+                    <input type="text" id="role-name" value="${escHtml(role.name)}" class="input-field w-full px-4 py-2 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Description</label>
+                    <textarea id="role-description" class="input-field w-full px-4 py-2 rounded-lg" rows="2">${escHtml(role.description || '')}</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-3">Permissions</label>
+                    ${allPermissions.map(cat => `
+                        <div class="mb-4">
+                            <h5 class="text-sm font-semibold text-purple-400 mb-2">${cat.category}</h5>
+                            <div class="grid grid-cols-2 gap-2">
+                                ${cat.permissions.map(p => `
+                                    <label class="flex items-center gap-2 text-sm">
+                                        <input type="checkbox" class="role-perm rounded" value="${p.id}" ${(role.permissions || []).includes(p.id) ? 'checked' : ''}>
+                                        <span>${p.name}</span>
+                                    </label>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button onclick="document.getElementById('role-modal').remove()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
+                    <button onclick="updateRole('${roleId}')" class="btn-primary flex-1 py-2 rounded-lg">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// Save new role
+async function saveNewRole() {
+    const name = document.getElementById('role-name').value.trim();
+    const description = document.getElementById('role-description').value.trim();
+    const permissions = Array.from(document.querySelectorAll('.role-perm:checked')).map(cb => cb.value);
+    
+    if (!name) {
+        showToast('Role name is required', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/security/roles', {
+            method: 'POST',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description, permissions })
+        });
+        
+        if (res.ok) {
+            showToast('Role created successfully', 'success');
+            document.getElementById('role-modal').remove();
+            loadSecurityRoles();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Failed to create role', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+// Update existing role
+async function updateRole(roleId) {
+    const name = document.getElementById('role-name').value.trim();
+    const description = document.getElementById('role-description').value.trim();
+    const permissions = Array.from(document.querySelectorAll('.role-perm:checked')).map(cb => cb.value);
+    
+    if (!name) {
+        showToast('Role name is required', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/security/roles/' + roleId, {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description, permissions })
+        });
+        
+        if (res.ok) {
+            showToast('Role updated successfully', 'success');
+            document.getElementById('role-modal').remove();
+            loadSecurityRoles();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Failed to update role', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+// Delete role
+async function deleteRole(roleId) {
+    const role = securityRoles.find(r => r.id === roleId);
+    if (!role) return;
+    
+    if (role.is_system) {
+        showToast('Cannot delete system roles', 'error');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to delete the role "' + role.name + '"?')) return;
+    
+    try {
+        const res = await fetch('/api/security/roles/' + roleId, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        
+        if (res.ok) {
+            showToast('Role deleted successfully', 'success');
+            loadSecurityRoles();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Failed to delete role', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
 function renderSecurityRoles() {
     const icons = { 'role_super_admin': '👑', 'role_admin': '🛡️', 'role_manager': '📊', 'role_user': '👤', 'role_viewer': '👁️' };
     
