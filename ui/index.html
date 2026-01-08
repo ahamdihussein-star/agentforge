@@ -16628,7 +16628,7 @@ async function handleLogin(event) {
         const data = await res.json();
         
         if (!res.ok) {
-            showToast(data.detail || 'Login failed', 'error');
+            showToast(typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || 'Login failed'), 'error');
             btn.disabled = false;
             btn.textContent = 'Sign In';
             return;
