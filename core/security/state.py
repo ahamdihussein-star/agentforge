@@ -100,6 +100,22 @@ class SecurityState:
         # Create default settings
         if "org_default" not in self.settings:
             self.settings["org_default"] = SecuritySettings(org_id="org_default")
+        
+        # Create default super admin if no users exist
+        if not self.users:
+            from .services import PasswordService
+            default_admin = User(
+                id="user_super_admin",
+                org_id="org_default",
+                email="admin@agentforge.local",
+                password_hash=PasswordService.hash_password("Admin@123"),
+                profile=UserProfile(first_name="Super", last_name="Admin"),
+                role_ids=["role_super_admin"],
+                status=UserStatus.ACTIVE,
+                email_verified=True
+            )
+            self.users[default_admin.id] = default_admin
+            print("✅ Created default super admin: admin@agentforge.local / Admin@123")
     
     def get_settings(self, org_id: str = "org_default") -> SecuritySettings:
         """Get security settings for an organization"""
