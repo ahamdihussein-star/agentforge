@@ -17160,6 +17160,7 @@ async function initSecurityPage() {
     await loadSecurityStats();
     await loadSecurityUsers();
     await loadSecurityRoles();
+    await loadSecurityInvitations();
 }
 
 // Load security statistics
@@ -17389,6 +17390,87 @@ function filterSecurityUsers() {
 }
 
 // Load security roles
+
+// Load invitations
+let securityInvitations = [];
+
+async function loadSecurityInvitations() {
+    try {
+        const res = await fetch('/api/security/invitations', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            securityInvitations = data.invitations || [];
+            renderSecurityInvitations();
+        }
+    } catch (e) {
+        console.error('Error loading invitations:', e);
+    }
+}
+
+function renderSecurityInvitations() {
+    const container = document.getElementById('sec-invitations-list');
+    if (!container) return;
+    
+    if (!securityInvitations.length) {
+        container.innerHTML = '<p class="text-gray-500 text-sm p-4">No pending invitations</p>';
+        return;
+    }
+    
+    container.innerHTML = securityInvitations.map(inv => `
+        <div class="flex items-center justify-between p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-yellow-500/30 flex items-center justify-center text-yellow-400">📧</div>
+                <div>
+                    <p class="font-medium">${escHtml(inv.email)}</p>
+                    <p class="text-xs text-gray-400">Invited ${new Date(inv.created_at).toLocaleDateString()} · ${inv.roles.join(', ')}</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-1 rounded ${inv.status === 'expired' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}">${inv.status}</span>
+                <button onclick="resendInvitation('${inv.id}')" class="text-blue-400 hover:text-blue-300 p-1" title="Resend">🔄</button>
+                <button onclick="deleteInvitation('${inv.id}')" class="text-red-400 hover:text-red-300 p-1" title="Delete">🗑️</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function resendInvitation(invId) {
+    try {
+        const res = await fetch('/api/security/invitations/' + invId + '/resend', {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        if (res.ok) {
+            showToast('Invitation resent successfully', 'success');
+            loadSecurityInvitations();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Failed to resend', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+async function deleteInvitation(invId) {
+    if (!confirm('Delete this invitation?')) return;
+    try {
+        const res = await fetch('/api/security/invitations/' + invId, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        if (res.ok) {
+            showToast('Invitation deleted', 'success');
+            loadSecurityInvitations();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Failed to delete', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
 async function loadSecurityRoles() {
     try {
         const res = await fetch('/api/security/roles', {

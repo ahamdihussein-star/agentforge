@@ -388,6 +388,65 @@ def check_ip_whitelist(request: Request) -> bool:
 # AUTHENTICATION ENDPOINTS
 # ============================================================================
 
+
+
+@router.get("/invitations")
+async def list_invitations(user: User = Depends(require_admin)):
+    """List all pending invitations"""
+    invitations = []
+    for inv in security_state.invitations.values():
+        if inv.org_id == user.org_id:
+            invitations.append({
+                "id": inv.id,
+                "email": inv.email,
+                "role_ids": inv.role_ids,
+                "roles": [security_state.roles[r].name for r in inv.role_ids if r in security_state.roles],
+                "invited_by": inv.invited_by,
+                "inviter_name": security_state.users.get(inv.invited_by, {}).get_display_name() if security_state.users.get(inv.invited_by) else "Unknown",
+                "created_at": inv.created_at,
+                "expires_at": inv.expires_at,
+                "status": "expired" if inv.expires_at and datetime.fromisoformat(inv.expires_at) < datetime.utcnow() else "pending"
+            })
+    return {"invitations": invitations}
+
+@router.post("/invitations/{invitation_id}/resend")
+async def resend_invitation(invitation_id: str, user: User = Depends(require_admin)):
+    """Resend an invitation email"""
+    invitation = security_state.invitations.get(invitation_id)
+    if not invitation or invitation.org_id != user.org_id:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    
+    # Update expiry date
+    invitation.expires_at = (datetime.utcnow() + timedelta(days=7)).isoformat()
+    invitation.resend_count += 1
+    
+    # Resend email
+    sent = await EmailService.send_invitation_email(invitation, user.get_display_name())
+    
+    security_state.save_to_disk()
+    
+    return {"status": "success", "email_sent": sent}
+
+@router.delete("/invitations/{invitation_id}")
+async def delete_invitation(invitation_id: str, user: User = Depends(require_admin)):
+    """Delete a pending invitation"""
+    invitation = security_state.invitations.get(invitation_id)
+    if not invitation or invitation.org_id != user.org_id:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    
+    del security_state.invitations[invitation_id]
+    security_state.save_to_disk()
+    
+    security_state.add_audit_log(
+        user=user,
+        action=ActionType.DELETE,
+        resource_type=ResourceType.INVITATION,
+        resource_id=invitation_id,
+        resource_name=invitation.email
+    )
+    
+    return {"status": "success"}
+
 @router.post("/auth/register")
 async def register(request: RegisterRequest, req: Request):
     """Register a new user"""
