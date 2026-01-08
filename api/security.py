@@ -1506,8 +1506,9 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
     if not role or (role.org_id != user.org_id and not role.is_system):
         raise HTTPException(status_code=404, detail="Role not found")
     
-    if role.is_system:
-        raise HTTPException(status_code=400, detail="Cannot modify system role")
+    # Allow editing system roles permissions, but not renaming them
+    if role.is_system and request.name is not None and request.name != role.name:
+        raise HTTPException(status_code=400, detail="Cannot rename system role")
     
     changes = {}
     
