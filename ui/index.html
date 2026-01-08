@@ -17492,14 +17492,26 @@ function showAddRoleModal() {
                     <textarea id="role-description" class="input-field w-full px-4 py-2 rounded-lg" rows="2" placeholder="Role description..."></textarea>
                 </div>
                 <div>
-                    <label class="block text-sm text-gray-400 mb-3">Permissions</label>
-                    ${allPermissions.map(cat => `
-                        <div class="mb-4">
-                            <h5 class="text-sm font-semibold text-purple-400 mb-2">${cat.category}</h5>
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="block text-sm text-gray-400">Permissions</label>
+                        <label class="flex items-center gap-2 text-sm text-green-400 cursor-pointer">
+                            <input type="checkbox" id="select-all-add" onchange="document.querySelectorAll('#role-modal .role-perm').forEach(c=>c.checked=this.checked)" class="rounded">
+                            <span>Select All</span>
+                        </label>
+                    </div>
+                    ${allPermissions.map((cat, i) => `
+                        <div class="mb-4 p-3 rounded-lg" style="background:rgba(139,92,246,0.1)">
+                            <div class="flex items-center justify-between mb-2">
+                                <h5 class="text-sm font-semibold text-purple-400">${cat.category}</h5>
+                                <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                    <input type="checkbox" onchange="document.querySelectorAll('#role-modal .cat-${i}').forEach(c=>c.checked=this.checked)" class="rounded">
+                                    <span>All</span>
+                                </label>
+                            </div>
                             <div class="grid grid-cols-2 gap-2">
                                 ${cat.permissions.map(p => `
-                                    <label class="flex items-center gap-2 text-sm">
-                                        <input type="checkbox" class="role-perm rounded" value="${p.id}">
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" class="role-perm cat-${i} rounded" value="${p.id}">
                                         <span>${p.name}</span>
                                     </label>
                                 `).join('')}
@@ -17583,14 +17595,26 @@ function showEditRoleModal(roleId) {
                     <textarea id="role-description" class="input-field w-full px-4 py-2 rounded-lg" rows="2">${escHtml(role.description || '')}</textarea>
                 </div>
                 <div>
-                    <label class="block text-sm text-gray-400 mb-3">Permissions</label>
-                    ${allPermissions.map(cat => `
-                        <div class="mb-4">
-                            <h5 class="text-sm font-semibold text-purple-400 mb-2">${cat.category}</h5>
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="block text-sm text-gray-400">Permissions</label>
+                        <label class="flex items-center gap-2 text-sm text-green-400 cursor-pointer">
+                            <input type="checkbox" id="select-all-edit" onchange="document.querySelectorAll('#role-modal .role-perm').forEach(c=>c.checked=this.checked)" class="rounded">
+                            <span>Select All</span>
+                        </label>
+                    </div>
+                    ${allPermissions.map((cat, i) => `
+                        <div class="mb-4 p-3 rounded-lg" style="background:rgba(139,92,246,0.1)">
+                            <div class="flex items-center justify-between mb-2">
+                                <h5 class="text-sm font-semibold text-purple-400">${cat.category}</h5>
+                                <label class="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+                                    <input type="checkbox" onchange="document.querySelectorAll('#role-modal .cat-${i}').forEach(c=>c.checked=this.checked)" class="rounded">
+                                    <span>All</span>
+                                </label>
+                            </div>
                             <div class="grid grid-cols-2 gap-2">
                                 ${cat.permissions.map(p => `
-                                    <label class="flex items-center gap-2 text-sm">
-                                        <input type="checkbox" class="role-perm rounded" value="${p.id}" ${(role.permissions || []).includes(p.id) ? 'checked' : ''}>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" class="role-perm cat-${i} rounded" value="${p.id}" ${(role.permissions || []).includes(p.id) ? 'checked' : ''}>
                                         <span>${p.name}</span>
                                     </label>
                                 `).join('')}
@@ -17709,8 +17733,12 @@ function renderSecurityRoles() {
                 <div class="flex items-center gap-2">
                     <span class="text-2xl">${icons[r.id] || '🎭'}</span>
                     <h4 class="font-bold">${escHtml(r.name)}</h4>
+                    ${r.is_system ? '<span class="text-xs bg-gray-600 px-2 py-1 rounded ml-2">System</span>' : ''}
                 </div>
-                ${r.is_system ? '<span class="text-xs bg-gray-600 px-2 py-1 rounded">System</span>' : ''}
+                <div class="flex items-center gap-2">
+                    <button onclick="showEditRoleModal('${r.id}')" class="text-blue-400 hover:text-blue-300" title="Edit Permissions">✏️</button>
+                    ${!r.is_system ? `<button onclick="deleteRole('${r.id}')" class="text-red-400 hover:text-red-300" title="Delete">🗑️</button>` : ''}
+                </div>
             </div>
             <p class="text-sm text-gray-400 mb-3">${escHtml(r.description || 'No description')}</p>
             <div class="flex items-center justify-between text-sm">
