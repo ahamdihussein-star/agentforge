@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from .models import (
+    UserProfile,
     Organization, Department, UserGroup,
     User, Session, Invitation,
     Role, Policy, PolicyRule, PolicyCondition,
