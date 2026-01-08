@@ -395,6 +395,9 @@ async def list_invitations(user: User = Depends(require_admin)):
     """List all pending invitations"""
     invitations = []
     for inv in security_state.invitations.values():
+        # Skip accepted invitations
+        if inv.accepted_at:
+            continue
         if inv.org_id == user.org_id:
             invitations.append({
                 "id": inv.id,
