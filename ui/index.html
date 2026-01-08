@@ -1815,6 +1815,14 @@
 
                     <!-- Users Tab -->
                     <div id="sec-content-users" class="card rounded-xl">
+                        <!-- Pending Invitations -->
+                        <div id="sec-invitations-section" class="p-4 border-b border-gray-700">
+                            <h4 class="text-sm font-semibold text-yellow-400 mb-3">📧 Pending Invitations</h4>
+                            <div id="sec-invitations-list" class="space-y-2">
+                                <p class="text-gray-500 text-sm">Loading invitations...</p>
+                            </div>
+                        </div>
+                        <!-- Users Filter -->
                         <div class="p-4 border-b border-gray-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                             <input type="text" id="sec-user-search" placeholder="Search users..." 
                                    class="input-field px-4 py-2 rounded-lg w-full md:w-64" oninput="filterSecurityUsers()">
