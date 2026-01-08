@@ -4117,7 +4117,7 @@ Example: I need an HR agent that can:
                                         </div>
                                         <div>
                                             <p class="text-sm font-medium" style="color:var(--text-primary);">Connected</p>
-                                            <p class="text-xs" style="color:var(--text-muted);" id="gmail-connected-email">user@example.com</p>
+                                            <p class="text-xs" style="color:var(--text-muted);" id="gmail-connected-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="265355435466435e474b564a430845494b">[email&#160;protected]</a></p>
                                         </div>
                                     </div>
                                     <button onclick="disconnectEmailProvider('google')" class="text-xs px-3 py-1.5 rounded-lg hover:bg-red-500/10 text-red-400">
@@ -4154,7 +4154,7 @@ Example: I need an HR agent that can:
                                         </div>
                                         <div>
                                             <p class="text-sm font-medium" style="color:var(--text-primary);">Connected</p>
-                                            <p class="text-xs" style="color:var(--text-muted);" id="outlook-connected-email">user@example.com</p>
+                                            <p class="text-xs" style="color:var(--text-muted);" id="outlook-connected-email"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="dda8aeb8af9db8a5bcb0adb1b8f3beb2b0">[email&#160;protected]</a></p>
                                         </div>
                                     </div>
                                     <button onclick="disconnectEmailProvider('microsoft')" class="text-xs px-3 py-1.5 rounded-lg hover:bg-red-500/10 text-red-400">
@@ -6008,7 +6008,7 @@ Option 3"></textarea>
         </div>
     </div>
 
-    <script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
         const API='';
         
         // Utility function - define early
@@ -17779,6 +17779,87 @@ function showVerifyEmailError(message) {
     `;
 }
 
+
+// Show invitation register form
+function showInvitationRegister(token) {
+    document.getElementById('page-login').classList.remove('hidden');
+    document.getElementById('page-app').classList.add('hidden');
+    document.getElementById('auth-container').innerHTML = 
+        '<div class="text-center mb-8">' +
+            '<div class="inline-flex items-center gap-3 mb-4">' +
+                '<img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">' +
+                '<h1 class="text-3xl font-bold gradient-text">AgentForge</h1>' +
+            '</div>' +
+            '<p class="text-gray-400">Complete your registration</p>' +
+        '</div>' +
+        '<div class="card rounded-2xl p-8">' +
+            '<h2 class="text-xl font-bold mb-6">Accept Invitation</h2>' +
+            '<form onsubmit="handleInvitationRegister(event, \'' + token + '\')">' +
+                '<div class="space-y-4">' +
+                    '<div class="grid grid-cols-2 gap-4">' +
+                        '<div><label class="block text-sm text-gray-400 mb-2">First Name</label>' +
+                        '<input type="text" id="inv-firstname" required class="input-field w-full px-4 py-3 rounded-lg" placeholder="John"></div>' +
+                        '<div><label class="block text-sm text-gray-400 mb-2">Last Name</label>' +
+                        '<input type="text" id="inv-lastname" required class="input-field w-full px-4 py-3 rounded-lg" placeholder="Doe"></div>' +
+                    '</div>' +
+                    '<div><label class="block text-sm text-gray-400 mb-2">Password</label>' +
+                    '<input type="password" id="inv-password" required minlength="8" class="input-field w-full px-4 py-3 rounded-lg" placeholder="Min 8 characters"></div>' +
+                    '<div><label class="block text-sm text-gray-400 mb-2">Confirm Password</label>' +
+                    '<input type="password" id="inv-confirm-password" required minlength="8" class="input-field w-full px-4 py-3 rounded-lg" placeholder="Confirm password"></div>' +
+                    '<div id="inv-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg text-sm"></div>' +
+                    '<button type="submit" id="inv-submit-btn" class="w-full py-3 rounded-lg font-semibold text-white" style="background: var(--accent-gradient);">Create Account</button>' +
+                '</div>' +
+            '</form>' +
+        '</div>';
+}
+
+// Handle invitation register
+async function handleInvitationRegister(event, token) {
+    event.preventDefault();
+    var firstName = document.getElementById('inv-firstname').value;
+    var lastName = document.getElementById('inv-lastname').value;
+    var password = document.getElementById('inv-password').value;
+    var confirmPassword = document.getElementById('inv-confirm-password').value;
+    var errorDiv = document.getElementById('inv-error');
+    var btn = document.getElementById('inv-submit-btn');
+    errorDiv.classList.add('hidden');
+    if (password !== confirmPassword) { 
+        errorDiv.textContent = 'Passwords do not match'; 
+        errorDiv.classList.remove('hidden'); 
+        return; 
+    }
+    btn.disabled = true; 
+    btn.textContent = 'Creating account...';
+    try {
+        var res = await fetch('/api/security/auth/accept-invitation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                token: token,
+                first_name: firstName, 
+                last_name: lastName, 
+                password: password 
+            })
+        });
+        var data = await res.json();
+        if (!res.ok) { 
+            errorDiv.textContent = data.detail || 'Registration failed'; 
+            errorDiv.classList.remove('hidden'); 
+            btn.disabled = false; 
+            btn.textContent = 'Create Account'; 
+            return; 
+        }
+        showToast('Account created! Please sign in.', 'success');
+        window.location.hash = '';
+        location.reload();
+    } catch (e) { 
+        errorDiv.textContent = 'Error: ' + e.message; 
+        errorDiv.classList.remove('hidden'); 
+    }
+    btn.disabled = false; 
+    btn.textContent = 'Create Account';
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
     // Check for special pages in hash
@@ -17836,63 +17917,3 @@ document.addEventListener('DOMContentLoaded', function() {
     </script>
 </body>
 </html>
-
-// Show invitation register form
-function showInvitationRegister(token) {
-    document.getElementById('page-login').classList.remove('hidden');
-    document.getElementById('page-app').classList.add('hidden');
-    document.getElementById('auth-container').innerHTML = 
-        '<div class="text-center mb-8">' +
-            '<div class="inline-flex items-center gap-3 mb-4">' +
-                '<img src="/AgentForge_Logo.png" alt="AgentForge" class="w-16 h-16 rounded-xl">' +
-                '<h1 class="text-3xl font-bold gradient-text">AgentForge</h1>' +
-            '</div>' +
-            '<p class="text-gray-400">Complete your registration</p>' +
-        '</div>' +
-        '<div class="card rounded-2xl p-8">' +
-            '<h2 class="text-xl font-bold mb-6">Accept Invitation</h2>' +
-            '<form onsubmit="handleInvitationRegister(event, \'' + token + '\')">' +
-                '<div class="space-y-4">' +
-                    '<div class="grid grid-cols-2 gap-4">' +
-                        '<div><label class="block text-sm text-gray-400 mb-2">First Name</label>' +
-                        '<input type="text" id="inv-firstname" required class="input-field w-full px-4 py-3 rounded-lg" placeholder="John"></div>' +
-                        '<div><label class="block text-sm text-gray-400 mb-2">Last Name</label>' +
-                        '<input type="text" id="inv-lastname" required class="input-field w-full px-4 py-3 rounded-lg" placeholder="Doe"></div>' +
-                    '</div>' +
-                    '<div><label class="block text-sm text-gray-400 mb-2">Password</label>' +
-                    '<input type="password" id="inv-password" required minlength="8" class="input-field w-full px-4 py-3 rounded-lg" placeholder="Min 8 characters"></div>' +
-                    '<div><label class="block text-sm text-gray-400 mb-2">Confirm Password</label>' +
-                    '<input type="password" id="inv-confirm-password" required minlength="8" class="input-field w-full px-4 py-3 rounded-lg" placeholder="Confirm password"></div>' +
-                    '<div id="inv-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg text-sm"></div>' +
-                    '<button type="submit" id="inv-submit-btn" class="w-full py-3 rounded-lg font-semibold text-white" style="background: var(--accent-gradient);">Create Account</button>' +
-                '</div>' +
-            '</form>' +
-        '</div>';
-}
-
-// Handle invitation register
-async function handleInvitationRegister(event, token) {
-    event.preventDefault();
-    var firstName = document.getElementById('inv-firstname').value;
-    var lastName = document.getElementById('inv-lastname').value;
-    var password = document.getElementById('inv-password').value;
-    var confirmPassword = document.getElementById('inv-confirm-password').value;
-    var errorDiv = document.getElementById('inv-error');
-    var btn = document.getElementById('inv-submit-btn');
-    errorDiv.classList.add('hidden');
-    if (password !== confirmPassword) { errorDiv.textContent = 'Passwords do not match'; errorDiv.classList.remove('hidden'); return; }
-    btn.disabled = true; btn.textContent = 'Creating account...';
-    try {
-        var res = await fetch('/api/security/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: '', first_name: firstName, last_name: lastName, password: password, invitation_token: token })
-        });
-        var data = await res.json();
-        if (!res.ok) { errorDiv.textContent = data.detail || 'Registration failed'; errorDiv.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Create Account'; return; }
-        showToast('Account created! Please sign in.', 'success');
-        window.location.hash = '';
-        showLoginForm();
-    } catch (e) { errorDiv.textContent = 'Error: ' + e.message; errorDiv.classList.remove('hidden'); }
-    btn.disabled = false; btn.textContent = 'Create Account';
-}

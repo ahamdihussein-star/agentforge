@@ -78,6 +78,12 @@ class ConfirmResetPasswordRequest(BaseModel):
     token: str
     new_password: str
 
+class AcceptInvitationRequest(BaseModel):
+    token: str
+    first_name: str
+    last_name: str
+    password: str
+
 # MFA Requests
 class EnableMFARequest(BaseModel):
     method: MFAMethod = MFAMethod.TOTP
@@ -826,6 +832,67 @@ async def reset_password(request: ConfirmResetPasswordRequest):
     security_state.save_to_disk()
     
     return {"status": "success"}
+
+@router.post("/auth/accept-invitation")
+async def accept_invitation(request: AcceptInvitationRequest, req: Request):
+    """Accept invitation and create account"""
+    settings = security_state.get_settings()
+    
+    # Find invitation by token
+    invitation = None
+    for inv in security_state.invitations.values():
+        if inv.token == request.token and not inv.accepted_at:
+            invitation = inv
+            break
+    
+    if not invitation:
+        raise HTTPException(status_code=400, detail="Invalid or expired invitation")
+    
+    if datetime.fromisoformat(invitation.expires_at) < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invitation has expired")
+    
+    # Check if email already registered
+    if security_state.get_user_by_email(invitation.email):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Validate password
+    is_valid, errors = PasswordService.validate_password(request.password, settings)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail={"message": "Password does not meet requirements", "errors": errors})
+    
+    # Create user
+    user = User(
+        org_id=invitation.org_id,
+        email=invitation.email.lower(),
+        password_hash=PasswordService.hash_password(request.password),
+        profile=UserProfile(
+            first_name=request.first_name,
+            last_name=request.last_name
+        ),
+        role_ids=invitation.role_ids or ["role_user"],
+        department_id=invitation.department_id,
+        status=UserStatus.ACTIVE,
+        email_verified=True
+    )
+    
+    security_state.users[user.id] = user
+    
+    # Mark invitation as accepted
+    invitation.accepted_at = datetime.utcnow().isoformat()
+    invitation.accepted_by = user.id
+    
+    security_state.save_to_disk()
+    
+    security_state.add_audit_log(
+        user=user,
+        action=ActionType.CREATE,
+        resource_type=ResourceType.USER,
+        resource_id=user.id,
+        resource_name=user.email,
+        details={"registration_method": "invitation"}
+    )
+    
+    return {"status": "success", "message": "Account created successfully"}
 
 class VerifyEmailRequest(BaseModel):
     token: str
