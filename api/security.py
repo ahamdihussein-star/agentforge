@@ -69,6 +69,11 @@ class ChangePasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
 
+class FirstLoginPasswordChangeRequest(BaseModel):
+    """Request model for first-login password change"""
+    new_password: str
+    confirm_password: str
+
 class ConfirmResetPasswordRequest(BaseModel):
     token: str
     new_password: str
@@ -300,6 +305,7 @@ class AuthResponse(BaseModel):
     user: Dict[str, Any]
     requires_mfa: bool = False
     mfa_methods: List[str] = []
+    must_change_password: bool = False
 
 # ============================================================================
 # AUTHENTICATION HELPERS
@@ -615,7 +621,7 @@ async def login(request: LoginRequest, req: Request):
         "department_id": user.department_id,
         "group_ids": user.group_ids,
         "org_id": user.org_id,
-        "mfa_enabled": user.mfa.enabled
+        "mfa_enabled": user.mfa.enabled, "must_change_password": user.must_change_password
     }
     
     expires_in = settings.remember_me_days * 86400 if request.remember_me else settings.session_timeout_minutes * 60
@@ -624,7 +630,8 @@ async def login(request: LoginRequest, req: Request):
         access_token=access_token,
         refresh_token=refresh_token,
         expires_in=expires_in,
-        user=user_data
+        user=user_data,
+        must_change_password=user.must_change_password
     )
 
 @router.post("/auth/logout")
@@ -688,8 +695,9 @@ async def get_current_user_info(user: User = Depends(require_auth)):
         "group_ids": user.group_ids,
         "groups": [security_state.groups[g].dict() for g in user.group_ids if g in security_state.groups],
         "org_id": user.org_id,
-        "mfa_enabled": user.mfa.enabled,
+        "mfa_enabled": user.mfa.enabled, "must_change_password": user.must_change_password,
         "mfa_methods": [m.value for m in user.mfa.methods],
+        "must_change_password": user.must_change_password,
         "last_login": user.last_login,
         "created_at": user.created_at
     }
@@ -742,6 +750,29 @@ async def change_password(request: ChangePasswordRequest, user: User = Depends(r
     )
     
     return {"status": "success"}
+
+@router.post("/auth/first-login-password-change")
+async def first_login_password_change(
+    request: FirstLoginPasswordChangeRequest,
+    user: User = Depends(require_auth)
+):
+    """Change password on first login."""
+    settings = security_state.get_settings()
+    if not user.must_change_password:
+        raise HTTPException(status_code=400, detail="Password change not required")
+    if request.new_password != request.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    is_valid, errors = PasswordService.validate_password(request.new_password, settings)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail={"message": "Password does not meet requirements", "errors": errors})
+    if PasswordService.verify_password(request.new_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="New password must be different from temporary password")
+    user.password_hash = PasswordService.hash_password(request.new_password)
+    user.password_changed_at = datetime.utcnow().isoformat()
+    user.must_change_password = False
+    security_state.save_to_disk()
+    security_state.add_audit_log(user=user, action=ActionType.PASSWORD_CHANGE, resource_type=ResourceType.USER, resource_id=user.id, details={"reason": "first_login"})
+    return {"status": "success", "message": "Password changed successfully"}
 
 @router.post("/auth/forgot-password")
 async def forgot_password(request: ResetPasswordRequest):
