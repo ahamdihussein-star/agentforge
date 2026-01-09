@@ -47,22 +47,28 @@ class UserStatus(str, Enum):
     SUSPENDED = "suspended"  # Admin suspended
 
 class Permission(str, Enum):
-    """All system permissions"""
-    # System permissions
-    SYSTEM_ADMIN = "system:admin"
-    SYSTEM_SETTINGS = "system:settings"
+    """All system permissions - Organized by Category"""
     
-    # User management
+    # ============================================
+    # SECURITY CATEGORY
+    # ============================================
+    
+    # User Management
     USERS_VIEW = "users:view"
     USERS_CREATE = "users:create"
     USERS_EDIT = "users:edit"
     USERS_DELETE = "users:delete"
+    USERS_INVITE = "users:invite"
     
-    # Role management
+    # Role Management
     ROLES_VIEW = "roles:view"
     ROLES_CREATE = "roles:create"
     ROLES_EDIT = "roles:edit"
     ROLES_DELETE = "roles:delete"
+    
+    # Security & MFA
+    SECURITY_SETTINGS = "security:settings"
+    MFA_MANAGE = "mfa:manage"
     
     # Policy management
     POLICIES_VIEW = "policies:view"
@@ -70,15 +76,23 @@ class Permission(str, Enum):
     POLICIES_EDIT = "policies:edit"
     POLICIES_DELETE = "policies:delete"
     
-    # Agent permissions
+    # Organization permissions
+    ORG_VIEW = "org:view"
+    ORG_EDIT = "org:edit"
+    ORG_MANAGE = "org:manage"
+    
+    # ============================================
+    # AI AGENT CATEGORY
+    # ============================================
+    
+    # AI Agents
     AGENTS_VIEW = "agents:view"
     AGENTS_CREATE = "agents:create"
     AGENTS_EDIT = "agents:edit"
     AGENTS_DELETE = "agents:delete"
     AGENTS_PUBLISH = "agents:publish"
-    AGENTS_TEST = "agents:test"
     
-    # Tool permissions
+    # Tools & Integrations
     TOOLS_VIEW = "tools:view"
     TOOLS_CREATE = "tools:create"
     TOOLS_EDIT = "tools:edit"
@@ -106,14 +120,32 @@ class Permission(str, Enum):
     CHAT_VIEW_ALL = "chat:view_all"
     CHAT_DELETE = "chat:delete"
     
-    # Audit permissions
+    # ============================================
+    # ANALYTICS & AUDIT CATEGORY
+    # ============================================
+    
     AUDIT_VIEW = "audit:view"
     AUDIT_EXPORT = "audit:export"
+    ANALYTICS_VIEW = "analytics:view"
+    REPORTS_GENERATE = "reports:generate"
     
-    # Organization permissions
-    ORG_VIEW = "org:view"
-    ORG_EDIT = "org:edit"
-    ORG_MANAGE = "org:manage"
+    # ============================================
+    # DEMO LAB CATEGORY
+    # ============================================
+    
+    DEMO_ACCESS = "demo:access"
+    DEMO_CREATE = "demo:create"
+    DEMO_SHARE = "demo:share"
+    AGENTS_TEST = "agents:test"
+    
+    # ============================================
+    # SYSTEM CATEGORY
+    # ============================================
+    
+    SYSTEM_ADMIN = "system:admin"
+    SYSTEM_SETTINGS = "system:settings"
+
+
 
 
 # ============================================================================
@@ -122,29 +154,40 @@ class Permission(str, Enum):
 
 # 1. Security Permissions - User & Access Management
 SECURITY_PERMISSIONS = [
-    "users:view", "users:create", "users:edit", "users:delete",
+    # User Management
+    "users:view", "users:create", "users:edit", "users:delete", "users:invite",
+    # Role Management
     "roles:view", "roles:create", "roles:edit", "roles:delete",
+    # Security & MFA
+    "security:settings", "mfa:manage",
+    # Policy Management
     "policies:view", "policies:create", "policies:edit", "policies:delete",
+    # Organization
     "org:view", "org:edit", "org:manage",
 ]
 
 # 2. AI Agent Permissions - Agent Building & Management
 AI_AGENT_PERMISSIONS = [
+    # AI Agents
     "agents:view", "agents:create", "agents:edit", "agents:delete", "agents:publish",
+    # Tools & Integrations
     "tools:view", "tools:create", "tools:edit", "tools:delete", "tools:execute", "tools:manage_permissions",
+    # Knowledge Base
     "kb:view", "kb:create", "kb:edit", "kb:delete", "kb:upload", "kb:manage_permissions",
+    # Database
     "db:view", "db:create", "db:edit", "db:delete", "db:manage_permissions",
+    # Chat
     "chat:use", "chat:view_all", "chat:delete",
 ]
 
 # 3. Analytics & Audit Permissions
 ANALYTICS_AUDIT_PERMISSIONS = [
-    "audit:view", "audit:export",
+    "audit:view", "audit:export", "analytics:view", "reports:generate",
 ]
 
 # 4. Demo Lab Permissions - Testing & Demos
 DEMO_LAB_PERMISSIONS = [
-    "agents:test",
+    "demo:access", "demo:create", "demo:share", "agents:test",
 ]
 
 # 5. System Permissions - Platform Administration
@@ -171,11 +214,10 @@ MENU_PERMISSIONS = {
     "agents": "agents:view",
     "tools": "tools:view",
     "create": "agents:create",
-    "demo": "agents:test",
+    "demo": "demo:access",
     "settings": "system:settings",
     "security": "users:view",
 }
-
 
 
 
