@@ -1785,7 +1785,7 @@
                             <h2 class="text-2xl font-bold">🔐 Security Center</h2>
                             <p class="text-gray-400 text-sm">Manage users, roles, and security settings</p>
                         </div>
-                        <button onclick="showInviteModal()" class="btn-primary px-4 py-2 rounded-lg">+ Invite User</button>
+                        <button id="invite-user-btn" data-permission="users:invite" onclick="showInviteModal()" class="btn-primary px-4 py-2 rounded-lg">+ Invite User</button>
                     </div>
 
                     <!-- Stats Cards -->
@@ -17909,8 +17909,8 @@ function renderSecurityRoles() {
                     ${r.is_system ? '<span class="text-xs bg-gray-600 px-2 py-1 rounded ml-2">System</span>' : ''}
                 </div>
                 <div class="flex items-center gap-2">
-                    <button onclick="showEditRoleModal('${r.id}')" class="text-blue-400 hover:text-blue-300" title="Edit Permissions">✏️</button>
-                    ${!r.is_system ? `<button onclick="deleteRole('${r.id}')" class="text-red-400 hover:text-red-300" title="Delete">🗑️</button>` : ''}
+                    <button data-permission="roles:edit" onclick="showEditRoleModal('${r.id}')" class="text-blue-400 hover:text-blue-300" title="Edit Permissions">✏️</button>
+                    ${!r.is_system ? `<button data-permission="roles:delete" onclick="deleteRole('${r.id}')" class="text-red-400 hover:text-red-300" title="Delete">🗑️</button>` : ''}
                 </div>
             </div>
             <p class="text-sm text-gray-400 mb-3">${escHtml(r.description || 'No description')}</p>
