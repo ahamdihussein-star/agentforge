@@ -17549,42 +17549,75 @@ function updateSelectAllState() {
 // Show Add Role Modal
 function showAddRoleModal() {
     const allPermissions = [
-        { category: 'Menu Access', permissions: [
-            { id: 'chat:use', name: 'Chat' },
-            { id: 'system:settings', name: 'Settings' },
-        ]},
-        { category: 'User Management', permissions: [
-            { id: 'users:view', name: 'View Users (Security Page)' },
-            { id: 'users:create', name: 'Create/Invite Users' },
+        // Security - User Management
+        { category: '🔐 User Management', permissions: [
+            { id: 'users:view', name: 'View Users' },
+            { id: 'users:create', name: 'Create Users' },
             { id: 'users:edit', name: 'Edit Users' },
             { id: 'users:delete', name: 'Delete Users' },
+            { id: 'users:invite', name: 'Invite Users' },
         ]},
-        { category: 'Role Management', permissions: [
+        // Security - Role Management
+        { category: '🔐 Role Management', permissions: [
             { id: 'roles:view', name: 'View Roles' },
             { id: 'roles:create', name: 'Create Roles' },
             { id: 'roles:edit', name: 'Edit Roles' },
             { id: 'roles:delete', name: 'Delete Roles' },
         ]},
-        { category: 'Agents', permissions: [
-            { id: 'agents:view', name: 'View Agents (Agent Hub)' },
-            { id: 'agents:create', name: 'Create Agents (Studio)' },
+        // Security - Security & MFA
+        { category: '🔐 Security & MFA', permissions: [
+            { id: 'security:settings', name: 'Security Settings' },
+            { id: 'mfa:manage', name: 'Manage MFA' },
+        ]},
+        // AI Agent - Agents
+        { category: '🤖 AI Agents', permissions: [
+            { id: 'agents:view', name: 'View Agents' },
+            { id: 'agents:create', name: 'Create Agents' },
             { id: 'agents:edit', name: 'Edit Agents' },
             { id: 'agents:delete', name: 'Delete Agents' },
             { id: 'agents:publish', name: 'Publish Agents' },
-            { id: 'agents:test', name: 'Test Agents (Demo Lab)' },
         ]},
-        { category: 'Tools & Resources', permissions: [
-            { id: 'tools:view', name: 'View Tools (Tools Page)' },
+        // AI Agent - Tools
+        { category: '🤖 Tools & Integrations', permissions: [
+            { id: 'tools:view', name: 'View Tools' },
             { id: 'tools:create', name: 'Create Tools' },
             { id: 'tools:edit', name: 'Edit Tools' },
             { id: 'tools:delete', name: 'Delete Tools' },
             { id: 'tools:execute', name: 'Execute Tools' },
-            { id: 'tools:manage_permissions', name: 'Manage Tool Permissions' },
+            { id: 'tools:manage_permissions', name: 'Manage Permissions' },
         ]},
-        { category: 'Audit & System', permissions: [
+        // AI Agent - Knowledge Base
+        { category: '🤖 Knowledge Base', permissions: [
+            { id: 'kb:view', name: 'View Knowledge Base' },
+            { id: 'kb:create', name: 'Create Knowledge Base' },
+            { id: 'kb:edit', name: 'Edit Knowledge Base' },
+            { id: 'kb:delete', name: 'Delete Knowledge Base' },
+            { id: 'kb:upload', name: 'Upload Documents' },
+        ]},
+        // AI Agent - Chat
+        { category: '🤖 Chat', permissions: [
+            { id: 'chat:use', name: 'Use Chat' },
+            { id: 'chat:view_all', name: 'View All Chats' },
+            { id: 'chat:delete', name: 'Delete Chats' },
+        ]},
+        // Analytics & Audit
+        { category: '📊 Analytics & Audit', permissions: [
             { id: 'audit:view', name: 'View Audit Logs' },
             { id: 'audit:export', name: 'Export Audit Logs' },
+            { id: 'analytics:view', name: 'View Analytics' },
+            { id: 'reports:generate', name: 'Generate Reports' },
+        ]},
+        // Demo Lab
+        { category: '🧪 Demo Lab', permissions: [
+            { id: 'demo:access', name: 'Access Demo Lab' },
+            { id: 'demo:create', name: 'Create Demos' },
+            { id: 'demo:share', name: 'Share Demos' },
+            { id: 'agents:test', name: 'Test Agents' },
+        ]},
+        // System
+        { category: '⚙️ System', permissions: [
             { id: 'system:admin', name: 'Full System Admin' },
+            { id: 'system:settings', name: 'System Settings' },
         ]},
     ];
     
@@ -17647,43 +17680,77 @@ function showEditRoleModal(roleId) {
     if (!role) return;
     
     const allPermissions = [
-        { category: 'Menu Access', permissions: [
-            { id: 'chat:use', name: 'Chat' },
-            { id: 'system:settings', name: 'Settings' },
-        ]},
-        { category: 'User Management', permissions: [
-            { id: 'users:view', name: 'View Users (Security Page)' },
-            { id: 'users:create', name: 'Create/Invite Users' },
+        // Security - User Management
+        { category: '🔐 User Management', permissions: [
+            { id: 'users:view', name: 'View Users' },
+            { id: 'users:create', name: 'Create Users' },
             { id: 'users:edit', name: 'Edit Users' },
             { id: 'users:delete', name: 'Delete Users' },
+            { id: 'users:invite', name: 'Invite Users' },
         ]},
-        { category: 'Role Management', permissions: [
+        // Security - Role Management
+        { category: '🔐 Role Management', permissions: [
             { id: 'roles:view', name: 'View Roles' },
             { id: 'roles:create', name: 'Create Roles' },
             { id: 'roles:edit', name: 'Edit Roles' },
             { id: 'roles:delete', name: 'Delete Roles' },
         ]},
-        { category: 'Agents', permissions: [
-            { id: 'agents:view', name: 'View Agents (Agent Hub)' },
-            { id: 'agents:create', name: 'Create Agents (Studio)' },
+        // Security - Security & MFA
+        { category: '🔐 Security & MFA', permissions: [
+            { id: 'security:settings', name: 'Security Settings' },
+            { id: 'mfa:manage', name: 'Manage MFA' },
+        ]},
+        // AI Agent - Agents
+        { category: '🤖 AI Agents', permissions: [
+            { id: 'agents:view', name: 'View Agents' },
+            { id: 'agents:create', name: 'Create Agents' },
             { id: 'agents:edit', name: 'Edit Agents' },
             { id: 'agents:delete', name: 'Delete Agents' },
             { id: 'agents:publish', name: 'Publish Agents' },
-            { id: 'agents:test', name: 'Test Agents (Demo Lab)' },
         ]},
-        { category: 'Tools & Resources', permissions: [
-            { id: 'tools:view', name: 'View Tools (Tools Page)' },
+        // AI Agent - Tools
+        { category: '🤖 Tools & Integrations', permissions: [
+            { id: 'tools:view', name: 'View Tools' },
             { id: 'tools:create', name: 'Create Tools' },
             { id: 'tools:edit', name: 'Edit Tools' },
             { id: 'tools:delete', name: 'Delete Tools' },
             { id: 'tools:execute', name: 'Execute Tools' },
-            { id: 'tools:manage_permissions', name: 'Manage Tool Permissions' },
+            { id: 'tools:manage_permissions', name: 'Manage Permissions' },
         ]},
-        { category: 'Audit & System', permissions: [
+        // AI Agent - Knowledge Base
+        { category: '🤖 Knowledge Base', permissions: [
+            { id: 'kb:view', name: 'View Knowledge Base' },
+            { id: 'kb:create', name: 'Create Knowledge Base' },
+            { id: 'kb:edit', name: 'Edit Knowledge Base' },
+            { id: 'kb:delete', name: 'Delete Knowledge Base' },
+            { id: 'kb:upload', name: 'Upload Documents' },
+        ]},
+        // AI Agent - Chat
+        { category: '🤖 Chat', permissions: [
+            { id: 'chat:use', name: 'Use Chat' },
+            { id: 'chat:view_all', name: 'View All Chats' },
+            { id: 'chat:delete', name: 'Delete Chats' },
+        ]},
+        // Analytics & Audit
+        { category: '📊 Analytics & Audit', permissions: [
             { id: 'audit:view', name: 'View Audit Logs' },
             { id: 'audit:export', name: 'Export Audit Logs' },
+            { id: 'analytics:view', name: 'View Analytics' },
+            { id: 'reports:generate', name: 'Generate Reports' },
+        ]},
+        // Demo Lab
+        { category: '🧪 Demo Lab', permissions: [
+            { id: 'demo:access', name: 'Access Demo Lab' },
+            { id: 'demo:create', name: 'Create Demos' },
+            { id: 'demo:share', name: 'Share Demos' },
+            { id: 'agents:test', name: 'Test Agents' },
+        ]},
+        // System
+        { category: '⚙️ System', permissions: [
             { id: 'system:admin', name: 'Full System Admin' },
-        ]}
+            { id: 'system:settings', name: 'System Settings' },
+        ]},
+    ];
     ];
     
     const modal = document.createElement('div');
