@@ -116,35 +116,54 @@ class Permission(str, Enum):
     ORG_MANAGE = "org:manage"
 
 
+# ============================================================================
+# PERMISSION CATEGORIES (Organized for UI Display)
+# ============================================================================
 
-# Permission Categories
-PLATFORM_PERMISSIONS = [
-    # System
-    "system:admin", "system:settings",
-    # Users
+# 1. Security Permissions - User & Access Management
+SECURITY_PERMISSIONS = [
     "users:view", "users:create", "users:edit", "users:delete",
-    # Roles
     "roles:view", "roles:create", "roles:edit", "roles:delete",
-    # Policies
     "policies:view", "policies:create", "policies:edit", "policies:delete",
-    # Audit
-    "audit:view", "audit:export",
-    # Organization
     "org:view", "org:edit", "org:manage",
 ]
 
-AGENT_PERMISSIONS = [
-    # Agents
-    "agents:view", "agents:create", "agents:edit", "agents:delete", "agents:publish", "agents:test",
-    # Tools
+# 2. AI Agent Permissions - Agent Building & Management
+AI_AGENT_PERMISSIONS = [
+    "agents:view", "agents:create", "agents:edit", "agents:delete", "agents:publish",
     "tools:view", "tools:create", "tools:edit", "tools:delete", "tools:execute", "tools:manage_permissions",
-    # Knowledge Base
     "kb:view", "kb:create", "kb:edit", "kb:delete", "kb:upload", "kb:manage_permissions",
-    # Database
     "db:view", "db:create", "db:edit", "db:delete", "db:manage_permissions",
-    # Chat
     "chat:use", "chat:view_all", "chat:delete",
 ]
+
+# 3. Analytics & Audit Permissions
+ANALYTICS_AUDIT_PERMISSIONS = [
+    "audit:view", "audit:export",
+]
+
+# 4. Demo Lab Permissions - Testing & Demos
+DEMO_LAB_PERMISSIONS = [
+    "agents:test",
+]
+
+# 5. System Permissions - Platform Administration
+SYSTEM_PERMISSIONS = [
+    "system:admin", "system:settings",
+]
+
+# Backward Compatibility Aliases
+PLATFORM_PERMISSIONS = SECURITY_PERMISSIONS + SYSTEM_PERMISSIONS + ANALYTICS_AUDIT_PERMISSIONS
+AGENT_PERMISSIONS = AI_AGENT_PERMISSIONS + DEMO_LAB_PERMISSIONS
+
+# All Permissions Combined
+ALL_PERMISSIONS = (
+    SECURITY_PERMISSIONS + 
+    AI_AGENT_PERMISSIONS + 
+    ANALYTICS_AUDIT_PERMISSIONS + 
+    DEMO_LAB_PERMISSIONS + 
+    SYSTEM_PERMISSIONS
+)
 
 # Menu permission mapping
 MENU_PERMISSIONS = {
@@ -156,6 +175,7 @@ MENU_PERMISSIONS = {
     "settings": "system:settings",
     "security": "users:view",
 }
+
 
 
 
