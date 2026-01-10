@@ -1949,7 +1949,7 @@
                                             <input type="radio" name="mfa-mode" value="admins" class="mr-4 accent-purple-500">
                                             <div class="flex-1">
                                                 <span class="font-medium">👑 Required for Admins</span>
-                                                <p class="text-sm text-gray-500">Only administrators must use MFA</p>
+                                                <p class="text-sm text-gray-500">Administrators must use MFA, others optional</p>
                                             </div>
                                         </label>
                                         
@@ -1960,17 +1960,6 @@
                                                 <p class="text-sm text-gray-500">All users must verify with email code</p>
                                             </div>
                                         </label>
-                                        
-                                        <!-- Allow Opt-out (shows only for required modes) -->
-                                        <div id="mfa-optout-option" class="hidden mt-4 ml-4 p-3 bg-gray-800/50 rounded-lg border-l-2 border-purple-500">
-                                            <label class="flex items-center gap-3 cursor-pointer">
-                                                <input type="checkbox" id="mfa-allow-optout" class="rounded accent-purple-500" onchange="saveMfaSettings()">
-                                                <div>
-                                                    <span class="text-sm font-medium">Allow users to opt-out</span>
-                                                    <p class="text-xs text-gray-500">Users can disable MFA from their profile</p>
-                                                </div>
-                                            </label>
-                                        </div>
                                     </div>
                                     
                                     <div id="mfa-save-status" class="mt-4 text-sm text-green-400 hidden">✓ Settings saved automatically</div>
@@ -2001,8 +1990,8 @@
                                 </div>
                             </div>
                             
-                            <!-- User Opt-out Toggle (if allowed by admin) -->
-                            <div id="mfa-optout-section" class="hidden">
+                            <!-- User MFA Toggle (shows for Optional mode) -->
+                            <div id="mfa-user-toggle-section" class="hidden">
                                 <div class="border border-gray-700 rounded-xl p-4">
                                     <div class="flex items-center justify-between">
                                         <div>
@@ -2018,7 +2007,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Security Settings Tab -->
                     <div id="sec-content-settings" class="hidden card rounded-xl p-6">
                         <h3 class="text-lg font-bold mb-6">Security Settings</h3>
                         <form id="security-settings-form" class="space-y-6">
@@ -18264,32 +18252,20 @@ async function exportAuditLogs() {
 // Check MFA status
 
 
+
 function selectMfaMode(mode) {
     document.querySelector(`input[name="mfa-mode"][value="${mode}"]`).checked = true;
-    
-    // Show/hide opt-out option
-    const optoutOption = document.getElementById('mfa-optout-option');
-    if (mode === 'admins' || mode === 'all') {
-        optoutOption.classList.remove('hidden');
-    } else {
-        optoutOption.classList.add('hidden');
-    }
-    
     saveMfaSettings();
 }
 
 async function saveMfaSettings() {
     const mode = document.querySelector('input[name="mfa-mode"]:checked')?.value || 'off';
-    const allowOptout = document.getElementById('mfa-allow-optout')?.checked || false;
     
     try {
         const res = await fetch('/api/security/settings', {
             method: 'PUT',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                mfa_enforcement: mode,
-                mfa_allow_user_optout: allowOptout
-            })
+            body: JSON.stringify({ mfa_enforcement: mode })
         });
         
         if (res.ok) {
@@ -18316,22 +18292,6 @@ async function loadMfaAdminSettings() {
         // Set radio button
         const radio = document.querySelector(`input[name="mfa-mode"][value="${mode}"]`);
         if (radio) radio.checked = true;
-        
-        // Show/hide opt-out option
-        const optoutOption = document.getElementById('mfa-optout-option');
-        if (optoutOption) {
-            if (mode === 'admins' || mode === 'all') {
-                optoutOption.classList.remove('hidden');
-            } else {
-                optoutOption.classList.add('hidden');
-            }
-        }
-        
-        // Set opt-out checkbox
-        const allowOptout = document.getElementById('mfa-allow-optout');
-        if (allowOptout) {
-            allowOptout.checked = settings.mfa_allow_user_optout || false;
-        }
     } catch (e) {
         console.error('Error loading MFA settings:', e);
     }
@@ -18353,7 +18313,6 @@ async function checkMfaStatus() {
         
         const userMfaEnabled = userData.user?.mfa_enabled || false;
         const enforcement = settings.mfa_enforcement || 'off';
-        const allowOptout = settings.mfa_allow_user_optout || false;
         
         // Update status badge
         const badge = document.getElementById('mfa-status-badge');
@@ -18367,24 +18326,25 @@ async function checkMfaStatus() {
                 badge.innerHTML = userMfaEnabled 
                     ? '<span class="px-3 py-1 rounded-full text-sm bg-green-500/20 text-green-400">✓ Active</span>'
                     : '<span class="px-3 py-1 rounded-full text-sm bg-yellow-500/20 text-yellow-400">Optional</span>';
-                statusText.textContent = userMfaEnabled ? 'MFA is active on your account' : 'MFA is optional - you can enable it';
+                statusText.textContent = userMfaEnabled ? 'MFA is active on your account' : 'MFA is optional - you can enable it below';
+            } else if (enforcement === 'admins') {
+                badge.innerHTML = '<span class="px-3 py-1 rounded-full text-sm bg-blue-500/20 text-blue-400">Admins Only</span>';
+                statusText.textContent = 'MFA is required for administrators';
             } else {
                 badge.innerHTML = '<span class="px-3 py-1 rounded-full text-sm bg-green-500/20 text-green-400">✓ Required</span>';
-                statusText.textContent = enforcement === 'all' 
-                    ? 'MFA is required for all users' 
-                    : 'MFA is required for administrators';
+                statusText.textContent = 'MFA is required for all users';
             }
         }
         
-        // Show opt-out section if allowed and MFA is not off
-        const optoutSection = document.getElementById('mfa-optout-section');
-        if (optoutSection) {
-            if (allowOptout && enforcement !== 'off') {
-                optoutSection.classList.remove('hidden');
+        // Show user toggle only for Optional mode
+        const userToggleSection = document.getElementById('mfa-user-toggle-section');
+        if (userToggleSection) {
+            if (enforcement === 'optional') {
+                userToggleSection.classList.remove('hidden');
                 const userEnabledCheckbox = document.getElementById('mfa-user-enabled');
                 if (userEnabledCheckbox) userEnabledCheckbox.checked = userMfaEnabled;
             } else {
-                optoutSection.classList.add('hidden');
+                userToggleSection.classList.add('hidden');
             }
         }
         
@@ -18406,6 +18366,7 @@ async function toggleUserMFA() {
         
         if (res.ok) {
             showToast(newState ? 'MFA enabled for your account' : 'MFA disabled for your account', 'success');
+            checkMfaStatus();
         } else {
             const data = await res.json();
             showToast(data.detail || 'Failed to update MFA', 'error');
