@@ -1731,26 +1731,19 @@ async def reset_default_roles(user: User = Depends(require_super_admin)):
     """Reset system roles to default permissions (Super Admin only)"""
     from core.security.models import DEFAULT_ROLES
     
-    # Debug info
-    db_role_ids = [r.id for r in security_state.roles]
-    default_role_ids = [r["id"] for r in DEFAULT_ROLES]
-    
     # Update only system roles with new defaults
     updated = 0
     for default_role in DEFAULT_ROLES:
         role_id = default_role["id"]
-        for role in security_state.roles:
-            if role.id == role_id:
-                role.permissions = default_role["permissions"]
-                role.description = default_role["description"]
-                updated += 1
-                break
+        if role_id in security_state.roles:
+            role = security_state.roles[role_id]
+            role.permissions = default_role["permissions"]
+            role.description = default_role["description"]
+            updated += 1
     
     security_state.save_to_disk()
     
-    return {
-        "message": f"Reset {updated} system roles to defaults", 
-        "updated": updated,
+    return {"message": f"Reset {updated} system roles to defaults", "updated": updated}
         "db_roles": db_role_ids,
         "default_roles": default_role_ids
     }
