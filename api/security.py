@@ -365,7 +365,7 @@ async def require_auth(user: User = Depends(get_current_user)) -> User:
 
 async def require_admin(user: User = Depends(require_auth)) -> User:
     """Require admin user"""
-    if not security_state.check_permission(user, Permission.USERS_CREATE.value):
+    if not security_state.check_permission(user, Permission.USERS_EDIT.value):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
