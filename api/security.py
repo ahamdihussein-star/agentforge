@@ -615,13 +615,19 @@ async def login(request: LoginRequest, req: Request):
     
     # Check MFA requirement based on settings
     mfa_required = False
-    if settings.mfa_enforcement == "all":
+    
+    # Super Admin bypass - skip MFA for system admins with non-real emails
+    is_super_admin = security_state.check_permission(user, Permission.SYSTEM_ADMIN.value)
+    if is_super_admin and (not user.email or '@' not in user.email or user.email.endswith('@local')):
+        mfa_required = False  # Bypass MFA for super admin with fake email
+    elif settings.mfa_enforcement == "all":
         mfa_required = True
     elif settings.mfa_enforcement == "admins":
         is_admin = security_state.check_permission(user, Permission.SYSTEM_ADMIN.value)
         mfa_required = is_admin
     elif settings.mfa_enforcement == "optional" and user.mfa.enabled:
         mfa_required = True
+    
     
     if mfa_required and not request.mfa_code:
         # Auto-send email code

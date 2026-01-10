@@ -1912,42 +1912,73 @@
                     <!-- MFA Tab -->
                     <div id="sec-content-mfa" class="hidden card rounded-xl p-6">
                         <div class="max-w-2xl mx-auto">
-                            <div class="text-center mb-6">
+                            <div class="text-center mb-8">
                                 <div class="text-6xl mb-4">🔐</div>
                                 <h3 class="text-xl font-bold mb-2">Multi-Factor Authentication</h3>
-                                <p class="text-gray-400">Email verification adds an extra layer of security</p>
+                                <p class="text-gray-400">Secure your platform with email verification</p>
                             </div>
                             
-                            <!-- Admin Controls (shown only to admins) -->
-                            <div id="mfa-admin-controls" class="mb-8 p-6 bg-purple-500/10 border border-purple-500/30 rounded-xl" data-permission="system:admin,security:settings">
-                                <h4 class="font-bold text-purple-400 mb-4 flex items-center gap-2">
-                                    <span>⚙️</span> MFA Settings (Admin)
-                                </h4>
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm text-gray-400 mb-2">MFA Enforcement</label>
-                                        <select id="mfa-enforcement-select" class="input-field w-full px-4 py-2 rounded-lg" onchange="saveMfaEnforcement()">
-                                            <option value="off">Off - Disabled</option>
-                                            <option value="optional">Optional - Users can enable</option>
-                                            <option value="admins">Required for Admins only</option>
-                                            <option value="all">Required for All Users</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="flex items-center gap-3 cursor-pointer">
-                                            <input type="checkbox" id="mfa-allow-optout" class="rounded accent-purple-500" onchange="saveMfaEnforcement()">
-                                            <div>
-                                                <span class="text-sm">Allow users to opt-out</span>
-                                                <p class="text-xs text-gray-500">Users can disable MFA for their own account</p>
+                            <!-- Admin Controls -->
+                            <div id="mfa-admin-controls" class="mb-8" data-permission="system:admin,security:settings">
+                                <div class="bg-purple-500/10 border border-purple-500/30 rounded-xl p-6">
+                                    <h4 class="font-bold text-purple-400 mb-6 flex items-center gap-2">
+                                        <span>⚙️</span> Platform MFA Settings
+                                    </h4>
+                                    
+                                    <!-- MFA Mode Selection - Better UX -->
+                                    <div class="space-y-3 mb-6">
+                                        <label class="block text-sm text-gray-400 mb-3">Choose MFA mode for your platform:</label>
+                                        
+                                        <label class="flex items-center p-4 rounded-lg border border-gray-700 hover:border-purple-500 cursor-pointer transition" onclick="selectMfaMode('off')">
+                                            <input type="radio" name="mfa-mode" value="off" class="mr-4 accent-purple-500">
+                                            <div class="flex-1">
+                                                <span class="font-medium">🔓 Disabled</span>
+                                                <p class="text-sm text-gray-500">MFA is turned off for all users</p>
+                                            </div>
+                                        </label>
+                                        
+                                        <label class="flex items-center p-4 rounded-lg border border-gray-700 hover:border-purple-500 cursor-pointer transition" onclick="selectMfaMode('optional')">
+                                            <input type="radio" name="mfa-mode" value="optional" class="mr-4 accent-purple-500">
+                                            <div class="flex-1">
+                                                <span class="font-medium">🔘 Optional</span>
+                                                <p class="text-sm text-gray-500">Users can choose to enable MFA</p>
+                                            </div>
+                                        </label>
+                                        
+                                        <label class="flex items-center p-4 rounded-lg border border-gray-700 hover:border-purple-500 cursor-pointer transition" onclick="selectMfaMode('admins')">
+                                            <input type="radio" name="mfa-mode" value="admins" class="mr-4 accent-purple-500">
+                                            <div class="flex-1">
+                                                <span class="font-medium">👑 Required for Admins</span>
+                                                <p class="text-sm text-gray-500">Only administrators must use MFA</p>
+                                            </div>
+                                        </label>
+                                        
+                                        <label class="flex items-center p-4 rounded-lg border border-gray-700 hover:border-purple-500 cursor-pointer transition" onclick="selectMfaMode('all')">
+                                            <input type="radio" name="mfa-mode" value="all" class="mr-4 accent-purple-500">
+                                            <div class="flex-1">
+                                                <span class="font-medium">🔒 Required for Everyone</span>
+                                                <p class="text-sm text-gray-500">All users must verify with email code</p>
                                             </div>
                                         </label>
                                     </div>
+                                    
+                                    <!-- Allow Opt-out (shows only when optional/admins selected) -->
+                                    <div id="mfa-optout-option" class="hidden border-t border-gray-700 pt-4">
+                                        <label class="flex items-center gap-3 cursor-pointer">
+                                            <input type="checkbox" id="mfa-allow-optout" class="rounded accent-purple-500" onchange="saveMfaSettings()">
+                                            <div>
+                                                <span class="text-sm font-medium">Allow users to disable MFA</span>
+                                                <p class="text-xs text-gray-500">Users can opt-out of MFA for their account</p>
+                                            </div>
+                                        </label>
+                                    </div>
+                                    
+                                    <div id="mfa-save-status" class="mt-4 text-sm text-green-400 hidden">✓ Settings saved automatically</div>
                                 </div>
-                                <div id="mfa-save-status" class="mt-3 text-sm text-green-400 hidden">✓ Settings saved</div>
                             </div>
                             
-                            <!-- User MFA Status -->
-                            <div id="mfa-user-status" class="bg-gray-800/50 rounded-xl p-6 mb-6">
+                            <!-- User Status Section -->
+                            <div class="bg-gray-800/50 rounded-xl p-6 mb-6">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <h4 class="font-semibold mb-1">Your MFA Status</h4>
@@ -1962,21 +1993,52 @@
                             <!-- How it works -->
                             <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
                                 <div class="flex items-start gap-3">
-                                    <span class="text-2xl">ℹ️</span>
+                                    <span class="text-2xl">📧</span>
                                     <div>
                                         <h4 class="font-semibold text-blue-400 mb-1">How it works</h4>
-                                        <p class="text-sm text-gray-400">When MFA is enabled, you'll receive a verification code to your email each time you log in. Enter this code to complete your sign-in.</p>
+                                        <p class="text-sm text-gray-400">When you log in, a 6-digit code will be sent to your email. Enter this code to complete sign-in.</p>
                                     </div>
                                 </div>
                             </div>
                             
-                            <!-- User Opt-out Option (if allowed) -->
+                            <!-- User Opt-out Toggle (if allowed by admin) -->
                             <div id="mfa-optout-section" class="hidden">
                                 <div class="border border-gray-700 rounded-xl p-4">
                                     <div class="flex items-center justify-between">
                                         <div>
                                             <h4 class="font-semibold mb-1">MFA for my account</h4>
-                                            <p class="text-sm text-gray-400">Toggle MFA for your account</p>
+                                            <p class="text-sm text-gray-400">Enable or disable MFA for your login</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="mfa-user-enabled" class="sr-only peer" onchange="toggleUserMFA()">
+                                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- How it works -->
+                            <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
+                                <div class="flex items-start gap-3">
+                                    <span class="text-2xl">📧</span>
+                                    <div>
+                                        <h4 class="font-semibold text-blue-400 mb-1">How it works</h4>
+                                        <p class="text-sm text-gray-400">When you log in, a 6-digit code will be sent to your email. Enter this code to complete sign-in.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- User Opt-out Toggle (if allowed by admin) -->
+                            <div id="mfa-optout-section" class="hidden">
+                                <div class="border border-gray-700 rounded-xl p-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h4 class="font-semibold mb-1">MFA for my account</h4>
+                                            <p class="text-sm text-gray-400">Enable or disable MFA for your login</p>
                                         </div>
                                         <label class="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" id="mfa-user-enabled" class="sr-only peer" onchange="toggleUserMFA()">
@@ -2075,24 +2137,6 @@
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-2">Lockout Duration (minutes)</label>
                                         <input type="number" id="sec-setting-lockout_duration" name="lockout_duration" min="5" value="30" class="input-field w-full px-4 py-2 rounded-lg">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm text-gray-400 mb-2">MFA Enforcement</label>
-                                        <select id="sec-setting-mfa_enforcement" name="mfa_enforcement" class="input-field w-full px-4 py-2 rounded-lg">
-                                            <option value="off">Off - Disabled</option>
-                                            <option value="optional">Optional</option>
-                                            <option value="admins">Required for Admins</option>
-                                            <option value="all">Required for All Users</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="flex items-center gap-3 cursor-pointer">
-                                            <input type="checkbox" id="sec-setting-mfa_allow_user_optout" name="mfa_allow_user_optout" class="rounded">
-                                            <div>
-                                                <span class="text-sm">Allow users to opt-out of MFA</span>
-                                                <p class="text-xs text-gray-500">Users can disable MFA for their own account</p>
-                                            </div>
-                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -18250,29 +18294,23 @@ async function exportAuditLogs() {
 
 // Check MFA status
 
-async function loadMfaAdminSettings() {
-    try {
-        const res = await fetch('/api/security/settings', { headers: getAuthHeaders() });
-        if (!res.ok) return;
-        
-        const settings = await res.json();
-        
-        const enforcementSelect = document.getElementById('mfa-enforcement-select');
-        if (enforcementSelect) {
-            enforcementSelect.value = settings.mfa_enforcement || 'off';
-        }
-        
-        const allowOptout = document.getElementById('mfa-allow-optout');
-        if (allowOptout) {
-            allowOptout.checked = settings.mfa_allow_user_optout || false;
-        }
-    } catch (e) {
-        console.error('Error loading MFA settings:', e);
+
+function selectMfaMode(mode) {
+    document.querySelector(`input[name="mfa-mode"][value="${mode}"]`).checked = true;
+    
+    // Show/hide opt-out option
+    const optoutOption = document.getElementById('mfa-optout-option');
+    if (mode === 'optional' || mode === 'admins') {
+        optoutOption.classList.remove('hidden');
+    } else {
+        optoutOption.classList.add('hidden');
     }
+    
+    saveMfaSettings();
 }
 
-async function saveMfaEnforcement() {
-    const enforcement = document.getElementById('mfa-enforcement-select')?.value || 'off';
+async function saveMfaSettings() {
+    const mode = document.querySelector('input[name="mfa-mode"]:checked')?.value || 'off';
     const allowOptout = document.getElementById('mfa-allow-optout')?.checked || false;
     
     try {
@@ -18280,7 +18318,7 @@ async function saveMfaEnforcement() {
             method: 'PUT',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                mfa_enforcement: enforcement,
+                mfa_enforcement: mode,
                 mfa_allow_user_optout: allowOptout
             })
         });
@@ -18289,8 +18327,6 @@ async function saveMfaEnforcement() {
             const status = document.getElementById('mfa-save-status');
             status.classList.remove('hidden');
             setTimeout(() => status.classList.add('hidden'), 2000);
-            
-            // Refresh status display
             checkMfaStatus();
         } else {
             showToast('Failed to save settings', 'error');
@@ -18300,9 +18336,42 @@ async function saveMfaEnforcement() {
     }
 }
 
+async function loadMfaAdminSettings() {
+    try {
+        const res = await fetch('/api/security/settings', { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        
+        const settings = await res.json();
+        const mode = settings.mfa_enforcement || 'off';
+        
+        // Set radio button
+        const radio = document.querySelector(`input[name="mfa-mode"][value="${mode}"]`);
+        if (radio) radio.checked = true;
+        
+        // Show/hide opt-out option
+        const optoutOption = document.getElementById('mfa-optout-option');
+        if (optoutOption) {
+            if (mode === 'optional' || mode === 'admins') {
+                optoutOption.classList.remove('hidden');
+            } else {
+                optoutOption.classList.add('hidden');
+            }
+        }
+        
+        // Set opt-out checkbox
+        const allowOptout = document.getElementById('mfa-allow-optout');
+        if (allowOptout) {
+            allowOptout.checked = settings.mfa_allow_user_optout || false;
+        }
+    } catch (e) {
+        console.error('Error loading MFA settings:', e);
+    }
+}
+
 async function checkMfaStatus() {
     // Load admin settings if admin
     loadMfaAdminSettings();
+    
     try {
         // Get user info
         const userRes = await fetch('/api/security/auth/me', { headers: getAuthHeaders() });
@@ -18321,32 +18390,33 @@ async function checkMfaStatus() {
         const badge = document.getElementById('mfa-status-badge');
         const statusText = document.getElementById('mfa-status-text');
         
-        if (enforcement === 'off') {
-            badge.innerHTML = '<span class="px-3 py-1 rounded-full text-sm bg-gray-600 text-gray-300">Not Required</span>';
-            statusText.textContent = 'MFA is not enforced by your organization';
-        } else if (enforcement === 'optional') {
-            badge.innerHTML = userMfaEnabled 
-                ? '<span class="px-3 py-1 rounded-full text-sm bg-green-500/20 text-green-400">✓ Enabled</span>'
-                : '<span class="px-3 py-1 rounded-full text-sm bg-yellow-500/20 text-yellow-400">Optional</span>';
-            statusText.textContent = userMfaEnabled ? 'MFA is active on your account' : 'MFA is optional for your account';
-        } else {
-            badge.innerHTML = '<span class="px-3 py-1 rounded-full text-sm bg-green-500/20 text-green-400">✓ Required</span>';
-            statusText.textContent = enforcement === 'all' 
-                ? 'MFA is required for all users' 
-                : 'MFA is required for administrators';
+        if (badge && statusText) {
+            if (enforcement === 'off') {
+                badge.innerHTML = '<span class="px-3 py-1 rounded-full text-sm bg-gray-600 text-gray-300">Disabled</span>';
+                statusText.textContent = 'MFA is turned off for your organization';
+            } else if (enforcement === 'optional') {
+                badge.innerHTML = userMfaEnabled 
+                    ? '<span class="px-3 py-1 rounded-full text-sm bg-green-500/20 text-green-400">✓ Active</span>'
+                    : '<span class="px-3 py-1 rounded-full text-sm bg-yellow-500/20 text-yellow-400">Optional</span>';
+                statusText.textContent = userMfaEnabled ? 'MFA is active on your account' : 'MFA is optional - you can enable it';
+            } else {
+                badge.innerHTML = '<span class="px-3 py-1 rounded-full text-sm bg-green-500/20 text-green-400">✓ Required</span>';
+                statusText.textContent = enforcement === 'all' 
+                    ? 'MFA is required for all users' 
+                    : 'MFA is required for administrators';
+            }
         }
         
-        // Show opt-out section if allowed
+        // Show opt-out section if allowed and MFA is not off
         const optoutSection = document.getElementById('mfa-optout-section');
-        const adminNotice = document.getElementById('mfa-admin-notice');
-        
-        if (allowOptout && enforcement !== 'off') {
-            optoutSection.classList.remove('hidden');
-            adminNotice.classList.add('hidden');
-            document.getElementById('mfa-user-enabled').checked = userMfaEnabled;
-        } else {
-            optoutSection.classList.add('hidden');
-            adminNotice.classList.remove('hidden');
+        if (optoutSection) {
+            if (allowOptout && enforcement !== 'off') {
+                optoutSection.classList.remove('hidden');
+                const userEnabledCheckbox = document.getElementById('mfa-user-enabled');
+                if (userEnabledCheckbox) userEnabledCheckbox.checked = userMfaEnabled;
+            } else {
+                optoutSection.classList.add('hidden');
+            }
         }
         
     } catch (e) {
@@ -18369,13 +18439,12 @@ async function toggleUserMFA() {
             showToast(newState ? 'MFA enabled for your account' : 'MFA disabled for your account', 'success');
         } else {
             const data = await res.json();
-        console.log("Login response:", data);
             showToast(data.detail || 'Failed to update MFA', 'error');
-            checkbox.checked = !newState; // Revert
+            checkbox.checked = !newState;
         }
     } catch (e) {
         showToast('Error: ' + e.message, 'error');
-        checkbox.checked = !newState; // Revert
+        checkbox.checked = !newState;
     }
 }
 
