@@ -1073,6 +1073,8 @@ async def enable_mfa(request: EnableMFARequest, user: User = Depends(require_aut
 @router.post("/mfa/verify")
 async def verify_mfa_setup(request: VerifyMFARequest, user: User = Depends(require_auth)):
     """Verify and complete MFA setup"""
+    
+    # Check TOTP verification
     if user.mfa.totp_secret and not user.mfa.totp_verified:
         if MFAService.verify_totp(user.mfa.totp_secret, request.code):
             user.mfa.enabled = True
@@ -1100,7 +1102,71 @@ async def verify_mfa_setup(request: VerifyMFARequest, user: User = Depends(requi
                 "message": "Save these backup codes in a safe place"
             }
     
+    # Check Email verification
+    if user.mfa.email_code:
+        # Check if code is expired
+        if user.mfa.email_code_expires:
+            expires = datetime.fromisoformat(user.mfa.email_code_expires)
+            if datetime.utcnow() > expires:
+                raise HTTPException(status_code=400, detail="Verification code expired. Please request a new one.")
+        
+        if user.mfa.email_code == request.code:
+            user.mfa.enabled = True
+            if MFAMethod.EMAIL not in user.mfa.methods:
+                user.mfa.methods.append(MFAMethod.EMAIL)
+            
+            # Clear email code
+            user.mfa.email_code = None
+            user.mfa.email_code_expires = None
+            
+            # Generate backup codes
+            backup_codes = MFAService.generate_backup_codes()
+            user.mfa.backup_codes = [PasswordService.hash_password(c) for c in backup_codes]
+            
+            security_state.save_to_disk()
+            
+            security_state.add_audit_log(
+                user=user,
+                action=ActionType.MFA_ENABLED,
+                resource_type=ResourceType.USER,
+                resource_id=user.id,
+                details={"method": "email"}
+            )
+            
+            return {
+                "status": "success",
+                "backup_codes": backup_codes,
+                "message": "Save these backup codes in a safe place"
+            }
+    
     raise HTTPException(status_code=400, detail="Invalid verification code")
+
+
+@router.post("/mfa/send-login-code")
+async def send_mfa_login_code(request: LoginRequest, req: Request):
+    """Send MFA code for login (Email method)"""
+    user = security_state.get_user_by_email(request.email, request.org_id)
+    
+    if not user:
+        # Don't reveal if user exists
+        return {"status": "success", "message": "If the account exists, a code has been sent"}
+    
+    if not user.mfa.enabled or MFAMethod.EMAIL not in user.mfa.methods:
+        raise HTTPException(status_code=400, detail="Email MFA not enabled for this account")
+    
+    # Verify password first
+    if not PasswordService.verify_password(request.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Generate and send code
+    code = MFAService.generate_email_code()
+    user.mfa.email_code = code
+    user.mfa.email_code_expires = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+    security_state.save_to_disk()
+    
+    await EmailService.send_mfa_code(user, code)
+    
+    return {"status": "success", "message": "Verification code sent to your email"}
 
 @router.post("/mfa/disable")
 async def disable_mfa(request: DisableMFARequest, user: User = Depends(require_auth)):
