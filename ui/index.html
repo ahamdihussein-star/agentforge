@@ -16144,6 +16144,7 @@ async function connectEmailProvider(provider) {
         }
         
         const data = await res.json();
+        console.log("Login response:", data);
         
         // Open OAuth popup
         const popup = window.open(
@@ -16754,6 +16755,7 @@ async function oauthLogin(provider) {
         showToast('Redirecting to ' + provider + '...', 'info');
         const res = await fetch('/api/security/oauth/' + provider + '/login');
         const data = await res.json();
+        console.log("Login response:", data);
         
         if (data.auth_url) {
             window.location.href = data.auth_url;
@@ -16798,6 +16800,7 @@ async function handleLogin(event) {
         });
         
         const data = await res.json();
+        console.log("Login response:", data);
         
         if (!res.ok) {
             showToast(typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || 'Login failed'), 'error');
@@ -16924,6 +16927,7 @@ async function resendLoginMfaCode() {
             }, 30000);
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to send code', 'error');
             btn.disabled = false;
             btn.textContent = "Didn't receive the code? Resend";
@@ -16959,6 +16963,7 @@ async function verifyLoginMfa() {
         });
         
         const data = await res.json();
+        console.log("Login response:", data);
         
         if (!res.ok) {
             showToast(data.detail || 'Invalid code', 'error');
@@ -17182,6 +17187,7 @@ async function handleRegister(event) {
         });
         
         const data = await res.json();
+        console.log("Login response:", data);
         
         if (!res.ok) {
             let errorMsg = 'Registration failed. Please try again.';
@@ -17462,6 +17468,7 @@ async function loadSecurityUsers() {
         
         if (!res.ok) return;
         const data = await res.json();
+        console.log("Login response:", data);
         securityUsers = data.users || [];
         renderSecurityUsers();
     } catch (e) {
@@ -17530,6 +17537,7 @@ async function resendVerificationEmail(userId, email) {
             showToast(`Verification email sent to ${email}`, 'success');
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to send email', 'error');
         }
     } catch (e) {
@@ -17554,6 +17562,7 @@ async function deleteSecurityUser(userId) {
             loadSecurityStats();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to delete user', 'error');
         }
     } catch (e) {
@@ -17642,6 +17651,7 @@ async function saveUserEdit(userId) {
             loadSecurityUsers();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to update user', 'error');
         }
     } catch (e) {
@@ -17664,6 +17674,7 @@ async function loadSecurityInvitations() {
         const res = await fetch('/api/security/invitations', { headers: getAuthHeaders() });
         if (res.ok) {
             const data = await res.json();
+        console.log("Login response:", data);
             securityInvitations = data.invitations || [];
             renderSecurityInvitations();
         }
@@ -17710,6 +17721,7 @@ async function resendInvitation(invId) {
             loadSecurityInvitations();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to resend', 'error');
         }
     } catch (e) {
@@ -17729,6 +17741,7 @@ async function deleteInvitation(invId) {
             loadSecurityInvitations();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to delete', 'error');
         }
     } catch (e) {
@@ -17743,6 +17756,7 @@ async function loadSecurityRoles() {
         });
         if (!res.ok) return;
         const data = await res.json();
+        console.log("Login response:", data);
         securityRoles = data.roles || [];
         renderSecurityRoles();
     } catch (e) {
@@ -18059,6 +18073,7 @@ async function saveNewRole() {
             loadSecurityRoles();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to create role', 'error');
         }
     } catch (e) {
@@ -18090,6 +18105,7 @@ async function updateRole(roleId) {
             loadSecurityRoles();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to update role', 'error');
         }
     } catch (e) {
@@ -18120,6 +18136,7 @@ async function deleteRole(roleId) {
             loadSecurityRoles();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to delete role', 'error');
         }
     } catch (e) {
@@ -18187,6 +18204,7 @@ async function loadAuditLogs() {
         if (!res.ok) return;
         
         const data = await res.json();
+        console.log("Login response:", data);
         const logs = data.logs || [];
         
         if (!logs.length) {
@@ -18351,6 +18369,7 @@ async function toggleUserMFA() {
             showToast(newState ? 'MFA enabled for your account' : 'MFA disabled for your account', 'success');
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to update MFA', 'error');
             checkbox.checked = !newState; // Revert
         }
@@ -18413,6 +18432,7 @@ async function sendInvite() {
             loadSecurityStats();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showToast(data.detail || 'Failed to send invite', 'error');
         }
     } catch (e) {
@@ -18617,6 +18637,7 @@ async function handleResetPassword(event, token) {
         });
         
         const data = await res.json();
+        console.log("Login response:", data);
         
         if (res.ok) {
             showResetPasswordSuccess();
@@ -18695,6 +18716,7 @@ async function verifyEmail(token) {
             showVerifyEmailSuccess();
         } else {
             const data = await res.json();
+        console.log("Login response:", data);
             showVerifyEmailError(data.detail || 'Verification failed');
         }
     } catch (e) {
