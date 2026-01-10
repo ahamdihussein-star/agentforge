@@ -1729,15 +1729,28 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
 @router.post("/roles/reset-defaults")
 async def reset_default_roles(user: User = Depends(require_super_admin)):
     """Reset system roles to default permissions (Super Admin only)"""
-    from core.security.models import DEFAULT_ROLES
+    from core.security.models import DEFAULT_ROLES, Role
     
     # Update only system roles with new defaults
     updated = 0
     for default_role in DEFAULT_ROLES:
-        existing = next((r for r in security_state.roles if r.id == default_role["id"]), None)
+        role_id = default_role["id"]
+        existing = None
+        for i, r in enumerate(security_state.roles):
+            # Handle both Role objects and dicts
+            r_id = r.id if hasattr(r, 'id') else r.get('id') if isinstance(r, dict) else None
+            if r_id == role_id:
+                existing = (i, r)
+                break
+        
         if existing:
-            existing.permissions = default_role["permissions"]
-            existing.description = default_role["description"]
+            idx, role = existing
+            if hasattr(role, 'permissions'):
+                role.permissions = default_role["permissions"]
+                role.description = default_role["description"]
+            else:
+                # Replace with new Role object
+                security_state.roles[idx] = Role(**default_role)
             updated += 1
     
     security_state.save_data()
