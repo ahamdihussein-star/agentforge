@@ -1753,7 +1753,7 @@ async def reset_default_roles(user: User = Depends(require_super_admin)):
                 security_state.roles[idx] = Role(**default_role)
             updated += 1
     
-    security_state.save_data()
+    security_state.save_to_disk()
     
     return {"message": f"Reset {updated} system roles to defaults", "updated": updated}
 async def delete_role(role_id: str, user: User = Depends(require_admin)):
