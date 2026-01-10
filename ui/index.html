@@ -1911,64 +1911,56 @@
 
                     <!-- MFA Tab -->
                     <div id="sec-content-mfa" class="hidden card rounded-xl p-6">
-                        <div class="max-w-md mx-auto text-center">
-                            <div class="text-6xl mb-4">🔑</div>
-                            <h3 class="text-xl font-bold mb-2">Multi-Factor Authentication</h3>
-                            <p class="text-gray-400 mb-6">Add an extra layer of security to your account</p>
-                            <div id="mfa-status" class="mb-6">
-                                <span class="px-4 py-2 rounded-full bg-red-500/20 text-red-400">❌ MFA Disabled</span>
+                        <div class="max-w-lg mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="text-6xl mb-4">🔐</div>
+                                <h3 class="text-xl font-bold mb-2">Multi-Factor Authentication</h3>
+                                <p class="text-gray-400">Email verification adds an extra layer of security to your account</p>
                             </div>
                             
-                            <!-- MFA Method Selection -->
-                            <div id="mfa-method-select" class="mb-6">
-                                <label class="block text-sm text-gray-400 mb-3">Choose verification method:</label>
-                                <div class="flex gap-4 justify-center">
-                                    <label class="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-gray-600 hover:border-purple-500 transition">
-                                        <input type="radio" name="mfa-method" value="email" checked class="accent-purple-500">
-                                        <span>📧 Email OTP</span>
-                                    </label>
-                                    <label class="flex items-center gap-2 cursor-pointer p-3 rounded-lg border border-gray-600 hover:border-purple-500 transition">
-                                        <input type="radio" name="mfa-method" value="totp" class="accent-purple-500">
-                                        <span>📱 Authenticator App</span>
-                                    </label>
+                            <!-- MFA Status -->
+                            <div id="mfa-user-status" class="bg-gray-800/50 rounded-xl p-6 mb-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="font-semibold mb-1">Your MFA Status</h4>
+                                        <p id="mfa-status-text" class="text-sm text-gray-400">Loading...</p>
+                                    </div>
+                                    <div id="mfa-status-badge">
+                                        <span class="px-3 py-1 rounded-full text-sm bg-gray-600 text-gray-300">Loading</span>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <button onclick="toggleMFA()" id="mfa-toggle-btn" class="btn-primary px-6 py-3 rounded-lg">Enable MFA</button>
-                            
-                            <!-- Email MFA Setup -->
-                            <div id="mfa-email-setup" class="hidden mt-6 text-left">
-                                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-4">
-                                    <p class="text-blue-400 text-sm">📧 A 6-digit verification code has been sent to your email.</p>
-                                </div>
-                                <div class="mt-4">
-                                    <label class="block text-sm mb-2">Enter verification code:</label>
-                                    <input type="text" id="mfa-email-code" class="input-field px-4 py-2 rounded-lg w-full text-center text-2xl tracking-widest" placeholder="000000" maxlength="6">
-                                    <button onclick="verifyEmailMFA()" class="btn-success px-4 py-2 rounded-lg mt-3 w-full">Verify & Enable</button>
-                                    <button onclick="resendMFACode()" class="btn-secondary px-4 py-2 rounded-lg mt-2 w-full text-sm">Resend Code</button>
+                            <!-- Platform MFA Info -->
+                            <div id="mfa-platform-info" class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
+                                <div class="flex items-start gap-3">
+                                    <span class="text-2xl">ℹ️</span>
+                                    <div>
+                                        <h4 class="font-semibold text-blue-400 mb-1">How it works</h4>
+                                        <p class="text-sm text-gray-400">When MFA is enabled, you'll receive a verification code to your email each time you log in. Enter this code to complete your sign-in.</p>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <!-- TOTP MFA Setup -->
-                            <div id="mfa-totp-setup" class="hidden mt-6 text-left">
-                                <p class="text-sm text-gray-400 mb-4">Scan this QR code with your authenticator app:</p>
-                                <div id="mfa-qr" class="bg-white p-4 rounded-lg inline-block mb-4"></div>
-                                <p class="text-xs text-gray-500 mb-4">Or enter manually: <code id="mfa-secret" class="bg-gray-800 px-2 py-1 rounded"></code></p>
-                                <div class="mt-4">
-                                    <label class="block text-sm mb-2">Enter verification code:</label>
-                                    <input type="text" id="mfa-verify-code" class="input-field px-4 py-2 rounded-lg w-full text-center text-2xl tracking-widest" placeholder="000000" maxlength="6">
-                                    <button onclick="verifyTOTPMFA()" class="btn-success px-4 py-2 rounded-lg mt-3 w-full">Verify & Enable</button>
+                            <!-- User Opt-out Option (if allowed) -->
+                            <div id="mfa-optout-section" class="hidden">
+                                <div class="border border-gray-700 rounded-xl p-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h4 class="font-semibold mb-1">Disable MFA for my account</h4>
+                                            <p class="text-sm text-gray-400">Your administrator allows you to opt-out of MFA</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="mfa-user-enabled" class="sr-only peer" onchange="toggleUserMFA()">
+                                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <!-- Backup Codes Display -->
-                            <div id="mfa-backup-codes" class="hidden mt-6 text-left">
-                                <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                                    <h4 class="font-bold text-yellow-400 mb-2">⚠️ Save Your Backup Codes</h4>
-                                    <p class="text-sm text-gray-400 mb-3">Store these codes safely. Each can only be used once.</p>
-                                    <div id="backup-codes-list" class="bg-gray-800 rounded-lg p-3 font-mono text-sm grid grid-cols-2 gap-2"></div>
-                                    <button onclick="copyBackupCodes()" class="btn-secondary px-4 py-2 rounded-lg mt-3 w-full text-sm">📋 Copy Codes</button>
-                                </div>
+                            <!-- Admin Notice -->
+                            <div id="mfa-admin-notice" class="hidden mt-4 text-center">
+                                <p class="text-sm text-gray-500">💡 MFA settings are managed by your administrator in Security Settings</p>
                             </div>
                         </div>
                     </div>
@@ -2064,11 +2056,20 @@
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-2">MFA Enforcement</label>
                                         <select id="sec-setting-mfa_enforcement" name="mfa_enforcement" class="input-field w-full px-4 py-2 rounded-lg">
-                                            <option value="off">Off - Optional</option>
+                                            <option value="off">Off - Disabled</option>
+                                            <option value="optional">Optional</option>
                                             <option value="admins">Required for Admins</option>
                                             <option value="all">Required for All Users</option>
                                         </select>
-                            
+                                    </div>
+                                    <div>
+                                        <label class="flex items-center gap-3 cursor-pointer">
+                                            <input type="checkbox" id="sec-setting-mfa_allow_user_optout" name="mfa_allow_user_optout" class="rounded">
+                                            <div>
+                                                <span class="text-sm">Allow users to opt-out of MFA</span>
+                                                <p class="text-xs text-gray-500">Users can disable MFA for their own account</p>
+                                            </div>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -16825,9 +16826,6 @@ async function handleLogin(event) {
 }
 
 function showLoginMfaModal(methods) {
-    const hasEmail = methods.includes('email');
-    const hasTotp = methods.includes('totp');
-    
     const modal = document.createElement('div');
     modal.id = 'login-mfa-modal';
     modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
@@ -16836,19 +16834,18 @@ function showLoginMfaModal(methods) {
             <div class="text-center mb-6">
                 <div class="text-5xl mb-3">🔐</div>
                 <h3 class="text-xl font-bold">Two-Factor Authentication</h3>
-                <p class="text-gray-400 text-sm mt-2">Enter your verification code to continue</p>
+                <p class="text-gray-400 text-sm mt-2">A verification code has been sent to your email</p>
             </div>
             
-            ${hasEmail ? `
-            <div id="mfa-login-email-section" class="mb-4">
-                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
-                    <p class="text-blue-400 text-sm">📧 Click below to receive a code via email</p>
+            <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">📧</span>
+                    <div>
+                        <p class="text-green-400 font-medium">Code Sent!</p>
+                        <p class="text-sm text-gray-400">Check your email for the 6-digit code</p>
+                    </div>
                 </div>
-                <button onclick="sendLoginMfaCode()" id="send-mfa-code-btn" class="btn-secondary w-full py-2 rounded-lg mb-4">
-                    Send Code to Email
-                </button>
             </div>
-            ` : ''}
             
             <div>
                 <label class="block text-sm text-gray-400 mb-2">Verification Code</label>
@@ -16860,9 +16857,11 @@ function showLoginMfaModal(methods) {
                 <button onclick="verifyLoginMfa()" id="verify-mfa-btn" class="btn-primary flex-1 py-2 rounded-lg">Verify</button>
             </div>
             
-            <p class="text-center text-gray-500 text-xs mt-4">
-                ${hasTotp ? '💡 Use your authenticator app or backup code' : ''}
-            </p>
+            <div class="text-center mt-4">
+                <button onclick="resendLoginMfaCode()" id="resend-mfa-btn" class="text-sm text-gray-400 hover:text-purple-400 transition">
+                    Didn't receive the code? Resend
+                </button>
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -16876,11 +16875,10 @@ function closeLoginMfaModal() {
     window.pendingLoginEmail = null;
     window.pendingLoginPassword = null;
     window.pendingLoginRemember = null;
-    window.pendingMfaMethods = null;
 }
 
-async function sendLoginMfaCode() {
-    const btn = document.getElementById('send-mfa-code-btn');
+async function resendLoginMfaCode() {
+    const btn = document.getElementById('resend-mfa-btn');
     btn.disabled = true;
     btn.textContent = 'Sending...';
     
@@ -16895,22 +16893,22 @@ async function sendLoginMfaCode() {
         });
         
         if (res.ok) {
-            showToast('Verification code sent to your email', 'success');
+            showToast('New code sent to your email', 'success');
             btn.textContent = 'Code Sent ✓';
             setTimeout(() => {
-                btn.textContent = 'Resend Code';
+                btn.textContent = "Didn't receive the code? Resend";
                 btn.disabled = false;
-            }, 30000); // Allow resend after 30 seconds
+            }, 30000);
         } else {
             const data = await res.json();
             showToast(data.detail || 'Failed to send code', 'error');
             btn.disabled = false;
-            btn.textContent = 'Send Code to Email';
+            btn.textContent = "Didn't receive the code? Resend";
         }
     } catch (e) {
         showToast('Error: ' + e.message, 'error');
         btn.disabled = false;
-        btn.textContent = 'Send Code to Email';
+        btn.textContent = "Didn't receive the code? Resend";
     }
 }
 
@@ -16973,6 +16971,8 @@ async function verifyLoginMfa() {
         btn.textContent = 'Verify';
     }
 }
+
+
 
 // Handle First Login Password Change
 async function handleFirstLoginPasswordChange(event) {
@@ -18149,6 +18149,7 @@ function switchSecurityTab(tab) {
     
     if (tab === 'audit') loadAuditLogs();
     if (tab === 'mfa') checkMfaStatus();
+    if (tab === 'settings') loadSecuritySettings();
 }
 
 // Load audit logs
@@ -18209,190 +18210,80 @@ async function exportAuditLogs() {
 // Check MFA status
 async function checkMfaStatus() {
     try {
-        const res = await fetch('/api/security/auth/me', { headers: getAuthHeaders() });
-        if (!res.ok) return;
+        // Get user info
+        const userRes = await fetch('/api/security/auth/me', { headers: getAuthHeaders() });
+        if (!userRes.ok) return;
+        const userData = await userRes.json();
         
-        const data = await res.json();
-        const enabled = data.user?.mfa_enabled || false;
+        // Get security settings
+        const settingsRes = await fetch('/api/security/settings', { headers: getAuthHeaders() });
+        const settings = settingsRes.ok ? await settingsRes.json() : {};
         
-        document.getElementById('mfa-status').innerHTML = enabled
-            ? '<span class="px-4 py-2 rounded-full bg-green-500/20 text-green-400">✅ MFA Enabled</span>'
-            : '<span class="px-4 py-2 rounded-full bg-red-500/20 text-red-400">❌ MFA Disabled</span>';
+        const userMfaEnabled = userData.user?.mfa_enabled || false;
+        const enforcement = settings.mfa_enforcement || 'off';
+        const allowOptout = settings.mfa_allow_user_optout || false;
         
-        const btn = document.getElementById('mfa-toggle-btn');
-        btn.textContent = enabled ? 'Disable MFA' : 'Enable MFA';
-        btn.className = enabled ? 'btn-danger px-6 py-3 rounded-lg' : 'btn-primary px-6 py-3 rounded-lg';
-    } catch (e) {
-        console.error('Error checking MFA:', e);
-    }
-}
-
-// Toggle MFA
-async function toggleMFA() {
-    const btn = document.getElementById('mfa-toggle-btn');
-    const isEnable = btn.textContent.includes('Enable');
-    
-    if (isEnable) {
-        // Get selected method
-        const method = document.querySelector('input[name="mfa-method"]:checked')?.value || 'email';
+        // Update status badge
+        const badge = document.getElementById('mfa-status-badge');
+        const statusText = document.getElementById('mfa-status-text');
         
-        try {
-            const res = await fetch('/api/security/mfa/enable', {
-                method: 'POST',
-                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ method })
-            });
-            
-            const data = await res.json();
-            
-            if (method === 'email') {
-                document.getElementById('mfa-method-select').classList.add('hidden');
-                document.getElementById('mfa-email-setup').classList.remove('hidden');
-                document.getElementById('mfa-totp-setup').classList.add('hidden');
-                btn.classList.add('hidden');
-                showToast('Verification code sent to your email', 'success');
-            } else if (data.uri) {
-                document.getElementById('mfa-method-select').classList.add('hidden');
-                document.getElementById('mfa-totp-setup').classList.remove('hidden');
-                document.getElementById('mfa-email-setup').classList.add('hidden');
-                document.getElementById('mfa-qr').innerHTML = `
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.uri)}" class="rounded">
-                `;
-                document.getElementById('mfa-secret').textContent = data.secret || '';
-                btn.classList.add('hidden');
-            }
-        } catch (e) {
-            showToast('Error: ' + e.message, 'error');
-        }
-    } else {
-        // Disable MFA
-        const code = prompt('Enter your current MFA code to disable:');
-        if (!code) return;
-        const password = prompt('Enter your password to confirm:');
-        if (!password) return;
-        
-        try {
-            const res = await fetch('/api/security/mfa/disable', {
-                method: 'POST',
-                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, password })
-            });
-            
-            if (res.ok) {
-                showToast('MFA disabled', 'success');
-                checkMfaStatus();
-            } else {
-                const data = await res.json();
-                showToast(data.detail || 'Invalid code or password', 'error');
-            }
-        } catch (e) {
-            showToast('Error: ' + e.message, 'error');
-        }
-    }
-}
-
-async function verifyEmailMFA() {
-    const code = document.getElementById('mfa-email-code')?.value;
-    if (!code || code.length !== 6) {
-        showToast('Please enter a 6-digit code', 'error');
-        return;
-    }
-    
-    try {
-        const res = await fetch('/api/security/mfa/verify', {
-            method: 'POST',
-            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code })
-        });
-        
-        const data = await res.json();
-        
-        if (data.status === 'success') {
-            document.getElementById('mfa-email-setup').classList.add('hidden');
-            showBackupCodes(data.backup_codes);
-            showToast('MFA enabled successfully!', 'success');
+        if (enforcement === 'off') {
+            badge.innerHTML = '<span class="px-3 py-1 rounded-full text-sm bg-gray-600 text-gray-300">Not Required</span>';
+            statusText.textContent = 'MFA is not enforced by your organization';
+        } else if (enforcement === 'optional') {
+            badge.innerHTML = userMfaEnabled 
+                ? '<span class="px-3 py-1 rounded-full text-sm bg-green-500/20 text-green-400">✓ Enabled</span>'
+                : '<span class="px-3 py-1 rounded-full text-sm bg-yellow-500/20 text-yellow-400">Optional</span>';
+            statusText.textContent = userMfaEnabled ? 'MFA is active on your account' : 'MFA is optional for your account';
         } else {
-            showToast(data.detail || 'Invalid code', 'error');
+            badge.innerHTML = '<span class="px-3 py-1 rounded-full text-sm bg-green-500/20 text-green-400">✓ Required</span>';
+            statusText.textContent = enforcement === 'all' 
+                ? 'MFA is required for all users' 
+                : 'MFA is required for administrators';
         }
+        
+        // Show opt-out section if allowed
+        const optoutSection = document.getElementById('mfa-optout-section');
+        const adminNotice = document.getElementById('mfa-admin-notice');
+        
+        if (allowOptout && enforcement !== 'off') {
+            optoutSection.classList.remove('hidden');
+            adminNotice.classList.add('hidden');
+            document.getElementById('mfa-user-enabled').checked = userMfaEnabled;
+        } else {
+            optoutSection.classList.add('hidden');
+            adminNotice.classList.remove('hidden');
+        }
+        
     } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+        console.error('Error checking MFA status:', e);
     }
 }
 
-async function verifyTOTPMFA() {
-    const code = document.getElementById('mfa-verify-code')?.value;
-    if (!code || code.length !== 6) {
-        showToast('Please enter a 6-digit code', 'error');
-        return;
-    }
+async function toggleUserMFA() {
+    const checkbox = document.getElementById('mfa-user-enabled');
+    const newState = checkbox.checked;
     
     try {
-        const res = await fetch('/api/security/mfa/verify', {
+        const res = await fetch('/api/security/mfa/user-toggle', {
             method: 'POST',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code })
-        });
-        
-        const data = await res.json();
-        
-        if (data.status === 'success') {
-            document.getElementById('mfa-totp-setup').classList.add('hidden');
-            showBackupCodes(data.backup_codes);
-            showToast('MFA enabled successfully!', 'success');
-        } else {
-            showToast(data.detail || 'Invalid code', 'error');
-        }
-    } catch (e) {
-        showToast('Error: ' + e.message, 'error');
-    }
-}
-
-async function resendMFACode() {
-    try {
-        const res = await fetch('/api/security/mfa/enable', {
-            method: 'POST',
-            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ method: 'email' })
+            body: JSON.stringify({ enabled: newState })
         });
         
         if (res.ok) {
-            showToast('New code sent to your email', 'success');
+            showToast(newState ? 'MFA enabled for your account' : 'MFA disabled for your account', 'success');
         } else {
-            showToast('Failed to resend code', 'error');
+            const data = await res.json();
+            showToast(data.detail || 'Failed to update MFA', 'error');
+            checkbox.checked = !newState; // Revert
         }
     } catch (e) {
         showToast('Error: ' + e.message, 'error');
+        checkbox.checked = !newState; // Revert
     }
 }
 
-function showBackupCodes(codes) {
-    if (codes && codes.length) {
-        const list = document.getElementById('backup-codes-list');
-        list.innerHTML = codes.map(c => `<span class="bg-gray-700 px-2 py-1 rounded">${c}</span>`).join('');
-        document.getElementById('mfa-backup-codes').classList.remove('hidden');
-        window.backupCodes = codes;
-    }
-    setTimeout(() => checkMfaStatus(), 1000);
-}
-
-function copyBackupCodes() {
-    if (window.backupCodes) {
-        navigator.clipboard.writeText(window.backupCodes.join('\n'));
-        showToast('Backup codes copied!', 'success');
-    }
-}
-
-// Keep old verifyMFA for backward compatibility
-async function verifyMFA() {
-    const method = document.querySelector('input[name="mfa-method"]:checked')?.value || 'email';
-    if (method === 'email') {
-        await verifyEmailMFA();
-    } else {
-        await verifyTOTPMFA();
-    }
-}
-
-// Show invite modal
 function showInviteModal() {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50';
@@ -18450,6 +18341,34 @@ async function sendInvite() {
         }
     } catch (e) {
         showToast('Error: ' + e.message, 'error');
+    }
+}
+
+
+// Load security settings into form
+async function loadSecuritySettings() {
+    try {
+        const res = await fetch('/api/security/settings', { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        
+        const settings = await res.json();
+        
+        // Populate select fields
+        const mfaEnforcement = document.getElementById('sec-setting-mfa_enforcement');
+        if (mfaEnforcement) mfaEnforcement.value = settings.mfa_enforcement || 'off';
+        
+        const lockoutAttempts = document.getElementById('sec-setting-lockout_attempts');
+        if (lockoutAttempts) lockoutAttempts.value = settings.account_lockout_attempts || 5;
+        
+        const lockoutDuration = document.getElementById('sec-setting-lockout_duration');
+        if (lockoutDuration) lockoutDuration.value = settings.account_lockout_duration_minutes || 30;
+        
+        // Populate checkboxes
+        const mfaOptout = document.getElementById('sec-setting-mfa_allow_user_optout');
+        if (mfaOptout) mfaOptout.checked = settings.mfa_allow_user_optout || false;
+        
+    } catch (e) {
+        console.error('Error loading security settings:', e);
     }
 }
 

@@ -979,7 +979,8 @@ class SecuritySettings(BaseModel):
     
     # MFA Settings
     mfa_enforcement: MFAEnforcement = MFAEnforcement.OPTIONAL
-    mfa_remember_device_days: int = 30  # 0 = always require
+    mfa_remember_device_days: int = 30
+    mfa_allow_user_optout: bool = False  # Allow users to disable MFA for themselves  # 0 = always require
     mfa_allowed_methods: List[MFAMethod] = [MFAMethod.TOTP, MFAMethod.EMAIL]
     
     # IP Security

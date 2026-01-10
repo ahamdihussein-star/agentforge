@@ -613,23 +613,35 @@ async def login(request: LoginRequest, req: Request):
         
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    # Check MFA requirement
+    # Check MFA requirement based on settings
     mfa_required = False
-    if user.mfa.enabled:
+    if settings.mfa_enforcement == "all":
         mfa_required = True
-    elif settings.mfa_enforcement == "required_all":
-        mfa_required = user.mfa.enabled
-    elif settings.mfa_enforcement == "required_admins":
-        is_admin = security_state.check_permission(user, Permission.USERS_CREATE.value)
-        mfa_required = is_admin and user.mfa.enabled
+    elif settings.mfa_enforcement == "admins":
+        is_admin = security_state.check_permission(user, Permission.SYSTEM_ADMIN.value)
+        mfa_required = is_admin
+    elif settings.mfa_enforcement == "optional" and user.mfa.enabled:
+        mfa_required = True
     
     if mfa_required and not request.mfa_code:
+        # Auto-send email code
+        code = MFAService.generate_email_code()
+        user.mfa.email_code = code
+        user.mfa.email_code_expires = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+        security_state.save_to_disk()
+        
+        # Send email in background
+        try:
+            await EmailService.send_mfa_code(user, code)
+        except Exception as e:
+            print(f"Failed to send MFA email: {e}")
+        
         return AuthResponse(
             access_token="",
             expires_in=0,
             user={"id": user.id, "email": user.email},
             requires_mfa=True,
-            mfa_methods=[m.value for m in user.mfa.methods]
+            mfa_methods=["email"]
         )
     
     # Verify MFA if provided
@@ -637,6 +649,7 @@ async def login(request: LoginRequest, req: Request):
         if not MFAService.verify_code(user, request.mfa_code):
             raise HTTPException(status_code=401, detail="Invalid MFA code")
         user.mfa.last_used = datetime.utcnow().isoformat()
+    
     
     # Check concurrent sessions
     if settings.max_concurrent_sessions > 0:
@@ -1167,6 +1180,39 @@ async def send_mfa_login_code(request: LoginRequest, req: Request):
     await EmailService.send_mfa_code(user, code)
     
     return {"status": "success", "message": "Verification code sent to your email"}
+
+
+@router.post("/mfa/user-toggle")
+async def toggle_user_mfa(request: dict, user: User = Depends(require_auth)):
+    """Allow user to toggle their own MFA (if permitted by admin)"""
+    settings = security_state.get_settings()
+    
+    # Check if opt-out is allowed
+    if not settings.mfa_allow_user_optout:
+        raise HTTPException(status_code=403, detail="MFA opt-out is not allowed by your administrator")
+    
+    enabled = request.get('enabled', True)
+    
+    if enabled:
+        # Enable MFA for user
+        user.mfa.enabled = True
+        if MFAMethod.EMAIL not in user.mfa.methods:
+            user.mfa.methods.append(MFAMethod.EMAIL)
+    else:
+        # Disable MFA for user
+        user.mfa.enabled = False
+    
+    security_state.save_to_disk()
+    
+    security_state.add_audit_log(
+        user=user,
+        action=ActionType.MFA_ENABLED if enabled else ActionType.MFA_DISABLED,
+        resource_type=ResourceType.USER,
+        resource_id=user.id,
+        details={"method": "user_toggle", "enabled": enabled}
+    )
+    
+    return {"status": "success", "mfa_enabled": enabled}
 
 @router.post("/mfa/disable")
 async def disable_mfa(request: DisableMFARequest, user: User = Depends(require_auth)):
