@@ -1925,8 +1925,8 @@
                                         <span>⚙️</span> Platform MFA Settings
                                     </h4>
                                     
-                                    <!-- MFA Mode Selection - Better UX -->
-                                    <div class="space-y-3 mb-6">
+                                    <!-- MFA Mode Selection -->
+                                    <div class="space-y-3">
                                         <label class="block text-sm text-gray-400 mb-3">Choose MFA mode for your platform:</label>
                                         
                                         <label class="flex items-center p-4 rounded-lg border border-gray-700 hover:border-purple-500 cursor-pointer transition" onclick="selectMfaMode('off')">
@@ -1941,7 +1941,7 @@
                                             <input type="radio" name="mfa-mode" value="optional" class="mr-4 accent-purple-500">
                                             <div class="flex-1">
                                                 <span class="font-medium">🔘 Optional</span>
-                                                <p class="text-sm text-gray-500">Users can choose to enable MFA</p>
+                                                <p class="text-sm text-gray-500">Users can enable/disable MFA from their profile</p>
                                             </div>
                                         </label>
                                         
@@ -1960,17 +1960,17 @@
                                                 <p class="text-sm text-gray-500">All users must verify with email code</p>
                                             </div>
                                         </label>
-                                    </div>
-                                    
-                                    <!-- Allow Opt-out (shows only when optional/admins selected) -->
-                                    <div id="mfa-optout-option" class="hidden border-t border-gray-700 pt-4">
-                                        <label class="flex items-center gap-3 cursor-pointer">
-                                            <input type="checkbox" id="mfa-allow-optout" class="rounded accent-purple-500" onchange="saveMfaSettings()">
-                                            <div>
-                                                <span class="text-sm font-medium">Allow users to disable MFA</span>
-                                                <p class="text-xs text-gray-500">Users can opt-out of MFA for their account</p>
-                                            </div>
-                                        </label>
+                                        
+                                        <!-- Allow Opt-out (shows only for required modes) -->
+                                        <div id="mfa-optout-option" class="hidden mt-4 ml-4 p-3 bg-gray-800/50 rounded-lg border-l-2 border-purple-500">
+                                            <label class="flex items-center gap-3 cursor-pointer">
+                                                <input type="checkbox" id="mfa-allow-optout" class="rounded accent-purple-500" onchange="saveMfaSettings()">
+                                                <div>
+                                                    <span class="text-sm font-medium">Allow users to opt-out</span>
+                                                    <p class="text-xs text-gray-500">Users can disable MFA from their profile</p>
+                                                </div>
+                                            </label>
+                                        </div>
                                     </div>
                                     
                                     <div id="mfa-save-status" class="mt-4 text-sm text-green-400 hidden">✓ Settings saved automatically</div>
@@ -1987,37 +1987,6 @@
                                     <div id="mfa-status-badge">
                                         <span class="px-3 py-1 rounded-full text-sm bg-gray-600 text-gray-300">Loading</span>
                                     </div>
-                                </div>
-                            </div>
-                            
-                            <!-- How it works -->
-                            <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
-                                <div class="flex items-start gap-3">
-                                    <span class="text-2xl">📧</span>
-                                    <div>
-                                        <h4 class="font-semibold text-blue-400 mb-1">How it works</h4>
-                                        <p class="text-sm text-gray-400">When you log in, a 6-digit code will be sent to your email. Enter this code to complete sign-in.</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- User Opt-out Toggle (if allowed by admin) -->
-                            <div id="mfa-optout-section" class="hidden">
-                                <div class="border border-gray-700 rounded-xl p-4">
-                                    <div class="flex items-center justify-between">
-                                        <div>
-                                            <h4 class="font-semibold mb-1">MFA for my account</h4>
-                                            <p class="text-sm text-gray-400">Enable or disable MFA for your login</p>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="mfa-user-enabled" class="sr-only peer" onchange="toggleUserMFA()">
-                                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                                 </div>
                             </div>
                             
@@ -18300,7 +18269,7 @@ function selectMfaMode(mode) {
     
     // Show/hide opt-out option
     const optoutOption = document.getElementById('mfa-optout-option');
-    if (mode === 'optional' || mode === 'admins') {
+    if (mode === 'admins' || mode === 'all') {
         optoutOption.classList.remove('hidden');
     } else {
         optoutOption.classList.add('hidden');
@@ -18351,7 +18320,7 @@ async function loadMfaAdminSettings() {
         // Show/hide opt-out option
         const optoutOption = document.getElementById('mfa-optout-option');
         if (optoutOption) {
-            if (mode === 'optional' || mode === 'admins') {
+            if (mode === 'admins' || mode === 'all') {
                 optoutOption.classList.remove('hidden');
             } else {
                 optoutOption.classList.add('hidden');
