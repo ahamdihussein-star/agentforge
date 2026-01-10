@@ -10699,6 +10699,7 @@ Option 3"></textarea>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="navigate('tools')" class="btn-secondary px-4 py-2 rounded-lg text-sm">← Back</button>
+                        <button data-permission="tools:edit" onclick="showEditToolModal('${t.id}')" class="btn-primary px-4 py-2 rounded-lg text-sm">✏️ Edit</button>
                         <button data-permission="tools:delete" onclick="delTool('${t.id}')" class="btn-danger px-4 py-2 rounded-lg text-sm">🗑️ Delete</button>
                     </div>
                 </div>
@@ -12759,6 +12760,87 @@ Option 3"></textarea>
         }
         async function delPage(id){if(!confirm('Delete page?'))return;await fetch(API+'/api/scraped-pages/'+id,{method:'DELETE'});location.reload();}
         async function delTool(id){if(!confirm('Delete this tool?'))return;await fetch(API+'/api/tools/'+id,{method:'DELETE'});navigate('tools');}
+
+// Edit Tool Modal
+async function showEditToolModal(toolId) {
+    try {
+        const r = await fetch(API + '/api/tools/' + toolId);
+        if (!r.ok) {
+            showToast('Failed to load tool', 'error');
+            return;
+        }
+        const tool = await r.json();
+        
+        // Create edit modal
+        const modal = document.createElement('div');
+        modal.id = 'edit-tool-modal';
+        modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
+        modal.innerHTML = `
+            <div class="card rounded-2xl p-6 w-full max-w-lg mx-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold">✏️ Edit Tool</h3>
+                    <button onclick="closeEditToolModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                <form id="edit-tool-form" class="space-y-4">
+                    <input type="hidden" id="edit-tool-id" value="${tool.id}">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Name</label>
+                        <input type="text" id="edit-tool-name" value="${escHtml(tool.name)}" class="input-field w-full px-4 py-2 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Description</label>
+                        <textarea id="edit-tool-desc" rows="3" class="input-field w-full px-4 py-2 rounded-lg">${escHtml(tool.description || '')}</textarea>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeEditToolModal()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
+                        <button type="submit" class="btn-primary flex-1 py-2 rounded-lg">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Handle form submit
+        document.getElementById('edit-tool-form').onsubmit = async (e) => {
+            e.preventDefault();
+            await saveToolEdit();
+        };
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+function closeEditToolModal() {
+    document.getElementById('edit-tool-modal')?.remove();
+}
+
+async function saveToolEdit() {
+    const toolId = document.getElementById('edit-tool-id').value;
+    const name = document.getElementById('edit-tool-name').value;
+    const description = document.getElementById('edit-tool-desc').value;
+    
+    try {
+        const r = await fetch(API + '/api/tools/' + toolId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description })
+        });
+        
+        if (r.ok) {
+            showToast('Tool updated successfully', 'success');
+            closeEditToolModal();
+            // Refresh tool view
+            navigate('tools');
+            setTimeout(() => showToolDetails(toolId), 100);
+        } else {
+            const data = await r.json();
+            showToast(data.detail || 'Failed to update tool', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
 
         // Data Viewer Functions
         let currentPageData = null;
@@ -17791,7 +17873,6 @@ function showAddRoleModal() {
         // Security - User Management
         { category: '🔐 User Management', permissions: [
             { id: 'users:view', name: 'View Users' },
-            { id: 'users:create', name: 'Create Users' },
             { id: 'users:edit', name: 'Edit Users' },
             { id: 'users:delete', name: 'Delete Users' },
             { id: 'users:invite', name: 'Invite Users' },
@@ -17823,15 +17904,6 @@ function showAddRoleModal() {
             { id: 'tools:edit', name: 'Edit Tools' },
             { id: 'tools:delete', name: 'Delete Tools' },
             { id: 'tools:execute', name: 'Execute Tools' },
-            { id: 'tools:manage_permissions', name: 'Manage Permissions' },
-        ]},
-        // AI Agent - Knowledge Base
-        { category: '🤖 Knowledge Base', permissions: [
-            { id: 'kb:view', name: 'View Knowledge Base' },
-            { id: 'kb:create', name: 'Create Knowledge Base' },
-            { id: 'kb:edit', name: 'Edit Knowledge Base' },
-            { id: 'kb:delete', name: 'Delete Knowledge Base' },
-            { id: 'kb:upload', name: 'Upload Documents' },
         ]},
         // AI Agent - Chat
         { category: '🤖 Chat', permissions: [
@@ -17851,7 +17923,6 @@ function showAddRoleModal() {
             { id: 'demo:access', name: 'Access Demo Lab' },
             { id: 'demo:create', name: 'Create Demos' },
             { id: 'demo:share', name: 'Share Demos' },
-            { id: 'agents:test', name: 'Test Agents' },
         ]},
         // System
         { category: '⚙️ System', permissions: [
@@ -17922,7 +17993,6 @@ function showEditRoleModal(roleId) {
         // Security - User Management
         { category: '🔐 User Management', permissions: [
             { id: 'users:view', name: 'View Users' },
-            { id: 'users:create', name: 'Create Users' },
             { id: 'users:edit', name: 'Edit Users' },
             { id: 'users:delete', name: 'Delete Users' },
             { id: 'users:invite', name: 'Invite Users' },
@@ -17954,15 +18024,6 @@ function showEditRoleModal(roleId) {
             { id: 'tools:edit', name: 'Edit Tools' },
             { id: 'tools:delete', name: 'Delete Tools' },
             { id: 'tools:execute', name: 'Execute Tools' },
-            { id: 'tools:manage_permissions', name: 'Manage Permissions' },
-        ]},
-        // AI Agent - Knowledge Base
-        { category: '🤖 Knowledge Base', permissions: [
-            { id: 'kb:view', name: 'View Knowledge Base' },
-            { id: 'kb:create', name: 'Create Knowledge Base' },
-            { id: 'kb:edit', name: 'Edit Knowledge Base' },
-            { id: 'kb:delete', name: 'Delete Knowledge Base' },
-            { id: 'kb:upload', name: 'Upload Documents' },
         ]},
         // AI Agent - Chat
         { category: '🤖 Chat', permissions: [
@@ -17982,7 +18043,6 @@ function showEditRoleModal(roleId) {
             { id: 'demo:access', name: 'Access Demo Lab' },
             { id: 'demo:create', name: 'Create Demos' },
             { id: 'demo:share', name: 'Share Demos' },
-            { id: 'agents:test', name: 'Test Agents' },
         ]},
         // System
         { category: '⚙️ System', permissions: [
