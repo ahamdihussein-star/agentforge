@@ -1814,15 +1814,15 @@
 
                     <!-- Tabs -->
                     <div class="flex gap-2 mb-4 border-b border-gray-700 pb-2 overflow-x-auto">
-                        <button onclick="switchSecurityTab('users')" id="sec-tab-users" class="px-4 py-2 rounded-t-lg bg-purple-600 text-white whitespace-nowrap">👥 Users</button>
-                        <button onclick="switchSecurityTab('roles')" id="sec-tab-roles" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">🎭 Roles</button>
+                        <button data-permission="users:view" onclick="switchSecurityTab('users')" id="sec-tab-users" class="px-4 py-2 rounded-t-lg bg-purple-600 text-white whitespace-nowrap">👥 Users</button>
+                        <button data-permission="roles:view" onclick="switchSecurityTab('roles')" id="sec-tab-roles" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">🎭 Roles</button>
                         <button data-permission="audit:view" onclick="switchSecurityTab('audit')" id="sec-tab-audit" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">📋 Audit Log</button>
                         <button onclick="switchSecurityTab('mfa')" id="sec-tab-mfa" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">🔑 My MFA</button>
-                        <button onclick="switchSecurityTab('settings')" id="sec-tab-settings" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">⚙️ Settings</button>
+                        <button data-permission="security:settings" onclick="switchSecurityTab('settings')" id="sec-tab-settings" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">⚙️ Settings</button>
                     </div>
 
                     <!-- Users Tab -->
-                    <div id="sec-content-users" class="card rounded-xl">
+                    <div id="sec-content-users" class="card rounded-xl" data-permission="users:view">
                         <!-- Pending Invitations -->
                         <div id="sec-invitations-section" class="p-4 border-b border-gray-700">
                             <h4 class="text-sm font-semibold text-yellow-400 mb-3">📧 Pending Invitations</h4>
@@ -1862,7 +1862,7 @@
                     </div>
 
                     <!-- Roles Tab -->
-                    <div id="sec-content-roles" class="hidden">
+                    <div id="sec-content-roles" class="hidden" data-permission="roles:view">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-semibold">Manage Roles</h3>
                             <button onclick="showAddRoleModal()" class="btn-primary px-4 py-2 rounded-lg" data-permission="roles:create">+ Add Role</button>
@@ -1877,7 +1877,7 @@
                     </div>
 
                     <!-- Audit Log Tab -->
-                    <div id="sec-content-audit" class="hidden card rounded-xl">
+                    <div id="sec-content-audit" class="hidden card rounded-xl" data-permission="audit:view">
                         <div class="p-4 border-b border-gray-700 flex items-center gap-4">
                             <select id="sec-audit-action" class="input-field px-3 py-2 rounded-lg" onchange="loadAuditLogs()">
                                 <option value="">All Actions</option>
@@ -2007,7 +2007,7 @@
                             </div>
                         </div>
                     </div>
-                    <div id="sec-content-settings" class="hidden card rounded-xl p-6">
+                    <div id="sec-content-settings" class="hidden card rounded-xl p-6" data-permission="security:settings">
                         <h3 class="text-lg font-bold mb-6">Security Settings</h3>
                         <form id="security-settings-form" class="space-y-6">
                             <!-- Authentication Settings -->
@@ -17428,12 +17428,6 @@ function getAuthHeaders() {
 // ============================================================================
 
 // Initialize security page
-async function initSecurityPage() {
-    await loadSecurityStats();
-    await loadSecurityUsers();
-    await loadSecurityRoles();
-    await loadSecurityInvitations();
-}
 
 // Load security statistics
 async function loadSecurityStats() {
@@ -18172,7 +18166,23 @@ function renderSecurityRoles() {
 
 // Switch security tab
 function switchSecurityTab(tab) {
-    ['users', 'roles', 'audit', 'mfa', 'settings'].forEach(t => {
+    const tabs = ['users', 'roles', 'audit', 'mfa', 'settings'];
+    
+    // Check if requested tab is visible (has permission)
+    const requestedTabBtn = document.getElementById('sec-tab-' + tab);
+    if (requestedTabBtn && requestedTabBtn.style.display === 'none') {
+        // Find first visible tab
+        for (const t of tabs) {
+            const btn = document.getElementById('sec-tab-' + t);
+            if (btn && btn.style.display !== 'none') {
+                tab = t;
+                break;
+            }
+        }
+    }
+    
+    // Hide all tabs
+    tabs.forEach(t => {
         document.getElementById('sec-content-' + t)?.classList.add('hidden');
         const tabBtn = document.getElementById('sec-tab-' + t);
         if (tabBtn) {
@@ -18181,6 +18191,7 @@ function switchSecurityTab(tab) {
         }
     });
     
+    // Show selected tab
     document.getElementById('sec-content-' + tab)?.classList.remove('hidden');
     const activeBtn = document.getElementById('sec-tab-' + tab);
     if (activeBtn) {
@@ -18188,9 +18199,33 @@ function switchSecurityTab(tab) {
         activeBtn.classList.remove('hover:bg-gray-700');
     }
     
+    // Load tab data
     if (tab === 'audit') loadAuditLogs();
     if (tab === 'mfa') checkMfaStatus();
     if (tab === 'settings') loadSecuritySettings();
+}
+
+// Initialize security page
+async function initSecurityPage() {
+    // Load data first
+    await loadSecurityStats();
+    await loadSecurityUsers();
+    await loadSecurityRoles();
+    await loadSecurityInvitations();
+    
+    // Find first visible tab and switch to it
+    const tabs = ['users', 'roles', 'audit', 'mfa', 'settings'];
+    let foundTab = 'mfa'; // Default fallback
+    
+    for (const t of tabs) {
+        const btn = document.getElementById('sec-tab-' + t);
+        if (btn && btn.style.display !== 'none') {
+            foundTab = t;
+            break;
+        }
+    }
+    
+    switchSecurityTab(foundTab);
 }
 
 // Load audit logs
