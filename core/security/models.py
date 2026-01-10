@@ -507,20 +507,18 @@ DEFAULT_ROLES = [
         "name": "Admin",
         "description": "Organization administrator",
         "permissions": [
-            Permission.USERS_VIEW.value, Permission.USERS_CREATE.value, Permission.USERS_EDIT.value, Permission.USERS_DELETE.value,
-            Permission.ROLES_VIEW.value, Permission.ROLES_CREATE.value, Permission.ROLES_EDIT.value,
-            Permission.POLICIES_VIEW.value, Permission.POLICIES_CREATE.value, Permission.POLICIES_EDIT.value,
+            Permission.USERS_VIEW.value, Permission.USERS_EDIT.value, Permission.USERS_DELETE.value, Permission.USERS_INVITE.value,
+            Permission.ROLES_VIEW.value, Permission.ROLES_CREATE.value, Permission.ROLES_EDIT.value, Permission.ROLES_DELETE.value,
+            Permission.SECURITY_SETTINGS.value, Permission.MFA_MANAGE.value,
             Permission.AGENTS_VIEW.value, Permission.AGENTS_CREATE.value, Permission.AGENTS_EDIT.value,
-            Permission.AGENTS_DELETE.value, Permission.AGENTS_PUBLISH.value, Permission.AGENTS_TEST.value,
+            Permission.AGENTS_DELETE.value, Permission.AGENTS_PUBLISH.value,
             Permission.TOOLS_VIEW.value, Permission.TOOLS_CREATE.value, Permission.TOOLS_EDIT.value,
-            Permission.TOOLS_DELETE.value, Permission.TOOLS_EXECUTE.value, Permission.TOOLS_MANAGE_PERMISSIONS.value,
-            Permission.KB_VIEW.value, Permission.KB_CREATE.value, Permission.KB_EDIT.value,
-            Permission.KB_DELETE.value, Permission.KB_UPLOAD.value, Permission.KB_MANAGE_PERMISSIONS.value,
-            Permission.DB_VIEW.value, Permission.DB_CREATE.value, Permission.DB_EDIT.value,
-            Permission.DB_MANAGE_PERMISSIONS.value,
+            Permission.TOOLS_DELETE.value, Permission.TOOLS_EXECUTE.value,
             Permission.CHAT_USE.value, Permission.CHAT_VIEW_ALL.value, Permission.CHAT_DELETE.value,
             Permission.AUDIT_VIEW.value, Permission.AUDIT_EXPORT.value,
-            Permission.ORG_VIEW.value, Permission.ORG_EDIT.value
+            Permission.ANALYTICS_VIEW.value, Permission.REPORTS_GENERATE.value,
+            Permission.DEMO_ACCESS.value, Permission.DEMO_CREATE.value, Permission.DEMO_SHARE.value,
+            Permission.SYSTEM_SETTINGS.value
         ],
         "level": 1,
         "is_system": True
@@ -533,15 +531,30 @@ DEFAULT_ROLES = [
             Permission.USERS_VIEW.value,
             Permission.ROLES_VIEW.value,
             Permission.AGENTS_VIEW.value, Permission.AGENTS_CREATE.value, Permission.AGENTS_EDIT.value,
-            Permission.AGENTS_PUBLISH.value, Permission.AGENTS_TEST.value,
+            Permission.AGENTS_PUBLISH.value,
             Permission.TOOLS_VIEW.value, Permission.TOOLS_CREATE.value, Permission.TOOLS_EDIT.value,
             Permission.TOOLS_EXECUTE.value,
-            Permission.KB_VIEW.value, Permission.KB_CREATE.value, Permission.KB_EDIT.value, Permission.KB_UPLOAD.value,
-            Permission.DB_VIEW.value,
             Permission.CHAT_USE.value, Permission.CHAT_VIEW_ALL.value,
-            Permission.AUDIT_VIEW.value
+            Permission.AUDIT_VIEW.value,
+            Permission.ANALYTICS_VIEW.value,
+            Permission.DEMO_ACCESS.value, Permission.DEMO_CREATE.value
         ],
         "level": 2,
+        "is_system": True
+    },
+    {
+        "id": "role_agent_builder",
+        "name": "Agent Builder",
+        "description": "Can create and manage AI agents",
+        "permissions": [
+            Permission.AGENTS_VIEW.value, Permission.AGENTS_CREATE.value, Permission.AGENTS_EDIT.value,
+            Permission.AGENTS_DELETE.value, Permission.AGENTS_PUBLISH.value,
+            Permission.TOOLS_VIEW.value, Permission.TOOLS_CREATE.value, Permission.TOOLS_EDIT.value,
+            Permission.TOOLS_EXECUTE.value,
+            Permission.CHAT_USE.value,
+            Permission.DEMO_ACCESS.value
+        ],
+        "level": 3,
         "is_system": True
     },
     {
@@ -549,24 +562,10 @@ DEFAULT_ROLES = [
         "name": "User",
         "description": "Standard user with basic access",
         "permissions": [
-            Permission.AGENTS_VIEW.value, Permission.AGENTS_TEST.value,
-            Permission.TOOLS_VIEW.value, Permission.TOOLS_EXECUTE.value,
-            Permission.KB_VIEW.value,
-            Permission.DB_VIEW.value,
-            Permission.CHAT_USE.value
-        ],
-        "level": 3,
-        "is_system": True
-    },
-    {
-        "id": "role_viewer",
-        "name": "Viewer",
-        "description": "Read-only access",
-        "permissions": [
             Permission.AGENTS_VIEW.value,
-            Permission.TOOLS_VIEW.value,
-            Permission.KB_VIEW.value,
-            Permission.DB_VIEW.value
+            Permission.TOOLS_VIEW.value, Permission.TOOLS_EXECUTE.value,
+            Permission.CHAT_USE.value,
+            Permission.DEMO_ACCESS.value
         ],
         "level": 4,
         "is_system": True
