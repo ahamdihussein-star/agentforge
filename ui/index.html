@@ -10670,15 +10670,21 @@ Option 3"></textarea>
                 const isFromDemo = t.config?.source === 'demo_kit';
                 const sourceLabel = isFromDemo ? '<span class="tool-demo-badge">Demo</span>' : '';
                 return `
-                <div class="card tool-card rounded-xl p-4 cursor-pointer hover:border-purple-500 transition" onclick="viewTool('${t.id}')" style="min-width:0;overflow:hidden;">
-                    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
-                        <span style="font-size:1.75rem;flex-shrink:0;">${icons[t.type]||'🔧'}</span>
-                        <div style="flex:1;min-width:0;overflow:hidden;">
-                            <h3 class="tool-title" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.name)}</h3>
-                            <p class="tool-type">${t.type.toUpperCase()}${sourceLabel}</p>
-                        </div>
+                <div class="card tool-card rounded-xl p-4 hover:border-purple-500 transition relative group" style="min-width:0;overflow:hidden;">
+                    <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition flex gap-1">
+                        <button data-permission="tools:edit" onclick="event.stopPropagation(); showEditToolModal('${t.id}')" class="p-1.5 bg-blue-500/20 hover:bg-blue-500/40 rounded text-blue-400 text-sm" title="Edit">✏️</button>
+                        <button data-permission="tools:delete" onclick="event.stopPropagation(); delToolFromCard('${t.id}','${escHtml(t.name)}')" class="p-1.5 bg-red-500/20 hover:bg-red-500/40 rounded text-red-400 text-sm" title="Delete">🗑️</button>
                     </div>
-                    <p class="tool-desc" style="font-size:0.875rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;">${escHtml(t.description||'No description')}</p>
+                    <div onclick="viewTool('${t.id}')" class="cursor-pointer">
+                        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
+                            <span style="font-size:1.75rem;flex-shrink:0;">${icons[t.type]||'🔧'}</span>
+                            <div style="flex:1;min-width:0;overflow:hidden;">
+                                <h3 class="tool-title" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.name)}</h3>
+                                <p class="tool-type">${t.type.toUpperCase()}${sourceLabel}</p>
+                            </div>
+                        </div>
+                        <p class="tool-desc" style="font-size:0.875rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;">${escHtml(t.description||'No description')}</p>
+                    </div>
                 </div>
             `}).join('');
         }
@@ -12760,6 +12766,17 @@ Option 3"></textarea>
         }
         async function delPage(id){if(!confirm('Delete page?'))return;await fetch(API+'/api/scraped-pages/'+id,{method:'DELETE'});location.reload();}
         async function delTool(id){if(!confirm('Delete this tool?'))return;await fetch(API+'/api/tools/'+id,{method:'DELETE'});navigate('tools');}
+        
+        async function delToolFromCard(id, name){
+            if(!confirm('Delete tool "' + name + '"?')) return;
+            try {
+                await fetch(API+'/api/tools/'+id, {method:'DELETE'});
+                showToast('Tool deleted', 'success');
+                loadTools();
+            } catch(e) {
+                showToast('Failed to delete: ' + e.message, 'error');
+            }
+        }
 
 // Edit Tool Modal
 async function showEditToolModal(toolId) {
