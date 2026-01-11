@@ -1,7 +1,7 @@
 """
 SQLAlchemy Base and Session Management
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
@@ -78,8 +78,12 @@ def init_db():
     """Initialize database (create all tables)"""
     engine = get_engine()
     
-    # Import all models here to ensure they're registered
-    from .models import *  # noqa
+    # Import all models to register them with Base.metadata
+    # This must be done before create_all()
+    try:
+        from .models import user, organization, role, user_session, mfa_setting, password_history  # noqa
+    except ImportError as e:
+        print(f"⚠️  Warning: Could not import all models: {e}")
     
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables created successfully")
@@ -88,7 +92,6 @@ def init_db():
 def check_connection():
     """Check if database connection is working"""
     try:
-        from sqlalchemy import text
         engine = get_engine()
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
