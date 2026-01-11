@@ -3,19 +3,19 @@ Role and Permission Models - RBAC
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Table
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Table
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship
 
 from ..base import Base
 
 
-# Association table for many-to-many relationship
+# Association table for many-to-many relationship (FKs removed)
 role_permissions = Table(
     'role_permissions',
     Base.metadata,
-    Column('role_id', UUID(as_uuid=True), ForeignKey('roles.id'), primary_key=True),
-    Column('permission_id', UUID(as_uuid=True), ForeignKey('permissions.id'), primary_key=True)
+    Column('role_id', UUID(as_uuid=True), primary_key=True),
+    Column('permission_id', UUID(as_uuid=True), primary_key=True)
 )
 
 
@@ -32,15 +32,12 @@ class Role(Base):
     # System vs Custom
     is_system = Column(Boolean, default=False)  # Cannot be deleted if True
     
-    # Organization (Multi-tenancy)
-    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), index=True)
+    # Organization (Multi-tenancy) - FK removed
+    org_id = Column(UUID(as_uuid=True), index=True, nullable=True)
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    permissions = relationship("Permission", secondary=role_permissions, back_populates="roles")
     
     def __repr__(self):
         return f"<Role {self.name}>"
@@ -60,9 +57,6 @@ class Permission(Base):
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    roles = relationship("Role", secondary=role_permissions, back_populates="permissions")
     
     def __repr__(self):
         return f"<Permission {self.name}>"

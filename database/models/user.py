@@ -3,7 +3,7 @@ User Model - Authentication and User Management
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum as SQLEnum, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum as SQLEnum, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from enum import Enum
@@ -51,9 +51,8 @@ class User(Base):
     mfa_method = Column(SQLEnum(MFAMethod), default=MFAMethod.NONE)
     mfa_secret_encrypted = Column(Text)  # Encrypted TOTP secret
     
-    # Organization (Multi-tenancy)
-    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id', use_alter=True, name='fk_user_organization'), nullable=True, index=True)
-    organization = relationship("Organization", back_populates="users")
+    # Organization (Multi-tenancy) - FK removed for simplicity
+    org_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -89,7 +88,7 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # FK removed
     
     # Session data
     token_hash = Column(String(255), unique=True, nullable=False, index=True)
@@ -105,9 +104,6 @@ class UserSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     last_activity_at = Column(DateTime, default=datetime.utcnow)
     
-    # Relationship
-    user = relationship("User", back_populates="sessions")
-    
     def __repr__(self):
         return f"<UserSession {self.user_id}>"
 
@@ -117,7 +113,7 @@ class MFASetting(Base):
     __tablename__ = "mfa_settings"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), unique=True, nullable=False)
+    user_id = Column(UUID(as_uuid=True), unique=True, nullable=False)  # FK removed
     
     # MFA Configuration
     method = Column(SQLEnum(MFAMethod), nullable=False)
@@ -141,7 +137,7 @@ class PasswordHistory(Base):
     __tablename__ = "password_history"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # FK removed
     
     password_hash = Column(String(255), nullable=False)
     changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)

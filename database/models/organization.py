@@ -29,9 +29,6 @@ class Organization(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
-    users = relationship("User", back_populates="organization")
-    
     def __repr__(self):
         return f"<Organization {self.name}>"
     
