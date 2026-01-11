@@ -1,7 +1,7 @@
 """
-Database Services Package
+Database Services - Business Logic Layer
+Implements dual-write pattern for gradual migration from JSON to Database
 """
-from .encryption import EncryptionService, get_encryption_service
+from .user_service import UserService
 
-__all__ = ['EncryptionService', 'get_encryption_service']
-
+__all__ = ['UserService']
