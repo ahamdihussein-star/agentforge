@@ -40,7 +40,7 @@ def migrate_organizations():
     data = load_json_file('data/security/organizations.json')
     if not data:
         print("⚠️  No organizations file found")
-        return 0
+        return 0, {}
     
     # Handle both dict-of-dicts and list formats
     if isinstance(data, dict):
@@ -51,18 +51,30 @@ def migrate_organizations():
         orgs = [data]
     
     count = 0
+    id_mapping = {}  # old_id -> new_uuid mapping
     
     with get_db_session() as session:
         for org_data in orgs:
             try:
+                old_id = org_data['id']
+                
+                # Try to parse as UUID, if fails, generate new one
+                try:
+                    org_uuid = uuid.UUID(old_id)
+                except ValueError:
+                    # Not a valid UUID, generate new one
+                    org_uuid = uuid.uuid4()
+                    print(f"   🔄 Generated new UUID for '{old_id}': {org_uuid}")
+                
                 # Check if already exists
-                existing = session.query(Organization).filter_by(id=uuid.UUID(org_data['id'])).first()
+                existing = session.query(Organization).filter_by(id=org_uuid).first()
                 if existing:
                     print(f"⏭️  Organization '{org_data['name']}' already exists, skipping")
+                    id_mapping[old_id] = org_uuid
                     continue
                 
                 org = Organization(
-                    id=uuid.UUID(org_data['id']),
+                    id=org_uuid,
                     name=org_data['name'],
                     slug=org_data.get('slug', org_data['name'].lower().replace(' ', '-')),
                     plan=org_data.get('plan', 'free'),
@@ -72,7 +84,8 @@ def migrate_organizations():
                 
                 session.add(org)
                 session.commit()
-                print(f"✅ Migrated organization: {org_data['name']}")
+                print(f"✅ Migrated organization: {org_data['name']} (UUID: {org_uuid})")
+                id_mapping[old_id] = org_uuid
                 count += 1
                 
             except Exception as e:
@@ -80,10 +93,10 @@ def migrate_organizations():
                 session.rollback()
     
     print(f"\n📊 Total organizations migrated: {count}")
-    return count
+    return count, id_mapping
 
 
-def migrate_roles():
+def migrate_roles(org_mapping):
     """Migrate roles from JSON to database"""
     print("\n" + "="*60)
     print("🎭 Migrating Roles...")
@@ -92,7 +105,7 @@ def migrate_roles():
     data = load_json_file('data/security/roles.json')
     if not data:
         print("⚠️  No roles file found")
-        return 0
+        return 0, {}
     
     # Handle both dict-of-dicts and list formats
     if isinstance(data, dict):
@@ -103,28 +116,52 @@ def migrate_roles():
         roles = [data]
     
     count = 0
+    id_mapping = {}  # old_id -> new_uuid mapping
     
     with get_db_session() as session:
         for role_data in roles:
             try:
+                old_id = role_data['id']
+                
+                # Try to parse as UUID, if fails, generate new one
+                try:
+                    role_uuid = uuid.UUID(old_id)
+                except ValueError:
+                    # Not a valid UUID, generate new one
+                    role_uuid = uuid.uuid4()
+                    print(f"   🔄 Generated new UUID for '{old_id}': {role_uuid}")
+                
                 # Check if already exists
-                existing = session.query(Role).filter_by(id=uuid.UUID(role_data['id'])).first()
+                existing = session.query(Role).filter_by(id=role_uuid).first()
                 if existing:
                     print(f"⏭️  Role '{role_data['name']}' already exists, skipping")
+                    id_mapping[old_id] = role_uuid
                     continue
                 
+                # Map org_id
+                old_org_id = role_data.get('org_id')
+                org_uuid = None
+                if old_org_id:
+                    org_uuid = org_mapping.get(old_org_id)
+                    if not org_uuid:
+                        try:
+                            org_uuid = uuid.UUID(old_org_id)
+                        except ValueError:
+                            print(f"   ⚠️  Unknown org_id '{old_org_id}', setting to None")
+                
                 role = Role(
-                    id=uuid.UUID(role_data['id']),
+                    id=role_uuid,
                     name=role_data['name'],
                     description=role_data.get('description', ''),
                     is_system=role_data.get('is_system', False),
-                    org_id=uuid.UUID(role_data['org_id']) if role_data.get('org_id') else None,
+                    org_id=org_uuid,
                     created_at=datetime.fromisoformat(role_data['created_at']) if 'created_at' in role_data else datetime.utcnow()
                 )
                 
                 session.add(role)
                 session.commit()
-                print(f"✅ Migrated role: {role_data['name']}")
+                print(f"✅ Migrated role: {role_data['name']} (UUID: {role_uuid})")
+                id_mapping[old_id] = role_uuid
                 count += 1
                 
             except Exception as e:
@@ -132,10 +169,10 @@ def migrate_roles():
                 session.rollback()
     
     print(f"\n📊 Total roles migrated: {count}")
-    return count
+    return count, id_mapping
 
 
-def migrate_users():
+def migrate_users(org_mapping, role_mapping):
     """Migrate users from JSON to database"""
     print("\n" + "="*60)
     print("👥 Migrating Users...")
@@ -165,21 +202,42 @@ def migrate_users():
                     print(f"⏭️  User '{user_data['email']}' already exists, skipping")
                     continue
                 
+                # Parse user ID
+                old_id = user_data['id']
+                try:
+                    user_uuid = uuid.UUID(old_id)
+                except ValueError:
+                    user_uuid = uuid.uuid4()
+                    print(f"   🔄 Generated new UUID for user '{user_data['email']}': {user_uuid}")
+                
+                # Map org_id
+                old_org_id = user_data.get('org_id')
+                org_uuid = None
+                if old_org_id:
+                    org_uuid = org_mapping.get(old_org_id)
+                    if not org_uuid:
+                        try:
+                            org_uuid = uuid.UUID(old_org_id)
+                        except ValueError:
+                            print(f"   ⚠️  Unknown org_id '{old_org_id}', setting to None")
+                
+                # Extract profile data if nested
+                profile = user_data.get('profile', {})
+                
                 user = User(
-                    id=uuid.UUID(user_data['id']),
+                    id=user_uuid,
                     email=user_data['email'],
-                    username=user_data.get('username', user_data['email'].split('@')[0]),
-                    password_hash=user_data['password_hash'],
-                    first_name=user_data.get('first_name'),
-                    last_name=user_data.get('last_name'),
-                    display_name=user_data.get('display_name'),
-                    phone=user_data.get('phone'),
-                    job_title=user_data.get('job_title'),
+                    password_hash=user_data.get('password_hash', ''),
+                    first_name=profile.get('first_name') or user_data.get('first_name'),
+                    last_name=profile.get('last_name') or user_data.get('last_name'),
+                    display_name=profile.get('display_name') or user_data.get('display_name'),
+                    phone=profile.get('phone') or user_data.get('phone'),
+                    job_title=profile.get('job_title') or user_data.get('job_title'),
                     status=user_data.get('status', 'active'),
                     email_verified=user_data.get('email_verified', False),
-                    mfa_enabled=user_data.get('mfa_enabled', False),
-                    mfa_method=user_data.get('mfa_method', 'none'),
-                    org_id=uuid.UUID(user_data['org_id']) if user_data.get('org_id') else None,
+                    mfa_enabled=user_data.get('mfa', {}).get('enabled', False),
+                    mfa_method=user_data.get('mfa', {}).get('methods', ['none'])[0] if user_data.get('mfa', {}).get('methods') else 'none',
+                    org_id=org_uuid,
                     created_at=datetime.fromisoformat(user_data['created_at']) if 'created_at' in user_data else datetime.utcnow()
                 )
                 
@@ -232,18 +290,18 @@ def main():
     
     try:
         # Migrate in order (dependencies)
-        orgs = migrate_organizations()
-        roles = migrate_roles()
-        users = migrate_users()
+        org_count, org_mapping = migrate_organizations()
+        role_count, role_mapping = migrate_roles(org_mapping)
+        user_count = migrate_users(org_mapping, role_mapping)
         
         # Verify
         verify_migration()
         
         print("\n" + "="*60)
         print("✅ Migration Complete!")
-        print(f"   Organizations: {orgs}")
-        print(f"   Roles: {roles}")
-        print(f"   Users: {users}")
+        print(f"   Organizations: {org_count}")
+        print(f"   Roles: {role_count}")
+        print(f"   Users: {user_count}")
         print("="*60)
         print("\n💡 Next: Check Railway Dashboard → Postgres → Data tab")
         
