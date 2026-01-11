@@ -43,9 +43,30 @@ RUN mkdir -p /app/data /app/uploads
 # Create startup script that initializes database
 RUN echo '#!/bin/sh\n\
 echo "🚀 Starting AgentForge..."\n\
-echo "📊 Initializing database..."\n\
-python database/init_db.py 2>/dev/null || echo "⚠️  Database already initialized or failed"\n\
-echo "🌐 Starting server..."\n\
+echo ""\n\
+# Check if DATABASE_URL is set\n\
+if [ -z "$DATABASE_URL" ]; then\n\
+  echo "⚠️  DATABASE_URL not set - using file-based storage"\n\
+else\n\
+  echo "📊 Database connection detected"\n\
+  echo "🔄 Waiting for database..."\n\
+  \n\
+  # Wait for database to be ready (max 30 seconds)\n\
+  for i in 1 2 3 4 5 6; do\n\
+    python -c "from database import check_connection; exit(0 if check_connection() else 1)" 2>/dev/null\n\
+    if [ $? -eq 0 ]; then\n\
+      echo "✅ Database connection successful"\n\
+      echo "📋 Initializing database tables..."\n\
+      python database/init_db.py 2>&1 | grep -E "✅|❌|Database"\n\
+      break\n\
+    fi\n\
+    echo "   Attempt $i/6 - retrying in 5s..."\n\
+    sleep 5\n\
+  done\n\
+fi\n\
+\n\
+echo ""\n\
+echo "🌐 Starting server on port ${PORT:-8000}..."\n\
 exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
