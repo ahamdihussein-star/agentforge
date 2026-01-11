@@ -31,11 +31,14 @@ def main():
     
     # Create tables
     print("2️⃣  Creating database tables...")
+    print("   Loading models in dependency order...")
     try:
         init_db()
         print("✅ All tables created successfully!")
     except Exception as e:
         print(f"❌ Failed to create tables: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
     
     print()
