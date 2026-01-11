@@ -3375,26 +3375,32 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🔥 Starting AgentForge v3.1...")
-    app_state.load_from_disk()
-    upload_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
-    os.makedirs(upload_dir, exist_ok=True)
-    print(f"✅ Loaded {len(app_state.agents)} agents, {len(app_state.tools)} tools")
-    
-    # Load Security State
-    if SECURITY_AVAILABLE:
-        security_state.load_from_disk()
-        print(f"✅ Security module loaded - {len(security_state.users)} users, {len(security_state.roles)} roles")
-    
-    yield
-    
-    print("💾 Saving...")
-    app_state.save_to_disk()
-    
-    # Save Security State
-    if SECURITY_AVAILABLE:
-        security_state.save_to_disk()
-        print("✅ Security state saved")
+    try:
+        print("🔥 Starting AgentForge v3.1...")
+        app_state.load_from_disk()
+        upload_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
+        os.makedirs(upload_dir, exist_ok=True)
+        print(f"✅ Loaded {len(app_state.agents)} agents, {len(app_state.tools)} tools")
+        
+        # Load Security State
+        if SECURITY_AVAILABLE:
+            security_state.load_from_disk()
+            print(f"✅ Security module loaded - {len(security_state.users)} users, {len(security_state.roles)} roles")
+        
+        yield
+        
+        print("💾 Saving...")
+        app_state.save_to_disk()
+        
+        # Save Security State
+        if SECURITY_AVAILABLE:
+            security_state.save_to_disk()
+            print("✅ Security state saved")
+    except Exception as e:
+        print(f"❌❌❌ STARTUP ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 app = FastAPI(title="AgentForge", version="3.1.0", lifespan=lifespan)
