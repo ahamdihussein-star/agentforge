@@ -2548,3 +2548,25 @@ async def check_access(
         "allowed": allowed,
         "reason": reason
     }
+
+@router.delete("/roles/{role_id}/force")
+async def force_delete_system_role(role_id: str, user: User = Depends(require_super_admin)):
+    """Force delete a system role (Super Admin only) - Cannot delete super_admin or admin"""
+    protected_roles = ["role_super_admin", "role_admin"]
+    
+    if role_id in protected_roles:
+        raise HTTPException(status_code=400, detail="Cannot delete protected system roles (Super Admin, Admin)")
+    
+    role = security_state.roles.get(role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    
+    # Remove role from users
+    for u in security_state.users.values():
+        if role_id in u.role_ids:
+            u.role_ids.remove(role_id)
+    
+    del security_state.roles[role_id]
+    security_state.save_to_disk()
+    
+    return {"message": f"Role {role.name} deleted successfully"}
