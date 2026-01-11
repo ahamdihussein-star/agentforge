@@ -62,8 +62,8 @@ class User(Base):
     # Additional data (flexible JSON field)
     user_metadata = Column(JSONB, default={})
     
-    # Relationships
-    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    # Relationships removed (no FKs for now)
+    # sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User {self.email}>"

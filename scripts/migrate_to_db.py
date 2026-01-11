@@ -37,7 +37,7 @@ def migrate_organizations():
     print("📦 Migrating Organizations...")
     print("="*60)
     
-    data = load_json_file('data/organizations.json')
+    data = load_json_file('data/security/organizations.json')
     if not data:
         print("⚠️  No organizations file found")
         return 0
@@ -82,7 +82,7 @@ def migrate_roles():
     print("🎭 Migrating Roles...")
     print("="*60)
     
-    data = load_json_file('data/roles.json')
+    data = load_json_file('data/security/roles.json')
     if not data:
         print("⚠️  No roles file found")
         return 0
@@ -127,7 +127,7 @@ def migrate_users():
     print("👥 Migrating Users...")
     print("="*60)
     
-    data = load_json_file('data/users.json')
+    data = load_json_file('data/security/users.json')
     if not data:
         print("⚠️  No users file found")
         return 0
