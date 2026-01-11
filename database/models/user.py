@@ -52,7 +52,7 @@ class User(Base):
     mfa_secret_encrypted = Column(Text)  # Encrypted TOTP secret
     
     # Organization (Multi-tenancy)
-    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), index=True)
+    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id', use_alter=True, name='fk_user_organization'), nullable=True, index=True)
     organization = relationship("Organization", back_populates="users")
     
     # Metadata
