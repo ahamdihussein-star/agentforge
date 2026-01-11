@@ -493,6 +493,7 @@ class Role(BaseModel):
     created_by: Optional[str] = None
 
 # Default system roles
+# Default system roles
 DEFAULT_ROLES = [
     {
         "id": "role_super_admin",
@@ -521,53 +522,6 @@ DEFAULT_ROLES = [
             Permission.SYSTEM_SETTINGS.value
         ],
         "level": 1,
-        "is_system": True
-    },
-    {
-        "id": "role_manager",
-        "name": "Manager",
-        "description": "Team manager with elevated access",
-        "permissions": [
-            Permission.USERS_VIEW.value,
-            Permission.ROLES_VIEW.value,
-            Permission.AGENTS_VIEW.value, Permission.AGENTS_CREATE.value, Permission.AGENTS_EDIT.value,
-            Permission.AGENTS_PUBLISH.value,
-            Permission.TOOLS_VIEW.value, Permission.TOOLS_CREATE.value, Permission.TOOLS_EDIT.value,
-            Permission.TOOLS_EXECUTE.value,
-            Permission.CHAT_USE.value, Permission.CHAT_VIEW_ALL.value,
-            Permission.AUDIT_VIEW.value,
-            Permission.ANALYTICS_VIEW.value,
-            Permission.DEMO_ACCESS.value, Permission.DEMO_CREATE.value
-        ],
-        "level": 2,
-        "is_system": True
-    },
-    {
-        "id": "role_agent_builder",
-        "name": "Agent Builder",
-        "description": "Can create and manage AI agents",
-        "permissions": [
-            Permission.AGENTS_VIEW.value, Permission.AGENTS_CREATE.value, Permission.AGENTS_EDIT.value,
-            Permission.AGENTS_DELETE.value, Permission.AGENTS_PUBLISH.value,
-            Permission.TOOLS_VIEW.value, Permission.TOOLS_CREATE.value, Permission.TOOLS_EDIT.value,
-            Permission.TOOLS_EXECUTE.value,
-            Permission.CHAT_USE.value,
-            Permission.DEMO_ACCESS.value
-        ],
-        "level": 3,
-        "is_system": True
-    },
-    {
-        "id": "role_user",
-        "name": "User",
-        "description": "Standard user with basic access",
-        "permissions": [
-            Permission.AGENTS_VIEW.value,
-            Permission.TOOLS_VIEW.value, Permission.TOOLS_EXECUTE.value,
-            Permission.CHAT_USE.value,
-            Permission.DEMO_ACCESS.value
-        ],
-        "level": 4,
         "is_system": True
     }
 ]
