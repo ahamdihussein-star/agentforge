@@ -1228,6 +1228,36 @@
     </style>
 </head>
 <body class="text-white" style="height:100vh;overflow:hidden;margin:0;background:var(--bg-primary);color:var(--text-primary);">
+
+<!-- Tools Action Bar -->
+<div id="tools-action-bar" class="hidden fixed top-0 left-0 right-0 bg-gray-800 border-b border-gray-700 shadow-lg z-50 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <button onclick="clearToolSelection()" class="p-2 hover:bg-gray-700 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <span id="selected-tool-name" class="font-medium">Tool Selected</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="viewSelectedTool()" class="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                <span>View</span>
+            </button>
+            <button data-permission="tools:edit" onclick="editSelectedTool()" class="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                <span>Edit</span>
+            </button>
+            <button data-permission="tools:create" onclick="duplicateSelectedTool()" class="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <span>Duplicate</span>
+            </button>
+            <button data-permission="tools:delete" onclick="deleteSelectedTool()" class="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <span>Delete</span>
+            </button>
+        </div>
+    </div>
+</div>
     <!-- Loading Screen -->
     <div id="loading-screen">
         <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-20 h-20 rounded-xl mb-4 animate-pulse">
@@ -10718,50 +10748,22 @@ Option 3"></textarea>
                 const isFromDemo = t.config?.source === 'demo_kit';
                 const sourceLabel = isFromDemo ? '<span class="tool-demo-badge">Demo</span>' : '';
                 return `
-                <div class="card tool-card rounded-xl p-4 hover:border-purple-500 transition relative" style="min-width:0;overflow:visible;">
-                    <div class="absolute top-2 right-2">
-                        <div class="relative tool-menu-container">
-                            <button onclick="event.stopPropagation(); toggleToolMenu('${t.id}')" class="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition">
-                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="10" cy="16" r="2"/></svg>
-                            </button>
-                            <div id="tool-menu-${t.id}" class="hidden tool-dropdown-menu">
-                                <button onclick="event.stopPropagation(); closeAllToolMenus(); viewTool('${t.id}')">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                    <span>View</span>
-                                </button>
-                                <button data-permission="tools:edit" onclick="event.stopPropagation(); closeAllToolMenus(); openToolEditPanel('${t.id}')">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                    <span>Edit</span>
-                                </button>
-                                <button data-permission="tools:create" onclick="event.stopPropagation(); closeAllToolMenus(); duplicateTool('${t.id}')">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                    <span>Duplicate</span>
-                                </button>
-                                <div class="menu-divider"></div>
-                                <button data-permission="tools:delete" class="text-red-400" onclick="event.stopPropagation(); closeAllToolMenus(); delToolFromCard('${t.id}','${escHtml(t.name)}')">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    <span>Delete</span>
-                                </button>
-                            </div>
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    <span>Delete</span>
-                                </button>
-                            </div>
+                <div class="card tool-card rounded-xl p-4 hover:border-purple-500 transition cursor-pointer" 
+                     style="min-width:0;" 
+                     onclick="selectTool('${t.id}')"
+                     ondblclick="viewTool('${t.id}')"
+                     data-tool-id="${t.id}"
+                     data-tool-name="${escHtml(t.name)}">
+                    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
+                        <span style="font-size:1.75rem;flex-shrink:0;">${icons[t.type]||'🔧'}</span>
+                        <div style="flex:1;min-width:0;overflow:hidden;">
+                            <h3 class="tool-title" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.name)}</h3>
+                            <p class="tool-type">${t.type.toUpperCase()}${sourceLabel}</p>
                         </div>
                     </div>
-                    <div onclick="viewTool('${t.id}')" class="cursor-pointer">
-                        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
-                            <span style="font-size:1.75rem;flex-shrink:0;">${icons[t.type]||'🔧'}</span>
-                            <div style="flex:1;min-width:0;overflow:hidden;">
-                                <h3 class="tool-title" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.name)}</h3>
-                                <p class="tool-type">${t.type.toUpperCase()}${sourceLabel}</p>
-                            </div>
-                        </div>
-                        <p class="tool-desc" style="font-size:0.875rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;">${escHtml(t.description||'No description')}</p>
-                    </div>
+                    <p class="tool-desc" style="font-size:0.875rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;">${escHtml(t.description||'No description')}</p>
                 </div>
             `}).join('');
-        }
 
         async function viewTool(id){
             const r=await fetch(API+'/api/tools/'+id);
@@ -12886,6 +12888,85 @@ Option 3"></textarea>
                 showToast('Error: ' + e.message, 'error');
             }
         }
+
+// Tool Selection Pattern
+let selectedToolId = null;
+
+function selectTool(toolId) {
+    const card = document.querySelector(`[data-tool-id="${toolId}"]`);
+    const toolName = card?.dataset.toolName || 'Tool';
+    
+    // If same tool clicked, deselect
+    if (selectedToolId === toolId) {
+        clearToolSelection();
+        return;
+    }
+    
+    // Clear previous selection
+    document.querySelectorAll('.tool-card').forEach(c => c.classList.remove('ring-2', 'ring-purple-500'));
+    
+    // Select new tool
+    selectedToolId = toolId;
+    card?.classList.add('ring-2', 'ring-purple-500');
+    
+    // Show action bar
+    document.getElementById('selected-tool-name').textContent = toolName;
+    document.getElementById('tools-action-bar').classList.remove('hidden');
+    
+    // Apply permissions
+    if (typeof applyPermissions === 'function') applyPermissions();
+}
+
+function clearToolSelection() {
+    selectedToolId = null;
+    document.querySelectorAll('.tool-card').forEach(c => c.classList.remove('ring-2', 'ring-purple-500'));
+    document.getElementById('tools-action-bar').classList.add('hidden');
+}
+
+function viewSelectedTool() {
+    if (selectedToolId) {
+        clearToolSelection();
+        viewTool(selectedToolId);
+    }
+}
+
+function editSelectedTool() {
+    if (selectedToolId) {
+        const id = selectedToolId;
+        clearToolSelection();
+        openToolEditPanel(id);
+    }
+}
+
+function duplicateSelectedTool() {
+    if (selectedToolId) {
+        const id = selectedToolId;
+        clearToolSelection();
+        duplicateTool(id);
+    }
+}
+
+function deleteSelectedTool() {
+    if (selectedToolId) {
+        const card = document.querySelector(`[data-tool-id="${selectedToolId}"]`);
+        const toolName = card?.dataset.toolName || 'this tool';
+        const id = selectedToolId;
+        clearToolSelection();
+        delToolFromCard(id, toolName);
+    }
+}
+
+// Clear selection when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.tool-card') && !e.target.closest('#tools-action-bar')) {
+        clearToolSelection();
+    }
+});
+
+// Clear selection on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') clearToolSelection();
+});
         
         // Close menus when clicking outside
         document.addEventListener('click', () => closeAllToolMenus());
