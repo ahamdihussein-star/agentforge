@@ -12,16 +12,8 @@ from .config import DatabaseConfig
 # Create declarative base
 Base = declarative_base()
 
-# Import all models at module level to register them with Base.metadata
-# This MUST happen after Base is created but before any DB operations
-# Order matters: models with no FK dependencies first
-try:
-    from .models.organization import Organization
-    from .models.role import Role, Permission, RolePermission
-    from .models.user import User, UserSession, MFASetting, PasswordHistory
-except ImportError:
-    # If models aren't ready yet, that's ok - they'll be imported when needed
-    pass
+# Models will be imported in init_db() when needed
+# Removed module-level imports to avoid crashes on startup
 
 # Global engine and session factory
 _engine = None
@@ -89,7 +81,14 @@ def init_db():
     """Initialize database (create all tables)"""
     engine = get_engine()
     
-    # Models are already imported at module level
+    # Import models to register with Base.metadata
+    try:
+        from .models.organization import Organization
+        from .models.role import Role, Permission
+        from .models.user import User, UserSession, MFASetting, PasswordHistory
+    except ImportError as e:
+        print(f"⚠️  Could not import models: {e}")
+    
     # Just create all tables
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables created successfully")
