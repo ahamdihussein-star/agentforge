@@ -10676,12 +10676,12 @@ Option 3"></textarea>
                             <button onclick="event.stopPropagation(); toggleToolMenu('${t.id}')" class="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition">
                                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="10" cy="16" r="2"/></svg>
                             </button>
-                            <div id="tool-menu-${t.id}" class="hidden absolute right-0 top-8 w-36 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1">
-                                <button onclick="event.stopPropagation(); closeAllToolMenus(); viewTool('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2">👁️ View</button>
-                                <button data-permission="tools:edit" onclick="event.stopPropagation(); closeAllToolMenus(); openToolEditPanel('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2">✏️ Edit</button>
-                                <button data-permission="tools:create" onclick="event.stopPropagation(); closeAllToolMenus(); duplicateTool('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2">📋 Duplicate</button>
+                            <div id="tool-menu-${t.id}" class="hidden absolute right-0 top-8 w-44 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1">
+                                <button onclick="event.stopPropagation(); closeAllToolMenus(); viewTool('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2 whitespace-nowrap"><span class="w-5 text-center">👁️</span>View</button>
+                                <button data-permission="tools:edit" onclick="event.stopPropagation(); closeAllToolMenus(); openToolEditPanel('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2 whitespace-nowrap"><span class="w-5 text-center">✏️</span>Edit</button>
+                                <button data-permission="tools:create" onclick="event.stopPropagation(); closeAllToolMenus(); duplicateTool('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2 whitespace-nowrap"><span class="w-5 text-center">📋</span>Duplicate</button>
                                 <div class="border-t border-gray-700 my-1"></div>
-                                <button data-permission="tools:delete" onclick="event.stopPropagation(); closeAllToolMenus(); delToolFromCard('${t.id}','${escHtml(t.name)}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-red-400 flex items-center gap-2">🗑️ Delete</button>
+                                <button data-permission="tools:delete" onclick="event.stopPropagation(); closeAllToolMenus(); delToolFromCard('${t.id}','${escHtml(t.name)}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-red-400 flex items-center gap-2 whitespace-nowrap"><span class="w-5 text-center">🗑️</span>Delete</button>
                             </div>
                         </div>
                     </div>
