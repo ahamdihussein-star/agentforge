@@ -3387,6 +3387,17 @@ async def lifespan(app: FastAPI):
             security_state.load_from_disk()
             print(f"✅ Security module loaded - {len(security_state.users)} users, {len(security_state.roles)} roles")
         
+        # Test endpoints to catch any import/runtime errors
+        print("🧪 Testing endpoints...")
+        try:
+            test_response = await root()
+            print(f"✅ Root endpoint test: {test_response}")
+        except Exception as test_error:
+            print(f"❌❌❌ ROOT ENDPOINT TEST FAILED: {test_error}")
+            import traceback
+            traceback.print_exc()
+            raise
+        
         yield
         
         print("💾 Saving...")
