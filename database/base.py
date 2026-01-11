@@ -88,11 +88,12 @@ def init_db():
 def check_connection():
     """Check if database connection is working"""
     try:
+        from sqlalchemy import text
         engine = get_engine()
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
         return True
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        # Silent failure for retry logic
         return False
 

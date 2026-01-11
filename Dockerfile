@@ -60,8 +60,10 @@ else\n\
   SLEEP_TIME=6\n\
   \n\
   for i in $(seq 1 $MAX_ATTEMPTS); do\n\
-    # Try simple connection test\n\
-    if python -c "from database import check_connection; exit(0 if check_connection() else 1)" 2>/dev/null; then\n\
+    # Try simple connection test with error output\n\
+    ERROR_OUTPUT=$(python -c "from database import check_connection; import sys; result = check_connection(); sys.exit(0 if result else 1)" 2>&1)\n\
+    \n\
+    if [ $? -eq 0 ]; then\n\
       echo "✅ Database connection successful"\n\
       echo "📋 Initializing database tables..."\n\
       python database/init_db.py 2>&1 | grep -E "✅|❌|Database"\n\
@@ -70,6 +72,8 @@ else\n\
     \n\
     if [ $i -eq $MAX_ATTEMPTS ]; then\n\
       echo "❌ Database connection failed after ${MAX_ATTEMPTS} attempts"\n\
+      echo "   Database URL host: $DB_HOST:$DB_PORT"\n\
+      echo "   Last error: $ERROR_OUTPUT"\n\
       echo "⚠️  Starting in file-based mode..."\n\
     else\n\
       echo "   Attempt $i/$MAX_ATTEMPTS - retrying in ${SLEEP_TIME}s..."\n\
