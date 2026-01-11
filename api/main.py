@@ -7924,8 +7924,8 @@ async def update_tool(tool_id: str, request: UpdateToolRequest):
             if tool.type == 'website':
                 # Re-scrape if URL changed
                 old_url = old_config.get('url', '')
-                new_url = new_config.get('url', old_url)
-                if old_url != new_url and new_url:
+                new_url = new_config.get('url')
+                if new_url is not None and old_url != new_url:
                     reprocess_action = 'rescrape'
                     # Clear old scraped pages for this tool
                     pages_to_delete = [pid for pid, p in app_state.scraped_pages.items() if p.tool_id == tool_id]
@@ -7953,9 +7953,9 @@ async def update_tool(tool_id: str, request: UpdateToolRequest):
                 # Re-index if chunk settings changed
                 old_chunk = old_config.get('chunk_size', 1000)
                 old_overlap = old_config.get('overlap', 200)
-                new_chunk = new_config.get('chunk_size', old_chunk)
-                new_overlap = new_config.get('overlap', old_overlap)
-                if old_chunk != new_chunk or old_overlap != new_overlap:
+                new_chunk = new_config.get('chunk_size')
+                new_overlap = new_config.get('overlap')
+                if (new_chunk is not None and old_chunk != new_chunk) or (new_overlap is not None and old_overlap != new_overlap):
                     reprocess_action = 'reindex'
                     # Re-chunk all documents for this tool
                     docs_reindexed = 0
@@ -7973,16 +7973,16 @@ async def update_tool(tool_id: str, request: UpdateToolRequest):
             elif tool.type == 'database':
                 # Test connection if connection string changed
                 old_conn = old_config.get('connection_string', '')
-                new_conn = new_config.get('connection_string', old_conn)
-                if old_conn != new_conn and new_conn:
+                new_conn = new_config.get('connection_string')
+                if new_conn is not None and old_conn != new_conn:
                     reprocess_action = 'test_connection'
                     reprocess_result = {"status": "connection_updated", "message": "Database connection configured"}
                     
             elif tool.type == 'api':
                 # Test if API config changed
                 old_url = old_config.get('base_url', '')
-                new_url = new_config.get('base_url', old_url)
-                if old_url != new_url and new_url:
+                new_url = new_config.get('base_url')
+                if new_url is not None and old_url != new_url:
                     reprocess_action = 'test_connection'
                     reprocess_result = {"status": "api_updated", "message": "API endpoint configured"}
                     
@@ -7999,8 +7999,8 @@ async def update_tool(tool_id: str, request: UpdateToolRequest):
             elif tool.type == 'webhook':
                 # Test webhook URL
                 old_url = old_config.get('url', '')
-                new_url = new_config.get('url', old_url)
-                if old_url != new_url and new_url:
+                new_url = new_config.get('url')
+                if new_url is not None and old_url != new_url:
                     reprocess_action = 'test_connection'
                     reprocess_result = {"status": "webhook_updated", "message": "Webhook URL configured"}
                     
