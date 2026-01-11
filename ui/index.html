@@ -10670,10 +10670,20 @@ Option 3"></textarea>
                 const isFromDemo = t.config?.source === 'demo_kit';
                 const sourceLabel = isFromDemo ? '<span class="tool-demo-badge">Demo</span>' : '';
                 return `
-                <div class="card tool-card rounded-xl p-4 hover:border-purple-500 transition relative group" style="min-width:0;overflow:hidden;">
-                    <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition flex gap-1">
-                        <button data-permission="tools:edit" onclick="event.stopPropagation(); showEditToolModal('${t.id}')" class="p-1.5 bg-blue-500/20 hover:bg-blue-500/40 rounded text-blue-400 text-sm" title="Edit">✏️</button>
-                        <button data-permission="tools:delete" onclick="event.stopPropagation(); delToolFromCard('${t.id}','${escHtml(t.name)}')" class="p-1.5 bg-red-500/20 hover:bg-red-500/40 rounded text-red-400 text-sm" title="Delete">🗑️</button>
+                <div class="card tool-card rounded-xl p-4 hover:border-purple-500 transition relative" style="min-width:0;overflow:hidden;">
+                    <div class="absolute top-2 right-2">
+                        <div class="relative tool-menu-container">
+                            <button onclick="event.stopPropagation(); toggleToolMenu('${t.id}')" class="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="4" r="2"/><circle cx="10" cy="10" r="2"/><circle cx="10" cy="16" r="2"/></svg>
+                            </button>
+                            <div id="tool-menu-${t.id}" class="hidden absolute right-0 top-8 w-36 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1">
+                                <button onclick="event.stopPropagation(); closeAllToolMenus(); viewTool('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2">👁️ View</button>
+                                <button data-permission="tools:edit" onclick="event.stopPropagation(); closeAllToolMenus(); openToolEditPanel('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2">✏️ Edit</button>
+                                <button data-permission="tools:create" onclick="event.stopPropagation(); closeAllToolMenus(); duplicateTool('${t.id}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2">📋 Duplicate</button>
+                                <div class="border-t border-gray-700 my-1"></div>
+                                <button data-permission="tools:delete" onclick="event.stopPropagation(); closeAllToolMenus(); delToolFromCard('${t.id}','${escHtml(t.name)}')" class="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 text-red-400 flex items-center gap-2">🗑️ Delete</button>
+                            </div>
+                        </div>
                     </div>
                     <div onclick="viewTool('${t.id}')" class="cursor-pointer">
                         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
@@ -10705,7 +10715,6 @@ Option 3"></textarea>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="navigate('tools')" class="btn-secondary px-4 py-2 rounded-lg text-sm">← Back</button>
-                        <button data-permission="tools:edit" onclick="showEditToolModal('${t.id}')" class="btn-primary px-4 py-2 rounded-lg text-sm">✏️ Edit</button>
                         <button data-permission="tools:delete" onclick="delTool('${t.id}')" class="btn-danger px-4 py-2 rounded-lg text-sm">🗑️ Delete</button>
                     </div>
                 </div>
@@ -12777,8 +12786,331 @@ Option 3"></textarea>
                 showToast('Failed to delete: ' + e.message, 'error');
             }
         }
+        
+        function toggleToolMenu(toolId) {
+            closeAllToolMenus();
+            const menu = document.getElementById('tool-menu-' + toolId);
+            if(menu) menu.classList.toggle('hidden');
+        }
+        
+        function closeAllToolMenus() {
+            document.querySelectorAll('[id^="tool-menu-"]').forEach(m => m.classList.add('hidden'));
+        }
+        
+        async function duplicateTool(toolId) {
+            try {
+                const r = await fetch(API + '/api/tools/' + toolId);
+                const tool = await r.json();
+                const newTool = {
+                    name: tool.name + ' (Copy)',
+                    description: tool.description,
+                    type: tool.type,
+                    config: tool.config
+                };
+                const resp = await fetch(API + '/api/tools', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(newTool)
+                });
+                if(resp.ok) {
+                    showToast('Tool duplicated', 'success');
+                    loadTools();
+                } else {
+                    showToast('Failed to duplicate', 'error');
+                }
+            } catch(e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+        
+        // Close menus when clicking outside
+        document.addEventListener('click', () => closeAllToolMenus());
 
 // Edit Tool Modal
+
+// Tool Edit Panel Functions
+let currentEditTool = null;
+
+async function openToolEditPanel(toolId) {
+    try {
+        const r = await fetch(API + '/api/tools/' + toolId);
+        if (!r.ok) throw new Error('Failed to load tool');
+        currentEditTool = await r.json();
+        
+        const icons = {document:'📄', website:'🌐', api:'🔌', knowledge:'📚', email:'📧', webhook:'🔗', websearch:'🔍', database:'🗄️'};
+        
+        // Set basic fields
+        document.getElementById('edit-tool-id').value = currentEditTool.id;
+        document.getElementById('edit-tool-type').value = currentEditTool.type;
+        document.getElementById('edit-tool-name').value = currentEditTool.name || '';
+        document.getElementById('edit-tool-desc').value = currentEditTool.description || '';
+        document.getElementById('edit-tool-active').checked = currentEditTool.is_active !== false;
+        document.getElementById('edit-panel-icon').textContent = icons[currentEditTool.type] || '🔧';
+        document.getElementById('edit-panel-type').textContent = currentEditTool.type.toUpperCase();
+        
+        // Load config fields based on type
+        loadEditConfigFields(currentEditTool);
+        
+        // Load sources
+        loadEditSources(currentEditTool);
+        
+        // Show panel with animation
+        const panel = document.getElementById('tool-edit-panel');
+        const slider = document.getElementById('tool-edit-slider');
+        panel.classList.remove('hidden');
+        setTimeout(() => slider.classList.remove('translate-x-full'), 10);
+        
+        // Reset to first tab
+        switchEditTab('basic');
+        
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+function closeToolEditPanel() {
+    const panel = document.getElementById('tool-edit-panel');
+    const slider = document.getElementById('tool-edit-slider');
+    slider.classList.add('translate-x-full');
+    setTimeout(() => panel.classList.add('hidden'), 300);
+    currentEditTool = null;
+}
+
+function switchEditTab(tab) {
+    // Update tab buttons
+    document.querySelectorAll('.edit-tab').forEach(t => {
+        t.classList.remove('active', 'border-purple-500', 'text-purple-400');
+        t.classList.add('border-transparent', 'text-gray-400');
+    });
+    const activeTab = document.querySelector(`.edit-tab[data-tab="${tab}"]`);
+    if (activeTab) {
+        activeTab.classList.add('active', 'border-purple-500', 'text-purple-400');
+        activeTab.classList.remove('border-transparent', 'text-gray-400');
+    }
+    
+    // Show content
+    document.querySelectorAll('.edit-tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById('edit-tab-' + tab)?.classList.remove('hidden');
+}
+
+function loadEditConfigFields(tool) {
+    const container = document.getElementById('edit-config-content');
+    const config = tool.config || {};
+    let html = '';
+    
+    switch(tool.type) {
+        case 'website':
+            html = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Website URL</label>
+                        <input type="url" id="edit-cfg-url" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.url || '')}">
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="edit-cfg-recursive" class="w-4 h-4" ${config.recursive ? 'checked' : ''}>
+                            <span class="text-sm">Recursive scraping</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm text-gray-400">Max pages:</label>
+                            <input type="number" id="edit-cfg-maxpages" class="input-field w-20 rounded px-2 py-1" value="${config.max_pages || 10}">
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'document':
+        case 'knowledge':
+            html = `
+                <div class="space-y-4">
+                    <div class="card rounded-lg p-4">
+                        <h5 class="font-medium mb-3">🔍 Search Settings</h5>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1 block">Chunk Size</label>
+                                <input type="number" id="edit-cfg-chunk" class="input-field w-full rounded-lg px-3 py-2" value="${config.chunk_size || 1000}">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1 block">Overlap</label>
+                                <input type="number" id="edit-cfg-overlap" class="input-field w-full rounded-lg px-3 py-2" value="${config.overlap || 200}">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1 block">Top K Results</label>
+                                <input type="number" id="edit-cfg-topk" class="input-field w-full rounded-lg px-3 py-2" value="${config.top_k || 5}">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1 block">Search Type</label>
+                                <select id="edit-cfg-search" class="input-field w-full rounded-lg px-3 py-2">
+                                    <option value="hybrid" ${config.search_type === 'hybrid' ? 'selected' : ''}>Hybrid</option>
+                                    <option value="semantic" ${config.search_type === 'semantic' ? 'selected' : ''}>Semantic</option>
+                                    <option value="keyword" ${config.search_type === 'keyword' ? 'selected' : ''}>Keyword</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'api':
+            html = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">API Base URL</label>
+                        <input type="url" id="edit-cfg-apiurl" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.base_url || '')}">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">API Key</label>
+                        <input type="password" id="edit-cfg-apikey" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.api_key || '')}" placeholder="Enter API key">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Headers (JSON)</label>
+                        <textarea id="edit-cfg-headers" rows="3" class="input-field w-full px-4 py-2 rounded-lg font-mono text-sm">${escHtml(JSON.stringify(config.headers || {}, null, 2))}</textarea>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        default:
+            html = `
+                <div class="text-center py-8 text-gray-400">
+                    <p>Configuration for ${tool.type} type</p>
+                    <pre class="mt-4 text-left text-xs bg-gray-800 p-4 rounded-lg overflow-auto max-h-64">${escHtml(JSON.stringify(config, null, 2))}</pre>
+                </div>
+            `;
+    }
+    
+    container.innerHTML = html;
+}
+
+function loadEditSources(tool) {
+    const container = document.getElementById('edit-sources-content');
+    let html = '';
+    
+    // Documents
+    const docs = tool.documents || [];
+    html += `
+        <div class="mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h5 class="font-medium">📄 Documents (${docs.length})</h5>
+            </div>
+            ${docs.length > 0 ? `
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    ${docs.map(d => `
+                        <div class="flex items-center justify-between p-2 bg-gray-800 rounded-lg">
+                            <span class="text-sm truncate flex-1">${escHtml(d.name || d.filename || 'Document')}</span>
+                            <button onclick="removeEditDoc('${d.id}')" class="text-red-400 hover:text-red-300 p-1">🗑️</button>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '<p class="text-gray-500 text-sm">No documents uploaded</p>'}
+        </div>
+    `;
+    
+    // Scraped Pages (for website type)
+    if (tool.type === 'website') {
+        const pages = tool.scraped_pages || [];
+        html += `
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h5 class="font-medium">🌐 Scraped Pages (${pages.length})</h5>
+                </div>
+                ${pages.length > 0 ? `
+                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                        ${pages.map(p => `
+                            <div class="flex items-center justify-between p-2 bg-gray-800 rounded-lg">
+                                <span class="text-sm truncate flex-1">${escHtml(p.title || p.url || 'Page')}</span>
+                                <button onclick="removeEditPage('${p.id}')" class="text-red-400 hover:text-red-300 p-1">🗑️</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '<p class="text-gray-500 text-sm">No pages scraped</p>'}
+            </div>
+        `;
+    }
+    
+    // Add new source button
+    html += `
+        <div class="pt-4 border-t border-gray-700">
+            <p class="text-sm text-gray-400 mb-3">To add new sources, use the tool detail page.</p>
+            <button onclick="closeToolEditPanel(); viewTool('${tool.id}')" class="btn-secondary px-4 py-2 rounded-lg text-sm">
+                Open Full View →
+            </button>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+async function saveToolChanges() {
+    const toolId = document.getElementById('edit-tool-id').value;
+    const toolType = document.getElementById('edit-tool-type').value;
+    
+    // Gather basic info
+    const updates = {
+        name: document.getElementById('edit-tool-name').value,
+        description: document.getElementById('edit-tool-desc').value,
+        is_active: document.getElementById('edit-tool-active').checked
+    };
+    
+    // Gather config based on type
+    const config = {};
+    switch(toolType) {
+        case 'website':
+            config.url = document.getElementById('edit-cfg-url')?.value || '';
+            config.recursive = document.getElementById('edit-cfg-recursive')?.checked || false;
+            config.max_pages = parseInt(document.getElementById('edit-cfg-maxpages')?.value) || 10;
+            break;
+        case 'document':
+        case 'knowledge':
+            config.chunk_size = parseInt(document.getElementById('edit-cfg-chunk')?.value) || 1000;
+            config.overlap = parseInt(document.getElementById('edit-cfg-overlap')?.value) || 200;
+            config.top_k = parseInt(document.getElementById('edit-cfg-topk')?.value) || 5;
+            config.search_type = document.getElementById('edit-cfg-search')?.value || 'hybrid';
+            break;
+        case 'api':
+            config.base_url = document.getElementById('edit-cfg-apiurl')?.value || '';
+            config.api_key = document.getElementById('edit-cfg-apikey')?.value || '';
+            try {
+                config.headers = JSON.parse(document.getElementById('edit-cfg-headers')?.value || '{}');
+            } catch(e) {
+                config.headers = {};
+            }
+            break;
+    }
+    
+    // Merge with existing config
+    updates.config = { ...(currentEditTool?.config || {}), ...config };
+    
+    try {
+        const r = await fetch(API + '/api/tools/' + toolId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        
+        if (r.ok) {
+            showToast('Tool updated successfully', 'success');
+            closeToolEditPanel();
+            loadTools();
+        } else {
+            const err = await r.json();
+            showToast(err.detail || 'Failed to update', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+function removeEditDoc(docId) {
+    // This would need backend support - for now just show message
+    showToast('Use full view to manage documents', 'info');
+}
+
+function removeEditPage(pageId) {
+    showToast('Use full view to manage pages', 'info');
+}
 async function showEditToolModal(toolId) {
     try {
         const r = await fetch(API + '/api/tools/' + toolId);
@@ -19040,5 +19372,79 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
     </script>
+
+<!-- Tool Edit Slide-over Panel -->
+<div id="tool-edit-panel" class="fixed inset-0 z-[9999] hidden">
+    <div class="absolute inset-0 bg-black/60" onclick="closeToolEditPanel()"></div>
+    <div class="absolute right-0 top-0 h-full w-full max-w-2xl bg-gray-900 shadow-2xl transform transition-transform duration-300 translate-x-full" id="tool-edit-slider">
+        <div class="flex flex-col h-full">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-4 border-b border-gray-700">
+                <div class="flex items-center gap-3">
+                    <span id="edit-panel-icon" class="text-2xl">🔧</span>
+                    <div>
+                        <h2 class="font-bold text-lg">Edit Tool</h2>
+                        <p id="edit-panel-type" class="text-xs text-gray-400">KNOWLEDGE BASE</p>
+                    </div>
+                </div>
+                <button onclick="closeToolEditPanel()" class="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-700">
+                <button onclick="switchEditTab('basic')" class="edit-tab active flex-1 px-4 py-3 text-sm font-medium border-b-2 border-purple-500 text-purple-400" data-tab="basic">Basic Info</button>
+                <button onclick="switchEditTab('config')" class="edit-tab flex-1 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white" data-tab="config">Configuration</button>
+                <button onclick="switchEditTab('sources')" class="edit-tab flex-1 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white" data-tab="sources">Sources</button>
+            </div>
+            
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto p-4">
+                <input type="hidden" id="edit-tool-id">
+                <input type="hidden" id="edit-tool-type">
+                
+                <!-- Basic Info Tab -->
+                <div id="edit-tab-basic" class="edit-tab-content space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Name *</label>
+                        <input type="text" id="edit-tool-name" class="input-field w-full px-4 py-2 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Description</label>
+                        <textarea id="edit-tool-desc" rows="3" class="input-field w-full px-4 py-2 rounded-lg"></textarea>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="edit-tool-active" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                        </label>
+                        <span class="text-sm">Active</span>
+                    </div>
+                </div>
+                
+                <!-- Configuration Tab -->
+                <div id="edit-tab-config" class="edit-tab-content hidden space-y-4">
+                    <div id="edit-config-content">
+                        <!-- Dynamic config fields will be inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Sources Tab -->
+                <div id="edit-tab-sources" class="edit-tab-content hidden space-y-4">
+                    <div id="edit-sources-content">
+                        <!-- Dynamic sources will be shown here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex items-center justify-end gap-3 p-4 border-t border-gray-700">
+                <button onclick="closeToolEditPanel()" class="btn-secondary px-6 py-2 rounded-lg">Cancel</button>
+                <button onclick="saveToolChanges()" class="btn-primary px-6 py-2 rounded-lg">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
