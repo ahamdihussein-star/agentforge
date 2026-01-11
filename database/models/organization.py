@@ -4,6 +4,7 @@ Organization Model - Multi-tenancy support
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from ..base import Base
@@ -27,6 +28,9 @@ class Organization(Base):
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    users = relationship("User", back_populates="organization")
     
     def __repr__(self):
         return f"<Organization {self.name}>"

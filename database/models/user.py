@@ -53,6 +53,7 @@ class User(Base):
     
     # Organization (Multi-tenancy)
     org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), index=True)
+    organization = relationship("Organization", back_populates="users")
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
