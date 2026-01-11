@@ -1,0 +1,152 @@
+# AgentForge Cursor Rules
+# This file helps Cursor AI understand the project conventions
+
+## 📚 DOCUMENTATION - READ FIRST!
+**Before making any changes, read the documentation:**
+- `docs/AI_QUICK_REFERENCE.md` - Quick context for AI assistants (START HERE)
+- `docs/MASTER_DOCUMENTATION.md` - Complete platform reference
+- This file (`.cursorrules`) - Project conventions and rules
+
+## Project Overview
+AgentForge is an Enterprise AI Agent Builder platform.
+- Monolithic architecture (preparing for microservices migration)
+- Backend: FastAPI (Python 3.11)
+- Frontend: Vanilla JavaScript + Tailwind CSS
+- Database: JSON files (migrating to PostgreSQL)
+- Deployment: Railway (auto-deploy from main branch)
+
+## File Structure Rules
+- Backend code: `api/main.py` (main app), `api/security.py` (security module)
+- Frontend code: `ui/index.html` (single-page app)
+- Core modules: `core/` directory (llm, security, tools, agent)
+- Data storage: `data/` directory (JSON files, auto-created)
+
+## Code Style Rules
+
+### Python (Backend)
+- Use FastAPI conventions
+- Pydantic models for request/response validation
+- Async functions for I/O operations
+- Type hints everywhere
+- Error handling with HTTPException
+
+### JavaScript (Frontend)
+- Vanilla JS only (no frameworks)
+- Async/await for API calls
+- Use `showToast(message, type)` for notifications
+- API base URL stored in `API` constant
+- Dark theme is default
+
+## API Conventions
+- All API endpoints start with `/api/`
+- Security endpoints: `/api/security/...`
+- Use REST conventions (GET, POST, PUT, DELETE)
+- Return `{"status": "success", "data": ...}` format
+- Errors return `{"detail": "error message"}`
+
+## Security Rules
+- JWT tokens in localStorage (`token`)
+- Include token in Authorization header: `Bearer ${token}`
+- 32 permissions defined in `core/security/permissions.py`
+- 2 default roles: Super Admin, Admin
+- MFA supports TOTP and Email methods
+
+## Tools System
+- 8 active tool types with backend support:
+  website, document, knowledge, database, api, email, webhook, slack, websearch
+- 12 coming soon types (UI only)
+- Auto re-processing on config changes (website→rescrape, document→reindex)
+
+## UI Patterns
+- Selection pattern for tools (click to select, action bar appears)
+- Slide-over panels for edit operations
+- Three tabs in edit panel: Basic Info, Configuration, Sources
+- Dynamic config fields based on tool type
+
+## Deployment Rules
+- Push to `main` branch triggers Railway deployment
+- Check syntax before pushing:
+  - Python: `python3 -m py_compile api/main.py`
+  - JS: `node -e "require('fs').readFileSync('ui/index.html', 'utf8')"`
+- View Railway logs for deployment status
+
+## Common Tasks
+
+### Add New API Endpoint
+1. Add Pydantic model if needed
+2. Add endpoint function with decorator
+3. Follow existing patterns in the file
+
+### Add New Tool Type
+1. Add to tool type list in frontend wizard
+2. Add config fields in `loadEditConfigFields()` 
+3. Add save logic in `saveToolChanges()`
+4. Add backend processing in `update_tool()` endpoint
+
+### Add New Permission
+1. Add to `ALL_PERMISSIONS` in `core/security/permissions.py`
+2. Add to appropriate default roles if needed
+3. Use `require_permission()` decorator on endpoints
+
+### Modify Frontend Section
+1. Find section with grep: `grep -n "identifier" ui/index.html`
+2. Note line numbers
+3. Make changes
+4. Verify syntax
+
+## Don't Do
+- Don't use sed with complex patterns (error-prone)
+- Don't push without syntax check
+- Don't add new npm/pip dependencies without updating requirements
+- Don't change file structure without updating this doc
+- Don't hardcode API URLs (use API constant)
+- Don't store sensitive data in code (use environment variables)
+
+## Testing
+- Test locally: `python -m uvicorn api.main:app --reload`
+- Access UI: http://localhost:8000/ui
+- Test API: http://localhost:8000/docs (Swagger)
+- Default admin: Check users.json or create via UI
+
+## Important Line Numbers (approximate, may shift)
+- Backend update_tool: ~line 7891
+- Frontend loadTools: ~line 12500
+- Frontend saveToolChanges: ~line 13362
+- Tool wizard: ~line 3700
+- Edit panel config: ~line 13084
+
+## Environment Variables
+```
+OPENAI_API_KEY - OpenAI API key
+ANTHROPIC_API_KEY - Anthropic API key
+SENDGRID_API_KEY - SendGrid for emails
+JWT_SECRET - JWT signing secret
+PORT - Server port (Railway sets this)
+```
+
+## 📚 Documentation Reference
+
+### Quick Lookup
+- **API Endpoints:** `docs/AI_QUICK_REFERENCE.md` → "API Reference" section
+- **Tools System:** `docs/AI_QUICK_REFERENCE.md` → "Tools System" section
+- **Security/Permissions:** `docs/AI_QUICK_REFERENCE.md` → "Security Module" section
+- **Deployment:** `docs/AI_QUICK_REFERENCE.md` → "Deployment Guide" section
+- **Architecture Plans:** `docs/MASTER_DOCUMENTATION.md` → "Code Modernization Strategy"
+- **Database Migration:** `docs/MASTER_DOCUMENTATION.md` → "Database Migration Plan"
+
+### Finding Information
+1. Search `docs/AI_QUICK_REFERENCE.md` first (concise, AI-optimized)
+2. If more detail needed, check `docs/MASTER_DOCUMENTATION.md` (comprehensive)
+3. Check this file for code conventions and patterns
+
+### Key Line Numbers (approximate)
+Backend (`api/main.py`):
+- update_tool endpoint: ~7891
+- scrape_website endpoint: ~8039
+- security endpoints: ~line 1000-3000
+
+Frontend (`ui/index.html`):
+- Tool wizard: ~3700
+- Edit panel config: ~13084
+- saveToolChanges: ~13362
+- Selection pattern functions: ~12892

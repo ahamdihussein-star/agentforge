@@ -1,10 +1,11 @@
 # 🔥 AgentForge Master Documentation
 ## Enterprise AI Agent Builder Platform
 
-**Version:** 3.2  
-**Last Updated:** January 2026  
+**Version:** 3.3  
+**Last Updated:** January 11, 2026  
 **GitHub:** https://github.com/ahamdihussein-star/agentforge  
-**Production:** https://agentforge.up.railway.app  
+**Production:** https://agentforge2.up.railway.app  
+**Railway Project:** agentforge2  
 **Domain:** agentforge.to
 
 ---
@@ -13,37 +14,38 @@
 
 ## Part 1: Platform Overview
 1. [Executive Summary](#-executive-summary)
-2. [System Architecture](#-system-architecture)
-3. [Folder Structure](#-folder-structure)
+2. [Recent Changes (January 2026)](#-recent-changes-january-2026)
+3. [System Architecture](#-system-architecture)
+4. [Folder Structure](#-folder-structure)
 
 ## Part 2: Features & Components
-4. [Features - Complete List](#-features---complete-list)
-5. [LLM Providers](#-llm-providers)
-6. [Tools System](#-tools-system)
-7. [Knowledge Base / RAG](#-knowledge-base--rag)
-8. [Security Module](#-security-module)
-9. [Demo Lab](#-demo-lab)
+5. [Features - Complete List](#-features---complete-list)
+6. [LLM Providers](#-llm-providers)
+7. [Tools System](#-tools-system)
+8. [Knowledge Base / RAG](#-knowledge-base--rag)
+9. [Security Module](#-security-module)
+10. [Demo Lab](#-demo-lab)
 
 ## Part 3: Technical Assessment
-10. [Platform Assessment](#-platform-assessment)
-11. [Gap Analysis](#-gap-analysis)
-12. [Code Quality](#-code-quality)
+11. [Platform Assessment](#-platform-assessment)
+12. [Gap Analysis](#-gap-analysis)
+13. [Code Quality](#-code-quality)
 
 ## Part 4: Modernization & Best Practices
-13. [Code Modernization Strategy](#-code-modernization-strategy)
-14. [Database Migration Plan](#-database-migration-plan)
-15. [UI/UX Modernization](#-uiux-modernization)
+14. [Code Modernization Strategy](#-code-modernization-strategy)
+15. [Database Migration Plan](#-database-migration-plan)
+16. [UI/UX Modernization](#-uiux-modernization)
 
 ## Part 5: Deployment & Operations
-16. [Deployment Architecture](#-deployment-architecture)
-17. [Multi-Cloud Deployment Guide](#-multi-cloud-deployment-guide)
-18. [Installation Wizard & CLI](#-installation-wizard--cli)
-19. [Multi-Tenancy Architecture](#-multi-tenancy-architecture)
+17. [Deployment Architecture](#-deployment-architecture)
+18. [Multi-Cloud Deployment Guide](#-multi-cloud-deployment-guide)
+19. [Installation Wizard & CLI](#-installation-wizard--cli)
+20. [Multi-Tenancy Architecture](#-multi-tenancy-architecture)
 
 ## Part 6: Maintenance
-20. [API Reference](#-api-reference)
-21. [Recommendations & Roadmap](#-recommendations--roadmap)
-22. [Documentation Maintenance](#-documentation-maintenance)
+21. [API Reference](#-api-reference)
+22. [Recommendations & Roadmap](#-recommendations--roadmap)
+23. [Documentation Maintenance](#-documentation-maintenance)
 
 ---
 
@@ -82,6 +84,33 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 - 🔴 **No Containerization Strategy** - Difficult multi-cloud deployment
 - 🔴 **No Multi-tenancy** - Can't run as SaaS
 - 🔴 **No CI/CD Pipeline** - Manual deployments
+
+---
+
+# 🆕 Recent Changes (January 2026)
+
+## Tools UX Overhaul
+- **Action Bar Pattern:** Replaced three-dots dropdown with enterprise selection pattern
+- **Tool Categorization:** 8 active tools vs 12 coming soon (with visual distinction)
+- **Edit Panel Enhancement:** Dynamic config fields per tool type, slide-over panel
+- **Auto Re-processing:** Website auto re-scrapes on URL change, documents auto re-index on chunk settings change
+
+## Security Cleanup
+- Reduced permissions from 42 to 32 (removed unused KB, DB, Policy, Org permissions)
+- Reduced default roles to 2 (Super Admin with 32, Admin with 25 permissions)
+- Added `tools:edit` permission for tool configuration editing
+- Added `/api/security/roles/reset-defaults` endpoint
+- Completed Email MFA implementation (SendGrid/SMTP)
+
+## Backend Improvements
+- `UpdateToolRequest` model includes `is_active` field
+- Smart config change detection in `update_tool` endpoint
+- Proper async scraping with result tracking
+
+## Deployment
+- **Production URL:** https://agentforge2.up.railway.app
+- **Railway Project:** agentforge2
+- Auto-deploy from main branch
 
 ---
 
@@ -486,16 +515,21 @@ agentforge/
 | Database Tool | ✅ | - | - |
 | RAG Tool | ✅ | - | - |
 | Email Tool | ✅ | - | - |
-| Web Search | 🔴 | High | Medium |
-| Slack | 🔴 | Medium | Low |
-| Webhook | 🔴 | Medium | Low |
+| Website Scraping | ✅ | - | - |
+| Web Search | ✅ | - | - |
+| Slack | ✅ | - | - |
+| Webhook | ✅ | - | - |
+| Spreadsheet | 🔶 | Medium | Medium |
+| Calendar | 🔶 | Low | Medium |
+| CRM Integration | 🔶 | Low | High |
 
 ### Security
 | Feature | Status | Priority | Effort |
 |---------|--------|----------|--------|
 | JWT Auth | ✅ | - | - |
-| RBAC | ✅ | - | - |
+| RBAC (32 permissions) | ✅ | - | - |
 | MFA (TOTP) | ✅ | - | - |
+| MFA (Email) | ✅ | - | - |
 | Google OAuth | ✅ | - | - |
 | Microsoft OAuth | 🔶 | High | Low |
 | SAML SSO | 🔴 | High | High |
@@ -551,6 +585,47 @@ class BaseTool(ABC):
         pass
 ```
 
+## Active Tools (8 Types with Backend Support)
+
+| Tool Type | Purpose | Key Features |
+|-----------|---------|--------------|
+| `website` | Web scraping | Playwright for JS sites, httpx for static, table extraction |
+| `document` | Document RAG | PDF/DOCX/TXT/CSV support, chunking, vector search |
+| `knowledge` | Knowledge base | Same as document, alias for RAG |
+| `database` | SQL queries | PostgreSQL, MySQL, SQL Server, MongoDB, SQLite |
+| `api` | REST API calls | GET/POST/PUT/DELETE, auth types, custom headers |
+| `email` | Send emails | SMTP, SendGrid, AWS SES providers |
+| `webhook` | HTTP callbacks | POST/GET/PUT/PATCH methods |
+| `slack` | Slack messaging | Bot token, channel management |
+| `websearch` | Internet search | Tavily, Serper, Bing, DuckDuckGo providers |
+
+## Coming Soon Tools (12 Types - UI Only)
+
+| Tool Type | Purpose | Status |
+|-----------|---------|--------|
+| `spreadsheet` | Excel/Google Sheets | UI Only |
+| `storage` | Cloud storage | UI Only |
+| `calendar` | Calendar integration | UI Only |
+| `crm` | CRM systems | UI Only |
+| `erp` | ERP systems | UI Only |
+| `imagegen` | AI image generation | UI Only |
+| `stt` | Speech to text | UI Only |
+| `tts` | Text to speech | UI Only |
+| `translate` | Translation | UI Only |
+| `ocr` | OCR processing | UI Only |
+| `code` | Code execution | UI Only |
+| `hitl` | Human in the loop | UI Only |
+
+## Auto Re-processing on Config Change
+
+When editing a tool via the Edit Panel, the backend automatically re-processes data:
+
+| Tool Type | Trigger | Action |
+|-----------|---------|--------|
+| `website` | URL changed | Auto re-scrape all pages |
+| `document/knowledge` | chunk_size or overlap changed | Auto re-index all documents |
+| Others | Config changed | Update confirmation |
+
 ---
 
 # 📚 Knowledge Base / RAG
@@ -568,11 +643,79 @@ Document → Extract → Chunk → Embed → Store → Search → Retrieve
 ## Security Architecture
 
 - JWT-based authentication
-- RBAC with 5 default roles
-- MFA support (TOTP)
+- RBAC with 2 default roles (Super Admin, Admin)
+- MFA support (TOTP + Email)
 - OAuth integration (Google, Microsoft)
 - Audit logging
 - Session management
+- 32 granular permissions
+
+## Permissions System (32 Total)
+
+```python
+# Location: core/security/permissions.py
+
+ALL_PERMISSIONS = [
+    # Agent Management (4)
+    "agents:read", "agents:write", "agents:delete", "agents:execute",
+    
+    # Tool Management (4)
+    "tools:read", "tools:write", "tools:delete", "tools:edit",
+    
+    # User Management (3)
+    "users:read", "users:write", "users:delete",
+    
+    # Role Management (3)
+    "roles:read", "roles:write", "roles:delete",
+    
+    # Security Management (5)
+    "security:admin", "security:audit", "security:mfa_manage",
+    "security:oauth_manage", "security:ldap_manage",
+    
+    # Knowledge Base (3)
+    "kb:read", "kb:write", "kb:delete",
+    
+    # Settings (2)
+    "settings:read", "settings:write",
+    
+    # Integrations (3)
+    "integrations:read", "integrations:write", "integrations:delete",
+    
+    # Demo (2)
+    "demo:access", "demo:manage",
+    
+    # Invitations (2)
+    "invitations:read", "invitations:write",
+    
+    # Analytics (1)
+    "analytics:read"
+]
+```
+
+## Default Roles
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| **Super Admin** | 32 (all) | Full system access including security management |
+| **Admin** | 25 | Administrative access without security management |
+
+## MFA Implementation
+
+- **TOTP:** Standard authenticator app support (Google Authenticator, Authy)
+- **Email MFA:** 6-digit code sent via email (SendGrid/SMTP), expires in 10 minutes
+
+## Security Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/security/auth/login` | POST | Login with email/password |
+| `/api/security/auth/logout` | POST | Logout current session |
+| `/api/security/auth/me` | GET | Get current user info |
+| `/api/security/auth/mfa/setup` | POST | Setup MFA (TOTP) |
+| `/api/security/auth/mfa/verify` | POST | Verify MFA code |
+| `/api/security/auth/mfa/email/send` | POST | Send MFA code via email |
+| `/api/security/auth/mfa/email/verify` | POST | Verify email MFA code |
+| `/api/security/roles/reset-defaults` | POST | Reset to default roles (Super Admin only) |
 
 ---
 
