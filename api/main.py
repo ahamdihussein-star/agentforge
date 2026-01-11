@@ -36,6 +36,15 @@ except ImportError:
     SECURITY_AVAILABLE = False
     print("⚠️ Security module not installed - running without authentication")
 
+# Health Check Module
+try:
+    from api.health import router as health_router
+    HEALTH_CHECK_AVAILABLE = True
+    print("✅ Health check module available")
+except ImportError:
+    HEALTH_CHECK_AVAILABLE = False
+    print("⚠️ Health check module not available")
+
 # Check for Playwright availability
 PLAYWRIGHT_AVAILABLE = False
 try:
@@ -3395,6 +3404,11 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 if SECURITY_AVAILABLE:
     app.include_router(security_router)
     print("✅ Security API endpoints registered")
+
+# Include Health Check Router
+if HEALTH_CHECK_AVAILABLE:
+    app.include_router(health_router)
+    print("✅ Health check endpoints registered")
 
 
 @app.get("/")
