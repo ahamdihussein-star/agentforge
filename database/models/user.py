@@ -60,7 +60,7 @@ class User(Base):
     last_login_at = Column(DateTime)
     
     # Additional data (flexible JSON field)
-    metadata = Column(JSONB, default={})
+    user_metadata = Column(JSONB, default={})
     
     # Relationships
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
