@@ -1423,6 +1423,9 @@
                 <button onclick="navigate('settings')" id="nav-settings" data-permission="system:settings" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <span>⚙️</span><span>Settings</span>
                 </button>
+                <button onclick="navigate('profile')" id="nav-profile" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
+                    <span>👤</span><span>Profile</span>
+                </button>
                 <button onclick="navigate('security')" id="nav-security" data-permission="users:view,roles:view,system:admin" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <span>🔐</span><span>Security</span>
                 </button>
@@ -1887,6 +1890,173 @@
                     <div class="flex justify-end gap-4">
                         <button onclick="loadSettings()" class="btn-secondary px-6 py-2 rounded-lg">Reset</button>
                         <button onclick="saveSettings()" class="btn-primary px-6 py-2 rounded-lg">💾 Save Settings</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile Page -->
+            <section id="page-profile" class="hidden flex-1 overflow-y-auto p-4 md:p-6">
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+                        <span>👤</span><span>My Profile</span>
+                    </h2>
+
+                    <!-- Profile Info Card -->
+                    <div class="bg-gray-800/50 backdrop-blur rounded-lg p-6 mb-6 border border-gray-700">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <span>ℹ️</span><span>Profile Information</span>
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-sm text-gray-400">Name</label>
+                                <p id="profile-name" class="text-white font-medium">Loading...</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-400">Email</label>
+                                <p id="profile-email" class="text-white font-medium">Loading...</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-400">Role</label>
+                                <p id="profile-role" class="text-white font-medium">Loading...</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-400">Member Since</label>
+                                <p id="profile-created" class="text-white font-medium">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edit Profile Form -->
+                    <div class="bg-gray-800/50 backdrop-blur rounded-lg p-6 mb-6 border border-gray-700">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <span>✏️</span><span>Update Profile</span>
+                        </h3>
+                        <form id="update-profile-form" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">First Name</label>
+                                    <input type="text" id="update-first-name" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="First name">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
+                                    <input type="text" id="update-last-name" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="Last name">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Display Name</label>
+                                <input type="text" id="update-display-name" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="Display name">
+                            </div>
+                            <div class="flex justify-end gap-3">
+                                <button type="button" onclick="loadProfileInfo()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
+                                <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Change Password Section -->
+                    <div class="bg-gray-800/50 backdrop-blur rounded-lg p-6 mb-6 border border-gray-700">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <span>🔒</span><span>Change Password</span>
+                        </h3>
+                        <form id="change-password-form" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
+                                <input type="password" id="current-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">New Password</label>
+                                <input type="password" id="new-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
+                                <input type="password" id="confirm-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" required>
+                            </div>
+                            <div class="flex justify-end">
+                                <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Change Password</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- MFA Settings Section -->
+                    <div class="bg-gray-800/50 backdrop-blur rounded-lg p-6 border border-gray-700">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <span>🔑</span><span>Multi-Factor Authentication (MFA)</span>
+                        </h3>
+                        
+                        <!-- Current MFA Status -->
+                        <div id="mfa-status-container" class="mb-4 p-4 rounded-lg bg-gray-700/50 border border-gray-600">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-medium">MFA Status</p>
+                                    <p id="mfa-status-text" class="text-sm text-gray-400">Loading...</p>
+                                </div>
+                                <div id="mfa-status-badge"></div>
+                            </div>
+                        </div>
+
+                        <!-- MFA Setup/Disable Forms -->
+                        <div id="mfa-disabled-section" class="hidden">
+                            <p class="text-gray-300 mb-4">Enable MFA to add an extra layer of security to your account.</p>
+                            <div class="space-y-3 mb-4">
+                                <label class="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg cursor-pointer hover:bg-gray-700/50 transition">
+                                    <input type="radio" name="mfa-type" value="totp" class="form-radio text-purple-600" checked>
+                                    <div>
+                                        <p class="font-medium">Authenticator App (TOTP)</p>
+                                        <p class="text-sm text-gray-400">Use Google Authenticator, Authy, or similar apps</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg cursor-pointer hover:bg-gray-700/50 transition">
+                                    <input type="radio" name="mfa-type" value="email" class="form-radio text-purple-600">
+                                    <div>
+                                        <p class="font-medium">Email Code</p>
+                                        <p class="text-sm text-gray-400">Receive verification codes via email</p>
+                                    </div>
+                                </label>
+                            </div>
+                            <button onclick="startMFASetup()" class="btn-primary px-4 py-2 rounded-lg">Enable MFA</button>
+                        </div>
+
+                        <div id="mfa-enabled-section" class="hidden">
+                            <div class="flex items-center justify-between">
+                                <p class="text-gray-300">MFA is currently enabled for your account.</p>
+                                <button onclick="disableMFA()" class="btn-danger px-4 py-2 rounded-lg">Disable MFA</button>
+                            </div>
+                        </div>
+
+                        <!-- MFA Setup Modal Content (will be shown in modal) -->
+                        <div id="mfa-setup-modal-content" class="hidden">
+                            <!-- TOTP Setup -->
+                            <div id="totp-setup" class="hidden">
+                                <div class="text-center mb-4">
+                                    <h4 class="text-lg font-semibold mb-2">Scan QR Code</h4>
+                                    <p class="text-sm text-gray-400 mb-4">Scan this QR code with your authenticator app</p>
+                                    <div id="qr-code-container" class="flex justify-center mb-4"></div>
+                                    <p class="text-xs text-gray-500 mb-2">Or enter this key manually:</p>
+                                    <code id="mfa-secret-key" class="bg-gray-700 px-3 py-1 rounded text-sm"></code>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Verification Code</label>
+                                    <input type="text" id="totp-verify-code" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white text-center text-lg tracking-wider" placeholder="000000" maxlength="6" pattern="[0-9]{6}">
+                                </div>
+                                <button onclick="verifyTOTPSetup()" class="btn-primary w-full py-2 rounded-lg">Verify & Enable</button>
+                            </div>
+
+                            <!-- Email Setup -->
+                            <div id="email-setup" class="hidden">
+                                <div class="text-center mb-4">
+                                    <h4 class="text-lg font-semibold mb-2">Verify Email</h4>
+                                    <p class="text-sm text-gray-400 mb-4">A verification code has been sent to your email</p>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Verification Code</label>
+                                    <input type="text" id="email-verify-code" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white text-center text-lg tracking-wider" placeholder="000000" maxlength="6" pattern="[0-9]{6}">
+                                </div>
+                                <div class="flex gap-3">
+                                    <button onclick="resendEmailMFACode()" class="btn-secondary flex-1 py-2 rounded-lg">Resend Code</button>
+                                    <button onclick="verifyEmailSetup()" class="btn-primary flex-1 py-2 rounded-lg">Verify & Enable</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -6251,6 +6421,7 @@ Option 3"></textarea>
                 const currentTheme = localStorage.getItem('agentforge-theme') || 'dark';
                 updateThemeButtons(currentTheme);
             }
+            if(p==='profile') loadProfileInfo();
             if(p==='demo')initDemoLab();
         }
         
@@ -18241,6 +18412,22 @@ function updateUserDisplay() {
     document.getElementById('user-email').textContent = currentUser.email || '';
 }
 
+// Alias for profile page compatibility
+async function fetchCurrentUser() {
+    try {
+        const res = await fetch(API + '/api/security/auth/me', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            currentUser = await res.json();
+            localStorage.setItem('agentforge_user', JSON.stringify(currentUser));
+            updateUserDisplay();
+        }
+    } catch (e) {
+        console.error('Error fetching current user:', e);
+    }
+}
+
 // Get auth headers
 function getAuthHeaders() {
     return authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
@@ -19704,6 +19891,367 @@ async function handleInvitationRegister(event, token) {
     }
     btn.disabled = false; 
     btn.textContent = 'Create Account';
+}
+
+// ============================================================================
+// Profile Page Functions
+// ============================================================================
+
+let currentUserProfile = null;
+
+async function loadProfileInfo() {
+    try {
+        const res = await fetch(API + '/api/security/auth/me', {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        if (!res.ok) {
+            throw new Error('Failed to load profile');
+        }
+        
+        const data = await res.json();
+        currentUserProfile = data;
+        
+        // Update profile info display
+        document.getElementById('profile-name').textContent = data.name || 'N/A';
+        document.getElementById('profile-email').textContent = data.email || 'N/A';
+        document.getElementById('profile-role').textContent = data.roles?.map(r => r.name).join(', ') || 'N/A';
+        
+        // Format created date
+        if (data.profile?.created_at) {
+            const date = new Date(data.profile.created_at);
+            document.getElementById('profile-created').textContent = date.toLocaleDateString();
+        } else {
+            document.getElementById('profile-created').textContent = 'N/A';
+        }
+        
+        // Populate edit form
+        document.getElementById('update-first-name').value = data.profile?.first_name || '';
+        document.getElementById('update-last-name').value = data.profile?.last_name || '';
+        document.getElementById('update-display-name').value = data.profile?.display_name || '';
+        
+        // Update MFA status
+        updateMFAStatus(data);
+        
+    } catch (error) {
+        console.error('Error loading profile:', error);
+        showToast('Failed to load profile information', 'error');
+    }
+}
+
+function updateMFAStatus(userData) {
+    const mfaEnabled = userData.mfa?.enabled || false;
+    const mfaMethod = userData.mfa?.method || 'none';
+    
+    const statusText = document.getElementById('mfa-status-text');
+    const statusBadge = document.getElementById('mfa-status-badge');
+    const enabledSection = document.getElementById('mfa-enabled-section');
+    const disabledSection = document.getElementById('mfa-disabled-section');
+    
+    if (mfaEnabled) {
+        statusText.textContent = `Enabled (${mfaMethod.toUpperCase()})`;
+        statusBadge.innerHTML = '<span class="px-3 py-1 bg-green-600 text-white text-sm rounded-full">Enabled</span>';
+        enabledSection.classList.remove('hidden');
+        disabledSection.classList.add('hidden');
+    } else {
+        statusText.textContent = 'Disabled';
+        statusBadge.innerHTML = '<span class="px-3 py-1 bg-gray-600 text-white text-sm rounded-full">Disabled</span>';
+        enabledSection.classList.add('hidden');
+        disabledSection.classList.remove('hidden');
+    }
+}
+
+// Update Profile Form Handler
+document.getElementById('update-profile-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const firstName = document.getElementById('update-first-name').value.trim();
+    const lastName = document.getElementById('update-last-name').value.trim();
+    const displayName = document.getElementById('update-display-name').value.trim();
+    
+    try {
+        const res = await fetch(API + `/api/security/users/${currentUserProfile.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                first_name: firstName,
+                last_name: lastName,
+                display_name: displayName
+            })
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || 'Failed to update profile');
+        }
+        
+        showToast('Profile updated successfully', 'success');
+        await loadProfileInfo();
+        await fetchCurrentUser(); // Refresh user info in sidebar
+        
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        showToast(error.message || 'Failed to update profile', 'error');
+    }
+});
+
+// Change Password Form Handler
+document.getElementById('change-password-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const currentPassword = document.getElementById('current-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+        showToast('New passwords do not match', 'error');
+        return;
+    }
+    
+    // Validate password strength
+    if (newPassword.length < 8) {
+        showToast('Password must be at least 8 characters long', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch(API + '/api/security/auth/change-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword
+            })
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || 'Failed to change password');
+        }
+        
+        showToast('Password changed successfully', 'success');
+        
+        // Clear form
+        document.getElementById('change-password-form').reset();
+        
+    } catch (error) {
+        console.error('Error changing password:', error);
+        showToast(error.message || 'Failed to change password', 'error');
+    }
+});
+
+// MFA Functions
+async function startMFASetup() {
+    const selectedType = document.querySelector('input[name="mfa-type"]:checked').value;
+    
+    try {
+        const res = await fetch(API + '/api/security/mfa/enable', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                method: selectedType
+            })
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || 'Failed to start MFA setup');
+        }
+        
+        const data = await res.json();
+        
+        if (selectedType === 'totp') {
+            showTOTPSetup(data);
+        } else if (selectedType === 'email') {
+            showEmailSetup();
+        }
+        
+    } catch (error) {
+        console.error('Error starting MFA setup:', error);
+        showToast(error.message || 'Failed to start MFA setup', 'error');
+    }
+}
+
+function showTOTPSetup(data) {
+    // Show modal with TOTP setup
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4';
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+            <h3 class="text-xl font-bold mb-4">Setup Authenticator App</h3>
+            <div class="text-center mb-4">
+                <p class="text-sm text-gray-400 mb-4">Scan this QR code with your authenticator app</p>
+                <div id="modal-qr-code" class="flex justify-center mb-4 bg-white p-4 rounded-lg"></div>
+                <p class="text-xs text-gray-500 mb-2">Or enter this key manually:</p>
+                <code class="bg-gray-700 px-3 py-1 rounded text-sm block">${data.secret}</code>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-300 mb-2">Verification Code</label>
+                <input type="text" id="modal-totp-code" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white text-center text-lg tracking-wider" placeholder="000000" maxlength="6" pattern="[0-9]{6}">
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeMFAModal()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
+                <button onclick="verifyTOTPSetupModal('${data.secret}')" class="btn-primary flex-1 py-2 rounded-lg">Verify & Enable</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.id = 'mfa-setup-modal';
+    
+    // Generate QR code
+    if (data.qr_code) {
+        document.getElementById('modal-qr-code').innerHTML = `<img src="${data.qr_code}" alt="QR Code" class="w-48 h-48">`;
+    }
+}
+
+function showEmailSetup() {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4';
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full">
+            <h3 class="text-xl font-bold mb-4">Verify Email MFA</h3>
+            <div class="text-center mb-4">
+                <p class="text-sm text-gray-400 mb-4">A verification code has been sent to your email</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-300 mb-2">Verification Code</label>
+                <input type="text" id="modal-email-code" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white text-center text-lg tracking-wider" placeholder="000000" maxlength="6" pattern="[0-9]{6}">
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeMFAModal()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
+                <button onclick="verifyEmailSetupModal()" class="btn-primary flex-1 py-2 rounded-lg">Verify & Enable</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.id = 'mfa-setup-modal';
+}
+
+function closeMFAModal() {
+    const modal = document.getElementById('mfa-setup-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function verifyTOTPSetupModal(secret) {
+    const code = document.getElementById('modal-totp-code').value;
+    
+    if (!code || code.length !== 6) {
+        showToast('Please enter a 6-digit code', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch(API + '/api/security/mfa/verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                code: code,
+                method: 'totp'
+            })
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || 'Invalid verification code');
+        }
+        
+        showToast('MFA enabled successfully!', 'success');
+        closeMFAModal();
+        await loadProfileInfo();
+        
+    } catch (error) {
+        console.error('Error verifying TOTP:', error);
+        showToast(error.message || 'Failed to verify code', 'error');
+    }
+}
+
+async function verifyEmailSetupModal() {
+    const code = document.getElementById('modal-email-code').value;
+    
+    if (!code || code.length !== 6) {
+        showToast('Please enter a 6-digit code', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch(API + '/api/security/mfa/verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                code: code,
+                method: 'email'
+            })
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || 'Invalid verification code');
+        }
+        
+        showToast('Email MFA enabled successfully!', 'success');
+        closeMFAModal();
+        await loadProfileInfo();
+        
+    } catch (error) {
+        console.error('Error verifying email code:', error);
+        showToast(error.message || 'Failed to verify code', 'error');
+    }
+}
+
+async function disableMFA() {
+    const confirmed = confirm('Are you sure you want to disable MFA? This will make your account less secure.');
+    
+    if (!confirmed) return;
+    
+    // Ask for password confirmation
+    const password = prompt('Please enter your password to confirm:');
+    
+    if (!password) return;
+    
+    try {
+        const res = await fetch(API + '/api/security/mfa/disable', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                password: password
+            })
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.detail || 'Failed to disable MFA');
+        }
+        
+        showToast('MFA disabled successfully', 'success');
+        await loadProfileInfo();
+        
+    } catch (error) {
+        console.error('Error disabling MFA:', error);
+        showToast(error.message || 'Failed to disable MFA', 'error');
+    }
 }
 
 // Initialize on load
