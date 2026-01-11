@@ -79,9 +79,14 @@ def init_db():
     engine = get_engine()
     
     # Import all models to register them with Base.metadata
-    # This must be done before create_all()
+    # Order matters: import tables with no FK dependencies first
     try:
-        from .models import user, organization, role, user_session, mfa_setting, password_history  # noqa
+        from .models import organization  # No dependencies
+        from .models import role  # No dependencies
+        from .models import user  # Depends on organization
+        from .models import user_session  # Depends on user
+        from .models import mfa_setting  # Depends on user
+        from .models import password_history  # Depends on user
     except ImportError as e:
         print(f"⚠️  Warning: Could not import all models: {e}")
     
