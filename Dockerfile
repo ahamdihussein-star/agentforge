@@ -49,19 +49,32 @@ if [ -z "$DATABASE_URL" ]; then\n\
   echo "⚠️  DATABASE_URL not set - using file-based storage"\n\
 else\n\
   echo "📊 Database connection detected"\n\
-  echo "🔄 Waiting for database..."\n\
+  echo "🔄 Waiting for PostgreSQL to be ready..."\n\
   \n\
-  # Wait for database to be ready (max 60 seconds)\n\
-  for i in 1 2 3 4 5 6 7 8 9 10; do\n\
-    python -c "from database import check_connection; exit(0 if check_connection() else 1)" 2>/dev/null\n\
-    if [ $? -eq 0 ]; then\n\
+  # Extract host and port from DATABASE_URL for pg_isready check\n\
+  DB_HOST=$(echo $DATABASE_URL | sed -n "s|.*@\\([^:]*\\):.*|\\1|p")\n\
+  DB_PORT=$(echo $DATABASE_URL | sed -n "s|.*:\\([0-9]*\\)/.*|\\1|p")\n\
+  \n\
+  # Wait for PostgreSQL to accept connections (max 90 seconds)\n\
+  MAX_ATTEMPTS=15\n\
+  SLEEP_TIME=6\n\
+  \n\
+  for i in $(seq 1 $MAX_ATTEMPTS); do\n\
+    # Try simple connection test\n\
+    if python -c "from database import check_connection; exit(0 if check_connection() else 1)" 2>/dev/null; then\n\
       echo "✅ Database connection successful"\n\
       echo "📋 Initializing database tables..."\n\
       python database/init_db.py 2>&1 | grep -E "✅|❌|Database"\n\
       break\n\
     fi\n\
-    echo "   Attempt $i/10 - retrying in 6s..."\n\
-    sleep 6\n\
+    \n\
+    if [ $i -eq $MAX_ATTEMPTS ]; then\n\
+      echo "❌ Database connection failed after ${MAX_ATTEMPTS} attempts"\n\
+      echo "⚠️  Starting in file-based mode..."\n\
+    else\n\
+      echo "   Attempt $i/$MAX_ATTEMPTS - retrying in ${SLEEP_TIME}s..."\n\
+      sleep $SLEEP_TIME\n\
+    fi\n\
   done\n\
 fi\n\
 \n\
