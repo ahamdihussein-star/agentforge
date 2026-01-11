@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from ..models.user import User, UserSession, MFASetting, PasswordHistory
-from ..base import get_session
+from ..base import get_db_session  # Use context manager version
 
 
 class UserService:
@@ -42,7 +42,7 @@ class UserService:
         
         # 1. Write to Database
         try:
-            with get_session() as session:
+            with get_db_session() as session:
                 db_user = User(
                     id=uuid.UUID(user_id) if isinstance(user_id, str) else user_id,
                     email=user_data.get('email'),
