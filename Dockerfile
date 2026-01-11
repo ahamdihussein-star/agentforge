@@ -67,6 +67,10 @@ else\n\
       echo "✅ Database connection successful"\n\
       echo "📋 Initializing database tables..."\n\
       python database/init_db.py 2>&1 | grep -E "✅|❌|Database"\n\
+      echo ""\n\
+      echo "📦 Migrating data from JSON to Database..."\n\
+      python scripts/migrate_to_db.py 2>&1 | grep -E "✅|⏭️|❌|📊|👥|🎭|📦"\n\
+      echo ""\n\
       break\n\
     fi\n\
     \n\
