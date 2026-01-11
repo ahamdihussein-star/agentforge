@@ -102,15 +102,45 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 - Added `/api/security/roles/reset-defaults` endpoint
 - Completed Email MFA implementation (SendGrid/SMTP)
 
+## UI/UX Improvements
+- **User Profile Page:** Added comprehensive profile management accessible via user avatar click
+  - View and edit profile information (name, email)
+  - Change password with show/hide toggle (professional SVG icons)
+  - MFA settings management (TOTP and Email options)
+  - Enterprise-style UX (no sidebar navigation item)
+- **Backend Endpoints:** All profile/MFA endpoints already existed in `api/security.py`
+
+## Database Migration (Phase 1 & 2 Complete ✅)
+- **PostgreSQL Setup:** Deployed on Railway with automatic initialization
+- **Models Created:** Organization, Role, User, UserSession, MFASetting, PasswordHistory
+- **Smart Migration Script:** 
+  - Handles dict-of-dicts JSON format
+  - Auto-generates UUIDs for string IDs
+  - Maps entity references (org_id, role_id)
+  - Extracts nested data (profile, mfa objects)
+- **Automated Deployment:** Migration runs automatically on Railway startup
+- **Health Monitoring:** `/api/health/db` endpoint for database status
+- **Data Migrated:** 1 organization, 3 roles, 2 users
+
 ## Backend Improvements
 - `UpdateToolRequest` model includes `is_active` field
 - Smart config change detection in `update_tool` endpoint
 - Proper async scraping with result tracking
 
 ## Deployment
+
 - **Production URL:** https://agentforge2.up.railway.app
 - **Railway Project:** agentforge2
 - Auto-deploy from main branch
+- **Database:** PostgreSQL on Railway
+  - Service: `Postgres` (automatically provisioned)
+  - Connection: `DATABASE_URL` environment variable
+  - Private networking: `${{Postgres.DATABASE_PRIVATE_URL}}`
+- **Environment Variables:**
+  - `DATABASE_URL`: Automatically set by Railway from Postgres service
+  - `PORT`: Set to 8080 by Railway
+  - LLM API Keys: OpenAI, Anthropic, Google, etc.
+  - Email: SendGrid API Key for MFA emails
 
 ---
 
@@ -530,6 +560,8 @@ agentforge/
 | RBAC (32 permissions) | ✅ | - | - |
 | MFA (TOTP) | ✅ | - | - |
 | MFA (Email) | ✅ | - | - |
+| User Profile Page | ✅ | - | - |
+| Change Password | ✅ | - | - |
 | Google OAuth | ✅ | - | - |
 | Microsoft OAuth | 🔶 | High | Low |
 | SAML SSO | 🔴 | High | High |
@@ -539,6 +571,9 @@ agentforge/
 | Feature | Status | Priority | Effort |
 |---------|--------|----------|--------|
 | Docker Deployment | ✅ | - | - |
+| PostgreSQL Database | ✅ | - | - |
+| Database Migration | ✅ (Phase 1-2) | - | - |
+| Dual-Write Strategy | 🔶 | Critical | Medium |
 | Kubernetes Ready | 🔴 | Critical | High |
 | Multi-Cloud Support | 🔴 | Critical | High |
 | Multi-Tenancy | 🔴 | Critical | High |
@@ -711,11 +746,79 @@ ALL_PERMISSIONS = [
 | `/api/security/auth/login` | POST | Login with email/password |
 | `/api/security/auth/logout` | POST | Logout current session |
 | `/api/security/auth/me` | GET | Get current user info |
+| `/api/security/users/{user_id}` | PUT | Update user profile (self) |
+| `/api/security/auth/change-password` | POST | Change own password |
 | `/api/security/auth/mfa/setup` | POST | Setup MFA (TOTP) |
 | `/api/security/auth/mfa/verify` | POST | Verify MFA code |
+| `/api/security/auth/mfa/enable` | POST | Enable MFA |
+| `/api/security/auth/mfa/disable` | POST | Disable MFA |
 | `/api/security/auth/mfa/email/send` | POST | Send MFA code via email |
 | `/api/security/auth/mfa/email/verify` | POST | Verify email MFA code |
 | `/api/security/roles/reset-defaults` | POST | Reset to default roles (Super Admin only) |
+
+## User Profile Page (UI)
+
+### Access
+- Click on user avatar/name in sidebar (no separate menu item)
+- Enterprise-style UX pattern
+
+### Features
+1. **Profile Information**
+   - View: Name, Email, Role, Created Date
+   - Edit: First Name, Last Name, Email
+
+2. **Change Password**
+   - Current password verification
+   - New password with confirmation
+   - Password visibility toggle (professional SVG icons)
+   - Validation: Min 8 characters, uppercase, lowercase, number, special char
+
+3. **MFA Settings**
+   - Toggle to enable/disable MFA
+   - Choose MFA type: TOTP (Authenticator App) or Email
+   - TOTP: QR code display for setup, verification step
+   - Email: Send test code, verify
+   - Current status display
+
+### UI Components
+```html
+<!-- Profile Info Card -->
+<div class="profile-info">
+  <label>Name</label>
+  <input type="text" id="profile-name" />
+  <label>Email</label>
+  <input type="email" id="profile-email" />
+  <button onclick="saveProfile()">Save Changes</button>
+</div>
+
+<!-- Change Password -->
+<div class="change-password">
+  <div class="relative">
+    <input type="password" id="current-password" />
+    <button onclick="togglePasswordVisibility('current-password')">
+      <!-- SVG eye icons -->
+    </button>
+  </div>
+  <input type="password" id="new-password" />
+  <input type="password" id="confirm-password" />
+  <button onclick="changePassword()">Change Password</button>
+</div>
+
+<!-- MFA Settings -->
+<div class="mfa-settings">
+  <div class="toggle-container">
+    <input type="checkbox" id="mfa-enabled" onchange="toggleMFA()" />
+    <label>Enable MFA</label>
+  </div>
+  <select id="mfa-method">
+    <option value="totp">Authenticator App (TOTP)</option>
+    <option value="email">Email Code</option>
+  </select>
+  <div id="mfa-setup-container">
+    <!-- Dynamic: QR code for TOTP or Email verification -->
+  </div>
+</div>
+```
 
 ---
 
@@ -1880,34 +1983,47 @@ if __name__ == "__main__":
 ## Database Migration Checklist
 
 ### Pre-Migration
-- [ ] Backup all JSON files
-- [ ] Document current data structure
-- [ ] Set up PostgreSQL server
-- [ ] Create database and user
-- [ ] Test connection
+- [x] Backup all JSON files
+- [x] Document current data structure
+- [x] Set up PostgreSQL server (Railway)
+- [x] Create database and user
+- [x] Test connection
 
-### Phase 1: Setup
-- [ ] Add PostgreSQL to docker-compose
-- [ ] Create SQLAlchemy models
-- [ ] Create Alembic migrations
-- [ ] Run migrations
-- [ ] Verify tables created
+### Phase 1: Setup ✅ COMPLETED
+- [x] Add PostgreSQL to Railway
+- [x] Create SQLAlchemy models (Organization, Role, User, UserSession, MFASetting, PasswordHistory)
+- [x] Create database initialization script
+- [x] Run initialization on startup
+- [x] Verify tables created
+- [x] Add health check endpoint (/api/health/db)
 
-### Phase 2: Dual Write
-- [ ] Implement DualWriteRepository
+### Phase 2: Data Migration ✅ COMPLETED
+- [x] Create automated migration script (scripts/migrate_to_db.py)
+- [x] Handle dict-of-dicts JSON format
+- [x] Generate UUIDs for string IDs
+- [x] Map references between entities (org_id, role_id)
+- [x] Handle nested data structures (profile, mfa)
+- [x] Run migration on deployment
+- [x] Verify data integrity
+- [x] Migrated successfully:
+  - Organizations: 1
+  - Roles: 3
+  - Users: 2
+
+### Phase 3: Dual Write (Next Step)
+- [ ] Implement DualWriteRepository pattern
 - [ ] Enable FF_USE_DATABASE=true
-- [ ] Test write operations
+- [ ] Test write operations (JSON + DB)
 - [ ] Monitor for errors
 - [ ] Run for 1 week minimum
 
-### Phase 3: Data Migration
-- [ ] Run migration script
-- [ ] Verify data integrity
-- [ ] Compare counts JSON vs DB
+### Phase 4: Dual Read
 - [ ] Enable FF_READ_FROM_DATABASE=true
-- [ ] Test read operations
+- [ ] Test read operations from DB
+- [ ] Compare performance
+- [ ] Monitor for data consistency
 
-### Phase 4: Cutover
+### Phase 5: Cutover
 - [ ] Remove JSON write operations
 - [ ] Update all services to DB only
 - [ ] Remove feature flags
@@ -1918,7 +2034,121 @@ if __name__ == "__main__":
 - [ ] Update documentation
 - [ ] Performance testing
 - [ ] Backup strategy for PostgreSQL
+- [ ] Add remaining models (Agents, Tools, etc.)
 ```
+
+## Implementation Details
+
+### Completed Components
+
+#### 1. Database Models (`database/models/`)
+```python
+# Organizations
+- id (UUID)
+- name, slug
+- plan (free/pro/enterprise)
+- settings (JSONB)
+- created_at, updated_at
+
+# Roles
+- id (UUID)
+- name, description
+- is_system (boolean)
+- org_id (UUID reference)
+- created_at, updated_at
+
+# Users
+- id (UUID)
+- email, password_hash
+- first_name, last_name, display_name
+- phone, job_title
+- status (active/inactive/pending/suspended)
+- email_verified, mfa_enabled, mfa_method
+- org_id (UUID reference)
+- user_metadata (JSONB)
+- created_at, updated_at, last_login_at
+
+# UserSession
+- id (UUID)
+- user_id (UUID reference)
+- token_hash, ip_address, user_agent
+- expires_at, revoked
+- created_at, last_activity_at
+
+# MFASetting
+- id (UUID)
+- user_id (UUID reference)
+- method (totp/email/none)
+- secret_encrypted, backup_codes_encrypted
+- enabled, verified_at
+
+# PasswordHistory
+- id (UUID)
+- user_id (UUID reference)
+- password_hash
+- changed_at
+```
+
+#### 2. Migration Script (`scripts/migrate_to_db.py`)
+Features:
+- Handles both list and dict-of-dicts JSON formats
+- Smart UUID generation for string IDs (e.g., 'org_default' → UUID)
+- ID mapping across entities (old_id → new_uuid)
+- Nested data extraction (profile, mfa objects)
+- Duplicate detection and skipping
+- Full error handling with traceback
+- Verification step after migration
+
+#### 3. Deployment Integration (`Dockerfile`)
+```bash
+# Automatic on startup:
+1. Check DATABASE_URL environment variable
+2. Wait for PostgreSQL (max 90s with retries)
+3. Initialize database tables
+4. Run migration script (JSON → DB)
+5. Start application server
+```
+
+#### 4. Database Configuration (`database/config.py`)
+- Multi-database support (PostgreSQL, MySQL, SQLite, SQL Server, Oracle)
+- Railway-specific environment variable detection
+- Connection pooling with configurable settings
+- Retry logic with exponential backoff
+
+#### 5. Health Monitoring (`api/health.py`)
+Endpoints:
+- `GET /api/health` - Overall API health
+- `GET /api/health/db` - Database connection status
+  ```json
+  {
+    "status": "healthy",
+    "database": {
+      "type": "postgresql",
+      "connected": true,
+      "host": "...",
+      "port": 5432,
+      "name": "railway"
+    }
+  }
+  ```
+
+### Known Limitations (Temporary)
+
+1. **Foreign Key Constraints Removed**
+   - Reason: Circular dependency issues during table creation
+   - Impact: No automatic cascade deletes, no referential integrity at DB level
+   - Mitigation: Handled at application level
+   - Future: Will be re-added after migration complete
+
+2. **Relationship Definitions Removed**
+   - Reason: SQLAlchemy requires ForeignKeys for relationships
+   - Impact: No ORM-level navigation (e.g., `user.sessions`)
+   - Mitigation: Manual queries using IDs
+   - Future: Will be re-added with ForeignKeys
+
+3. **Remaining Models Not Migrated Yet**
+   - Agents, Tools, Knowledge Base, Chat History
+   - Will be added in Phase 3 (Dual-Write implementation)
 
 ---
 
