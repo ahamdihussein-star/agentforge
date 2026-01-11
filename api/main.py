@@ -3419,7 +3419,13 @@ if HEALTH_CHECK_AVAILABLE:
 
 @app.get("/")
 async def root():
-    return {"name": "AgentForge", "version": "3.2.0"}
+    try:
+        return {"name": "AgentForge", "version": "3.2.0"}
+    except Exception as e:
+        print(f"❌ ROOT ENDPOINT ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 @app.get("/demo")
@@ -3461,7 +3467,13 @@ async def get_tools_icon():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "agents": len(app_state.agents), "tools": len(app_state.tools)}
+    try:
+        return {"status": "healthy", "agents": len(app_state.agents), "tools": len(app_state.tools)}
+    except Exception as e:
+        print(f"❌ HEALTH ENDPOINT ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 # Agent Endpoints
