@@ -10121,7 +10121,7 @@ Option 3"></textarea>
                 return;
             }
             g.innerHTML=d.agents.map(a=>`
-                <div class="card agent-card rounded-xl p-4 hover:border-purple-500 transition" style="min-width:0;overflow:hidden;">
+                <div class="card agent-card rounded-xl p-4 hover:border-purple-500 transition" style="min-width:0;overflow:visible;">
                     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;" class="cursor-pointer" onclick="openAgent('${a.id}', '${a.status}')">
                         <span style="font-size:1.75rem;flex-shrink:0;">${a.icon}</span>
                         <div style="flex:1;min-width:0;overflow:hidden;width:100%;">
@@ -10670,7 +10670,7 @@ Option 3"></textarea>
                 const isFromDemo = t.config?.source === 'demo_kit';
                 const sourceLabel = isFromDemo ? '<span class="tool-demo-badge">Demo</span>' : '';
                 return `
-                <div class="card tool-card rounded-xl p-4 hover:border-purple-500 transition relative" style="min-width:0;overflow:hidden;">
+                <div class="card tool-card rounded-xl p-4 hover:border-purple-500 transition relative" style="min-width:0;overflow:visible;">
                     <div class="absolute top-2 right-2">
                         <div class="relative tool-menu-container">
                             <button onclick="event.stopPropagation(); toggleToolMenu('${t.id}')" class="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition">
