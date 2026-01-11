@@ -8034,6 +8034,7 @@ async def update_tool(tool_id: str, request: UpdateToolRequest):
         response["reprocess_action"] = reprocess_action
         response["reprocess_result"] = reprocess_result
         
+    print(f"🔄 Tool update response: action={reprocess_action}, result={reprocess_result}")
     return response
 
 @app.post("/api/tools/{tool_id}/scrape")

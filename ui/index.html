@@ -13486,7 +13486,6 @@ async function saveToolChanges() {
             }
             closeToolEditPanel();
             loadTools();
-            loadTools();
         } else {
             const err = await r.json();
             showToast(err.detail || 'Failed to update', 'error');
