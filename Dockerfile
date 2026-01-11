@@ -69,7 +69,7 @@ else\n\
       python database/init_db.py 2>&1 | grep -E "✅|❌|Database"\n\
       echo ""\n\
       echo "📦 Migrating data from JSON to Database..."\n\
-      python scripts/migrate_to_db.py 2>&1 | grep -E "✅|⏭️|❌|📊|👥|🎭|📦"\n\
+      python scripts/migrate_to_db.py 2>&1\n\
       echo ""\n\
       break\n\
     fi\n\
