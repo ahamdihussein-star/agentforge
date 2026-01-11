@@ -7883,68 +7883,159 @@ class UpdateToolRequest(BaseModel):
     description: Optional[str] = None
     api_config: Optional[Dict[str, Any]] = None
     config: Optional[Dict[str, Any]] = None
+    is_active: Optional[bool] = None
+
 
 
 
 @app.put("/api/tools/{tool_id}")
 async def update_tool(tool_id: str, request: UpdateToolRequest):
-    """Update tool configuration with smart re-processing detection"""
+    """Update tool configuration with automatic re-processing"""
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
     
     tool = app_state.tools[tool_id]
     old_config = tool.config.copy() if tool.config else {}
     
-    # Track what needs re-processing
-    needs_rescrape = False
-    needs_reindex = False
-    
+    # Update basic fields
     if request.name is not None:
         tool.name = request.name
     if request.description is not None:
         tool.description = request.description
     if request.is_active is not None:
         tool.is_active = request.is_active
+    if request.api_config is not None:
+        tool.api_config = APIConfig(**request.api_config)
+    
+    reprocess_result = None
+    reprocess_action = None
+    
     if request.config is not None:
         new_config = request.config
         
-        # Check for changes that require re-processing
-        if tool.type == 'website':
-            if old_config.get('url') != new_config.get('url') and new_config.get('url'):
-                needs_rescrape = True
-        elif tool.type in ['document', 'knowledge']:
-            if (old_config.get('chunk_size') != new_config.get('chunk_size') or 
-                old_config.get('overlap') != new_config.get('overlap')):
-                needs_reindex = True
-        
-        # Update config
+        # Update config first
         if tool.config:
             tool.config.update(new_config)
         else:
             tool.config = new_config
-    
-    if request.api_config is not None:
-        tool.api_config = APIConfig(**request.api_config)
+        
+        # Auto re-process based on tool type and what changed
+        try:
+            if tool.type == 'website':
+                # Re-scrape if URL changed
+                old_url = old_config.get('url', '')
+                new_url = new_config.get('url', old_url)
+                if old_url != new_url and new_url:
+                    reprocess_action = 'rescrape'
+                    # Clear old scraped pages for this tool
+                    pages_to_delete = [pid for pid, p in app_state.scraped_pages.items() if p.tool_id == tool_id]
+                    for pid in pages_to_delete:
+                        app_state.document_chunks = [c for c in app_state.document_chunks if c.get('page_id') != pid]
+                        del app_state.scraped_pages[pid]
+                    # Scrape new URL
+                    scraper = WebsiteScraper(new_url, new_config.get('max_pages', 10))
+                    pages = await scraper.scrape(new_config.get('recursive', False))
+                    saved_count = 0
+                    for page_data in pages:
+                        page = ScrapedPage(tool_id=tool_id, url=page_data['url'], title=page_data['title'], content=page_data['content'], status="processing")
+                        chunks = DocumentProcessor.chunk_text(page_data['content'], 
+                            chunk_size=new_config.get('chunk_size', 1000),
+                            overlap=new_config.get('overlap', 200))
+                        page.chunks = chunks
+                        for chunk in chunks:
+                            app_state.document_chunks.append({"tool_id": tool_id, "page_id": page.id, "chunk_id": chunk['id'], "text": chunk['text'], "source": page_data['title'] or page_data['url'], "type": "website"})
+                        page.status = "ready"
+                        app_state.scraped_pages[page.id] = page
+                        saved_count += 1
+                    reprocess_result = {"pages_scraped": saved_count}
+                    
+            elif tool.type in ['document', 'knowledge']:
+                # Re-index if chunk settings changed
+                old_chunk = old_config.get('chunk_size', 1000)
+                old_overlap = old_config.get('overlap', 200)
+                new_chunk = new_config.get('chunk_size', old_chunk)
+                new_overlap = new_config.get('overlap', old_overlap)
+                if old_chunk != new_chunk or old_overlap != new_overlap:
+                    reprocess_action = 'reindex'
+                    # Re-chunk all documents for this tool
+                    docs_reindexed = 0
+                    for doc_id, doc in app_state.documents.items():
+                        if doc.tool_id == tool_id and doc.content:
+                            # Remove old chunks
+                            app_state.document_chunks = [c for c in app_state.document_chunks if c.get('doc_id') != doc_id]
+                            # Create new chunks
+                            chunks = DocumentProcessor.chunk_text(doc.content, chunk_size=new_chunk, overlap=new_overlap)
+                            for chunk in chunks:
+                                app_state.document_chunks.append({"tool_id": tool_id, "doc_id": doc_id, "chunk_id": chunk['id'], "text": chunk['text'], "source": doc.filename, "type": "document"})
+                            docs_reindexed += 1
+                    reprocess_result = {"documents_reindexed": docs_reindexed}
+                    
+            elif tool.type == 'database':
+                # Test connection if connection string changed
+                old_conn = old_config.get('connection_string', '')
+                new_conn = new_config.get('connection_string', old_conn)
+                if old_conn != new_conn and new_conn:
+                    reprocess_action = 'test_connection'
+                    reprocess_result = {"status": "connection_updated", "message": "Database connection configured"}
+                    
+            elif tool.type == 'api':
+                # Test if API config changed
+                old_url = old_config.get('base_url', '')
+                new_url = new_config.get('base_url', old_url)
+                if old_url != new_url and new_url:
+                    reprocess_action = 'test_connection'
+                    reprocess_result = {"status": "api_updated", "message": "API endpoint configured"}
+                    
+            elif tool.type == 'email':
+                # Test email config
+                old_provider = old_config.get('provider', '')
+                new_provider = new_config.get('provider', old_provider)
+                old_key = old_config.get('api_key', '')
+                new_key = new_config.get('api_key', old_key)
+                if old_provider != new_provider or old_key != new_key:
+                    reprocess_action = 'test_connection'
+                    reprocess_result = {"status": "email_updated", "message": "Email configuration updated"}
+                    
+            elif tool.type == 'webhook':
+                # Test webhook URL
+                old_url = old_config.get('url', '')
+                new_url = new_config.get('url', old_url)
+                if old_url != new_url and new_url:
+                    reprocess_action = 'test_connection'
+                    reprocess_result = {"status": "webhook_updated", "message": "Webhook URL configured"}
+                    
+            elif tool.type == 'slack':
+                # Test slack token
+                old_token = old_config.get('bot_token', '')
+                new_token = new_config.get('bot_token', old_token)
+                if old_token != new_token and new_token:
+                    reprocess_action = 'test_connection'
+                    reprocess_result = {"status": "slack_updated", "message": "Slack bot token configured"}
+                    
+            elif tool.type == 'websearch':
+                # Update search config
+                old_key = old_config.get('api_key', '')
+                new_key = new_config.get('api_key', old_key)
+                if old_key != new_key and new_key:
+                    reprocess_action = 'test_connection'
+                    reprocess_result = {"status": "websearch_updated", "message": "Web search API key configured"}
+                    
+        except Exception as e:
+            reprocess_result = {"error": str(e)}
     
     app_state.save_to_disk()
     
-    # Build response with re-processing hints
     response = {
         "status": "success", 
-        "tool": tool.dict(),
-        "needs_rescrape": needs_rescrape,
-        "needs_reindex": needs_reindex
+        "tool": tool.dict()
     }
     
-    if needs_rescrape:
-        response["message"] = "URL changed. Use the scrape endpoint to re-scrape the website."
-    elif needs_reindex:
-        response["message"] = "Chunk settings changed. Documents will use new settings on next upload."
-    
+    if reprocess_action:
+        response["reprocess_action"] = reprocess_action
+        response["reprocess_result"] = reprocess_result
+        
     return response
 
-
-# Website Scraping
 @app.post("/api/tools/{tool_id}/scrape")
 async def scrape_website(tool_id: str, request: ScrapeRequest):
     if tool_id not in app_state.tools:

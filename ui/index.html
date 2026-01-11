@@ -13456,12 +13456,36 @@ async function saveToolChanges() {
         });
         
         if (r.ok) {
-            if (needsReprocess) {
-                showToast('Tool updated. ' + reprocessMessage, 'warning');
+            const result = await r.json();
+            
+            // Show appropriate message based on reprocess action
+            if (result.reprocess_action) {
+                let msg = 'Tool updated. ';
+                switch(result.reprocess_action) {
+                    case 'rescrape':
+                        const pagesCount = result.reprocess_result?.pages_scraped || 0;
+                        msg += `Re-scraped ${pagesCount} pages from new URL.`;
+                        break;
+                    case 'reindex':
+                        const docsCount = result.reprocess_result?.documents_reindexed || 0;
+                        msg += `Re-indexed ${docsCount} documents with new chunk settings.`;
+                        break;
+                    case 'test_connection':
+                        msg += result.reprocess_result?.message || 'Configuration updated.';
+                        break;
+                    default:
+                        msg += 'Configuration updated.';
+                }
+                if (result.reprocess_result?.error) {
+                    showToast('Tool updated but re-processing failed: ' + result.reprocess_result.error, 'warning');
+                } else {
+                    showToast(msg, 'success');
+                }
             } else {
                 showToast('Tool updated successfully', 'success');
             }
             closeToolEditPanel();
+            loadTools();
             loadTools();
         } else {
             const err = await r.json();
