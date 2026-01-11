@@ -42,7 +42,14 @@ def migrate_organizations():
         print("⚠️  No organizations file found")
         return 0
     
-    orgs = data if isinstance(data, list) else [data]
+    # Handle both dict-of-dicts and list formats
+    if isinstance(data, dict):
+        orgs = list(data.values())  # Convert dict to list of values
+    elif isinstance(data, list):
+        orgs = data
+    else:
+        orgs = [data]
+    
     count = 0
     
     with get_db_session() as session:
@@ -87,7 +94,14 @@ def migrate_roles():
         print("⚠️  No roles file found")
         return 0
     
-    roles = data if isinstance(data, list) else [data]
+    # Handle both dict-of-dicts and list formats
+    if isinstance(data, dict):
+        roles = list(data.values())  # Convert dict to list of values
+    elif isinstance(data, list):
+        roles = data
+    else:
+        roles = [data]
+    
     count = 0
     
     with get_db_session() as session:
@@ -132,7 +146,14 @@ def migrate_users():
         print("⚠️  No users file found")
         return 0
     
-    users = data if isinstance(data, list) else [data]
+    # Handle both dict-of-dicts and list formats
+    if isinstance(data, dict):
+        users = list(data.values())  # Convert dict to list of values
+    elif isinstance(data, list):
+        users = data
+    else:
+        users = [data]
+    
     count = 0
     
     with get_db_session() as session:
