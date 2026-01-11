@@ -6169,20 +6169,6 @@ async def update_table_entry(tool_id: str, source: str, request: Dict[str, Any])
     raise HTTPException(404, "Table entry not found")
 
 
-@app.put("/api/tools/{tool_id}")
-async def update_tool(tool_id: str, request: Dict[str, Any]):
-    if tool_id not in app_state.tools:
-        raise HTTPException(404, "Tool not found")
-    tool = app_state.tools[tool_id]
-    if 'name' in request: tool.name = request['name']
-    if 'description' in request: tool.description = request['description']
-    if 'config' in request: tool.config = {**tool.config, **request['config']}
-    if 'api_config' in request and request['api_config']:
-        params = [APIInputParameter(**p) for p in request['api_config'].get('input_parameters', [])]
-        tool.api_config = APIEndpointConfig(base_url=request['api_config'].get('base_url', ''), http_method=request['api_config'].get('http_method', 'GET'), endpoint_path=request['api_config'].get('endpoint_path', ''), auth_type=request['api_config'].get('auth_type', 'none'), auth_value=request['api_config'].get('auth_value', ''), api_key_name=request['api_config'].get('api_key_name', 'X-API-Key'), api_key_location=request['api_config'].get('api_key_location', 'header'), headers=request['api_config'].get('headers', {}), input_parameters=params)
-    app_state.save_to_disk()
-    return {"status": "success", "tool": tool.dict()}
-
 
 @app.delete("/api/tools/{tool_id}")
 async def delete_tool(tool_id: str):
@@ -7899,28 +7885,63 @@ class UpdateToolRequest(BaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
+
 @app.put("/api/tools/{tool_id}")
 async def update_tool(tool_id: str, request: UpdateToolRequest):
-    """Update tool configuration"""
+    """Update tool configuration with smart re-processing detection"""
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
     
     tool = app_state.tools[tool_id]
+    old_config = tool.config.copy() if tool.config else {}
+    
+    # Track what needs re-processing
+    needs_rescrape = False
+    needs_reindex = False
     
     if request.name is not None:
         tool.name = request.name
     if request.description is not None:
         tool.description = request.description
+    if request.is_active is not None:
+        tool.is_active = request.is_active
     if request.config is not None:
+        new_config = request.config
+        
+        # Check for changes that require re-processing
+        if tool.type == 'website':
+            if old_config.get('url') != new_config.get('url') and new_config.get('url'):
+                needs_rescrape = True
+        elif tool.type in ['document', 'knowledge']:
+            if (old_config.get('chunk_size') != new_config.get('chunk_size') or 
+                old_config.get('overlap') != new_config.get('overlap')):
+                needs_reindex = True
+        
+        # Update config
         if tool.config:
-            tool.config.update(request.config)
+            tool.config.update(new_config)
         else:
-            tool.config = request.config
+            tool.config = new_config
+    
     if request.api_config is not None:
         tool.api_config = APIConfig(**request.api_config)
     
     app_state.save_to_disk()
-    return {"status": "success", "tool": tool.dict()}
+    
+    # Build response with re-processing hints
+    response = {
+        "status": "success", 
+        "tool": tool.dict(),
+        "needs_rescrape": needs_rescrape,
+        "needs_reindex": needs_reindex
+    }
+    
+    if needs_rescrape:
+        response["message"] = "URL changed. Use the scrape endpoint to re-scrape the website."
+    elif needs_reindex:
+        response["message"] = "Chunk settings changed. Documents will use new settings on next upload."
+    
+    return response
 
 
 # Website Scraping

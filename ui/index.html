@@ -1225,38 +1225,75 @@
             border-top: 1px solid #374151;
             margin: 4px 0;
         }
+
+        /* Tools Action Bar - Theme Independent */
+        #tools-action-bar {
+            background: #1e293b !important;
+            border-bottom: 1px solid #334155 !important;
+        }
+        #tools-action-bar button {
+            color: #e2e8f0 !important;
+        }
+        #tools-action-bar .action-btn-view {
+            background: #475569 !important;
+        }
+        #tools-action-bar .action-btn-view:hover {
+            background: #64748b !important;
+        }
+        #tools-action-bar .action-btn-edit {
+            background: #7c3aed !important;
+        }
+        #tools-action-bar .action-btn-edit:hover {
+            background: #8b5cf6 !important;
+        }
+        #tools-action-bar .action-btn-duplicate {
+            background: #475569 !important;
+        }
+        #tools-action-bar .action-btn-duplicate:hover {
+            background: #64748b !important;
+        }
+        #tools-action-bar .action-btn-delete {
+            background: #dc2626 !important;
+        }
+        #tools-action-bar .action-btn-delete:hover {
+            background: #ef4444 !important;
+        }
+        #tools-action-bar span {
+            color: #f1f5f9 !important;
+        }
     </style>
 </head>
 <body class="text-white" style="height:100vh;overflow:hidden;margin:0;background:var(--bg-primary);color:var(--text-primary);">
 
 <!-- Tools Action Bar -->
-<div id="tools-action-bar" class="hidden fixed top-0 left-0 right-0 bg-gray-800 border-b border-gray-700 shadow-lg z-50 px-4 py-3">
+<div id="tools-action-bar" class="hidden fixed top-0 left-0 right-0 shadow-lg z-50 px-4 py-3">
     <div class="max-w-7xl mx-auto flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <button onclick="clearToolSelection()" class="p-2 hover:bg-gray-700 rounded-lg">
+            <button onclick="clearToolSelection()" class="p-2 rounded-lg hover:opacity-80">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
             <span id="selected-tool-name" class="font-medium">Tool Selected</span>
         </div>
         <div class="flex items-center gap-2">
-            <button onclick="viewSelectedTool()" class="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+            <button onclick="viewSelectedTool()" class="action-btn-view flex items-center gap-2 px-4 py-2 rounded-lg transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                 <span>View</span>
             </button>
-            <button data-permission="tools:edit" onclick="editSelectedTool()" class="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition">
+            <button data-permission="tools:edit" onclick="editSelectedTool()" class="action-btn-edit flex items-center gap-2 px-4 py-2 rounded-lg transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 <span>Edit</span>
             </button>
-            <button data-permission="tools:create" onclick="duplicateSelectedTool()" class="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+            <button data-permission="tools:create" onclick="duplicateSelectedTool()" class="action-btn-duplicate flex items-center gap-2 px-4 py-2 rounded-lg transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                 <span>Duplicate</span>
             </button>
-            <button data-permission="tools:delete" onclick="deleteSelectedTool()" class="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg transition">
+            <button data-permission="tools:delete" onclick="deleteSelectedTool()" class="action-btn-delete flex items-center gap-2 px-4 py-2 rounded-lg transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 <span>Delete</span>
             </button>
         </div>
     </div>
+</div>
 </div>
     <!-- Loading Screen -->
     <div id="loading-screen">
@@ -3678,7 +3715,7 @@ Example: I need an HR agent that can:
             
             <!-- Step 0: Tool Type Selection -->
             <div id="wiz-step-0" class="space-y-4">
-                <!-- Knowledge & Data -->
+                <!-- Active Tools: Knowledge & Data -->
                 <div>
                     <h4 class="text-xs uppercase text-gray-500 mb-2 font-semibold">📚 Knowledge & Data</h4>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -3702,20 +3739,10 @@ Example: I need an HR agent that can:
                             <span class="font-medium text-sm">Database</span>
                             <p class="text-xs text-gray-500 mt-1">SQL, MongoDB</p>
                         </button>
-                        <button onclick="startWizard('spreadsheet')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
-                            <span class="text-xl block mb-1">📊</span>
-                            <span class="font-medium text-sm">Spreadsheet</span>
-                            <p class="text-xs text-gray-500 mt-1">Sheets, Airtable</p>
-                        </button>
-                        <button onclick="startWizard('storage')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
-                            <span class="text-xl block mb-1">☁️</span>
-                            <span class="font-medium text-sm">Cloud Storage</span>
-                            <p class="text-xs text-gray-500 mt-1">S3, GCS, Azure</p>
-                        </button>
                     </div>
                 </div>
                 
-                <!-- Integrations -->
+                <!-- Active Tools: Integrations -->
                 <div>
                     <h4 class="text-xs uppercase text-gray-500 mb-2 font-semibold">🔌 Integrations</h4>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -3727,90 +3754,105 @@ Example: I need an HR agent that can:
                         <button onclick="startWizard('email')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
                             <span class="text-xl block mb-1">📧</span>
                             <span class="font-medium text-sm">Email</span>
-                            <p class="text-xs text-gray-500 mt-1">SMTP, Gmail</p>
-                        </button>
-                        <button onclick="startWizard('slack')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
-                            <span class="text-xl block mb-1">💬</span>
-                            <span class="font-medium text-sm">Messaging</span>
-                            <p class="text-xs text-gray-500 mt-1">Slack, Teams</p>
-                        </button>
-                        <button onclick="startWizard('calendar')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
-                            <span class="text-xl block mb-1">📅</span>
-                            <span class="font-medium text-sm">Calendar</span>
-                            <p class="text-xs text-gray-500 mt-1">Google, Outlook</p>
-                        </button>
-                        <button onclick="startWizard('crm')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
-                            <span class="text-xl block mb-1">🎯</span>
-                            <span class="font-medium text-sm">CRM</span>
-                            <p class="text-xs text-gray-500 mt-1">Salesforce, HubSpot</p>
+                            <p class="text-xs text-gray-500 mt-1">SMTP, SendGrid</p>
                         </button>
                         <button onclick="startWizard('webhook')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
                             <span class="text-xl block mb-1">🪝</span>
                             <span class="font-medium text-sm">Webhook</span>
                             <p class="text-xs text-gray-500 mt-1">HTTP callbacks</p>
                         </button>
-                        <button onclick="startWizard('erp')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
-                            <span class="text-xl block mb-1">🏢</span>
-                            <span class="font-medium text-sm">ERP</span>
-                            <p class="text-xs text-gray-500 mt-1">SAP, Oracle</p>
+                        <button onclick="startWizard('slack')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                            <span class="text-xl block mb-1">💬</span>
+                            <span class="font-medium text-sm">Slack</span>
+                            <p class="text-xs text-gray-500 mt-1">Messaging</p>
                         </button>
-                    </div>
-                </div>
-                
-                <!-- AI Services -->
-                <div>
-                    <h4 class="text-xs uppercase text-gray-500 mb-2 font-semibold">🤖 AI Services</h4>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <button onclick="startWizard('websearch')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
                             <span class="text-xl block mb-1">🔍</span>
                             <span class="font-medium text-sm">Web Search</span>
                             <p class="text-xs text-gray-500 mt-1">Tavily, Google</p>
                         </button>
-                        <button onclick="startWizard('imagegen')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                    </div>
+                </div>
+                
+                <!-- Coming Soon -->
+                <div>
+                    <h4 class="text-xs uppercase text-gray-500 mb-2 font-semibold">🚀 Coming Soon</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 opacity-60">
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
+                            <span class="text-xl block mb-1">📊</span>
+                            <span class="font-medium text-sm">Spreadsheet</span>
+                            <p class="text-xs text-gray-500 mt-1">Sheets, Airtable</p>
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
+                            <span class="text-xl block mb-1">☁️</span>
+                            <span class="font-medium text-sm">Cloud Storage</span>
+                            <p class="text-xs text-gray-500 mt-1">S3, GCS, Azure</p>
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
+                            <span class="text-xl block mb-1">📅</span>
+                            <span class="font-medium text-sm">Calendar</span>
+                            <p class="text-xs text-gray-500 mt-1">Google, Outlook</p>
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
+                            <span class="text-xl block mb-1">🎯</span>
+                            <span class="font-medium text-sm">CRM</span>
+                            <p class="text-xs text-gray-500 mt-1">Salesforce, HubSpot</p>
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
+                            <span class="text-xl block mb-1">🏢</span>
+                            <span class="font-medium text-sm">ERP</span>
+                            <p class="text-xs text-gray-500 mt-1">SAP, Oracle</p>
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
                             <span class="text-xl block mb-1">🎨</span>
                             <span class="font-medium text-sm">Image Gen</span>
                             <p class="text-xs text-gray-500 mt-1">DALL-E, SD</p>
-                        </button>
-                        <button onclick="startWizard('stt')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
                             <span class="text-xl block mb-1">🎤</span>
                             <span class="font-medium text-sm">Speech to Text</span>
-                            <p class="text-xs text-gray-500 mt-1">Whisper, Azure</p>
-                        </button>
-                        <button onclick="startWizard('tts')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                            <p class="text-xs text-gray-500 mt-1">Whisper</p>
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
                             <span class="text-xl block mb-1">🔊</span>
                             <span class="font-medium text-sm">Text to Speech</span>
                             <p class="text-xs text-gray-500 mt-1">ElevenLabs</p>
-                        </button>
-                        <button onclick="startWizard('translate')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
                             <span class="text-xl block mb-1">🌍</span>
                             <span class="font-medium text-sm">Translation</span>
                             <p class="text-xs text-gray-500 mt-1">DeepL, Google</p>
-                        </button>
-                        <button onclick="startWizard('ocr')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
                             <span class="text-xl block mb-1">📷</span>
                             <span class="font-medium text-sm">OCR / Vision</span>
                             <p class="text-xs text-gray-500 mt-1">Extract text</p>
-                        </button>
-                        <button onclick="startWizard('code')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
                             <span class="text-xl block mb-1">💻</span>
                             <span class="font-medium text-sm">Code Exec</span>
                             <p class="text-xs text-gray-500 mt-1">Python, JS</p>
-                        </button>
-                        <button onclick="startWizard('calculator')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
-                            <span class="text-xl block mb-1">🧮</span>
-                            <span class="font-medium text-sm">Calculator</span>
-                            <p class="text-xs text-gray-500 mt-1">Math ops</p>
-                        </button>
-                        <button onclick="startWizard('hitl')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                        </div>
+                        <div class="card p-3 rounded-lg text-center border-2 border-dashed border-gray-600 cursor-not-allowed relative">
+                            <span class="absolute top-1 right-1 text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">Soon</span>
                             <span class="text-xl block mb-1">👤</span>
                             <span class="font-medium text-sm">Human in Loop</span>
-                            <p class="text-xs text-gray-500 mt-1">Approval, Forms</p>
-                        </button>
+                            <p class="text-xs text-gray-500 mt-1">Approval</p>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Step 1: Basic Info (All Tools) -->
             <div id="wiz-step-1" class="hidden space-y-4">
                 <div class="flex items-center gap-3 p-3 rounded-lg step-header-box">
                     <span id="step1-icon" class="text-2xl">🔧</span>
@@ -13062,6 +13104,7 @@ function loadEditConfigFields(tool) {
                             <input type="number" id="edit-cfg-maxpages" class="input-field w-20 rounded px-2 py-1" value="${config.max_pages || 10}">
                         </div>
                     </div>
+                    <p class="text-xs text-yellow-400">⚠️ Changing URL will require re-scraping</p>
                 </div>
             `;
             break;
@@ -13095,6 +13138,7 @@ function loadEditConfigFields(tool) {
                             </div>
                         </div>
                     </div>
+                    <p class="text-xs text-yellow-400">⚠️ Changing chunk size/overlap will require re-indexing documents</p>
                 </div>
             `;
             break;
@@ -13118,6 +13162,133 @@ function loadEditConfigFields(tool) {
             `;
             break;
             
+        case 'database':
+            html = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Database Type</label>
+                        <select id="edit-cfg-dbtype" class="input-field w-full px-4 py-2 rounded-lg">
+                            <option value="postgresql" ${config.db_type === 'postgresql' ? 'selected' : ''}>PostgreSQL</option>
+                            <option value="mysql" ${config.db_type === 'mysql' ? 'selected' : ''}>MySQL</option>
+                            <option value="mssql" ${config.db_type === 'mssql' ? 'selected' : ''}>SQL Server</option>
+                            <option value="mongodb" ${config.db_type === 'mongodb' ? 'selected' : ''}>MongoDB</option>
+                            <option value="sqlite" ${config.db_type === 'sqlite' ? 'selected' : ''}>SQLite</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Connection String</label>
+                        <input type="password" id="edit-cfg-connstr" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.connection_string || '')}" placeholder="postgresql://user:pass@host:5432/db">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Allowed Tables (comma-separated, empty = all)</label>
+                        <input type="text" id="edit-cfg-tables" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml((config.tables || []).join(', '))}" placeholder="users, orders, products">
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'email':
+            html = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Email Provider</label>
+                        <select id="edit-cfg-emailprovider" class="input-field w-full px-4 py-2 rounded-lg">
+                            <option value="smtp" ${config.provider === 'smtp' ? 'selected' : ''}>SMTP</option>
+                            <option value="sendgrid" ${config.provider === 'sendgrid' ? 'selected' : ''}>SendGrid</option>
+                            <option value="ses" ${config.provider === 'ses' ? 'selected' : ''}>AWS SES</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">From Email</label>
+                        <input type="email" id="edit-cfg-fromemail" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.from_email || '')}" placeholder="noreply@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">API Key / Password</label>
+                        <input type="password" id="edit-cfg-emailkey" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.api_key || config.password || '')}" placeholder="Enter API key or password">
+                    </div>
+                    <div id="smtp-fields" class="${config.provider === 'smtp' ? '' : 'hidden'}">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1 block">SMTP Host</label>
+                                <input type="text" id="edit-cfg-smtphost" class="input-field w-full px-3 py-2 rounded-lg" value="${escHtml(config.smtp_host || '')}" placeholder="smtp.gmail.com">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-400 mb-1 block">SMTP Port</label>
+                                <input type="number" id="edit-cfg-smtpport" class="input-field w-full px-3 py-2 rounded-lg" value="${config.smtp_port || 587}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'webhook':
+            html = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Webhook URL</label>
+                        <input type="url" id="edit-cfg-webhookurl" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.url || '')}" placeholder="https://api.example.com/webhook">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">HTTP Method</label>
+                        <select id="edit-cfg-webhookmethod" class="input-field w-full px-4 py-2 rounded-lg">
+                            <option value="POST" ${config.method === 'POST' ? 'selected' : ''}>POST</option>
+                            <option value="GET" ${config.method === 'GET' ? 'selected' : ''}>GET</option>
+                            <option value="PUT" ${config.method === 'PUT' ? 'selected' : ''}>PUT</option>
+                            <option value="PATCH" ${config.method === 'PATCH' ? 'selected' : ''}>PATCH</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Headers (JSON)</label>
+                        <textarea id="edit-cfg-webhookheaders" rows="3" class="input-field w-full px-4 py-2 rounded-lg font-mono text-sm">${escHtml(JSON.stringify(config.headers || {}, null, 2))}</textarea>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'slack':
+            html = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Bot Token</label>
+                        <input type="password" id="edit-cfg-slacktoken" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.bot_token || '')}" placeholder="xoxb-...">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Default Channel</label>
+                        <input type="text" id="edit-cfg-slackchannel" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.default_channel || '')}" placeholder="#general">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Allowed Channels (comma-separated, empty = all)</label>
+                        <input type="text" id="edit-cfg-slackchannels" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml((config.channels || []).join(', '))}" placeholder="#general, #support">
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'websearch':
+            html = `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Search Provider</label>
+                        <select id="edit-cfg-searchprovider" class="input-field w-full px-4 py-2 rounded-lg">
+                            <option value="tavily" ${config.provider === 'tavily' ? 'selected' : ''}>Tavily</option>
+                            <option value="serper" ${config.provider === 'serper' ? 'selected' : ''}>Serper (Google)</option>
+                            <option value="bing" ${config.provider === 'bing' ? 'selected' : ''}>Bing</option>
+                            <option value="duckduckgo" ${config.provider === 'duckduckgo' ? 'selected' : ''}>DuckDuckGo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">API Key</label>
+                        <input type="password" id="edit-cfg-searchkey" class="input-field w-full px-4 py-2 rounded-lg" value="${escHtml(config.api_key || '')}" placeholder="Enter API key">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Max Results</label>
+                        <input type="number" id="edit-cfg-searchmax" class="input-field w-full px-4 py-2 rounded-lg" value="${config.max_results || 10}" min="1" max="50">
+                    </div>
+                </div>
+            `;
+            break;
+            
         default:
             html = `
                 <div class="text-center py-8 text-gray-400">
@@ -13129,7 +13300,6 @@ function loadEditConfigFields(tool) {
     
     container.innerHTML = html;
 }
-
 function loadEditSources(tool) {
     const container = document.getElementById('edit-sources-content');
     let html = '';
@@ -13224,10 +13394,59 @@ async function saveToolChanges() {
                 config.headers = {};
             }
             break;
+        case 'database':
+            config.db_type = document.getElementById('edit-cfg-dbtype')?.value || 'postgresql';
+            config.connection_string = document.getElementById('edit-cfg-connstr')?.value || '';
+            const tablesStr = document.getElementById('edit-cfg-tables')?.value || '';
+            config.tables = tablesStr ? tablesStr.split(',').map(t => t.trim()).filter(t => t) : [];
+            break;
+        case 'email':
+            config.provider = document.getElementById('edit-cfg-emailprovider')?.value || 'smtp';
+            config.from_email = document.getElementById('edit-cfg-fromemail')?.value || '';
+            config.api_key = document.getElementById('edit-cfg-emailkey')?.value || '';
+            if (config.provider === 'smtp') {
+                config.smtp_host = document.getElementById('edit-cfg-smtphost')?.value || '';
+                config.smtp_port = parseInt(document.getElementById('edit-cfg-smtpport')?.value) || 587;
+            }
+            break;
+        case 'webhook':
+            config.url = document.getElementById('edit-cfg-webhookurl')?.value || '';
+            config.method = document.getElementById('edit-cfg-webhookmethod')?.value || 'POST';
+            try {
+                config.headers = JSON.parse(document.getElementById('edit-cfg-webhookheaders')?.value || '{}');
+            } catch(e) {
+                config.headers = {};
+            }
+            break;
+        case 'slack':
+            config.bot_token = document.getElementById('edit-cfg-slacktoken')?.value || '';
+            config.default_channel = document.getElementById('edit-cfg-slackchannel')?.value || '';
+            const channelsStr = document.getElementById('edit-cfg-slackchannels')?.value || '';
+            config.channels = channelsStr ? channelsStr.split(',').map(c => c.trim()).filter(c => c) : [];
+            break;
+        case 'websearch':
+            config.provider = document.getElementById('edit-cfg-searchprovider')?.value || 'tavily';
+            config.api_key = document.getElementById('edit-cfg-searchkey')?.value || '';
+            config.max_results = parseInt(document.getElementById('edit-cfg-searchmax')?.value) || 10;
+            break;
     }
     
     // Merge with existing config
     updates.config = { ...(currentEditTool?.config || {}), ...config };
+    
+    // Check if critical config changed (for re-processing)
+    const oldConfig = currentEditTool?.config || {};
+    let needsReprocess = false;
+    let reprocessMessage = '';
+    
+    if (toolType === 'website' && oldConfig.url !== config.url) {
+        needsReprocess = true;
+        reprocessMessage = 'URL changed. You may need to re-scrape the website.';
+    } else if ((toolType === 'document' || toolType === 'knowledge') && 
+               (oldConfig.chunk_size !== config.chunk_size || oldConfig.overlap !== config.overlap)) {
+        needsReprocess = true;
+        reprocessMessage = 'Chunk settings changed. You may need to re-index documents.';
+    }
     
     try {
         const r = await fetch(API + '/api/tools/' + toolId, {
@@ -13237,7 +13456,11 @@ async function saveToolChanges() {
         });
         
         if (r.ok) {
-            showToast('Tool updated successfully', 'success');
+            if (needsReprocess) {
+                showToast('Tool updated. ' + reprocessMessage, 'warning');
+            } else {
+                showToast('Tool updated successfully', 'success');
+            }
             closeToolEditPanel();
             loadTools();
         } else {
