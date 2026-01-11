@@ -87,6 +87,8 @@ echo "🌐 Starting server on port ${PORT:-8000}..."\n\
 exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
+# Railway uses dynamic PORT, but expose common default
 EXPOSE 8000
+EXPOSE 8080
 
 CMD ["/app/start.sh"]
