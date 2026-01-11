@@ -51,8 +51,8 @@ else\n\
   echo "📊 Database connection detected"\n\
   echo "🔄 Waiting for database..."\n\
   \n\
-  # Wait for database to be ready (max 30 seconds)\n\
-  for i in 1 2 3 4 5 6; do\n\
+  # Wait for database to be ready (max 60 seconds)\n\
+  for i in 1 2 3 4 5 6 7 8 9 10; do\n\
     python -c "from database import check_connection; exit(0 if check_connection() else 1)" 2>/dev/null\n\
     if [ $? -eq 0 ]; then\n\
       echo "✅ Database connection successful"\n\
@@ -60,8 +60,8 @@ else\n\
       python database/init_db.py 2>&1 | grep -E "✅|❌|Database"\n\
       break\n\
     fi\n\
-    echo "   Attempt $i/6 - retrying in 5s..."\n\
-    sleep 5\n\
+    echo "   Attempt $i/10 - retrying in 6s..."\n\
+    sleep 6\n\
   done\n\
 fi\n\
 \n\
