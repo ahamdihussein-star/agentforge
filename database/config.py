@@ -49,6 +49,14 @@ class DatabaseConfig:
     def get_database_url(cls) -> str:
         """Generate database URL based on configuration"""
         
+        # Railway automatic DATABASE_URL (highest priority)
+        railway_url = os.getenv('DATABASE_URL')
+        if railway_url:
+            # Railway uses postgres:// but SQLAlchemy 2.0 needs postgresql://
+            if railway_url.startswith('postgres://'):
+                railway_url = railway_url.replace('postgres://', 'postgresql://', 1)
+            return railway_url
+        
         if cls.DB_TYPE == DatabaseType.SQLITE:
             return f"sqlite:///{cls.SQLITE_PATH}"
         

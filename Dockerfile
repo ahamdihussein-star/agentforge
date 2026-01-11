@@ -40,6 +40,15 @@ COPY . .
 # Create directories
 RUN mkdir -p /app/data /app/uploads
 
+# Create startup script that initializes database
+RUN echo '#!/bin/sh\n\
+echo "🚀 Starting AgentForge..."\n\
+echo "📊 Initializing database..."\n\
+python database/init_db.py 2>/dev/null || echo "⚠️  Database already initialized or failed"\n\
+echo "🌐 Starting server..."\n\
+exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
 EXPOSE 8000
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/start.sh"]
