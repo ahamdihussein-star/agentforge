@@ -5,7 +5,7 @@ Enterprise document management with access control
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Integer, Enum as SQLEnum, Index, Boolean, Float
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from ..types import UUID, JSON as JSONB, JSONArray
 from enum import Enum
 
 from ..base import Base
@@ -41,10 +41,10 @@ class KnowledgeBase(Base):
     __tablename__ = "knowledge_bases"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Multi-tenancy
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Basic Info
     name = Column(String(255), nullable=False)
@@ -64,9 +64,9 @@ class KnowledgeBase(Base):
     
     # Access Control
     is_public = Column(Boolean, default=False)
-    owner_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    shared_with_user_ids = Column(ARRAY(UUID(as_uuid=True)), default=[])
-    shared_with_role_ids = Column(ARRAY(UUID(as_uuid=True)), default=[])
+    owner_id = Column(UUID, nullable=False, index=True)
+    shared_with_user_ids = Column(JSONArray, default=[])
+    shared_with_role_ids = Column(JSONArray, default=[])
     
     # Usage Tracking
     query_count = Column(Integer, default=0)
@@ -74,16 +74,16 @@ class KnowledgeBase(Base):
     
     # Soft Delete
     deleted_at = Column(DateTime)
-    deleted_by = Column(UUID(as_uuid=True))
+    deleted_by = Column(UUID)
     
     # Audit Trail
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_by = Column(UUID, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(UUID(as_uuid=True))
+    updated_by = Column(UUID)
     
     # Additional metadata
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSON, default={})
     
     def __repr__(self):
         return f"<KnowledgeBase {self.name}>"
@@ -110,11 +110,11 @@ class Document(Base):
     __tablename__ = "documents"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # References
-    kb_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    kb_id = Column(UUID, nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # File Info
     filename = Column(String(500), nullable=False)
@@ -142,21 +142,21 @@ class Document(Base):
     language = Column(String(10))  # ISO 639-1 code
     author = Column(String(255))
     created_date = Column(DateTime)  # Document creation date (metadata)
-    tags = Column(ARRAY(String))  # User or auto-generated tags
+    tags = Column(JSONArray)  # User or auto-generated tags
     
     # Security Classification
     classification = Column(String(50))  # 'public', 'internal', 'confidential', 'secret'
     contains_pii = Column(Boolean, default=False)
-    pii_types = Column(ARRAY(String))
+    pii_types = Column(JSONArray)
     
     # Versioning
     version = Column(Integer, default=1)
-    parent_version_id = Column(UUID(as_uuid=True))
+    parent_version_id = Column(UUID)
     
     # Access Control (inherited from KB by default)
     override_kb_permissions = Column(Boolean, default=False)
-    allowed_user_ids = Column(ARRAY(UUID(as_uuid=True)))
-    allowed_role_ids = Column(ARRAY(UUID(as_uuid=True)))
+    allowed_user_ids = Column(JSONArray)
+    allowed_role_ids = Column(JSONArray)
     
     # Usage Tracking
     view_count = Column(Integer, default=0)
@@ -165,16 +165,16 @@ class Document(Base):
     
     # Soft Delete
     deleted_at = Column(DateTime)
-    deleted_by = Column(UUID(as_uuid=True))
+    deleted_by = Column(UUID)
     
     # Audit Trail
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    uploaded_by = Column(UUID(as_uuid=True), nullable=False)
+    uploaded_by = Column(UUID, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(UUID(as_uuid=True))
+    updated_by = Column(UUID)
     
     # Additional metadata
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSON, default={})
     
     def __repr__(self):
         return f"<Document {self.filename}>"
@@ -203,12 +203,12 @@ class DocumentChunk(Base):
     __tablename__ = "document_chunks"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # References
-    document_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    kb_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    document_id = Column(UUID, nullable=False, index=True)
+    kb_id = Column(UUID, nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Chunk Content
     content = Column(Text, nullable=False)
@@ -242,12 +242,12 @@ class KBQuery(Base):
     __tablename__ = "kb_queries"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # References
-    kb_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    kb_id = Column(UUID, nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
+    user_id = Column(UUID, nullable=False, index=True)
     
     # Query
     query_text = Column(Text, nullable=False)
@@ -255,7 +255,7 @@ class KBQuery(Base):
     
     # Results
     results_count = Column(Integer)
-    top_document_ids = Column(ARRAY(UUID(as_uuid=True)))
+    top_document_ids = Column(JSONArray)
     relevance_scores = Column(ARRAY(Float))  # Similarity scores
     
     # Performance

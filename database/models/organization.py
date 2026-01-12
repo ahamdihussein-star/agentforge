@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from ..types import UUID, JSON as JSONB
 
 from ..base import Base
 
@@ -15,7 +15,7 @@ class Organization(Base):
     __tablename__ = "organizations"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Basic Info
     name = Column(String(255), nullable=False)
@@ -23,7 +23,7 @@ class Organization(Base):
     
     # Plan & Settings
     plan = Column(String(50), default="free")  # free, starter, pro, enterprise
-    settings = Column(JSONB, default={})  # Organization-specific settings
+    settings = Column(JSON, default={})  # Organization-specific settings
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

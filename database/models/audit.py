@@ -6,7 +6,7 @@ Immutable, tamper-proof logging
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Integer, Index, Boolean
-from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
+from ..types import UUID, JSON as JSONB, INET
 from enum import Enum
 
 from ..base import Base
@@ -20,16 +20,16 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Multi-tenancy
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Actor (who did the action)
-    user_id = Column(UUID(as_uuid=True), index=True)  # Nullable for system actions
+    user_id = Column(UUID, index=True)  # Nullable for system actions
     user_email = Column(String(255))  # Denormalized for reporting
     user_name = Column(String(255))
-    impersonated_by = Column(UUID(as_uuid=True))  # If admin acting as user
+    impersonated_by = Column(UUID)  # If admin acting as user
     
     # Action
     action = Column(String(100), nullable=False, index=True)  # 'create', 'update', 'delete', 'view', etc.
@@ -39,8 +39,8 @@ class AuditLog(Base):
     
     # Details
     description = Column(Text)  # Human-readable action description
-    changes = Column(JSONB)  # Before/after values: {'field': {'old': ..., 'new': ...}}
-    extra_metadata = Column(JSONB)  # Additional context
+    changes = Column(JSON)  # Before/after values: {'field': {'old': ..., 'new': ...}}
+    extra_metadata = Column(JSON)  # Additional context
     
     # Result
     success = Column(Boolean, nullable=False)
@@ -59,7 +59,7 @@ class AuditLog(Base):
     os = Column(String(100))
     
     # Session Context
-    session_id = Column(UUID(as_uuid=True), index=True)
+    session_id = Column(UUID, index=True)
     auth_method = Column(String(50))  # 'password', 'oauth', 'sso', 'api_key'
     
     # Geolocation (for security analysis)
@@ -70,17 +70,17 @@ class AuditLog(Base):
     severity = Column(String(20))  # 'info', 'warning', 'critical'
     
     # Tags (for categorization)
-    tags = Column(JSONB)  # ['security', 'data_export', 'pii_access', etc.]
+    tags = Column(JSON)  # ['security', 'data_export', 'pii_access', etc.]
     
     # Compliance Flags
     requires_review = Column(Boolean, default=False)
     reviewed = Column(Boolean, default=False)
-    reviewed_by = Column(UUID(as_uuid=True))
+    reviewed_by = Column(UUID)
     reviewed_at = Column(DateTime)
     review_notes = Column(Text)
     
     # Retention
-    retention_policy_id = Column(UUID(as_uuid=True))
+    retention_policy_id = Column(UUID)
     scheduled_deletion_at = Column(DateTime)  # Auto-archive date
     
     # Immutable Timestamp (NEVER updated)
@@ -116,10 +116,10 @@ class SecurityEvent(Base):
     __tablename__ = "security_events"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Multi-tenancy
-    org_id = Column(UUID(as_uuid=True), index=True)
+    org_id = Column(UUID, index=True)
     
     # Event Type
     event_type = Column(String(100), nullable=False, index=True)
@@ -130,18 +130,18 @@ class SecurityEvent(Base):
     severity = Column(String(20), nullable=False, index=True)  # 'low', 'medium', 'high', 'critical'
     
     # Actor
-    user_id = Column(UUID(as_uuid=True), index=True)
+    user_id = Column(UUID, index=True)
     user_email = Column(String(255))
-    target_user_id = Column(UUID(as_uuid=True))  # If action targeted another user
+    target_user_id = Column(UUID)  # If action targeted another user
     
     # Details
     description = Column(Text, nullable=False)
-    details = Column(JSONB)  # Full event details
+    details = Column(JSON)  # Full event details
     
     # Context
     ip_address = Column(INET, nullable=False)
     user_agent = Column(Text)
-    session_id = Column(UUID(as_uuid=True))
+    session_id = Column(UUID)
     country_code = Column(String(2))
     
     # Response
@@ -150,14 +150,14 @@ class SecurityEvent(Base):
     
     # Investigation
     investigated = Column(Boolean, default=False)
-    investigated_by = Column(UUID(as_uuid=True))
+    investigated_by = Column(UUID)
     investigated_at = Column(DateTime)
     investigation_notes = Column(Text)
     false_positive = Column(Boolean)
     
     # Alerting
     alert_sent = Column(Boolean, default=False)
-    alert_sent_to = Column(JSONB)  # Array of user IDs/emails notified
+    alert_sent_to = Column(JSON)  # Array of user IDs/emails notified
     alert_sent_at = Column(DateTime)
     
     # Timestamp
@@ -175,23 +175,23 @@ class DataExport(Base):
     __tablename__ = "data_exports"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Multi-tenancy
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Requester
-    requested_by = Column(UUID(as_uuid=True), nullable=False, index=True)
+    requested_by = Column(UUID, nullable=False, index=True)
     requester_email = Column(String(255), nullable=False)
     
     # Export Details
     export_type = Column(String(100), nullable=False)  # 'user_data', 'audit_logs', 'conversations', etc.
-    resource_types = Column(JSONB)  # Array of resource types included
+    resource_types = Column(JSON)  # Array of resource types included
     date_range_start = Column(DateTime)
     date_range_end = Column(DateTime)
     
     # Filters
-    filters = Column(JSONB)  # Applied filters
+    filters = Column(JSON)  # Applied filters
     record_count = Column(Integer)  # Number of records exported
     
     # File
@@ -209,7 +209,7 @@ class DataExport(Base):
     # Approval (for sensitive data)
     requires_approval = Column(Boolean, default=False)
     approved = Column(Boolean)
-    approved_by = Column(UUID(as_uuid=True))
+    approved_by = Column(UUID)
     approved_at = Column(DateTime)
     approval_notes = Column(Text)
     
@@ -237,10 +237,10 @@ class ComplianceReport(Base):
     __tablename__ = "compliance_reports"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Multi-tenancy
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Report Info
     report_type = Column(String(100), nullable=False)  # 'soc2', 'gdpr', 'hipaa', 'iso27001'
@@ -252,8 +252,8 @@ class ComplianceReport(Base):
     period_end = Column(DateTime, nullable=False)
     
     # Metrics
-    metrics = Column(JSONB)  # Summary statistics
-    findings = Column(JSONB)  # Issues/violations found
+    metrics = Column(JSON)  # Summary statistics
+    findings = Column(JSON)  # Issues/violations found
     
     # File
     file_path = Column(String(1000))
@@ -265,7 +265,7 @@ class ComplianceReport(Base):
     
     # Audit
     generated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    generated_by = Column(UUID(as_uuid=True), nullable=False)
+    generated_by = Column(UUID, nullable=False)
     
     def __repr__(self):
         return f"<ComplianceReport {self.report_type} {self.period_start} to {self.period_end}>"

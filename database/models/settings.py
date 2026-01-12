@@ -6,7 +6,7 @@ Secrets management with encryption
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Boolean, Index, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from ..types import UUID, JSON as JSONB
 from enum import Enum
 
 from ..base import Base
@@ -23,7 +23,7 @@ class SystemSetting(Base):
     key = Column(String(100), primary_key=True)
     
     # Value
-    value = Column(JSONB, nullable=False)
+    value = Column(JSON, nullable=False)
     value_type = Column(String(50))  # 'string', 'number', 'boolean', 'json'
     
     # Metadata
@@ -31,18 +31,18 @@ class SystemSetting(Base):
     description = Column(Text)
     is_secret = Column(Boolean, default=False)  # Sensitive data (encrypted)
     is_required = Column(Boolean, default=False)
-    default_value = Column(JSONB)
+    default_value = Column(JSON)
     
     # Validation
     validation_regex = Column(String(500))
     min_value = Column(String(100))
     max_value = Column(String(100))
-    allowed_values = Column(JSONB)  # Array of valid values
+    allowed_values = Column(JSON)  # Array of valid values
     
     # Audit Trail
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(UUID(as_uuid=True))
+    updated_by = Column(UUID)
     
     def __repr__(self):
         return f"<SystemSetting {self.key}>"
@@ -56,11 +56,11 @@ class OrganizationSetting(Base):
     __tablename__ = "organization_settings"
     
     # Composite Primary Key
-    org_id = Column(UUID(as_uuid=True), primary_key=True)
+    org_id = Column(UUID, primary_key=True)
     key = Column(String(100), primary_key=True)
     
     # Value
-    value = Column(JSONB, nullable=False)
+    value = Column(JSON, nullable=False)
     value_type = Column(String(50))
     
     # Metadata
@@ -70,7 +70,7 @@ class OrganizationSetting(Base):
     # Audit Trail
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(UUID(as_uuid=True))
+    updated_by = Column(UUID)
     
     def __repr__(self):
         return f"<OrgSetting {self.org_id}:{self.key}>"
@@ -84,11 +84,11 @@ class APIKey(Base):
     __tablename__ = "api_keys"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Scope
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), index=True)  # Optional: user-specific
+    org_id = Column(UUID, nullable=False, index=True)
+    user_id = Column(UUID, index=True)  # Optional: user-specific
     
     # Key Info
     name = Column(String(255), nullable=False)  # e.g., "OpenAI Production Key"
@@ -96,7 +96,7 @@ class APIKey(Base):
     key_encrypted = Column(Text, nullable=False)  # AES-256 encrypted
     
     # Permissions
-    scopes = Column(JSONB, default=[])  # Array of permissions/scopes
+    scopes = Column(JSON, default=[])  # Array of permissions/scopes
     
     # Rate Limiting
     rate_limit_per_minute = Column(Integer)
@@ -116,11 +116,11 @@ class APIKey(Base):
     
     # Audit Trail
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_by = Column(UUID, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(UUID(as_uuid=True))
+    updated_by = Column(UUID)
     revoked_at = Column(DateTime)
-    revoked_by = Column(UUID(as_uuid=True))
+    revoked_by = Column(UUID)
     
     def __repr__(self):
         return f"<APIKey {self.name} ({self.service})>"
@@ -134,10 +134,10 @@ class Integration(Base):
     __tablename__ = "integrations"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Scope
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Integration Info
     type = Column(String(100), nullable=False)  # 'google_oauth', 'microsoft_oauth', 'slack', etc.
@@ -145,11 +145,11 @@ class Integration(Base):
     description = Column(Text)
     
     # Configuration (encrypted)
-    config_encrypted = Column(JSONB, nullable=False)  # client_id, client_secret, etc.
+    config_encrypted = Column(JSON, nullable=False)  # client_id, client_secret, etc.
     
     # OAuth Specific
     oauth_redirect_uri = Column(String(500))
-    oauth_scopes = Column(JSONB)  # Requested scopes
+    oauth_scopes = Column(JSON)  # Requested scopes
     
     # Status
     is_active = Column(Boolean, default=True)
@@ -162,9 +162,9 @@ class Integration(Base):
     
     # Audit Trail
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_by = Column(UUID, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(UUID(as_uuid=True))
+    updated_by = Column(UUID)
     
     def __repr__(self):
         return f"<Integration {self.name} ({self.type})>"
@@ -178,12 +178,12 @@ class UserIntegration(Base):
     __tablename__ = "user_integrations"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # References
-    integration_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    integration_id = Column(UUID, nullable=False, index=True)
+    user_id = Column(UUID, nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # OAuth Tokens (encrypted)
     access_token_encrypted = Column(Text)

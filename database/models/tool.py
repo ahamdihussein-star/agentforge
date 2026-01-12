@@ -1,15 +1,16 @@
 """
 Tool Models - External Tools & Integrations
 Support for API, Database, RAG, Email, Web Scraping, etc.
+DATABASE-AGNOSTIC: Works with PostgreSQL, MySQL, SQLite, etc.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Enum as SQLEnum, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Index
 from enum import Enum
 
 from ..base import Base
 from ..enums import ToolType  # Import from centralized enums
+from ..types import UUID, JSON, JSONArray  # Database-agnostic types
 
 
 class Tool(Base):
@@ -24,7 +25,7 @@ class Tool(Base):
     id = Column(String(100), primary_key=True)  # e.g., "kit_654ba0a4_api_0"
     
     # Multi-tenancy
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Basic Info
     # Use String instead of PostgreSQL enum for flexibility (Enterprise Best Practice)
@@ -34,18 +35,18 @@ class Tool(Base):
     description = Column(Text)
     
     # Configuration
-    config = Column(JSONB, default={})  # demo_mode, mock_response, source, kit_id, etc.
+    config = Column(JSON, default={})  # demo_mode, mock_response, source, kit_id, etc.
     
     # Type-specific configurations
-    api_config = Column(JSONB)  # base_url, http_method, endpoint_path, auth_type, headers, etc.
-    database_config = Column(JSONB)  # connection_string, query_template, etc.
-    rag_config = Column(JSONB)  # kb_id, search_top_k, etc.
-    email_config = Column(JSONB)  # smtp_config, template, etc.
-    slack_config = Column(JSONB)  # webhook_url, channel, etc.
+    api_config = Column(JSON)  # base_url, http_method, endpoint_path, auth_type, headers, etc.
+    database_config = Column(JSON)  # connection_string, query_template, etc.
+    rag_config = Column(JSON)  # kb_id, search_top_k, etc.
+    email_config = Column(JSON)  # smtp_config, template, etc.
+    slack_config = Column(JSON)  # webhook_url, channel, etc.
     
     # Parameters (inputs/outputs)
-    input_parameters = Column(JSONB, default=[])  # Array of {name, description, type, required}
-    output_schema = Column(JSONB)  # Expected response structure
+    input_parameters = Column(JSON, default=[])  # Array of {name, description, type, required}
+    output_schema = Column(JSON)  # Expected response structure
     
     # Status & Activation
     is_active = Column(Boolean, default=True)
@@ -55,9 +56,9 @@ class Tool(Base):
     
     # Access Control
     is_public = Column(Boolean, default=False)  # Public tools available to all org users
-    owner_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    shared_with_user_ids = Column(ARRAY(UUID(as_uuid=True)), default=[])
-    shared_with_role_ids = Column(ARRAY(UUID(as_uuid=True)), default=[])
+    owner_id = Column(UUID, nullable=False, index=True)
+    shared_with_user_ids = Column(JSONArray, default=[])  # Array of UUIDs as JSON
+    shared_with_role_ids = Column(JSONArray, default=[])  # Array of UUIDs as JSON
     
     # Usage Tracking
     usage_count = Column(Integer, default=0)
@@ -73,21 +74,21 @@ class Tool(Base):
     
     # Security
     requires_approval = Column(Boolean, default=False)  # Requires admin approval to use
-    allowed_domains = Column(ARRAY(String))  # Whitelist for API tools
-    blocked_domains = Column(ARRAY(String))  # Blacklist
+    allowed_domains = Column(JSONArray)  # Whitelist for API tools
+    blocked_domains = Column(JSONArray)  # Blacklist
     
     # Soft Delete
     deleted_at = Column(DateTime)
-    deleted_by = Column(UUID(as_uuid=True))
+    deleted_by = Column(UUID)
     
     # Audit Trail
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_by = Column(UUID, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(UUID(as_uuid=True))
+    updated_by = Column(UUID)
     
     # Additional metadata
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSON, default={})
     
     def __repr__(self):
         return f"<Tool {self.name} ({self.type})>"
@@ -126,18 +127,18 @@ class ToolExecution(Base):
     __tablename__ = "tool_executions"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # References
     tool_id = Column(String(100), nullable=False, index=True)
-    agent_id = Column(UUID(as_uuid=True), index=True)
-    conversation_id = Column(UUID(as_uuid=True), index=True)
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    agent_id = Column(UUID, index=True)
+    conversation_id = Column(UUID, index=True)
+    user_id = Column(UUID, nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Execution Details
-    input_params = Column(JSONB)  # Actual parameters passed
-    output_data = Column(JSONB)  # Response data
+    input_params = Column(JSON)  # Actual parameters passed
+    output_data = Column(JSON)  # Response data
     
     # Result
     success = Column(Boolean, nullable=False)

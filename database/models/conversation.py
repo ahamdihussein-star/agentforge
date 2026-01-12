@@ -5,7 +5,7 @@ Enterprise-grade with PII protection and audit trail
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Integer, Enum as SQLEnum, Index, Boolean
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from ..types import UUID, JSON as JSONB, JSONArray
 from enum import Enum
 
 from ..base import Base
@@ -28,14 +28,14 @@ class Conversation(Base):
     __tablename__ = "conversations"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Multi-tenancy
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # References
-    agent_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    agent_id = Column(UUID, nullable=False, index=True)
+    user_id = Column(UUID, nullable=False, index=True)
     
     # Conversation Info
     title = Column(String(500))  # Auto-generated or user-set
@@ -51,12 +51,12 @@ class Conversation(Base):
     # Privacy & Compliance
     contains_pii = Column(Boolean, default=False)  # Flagged if PII detected
     pii_masked = Column(Boolean, default=False)  # Has PII been masked
-    retention_policy_id = Column(UUID(as_uuid=True))  # Link to data retention policy
+    retention_policy_id = Column(UUID)  # Link to data retention policy
     scheduled_deletion_at = Column(DateTime)  # Auto-delete date per policy
     
     # Soft Delete
     deleted_at = Column(DateTime)
-    deleted_by = Column(UUID(as_uuid=True))
+    deleted_by = Column(UUID)
     
     # Audit Trail
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
@@ -64,7 +64,7 @@ class Conversation(Base):
     last_message_at = Column(DateTime)  # Last activity
     
     # Additional metadata
-    extra_metadata = Column(JSONB, default={})  # Tags, labels, etc.
+    extra_metadata = Column(JSON, default={})  # Tags, labels, etc.
     
     def __repr__(self):
         return f"<Conversation {self.title} (agent:{self.agent_id})>"
@@ -93,12 +93,12 @@ class Message(Base):
     __tablename__ = "messages"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # References
-    conversation_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    conversation_id = Column(UUID, nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
+    user_id = Column(UUID, nullable=False, index=True)
     
     # Message Content
     role = Column(SQLEnum(MessageRole), nullable=False)
@@ -106,11 +106,11 @@ class Message(Base):
     content_masked = Column(Text)  # PII-masked version
     
     # Tool Usage
-    tool_calls = Column(JSONB, default=[])  # Tools called in this message
-    tool_results = Column(JSONB, default=[])  # Results from tool calls
+    tool_calls = Column(JSON, default=[])  # Tools called in this message
+    tool_results = Column(JSON, default=[])  # Results from tool calls
     
     # RAG Sources
-    sources = Column(JSONB, default=[])  # Knowledge base sources cited
+    sources = Column(JSON, default=[])  # Knowledge base sources cited
     
     # Metadata
     model_used = Column(String(100))  # LLM model that generated response
@@ -119,14 +119,14 @@ class Message(Base):
     
     # Security & PII
     contains_pii = Column(Boolean, default=False)
-    pii_types = Column(ARRAY(String))  # ['email', 'phone', 'ssn', etc.]
+    pii_types = Column(JSONArray)  # ['email', 'phone', 'ssn', etc.]
     sentiment = Column(String(20))  # 'positive', 'negative', 'neutral', 'angry'
     
     # Flagging & Moderation
     flagged = Column(Boolean, default=False)
     flag_reason = Column(String(200))  # Inappropriate content, policy violation, etc.
     reviewed = Column(Boolean, default=False)
-    reviewed_by = Column(UUID(as_uuid=True))
+    reviewed_by = Column(UUID)
     reviewed_at = Column(DateTime)
     
     # Feedback
@@ -168,16 +168,16 @@ class ConversationShare(Base):
     __tablename__ = "conversation_shares"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # References
-    conversation_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    conversation_id = Column(UUID, nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Sharing
-    shared_by = Column(UUID(as_uuid=True), nullable=False)
-    shared_with_user_id = Column(UUID(as_uuid=True))
-    shared_with_role_id = Column(UUID(as_uuid=True))
+    shared_by = Column(UUID, nullable=False)
+    shared_with_user_id = Column(UUID)
+    shared_with_role_id = Column(UUID)
     
     # Permissions
     can_view = Column(Boolean, default=True)
@@ -190,7 +190,7 @@ class ConversationShare(Base):
     # Audit
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     revoked_at = Column(DateTime)
-    revoked_by = Column(UUID(as_uuid=True))
+    revoked_by = Column(UUID)
     
     def __repr__(self):
         return f"<ConversationShare {self.conversation_id}>"

@@ -5,7 +5,7 @@ Enterprise-grade schema with audit trail and security
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Enum as SQLEnum, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from ..types import UUID, JSON as JSONB, JSONArray
 from enum import Enum
 
 from ..base import Base
@@ -21,10 +21,10 @@ class Agent(Base):
     __tablename__ = "agents"
     
     # Primary Key
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Multi-tenancy
-    org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    org_id = Column(UUID, nullable=False, index=True)
     
     # Basic Info
     name = Column(String(255), nullable=False)
@@ -34,15 +34,15 @@ class Agent(Base):
     
     # Configuration
     model_id = Column(String(100), nullable=False)  # e.g., "gpt-4o", "claude-3"
-    personality = Column(JSONB, default={})  # tone, voice, languages, traits, etc.
-    guardrails = Column(JSONB, default={})  # anti_hallucination, cite_sources, etc.
+    personality = Column(JSON, default={})  # tone, voice, languages, traits, etc.
+    guardrails = Column(JSON, default={})  # anti_hallucination, cite_sources, etc.
     
     # Tasks & Tools
-    tasks = Column(JSONB, default=[])  # Array of task definitions
-    tool_ids = Column(ARRAY(String), default=[])  # References to tools
+    tasks = Column(JSON, default=[])  # Array of task definitions
+    tool_ids = Column(JSONArray, default=[])  # References to tools
     
     # Memory & Context
-    memory = Column(JSONB, default=[])  # Conversation memory
+    memory = Column(JSON, default=[])  # Conversation memory
     memory_enabled = Column(Boolean, default=True)
     context_window = Column(Integer, default=4096)
     
@@ -53,9 +53,9 @@ class Agent(Base):
     
     # Access Control
     is_public = Column(Boolean, default=False)  # Public agents visible to all org users
-    owner_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Created by
-    shared_with_user_ids = Column(ARRAY(UUID(as_uuid=True)), default=[])  # Shared users
-    shared_with_role_ids = Column(ARRAY(UUID(as_uuid=True)), default=[])  # Shared roles
+    owner_id = Column(UUID, nullable=False, index=True)  # Created by
+    shared_with_user_ids = Column(JSONArray, default=[])  # Shared users
+    shared_with_role_ids = Column(JSONArray, default=[])  # Shared roles
     
     # Usage Tracking
     usage_count = Column(Integer, default=0)
@@ -63,20 +63,20 @@ class Agent(Base):
     
     # Versioning (for future enhancement)
     version = Column(Integer, default=1)
-    parent_version_id = Column(UUID(as_uuid=True))  # For version history
+    parent_version_id = Column(UUID)  # For version history
     
     # Soft Delete
     deleted_at = Column(DateTime)
-    deleted_by = Column(UUID(as_uuid=True))
+    deleted_by = Column(UUID)
     
     # Audit Trail
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_by = Column(UUID, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(UUID(as_uuid=True))
+    updated_by = Column(UUID)
     
     # Additional metadata
-    extra_metadata = Column(JSONB, default={})  # Extensible for future fields
+    extra_metadata = Column(JSON, default={})  # Extensible for future fields
     
     def __repr__(self):
         return f"<Agent {self.name} (org:{self.org_id})>"

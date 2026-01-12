@@ -23,7 +23,7 @@ class Role(Base):
     """Role definition"""
     __tablename__ = "roles"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Role Info
     name = Column(String(100), nullable=False)
@@ -33,7 +33,7 @@ class Role(Base):
     is_system = Column(Boolean, default=False)  # Cannot be deleted if True
     
     # Organization (Multi-tenancy) - FK removed
-    org_id = Column(UUID(as_uuid=True), index=True, nullable=True)
+    org_id = Column(UUID, index=True, nullable=True)
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -47,7 +47,7 @@ class Permission(Base):
     """Permission definition"""
     __tablename__ = "permissions"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Permission Info
     name = Column(String(100), unique=True, nullable=False, index=True)
