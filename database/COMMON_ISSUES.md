@@ -1261,10 +1261,107 @@ python scripts/update_user_role_ids.py  # ✅ Run after migration
 
 ---
 
+## 🔴 **MISSING DATABASE COLUMNS IN ROLE MODEL**
+
+### Issue #20: `Role` model missing critical columns (permissions, parent_id, level, created_by)
+**Date:** 2026-01-12
+**Severity:** CRITICAL
+**Occurrences:** 1 time (during role loading from database)
+
+#### Problem:
+The `database.models.role.Role` SQLAlchemy model was missing several critical columns that exist in the `core.security.Role` Pydantic model:
+- `permissions` (List[str]): Array of permission strings
+- `parent_id` (Optional[UUID]): For role hierarchy/inheritance
+- `level` (int): Privilege level (0 = super admin, 100 = default)
+- `created_by` (Optional[str]): User who created the role
+
+When `RoleService._db_to_core_role` tried to map these fields, it resulted in `AttributeError: 'Role' object has no attribute 'permissions'`.
+
+#### Error:
+```
+📊 Attempting to load roles from database...
+❌ Database roles error: AttributeError: 'Role' object has no attribute 'permissions'
+📂 Loading roles from files (database unavailable)
+```
+
+This caused the system to fall back to loading roles from JSON files, meaning:
+- Users loaded from the database had UUID-based `role_ids`
+- Roles loaded from files had string-based IDs
+- `security_state.roles` dictionary was keyed by string IDs, not UUIDs
+- `PolicyEngine` couldn't find roles for users → No permissions → No UI menu
+
+#### Root Cause:
+Incomplete schema definition during initial database model creation. The SQLAlchemy `Role` model (`database/models/role.py`) was a simplified version that only included basic fields (`id`, `name`, `description`, `is_system`, `org_id`, timestamps), missing the critical fields required for RBAC functionality.
+
+#### Solution:
+1. **Updated `database/models/role.py`:** Added missing columns:
+   ```python
+   class Role(Base):
+       # ... existing fields ...
+       
+       # Permissions (stored as JSON array of permission strings)
+       permissions = Column(JSONArray, default=list)
+       
+       # Hierarchy
+       parent_id = Column(UUID, nullable=True)  # For role inheritance
+       level = Column(String(10), default="100")  # Lower = more privileged
+       
+       # Metadata
+       created_by = Column(String(100), nullable=True)
+   ```
+
+2. **Created `scripts/add_role_columns.py`:** Idempotent script to add missing columns to existing `roles` table:
+   ```python
+   columns_to_add = [
+       ("permissions", "TEXT", "''"),  # JSON array stored as TEXT
+       ("parent_id", "UUID", "NULL"),
+       ("level", "VARCHAR(10)", "'100'"),
+       ("created_by", "VARCHAR(100)", "NULL"),
+   ]
+   ```
+
+3. **Created `database/services/role_service.py`:** Service layer for role database operations:
+   ```python
+   class RoleService:
+       @staticmethod
+       def get_all_roles() -> List[Role]:
+           # Fetch from DB and convert to core.security.Role
+           
+       @staticmethod
+       def _db_to_core_role(db_role: DBRole) -> Role:
+           # Parse permissions JSON, handle type conversions
+   ```
+
+4. **Updated `Dockerfile`:** Added `scripts/add_role_columns.py` to deployment pipeline.
+
+5. **Verified `core/security/state.py`:** Already imports and uses `RoleService` for dual-read.
+
+#### Why:
+Ensures that roles loaded from the database have all the necessary fields to support:
+- **RBAC**: Permissions list for policy evaluation
+- **Role Hierarchy**: Parent-child role inheritance
+- **Privilege Levels**: Fine-grained access control
+- **Audit Trail**: Tracking who created roles
+
+This is critical for the UI menu to appear, as the `PolicyEngine` uses `role.permissions` to determine what features a user can access.
+
+#### Prevention:
+- ✅ **Schema Comparison Tool:** Before creating any database model, compare the Pydantic model schema (`core/security/models.py`) with the SQLAlchemy model schema to ensure 100% field parity.
+- ✅ **Automated Schema Sync Check:** Add a check to `comprehensive_db_check.sh` that compares SQLAlchemy models with their corresponding Pydantic models and flags missing fields.
+- ✅ **Migration Test Suite:** Create integration tests that:
+  1. Migrate data to DB
+  2. Load data from DB into Pydantic models
+  3. Verify all fields are correctly populated
+  4. Verify business logic (e.g., permissions, menu) works
+- ✅ **Documentation:** Update `MASTER_DOCUMENTATION_UPDATED.md` with the complete database schema, including all fields for each table.
+
+---
+
 ## 🔄 **UPDATE LOG**
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Missing columns in Role model #20 | ✅ Fixed | Added permissions, parent_id, level, created_by columns |
 | 2026-01-12 | Missing role_ids UUID mapping #19.2 | ✅ Fixed | Script now maps old IDs to UUIDs |
 | 2026-01-12 | Missing role_ids in migration #19 | ✅ Fixed | Created update script + fixed migration |
 | 2026-01-12 | Missing import #18 | ✅ Fixed | Added AuthProvider to imports |

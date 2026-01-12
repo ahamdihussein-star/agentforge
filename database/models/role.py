@@ -33,15 +33,23 @@ class Role(Base):
     name = Column(String(100), nullable=False)
     description = Column(Text)
     
+    # Permissions (stored as JSON array of permission strings)
+    permissions = Column(JSONArray, default=list)
+    
+    # Hierarchy
+    parent_id = Column(UUID, nullable=True)  # For role inheritance
+    level = Column(String(10), default="100")  # Lower = more privileged (0 = super admin)
+    
     # System vs Custom
     is_system = Column(Boolean, default=False)  # Cannot be deleted if True
     
     # Organization (Multi-tenancy) - FK removed
     org_id = Column(UUID, index=True, nullable=True)
     
-    # Timestamps
+    # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
     
     def __repr__(self):
         return f"<Role {self.name}>"
