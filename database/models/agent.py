@@ -9,15 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from enum import Enum
 
 from ..base import Base
-
-
-class AgentStatus(str, Enum):
-    """Agent lifecycle status"""
-    DRAFT = "draft"
-    ACTIVE = "active"
-    PAUSED = "paused"
-    ARCHIVED = "archived"
-    DELETED = "deleted"  # Soft delete
+from ..enums import AgentStatus  # Import from centralized enums
 
 
 class Agent(Base):

@@ -2,6 +2,7 @@
 """
 COMPLETE Data Migration Script - JSON to PostgreSQL
 Migrates ALL platform data with proper error handling
+Enterprise-grade with centralized enum management
 """
 import sys
 import os
@@ -21,6 +22,9 @@ from database.models.tool import Tool
 from database.models.conversation import Conversation, Message
 from database.models.knowledge_base import KnowledgeBase, Document
 from database.models.settings import SystemSetting, OrganizationSetting
+
+# Import centralized enums
+from database.enums import ToolType, AgentStatus
 
 
 def load_json_file(filepath):
@@ -338,7 +342,7 @@ def migrate_agents(org_mapping):
 
 
 def migrate_tools(org_mapping):
-    """Migrate tools from JSON to database"""
+    """Migrate tools from JSON to database using centralized enum management"""
     print("\n" + "="*60)
     print("🔧 Migrating Tools...")
     print("="*60)
@@ -354,15 +358,6 @@ def migrate_tools(org_mapping):
         tools = data
     
     count = 0
-    
-    # Tool type mapping for legacy types
-    TYPE_MAPPING = {
-        'website': 'website',
-        'web': 'web_scraping',
-        'scraper': 'web_scraping',
-        'scraping': 'web_scraping',
-        'search': 'web_search',
-    }
     
     with get_db_session() as session:
         for tool_data in tools:
@@ -382,18 +377,18 @@ def migrate_tools(org_mapping):
                 owner = session.query(User).first()
                 owner_id = owner.id if owner else uuid.uuid4()
                 
-                # Normalize tool type
-                tool_type = tool_data.get('type', 'api').lower()
-                if tool_type in TYPE_MAPPING:
-                    tool_type = TYPE_MAPPING[tool_type]
-                elif tool_type not in ['api', 'database', 'rag', 'email', 'web_scraping', 'web_search', 'website', 'slack', 'webhook', 'spreadsheet', 'calendar', 'crm', 'custom']:
-                    print(f"   ⚠️  Unknown tool type '{tool_type}' for '{tool_data['name']}', using 'custom'")
-                    tool_type = 'custom'
+                # ✅ Use centralized enum normalization (Enterprise Best Practice)
+                legacy_type = tool_data.get('type', 'api')
+                tool_type_enum = ToolType.from_legacy(legacy_type)
+                
+                # Log if type was mapped from legacy
+                if legacy_type.lower() != tool_type_enum.value:
+                    print(f"   🔄 Mapped legacy type '{legacy_type}' → '{tool_type_enum.value}' for '{tool_data['name']}'")
                 
                 tool = Tool(
                     id=tool_id,
                     org_id=org_id,
-                    type=tool_type,
+                    type=tool_type_enum.value,  # Use normalized enum value
                     name=tool_data['name'],
                     description=tool_data.get('description', ''),
                     config=tool_data.get('config', {}),
@@ -411,11 +406,13 @@ def migrate_tools(org_mapping):
                 
                 session.add(tool)
                 session.commit()
-                print(f"✅ Migrated tool: {tool_data['name']} (type: {tool_type})")
+                print(f"✅ Migrated tool: {tool_data['name']} (type: {tool_type_enum.value})")
                 count += 1
                 
             except Exception as e:
                 print(f"❌ Failed to migrate tool {tool_data.get('name', 'unknown')}: {e}")
+                import traceback
+                traceback.print_exc()
                 session.rollback()
     
     print(f"\n📊 Total tools migrated: {count}")

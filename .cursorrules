@@ -31,6 +31,31 @@
    python database/init_db.py
    ```
 
+## 🏢 ENTERPRISE BEST PRACTICES (MANDATORY!)
+
+### Enum Management:
+- ❌ NEVER define enums in individual model files
+- ✅ ALWAYS use centralized `database/enums.py`
+- ✅ ALWAYS provide `.from_legacy()` method for backward compatibility
+- ✅ ALWAYS include 'CUSTOM' or 'OTHER' catch-all value
+- ✅ ALWAYS use Alembic migrations for enum changes (not direct model edits)
+
+### Schema Changes:
+- ❌ NEVER modify production database models directly
+- ✅ ALWAYS use Alembic migrations:
+  ```bash
+  alembic revision -m "description"
+  alembic upgrade head
+  ```
+- ✅ ALWAYS test migrations locally first
+- ✅ ALWAYS provide rollback path (downgrade)
+
+### Code Organization:
+- ✅ Single Source of Truth: One place for business logic
+- ✅ DRY Principle: Don't repeat enum definitions
+- ✅ Type Safety: Use centralized validators
+- ✅ Reusability: Share enums across models, APIs, migrations
+
 ## General Development Rules
 
 ### Code Style

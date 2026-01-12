@@ -9,23 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from enum import Enum
 
 from ..base import Base
-
-
-class ToolType(str, Enum):
-    """Tool categories"""
-    API = "api"
-    DATABASE = "database"
-    RAG = "rag"
-    EMAIL = "email"
-    WEB_SCRAPING = "web_scraping"
-    WEB_SEARCH = "web_search"
-    WEBSITE = "website"  # Website scraping/monitoring
-    SLACK = "slack"
-    WEBHOOK = "webhook"
-    SPREADSHEET = "spreadsheet"
-    CALENDAR = "calendar"
-    CRM = "crm"
-    CUSTOM = "custom"
+from ..enums import ToolType  # Import from centralized enums
 
 
 class Tool(Base):

@@ -354,6 +354,71 @@ elif tool_type not in VALID_TYPES:
 - ✅ Log warnings for unknown values (don't fail silently)
 - ✅ Use Alembic for enum alterations in production
 
+#### ⚠️ **IMPORTANT: Enterprise-Grade Solution Applied**
+
+The initial quick fix (adding 'WEBSITE' to model, hard-coded TYPE_MAPPING) was **NOT enterprise-ready**.
+
+**✅ Proper Enterprise Solution Implemented:**
+
+1. **Centralized Enum Management** (`database/enums.py`):
+   ```python
+   # Single source of truth for all enums
+   class ToolType(str, Enum):
+       API = "api"
+       DATABASE = "database"
+       # ... all types
+       CUSTOM = "custom"
+       
+       @classmethod
+       def from_legacy(cls, value: str) -> 'ToolType':
+           """Convert legacy value, fallback to CUSTOM"""
+           # Handles normalization and mapping
+   
+   # Centralized legacy mapping
+   TOOL_TYPE_LEGACY_MAPPING = {
+       'web': ToolType.WEB_SCRAPING,
+       'website': ToolType.WEBSITE,
+       # ... all legacy mappings
+   }
+   ```
+
+2. **Alembic Migrations** (Not direct model changes):
+   ```bash
+   # Proper way to alter enums in production
+   alembic init alembic
+   alembic revision -m "add_website_to_tooltype"
+   alembic upgrade head
+   ```
+
+3. **Models Import from Centralized Enums**:
+   ```python
+   # database/models/tool.py
+   from ..enums import ToolType  # Not local definition!
+   ```
+
+4. **Migration Script Uses Enum Methods**:
+   ```python
+   # Use centralized logic
+   tool_type_enum = ToolType.from_legacy(legacy_value)
+   # Not hard-coded TYPE_MAPPING in migration script
+   ```
+
+**Why This Matters:**
+- ✅ **Single Source of Truth:** One place to manage all enums
+- ✅ **Reusability:** API validators, migrations, models all use same enums
+- ✅ **Type Safety:** Centralized validation logic
+- ✅ **Maintainability:** Add new type once, works everywhere
+- ✅ **Schema Versioning:** Alembic tracks all enum changes
+- ✅ **Rollback Capability:** Can revert enum changes via Alembic
+
+**Enterprise Best Practices:**
+- 🏢 Never modify models directly in production
+- 🏢 Always use migration tools (Alembic)
+- 🏢 Centralize business logic (enums, validators)
+- 🏢 Document all schema changes
+- 🏢 Test migrations before production
+- 🏢 Provide rollback paths
+
 ---
 
 ## 🔵 **BEST PRACTICES LEARNED**
