@@ -71,6 +71,9 @@ else\n\
       echo "🔧 Fixing tools table (removing PostgreSQL enum)..."\n\
       python scripts/fix_tools_table.py 2>&1\n\
       echo ""\n\
+      echo "🔧 Adding missing columns to users table..."\n\
+      python scripts/add_user_columns.py 2>&1\n\
+      echo ""\n\
       echo "📦 Migrating data from JSON to Database..."\n\
       python scripts/migrate_to_db_complete.py 2>&1\n\
       echo ""\n\
