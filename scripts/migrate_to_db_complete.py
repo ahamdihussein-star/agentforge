@@ -355,6 +355,15 @@ def migrate_tools(org_mapping):
     
     count = 0
     
+    # Tool type mapping for legacy types
+    TYPE_MAPPING = {
+        'website': 'website',
+        'web': 'web_scraping',
+        'scraper': 'web_scraping',
+        'scraping': 'web_scraping',
+        'search': 'web_search',
+    }
+    
     with get_db_session() as session:
         for tool_data in tools:
             try:
@@ -373,10 +382,18 @@ def migrate_tools(org_mapping):
                 owner = session.query(User).first()
                 owner_id = owner.id if owner else uuid.uuid4()
                 
+                # Normalize tool type
+                tool_type = tool_data.get('type', 'api').lower()
+                if tool_type in TYPE_MAPPING:
+                    tool_type = TYPE_MAPPING[tool_type]
+                elif tool_type not in ['api', 'database', 'rag', 'email', 'web_scraping', 'web_search', 'website', 'slack', 'webhook', 'spreadsheet', 'calendar', 'crm', 'custom']:
+                    print(f"   ⚠️  Unknown tool type '{tool_type}' for '{tool_data['name']}', using 'custom'")
+                    tool_type = 'custom'
+                
                 tool = Tool(
                     id=tool_id,
                     org_id=org_id,
-                    type=tool_data.get('type', 'api'),
+                    type=tool_type,
                     name=tool_data['name'],
                     description=tool_data.get('description', ''),
                     config=tool_data.get('config', {}),
@@ -394,7 +411,7 @@ def migrate_tools(org_mapping):
                 
                 session.add(tool)
                 session.commit()
-                print(f"✅ Migrated tool: {tool_data['name']}")
+                print(f"✅ Migrated tool: {tool_data['name']} (type: {tool_type})")
                 count += 1
                 
             except Exception as e:

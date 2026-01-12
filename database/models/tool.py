@@ -19,6 +19,7 @@ class ToolType(str, Enum):
     EMAIL = "email"
     WEB_SCRAPING = "web_scraping"
     WEB_SEARCH = "web_search"
+    WEBSITE = "website"  # Website scraping/monitoring
     SLACK = "slack"
     WEBHOOK = "webhook"
     SPREADSHEET = "spreadsheet"

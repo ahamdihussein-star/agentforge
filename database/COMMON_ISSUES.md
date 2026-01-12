@@ -241,6 +241,121 @@ session.commit()
 
 ---
 
+## 🔴 **ENUM TYPE MISMATCHES**
+
+### Issue #6: Invalid Enum Value During Migration
+**Date:** 2026-01-12  
+**Severity:** HIGH  
+**Occurrences:** 1 time (tool type during migration)
+
+#### Problem:
+JSON data contains enum values that don't exist in the database Enum definition.
+
+```python
+# ❌ JSON has: type = "website"
+# ❌ Database Enum: API, DATABASE, RAG, EMAIL, WEB_SCRAPING, WEB_SEARCH...
+# ❌ No "WEBSITE" in enum!
+```
+
+#### Error:
+```
+psycopg2.errors.InvalidTextRepresentation: invalid input value 
+for enum tooltype: "website"
+LINE 1: ...'::UUID, 'website',...
+```
+
+#### Root Cause:
+- **Mismatch between legacy data and schema:**
+  - Old JSON files use `type = "website"`
+  - New database schema didn't include `"website"` in ToolType enum
+  - PostgreSQL strictly validates enum values
+
+#### Solution - Two Approaches:
+
+**1. Add Missing Enum Values (Preferred):**
+```python
+# ✅ Update Enum to include all legacy values
+class ToolType(str, Enum):
+    API = "api"
+    DATABASE = "database"
+    RAG = "rag"
+    EMAIL = "email"
+    WEB_SCRAPING = "web_scraping"
+    WEB_SEARCH = "web_search"
+    WEBSITE = "website"  # ← Add missing value
+    SLACK = "slack"
+    # ... etc
+```
+
+**2. Map Legacy Values in Migration Script:**
+```python
+# ✅ Normalize/map legacy values during migration
+TYPE_MAPPING = {
+    'website': 'website',      # Direct mapping
+    'web': 'web_scraping',     # Legacy → New
+    'scraper': 'web_scraping',
+    'scraping': 'web_scraping',
+    'search': 'web_search',
+}
+
+tool_type = tool_data.get('type', 'api').lower()
+if tool_type in TYPE_MAPPING:
+    tool_type = TYPE_MAPPING[tool_type]
+elif tool_type not in VALID_TYPES:
+    print(f"⚠️  Unknown tool type '{tool_type}', using 'custom'")
+    tool_type = 'custom'
+```
+
+#### Best Practices for Enums:
+
+1. **Include 'CUSTOM' or 'OTHER' catch-all:**
+   ```python
+   class ToolType(str, Enum):
+       # ... other types ...
+       CUSTOM = "custom"  # Catch-all for unknown types
+   ```
+
+2. **Document enum values in migration:**
+   ```python
+   # At top of migration script
+   VALID_TOOL_TYPES = ['api', 'database', 'rag', 'email', ...]
+   ```
+
+3. **Validate before migrating:**
+   ```python
+   # Pre-migration validation
+   for tool in tools:
+       if tool['type'] not in VALID_TOOL_TYPES:
+           print(f"WARNING: Invalid type '{tool['type']}'")
+   ```
+
+4. **Use TYPE_MAPPING for backward compatibility:**
+   - Old system uses different type names
+   - New system standardizes enum values
+   - Migration script bridges the gap
+
+5. **PostgreSQL Enum Alterations:**
+   ```sql
+   -- Adding new enum value to existing enum type
+   ALTER TYPE tooltype ADD VALUE 'website';
+   -- Note: This requires Alembic migration, not CREATE TABLE
+   ```
+
+#### Why This Matters:
+- **Data integrity:** PostgreSQL enforces enum constraints strictly
+- **Migration safety:** Legacy data must map to new schema
+- **Type evolution:** Systems evolve, enums grow over time
+- **Multi-source data:** Different sources may use different terminology
+
+#### Prevention:
+- ✅ Audit existing JSON data for all unique enum values BEFORE creating models
+- ✅ Include "CUSTOM" or "OTHER" as catch-all in all enums
+- ✅ Create TYPE_MAPPING dictionary in migration scripts
+- ✅ Log warnings for unknown values (don't fail silently)
+- ✅ Use Alembic for enum alterations in production
+
+---
+
 ## 🔵 **BEST PRACTICES LEARNED**
 
 ### 1. Column Naming Conventions
@@ -345,6 +460,7 @@ grep -r "ForeignKey(" database/models/
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Enum type mismatch | ✅ Fixed | Added 'website' to ToolType, TYPE_MAPPING in migration |
 | 2026-01-12 | Migration duplicate key | ✅ Fixed | Check all unique constraints, use UPSERT pattern |
 | 2026-01-12 | `metadata` reserved | ✅ Fixed | Renamed to `extra_metadata` in 5 models |
 | 2026-01-11 | ForeignKey circular deps | ⚠️ Workaround | Removed FKs temporarily |
