@@ -114,7 +114,11 @@ def migrate_organizations():
 
 
 def migrate_roles(org_mapping):
-    """Migrate roles from JSON to database"""
+    """Migrate roles from JSON to database
+    
+    IMPORTANT: roles.json uses STRING IDs like 'role_super_admin', not UUIDs!
+    We must generate UUIDs and store mapping for user.role_ids lookup.
+    """
     print("\n" + "="*60)
     print("🎭 Migrating Roles...")
     print("="*60)
@@ -132,21 +136,36 @@ def migrate_roles(org_mapping):
         roles = [data]
     
     count = 0
-    id_mapping = {}
+    id_mapping = {}  # old_string_id → new_uuid
     
     with get_db_session() as session:
         for role_data in roles:
             try:
-                old_id = role_data['id']
+                old_id = role_data['id']  # e.g., "role_super_admin"
+                role_name = role_data.get('name', 'unknown')
                 
-                # Use JSON UUID directly (no generation!)
+                # Check if it's already a UUID or a string ID
                 try:
                     role_uuid = uuid.UUID(old_id)
+                    print(f"   ✅ Using existing UUID for '{role_name}': {role_uuid}")
                 except ValueError:
-                    print(f"   ❌ INVALID UUID in JSON for role '{role_data.get('name', 'unknown')}': {old_id}")
-                    continue  # Skip invalid UUIDs
+                    # It's a string ID (e.g., "role_super_admin"), generate UUID
+                    # BUT: Check if we already created this role by name
+                    existing_by_name = session.query(Role).filter_by(name=role_name).first()
+                    if existing_by_name:
+                        role_uuid = existing_by_name.id
+                        id_mapping[old_id] = role_uuid
+                        print(f"⏭️  Role '{role_name}' already exists with UUID: {role_uuid}")
+                        continue
+                    else:
+                        # Generate new UUID for string ID
+                        role_uuid = uuid.uuid4()
+                        print(f"   🔄 Generated UUID for '{old_id}' (name: {role_name}): {role_uuid}")
                 
-                # Check if already exists (by ID, not name!)
+                # Store mapping (for user role_ids lookup later)
+                id_mapping[old_id] = role_uuid
+                
+                # Check if already exists by UUID
                 existing = session.query(Role).filter_by(id=role_uuid).first()
                 if existing:
                     print(f"⏭️  Role with ID '{role_uuid}' already exists (name: {existing.name}), skipping")
@@ -542,8 +561,8 @@ def main():
     try:
         # Migrate in order (dependencies)
         org_count, org_mapping = migrate_organizations()
-        role_count = migrate_roles(org_mapping)  # ← No ID mapping returned!
-        user_count = migrate_users(org_mapping, role_mapping={})  # ← Empty role_mapping
+        role_count, role_mapping = migrate_roles(org_mapping)  # ← Returns mapping!
+        user_count = migrate_users(org_mapping, role_mapping)  # ← Use role_mapping!
         agent_count = migrate_agents(org_mapping)
         tool_count = migrate_tools(org_mapping)
         setting_count = migrate_settings()
