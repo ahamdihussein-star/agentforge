@@ -1,6 +1,9 @@
 #!/bin/bash
 # Pre-commit validation for database changes
 # Run this before committing database model changes
+# NOW WITH STRICT MODE - FAILS ON ANY ERROR
+
+set -e  # Exit immediately on error
 
 echo "🔍 Database Models Validation"
 echo "=============================="

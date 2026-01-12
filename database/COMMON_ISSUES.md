@@ -701,7 +701,10 @@ grep -r "ForeignKey(" database/models/
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
-| 2026-01-12 | Import error after conversion | ✅ Fixed | Import JSON + JSONB alias |
+| 2026-01-12 | **AUTOMATED PREVENTION** | ✅ **ACTIVE** | Pre-commit hook + comprehensive checks |
+| 2026-01-12 | ARRAY(Float) not converted | ✅ Fixed | Changed to JSONArray |
+| 2026-01-12 | role.py still imports PG types | ✅ Fixed | Updated to use ..types |
+| 2026-01-12 | Import error after conversion | ✅ Fixed | Import JSON + JSONB alias AFTER imports |
 | 2026-01-12 | PostgreSQL enum not updated | ⚠️ Abandoned | Switched to VARCHAR (industry standard) |
 | 2026-01-12 | Enum type mismatch | ✅ Fixed | Centralized enums + VARCHAR instead of PG enum |
 | 2026-01-12 | Migration duplicate key | ✅ Fixed | Check all unique constraints, use UPSERT pattern |
@@ -711,5 +714,62 @@ grep -r "ForeignKey(" database/models/
 
 ---
 
+## 🛡️ **AUTOMATED PREVENTION SYSTEM (NEW!)**
+
+### System Overview:
+**3-Layer Defense Against Repeated Mistakes:**
+
+1. **Pre-Commit Hook** (`.git/hooks/pre-commit`)
+   - Runs automatically before EVERY commit
+   - Blocks commits with database issues
+   - Cannot be bypassed easily
+
+2. **Comprehensive Check Script** (`scripts/comprehensive_db_check.sh`)
+   - Checks all 7 documented issues
+   - Validates PostgreSQL-agnostic design
+   - Exit code 1 if ANY error found
+
+3. **Enhanced Documentation** (this file + `.cursorrules`)
+   - All issues documented with examples
+   - Clear prevention strategies
+   - Quick reference checklist
+
+### Usage:
+
+**Manual Check (anytime):**
+```bash
+./scripts/comprehensive_db_check.sh
+```
+
+**Auto Check (on commit):**
+```bash
+git add database/models/user.py
+git commit -m "Update user model"
+# ✅ Pre-commit hook runs automatically
+# ❌ Commit blocked if issues found
+```
+
+**Check Status:**
+```bash
+ls -la .git/hooks/pre-commit  # Should be executable
+cat .git/hooks/pre-commit      # Verify content
+```
+
+### What It Checks:
+
+| Check | Issue # | Description |
+|-------|---------|-------------|
+| `metadata` column | #1 | Reserved SQLAlchemy word |
+| PostgreSQL imports | #7 | `sqlalchemy.dialects.postgresql` forbidden |
+| `ARRAY(...)` usage | #7 | Must use `JSONArray` |
+| `UUID(as_uuid=True)` | #7 | Must use `UUID` from `..types` |
+| Native enums | #6 | Should use `String` + Python enum |
+| Import consistency | #7 | Verify JSON/JSONB imports |
+| ForeignKeys | #2 | Circular dependency checks |
+| UTC timestamps | Best Practice | All times must be UTC |
+
+---
+
 **💡 Remember: Prevention is better than debugging on production!**
+**🚨 ZERO TOLERANCE for repeated mistakes - system will block them!**
 

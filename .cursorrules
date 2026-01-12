@@ -1,67 +1,159 @@
 # AgentForge AI Development Rules
 
+## 🚨 CRITICAL - READ BEFORE ANY DATABASE WORK!
+
+### MANDATORY PRE-WORK CHECKLIST:
+
+**BEFORE touching ANY database file:**
+1. ✅ Read `database/COMMON_ISSUES.md` (7 documented issues)
+2. ✅ Run `./scripts/comprehensive_db_check.sh`
+3. ✅ Check `.cursorrules` for latest rules
+
+**BEFORE committing:**
+1. ✅ Run `./scripts/comprehensive_db_check.sh` (auto-runs via pre-commit hook)
+2. ✅ Verify: `python -c "from database.models import *"` (if Python available)
+3. ✅ Review changes against COMMON_ISSUES.md
+
+---
+
 ## 🚨 CRITICAL - DATABASE RULES (READ FIRST!)
 
-### Before Creating/Modifying Database Models:
+### Reserved SQLAlchemy Words (NEVER USE):
+- ❌ `metadata` (use `extra_metadata`, `user_metadata`, or `custom_data`)
+- ❌ `registry`
+- ❌ `__tablename__` (already used)
+- ❌ `__mapper__`
+- ❌ `__table__`
 
-1. **ALWAYS read `database/COMMON_ISSUES.md` FIRST!**
-2. **NEVER use these reserved SQLAlchemy words as column names:**
-   - `metadata` ❌ (use `extra_metadata`, `user_metadata`, or `custom_data`)
-   - `registry` ❌
-   - `__tablename__` ❌ (already used)
-   - `__mapper__` ❌
-   - `__table__` ❌
+### Quick Checks:
+```bash
+# Before creating/modifying models:
+grep -r "metadata = Column" database/models/
+grep -r "from sqlalchemy.dialects.postgresql" database/models/
+grep -r "ARRAY(" database/models/
+grep -r "UUID(as_uuid=True)" database/models/
+```
 
-3. **Search before adding:**
-   ```bash
-   # Check if 'metadata' exists
-   grep -r "metadata = Column" database/models/
-   
-   # Check for ForeignKey issues
-   grep -r "ForeignKey(" database/models/
-   ```
-
-4. **ForeignKey Rules:**
-   - If circular dependency exists, use `use_alter=True`
-   - OR temporarily remove ForeignKey constraints
-   - Always check import order (dependencies first)
-
-5. **Test locally before commit:**
-   ```bash
-   python database/init_db.py
-   ```
+---
 
 ## 🏢 ENTERPRISE BEST PRACTICES (MANDATORY!)
 
-### Database-Agnostic Design:
-- ❌ NEVER use PostgreSQL-specific types (UUID(as_uuid=True), JSONB, ARRAY, INET)
-- ✅ ALWAYS use database-agnostic types from `database/types.py`
-- ✅ Import: `from ..types import UUID, JSON, JSONArray`
-- ✅ Keep alias for compatibility: `JSONB = JSON`
-- ✅ Test imports: `python -c "from database.models import *"` before commit
+### Database-Agnostic Design (CRITICAL!):
+- ❌ **NEVER** use PostgreSQL-specific types
+- ❌ `UUID(as_uuid=True)` → Use `UUID` from `..types`
+- ❌ `JSONB` direct import → Use `JSON` from `..types`, alias `JSONB = JSON`
+- ❌ `ARRAY(...)` → Use `JSONArray` from `..types`
+- ❌ `INET` → Use `String(45)` for IP addresses
+- ❌ `from sqlalchemy.dialects.postgresql import ...` → FORBIDDEN!
+
+✅ **ALWAYS** use types from `database/types.py`:
+```python
+from ..types import UUID, JSON, JSONArray
+JSONB = JSON  # Alias after ALL imports
+```
+
+✅ **ALWAYS** follow PEP 8 import order:
+```python
+# 1. Standard library
+from datetime import datetime
+from enum import Enum
+
+# 2. Third-party
+from sqlalchemy import Column, String, ...
+from sqlalchemy.orm import relationship
+
+# 3. Local
+from ..base import Base
+from ..types import UUID, JSON, JSONArray
+
+# 4. Then assignments (AFTER all imports!)
+JSONB = JSON
+```
 
 ### Enum Management:
-- ❌ NEVER define enums in individual model files
-- ✅ ALWAYS use centralized `database/enums.py`
-- ✅ ALWAYS provide `.from_legacy()` method for backward compatibility
-- ✅ ALWAYS include 'CUSTOM' or 'OTHER' catch-all value
-- ✅ ALWAYS use Alembic migrations for enum changes (not direct model edits)
+- ❌ **NEVER** use PostgreSQL native enums (SQLEnum with native_enum=True)
+- ✅ **ALWAYS** use `String` column + Python Enum for validation
+- ✅ **ALWAYS** use centralized `database/enums.py`
+- ✅ **ALWAYS** provide `.from_legacy()` method for backward compatibility
+- ✅ **ALWAYS** include 'CUSTOM' or 'OTHER' catch-all value
 
 ### Schema Changes:
-- ❌ NEVER modify production database models directly
-- ✅ ALWAYS use Alembic migrations:
+- ❌ **NEVER** modify production database models directly
+- ✅ **ALWAYS** use Alembic migrations:
   ```bash
   alembic revision -m "description"
   alembic upgrade head
   ```
-- ✅ ALWAYS test migrations locally first
-- ✅ ALWAYS provide rollback path (downgrade)
+- ✅ **ALWAYS** test migrations locally first
+- ✅ **ALWAYS** provide rollback path (downgrade)
 
 ### Code Organization:
 - ✅ Single Source of Truth: One place for business logic
-- ✅ DRY Principle: Don't repeat enum definitions
+- ✅ DRY Principle: Don't repeat enum definitions or types
 - ✅ Type Safety: Use centralized validators
-- ✅ Reusability: Share enums across models, APIs, migrations
+- ✅ Reusability: Share enums/types across models, APIs, migrations
+
+---
+
+## 🛡️ AUTOMATED PREVENTION SYSTEM
+
+### Pre-Commit Hook (Installed):
+- Automatically runs `scripts/comprehensive_db_check.sh`
+- Blocks commits with database issues
+- Cannot bypass without `--no-verify` (not recommended)
+
+### Validation Scripts:
+1. `scripts/validate_db_models.sh` - 9 automated checks
+2. `scripts/comprehensive_db_check.sh` - All known issues (NEW!)
+
+### Documentation:
+- `database/COMMON_ISSUES.md` - 7 documented issues with solutions
+- Update this file when new issues discovered
+
+---
+
+## 📋 PRE-COMMIT CHECKLIST
+
+Before committing database changes:
+
+**Models:**
+- [ ] No `metadata` column
+- [ ] No PostgreSQL-specific imports
+- [ ] All types from `database/types.py`
+- [ ] Imports follow PEP 8 order
+- [ ] `JSONB = JSON` AFTER all imports
+- [ ] Run `./scripts/comprehensive_db_check.sh`
+
+**Migrations:**
+- [ ] UPSERT pattern for all unique constraints
+- [ ] Test migration 2+ times
+- [ ] Proper error handling with rollback
+
+**General:**
+- [ ] UTC timestamps (`datetime.utcnow`)
+- [ ] Explicit index names
+- [ ] No ForeignKey without relationships (or vice versa)
+
+---
+
+## 🚨 ZERO TOLERANCE FOR REPEATED MISTAKES
+
+**If same error repeats:**
+1. Add to `database/COMMON_ISSUES.md` immediately
+2. Add check to `scripts/comprehensive_db_check.sh`
+3. Update this `.cursorrules` file
+4. Consider adding to pre-commit hook
+
+**Current Documented Issues (NEVER REPEAT):**
+1. ✅ `metadata` reserved word
+2. ✅ ForeignKey circular dependencies
+3. ✅ Relationships without ForeignKeys
+4. ✅ Pydantic namespace conflicts
+5. ✅ Migration duplicate key violations
+6. ✅ PostgreSQL enum type mismatches
+7. ✅ Import errors after type conversion
+
+---
 
 ## General Development Rules
 
@@ -70,12 +162,6 @@
 - Use type hints
 - Add docstrings for all functions/classes
 - Keep functions under 50 lines when possible
-
-### Database
-- Always use UTC timestamps: `datetime.utcnow()`
-- Use UUID for primary keys: `UUID(as_uuid=True)`
-- Add indexes for frequently queried columns
-- Use `JSONB` for flexible data, not `JSON`
 
 ### Security
 - Never commit API keys or secrets
@@ -88,13 +174,16 @@
 - Verify migrations don't break existing data
 - Check for SQL injection vulnerabilities
 
-## Documentation
+### Documentation
 - Update `database/COMMON_ISSUES.md` when you encounter new issues
 - Keep `MASTER_DOCUMENTATION_UPDATED.md` in sync with changes
 - Document breaking changes
 
-## Git Commit Messages
+### Git Commit Messages
 - Use conventional commits format
 - Reference issues when applicable
 - Be descriptive but concise
 
+---
+
+**🎯 REMEMBER: Prevention > Debugging in Production!**
