@@ -59,15 +59,23 @@ class UserService:
         Get all users (optionally filtered by org)
         Returns: List of Core User models
         """
-        with get_db_session() as db:
-            query = db.query(DBUser)
-            
-            if org_id:
-                query = query.filter(DBUser.org_id == org_id)
-            
-            db_users = query.all()
-            
-            return [UserService._db_to_core_user(db_user) for db_user in db_users]
+        try:
+            with get_db_session() as db:
+                query = db.query(DBUser)
+                
+                if org_id:
+                    query = query.filter(DBUser.org_id == org_id)
+                
+                db_users = query.all()
+                
+                print(f"🔍 Found {len(db_users)} users in database")
+                
+                return [UserService._db_to_core_user(db_user) for db_user in db_users]
+        except Exception as e:
+            print(f"❌ Error in get_all_users: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     @staticmethod
     def create_user(user: User) -> User:

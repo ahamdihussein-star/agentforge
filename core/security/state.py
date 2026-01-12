@@ -187,28 +187,33 @@ class SecurityState:
     
     def load_from_disk(self):
         """Load security state from disk (with database priority)"""
+        import traceback
+        
         data_dir = os.environ.get("DATA_PATH", "data")
         security_dir = os.path.join(data_dir, "security")
         
         # Try to load from database first
+        db_users_loaded = False
         try:
             from database.services import UserService
             
+            print("📊 Attempting to load users from database...")
             # Check if database is available
             db_users = UserService.get_all_users()
             if db_users:
-                print("📊 Loading users from database...")
                 for user in db_users:
                     self.users[user.id] = user
                 print(f"✅ Loaded {len(db_users)} users from database")
+                db_users_loaded = True
             else:
                 print("⚠️  No users in database, falling back to files...")
-                # Fall through to file loading
-                raise Exception("No users in DB")
                 
         except Exception as db_error:
             # Fallback to file loading
-            print(f"📂 Loading from files (database unavailable: {db_error})")
+            print(f"❌ Database error: {type(db_error).__name__}: {str(db_error)}")
+            print("📂 Traceback:")
+            traceback.print_exc()
+            print("📂 Loading from files (database unavailable)")
         
         if not os.path.exists(security_dir):
             print("📁 Security data directory not found, using defaults")
