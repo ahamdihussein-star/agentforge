@@ -940,10 +940,133 @@ grep -r "ForeignKey(" database/models/
 
 ---
 
+## 🔴 **PYDANTIC TYPE MISMATCH - DB TO CORE CONVERSION**
+
+### Issue #17: Validation Errors - Type Conversion Missing
+**Date:** 2026-01-12
+**Severity:** CRITICAL
+**Occurrences:** 1 time (database/services/user_service.py)
+
+#### Problem:
+When loading users from database, got 5 Pydantic validation errors due to type mismatches between Database model (SQLAlchemy) and Core model (Pydantic).
+
+```python
+# ❌ WRONG - Direct assignment without type conversion
+return User(
+    id=db_user.id,  # UUID object, expects str
+    org_id=db_user.org_id,  # UUID object, expects str
+    auth_provider=None,  # None, but field is REQUIRED (no Optional)
+    role_ids=db_user.role_ids,  # String '[]', expects List[str]
+    group_ids=db_user.group_ids,  # String '[]', expects List[str]
+)
+```
+
+#### Error:
+```
+pydantic_core._pydantic_core.ValidationError: 5 validation errors for User
+id
+  Input should be a valid string [type=string_type, input_value=UUID('cbcc4ec3-...'), input_type=UUID]
+org_id
+  Input should be a valid string [type=string_type, input_value=UUID('2c969bf1-...'), input_type=UUID]
+auth_provider
+  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]
+role_ids
+  Input should be a valid list [type=list_type, input_value='[]', input_type=str]
+group_ids
+  Input should be a valid list [type=list_type, input_value='[]', input_type=str]
+```
+
+#### Root Cause:
+**Database Model** returns Python native types:
+- `id`, `org_id`, `department_id`: `UUID` objects
+- `role_ids`, `group_ids`: JSON strings like `'[]'` or `'["uuid1","uuid2"]'`
+- `auth_provider`: `None` (for existing users without this field set)
+
+**Core Pydantic Model** expects:
+- `id: str` (line 365 in core/security/models.py)
+- `org_id: str` (line 366)
+- `auth_provider: AuthProvider` - **REQUIRED field!** (line 371)
+- `role_ids: List[str]` (line 383)
+- `group_ids: List[str]` (line 382)
+
+No type conversion was performed in `_db_to_core_user` mapping function.
+
+#### Solution:
+```python
+# ✅ CORRECT - Type conversions for Pydantic validation
+import json
+
+# 1. Convert UUID to string
+user_id = str(db_user.id) if db_user.id else str(uuid.uuid4())
+org_id = str(db_user.org_id) if db_user.org_id else ""
+department_id = str(db_user.department_id) if db_user.department_id else None
+
+# 2. Convert auth_provider to enum (required field!)
+try:
+    auth_provider = AuthProvider(db_user.auth_provider) if db_user.auth_provider else AuthProvider.LOCAL
+except (ValueError, AttributeError):
+    auth_provider = AuthProvider.LOCAL  # Default to LOCAL
+
+# 3. Parse JSON strings to lists
+try:
+    role_ids = json.loads(db_user.role_ids) if isinstance(db_user.role_ids, str) else (db_user.role_ids or [])
+except (json.JSONDecodeError, TypeError):
+    role_ids = []
+
+try:
+    group_ids = json.loads(db_user.group_ids) if isinstance(db_user.group_ids, str) else (db_user.group_ids or [])
+except (json.JSONDecodeError, TypeError):
+    group_ids = []
+
+return User(
+    id=user_id,  # ✅ str
+    org_id=org_id,  # ✅ str
+    auth_provider=auth_provider,  # ✅ AuthProvider enum
+    role_ids=role_ids,  # ✅ List[str]
+    group_ids=group_ids,  # ✅ List[str]
+    # ... rest of fields
+)
+```
+
+#### Why:
+1. **UUID → str**: Pydantic expects string IDs, not UUID objects
+2. **JSON string → List**: Database stores arrays as JSON strings (database-agnostic), must parse
+3. **None → Enum**: `auth_provider` is a **required field** with no `Optional`, must have default
+
+#### Prevention:
+- ✅ **ALWAYS check Pydantic field types before mapping:**
+  ```bash
+  # Read the Core model first
+  grep "class User" -A 50 core/security/models.py | grep "auth_provider\|role_ids"
+  ```
+- ✅ **ALWAYS convert database types:**
+  - UUID objects → `str(uuid_obj)`
+  - JSON strings → `json.loads(json_str)`
+  - Nullable enums → provide default value
+- ✅ **Test with actual database data:**
+  ```python
+  db_user = session.query(DBUser).first()
+  print(f"id type: {type(db_user.id)}")  # <class 'uuid.UUID'>
+  print(f"role_ids: {repr(db_user.role_ids)}")  # '[]'
+  ```
+- ✅ **Add type hints to catch mismatches:**
+  ```python
+  def _db_to_core_user(db_user: DBUser) -> User:
+      # IDE will warn if types don't match
+  ```
+
+#### Related Issues:
+- Issue #12: MFA Schema Mismatch (similar root cause)
+- Issue #14: Missing Database Columns (schema sync)
+- Issue #15: Schema Update Without Migration
+
+---
+
 ## 🔄 **UPDATE LOG**
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Pydantic type mismatch #17 | ✅ Fixed | Added type conversions (UUID→str, JSON→List, None→Enum) |
 | 2026-01-12 | Syntax error (extra parenthesis) #13 | ✅ Fixed | Removed duplicate `)` in user_service.py |
 | 2026-01-12 | MFA schema mismatch #12 | ✅ Fixed | `method`→`methods`, `secret`→`totp_secret` |
 | 2026-01-12 | PBKDF2 import error #11 | ✅ Fixed | Changed to `PBKDF2HMAC` + backend param |
