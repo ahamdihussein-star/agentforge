@@ -40,7 +40,7 @@ class AuditLog(Base):
     # Details
     description = Column(Text)  # Human-readable action description
     changes = Column(JSONB)  # Before/after values: {'field': {'old': ..., 'new': ...}}
-    metadata = Column(JSONB)  # Additional context
+    extra_metadata = Column(JSONB)  # Additional context
     
     # Result
     success = Column(Boolean, nullable=False)

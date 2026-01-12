@@ -83,7 +83,7 @@ class KnowledgeBase(Base):
     updated_by = Column(UUID(as_uuid=True))
     
     # Additional metadata
-    metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSONB, default={})
     
     def __repr__(self):
         return f"<KnowledgeBase {self.name}>"
@@ -174,7 +174,7 @@ class Document(Base):
     updated_by = Column(UUID(as_uuid=True))
     
     # Additional metadata
-    metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSONB, default={})
     
     def __repr__(self):
         return f"<Document {self.filename}>"

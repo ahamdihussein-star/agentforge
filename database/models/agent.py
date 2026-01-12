@@ -84,7 +84,7 @@ class Agent(Base):
     updated_by = Column(UUID(as_uuid=True))
     
     # Additional metadata
-    metadata = Column(JSONB, default={})  # Extensible for future fields
+    extra_metadata = Column(JSONB, default={})  # Extensible for future fields
     
     def __repr__(self):
         return f"<Agent {self.name} (org:{self.org_id})>"

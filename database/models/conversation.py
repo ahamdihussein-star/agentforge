@@ -64,7 +64,7 @@ class Conversation(Base):
     last_message_at = Column(DateTime)  # Last activity
     
     # Additional metadata
-    metadata = Column(JSONB, default={})  # Tags, labels, etc.
+    extra_metadata = Column(JSONB, default={})  # Tags, labels, etc.
     
     def __repr__(self):
         return f"<Conversation {self.title} (agent:{self.agent_id})>"
