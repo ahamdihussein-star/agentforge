@@ -221,20 +221,18 @@ def migrate_users(org_mapping, role_mapping):
             try:
                 old_id = user_data['id']
                 
-                # Check if already exists
-                existing = session.query(User).filter_by(email=user_data['email']).first()
-                if existing:
-                    print(f"⏭️  User '{user_data['email']}' already exists, storing ID mapping")
-                    id_mapping[old_id] = existing.id  # ← FIX: Store mapping!
-                    count += 1
-                    continue
-                
-                # Parse user ID
+                # Use JSON UUID directly (no generation!)
                 try:
                     user_uuid = uuid.UUID(old_id)
                 except ValueError:
-                    user_uuid = uuid.uuid4()
-                    print(f"   🔄 Generated new UUID for user '{user_data['email']}': {user_uuid}")
+                    print(f"   ❌ INVALID UUID in JSON for user '{user_data.get('email', 'unknown')}': {old_id}")
+                    continue  # Skip invalid UUIDs
+                
+                # Check if already exists
+                existing = session.query(User).filter_by(id=user_uuid).first()  # ← Check by ID, not email!
+                if existing:
+                    print(f"⏭️  User with ID '{user_uuid}' already exists (email: {existing.email}), skipping")
+                    continue
                 
                 # Map org_id
                 old_org_id = user_data.get('org_id')
@@ -283,8 +281,7 @@ def migrate_users(org_mapping, role_mapping):
                 
                 session.add(user)
                 session.commit()
-                print(f"✅ Migrated user: {user_data['email']}")
-                id_mapping[old_id] = user_uuid  # ← Store mapping for new users too!
+                print(f"✅ Migrated user: {user_data['email']} (ID: {user_uuid})")
                 count += 1
                 
             except Exception as e:
@@ -293,8 +290,8 @@ def migrate_users(org_mapping, role_mapping):
                 traceback.print_exc()
                 session.rollback()
     
-    print(f"\n📊 Total users migrated/updated: {count}")
-    return count, id_mapping  # ← Return mapping!
+    print(f"\n📊 Total users migrated: {count}")
+    return count  # ← No ID mapping needed! IDs are preserved!
 
 
 def migrate_agents(org_mapping):
@@ -546,16 +543,10 @@ def main():
         # Migrate in order (dependencies)
         org_count, org_mapping = migrate_organizations()
         role_count, role_mapping = migrate_roles(org_mapping)
-        user_count, user_mapping = migrate_users(org_mapping, role_mapping)  # ← Now returns mapping!
+        user_count = migrate_users(org_mapping, role_mapping)  # ← No ID mapping returned!
         agent_count = migrate_agents(org_mapping)
         tool_count = migrate_tools(org_mapping)
         setting_count = migrate_settings()
-        
-        # Log ID mappings for debugging
-        print(f"\n📋 ID Mappings Generated:")
-        print(f"   Organizations: {len(org_mapping)} mappings")
-        print(f"   Roles: {len(role_mapping)} mappings")
-        print(f"   Users: {len(user_mapping)} mappings")
         
         # Verify
         verify_migration()
