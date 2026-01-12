@@ -33,6 +33,13 @@
 
 ## 🏢 ENTERPRISE BEST PRACTICES (MANDATORY!)
 
+### Database-Agnostic Design:
+- ❌ NEVER use PostgreSQL-specific types (UUID(as_uuid=True), JSONB, ARRAY, INET)
+- ✅ ALWAYS use database-agnostic types from `database/types.py`
+- ✅ Import: `from ..types import UUID, JSON, JSONArray`
+- ✅ Keep alias for compatibility: `JSONB = JSON`
+- ✅ Test imports: `python -c "from database.models import *"` before commit
+
 ### Enum Management:
 - ❌ NEVER define enums in individual model files
 - ✅ ALWAYS use centralized `database/enums.py`

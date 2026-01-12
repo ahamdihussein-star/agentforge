@@ -489,6 +489,103 @@ python database/init_db.py
 
 ---
 
+## 🔴 **IMPORT ERRORS AFTER TYPE CONVERSION**
+
+### Issue #7: NameError After Database-Agnostic Conversion
+**Date:** 2026-01-12  
+**Severity:** HIGH  
+**Occurrences:** 1 time (after conversion script)
+
+#### Problem:
+After converting from PostgreSQL-specific types to database-agnostic types, models had import errors.
+
+```python
+# ❌ WRONG Import Pattern:
+from ..types import UUID, JSON as JSONB
+
+# Code uses:
+user_metadata = Column(JSON, default={})
+# Error: NameError: name 'JSON' is not defined
+```
+
+#### Error:
+```
+NameError: name 'JSON' is not defined. Did you mean: 'JSONB'?
+```
+
+#### Root Cause:
+- Conversion script changed `Column(JSONB, ...)` to `Column(JSON, ...)`
+- BUT import was `JSON as JSONB` (only JSONB available in scope)
+- Code now references `JSON` which doesn't exist
+- Inconsistent naming between import and usage
+
+#### Solution:
+```python
+# ✅ CORRECT Import Pattern:
+from ..types import UUID, JSON, JSONArray
+JSONB = JSON  # Alias for backward compatibility
+
+# Now both work:
+user_metadata = Column(JSON, default={})  # ✅
+config = Column(JSONB, default={})        # ✅
+```
+
+#### Best Practices for Type Conversions:
+
+1. **Import Both Names:**
+   ```python
+   from ..types import UUID, JSON, JSONArray
+   JSONB = JSON  # Keep alias for compatibility
+   ```
+
+2. **Update Conversion Script:**
+   ```python
+   # Pattern for replacements:
+   REPLACEMENTS = [
+       # Import: Add all needed types
+       (r'from sqlalchemy\.dialects\.postgresql import UUID, JSONB',
+        'from ..types import UUID, JSON, JSONArray\nJSONB = JSON'),
+       
+       # Usage: Update column definitions
+       (r'Column\(JSONB', 'Column(JSON'),
+   ]
+   ```
+
+3. **Test Imports Before Commit:**
+   ```bash
+   # Quick validation
+   python -c "from database.models import User, Agent, Tool"
+   # Should not raise ImportError
+   ```
+
+4. **Consistent Naming Strategy:**
+   - Choose: `JSON` (new standard) OR `JSONB` (PostgreSQL legacy)
+   - Use consistently across all models
+   - Keep alias for transition period
+
+5. **Automated Validation:**
+   ```bash
+   # Check for undefined names in models
+   grep -r "Column(JSON" database/models/*.py
+   # Ensure JSON is imported in all files
+   ```
+
+#### Why This Matters:
+- **Deployment Failures:** ImportError crashes application startup
+- **Silent Errors:** May not be caught until runtime
+- **Inconsistency:** Mix of JSON/JSONB confuses developers
+- **Migration Risk:** Type conversion scripts must be tested
+
+#### Prevention:
+- ✅ Always import all types used in model
+- ✅ Test imports immediately after conversion
+- ✅ Keep alias during transition (JSONB = JSON)
+- ✅ Run `python -c "from database.models import *"` before commit
+- ✅ Update conversion script to handle imports correctly
+- ✅ Document which name to use (JSON preferred)
+
+---
+
 ## 🔵 **BEST PRACTICES LEARNED**
 
 ### 1. Column Naming Conventions
@@ -545,6 +642,9 @@ Before committing any database model changes:
 - [ ] Ensure all timestamps use `datetime.utcnow` not `datetime.now()`
 - [ ] Verify all UUID columns use `UUID(as_uuid=True)`
 - [ ] Check index names are explicit and unique
+- [ ] **Test imports:** `python -c "from database.models import *"` ← NEW!
+- [ ] **Check database-agnostic types:** No PostgreSQL-specific imports
+- [ ] **Verify JSON imports:** If `Column(JSON` exists, `JSON` must be imported
 
 **Before committing migration scripts:**
 
@@ -557,6 +657,14 @@ Before committing any database model changes:
 - [ ] Log clear messages for create vs. update vs. skip
 - [ ] Include error handling with rollback on each record
 - [ ] Add verification step at end to count migrated records
+
+**Before committing type conversion scripts:**
+
+- [ ] Test resulting imports: `python -c "from database.models import User, Agent, Tool"`
+- [ ] Verify both old and new type names work (e.g., JSON and JSONB)
+- [ ] Check all Column definitions use correct type names
+- [ ] Ensure no duplicate imports (e.g., `UUID, UUID`)
+- [ ] Run validation script: `./scripts/validate_db_models.sh`
 
 ---
 
@@ -593,8 +701,9 @@ grep -r "ForeignKey(" database/models/
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
-| 2026-01-12 | PostgreSQL enum not updated | ✅ Fixed | Alembic migration 001, ALTER TYPE tooltype |
-| 2026-01-12 | Enum type mismatch | ✅ Fixed | Centralized enums + Alembic setup |
+| 2026-01-12 | Import error after conversion | ✅ Fixed | Import JSON + JSONB alias |
+| 2026-01-12 | PostgreSQL enum not updated | ⚠️ Abandoned | Switched to VARCHAR (industry standard) |
+| 2026-01-12 | Enum type mismatch | ✅ Fixed | Centralized enums + VARCHAR instead of PG enum |
 | 2026-01-12 | Migration duplicate key | ✅ Fixed | Check all unique constraints, use UPSERT pattern |
 | 2026-01-12 | `metadata` reserved | ✅ Fixed | Renamed to `extra_metadata` in 5 models |
 | 2026-01-11 | ForeignKey circular deps | ⚠️ Workaround | Removed FKs temporarily |

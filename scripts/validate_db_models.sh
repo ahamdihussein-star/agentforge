@@ -114,6 +114,39 @@ else
 fi
 echo ""
 
+# Check 8: Database-agnostic imports
+echo "8️⃣  Checking for database-agnostic imports..."
+if grep -r "from sqlalchemy.dialects.postgresql" "$MODELS_DIR" 2>/dev/null | grep -v "^#"; then
+    echo -e "${RED}❌ ERROR: Found PostgreSQL-specific imports${NC}"
+    echo "   Use: from ..types import UUID, JSON, JSONArray"
+    grep -r "from sqlalchemy.dialects.postgresql" "$MODELS_DIR" 2>/dev/null | grep -v "^#"
+    ERRORS=$((ERRORS + 1))
+else
+    echo -e "${GREEN}✅ All imports are database-agnostic${NC}"
+fi
+echo ""
+
+# Check 9: Import consistency (JSON must be imported if used)
+echo "9️⃣  Checking import consistency..."
+IMPORT_ERRORS=0
+for file in "$MODELS_DIR"/*.py; do
+    if [ "$(basename "$file")" != "__init__.py" ]; then
+        # Check if file uses Column(JSON but doesn't import JSON
+        if grep -q "Column(JSON" "$file" 2>/dev/null; then
+            if ! grep -q "from.*import.*JSON" "$file" 2>/dev/null && ! grep -q "^JSON = " "$file" 2>/dev/null; then
+                echo -e "${RED}❌ ERROR: $(basename $file) uses JSON but doesn't import it${NC}"
+                ERRORS=$((ERRORS + 1))
+                IMPORT_ERRORS=1
+            fi
+        fi
+    fi
+done
+
+if [ "$IMPORT_ERRORS" -eq 0 ]; then
+    echo -e "${GREEN}✅ All imports are consistent${NC}"
+fi
+echo ""
+
 # Summary
 echo "=============================="
 echo "📊 Validation Summary:"
