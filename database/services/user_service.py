@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from ..base import get_db_session
-from ..models.user import User as DBUser, UserSession, UserMFA
+from ..models.user import User as DBUser, UserSession
+# Import UserMFA table (not the core model)
+from ..models.user import UserMFA as UserMFATable
+
+# Import core models for API compatibility
 from core.security import User, Session as CoreSession, UserStatus, MFAMethod
 
 
