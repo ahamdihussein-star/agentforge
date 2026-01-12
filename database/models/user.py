@@ -58,10 +58,29 @@ class User(Base):
     # Organization (Multi-tenancy) - FK removed for simplicity
     org_id = Column(UUID, nullable=True, index=True)
     
+    # RBAC - Roles & Permissions (stored as JSON arrays)
+    role_ids = Column(JSONArray, default=list)  # List of role UUIDs
+    department_id = Column(UUID, nullable=True, index=True)
+    group_ids = Column(JSONArray, default=list)  # List of group UUIDs
+    
+    # External Auth
+    auth_provider = Column(String(50), default='local')  # local, ldap, oauth, saml
+    external_id = Column(String(255), index=True)  # External system user ID
+    
+    # Security
+    must_change_password = Column(Boolean, default=False)
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
+    last_password_change = Column(DateTime, nullable=True)
+    
+    # Activity Tracking
+    last_active = Column(DateTime, nullable=True)
+    
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login_at = Column(DateTime)
+    last_login = Column(DateTime, nullable=True)  # Alias for compatibility
     
     # Additional data (flexible JSON field)
     user_metadata = Column(JSON, default={})
