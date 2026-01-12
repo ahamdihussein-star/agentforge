@@ -133,6 +133,114 @@ class MyModel(BaseModel):
 
 ---
 
+## 🔴 **DATA MIGRATION ISSUES**
+
+### Issue #5: Duplicate Key Violations on Unique Constraints
+**Date:** 2026-01-12  
+**Severity:** HIGH  
+**Occurrences:** 1 time (organization slug during migration)
+
+#### Problem:
+Migration script checked only for existing `id` (primary key) but not for other unique constraints like `slug`, `email`, etc.
+
+```python
+# ❌ WRONG - Only checks primary key
+existing = session.query(Organization).filter_by(id=org_uuid).first()
+if not existing:
+    session.add(org)  # Can fail if slug already exists!
+```
+
+#### Error:
+```
+psycopg2.errors.UniqueViolation: duplicate key value violates 
+unique constraint "ix_organizations_slug"
+DETAIL: Key (slug)=(default) already exists.
+```
+
+#### Root Cause:
+- First migration: Creates org with `id=uuid1`, `slug='default'`
+- Second migration: New UUID generated `id=uuid2`, but `slug='default'` still exists
+- Database rejects because `slug` has unique constraint
+
+#### Solution:
+```python
+# ✅ CORRECT - Check ALL unique constraints
+existing = session.query(Organization).filter(
+    (Organization.id == org_uuid) | 
+    (Organization.slug == slug)
+).first()
+
+if existing:
+    # UPDATE existing record
+    existing.name = org_data['name']
+    existing.settings = org_data['settings']
+    existing.updated_at = datetime.utcnow()
+    print(f"⏭️  Organization '{name}' already exists (updating)")
+else:
+    # CREATE new record
+    org = Organization(...)
+    session.add(org)
+    print(f"✅ Migrated organization: {name}")
+
+session.commit()
+```
+
+#### Best Practices for Migration Scripts:
+
+1. **Check ALL unique constraints, not just primary key:**
+   ```python
+   # For Organizations:
+   - id (primary key)
+   - slug (unique)
+   
+   # For Users:
+   - id (primary key)
+   - email (unique)
+   
+   # For Roles:
+   - id (primary key)
+   - (org_id, name) if org-scoped
+   ```
+
+2. **Use UPDATE instead of failing:**
+   ```python
+   # ✅ IDEMPOTENT - Can run multiple times safely
+   if existing:
+       update_record(existing, new_data)
+   else:
+       create_record(new_data)
+   ```
+
+3. **Log clearly:**
+   ```python
+   if existing:
+       print(f"⏭️  Record already exists (updating)")
+   else:
+       print(f"✅ Created new record")
+   ```
+
+4. **Test migration script multiple times:**
+   ```bash
+   # Should be safe to run repeatedly
+   python scripts/migrate_to_db.py  # Run 1
+   python scripts/migrate_to_db.py  # Run 2 - should update, not fail
+   ```
+
+#### Why This Matters:
+- **Railway deployments:** May run migration on every deploy
+- **Rollbacks:** Old deployment with migration can re-run
+- **Development:** Developers run migrations multiple times locally
+- **Data fixes:** Need to re-run migration after fixing source data
+
+#### Prevention:
+- ✅ Always identify ALL unique constraints in target table
+- ✅ Use filter with OR conditions for all unique fields
+- ✅ Implement UPSERT pattern (update if exists, insert if not)
+- ✅ Test migration scripts at least 2 times consecutively
+- ✅ Use database constraints as checklist for migration logic
+
+---
+
 ## 🔵 **BEST PRACTICES LEARNED**
 
 ### 1. Column Naming Conventions
@@ -190,6 +298,18 @@ Before committing any database model changes:
 - [ ] Verify all UUID columns use `UUID(as_uuid=True)`
 - [ ] Check index names are explicit and unique
 
+**Before committing migration scripts:**
+
+- [ ] Identify ALL unique constraints in target tables (not just primary keys)
+- [ ] Use UPSERT pattern (check existence, update if exists, insert if not)
+- [ ] Check with OR conditions for all unique fields: `(Model.id == x) | (Model.slug == y)`
+- [ ] Test migration script at least 2 times consecutively (must be idempotent)
+- [ ] Verify all relationship mappings (e.g., org_id, role_ids)
+- [ ] Handle both UUID and non-UUID legacy IDs with smart mapping
+- [ ] Log clear messages for create vs. update vs. skip
+- [ ] Include error handling with rollback on each record
+- [ ] Add verification step at end to count migrated records
+
 ---
 
 ## 🔍 **QUICK SEARCH COMMANDS**
@@ -225,6 +345,7 @@ grep -r "ForeignKey(" database/models/
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Migration duplicate key | ✅ Fixed | Check all unique constraints, use UPSERT pattern |
 | 2026-01-12 | `metadata` reserved | ✅ Fixed | Renamed to `extra_metadata` in 5 models |
 | 2026-01-11 | ForeignKey circular deps | ⚠️ Workaround | Removed FKs temporarily |
 | 2026-01-11 | Relationships without FKs | ⚠️ Workaround | Removed relationships |

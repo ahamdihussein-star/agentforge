@@ -89,6 +89,31 @@ else
 fi
 echo ""
 
+# Check 7: Migration scripts - UPSERT pattern
+echo "7️⃣  Checking migration scripts for UPSERT pattern..."
+if [ -d "scripts" ] && ls scripts/migrate*.py 1> /dev/null 2>&1; then
+    MISSING_UPSERT=false
+    for file in scripts/migrate*.py; do
+        # Check if migration uses filter_by(id=...) without checking other unique fields
+        if grep -q "filter_by(id=" "$file" 2>/dev/null; then
+            # Check if it also uses filter() with OR for unique constraints
+            if ! grep -q "\.filter(" "$file" 2>/dev/null || ! grep -q "|" "$file" 2>/dev/null; then
+                echo -e "${YELLOW}⚠️  WARNING: $file may not check all unique constraints${NC}"
+                echo "   Ensure migration checks: (Model.id == x) | (Model.unique_field == y)"
+                WARNINGS=$((WARNINGS + 1))
+                MISSING_UPSERT=true
+            fi
+        fi
+    done
+    
+    if ! $MISSING_UPSERT; then
+        echo -e "${GREEN}✅ Migration scripts use proper UPSERT pattern${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ No migration scripts to check${NC}"
+fi
+echo ""
+
 # Summary
 echo "=============================="
 echo "📊 Validation Summary:"
