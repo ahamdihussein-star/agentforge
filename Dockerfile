@@ -83,6 +83,9 @@ else\n\
       echo "🔄 Updating user role_ids (Issue #19 fix)..."\n\
       python scripts/update_user_role_ids.py 2>&1\n\
       echo ""\n\
+      echo "🔧 Fixing user roles (ensuring Super Admin role assigned)..."\n\
+      python scripts/fix_user_roles.py 2>&1\n\
+      echo ""\n\
       break\n\
     fi\n\
     \n\
