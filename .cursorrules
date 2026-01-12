@@ -1,0 +1,68 @@
+# AgentForge AI Development Rules
+
+## 🚨 CRITICAL - DATABASE RULES (READ FIRST!)
+
+### Before Creating/Modifying Database Models:
+
+1. **ALWAYS read `database/COMMON_ISSUES.md` FIRST!**
+2. **NEVER use these reserved SQLAlchemy words as column names:**
+   - `metadata` ❌ (use `extra_metadata`, `user_metadata`, or `custom_data`)
+   - `registry` ❌
+   - `__tablename__` ❌ (already used)
+   - `__mapper__` ❌
+   - `__table__` ❌
+
+3. **Search before adding:**
+   ```bash
+   # Check if 'metadata' exists
+   grep -r "metadata = Column" database/models/
+   
+   # Check for ForeignKey issues
+   grep -r "ForeignKey(" database/models/
+   ```
+
+4. **ForeignKey Rules:**
+   - If circular dependency exists, use `use_alter=True`
+   - OR temporarily remove ForeignKey constraints
+   - Always check import order (dependencies first)
+
+5. **Test locally before commit:**
+   ```bash
+   python database/init_db.py
+   ```
+
+## General Development Rules
+
+### Code Style
+- Follow PEP 8
+- Use type hints
+- Add docstrings for all functions/classes
+- Keep functions under 50 lines when possible
+
+### Database
+- Always use UTC timestamps: `datetime.utcnow()`
+- Use UUID for primary keys: `UUID(as_uuid=True)`
+- Add indexes for frequently queried columns
+- Use `JSONB` for flexible data, not `JSON`
+
+### Security
+- Never commit API keys or secrets
+- Always encrypt sensitive data
+- Log all security events
+- Validate all user inputs
+
+### Testing
+- Test database changes locally first
+- Verify migrations don't break existing data
+- Check for SQL injection vulnerabilities
+
+## Documentation
+- Update `database/COMMON_ISSUES.md` when you encounter new issues
+- Keep `MASTER_DOCUMENTATION_UPDATED.md` in sync with changes
+- Document breaking changes
+
+## Git Commit Messages
+- Use conventional commits format
+- Reference issues when applicable
+- Be descriptive but concise
+
