@@ -24,8 +24,7 @@ When creating database models or migration scripts, fields are often **missed** 
 - **Issue #14:** `User` SQLAlchemy model missing 11 fields that exist in Pydantic model
 - **Issue #20:** `Role` SQLAlchemy model missing 4 fields that exist in Pydantic model
 - **Issue #21:** `migrate_roles()` function not storing `permissions` field (even though it exists in both models!)
-- **Issue #22:** Email mismatch between DB (`admin@agentforge.app`) and JSON (`admin@agentforge.to`) caused lookup failures
-- **Issue #23:** User ID mismatch - migration script skipped existing users without preserving ID mapping (`json_id → db_id`)
+- **Issue #22, #23, #24 (THE REAL ROOT CAUSE):** Migration script was **generating new UUIDs** instead of using JSON IDs directly, causing all ID mismatch issues
 
 #### Why It Keeps Happening:
 - **No Automated Validation:** No tool to compare schemas across layers
@@ -1837,12 +1836,109 @@ Then return `id_mapping` from `migrate_users()` and pass it to subsequent script
 
 ---
 
+## 🔴 **GENERATING NEW IDS INSTEAD OF PRESERVING ORIGINALS**
+
+### Issue #24: Migration script generates new UUIDs instead of using JSON IDs (ROOT CAUSE of #22 & #23)
+**Date:** 2026-01-12
+**Severity:** CRITICAL
+**Occurrences:** 1 time (but caused 3 separate issues: #22, #23, #24)
+**Related to:** RECURRING PATTERN #1 (Incomplete Schema Mapping)
+
+#### Problem:
+The **ACTUAL root cause** of all ID mismatch issues (#22, #23) was finally discovered:
+
+**The migration script was GENERATING new UUIDs** instead of **using the existing UUIDs from JSON**:
+
+```python
+# ❌ WRONG - Generates new UUIDs:
+try:
+    user_uuid = uuid.UUID(old_id)
+except ValueError:
+    user_uuid = uuid.uuid4()  # ← PROBLEM: New UUID generated!
+    print(f"   🔄 Generated new UUID for user '{email}': {user_uuid}")
+```
+
+**Result:**
+- **JSON has:** `85900a07-fe70-473b-99d2-795a46862009`
+- **Database gets:** `cbcc4ec3-eec9-48dd-9c75-4f63d81a51cc` (completely different!)
+- All subsequent lookups fail because IDs don't match!
+
+#### The Cascade of Issues This Caused:
+1. **Issue #22:** Thought it was an email mismatch → Tried email-based lookup
+2. **Issue #23:** Realized IDs don't match → Tried ID mapping workaround
+3. **Issue #24:** Finally found the real problem → **Don't generate new IDs!**
+
+#### Root Cause:
+**Violating a fundamental database principle:**
+
+> **"Never regenerate primary keys during migration!"**
+
+Primary keys (IDs) should be **preserved exactly as-is** from source to destination. Generating new IDs breaks:
+- Foreign key references
+- Audit trails
+- External system integrations
+- Data consistency
+
+#### Code Location:
+**`scripts/migrate_to_db_complete.py` (Lines 228-233, old version):**
+
+```python
+# ❌ WRONG:
+try:
+    user_uuid = uuid.UUID(old_id)
+except ValueError:
+    user_uuid = uuid.uuid4()  # ← BAD!
+```
+
+#### Solution:
+**Use JSON IDs directly. If invalid, SKIP the record (don't create a new ID):**
+
+```python
+# ✅ CORRECT:
+try:
+    user_uuid = uuid.UUID(old_id)
+except ValueError:
+    print(f"   ❌ INVALID UUID in JSON: {old_id}")
+    continue  # ← Skip invalid records, don't create new IDs!
+```
+
+**Also, check by ID (not email):**
+
+```python
+# ❌ WRONG - Check by email:
+existing = session.query(User).filter_by(email=user_data['email']).first()
+
+# ✅ CORRECT - Check by ID:
+existing = session.query(User).filter_by(id=user_uuid).first()
+```
+
+#### Why:
+- **IDs are immutable:** They should never change across systems.
+- **Primary keys are sacred:** Don't regenerate them unless absolutely necessary (e.g., migrating from non-UUID system).
+- **Consistency matters:** JSON is the source of truth; preserve its IDs.
+
+#### Impact:
+- ✅ **No more ID mismatches!**
+- ✅ **No need for ID mapping workarounds!**
+- ✅ **No need for email-based lookups!**
+- ✅ **All subsequent scripts work correctly!**
+
+#### Prevention:
+- ✅ **Never use `uuid.uuid4()` in migration scripts** unless migrating from a non-UUID system.
+- ✅ **Always preserve source IDs:** If source has UUIDs, use them as-is.
+- ✅ **Check by ID, not alternative fields:** Use `filter_by(id=...)` not `filter_by(email=...)`.
+- ✅ **Skip invalid records:** If UUID is invalid, skip the record with a clear error message.
+- ✅ **Add to validation script:** Check that migration scripts don't contain `uuid.uuid4()`.
+
+---
+
 ## 🔄 **UPDATE LOG**
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
-| 2026-01-12 | User ID mismatch (migration skip) #23 | ✅ Fixed | Changed to email-based lookup; migration should preserve ID mappings |
-| 2026-01-12 | Email mismatch in user lookup #22 | ✅ Fixed | Changed from email-based to ID-based lookup (now reverted to email!) |
+| 2026-01-12 | Generating new IDs instead of preserving #24 | ✅ Fixed | ROOT CAUSE of #22 & #23! Use JSON IDs directly, no uuid4() |
+| 2026-01-12 | User ID mismatch (migration skip) #23 | ⚠️ Symptom | Real cause was Issue #24 (ID generation) |
+| 2026-01-12 | Email mismatch in user lookup #22 | ⚠️ Symptom | Real cause was Issue #24 (ID generation) |
 | 2026-01-12 | Role permissions not migrated #21 | ✅ Fixed | Added permissions, parent_id, level, created_by to migration + improved role_ids mapping |
 | 2026-01-12 | Missing columns in Role model #20 | ✅ Fixed | Added permissions, parent_id, level, created_by columns |
 | 2026-01-12 | Missing role_ids UUID mapping #19.2 | ✅ Fixed | Script now maps old IDs to UUIDs |
