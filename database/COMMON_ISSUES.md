@@ -1265,6 +1265,7 @@ python scripts/update_user_role_ids.py  # ✅ Run after migration
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Missing role_ids UUID mapping #19.2 | ✅ Fixed | Script now maps old IDs to UUIDs |
 | 2026-01-12 | Missing role_ids in migration #19 | ✅ Fixed | Created update script + fixed migration |
 | 2026-01-12 | Missing import #18 | ✅ Fixed | Added AuthProvider to imports |
 | 2026-01-12 | Pydantic type mismatch #17 | ✅ Fixed | Added type conversions (UUID→str, JSON→List, None→Enum) |
