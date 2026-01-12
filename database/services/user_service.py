@@ -150,6 +150,15 @@ class UserService:
         except:
             status = UserStatus.ACTIVE
         
+        # Convert MFA method string to enum
+        try:
+            if hasattr(db_user, 'mfa_method') and db_user.mfa_method:
+                mfa_method = MFAMethod(db_user.mfa_method) if isinstance(db_user.mfa_method, str) else db_user.mfa_method
+            else:
+                mfa_method = MFAMethod.NONE
+        except:
+            mfa_method = MFAMethod.NONE
+        
         return User(
             id=db_user.id,
             org_id=db_user.org_id,
@@ -160,16 +169,16 @@ class UserService:
             department_id=db_user.department_id,
             group_ids=db_user.group_ids or [],
             profile=UserProfile(
-                first_name="",  # TODO: Extract from profile JSON
-                last_name="",
-                phone="",
-                avatar_url=""
+                first_name=db_user.first_name or "",
+                last_name=db_user.last_name or "",
+                phone=db_user.phone or "",
+                avatar_url=""  # Not in DB model yet
             ),
             mfa=UserMFA(
-                enabled=False,  # TODO: Check user_mfa table
-                method=MFAMethod.NONE,
-                secret="",
-                backup_codes=[]
+                enabled=db_user.mfa_enabled if hasattr(db_user, 'mfa_enabled') else False,
+                method=mfa_method,
+                secret=db_user.mfa_secret_encrypted if hasattr(db_user, 'mfa_secret_encrypted') else "",
+                backup_codes=[]  # Stored in separate MFASetting table
             ),
             auth_provider=None,  # TODO: Convert from string
             external_id=db_user.external_id,
