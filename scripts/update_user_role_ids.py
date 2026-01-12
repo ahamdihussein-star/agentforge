@@ -20,7 +20,7 @@ print("=" * 60)
 
 
 def load_users_from_json():
-    """Load users from JSON file and return email -> old_role_ids mapping"""
+    """Load users from JSON file and return user_id -> old_role_ids mapping (using ID, not email)"""
     json_path = 'data/security/users.json'
     if not os.path.exists(json_path):
         print(f"❌ File not found: {json_path}")
@@ -29,15 +29,15 @@ def load_users_from_json():
     with open(json_path, 'r') as f:
         data = json.load(f)
     
+    # Map by user ID instead of email to avoid email mismatch issues
     user_roles = {}
-    for user_data in data.values():
-        email = user_data.get('email')
+    for user_id, user_data in data.items():
         role_ids = user_data.get('role_ids', [])
-        if email:
-            user_roles[email] = role_ids
+        if user_id and role_ids:
+            user_roles[user_id] = role_ids
     
     print(f"📂 Loading user role_ids from JSON...")
-    print(f"    Found {len(user_roles)} users in JSON")
+    print(f"    Found {len(user_roles)} users with role_ids in JSON")
     return user_roles
 
 
@@ -76,14 +76,14 @@ def main():
 
         updated_count = 0
         for db_user in db_users:
-            email = db_user.email
+            user_id = str(db_user.id)  # Use database user ID
             current_db_role_ids = json.loads(db_user.role_ids) if isinstance(db_user.role_ids, str) else (db_user.role_ids or [])
             
-            # Get old role IDs from JSON (e.g., ['role_super_admin'])
-            old_json_role_ids = json_user_roles.get(email, [])
+            # Get old role IDs from JSON by user ID (not email)
+            old_json_role_ids = json_user_roles.get(user_id, [])
             
             if not old_json_role_ids:
-                print(f"   ⚠️  No role_ids found in JSON for '{email}', skipping.")
+                print(f"   ⚠️  No role_ids found in JSON for user ID '{user_id}' (email: {db_user.email}), skipping.")
                 continue
             
             # Convert old JSON role IDs to new UUIDs
@@ -108,20 +108,20 @@ def main():
                 if found_uuid:
                     new_uuid_role_ids.append(found_uuid)
                 else:
-                    print(f"   ⚠️  Warning: Could not map old role ID '{old_role_id_str}' for user '{email}'. Skipping this role.")
+                    print(f"   ⚠️  Warning: Could not map old role ID '{old_role_id_str}' for user ID '{user_id}' (email: {db_user.email}). Skipping this role.")
 
             # Only update if there's a change
             if set(current_db_role_ids) != set(new_uuid_role_ids) and new_uuid_role_ids:
-                print(f"🔄 Updating '{email}':")
+                print(f"🔄 Updating user '{user_id}' (email: {db_user.email}):")
                 print(f"   Old DB: {current_db_role_ids}")
                 print(f"   JSON: {old_json_role_ids}")
                 print(f"   New (UUIDs): {new_uuid_role_ids}")
                 db_user.role_ids = new_uuid_role_ids
                 updated_count += 1
             elif not new_uuid_role_ids:
-                print(f"   ❌ User '{email}' has no valid role mappings!")
+                print(f"   ❌ User '{user_id}' (email: {db_user.email}) has no valid role mappings!")
             else:
-                print(f"   ✅ User '{email}' already has correct role_ids: {current_db_role_ids}")
+                print(f"   ✅ User '{user_id}' (email: {db_user.email}) already has correct role_ids: {current_db_role_ids}")
 
         session.commit()
         print(f"\n============================================================")
