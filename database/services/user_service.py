@@ -12,7 +12,7 @@ from ..models.user import User as DBUser, UserSession
 # Note: UserMFA table not imported - not needed for basic user operations
 
 # Import core models for API compatibility
-from core.security import User, Session as CoreSession, UserStatus, MFAMethod
+from core.security import User, Session as CoreSession, UserStatus, MFAMethod, AuthProvider, UserProfile, UserMFA
 
 
 class UserService:
