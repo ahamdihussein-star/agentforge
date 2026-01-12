@@ -204,7 +204,7 @@ def migrate_users(org_mapping, role_mapping):
     data = load_json_file('data/security/users.json')
     if not data:
         print("⚠️  No users file found")
-        return 0
+        return 0, {}
     
     if isinstance(data, dict):
         users = list(data.values())
@@ -214,18 +214,22 @@ def migrate_users(org_mapping, role_mapping):
         users = [data]
     
     count = 0
+    id_mapping = {}  # ← Store JSON ID → DB ID mapping
     
     with get_db_session() as session:
         for user_data in users:
             try:
+                old_id = user_data['id']
+                
                 # Check if already exists
                 existing = session.query(User).filter_by(email=user_data['email']).first()
                 if existing:
-                    print(f"⏭️  User '{user_data['email']}' already exists, skipping")
+                    print(f"⏭️  User '{user_data['email']}' already exists, storing ID mapping")
+                    id_mapping[old_id] = existing.id  # ← FIX: Store mapping!
+                    count += 1
                     continue
                 
                 # Parse user ID
-                old_id = user_data['id']
                 try:
                     user_uuid = uuid.UUID(old_id)
                 except ValueError:
@@ -280,6 +284,7 @@ def migrate_users(org_mapping, role_mapping):
                 session.add(user)
                 session.commit()
                 print(f"✅ Migrated user: {user_data['email']}")
+                id_mapping[old_id] = user_uuid  # ← Store mapping for new users too!
                 count += 1
                 
             except Exception as e:
@@ -288,8 +293,8 @@ def migrate_users(org_mapping, role_mapping):
                 traceback.print_exc()
                 session.rollback()
     
-    print(f"\n📊 Total users migrated: {count}")
-    return count
+    print(f"\n📊 Total users migrated/updated: {count}")
+    return count, id_mapping  # ← Return mapping!
 
 
 def migrate_agents(org_mapping):
@@ -541,10 +546,16 @@ def main():
         # Migrate in order (dependencies)
         org_count, org_mapping = migrate_organizations()
         role_count, role_mapping = migrate_roles(org_mapping)
-        user_count = migrate_users(org_mapping, role_mapping)
+        user_count, user_mapping = migrate_users(org_mapping, role_mapping)  # ← Now returns mapping!
         agent_count = migrate_agents(org_mapping)
         tool_count = migrate_tools(org_mapping)
         setting_count = migrate_settings()
+        
+        # Log ID mappings for debugging
+        print(f"\n📋 ID Mappings Generated:")
+        print(f"   Organizations: {len(org_mapping)} mappings")
+        print(f"   Roles: {len(role_mapping)} mappings")
+        print(f"   Users: {len(user_mapping)} mappings")
         
         # Verify
         verify_migration()
