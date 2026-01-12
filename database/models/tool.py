@@ -27,8 +27,9 @@ class Tool(Base):
     org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     
     # Basic Info
-    # Use native PostgreSQL enum with explicit value extraction
-    type = Column(SQLEnum(ToolType, native_enum=True, create_constraint=True, name="tooltype"), nullable=False)
+    # Use String instead of PostgreSQL enum for flexibility (Enterprise Best Practice)
+    # Validation handled by Python enum at application level
+    type = Column(String(50), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     
@@ -96,7 +97,7 @@ class Tool(Base):
         return {
             'id': self.id,
             'org_id': str(self.org_id),
-            'type': self.type.value if self.type else None,
+            'type': self.type,  # Already a string now
             'name': self.name,
             'description': self.description,
             'config': self.config,
