@@ -6,7 +6,8 @@ Immutable, tamper-proof logging
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Integer, Index, Boolean
-from ..types import UUID, JSON as JSONB, INET
+from ..types import UUID, JSON, JSONArray
+JSONB = JSON, INET
 from enum import Enum
 
 from ..base import Base

@@ -5,7 +5,8 @@ Enterprise-grade with PII protection and audit trail
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Integer, Enum as SQLEnum, Index, Boolean
-from ..types import UUID, JSON as JSONB, JSONArray
+from ..types import UUID, JSON, JSONArray
+JSONB = JSON, JSONArray
 from enum import Enum
 
 from ..base import Base

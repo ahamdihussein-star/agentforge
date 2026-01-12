@@ -5,7 +5,8 @@ Enterprise-grade schema with audit trail and security
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Enum as SQLEnum, Index
-from ..types import UUID, JSON as JSONB, JSONArray
+from ..types import UUID, JSON, JSONArray
+JSONB = JSON, JSONArray
 from enum import Enum
 
 from ..base import Base

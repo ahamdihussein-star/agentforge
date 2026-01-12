@@ -4,7 +4,8 @@ User Model - Authentication and User Management
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum as SQLEnum, Integer
-from ..types import UUID, JSON as JSONB
+from ..types import UUID, JSON, JSONArray
+JSONB = JSON  # Alias for backward compatibility
 from sqlalchemy.orm import relationship
 from enum import Enum
 
