@@ -187,13 +187,27 @@ class UserService:
         
         # Parse JSON arrays from TEXT columns (stored as JSON strings in DB)
         try:
-            role_ids = json.loads(db_user.role_ids) if isinstance(db_user.role_ids, str) else (db_user.role_ids or [])
-        except (json.JSONDecodeError, TypeError):
+            # Always ensure role_ids is a list
+            if isinstance(db_user.role_ids, str):
+                role_ids = json.loads(db_user.role_ids) if db_user.role_ids else []
+            elif isinstance(db_user.role_ids, list):
+                role_ids = db_user.role_ids
+            else:
+                role_ids = []
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"   ⚠️  Error parsing role_ids for {db_user.email}: {e}")
             role_ids = []
         
         try:
-            group_ids = json.loads(db_user.group_ids) if isinstance(db_user.group_ids, str) else (db_user.group_ids or [])
-        except (json.JSONDecodeError, TypeError):
+            # Always ensure group_ids is a list
+            if isinstance(db_user.group_ids, str):
+                group_ids = json.loads(db_user.group_ids) if db_user.group_ids else []
+            elif isinstance(db_user.group_ids, list):
+                group_ids = db_user.group_ids
+            else:
+                group_ids = []
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"   ⚠️  Error parsing group_ids for {db_user.email}: {e}")
             group_ids = []
         
         return User(
