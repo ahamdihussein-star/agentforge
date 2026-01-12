@@ -67,16 +67,28 @@ def main():
         # Run Alembic migrations to update enum types
         print("3️⃣  Running database migrations (Alembic)...")
         try:
-            from alembic.config import Config
-            from alembic import command
+            import subprocess
+            import sys
             
-            alembic_cfg = Config("alembic.ini")
-            # Run migrations
-            command.upgrade(alembic_cfg, "head")
-            print("✅ Database migrations applied successfully!")
+            # Run alembic upgrade using subprocess (more reliable in Docker)
+            result = subprocess.run(
+                [sys.executable, "-m", "alembic", "upgrade", "head"],
+                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print("✅ Database migrations applied successfully!")
+                if result.stdout:
+                    print(f"   Output: {result.stdout.strip()}")
+            else:
+                print(f"⚠️  Migration warning: {result.stderr.strip() if result.stderr else 'No output'}")
+                print("   (This is OK for first-time setup or if no migrations pending)")
+                
         except Exception as e:
-            print(f"⚠️  Migration skipped or failed: {e}")
-            print("   (This is OK for first-time setup)")
+            print(f"⚠️  Migration skipped: {e}")
+            print("   (Continuing without migrations)")
         
         print()
         

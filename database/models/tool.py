@@ -27,7 +27,8 @@ class Tool(Base):
     org_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     
     # Basic Info
-    type = Column(SQLEnum(ToolType), nullable=False)
+    # Use native PostgreSQL enum with explicit value extraction
+    type = Column(SQLEnum(ToolType, native_enum=True, create_constraint=True, name="tooltype"), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     
