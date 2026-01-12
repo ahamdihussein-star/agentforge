@@ -6,9 +6,11 @@ Secrets management with encryption
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text, Boolean, Index, Integer
-from ..types import UUID, JSON, JSONArray
-JSONB = JSON
 from enum import Enum
+from ..types import UUID, JSON, JSONArray
+
+# Alias for backward compatibility
+JSONB = JSON
 
 from ..base import Base
 

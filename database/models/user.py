@@ -3,13 +3,16 @@ User Model - Authentication and User Management
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum as SQLEnum, Integer
-from ..types import UUID, JSON, JSONArray
-JSONB = JSON  # Alias for backward compatibility
-from sqlalchemy.orm import relationship
 from enum import Enum
 
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum as SQLEnum, Integer
+from sqlalchemy.orm import relationship
+
 from ..base import Base
+from ..types import UUID, JSON, JSONArray
+
+# Alias for backward compatibility
+JSONB = JSON
 
 
 class UserStatus(str, Enum):
