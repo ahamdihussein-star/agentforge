@@ -171,15 +171,40 @@ class UserService:
                 except (ValueError, AttributeError):
                     pass  # Skip invalid method
         
+        # Type conversions for Pydantic validation
+        import json
+        
+        # Convert UUID to string
+        user_id = str(db_user.id) if db_user.id else str(uuid.uuid4())
+        org_id = str(db_user.org_id) if db_user.org_id else ""
+        department_id = str(db_user.department_id) if db_user.department_id else None
+        
+        # Convert auth_provider string to AuthProvider enum (required field)
+        try:
+            auth_provider = AuthProvider(db_user.auth_provider) if db_user.auth_provider else AuthProvider.LOCAL
+        except (ValueError, AttributeError):
+            auth_provider = AuthProvider.LOCAL  # Default to LOCAL
+        
+        # Parse JSON arrays from TEXT columns (stored as JSON strings in DB)
+        try:
+            role_ids = json.loads(db_user.role_ids) if isinstance(db_user.role_ids, str) else (db_user.role_ids or [])
+        except (json.JSONDecodeError, TypeError):
+            role_ids = []
+        
+        try:
+            group_ids = json.loads(db_user.group_ids) if isinstance(db_user.group_ids, str) else (db_user.group_ids or [])
+        except (json.JSONDecodeError, TypeError):
+            group_ids = []
+        
         return User(
-            id=db_user.id,
-            org_id=db_user.org_id,
+            id=user_id,
+            org_id=org_id,
             email=db_user.email,
             password_hash=db_user.password_hash or "",
             status=status,
-            role_ids=db_user.role_ids or [],
-            department_id=db_user.department_id,
-            group_ids=db_user.group_ids or [],
+            role_ids=role_ids,
+            department_id=department_id,
+            group_ids=group_ids,
             profile=UserProfile(
                 first_name=db_user.first_name or "",
                 last_name=db_user.last_name or "",
@@ -193,7 +218,7 @@ class UserService:
                 totp_verified=db_user.mfa_enabled if hasattr(db_user, 'mfa_enabled') else False,
                 backup_codes=[]  # Stored in separate MFASetting table
             ),
-            auth_provider=None,  # TODO: Convert from string
+            auth_provider=auth_provider,  # ✅ AuthProvider enum (required)
             external_id=db_user.external_id,
             email_verified=db_user.email_verified,
             must_change_password=db_user.must_change_password,
