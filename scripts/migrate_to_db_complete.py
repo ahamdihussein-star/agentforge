@@ -139,17 +139,17 @@ def migrate_roles(org_mapping):
             try:
                 old_id = role_data['id']
                 
+                # Use JSON UUID directly (no generation!)
                 try:
                     role_uuid = uuid.UUID(old_id)
                 except ValueError:
-                    role_uuid = uuid.uuid4()
-                    print(f"   🔄 Generated new UUID for '{old_id}': {role_uuid}")
+                    print(f"   ❌ INVALID UUID in JSON for role '{role_data.get('name', 'unknown')}': {old_id}")
+                    continue  # Skip invalid UUIDs
                 
-                # Check if already exists
+                # Check if already exists (by ID, not name!)
                 existing = session.query(Role).filter_by(id=role_uuid).first()
                 if existing:
-                    print(f"⏭️  Role '{role_data['name']}' already exists, skipping")
-                    id_mapping[old_id] = role_uuid
+                    print(f"⏭️  Role with ID '{role_uuid}' already exists (name: {existing.name}), skipping")
                     continue
                 
                 # Map org_id
@@ -542,8 +542,8 @@ def main():
     try:
         # Migrate in order (dependencies)
         org_count, org_mapping = migrate_organizations()
-        role_count, role_mapping = migrate_roles(org_mapping)
-        user_count = migrate_users(org_mapping, role_mapping)  # ← No ID mapping returned!
+        role_count = migrate_roles(org_mapping)  # ← No ID mapping returned!
+        user_count = migrate_users(org_mapping, role_mapping={})  # ← Empty role_mapping
         agent_count = migrate_agents(org_mapping)
         tool_count = migrate_tools(org_mapping)
         setting_count = migrate_settings()
