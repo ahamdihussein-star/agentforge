@@ -5,12 +5,15 @@ Immutable, tamper-proof logging
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, Index, Boolean
-from ..types import UUID, JSON, JSONArray
-JSONB = JSON, INET
 from enum import Enum
 
+from sqlalchemy import Column, String, DateTime, Text, Integer, Index, Boolean
+
 from ..base import Base
+from ..types import UUID, JSON, JSONArray
+
+# Alias for backward compatibility
+JSONB = JSON
 
 
 class AuditLog(Base):
@@ -53,7 +56,7 @@ class AuditLog(Base):
     http_status_code = Column(Integer)
     
     # Network Context
-    ip_address = Column(INET, nullable=False)  # PostgreSQL INET type for IPv4/IPv6
+    ip_address = Column(String(45), nullable=False)  # IPv4/IPv6 (max 45 chars for IPv6)
     user_agent = Column(Text)
     device_type = Column(String(50))  # 'desktop', 'mobile', 'tablet', 'api'
     browser = Column(String(100))
@@ -140,7 +143,7 @@ class SecurityEvent(Base):
     details = Column(JSON)  # Full event details
     
     # Context
-    ip_address = Column(INET, nullable=False)
+    ip_address = Column(String(45), nullable=False)  # IPv4/IPv6
     user_agent = Column(Text)
     session_id = Column(UUID)
     country_code = Column(String(2))
@@ -220,7 +223,7 @@ class DataExport(Base):
     error_message = Column(Text)
     
     # Network Context
-    ip_address = Column(INET, nullable=False)
+    ip_address = Column(String(45), nullable=False)  # IPv4/IPv6
     
     # Audit
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

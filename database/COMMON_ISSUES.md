@@ -586,6 +586,77 @@ config = Column(JSONB, default={})        # ✅
 
 ---
 
+## 🔴 **INET TYPE - PostgreSQL-Specific**
+
+### Issue #8: INET Column Type (PostgreSQL-Specific)
+**Date:** 2026-01-12  
+**Severity:** HIGH  
+**Occurrences:** 1 time (found in audit.py)
+
+#### Problem:
+Using PostgreSQL's `INET` type for IP addresses breaks database agnosticism.
+
+```python
+# ❌ WRONG - PostgreSQL-specific:
+from sqlalchemy.dialects.postgresql import INET
+ip_address = Column(INET, nullable=False)
+```
+
+#### Error:
+```
+NameError: name 'INET' is not defined
+```
+
+Or on other databases:
+```
+sqlalchemy.exc.CompileError: INET type is not supported on this database
+```
+
+#### Root Cause:
+- `INET` is PostgreSQL-specific for IPv4/IPv6 addresses
+- Not available in MySQL, SQLite, SQL Server, Oracle
+- Breaks multi-database compatibility
+
+#### Solution:
+```python
+# ✅ CORRECT - Database-agnostic:
+ip_address = Column(String(45), nullable=False)  # IPv4/IPv6
+```
+
+**Why String(45)?**
+- IPv4 max: `255.255.255.255` (15 chars)
+- IPv6 max: `ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255` (45 chars)
+- Works on ALL databases
+- Application-level validation if needed
+
+#### Fixed Files:
+```bash
+✅ database/models/audit.py (3 occurrences)
+   - AuditLog.ip_address
+   - SecurityEvent.ip_address
+   - DataExport.ip_address
+```
+
+#### Why This Matters:
+- **Enterprise Requirement:** Platform must work with any database
+- **Customer Choice:** Let customers use their preferred database
+- **Migration Freedom:** Easy to switch databases
+- **No Vendor Lock-in:** Not tied to PostgreSQL
+
+#### Prevention:
+```bash
+# Check before committing:
+grep -r "INET" database/models/
+grep -r "from sqlalchemy.dialects.postgresql" database/models/
+
+# Or run comprehensive check:
+./scripts/comprehensive_db_check.sh
+```
+
+**Rule:** For IP addresses, ALWAYS use `String(45)` to support both IPv4 and IPv6 on all databases.
+
+---
+
 ## 🔵 **BEST PRACTICES LEARNED**
 
 ### 1. Column Naming Conventions
@@ -702,6 +773,8 @@ grep -r "ForeignKey(" database/models/
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
 | 2026-01-12 | **AUTOMATED PREVENTION** | ✅ **ACTIVE** | Pre-commit hook + comprehensive checks |
+| 2026-01-12 | INET type (PostgreSQL-specific) | ✅ Fixed | Changed to String(45) for IP addresses |
+| 2026-01-12 | audit.py syntax error | ✅ Fixed | JSONB = JSON, INET → JSONB = JSON |
 | 2026-01-12 | ARRAY(Float) not converted | ✅ Fixed | Changed to JSONArray |
 | 2026-01-12 | role.py still imports PG types | ✅ Fixed | Updated to use ..types |
 | 2026-01-12 | Import error after conversion | ✅ Fixed | Import JSON + JSONB alias AFTER imports |

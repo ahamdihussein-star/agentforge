@@ -60,6 +60,17 @@ else
     echo "✅ Pass"
 fi
 
+# Check for INET usage
+echo "🔍 Checking for INET usage..."
+if grep -r "Column(INET" "$MODELS_DIR" | grep -v "^#"; then
+    echo "❌ ERROR: Found INET usage (PostgreSQL-specific)"
+    echo "   Use: String(45) for IP addresses"
+    grep -r "Column(INET" "$MODELS_DIR" | grep -v "^#"
+    ERRORS=$((ERRORS + 1))
+else
+    echo "✅ Pass"
+fi
+
 # Check for JSONB direct usage
 echo "🔍 Checking for JSONB usage..."
 if grep -r "from.*JSONB" "$MODELS_DIR" | grep -v "JSON as JSONB" | grep -v "JSON, JSONB" | grep -v "^#" | grep -v "JSONB = JSON"; then
