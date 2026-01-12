@@ -237,6 +237,19 @@ def migrate_users(org_mapping, role_mapping):
                 # Extract profile data if nested
                 profile = user_data.get('profile', {})
                 
+                # Map role_ids from old IDs to new UUIDs
+                role_ids_json = []
+                for old_role_id in user_data.get('role_ids', []):
+                    if old_role_id in role_mapping:
+                        role_ids_json.append(str(role_mapping[old_role_id]))
+                    else:
+                        # Try to use as-is if it's already a UUID
+                        try:
+                            uuid.UUID(old_role_id)
+                            role_ids_json.append(old_role_id)
+                        except ValueError:
+                            print(f"   ⚠️  Unknown role_id '{old_role_id}', skipping")
+                
                 user = User(
                     id=user_uuid,
                     email=user_data['email'],
@@ -251,6 +264,7 @@ def migrate_users(org_mapping, role_mapping):
                     mfa_enabled=user_data.get('mfa', {}).get('enabled', False),
                     mfa_method=user_data.get('mfa', {}).get('methods', ['none'])[0] if user_data.get('mfa', {}).get('methods') else 'none',
                     org_id=org_uuid,
+                    role_ids=json.dumps(role_ids_json),  # ✅ Store as JSON string
                     created_at=datetime.fromisoformat(user_data['created_at']) if 'created_at' in user_data else datetime.utcnow()
                 )
                 

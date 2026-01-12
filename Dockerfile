@@ -77,6 +77,9 @@ else\n\
       echo "📦 Migrating data from JSON to Database..."\n\
       python scripts/migrate_to_db_complete.py 2>&1\n\
       echo ""\n\
+      echo "🔄 Updating user role_ids (Issue #19 fix)..."\n\
+      python scripts/update_user_role_ids.py 2>&1\n\
+      echo ""\n\
       break\n\
     fi\n\
     \n\
