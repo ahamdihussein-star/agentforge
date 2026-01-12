@@ -49,6 +49,34 @@ def main():
         Session = sessionmaker(bind=engine)
         
         with Session() as session:
+            # First, get all roles from database to create mapping
+            from database.models.role import Role as DBRole
+            db_roles = session.query(DBRole).all()
+            
+            # Create a mapping: old_role_id -> new_uuid
+            # We'll match by name since the migration might have changed IDs
+            role_name_to_uuid = {}
+            for db_role in db_roles:
+                role_name_to_uuid[db_role.name] = str(db_role.id)
+            
+            # Also create old ID mapping (for legacy IDs like "role_super_admin")
+            # By checking the database for existing patterns
+            role_id_mapping = {}
+            for db_role in db_roles:
+                role_id_str = str(db_role.id)
+                # Map common role names to their UUIDs
+                if 'super' in db_role.name.lower() and 'admin' in db_role.name.lower():
+                    role_id_mapping['role_super_admin'] = role_id_str
+                elif db_role.name.lower() == 'admin':
+                    role_id_mapping['role_admin'] = role_id_str
+                elif db_role.name.lower() == 'user':
+                    role_id_mapping['role_user'] = role_id_str
+            
+            print(f"📊 Found {len(db_roles)} roles in database:")
+            for role in db_roles:
+                print(f"   - {role.name}: {role.id}")
+            print()
+            
             # Get all users from database
             db_users = session.query(DBUser).all()
             print(f"📊 Found {len(db_users)} users in database")
@@ -64,19 +92,35 @@ def main():
                 
                 json_role_ids = user_roles[email]
                 
-                # Convert to JSON string for storage
+                # Map old role IDs to new UUIDs
+                mapped_role_ids = []
+                for old_role_id in json_role_ids:
+                    if old_role_id in role_id_mapping:
+                        # Use the mapped UUID
+                        mapped_role_ids.append(role_id_mapping[old_role_id])
+                    else:
+                        # Try to use as-is (might already be a UUID)
+                        try:
+                            import uuid
+                            uuid.UUID(old_role_id)
+                            mapped_role_ids.append(old_role_id)
+                        except ValueError:
+                            print(f"   ⚠️  Unknown role_id '{old_role_id}' for user '{email}', skipping")
+                
+                # Convert to JSON string for storage (or keep as list depending on column type)
                 current_role_ids = json.loads(db_user.role_ids) if isinstance(db_user.role_ids, str) else (db_user.role_ids or [])
                 
-                if current_role_ids != json_role_ids:
+                if current_role_ids != mapped_role_ids:
                     print(f"🔄 Updating '{email}':")
                     print(f"   Old: {current_role_ids}")
-                    print(f"   New: {json_role_ids}")
+                    print(f"   JSON: {json_role_ids}")
+                    print(f"   New (UUIDs): {mapped_role_ids}")
                     
                     # Update role_ids (stored as JSON string in TEXT column)
-                    db_user.role_ids = json.dumps(json_role_ids)
+                    db_user.role_ids = json.dumps(mapped_role_ids)
                     updated_count += 1
                 else:
-                    print(f"✅ '{email}' already has correct role_ids: {json_role_ids}")
+                    print(f"✅ '{email}' already has correct role_ids: {mapped_role_ids}")
             
             # Commit changes
             if updated_count > 0:
