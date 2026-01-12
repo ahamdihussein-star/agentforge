@@ -1133,10 +1133,139 @@ Python doesn't check imports until runtime. The code compiles successfully, but 
 
 ---
 
+## 🔴 **DATA MIGRATION INCOMPLETE - MISSING FIELDS**
+
+### Issue #19: Missing `role_ids` in User Migration
+**Date:** 2026-01-12
+**Severity:** CRITICAL
+**Occurrences:** 1 time (scripts/migrate_to_db_complete.py)
+
+#### Problem:
+Users were migrated from JSON to database without their `role_ids`, causing:
+- Empty permissions list in frontend
+- `hasPermission()` always returns false
+- Menu items hidden for all users (even Super Admin)
+
+```python
+# ❌ WRONG - Migration script missing role_ids
+user = User(
+    id=user_uuid,
+    email=user_data['email'],
+    # ... other fields ...
+    # ❌ NO role_ids field!
+)
+```
+
+#### Error (User-facing):
+```
+Frontend: Empty menu
+Console: hasPermission() returns false
+Backend: user.role_ids = [] (empty)
+Login Response: "permissions": [] (empty list)
+```
+
+#### Root Cause:
+The migration script (`migrate_to_db_complete.py`) was missing the code to:
+1. Extract `role_ids` from JSON user data
+2. Map old role IDs to new UUIDs (using `role_mapping`)
+3. Store `role_ids` in database as JSON string
+
+**Why this happened:**
+When creating the migration script, focused on basic user fields (email, password, profile) but forgot the RBAC-related fields (`role_ids`, `department_id`, `group_ids`).
+
+#### Solution:
+
+**Part 1: Quick Fix - Update Existing Users**
+
+Created `scripts/update_user_role_ids.py`:
+```python
+# Load role_ids from JSON files
+user_roles = load_users_from_json()
+
+# Update existing database users
+with Session() as session:
+    db_users = session.query(DBUser).all()
+    
+    for db_user in db_users:
+        if email in user_roles:
+            json_role_ids = user_roles[email]
+            db_user.role_ids = json.dumps(json_role_ids)
+    
+    session.commit()
+```
+
+**Part 2: Fix Migration Script for Future**
+
+Updated `scripts/migrate_to_db_complete.py`:
+```python
+# ✅ CORRECT - Map role_ids from JSON
+role_ids_json = []
+for old_role_id in user_data.get('role_ids', []):
+    if old_role_id in role_mapping:
+        role_ids_json.append(str(role_mapping[old_role_id]))
+    else:
+        # Try UUID as-is
+        try:
+            uuid.UUID(old_role_id)
+            role_ids_json.append(old_role_id)
+        except ValueError:
+            print(f"⚠️  Unknown role_id '{old_role_id}', skipping")
+
+user = User(
+    # ... other fields ...
+    role_ids=json.dumps(role_ids_json),  # ✅ Store as JSON string
+)
+```
+
+**Part 3: Integrate into Deployment**
+
+Updated `Dockerfile`:
+```bash
+python scripts/migrate_to_db_complete.py
+python scripts/update_user_role_ids.py  # ✅ Run after migration
+```
+
+#### Why:
+1. **Quick Fix:** Updates existing users immediately without re-migration
+2. **Prevention:** Fixed migration script for new deployments
+3. **Idempotent:** Update script safe to run multiple times
+4. **No Data Loss:** Only updates users that exist in both JSON and DB
+
+#### Prevention:
+- ✅ **ALWAYS review Pydantic model fields before migration:**
+  ```bash
+  # Compare DB model with Core model
+  grep "class User" -A 100 core/security/models.py | grep "role_ids\|department_id\|group_ids"
+  grep "class User" -A 100 database/models/user.py | grep "role_ids\|department_id\|group_ids"
+  ```
+- ✅ **Test migration with real data:**
+  ```bash
+  # After migration, verify fields
+  python -c "from database.services import UserService; u = UserService.get_all_users()[0]; print(f'role_ids: {u.role_ids}')"
+  ```
+- ✅ **Check frontend after deployment:**
+  - Login as user
+  - Verify menu items appear
+  - Check browser console for permission errors
+- ✅ **Add to migration checklist:**
+  - [ ] Basic fields (email, password)
+  - [ ] Profile fields (name, phone)
+  - [ ] **RBAC fields (role_ids, department_id, group_ids)** ← Don't forget!
+  - [ ] Security fields (MFA, status)
+  - [ ] Timestamps (created_at, updated_at)
+
+#### Related Issues:
+- Issue #17: Type conversion (UUID, JSON parsing)
+- Issue #14: Missing database columns
+- Issue #15: Schema update without migration
+
+---
+
 ## 🔄 **UPDATE LOG**
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Missing role_ids in migration #19 | ✅ Fixed | Created update script + fixed migration |
 | 2026-01-12 | Missing import #18 | ✅ Fixed | Added AuthProvider to imports |
 | 2026-01-12 | Pydantic type mismatch #17 | ✅ Fixed | Added type conversions (UUID→str, JSON→List, None→Enum) |
 | 2026-01-12 | Syntax error (extra parenthesis) #13 | ✅ Fixed | Removed duplicate `)` in user_service.py |
