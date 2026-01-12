@@ -110,6 +110,24 @@ if [ -d "database/services" ]; then
 fi
 echo "✅ Pass"
 
+# Check #11: Python syntax validation (NEW!)
+echo ""
+echo "🔍 Issue #11, #13: Checking Python syntax..."
+if command -v python3 &> /dev/null; then
+    SYNTAX_ERRORS=$(python3 -m compileall -q database/ 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "❌ ERROR: Python syntax errors found!"
+        echo "$SYNTAX_ERRORS"
+        echo "   Fix syntax errors before committing."
+        ERRORS=$((ERRORS + 1))
+    else
+        echo "✅ Pass"
+    fi
+else
+    echo "⚠️  WARNING: python3 not found, skipping syntax check"
+    WARNINGS=$((WARNINGS + 1))
+fi
+
 echo ""
 echo "================================"
 if [ $ERRORS -gt 0 ]; then
@@ -123,6 +141,8 @@ if [ $ERRORS -gt 0 ]; then
     echo "   - Use 'from ..types import UUID, JSON, JSONArray'"
     echo "   - Use String(45) for IP addresses"
     echo "   - Use aliases for DB models: 'User as DBUser'"
+    echo "   - Check for extra/missing parentheses (syntax)"
+    echo "   - Verify schema compatibility (DB vs Core models)"
     echo "   - Always test imports before committing"
     exit 1
 else

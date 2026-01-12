@@ -944,6 +944,9 @@ grep -r "ForeignKey(" database/models/
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Syntax error (extra parenthesis) #13 | ✅ Fixed | Removed duplicate `)` in user_service.py |
+| 2026-01-12 | MFA schema mismatch #12 | ✅ Fixed | `method`→`methods`, `secret`→`totp_secret` |
+| 2026-01-12 | PBKDF2 import error #11 | ✅ Fixed | Changed to `PBKDF2HMAC` + backend param |
 | 2026-01-12 | **AUTOMATED PREVENTION** | ✅ **ACTIVE** | Pre-commit hook + comprehensive checks |
 | 2026-01-12 | Model name conflict (DB vs Core) | ✅ Fixed | Use aliases for DB imports |
 | 2026-01-12 | Script import error (engine) | ✅ Fixed | Changed to get_engine() |
@@ -1015,6 +1018,189 @@ cat .git/hooks/pre-commit      # Verify content
 | Import consistency | #7 | Verify JSON/JSONB imports |
 | ForeignKeys | #2 | Circular dependency checks |
 | UTC timestamps | Best Practice | All times must be UTC |
+
+---
+
+## 🔴 **CRYPTOGRAPHY LIBRARY API CHANGES**
+
+### Issue #11: `PBKDF2` Import Deprecated
+**Date:** 2026-01-12
+**Severity:** HIGH
+**Occurrences:** 1 time (database/services/encryption.py)
+
+#### Problem:
+```python
+# ❌ WRONG - Deprecated in cryptography v43+
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+```
+
+#### Error:
+```
+ImportError: cannot import name 'PBKDF2' from 'cryptography.hazmat.primitives.kdf.pbkdf2'
+```
+
+Result: Database services crash on init → Falls back to files
+
+#### Root Cause:
+The `cryptography` library changed its API in v43.0.0+:
+- Old (deprecated): `PBKDF2`
+- New (correct): `PBKDF2HMAC`
+
+#### Solution:
+```python
+# ✅ CORRECT - Use PBKDF2HMAC
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
+
+kdf = PBKDF2HMAC(
+    algorithm=hashes.SHA256(),
+    length=32,
+    salt=salt,
+    iterations=100000,
+    backend=default_backend()  # ← Required parameter
+)
+```
+
+#### Why:
+- `PBKDF2HMAC` is the correct class name (HMAC = Hash-based Message Authentication Code)
+- Requires explicit `backend` parameter
+- More explicit and secure API
+
+#### Prevention:
+- ✅ Check library documentation when upgrading dependencies
+- ✅ Test encryption/decryption after library updates
+- ✅ Add integration tests for core services (EncryptionService, UserService)
+
+---
+
+## 🔴 **SCHEMA MISMATCH - DATABASE VS CORE MODELS**
+
+### Issue #12: MFA Field Name Mismatch
+**Date:** 2026-01-12
+**Severity:** HIGH
+**Occurrences:** 1 time (database/services/user_service.py)
+
+#### Problem:
+```python
+# ❌ WRONG - Field doesn't exist in UserMFA
+mfa=UserMFA(
+    enabled=True,
+    method=MFAMethod.TOTP,  # ← No 'method' field!
+    secret="..."             # ← No 'secret' field!
+)
+```
+
+#### Error:
+```
+AttributeError: NONE
+File "user_service.py", line 168: mfa_method = MFAMethod.NONE
+```
+
+(Trying to use `MFAMethod.NONE` which doesn't exist in enum)
+
+#### Root Cause:
+Schema mismatch between Database model and Core (Pydantic) model:
+
+**Database Model (database/models/user.py):**
+```python
+mfa_method: Enum (single value)
+mfa_secret_encrypted: str
+```
+
+**Core Model (core/security/models.py):**
+```python
+methods: List[MFAMethod]  # ← PLURAL, LIST!
+totp_secret: Optional[str]  # ← Different name!
+```
+
+#### Solution:
+```python
+# ✅ CORRECT - Match Core model schema
+# Build methods list
+mfa_methods = []
+if db_user.mfa_enabled and db_user.mfa_method:
+    mfa_methods = [MFAMethod(db_user.mfa_method)]
+
+mfa=UserMFA(
+    enabled=db_user.mfa_enabled,
+    methods=mfa_methods,  # ✅ List[MFAMethod]
+    totp_secret=db_user.mfa_secret_encrypted,  # ✅ Correct field
+    totp_verified=db_user.mfa_enabled,
+    backup_codes=[]
+)
+```
+
+#### Why:
+- Core model supports **multiple MFA methods** (TOTP + SMS + Email)
+- Database model currently stores **single method** (will migrate later)
+- Mapping layer must convert single → list
+- Field names differ (`mfa_secret_encrypted` → `totp_secret`)
+
+#### Prevention:
+- ✅ **ALWAYS check Pydantic model schema before mapping**
+- ✅ Read `core/security/models.py` to understand field names
+- ✅ Use type hints to catch mismatches early
+- ✅ Add validation tests for model conversions
+
+```python
+# Best Practice: Type hints help catch errors
+def _db_to_core_user(db_user: DBUser) -> User:  # ← Clear types
+    # Implementation with proper field mapping
+```
+
+---
+
+## 🟡 **SYNTAX ERRORS - COPY/PASTE MISTAKES**
+
+### Issue #13: Extra Closing Parentheses
+**Date:** 2026-01-12
+**Severity:** MEDIUM
+**Occurrences:** 1 time (database/services/user_service.py)
+
+#### Problem:
+```python
+# ❌ WRONG - Extra closing parentheses
+mfa=UserMFA(...),
+),  # ← Extra!
+),  # ← Extra!
+auth_provider=None,  # ← Python confused
+```
+
+#### Error:
+```
+IndentationError: unexpected indent
+File "user_service.py", line 197
+  auth_provider=None,
+```
+
+#### Root Cause:
+Copy-paste error when editing code manually. Added closing parenthesis twice instead of once.
+
+#### Solution:
+```python
+# ✅ CORRECT - One closing paren
+mfa=UserMFA(...),
+auth_provider=None,  # ← Now correct
+```
+
+#### Why:
+The extra `)` closes the `User(...)` constructor prematurely, then Python sees `auth_provider=...` at the wrong indentation level.
+
+#### Prevention:
+- ✅ **Use Python syntax checker before committing:**
+  ```bash
+  python -m py_compile database/services/user_service.py
+  ```
+- ✅ **Use IDE/editor with syntax highlighting**
+- ✅ **Run local tests before pushing:**
+  ```bash
+  python -c "from database.services import UserService; print('✅ Import OK')"
+  ```
+- ✅ **Add pre-commit hook for Python syntax validation:**
+  ```bash
+  # In .git/hooks/pre-commit
+  python -m compileall database/ || exit 1
+  ```
 
 ---
 
