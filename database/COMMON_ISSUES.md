@@ -1062,10 +1062,82 @@ return User(
 
 ---
 
+## 🔴 **MISSING IMPORTS AFTER CODE CHANGES**
+
+### Issue #18: `NameError` - Used Type Without Importing
+**Date:** 2026-01-12
+**Severity:** CRITICAL
+**Occurrences:** 1 time (database/services/user_service.py)
+
+#### Problem:
+After adding type conversion for `auth_provider` field (Issue #17), used `AuthProvider` enum but forgot to add it to the import statement.
+
+```python
+# ❌ WRONG - Import statement missing AuthProvider
+from core.security import User, Session as CoreSession, UserStatus, MFAMethod
+
+# ... later in code ...
+auth_provider = AuthProvider(db_user.auth_provider)  # ← NameError!
+                ^^^^^^^^^^^^
+```
+
+#### Error:
+```
+NameError: name 'AuthProvider' is not defined
+  File "/app/database/services/user_service.py", line 184, in _db_to_core_user
+    auth_provider = AuthProvider(db_user.auth_provider) if db_user.auth_provider else AuthProvider.LOCAL
+                    ^^^^^^^^^^^^
+```
+
+#### Root Cause:
+When fixing Issue #17 (type conversion), added code that uses `AuthProvider` enum, but didn't update the import statement to include it.
+
+**Common scenario:**
+1. Fix a bug by adding new code
+2. New code uses a type/class
+3. Forget to import the new type
+4. Code fails at runtime (not caught by syntax check)
+
+#### Solution:
+```python
+# ✅ CORRECT - Include all used types in import
+from core.security import User, Session as CoreSession, UserStatus, MFAMethod, AuthProvider, UserProfile, UserMFA
+```
+
+#### Why:
+Python doesn't check imports until runtime. The code compiles successfully, but fails when the line is executed.
+
+#### Prevention:
+- ✅ **ALWAYS check imports after adding new code:**
+  ```bash
+  # List all used types in the file
+  grep -o "[A-Z][a-zA-Z]*(" database/services/user_service.py | sort -u
+  
+  # Compare with imports
+  grep "from core.security import" database/services/user_service.py
+  ```
+- ✅ **Use IDE type checking** (e.g., PyCharm, VSCode with Pylance)
+- ✅ **Test import before committing:**
+  ```python
+  python3 -c "from database.services.user_service import UserService; print('✅ OK')"
+  ```
+- ✅ **Add to pre-commit hook:**
+  ```bash
+  # Check for undefined names
+  python3 -m pyflakes database/services/*.py
+  ```
+
+#### Related Issues:
+- Issue #17: Type conversion (root cause of needing AuthProvider)
+- Issue #11: PBKDF2 import error (similar import issue)
+
+---
+
 ## 🔄 **UPDATE LOG**
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Missing import #18 | ✅ Fixed | Added AuthProvider to imports |
 | 2026-01-12 | Pydantic type mismatch #17 | ✅ Fixed | Added type conversions (UUID→str, JSON→List, None→Enum) |
 | 2026-01-12 | Syntax error (extra parenthesis) #13 | ✅ Fixed | Removed duplicate `)` in user_service.py |
 | 2026-01-12 | MFA schema mismatch #12 | ✅ Fixed | `method`→`methods`, `secret`→`totp_secret` |
