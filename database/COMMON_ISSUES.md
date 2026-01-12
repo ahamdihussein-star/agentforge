@@ -24,6 +24,8 @@ When creating database models or migration scripts, fields are often **missed** 
 - **Issue #14:** `User` SQLAlchemy model missing 11 fields that exist in Pydantic model
 - **Issue #20:** `Role` SQLAlchemy model missing 4 fields that exist in Pydantic model
 - **Issue #21:** `migrate_roles()` function not storing `permissions` field (even though it exists in both models!)
+- **Issue #22:** Email mismatch between DB (`admin@agentforge.app`) and JSON (`admin@agentforge.to`) caused lookup failures
+- **Issue #23:** User ID mismatch - migration script skipped existing users without preserving ID mapping (`json_id → db_id`)
 
 #### Why It Keeps Happening:
 - **No Automated Validation:** No tool to compare schemas across layers
@@ -1723,11 +1725,124 @@ for db_user in db_users:
 
 ---
 
+## 🔴 **USER ID MISMATCH BETWEEN DB AND JSON**
+
+### Issue #23: Migration script skips existing users without preserving ID mapping
+**Date:** 2026-01-12
+**Severity:** CRITICAL
+**Occurrences:** 1 time (in migrate_to_db_complete.py + update_user_role_ids.py)
+**Related to:** RECURRING PATTERN #1 (Incomplete Schema Mapping)
+
+#### Problem:
+The `migrate_to_db_complete.py` script checks if a user already exists in the database (by email). If the user exists, it **skips** the user **without** storing an ID mapping between the **JSON user ID** and the **Database user ID**.
+
+Later, `update_user_role_ids.py` tries to look up users by their **JSON user ID** in the database, but:
+- **JSON has:** `85900a07-fe70-473b-99d2-795a46862009`
+- **Database has:** `cbcc4ec3-eec9-48dd-9c75-4f63d81a51cc` (a completely different UUID!)
+
+Result: **Lookup fails → No role_ids found → Empty permissions → No menu!**
+
+#### Error Chain:
+```
+1. First migration: User created with NEW UUID (cbcc4ec3-...)
+   ↓
+2. Second migration: migrate_to_db_complete.py checks email → User exists
+   ↓
+3. Script SKIPs user without storing: json_id (85900a07-...) → db_id (cbcc4ec3-...)
+   ↓
+4. update_user_role_ids.py looks up by JSON ID: "85900a07-..."
+   ↓
+5. Database only has: "cbcc4ec3-..." ← ID mismatch!
+   ↓
+6. Lookup fails → User skipped → role_ids = []
+   ↓
+7. No permissions → No menu
+```
+
+#### Root Cause:
+**Skipping existing records during migration without preserving the ID mapping** between source (JSON) and destination (Database). This breaks any subsequent scripts that rely on ID-based lookups.
+
+#### Code Location:
+**`scripts/migrate_to_db_complete.py` (Lines 222-225):**
+```python
+# Check if already exists
+existing = session.query(User).filter_by(email=user_data['email']).first()
+if existing:
+    print(f"⏭️  User '{user_data['email']}' already exists, skipping")
+    continue  # ← PROBLEM: No ID mapping stored!
+```
+
+#### Symptoms:
+```
+📂 Loading user role_ids from JSON...
+     Found 0 users with role_ids in JSON  ← JSON IDs don't match DB IDs!
+
+⚠️  No role_ids found in JSON for user ID 'cbcc4ec3-...' (email: admin@agentforge.app), skipping.
+⚠️  No role_ids found in JSON for user ID 'ad997c93-...' (email: ahmedhamdi81@yahoo.com), skipping.
+✅ Updated 0 users successfully!  ← Silent failure!
+```
+
+#### Solution:
+**Option 1: Use email for lookup (IMMEDIATE FIX - What we did):**
+
+Changed `update_user_role_ids.py` to use **email** as the matching key instead of user ID, since emails are the only stable identifier that matches between JSON and DB:
+
+```python
+# ✅ CORRECT - Email-based lookup:
+def load_users_from_json():
+    user_roles = {}
+    for user_id, user_data in data.items():
+        email = user_data.get('email')
+        role_ids = user_data.get('role_ids', [])
+        if email and role_ids:
+            user_roles[email] = {
+                'json_user_id': user_id,  # For logging
+                'role_ids': role_ids
+            }
+    return user_roles
+
+# In main():
+for db_user in db_users:
+    email = db_user.email
+    user_info = json_user_roles.get(email)  # ← Lookup by email (works!)
+```
+
+**Option 2: Store ID mappings in migration (BETTER LONG-TERM FIX):**
+
+The `migrate_to_db_complete.py` should **always** return an ID mapping, even for skipped users:
+
+```python
+# ✅ BETTER - Store ID mapping for existing users:
+existing = session.query(User).filter_by(email=user_data['email']).first()
+if existing:
+    print(f"⏭️  User '{user_data['email']}' already exists, skipping")
+    id_mapping[user_data['id']] = existing.id  # ← Store mapping!
+    continue
+```
+
+Then return `id_mapping` from `migrate_users()` and pass it to subsequent scripts.
+
+#### Why:
+- **IDs are the natural primary key** for database lookups, but only if they're consistent between source and destination.
+- When IDs don't match, we need either:
+  1. A **mapping table/dict** to translate between them, OR
+  2. Use a **stable alternative identifier** (email, username) that matches in both systems.
+
+#### Prevention:
+- ✅ **Always preserve ID mappings:** Even when skipping existing records, store the mapping: `source_id → destination_id`.
+- ✅ **Return mappings from migration functions:** All `migrate_*` functions should return `(count, id_mapping)`.
+- ✅ **Log ID mismatches:** Print warnings when JSON ID ≠ DB ID.
+- ✅ **Use stable identifiers:** When IDs differ, use email/username for cross-system lookups.
+- ✅ **Fail loudly on empty results:** If no users are updated, raise an error instead of silently succeeding.
+
+---
+
 ## 🔄 **UPDATE LOG**
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
-| 2026-01-12 | Email mismatch in user lookup #22 | ✅ Fixed | Changed from email-based to ID-based lookup |
+| 2026-01-12 | User ID mismatch (migration skip) #23 | ✅ Fixed | Changed to email-based lookup; migration should preserve ID mappings |
+| 2026-01-12 | Email mismatch in user lookup #22 | ✅ Fixed | Changed from email-based to ID-based lookup (now reverted to email!) |
 | 2026-01-12 | Role permissions not migrated #21 | ✅ Fixed | Added permissions, parent_id, level, created_by to migration + improved role_ids mapping |
 | 2026-01-12 | Missing columns in Role model #20 | ✅ Fixed | Added permissions, parent_id, level, created_by columns |
 | 2026-01-12 | Missing role_ids UUID mapping #19.2 | ✅ Fixed | Script now maps old IDs to UUIDs |
