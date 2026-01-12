@@ -193,7 +193,6 @@ class UserService:
                 totp_verified=db_user.mfa_enabled if hasattr(db_user, 'mfa_enabled') else False,
                 backup_codes=[]  # Stored in separate MFASetting table
             ),
-            ),
             auth_provider=None,  # TODO: Convert from string
             external_id=db_user.external_id,
             email_verified=db_user.email_verified,
