@@ -20,7 +20,7 @@ print("=" * 60)
 
 
 def load_users_from_json():
-    """Load users from JSON file and return user_id -> old_role_ids mapping (using ID, not email)"""
+    """Load users from JSON file and return email -> (user_id, old_role_ids) mapping"""
     json_path = 'data/security/users.json'
     if not os.path.exists(json_path):
         print(f"❌ File not found: {json_path}")
@@ -29,12 +29,16 @@ def load_users_from_json():
     with open(json_path, 'r') as f:
         data = json.load(f)
     
-    # Map by user ID instead of email to avoid email mismatch issues
+    # Map by email (since emails match, but IDs don't!)
     user_roles = {}
     for user_id, user_data in data.items():
+        email = user_data.get('email')
         role_ids = user_data.get('role_ids', [])
-        if user_id and role_ids:
-            user_roles[user_id] = role_ids
+        if email and role_ids:
+            user_roles[email] = {
+                'json_user_id': user_id,  # For logging
+                'role_ids': role_ids
+            }
     
     print(f"📂 Loading user role_ids from JSON...")
     print(f"    Found {len(user_roles)} users with role_ids in JSON")
@@ -76,15 +80,21 @@ def main():
 
         updated_count = 0
         for db_user in db_users:
-            user_id = str(db_user.id)  # Use database user ID
+            db_user_id = str(db_user.id)
+            email = db_user.email
             current_db_role_ids = json.loads(db_user.role_ids) if isinstance(db_user.role_ids, str) else (db_user.role_ids or [])
             
-            # Get old role IDs from JSON by user ID (not email)
-            old_json_role_ids = json_user_roles.get(user_id, [])
+            # Get old role IDs from JSON by EMAIL (not DB user ID)
+            user_info = json_user_roles.get(email)
             
-            if not old_json_role_ids:
-                print(f"   ⚠️  No role_ids found in JSON for user ID '{user_id}' (email: {db_user.email}), skipping.")
+            if not user_info:
+                print(f"   ⚠️  No role_ids found in JSON for email '{email}' (DB ID: {db_user_id}), skipping.")
                 continue
+            
+            old_json_role_ids = user_info['role_ids']
+            json_user_id = user_info['json_user_id']
+            
+            print(f"   🔍 Mapping user: Email='{email}', DB_ID={db_user_id}, JSON_ID={json_user_id}")
             
             # Convert old JSON role IDs to new UUIDs
             new_uuid_role_ids = []
@@ -108,20 +118,21 @@ def main():
                 if found_uuid:
                     new_uuid_role_ids.append(found_uuid)
                 else:
-                    print(f"   ⚠️  Warning: Could not map old role ID '{old_role_id_str}' for user ID '{user_id}' (email: {db_user.email}). Skipping this role.")
+                    print(f"   ⚠️  Warning: Could not map old role ID '{old_role_id_str}' for email '{email}' (DB ID: {db_user_id}, JSON ID: {json_user_id}). Skipping this role.")
 
             # Only update if there's a change
             if set(current_db_role_ids) != set(new_uuid_role_ids) and new_uuid_role_ids:
-                print(f"🔄 Updating user '{user_id}' (email: {db_user.email}):")
+                print(f"🔄 Updating user '{email}':")
+                print(f"   DB ID: {db_user_id}, JSON ID: {json_user_id}")
                 print(f"   Old DB: {current_db_role_ids}")
                 print(f"   JSON: {old_json_role_ids}")
                 print(f"   New (UUIDs): {new_uuid_role_ids}")
                 db_user.role_ids = new_uuid_role_ids
                 updated_count += 1
             elif not new_uuid_role_ids:
-                print(f"   ❌ User '{user_id}' (email: {db_user.email}) has no valid role mappings!")
+                print(f"   ❌ User '{email}' (DB ID: {db_user_id}) has no valid role mappings!")
             else:
-                print(f"   ✅ User '{user_id}' (email: {db_user.email}) already has correct role_ids: {current_db_role_ids}")
+                print(f"   ✅ User '{email}' (DB ID: {db_user_id}) already has correct role_ids: {current_db_role_ids}")
 
         session.commit()
         print(f"\n============================================================")
