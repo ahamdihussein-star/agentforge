@@ -3,6 +3,11 @@ Add Missing Columns to Users Table
 Alters existing users table to add new columns for RBAC, security, and external auth
 """
 import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlalchemy import text
 from database.base import get_engine
 
