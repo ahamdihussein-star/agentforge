@@ -873,6 +873,7 @@ grep -r "ForeignKey(" database/models/
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
 | 2026-01-12 | **AUTOMATED PREVENTION** | ✅ **ACTIVE** | Pre-commit hook + comprehensive checks |
+| 2026-01-12 | Script import error (engine) | ✅ Fixed | Changed to get_engine() |
 | 2026-01-12 | PostgreSQL enum persists in DB | ✅ Fixed | Drop/recreate tools table |
 | 2026-01-12 | INET type (PostgreSQL-specific) | ✅ Fixed | Changed to String(45) for IP addresses |
 | 2026-01-12 | audit.py syntax error | ✅ Fixed | JSONB = JSON, INET → JSONB = JSON |

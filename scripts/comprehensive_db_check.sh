@@ -99,6 +99,12 @@ if [ $ERRORS -gt 0 ]; then
     echo ""
     echo "🛑 COMMIT BLOCKED"
     echo "📚 See: database/COMMON_ISSUES.md"
+    echo ""
+    echo "🔍 Common fixes:"
+    echo "   - Replace 'metadata' with 'extra_metadata'"
+    echo "   - Use 'from ..types import UUID, JSON, JSONArray'"
+    echo "   - Use String(45) for IP addresses"
+    echo "   - Always test imports before committing"
     exit 1
 else
     echo "✅ ALL CHECKS PASSED"

@@ -10,7 +10,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from database.base import get_db_session, engine
+from database.base import get_engine
 from sqlalchemy import text
 
 def drop_and_recreate_tools_table():
@@ -18,6 +18,8 @@ def drop_and_recreate_tools_table():
     
     print("🔧 Fixing Tools Table (Removing PostgreSQL Enum)")
     print("=" * 60)
+    
+    engine = get_engine()
     
     with engine.connect() as conn:
         try:
@@ -47,6 +49,8 @@ def drop_and_recreate_tools_table():
             
         except Exception as e:
             print(f"❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
             conn.rollback()
             raise
 
