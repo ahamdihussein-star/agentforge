@@ -657,6 +657,78 @@ grep -r "from sqlalchemy.dialects.postgresql" database/models/
 
 ---
 
+## 🔴 **MODEL NAME CONFLICTS - Database vs Core**
+
+### Issue #10: Import Name Conflict Between DB and Core Models
+**Date:** 2026-01-12  
+**Severity:** HIGH  
+**Occurrences:** 1 time (UserMFA in user_service.py)
+
+#### Problem:
+Same model name exists in both `database.models` (SQLAlchemy) and `core.security.models` (Pydantic), causing import conflicts.
+
+```python
+# ❌ WRONG - Ambiguous import:
+from database.models.user import UserMFA  # SQLAlchemy Table
+from core.security import UserMFA  # Pydantic Model
+# Both named "UserMFA" - conflict!
+```
+
+#### Error:
+```
+ImportError: cannot import name 'UserMFA' from 'database.models.user'
+```
+
+#### Root Cause:
+- **Database layer**: `UserMFA` is SQLAlchemy Table (DB schema)
+- **Core layer**: `UserMFA` is Pydantic Model (API contract)
+- **Service layer** needs both but names conflict
+- Python imports last definition, overwriting first
+
+#### Solution Pattern:
+```python
+# ✅ CORRECT - Use aliases for DB models:
+from ..models.user import User as DBUser
+from ..models.user import UserMFA as UserMFATable  # DB table
+from core.security import User, UserMFA  # API models
+
+# Clear distinction:
+db_user = DBUser(...)  # Database
+core_user = User(...)  # API
+```
+
+#### Convention Established:
+```python
+# ALWAYS use this pattern in services:
+
+# 1. Import DB models with descriptive alias
+from ..models.user import User as DBUser
+from ..models.user import UserSession as DBSession
+from ..models.user import UserMFA as UserMFATable
+
+# 2. Import Core models without prefix
+from core.security import User, Session, UserMFA
+
+# 3. Conversion function clearly named
+def _db_to_core_user(db_user: DBUser) -> User:
+    pass
+```
+
+#### Why This Matters:
+- **Type Safety:** IDE distinguishes models
+- **Clarity:** Code readers understand layer
+- **Maintainability:** Changes don't break other layer
+
+#### Prevention:
+```bash
+# Check for ambiguous imports:
+grep -r "from database.models.* import" database/services/ | grep -v "as DB"
+```
+
+**Rule:** Database models ALWAYS imported with alias. Core models imported without prefix.
+
+---
+
 ## 🔴 **POSTGRESQL ENUM TYPE PERSISTS**
 
 ### Issue #9: Native PostgreSQL Enum in Database Despite Model Fix
@@ -873,6 +945,7 @@ grep -r "ForeignKey(" database/models/
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
 | 2026-01-12 | **AUTOMATED PREVENTION** | ✅ **ACTIVE** | Pre-commit hook + comprehensive checks |
+| 2026-01-12 | Model name conflict (DB vs Core) | ✅ Fixed | Use aliases for DB imports |
 | 2026-01-12 | Script import error (engine) | ✅ Fixed | Changed to get_engine() |
 | 2026-01-12 | PostgreSQL enum persists in DB | ✅ Fixed | Drop/recreate tools table |
 | 2026-01-12 | INET type (PostgreSQL-specific) | ✅ Fixed | Changed to String(45) for IP addresses |

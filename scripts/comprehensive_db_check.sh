@@ -92,6 +92,24 @@ for file in "$MODELS_DIR"/*.py; do
 done
 echo "✅ Pass"
 
+# Check for model name conflicts in services (Issue #10)
+echo "🔍 Checking for ambiguous imports in services..."
+if [ -d "database/services" ]; then
+    # Check if services import DB models without aliases
+    CONFLICT_IMPORTS=$(grep -r "from.*database.models.*import" database/services/ 2>/dev/null | \
+                       grep -v "as DB" | \
+                       grep -v "__pycache__" | \
+                       grep -v ".pyc" | \
+                       grep -v "__init__" || true)
+    
+    if [ ! -z "$CONFLICT_IMPORTS" ]; then
+        echo "⚠️  WARNING: Found database model imports without aliases in services:"
+        echo "$CONFLICT_IMPORTS"
+        echo "   Recommendation: Use 'as DBModelName' for clarity (e.g., 'User as DBUser')"
+    fi
+fi
+echo "✅ Pass"
+
 echo ""
 echo "================================"
 if [ $ERRORS -gt 0 ]; then
@@ -104,6 +122,7 @@ if [ $ERRORS -gt 0 ]; then
     echo "   - Replace 'metadata' with 'extra_metadata'"
     echo "   - Use 'from ..types import UUID, JSON, JSONArray'"
     echo "   - Use String(45) for IP addresses"
+    echo "   - Use aliases for DB models: 'User as DBUser'"
     echo "   - Always test imports before committing"
     exit 1
 else
