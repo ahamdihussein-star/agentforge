@@ -1357,10 +1357,136 @@ This is critical for the UI menu to appear, as the `PolicyEngine` uses `role.per
 
 ---
 
+## 🔴 **MISSING ROLE PERMISSIONS IN MIGRATION**
+
+### Issue #21: Role migration not storing `permissions` field → Empty user permissions → No UI menu
+**Date:** 2026-01-12
+**Severity:** CRITICAL
+**Occurrences:** 1 time (during role migration)
+
+#### Problem:
+The `migrate_to_db_complete.py` script's `migrate_roles()` function was creating `Role` objects in the database **without storing the `permissions` field**, even though the field exists in both the SQLAlchemy model and the JSON source data.
+
+```python
+# ❌ WRONG (scripts/migrate_to_db_complete.py, lines 166-173 before fix):
+role = Role(
+    id=role_uuid,
+    name=role_data['name'],
+    description=role_data.get('description', ''),
+    is_system=role_data.get('is_system', False),
+    org_id=org_uuid,
+    # ❌ Missing: permissions, parent_id, level, created_by
+    created_at=...
+)
+```
+
+This resulted in **all roles in the database having empty `permissions = []`**, which cascaded into a critical chain of failures.
+
+#### Error Chain:
+```
+1. Role migrated with permissions = [] (empty)
+   ↓
+2. User migration: role_ids = ["role_super_admin"] (old string IDs)
+   ↓
+3. update_user_role_ids.py: Tries to map "role_super_admin" to UUID
+   ↓
+4. Mapping fails (name mismatch: "role_super_admin" ≠ "Super Admin")
+   ↓
+5. User ends up with role_ids = [] (empty!)
+   ↓
+6. User logs in → PolicyEngine._get_user_permissions(user)
+   ↓
+7. for role_id in user.role_ids:  ← Nothing happens! (empty list)
+   ↓
+8. permissions = set()  ← Stays empty!
+   ↓
+9. /api/security/auth/me returns: "permissions": []
+   ↓
+10. UI checks hasPermission("agents:view") → returns false
+   ↓
+11. All menu items hidden → NO MENU!
+```
+
+#### Symptoms:
+- Users loaded from database successfully
+- Roles loaded from database successfully (114 roles shown in logs)
+- Login works
+- **But after login, the UI menu does not appear**
+- `/api/security/auth/me` returns `"permissions": []`
+- `user.role_ids = []` in the database
+- Logs show: `✅ 'admin@agentforge.app' already has correct role_ids: []` ← **This is NOT correct!**
+
+#### Root Cause:
+1. **Missing fields in migration:** The `Role` object constructor in `migrate_to_db_complete.py` did not include `permissions`, `parent_id`, `level`, or `created_by` fields.
+2. **Weak role ID mapping:** The `update_user_role_ids.py` script had a brittle mapping strategy that couldn't handle the `"role_super_admin"` (JSON) → `"Super Admin"` (DB name) conversion.
+
+#### Solution:
+
+**1. Fixed `scripts/migrate_to_db_complete.py` (lines 166-173):**
+```python
+# ✅ CORRECT - Store ALL role fields:
+role = Role(
+    id=role_uuid,
+    name=role_data['name'],
+    description=role_data.get('description', ''),
+    permissions=json.dumps(role_data.get('permissions', [])),  # ✅ Store permissions!
+    parent_id=parent_uuid,  # ✅ Store parent_id
+    level=str(role_data.get('level', 100)),  # ✅ Store level
+    is_system=role_data.get('is_system', False),
+    org_id=org_uuid,
+    created_by=role_data.get('created_by'),  # ✅ Store created_by
+    created_at=datetime.fromisoformat(role_data['created_at']) if 'created_at' in role_data else datetime.utcnow()
+)
+```
+
+**2. Enhanced `scripts/update_user_role_ids.py`:**
+```python
+# ✅ CORRECT - Multi-strategy mapping:
+# Legacy string ID mapping (e.g., "role_super_admin" → "Super Admin")
+legacy_name_mapping = {
+    "role_super_admin": "Super Admin",
+    "role_admin": "Admin",
+    "role_manager": "Manager",
+    "role_user": "User",
+    "role_viewer": "Viewer"
+}
+
+# Strategy 1: Check if it's already a UUID (from previous migration)
+if old_role_id_str in role_id_to_uuid_map:
+    found_uuid = role_id_to_uuid_map[old_role_id_str]
+
+# Strategy 2: Use legacy mapping (e.g., "role_super_admin" → "Super Admin")
+elif old_role_id_str in legacy_name_mapping:
+    role_name = legacy_name_mapping[old_role_id_str]
+    if role_name in role_name_to_uuid_map:
+        found_uuid = role_name_to_uuid_map[role_name]
+
+# Strategy 3: Direct name match (if somehow the name was stored)
+elif old_role_id_str in role_name_to_uuid_map:
+    found_uuid = role_name_to_uuid_map[old_role_id_str]
+```
+
+#### Why:
+- **RBAC depends on permissions:** The entire permission system relies on `role.permissions` being populated.
+- **UI menu is permission-driven:** Every menu item checks `hasPermission(permission)`, which ultimately queries `user → roles → permissions`.
+- **Cascading failure:** A single missing field in the migration caused a complete UI failure for all users.
+
+#### Prevention:
+- ✅ **Complete Field Mapping Checklist:** When writing migration scripts, create a checklist of ALL fields in both the source (JSON) and destination (SQLAlchemy model). Verify each field is explicitly mapped.
+- ✅ **Migration Validation Script:** Add a post-migration validation step that:
+  1. Queries a sample of migrated records
+  2. Checks that critical fields (e.g., `permissions`, `role_ids`) are not empty
+  3. Fails loudly if any critical field is missing
+- ✅ **End-to-End Integration Test:** After migration, perform a full login → check permissions → verify menu appears test.
+- ✅ **Schema Comparison Tool (Again!):** This is the 3rd time a missing field caused issues (Issue #14: User columns, Issue #20: Role columns, Issue #21: Role permissions). **We need an automated tool that compares Pydantic model ↔ SQLAlchemy model ↔ JSON data ↔ Migration script and flags any discrepancies.**
+
+---
+
 ## 🔄 **UPDATE LOG**
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Role permissions not migrated #21 | ✅ Fixed | Added permissions, parent_id, level, created_by to migration + improved role_ids mapping |
 | 2026-01-12 | Missing columns in Role model #20 | ✅ Fixed | Added permissions, parent_id, level, created_by columns |
 | 2026-01-12 | Missing role_ids UUID mapping #19.2 | ✅ Fixed | Script now maps old IDs to UUIDs |
 | 2026-01-12 | Missing role_ids in migration #19 | ✅ Fixed | Created update script + fixed migration |
