@@ -1618,10 +1618,116 @@ elif old_role_id_str in role_name_to_uuid_map:
 
 ---
 
+## 🔴 **EMAIL MISMATCH IN USER LOOKUP**
+
+### Issue #22: Using email for user lookup when emails differ between DB and JSON
+**Date:** 2026-01-12
+**Severity:** CRITICAL
+**Occurrences:** 1 time (in update_user_role_ids.py)
+
+#### Problem:
+The `update_user_role_ids.py` script was using **email** as the lookup key to match users between the database and JSON file. However, the emails in the two sources **did not match**:
+
+- **Database:** `admin@agentforge.app`, `ahmedhamdi81@yahoo.com`
+- **JSON:** `admin@agentforge.to`, `ahamdi.hussein@gmail.com`
+
+This resulted in:
+```
+⚠️  No role_ids found in JSON for 'admin@agentforge.app', skipping.
+⚠️  No role_ids found in JSON for 'ahmedhamdi81@yahoo.com', skipping.
+✅ Updated 0 users successfully!
+```
+
+All users ended up with **empty `role_ids = []`**, leading to no permissions and no UI menu.
+
+#### Error Chain:
+```
+1. Script looks up user by email: "admin@agentforge.app"
+   ↓
+2. Searches in JSON for email: "admin@agentforge.app"
+   ↓
+3. JSON only has: "admin@agentforge.to" ← Email mismatch!
+   ↓
+4. Lookup fails → No role_ids found
+   ↓
+5. User keeps empty role_ids = []
+   ↓
+6. No permissions → No menu
+```
+
+#### Root Cause:
+**Using a mutable, user-facing field (email) as the primary key** for data synchronization between systems. Emails can change, be typos, or differ across systems. The **immutable user ID** should have been used instead.
+
+#### Symptoms:
+```
+⚠️  No role_ids found in JSON for 'admin@agentforge.app', skipping.
+⚠️  No role_ids found in JSON for 'ahmedhamdi81@yahoo.com', skipping.
+✅ Updated 0 users successfully!
+```
+
+Despite the script reporting "success", **zero users were actually updated**.
+
+#### Solution:
+Changed the lookup strategy from **email-based** to **ID-based**:
+
+```python
+# ❌ WRONG - Email-based lookup:
+def load_users_from_json():
+    user_roles = {}
+    for user_data in data.values():
+        email = user_data.get('email')
+        role_ids = user_data.get('role_ids', [])
+        if email:
+            user_roles[email] = role_ids  # ← Key by email
+    return user_roles
+
+# In main():
+for db_user in db_users:
+    email = db_user.email
+    old_json_role_ids = json_user_roles.get(email, [])  # ← Lookup by email (fails!)
+```
+
+```python
+# ✅ CORRECT - ID-based lookup:
+def load_users_from_json():
+    user_roles = {}
+    for user_id, user_data in data.items():  # ← JSON already keyed by ID!
+        role_ids = user_data.get('role_ids', [])
+        if user_id and role_ids:
+            user_roles[user_id] = role_ids  # ← Key by ID
+    return user_roles
+
+# In main():
+for db_user in db_users:
+    user_id = str(db_user.id)  # ← Use database ID
+    old_json_role_ids = json_user_roles.get(user_id, [])  # ← Lookup by ID (works!)
+```
+
+#### Why:
+- **User IDs are immutable:** Once assigned, they never change.
+- **Emails are mutable:** Users can change emails, typos happen, different systems may store different emails.
+- **JSON structure already uses IDs:** The `users.json` file is already structured as `{user_id: user_data}`, so using IDs is the natural choice.
+
+#### Prevention:
+- ✅ **Always use IDs for data synchronization:** Never use user-facing fields (email, username, name) as primary keys for cross-system data matching.
+- ✅ **Validate assumptions:** Check that the lookup keys actually exist in both sources before processing.
+- ✅ **Better logging:** Log both the lookup key (ID) and user-facing identifier (email) for easier debugging:
+  ```python
+  print(f"   Processing user '{user_id}' (email: {db_user.email})")
+  ```
+- ✅ **Fail loudly on mismatch:** If no users are found, the script should exit with an error, not silently succeed:
+  ```python
+  if updated_count == 0 and len(db_users) > 0:
+      raise ValueError("No users were updated! Check ID/email matching.")
+  ```
+
+---
+
 ## 🔄 **UPDATE LOG**
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-12 | Email mismatch in user lookup #22 | ✅ Fixed | Changed from email-based to ID-based lookup |
 | 2026-01-12 | Role permissions not migrated #21 | ✅ Fixed | Added permissions, parent_id, level, created_by to migration + improved role_ids mapping |
 | 2026-01-12 | Missing columns in Role model #20 | ✅ Fixed | Added permissions, parent_id, level, created_by columns |
 | 2026-01-12 | Missing role_ids UUID mapping #19.2 | ✅ Fixed | Script now maps old IDs to UUIDs |
