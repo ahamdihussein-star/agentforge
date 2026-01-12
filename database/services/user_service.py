@@ -158,14 +158,18 @@ class UserService:
         except:
             status = UserStatus.ACTIVE
         
-        # Convert MFA method string to enum
-        try:
+        # Build MFA methods list
+        mfa_methods = []
+        if hasattr(db_user, 'mfa_enabled') and db_user.mfa_enabled:
             if hasattr(db_user, 'mfa_method') and db_user.mfa_method:
-                mfa_method = MFAMethod(db_user.mfa_method) if isinstance(db_user.mfa_method, str) else db_user.mfa_method
-            else:
-                mfa_method = MFAMethod.NONE
-        except:
-            mfa_method = MFAMethod.NONE
+                try:
+                    # Convert DB MFA method (enum or string) to MFAMethod
+                    if isinstance(db_user.mfa_method, str):
+                        mfa_methods = [MFAMethod(db_user.mfa_method)]
+                    else:
+                        mfa_methods = [db_user.mfa_method]
+                except (ValueError, AttributeError):
+                    pass  # Skip invalid method
         
         return User(
             id=db_user.id,
@@ -184,9 +188,11 @@ class UserService:
             ),
             mfa=UserMFA(
                 enabled=db_user.mfa_enabled if hasattr(db_user, 'mfa_enabled') else False,
-                method=mfa_method,
-                secret=db_user.mfa_secret_encrypted if hasattr(db_user, 'mfa_secret_encrypted') else "",
+                methods=mfa_methods,  # ✅ List of MFAMethods
+                totp_secret=db_user.mfa_secret_encrypted if hasattr(db_user, 'mfa_secret_encrypted') else None,
+                totp_verified=db_user.mfa_enabled if hasattr(db_user, 'mfa_enabled') else False,
                 backup_codes=[]  # Stored in separate MFASetting table
+            ),
             ),
             auth_provider=None,  # TODO: Convert from string
             external_id=db_user.external_id,
