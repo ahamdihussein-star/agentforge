@@ -163,12 +163,21 @@ def migrate_roles(org_mapping):
                         except ValueError:
                             print(f"   ⚠️  Unknown org_id '{old_org_id}', setting to None")
                 
+                # Map parent_id if exists
+                parent_uuid = None
+                if role_data.get('parent_id'):
+                    parent_uuid = id_mapping.get(role_data['parent_id']) or role_data.get('parent_id')
+                
                 role = Role(
                     id=role_uuid,
                     name=role_data['name'],
                     description=role_data.get('description', ''),
+                    permissions=json.dumps(role_data.get('permissions', [])),  # ✅ Store permissions!
+                    parent_id=parent_uuid,  # ✅ Store parent_id
+                    level=str(role_data.get('level', 100)),  # ✅ Store level
                     is_system=role_data.get('is_system', False),
                     org_id=org_uuid,
+                    created_by=role_data.get('created_by'),  # ✅ Store created_by
                     created_at=datetime.fromisoformat(role_data['created_at']) if 'created_at' in role_data else datetime.utcnow()
                 )
                 
