@@ -6,6 +6,142 @@ This file documents all issues encountered during database development to preven
 
 ---
 
+## 🔥 **RECURRING PATTERNS (CRITICAL - READ FIRST!)**
+
+### ⚠️ Pattern #1: **Incomplete Schema Mapping** (Issues #14, #20, #21)
+**Severity:** CRITICAL  
+**Frequency:** 3 times in 1 day  
+**Impact:** Data loss, broken functionality, empty permissions, no UI menu
+
+#### The Problem:
+When creating database models or migration scripts, fields are often **missed** or **not fully mapped** between:
+1. **Pydantic Models** (`core/security/models.py`) ← Business logic models
+2. **SQLAlchemy Models** (`database/models/*.py`) ← Database schema
+3. **JSON Source Data** (`data/security/*.json`) ← Legacy data
+4. **Migration Scripts** (`scripts/migrate_to_db_complete.py`) ← Data transfer logic
+
+#### Examples:
+- **Issue #14:** `User` SQLAlchemy model missing 11 fields that exist in Pydantic model
+- **Issue #20:** `Role` SQLAlchemy model missing 4 fields that exist in Pydantic model
+- **Issue #21:** `migrate_roles()` function not storing `permissions` field (even though it exists in both models!)
+
+#### Why It Keeps Happening:
+- **No Automated Validation:** No tool to compare schemas across layers
+- **Manual Field Mapping:** Copy-paste errors, forgetting fields
+- **Incremental Development:** Adding fields to one layer, forgetting others
+- **Lack of Cross-Reference:** Not checking Pydantic model when writing SQLAlchemy model
+
+#### The Solution (MANDATORY):
+1. **Before creating ANY new model:**
+   ```bash
+   # 1. Read the Pydantic model first
+   cat core/security/models.py | grep "class YourModel"
+   
+   # 2. List ALL fields in the Pydantic model
+   # Write them down in a checklist
+   
+   # 3. Create SQLAlchemy model with ALL fields
+   # Check off each field as you add it
+   
+   # 4. Write migration script with ALL fields
+   # Check off each field as you map it
+   ```
+
+2. **Create a Schema Comparison Script:** (URGENT TODO!)
+   ```python
+   # scripts/compare_schemas.py
+   # Compares Pydantic vs SQLAlchemy vs JSON vs Migration
+   # Flags any missing fields
+   ```
+
+3. **Add to Pre-Commit Hook:**
+   ```bash
+   # Run schema comparison before every commit
+   python scripts/compare_schemas.py
+   ```
+
+4. **Document Field Mapping:**
+   ```python
+   # In migration script, add comments:
+   role = Role(
+       # Pydantic: id → SQLAlchemy: id
+       id=role_uuid,
+       # Pydantic: name → SQLAlchemy: name
+       name=role_data['name'],
+       # Pydantic: permissions → SQLAlchemy: permissions ✅
+       permissions=json.dumps(role_data.get('permissions', [])),
+       # ... document EVERY field mapping
+   )
+   ```
+
+#### Impact If Ignored:
+- **Data Loss:** Fields not migrated = permanent data loss
+- **Broken Business Logic:** Missing `permissions` = no RBAC = security breach
+- **Silent Failures:** Code runs but features don't work (e.g., empty menu)
+- **Hours of Debugging:** Chasing "why isn't X working?" when the issue is a missing field
+
+---
+
+### ⚠️ Pattern #2: **Reserved SQLAlchemy Attribute Names** (Issue #1)
+**Severity:** CRITICAL  
+**Frequency:** 2 times  
+**Impact:** `InvalidRequestError`, application crashes
+
+#### The Problem:
+Using `metadata` as a column name (or other reserved attributes like `registry`, `__tablename__`, etc.)
+
+#### Prevention:
+```bash
+# Before adding ANY column, check:
+grep -r "reserved" .cursorrules
+grep -r "metadata = Column" database/models/
+```
+
+---
+
+### ⚠️ Pattern #3: **PostgreSQL-Specific Types** (Issues #6, #8, #9)
+**Severity:** HIGH  
+**Frequency:** 3 times  
+**Impact:** Platform lock-in, deployment failures on non-PostgreSQL databases
+
+#### The Problem:
+Using `UUID(as_uuid=True)`, `JSONB`, `ARRAY`, `INET`, native `ENUM` types.
+
+#### Prevention:
+```bash
+# Check before committing:
+grep -r "from sqlalchemy.dialects.postgresql" database/models/
+# Should return: nothing!
+```
+
+---
+
+## 🛡️ **ZERO-TOLERANCE CHECKLIST (Before ANY Database Work)**
+
+Use this checklist EVERY TIME you work on database code:
+
+### 📋 Pre-Work Checklist:
+- [ ] Read `database/COMMON_ISSUES.md` (this file!)
+- [ ] Review **Recurring Patterns** section above
+- [ ] Run `./scripts/comprehensive_db_check.sh`
+- [ ] Check `.cursorrules` for latest rules
+
+### 📋 During-Work Checklist (for new models):
+- [ ] List ALL fields from Pydantic model (write them down!)
+- [ ] Create SQLAlchemy model with ALL fields (check them off!)
+- [ ] Write migration with ALL fields (check them off!)
+- [ ] Use database-agnostic types (from `database/types.py`)
+- [ ] Avoid reserved attribute names (`metadata`, `registry`)
+- [ ] Document field mappings in migration comments
+
+### 📋 Pre-Commit Checklist:
+- [ ] Run `./scripts/comprehensive_db_check.sh` (automated via pre-commit hook)
+- [ ] Verify: `python -c "from database.models import *"` (no errors)
+- [ ] Review changes against COMMON_ISSUES.md (check for repeated mistakes)
+- [ ] Test migration locally (2+ times, with rollback)
+
+---
+
 ## 🔴 **RESERVED WORDS IN SQLALCHEMY**
 
 ### Issue #1: `metadata` is Reserved

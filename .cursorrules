@@ -18,6 +18,23 @@
 
 ## 🚨 CRITICAL - DATABASE RULES (READ FIRST!)
 
+### MANDATORY: Review Recurring Patterns Before ANY Database Work!
+**BEFORE touching database code, you MUST:**
+1. ✅ Read `database/COMMON_ISSUES.md` → **"RECURRING PATTERNS"** section (Lines 9-150)
+2. ✅ Check if your current task matches any recurring pattern
+3. ✅ Follow the prevention checklist for that pattern
+
+**Most Critical Recurring Patterns:**
+- ⚠️ **Pattern #1:** Incomplete Schema Mapping (Issues #14, #20, #21)
+  - **Before creating models:** List ALL Pydantic fields → Map ALL to SQLAlchemy → Map ALL to migration
+  - **Checklist:** Write down every field, check off as you add it
+  
+- ⚠️ **Pattern #2:** Reserved SQLAlchemy Words (Issue #1)
+  - **Check:** `grep -r "metadata = Column" database/models/` (should be empty!)
+  
+- ⚠️ **Pattern #3:** PostgreSQL-Specific Types (Issues #6, #8, #9)
+  - **Check:** `grep -r "from sqlalchemy.dialects.postgresql" database/models/` (should be empty!)
+
 ### Reserved SQLAlchemy Words (NEVER USE):
 - ❌ `metadata` (use `extra_metadata`, `user_metadata`, or `custom_data`)
 - ❌ `registry`
