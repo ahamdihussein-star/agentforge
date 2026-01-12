@@ -186,13 +186,20 @@ class UserService:
             auth_provider = AuthProvider.LOCAL  # Default to LOCAL
         
         # Parse JSON arrays from TEXT columns (stored as JSON strings in DB)
+        # DEBUG: Log the type and value of role_ids
+        print(f"   🔍 DEBUG [{db_user.email}] role_ids type: {type(db_user.role_ids)}, value: {repr(db_user.role_ids)}")
+        
         try:
             # Always ensure role_ids is a list
             if isinstance(db_user.role_ids, str):
+                print(f"   🔍 DEBUG [{db_user.email}] role_ids is STRING, parsing...")
                 role_ids = json.loads(db_user.role_ids) if db_user.role_ids else []
+                print(f"   🔍 DEBUG [{db_user.email}] Parsed role_ids: {role_ids} (type: {type(role_ids)})")
             elif isinstance(db_user.role_ids, list):
+                print(f"   🔍 DEBUG [{db_user.email}] role_ids is already a LIST")
                 role_ids = db_user.role_ids
             else:
+                print(f"   🔍 DEBUG [{db_user.email}] role_ids is NEITHER str nor list!")
                 role_ids = []
         except (json.JSONDecodeError, TypeError) as e:
             print(f"   ⚠️  Error parsing role_ids for {db_user.email}: {e}")
