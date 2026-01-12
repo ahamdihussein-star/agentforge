@@ -657,6 +657,106 @@ grep -r "from sqlalchemy.dialects.postgresql" database/models/
 
 ---
 
+## 🔴 **POSTGRESQL ENUM TYPE PERSISTS**
+
+### Issue #9: Native PostgreSQL Enum in Database Despite Model Fix
+**Date:** 2026-01-12  
+**Severity:** CRITICAL  
+**Occurrences:** 1 time (tools table)
+
+#### Problem:
+Even after changing model from `SQLEnum` to `String(50)`, the database table STILL has the old PostgreSQL enum type.
+
+```python
+# ✅ Model is CORRECT:
+type = Column(String(50), nullable=False)
+
+# ❌ But Database has:
+CREATE TABLE tools (
+    type tooltype NOT NULL  -- ← PostgreSQL enum still exists!
+);
+```
+
+#### Error:
+```
+sqlalchemy.exc.DataError: invalid input value for enum tooltype: "website"
+```
+
+#### Root Cause:
+- **Changing Python code does NOT change existing database schema**
+- PostgreSQL enum type `tooltype` was created in the past
+- SQLAlchemy doesn't automatically drop old enum types
+- Table must be dropped and recreated to remove enum
+
+#### Solution:
+
+**Option 1: Drop & Recreate Table (✅ Used)**
+```python
+# scripts/fix_tools_table.py
+conn.execute(text("DROP TABLE IF EXISTS tools CASCADE"))
+conn.execute(text("DROP TYPE IF EXISTS tooltype CASCADE"))
+Tool.__table__.create(engine)  # Recreates with VARCHAR
+```
+
+**Option 2: Alembic Migration (Enterprise)**
+```python
+# alembic/versions/002_remove_tool_enum.py
+def upgrade():
+    # Create new column
+    op.add_column('tools', sa.Column('type_new', sa.String(50)))
+    # Copy data
+    op.execute("UPDATE tools SET type_new = type::text")
+    # Drop old column and enum
+    op.drop_column('tools', 'type')
+    op.execute("DROP TYPE IF EXISTS tooltype")
+    # Rename column
+    op.alter_column('tools', 'type_new', new_column_name='type')
+
+def downgrade():
+    # Reverse process
+    pass
+```
+
+#### Why This Happened:
+1. Originally used `SQLEnum(ToolType, native_enum=True)`
+2. PostgreSQL created `CREATE TYPE tooltype AS ENUM (...)`
+3. Changed model to `String(50)` (correct!)
+4. BUT: Existing database schema didn't change
+5. Migration script tried to insert 'website' into enum (not allowed)
+
+#### Fixed Files:
+```bash
+✅ database/models/tool.py (already correct - String(50))
+✅ scripts/fix_tools_table.py (NEW - drops/recreates table)
+✅ Dockerfile (runs fix script before migration)
+```
+
+#### Prevention:
+```bash
+# NEVER use native PostgreSQL enums:
+❌ type = Column(SQLEnum(ToolType, native_enum=True, ...))
+
+# ALWAYS use String + Python enum validation:
+✅ type = Column(String(50), nullable=False)
+✅ # Validate with: ToolType(value)  # raises ValueError if invalid
+```
+
+**Key Learning:** 
+- **Code changes ≠ Database changes**
+- Always use migrations for schema changes
+- SQLAlchemy doesn't auto-drop unused enum types
+- Native database enums are not database-agnostic
+
+#### Deployment Strategy:
+```bash
+1. Database init creates all tables
+2. fix_tools_table.py drops/recreates tools table
+3. Migration script inserts data
+4. Result: VARCHAR column, works on all databases
+```
+
+---
+
 ## 🔵 **BEST PRACTICES LEARNED**
 
 ### 1. Column Naming Conventions
@@ -773,6 +873,7 @@ grep -r "ForeignKey(" database/models/
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
 | 2026-01-12 | **AUTOMATED PREVENTION** | ✅ **ACTIVE** | Pre-commit hook + comprehensive checks |
+| 2026-01-12 | PostgreSQL enum persists in DB | ✅ Fixed | Drop/recreate tools table |
 | 2026-01-12 | INET type (PostgreSQL-specific) | ✅ Fixed | Changed to String(45) for IP addresses |
 | 2026-01-12 | audit.py syntax error | ✅ Fixed | JSONB = JSON, INET → JSONB = JSON |
 | 2026-01-12 | ARRAY(Float) not converted | ✅ Fixed | Changed to JSONArray |

@@ -68,6 +68,9 @@ else\n\
       echo "📋 Initializing database tables..."\n\
       python database/init_db.py 2>&1 | grep -E "✅|❌|Database"\n\
       echo ""\n\
+      echo "🔧 Fixing tools table (removing PostgreSQL enum)..."\n\
+      python scripts/fix_tools_table.py 2>&1\n\
+      echo ""\n\
       echo "📦 Migrating data from JSON to Database..."\n\
       python scripts/migrate_to_db_complete.py 2>&1\n\
       echo ""\n\
