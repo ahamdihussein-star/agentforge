@@ -257,7 +257,7 @@ class KBQuery(Base):
     # Results
     results_count = Column(Integer)
     top_document_ids = Column(JSONArray)
-    relevance_scores = Column(ARRAY(Float))  # Similarity scores
+    relevance_scores = Column(JSONArray)  # Similarity scores as JSON array
     
     # Performance
     search_duration_ms = Column(Integer)
