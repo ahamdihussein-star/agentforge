@@ -51,6 +51,22 @@ class UserService:
             return UserService._db_to_core_user(db_user)
     
     @staticmethod
+    def get_all_users(org_id: Optional[str] = None) -> List[User]:
+        """
+        Get all users (optionally filtered by org)
+        Returns: List of Core User models
+        """
+        with get_db_session() as db:
+            query = db.query(DBUser)
+            
+            if org_id:
+                query = query.filter(DBUser.org_id == org_id)
+            
+            db_users = query.all()
+            
+            return [UserService._db_to_core_user(db_user) for db_user in db_users]
+    
+    @staticmethod
     def create_user(user: User) -> User:
         """Create new user in database"""
         with get_db_session() as db:
