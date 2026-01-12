@@ -1,263 +1,248 @@
 """
-User Service - Dual-write implementation (JSON + Database)
+User Service - Database Operations for User Management
+Enterprise-grade user authentication and management
 """
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-import uuid
-
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import or_
 
-from ..models.user import User, UserSession, MFASetting, PasswordHistory
-from ..base import get_db_session  # Use context manager version
+from ..base import get_db_session
+from ..models.user import User as DBUser, UserSession, UserMFA
+from core.security import User, Session as CoreSession, UserStatus, MFAMethod
 
 
 class UserService:
     """
-    User service with dual-write support
-    Writes to both JSON files and PostgreSQL database
-    Reads from database first, falls back to JSON
+    User Service - Bridge between API and Database
+    Handles all user-related database operations
     """
     
-    def __init__(self, json_storage=None):
+    @staticmethod
+    def get_user_by_email(email: str, org_id: str) -> Optional[User]:
         """
-        Initialize service
-        
-        Args:
-            json_storage: Reference to existing JSON storage system
+        Get user by email and organization
+        Returns: Core User model (for API compatibility)
         """
-        self.json_storage = json_storage
-    
-    def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Create user in both DB and JSON
-        
-        Args:
-            user_data: User information
+        with get_db_session() as db:
+            db_user = db.query(DBUser).filter(
+                DBUser.email == email.lower(),
+                DBUser.org_id == org_id
+            ).first()
             
-        Returns:
-            Created user dict
-        """
-        user_id = user_data.get('id') or str(uuid.uuid4())
-        
-        # 1. Write to Database
-        try:
-            with get_db_session() as session:
-                db_user = User(
-                    id=uuid.UUID(user_id) if isinstance(user_id, str) else user_id,
-                    email=user_data.get('email'),
-                    username=user_data.get('username'),
-                    password_hash=user_data.get('password_hash'),
-                    first_name=user_data.get('first_name'),
-                    last_name=user_data.get('last_name'),
-                    display_name=user_data.get('display_name'),
-                    phone=user_data.get('phone'),
-                    job_title=user_data.get('job_title'),
-                    status=user_data.get('status', 'active'),
-                    email_verified=user_data.get('email_verified', False),
-                    mfa_enabled=user_data.get('mfa_enabled', False),
-                    mfa_method=user_data.get('mfa_method', 'none'),
-                    org_id=uuid.UUID(user_data['org_id']) if user_data.get('org_id') else None,
-                    created_at=datetime.fromisoformat(user_data['created_at']) if user_data.get('created_at') else datetime.utcnow()
-                )
-                session.add(db_user)
-                session.commit()
-                print(f"✅ User {user_data.get('email')} written to database")
-        except Exception as e:
-            print(f"⚠️  Database write failed: {e}")
-            # Continue to JSON write even if DB fails
-        
-        # 2. Write to JSON (existing system)
-        if self.json_storage:
-            try:
-                self.json_storage.save_user(user_data)
-                print(f"✅ User {user_data.get('email')} written to JSON")
-            except Exception as e:
-                print(f"⚠️  JSON write failed: {e}")
-        
-        return user_data
-    
-    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
-        """
-        Get user by email - reads from DB first, falls back to JSON
-        
-        Args:
-            email: User email
+            if not db_user:
+                return None
             
-        Returns:
-            User dict or None
-        """
-        # 1. Try Database first
-        try:
-            with get_session() as session:
-                stmt = select(User).where(User.email == email)
-                db_user = session.execute(stmt).scalar_one_or_none()
-                
-                if db_user:
-                    print(f"✅ User {email} found in database")
-                    return db_user.to_dict()
-        except Exception as e:
-            print(f"⚠️  Database read failed: {e}")
-        
-        # 2. Fallback to JSON
-        if self.json_storage:
-            try:
-                json_user = self.json_storage.get_user_by_email(email)
-                if json_user:
-                    print(f"✅ User {email} found in JSON (fallback)")
-                    return json_user
-            except Exception as e:
-                print(f"⚠️  JSON read failed: {e}")
-        
-        return None
+            # Convert DB model to Core model (for API compatibility)
+            return UserService._db_to_core_user(db_user)
     
-    def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get user by ID - reads from DB first, falls back to JSON
-        
-        Args:
-            user_id: User UUID
+    @staticmethod
+    def get_user_by_id(user_id: str, org_id: str) -> Optional[User]:
+        """Get user by ID"""
+        with get_db_session() as db:
+            db_user = db.query(DBUser).filter(
+                DBUser.id == user_id,
+                DBUser.org_id == org_id
+            ).first()
             
-        Returns:
-            User dict or None
-        """
-        # 1. Try Database first
-        try:
-            with get_session() as session:
-                stmt = select(User).where(User.id == uuid.UUID(user_id))
-                db_user = session.execute(stmt).scalar_one_or_none()
-                
-                if db_user:
-                    print(f"✅ User {user_id} found in database")
-                    return db_user.to_dict()
-        except Exception as e:
-            print(f"⚠️  Database read failed: {e}")
-        
-        # 2. Fallback to JSON
-        if self.json_storage:
-            try:
-                json_user = self.json_storage.get_user_by_id(user_id)
-                if json_user:
-                    print(f"✅ User {user_id} found in JSON (fallback)")
-                    return json_user
-            except Exception as e:
-                print(f"⚠️  JSON read failed: {e}")
-        
-        return None
+            if not db_user:
+                return None
+            
+            return UserService._db_to_core_user(db_user)
     
-    def update_user(self, user_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Update user in both DB and JSON
-        
-        Args:
-            user_id: User UUID
-            update_data: Fields to update
+    @staticmethod
+    def create_user(user: User) -> User:
+        """Create new user in database"""
+        with get_db_session() as db:
+            # Convert Core model to DB model
+            db_user = DBUser(
+                id=user.id,
+                org_id=user.org_id,
+                email=user.email.lower(),
+                password_hash=user.password_hash,
+                status=user.status.value if hasattr(user.status, 'value') else user.status,
+                role_ids=user.role_ids or [],
+                department_id=user.department_id,
+                group_ids=user.group_ids or [],
+                auth_provider=user.auth_provider.value if user.auth_provider else None,
+                external_id=user.external_id,
+                email_verified=user.email_verified,
+                must_change_password=user.must_change_password,
+                failed_login_attempts=user.failed_login_attempts,
+                last_login=datetime.fromisoformat(user.last_login) if user.last_login else None,
+                last_active=datetime.fromisoformat(user.last_active) if user.last_active else None,
+                created_at=datetime.fromisoformat(user.created_at) if user.created_at else datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
             
-        Returns:
-            Updated user dict or None
-        """
-        # 1. Update in Database
-        try:
-            with get_session() as session:
-                stmt = select(User).where(User.id == uuid.UUID(user_id))
-                db_user = session.execute(stmt).scalar_one_or_none()
-                
-                if db_user:
-                    for key, value in update_data.items():
-                        if hasattr(db_user, key):
-                            setattr(db_user, key, value)
-                    
-                    db_user.updated_at = datetime.utcnow()
-                    session.commit()
-                    print(f"✅ User {user_id} updated in database")
-        except Exception as e:
-            print(f"⚠️  Database update failed: {e}")
-        
-        # 2. Update in JSON
-        if self.json_storage:
-            try:
-                self.json_storage.update_user(user_id, update_data)
-                print(f"✅ User {user_id} updated in JSON")
-            except Exception as e:
-                print(f"⚠️  JSON update failed: {e}")
-        
-        # Return updated user
-        return self.get_user_by_id(user_id)
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+            
+            return UserService._db_to_core_user(db_user)
     
-    def list_users(self, org_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """
-        List users - reads from DB first, falls back to JSON
-        
-        Args:
-            org_id: Optional organization filter
-            limit: Max results
+    @staticmethod
+    def update_user(user: User) -> User:
+        """Update user in database"""
+        with get_db_session() as db:
+            db_user = db.query(DBUser).filter(
+                DBUser.id == user.id,
+                DBUser.org_id == user.org_id
+            ).first()
             
-        Returns:
-            List of user dicts
-        """
-        # 1. Try Database first
-        try:
-            with get_session() as session:
-                stmt = select(User)
-                
-                if org_id:
-                    stmt = stmt.where(User.org_id == uuid.UUID(org_id))
-                
-                stmt = stmt.limit(limit)
-                db_users = session.execute(stmt).scalars().all()
-                
-                if db_users:
-                    print(f"✅ Found {len(db_users)} users in database")
-                    return [user.to_dict() for user in db_users]
-        except Exception as e:
-            print(f"⚠️  Database list failed: {e}")
-        
-        # 2. Fallback to JSON
-        if self.json_storage:
-            try:
-                json_users = self.json_storage.list_users(org_id=org_id, limit=limit)
-                if json_users:
-                    print(f"✅ Found {len(json_users)} users in JSON (fallback)")
-                    return json_users
-            except Exception as e:
-                print(f"⚠️  JSON list failed: {e}")
-        
-        return []
+            if not db_user:
+                raise ValueError(f"User {user.id} not found")
+            
+            # Update fields
+            db_user.email = user.email.lower()
+            if user.password_hash:
+                db_user.password_hash = user.password_hash
+            db_user.status = user.status.value if hasattr(user.status, 'value') else user.status
+            db_user.role_ids = user.role_ids or []
+            db_user.department_id = user.department_id
+            db_user.group_ids = user.group_ids or []
+            db_user.email_verified = user.email_verified
+            db_user.must_change_password = user.must_change_password
+            db_user.failed_login_attempts = user.failed_login_attempts
+            
+            if user.last_login:
+                db_user.last_login = datetime.fromisoformat(user.last_login) if isinstance(user.last_login, str) else user.last_login
+            if user.last_active:
+                db_user.last_active = datetime.fromisoformat(user.last_active) if isinstance(user.last_active, str) else user.last_active
+            
+            db_user.updated_at = datetime.utcnow()
+            
+            db.commit()
+            db.refresh(db_user)
+            
+            return UserService._db_to_core_user(db_user)
     
-    def delete_user(self, user_id: str) -> bool:
+    @staticmethod
+    def _db_to_core_user(db_user: DBUser) -> User:
         """
-        Delete user from both DB and JSON
-        
-        Args:
-            user_id: User UUID
-            
-        Returns:
-            Success boolean
+        Convert Database User model to Core User model
+        Ensures API compatibility
         """
-        success = False
+        from core.security import UserProfile, UserMFA
         
-        # 1. Delete from Database
+        # Convert status string to enum
         try:
-            with get_session() as session:
-                stmt = select(User).where(User.id == uuid.UUID(user_id))
-                db_user = session.execute(stmt).scalar_one_or_none()
-                
-                if db_user:
-                    session.delete(db_user)
-                    session.commit()
-                    print(f"✅ User {user_id} deleted from database")
-                    success = True
-        except Exception as e:
-            print(f"⚠️  Database delete failed: {e}")
+            status = UserStatus(db_user.status) if isinstance(db_user.status, str) else db_user.status
+        except:
+            status = UserStatus.ACTIVE
         
-        # 2. Delete from JSON
-        if self.json_storage:
-            try:
-                self.json_storage.delete_user(user_id)
-                print(f"✅ User {user_id} deleted from JSON")
-                success = True
-            except Exception as e:
-                print(f"⚠️  JSON delete failed: {e}")
-        
-        return success
+        return User(
+            id=db_user.id,
+            org_id=db_user.org_id,
+            email=db_user.email,
+            password_hash=db_user.password_hash or "",
+            status=status,
+            role_ids=db_user.role_ids or [],
+            department_id=db_user.department_id,
+            group_ids=db_user.group_ids or [],
+            profile=UserProfile(
+                first_name="",  # TODO: Extract from profile JSON
+                last_name="",
+                phone="",
+                avatar_url=""
+            ),
+            mfa=UserMFA(
+                enabled=False,  # TODO: Check user_mfa table
+                method=MFAMethod.NONE,
+                secret="",
+                backup_codes=[]
+            ),
+            auth_provider=None,  # TODO: Convert from string
+            external_id=db_user.external_id,
+            email_verified=db_user.email_verified,
+            must_change_password=db_user.must_change_password,
+            failed_login_attempts=db_user.failed_login_attempts,
+            locked_until=None,  # TODO: Extract from status
+            last_login=db_user.last_login.isoformat() if db_user.last_login else None,
+            last_active=db_user.last_active.isoformat() if db_user.last_active else None,
+            created_at=db_user.created_at.isoformat() if db_user.created_at else datetime.utcnow().isoformat(),
+            updated_at=db_user.updated_at.isoformat() if db_user.updated_at else datetime.utcnow().isoformat()
+        )
 
+
+class SessionService:
+    """
+    Session Service - Database Operations for Session Management
+    """
+    
+    @staticmethod
+    def create_session(session: CoreSession) -> CoreSession:
+        """Create new session in database"""
+        with get_db_session() as db:
+            db_session = UserSession(
+                id=session.id,
+                user_id=session.user_id,
+                org_id=session.org_id,
+                is_active=session.is_active,
+                ip_address=session.ip_address,
+                user_agent=session.user_agent or "",
+                remember_me=session.remember_me,
+                last_activity=datetime.fromisoformat(session.last_activity) if session.last_activity else datetime.utcnow(),
+                created_at=datetime.fromisoformat(session.created_at) if session.created_at else datetime.utcnow()
+            )
+            
+            db.add(db_session)
+            db.commit()
+            db.refresh(db_session)
+            
+            return session
+    
+    @staticmethod
+    def get_session(session_id: str) -> Optional[CoreSession]:
+        """Get session by ID"""
+        with get_db_session() as db:
+            db_session = db.query(UserSession).filter(
+                UserSession.id == session_id
+            ).first()
+            
+            if not db_session:
+                return None
+            
+            return CoreSession(
+                id=db_session.id,
+                user_id=db_session.user_id,
+                org_id=db_session.org_id,
+                is_active=db_session.is_active,
+                ip_address=db_session.ip_address,
+                user_agent=db_session.user_agent or "",
+                remember_me=db_session.remember_me,
+                last_activity=db_session.last_activity.isoformat() if db_session.last_activity else datetime.utcnow().isoformat(),
+                created_at=db_session.created_at.isoformat() if db_session.created_at else datetime.utcnow().isoformat()
+            )
+    
+    @staticmethod
+    def update_session(session: CoreSession) -> CoreSession:
+        """Update session in database"""
+        with get_db_session() as db:
+            db_session = db.query(UserSession).filter(
+                UserSession.id == session.id
+            ).first()
+            
+            if not db_session:
+                raise ValueError(f"Session {session.id} not found")
+            
+            db_session.is_active = session.is_active
+            db_session.last_activity = datetime.fromisoformat(session.last_activity) if isinstance(session.last_activity, str) else session.last_activity
+            
+            db.commit()
+            db.refresh(db_session)
+            
+            return session
+    
+    @staticmethod
+    def deactivate_session(session_id: str):
+        """Deactivate session (logout)"""
+        with get_db_session() as db:
+            db_session = db.query(UserSession).filter(
+                UserSession.id == session_id
+            ).first()
+            
+            if db_session:
+                db_session.is_active = False
+                db_session.expires_at = datetime.utcnow()
+                db.commit()
