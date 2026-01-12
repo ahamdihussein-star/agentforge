@@ -62,10 +62,26 @@ def main():
         # Initialize database
         init_db()
         print("✅ All tables created successfully!")
+        print()
+        
+        # Run Alembic migrations to update enum types
+        print("3️⃣  Running database migrations (Alembic)...")
+        try:
+            from alembic.config import Config
+            from alembic import command
+            
+            alembic_cfg = Config("alembic.ini")
+            # Run migrations
+            command.upgrade(alembic_cfg, "head")
+            print("✅ Database migrations applied successfully!")
+        except Exception as e:
+            print(f"⚠️  Migration skipped or failed: {e}")
+            print("   (This is OK for first-time setup)")
+        
+        print()
         
         # List created tables
-        print()
-        print("3️⃣  Verifying created tables...")
+        print("4️⃣  Verifying created tables...")
         from sqlalchemy import inspect
         engine = get_engine()
         inspector = inspect(engine)

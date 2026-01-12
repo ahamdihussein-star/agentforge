@@ -419,6 +419,74 @@ The initial quick fix (adding 'WEBSITE' to model, hard-coded TYPE_MAPPING) was *
 - 🏢 Test migrations before production
 - 🏢 Provide rollback paths
 
+#### ⚠️ **CRITICAL: PostgreSQL Enum Types Are Separate from Python Enums!**
+
+**Issue #6 Continued - The REAL Problem:**
+
+Even after adding `WEBSITE` to Python enum and using centralized `database/enums.py`, migration still failed with:
+
+```
+invalid input value for enum tooltype: "WEBSITE"
+'type': 'WEBSITE'
+```
+
+**Root Cause:**
+- ✅ Python enum has `WEBSITE` (code level)
+- ❌ PostgreSQL `tooltype` enum does NOT have `'website'` (database level)
+- 🔥 **Python enums ≠ PostgreSQL enum types!**
+
+**Why:**
+1. When `CREATE TABLE tools` first ran, PostgreSQL created `tooltype` enum with only original values
+2. Adding to Python enum (`database/enums.py`) only affects Python code
+3. PostgreSQL enum type is **separate** and must be altered explicitly
+4. ALTER TYPE requires migration, not just model changes
+
+**Enterprise Solution Applied:**
+
+**1. Alembic Migration Created:**
+```python
+# alembic/versions/001_add_website_tooltype.py
+def upgrade():
+    # Check if 'website' exists in PostgreSQL enum
+    # If not, add it via ALTER TYPE
+    op.execute("COMMIT")  # Must be outside transaction
+    op.execute("ALTER TYPE tooltype ADD VALUE 'website'")
+```
+
+**2. Automatic Migration Execution:**
+```python
+# database/init_db.py
+def main():
+    init_db()  # Create tables
+    
+    # Run Alembic migrations
+    from alembic.config import Config
+    from alembic import command
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+```
+
+**3. Dockerfile Integration:**
+```bash
+# Already calls init_db.py which now runs migrations
+python database/init_db.py
+```
+
+**Key Learnings:**
+- 📚 PostgreSQL enum types exist independently of Python enums
+- 📚 Changing Python code does NOT change database schema
+- 📚 Must use ALTER TYPE or DROP/CREATE to modify PostgreSQL enums
+- 📚 Alembic migrations are the proper enterprise way
+- 📚 First migration must add missing enum value
+- 📚 Future enum additions follow same pattern
+
+**Prevention:**
+- ✅ Never assume Python enum changes affect database
+- ✅ Always create Alembic migration for enum modifications
+- ✅ Test migrations in dev environment before production
+- ✅ Document all schema changes in migration files
+- ✅ Verify PostgreSQL enum values match Python enum values
+
 ---
 
 ## 🔵 **BEST PRACTICES LEARNED**
@@ -525,7 +593,8 @@ grep -r "ForeignKey(" database/models/
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
-| 2026-01-12 | Enum type mismatch | ✅ Fixed | Added 'website' to ToolType, TYPE_MAPPING in migration |
+| 2026-01-12 | PostgreSQL enum not updated | ✅ Fixed | Alembic migration 001, ALTER TYPE tooltype |
+| 2026-01-12 | Enum type mismatch | ✅ Fixed | Centralized enums + Alembic setup |
 | 2026-01-12 | Migration duplicate key | ✅ Fixed | Check all unique constraints, use UPSERT pattern |
 | 2026-01-12 | `metadata` reserved | ✅ Fixed | Renamed to `extra_metadata` in 5 models |
 | 2026-01-11 | ForeignKey circular deps | ⚠️ Workaround | Removed FKs temporarily |
