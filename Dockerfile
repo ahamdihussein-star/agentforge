@@ -108,10 +108,13 @@ else\n\
        echo "⏭️  Skipping Admin/Presales permissions fix (RUN_FIX_SCRIPTS not set)"\n\
      fi\n\
      echo ""\n\
-     echo "🔧 Fixing role levels (hierarchy)..."\n\
-     python scripts/fix_role_levels.py 2>&1\n\
-     echo ""\n\
-     break\n\
+      echo "🔧 Fixing role levels (hierarchy)..."\n\
+      python scripts/fix_role_levels.py 2>&1\n\
+      echo ""\n\
+      echo "🔧 Adding Google OAuth credentials..."\n\
+      python scripts/add_google_oauth_credentials.py 2>&1 || echo "⚠️  Google OAuth credentials script failed (may already be set)"\n\
+      echo ""\n\
+      break\n\
     fi\n\
     \n\
     if [ $i -eq $MAX_ATTEMPTS ]; then\n\
