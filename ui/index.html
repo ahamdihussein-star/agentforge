@@ -18540,11 +18540,11 @@ function renderSecurityUsers() {
                 </div>
             </td>
             <td class="p-4">
-                ${(u.role_ids || []).map(roleId => {
-                    // If roles not loaded yet, try to load them
-                    if (securityRoles.length === 0) {
-                        loadSecurityRoles();
-                    }
+                ${(u.roles || []).map(roleName => {
+                    // Use role names directly from API response (best practice)
+                    return `<span class="px-2 py-1 rounded text-xs bg-blue-600/30 text-blue-400 mr-1">${escHtml(roleName)}</span>`;
+                }).join('') || (u.role_ids || []).map(roleId => {
+                    // Fallback: if roles array not available, try to find in securityRoles
                     const role = securityRoles.find(r => r.id === roleId);
                     const roleName = role ? role.name : (roleId.replace('role_', '') || roleId);
                     return `<span class="px-2 py-1 rounded text-xs bg-blue-600/30 text-blue-400 mr-1">${escHtml(roleName)}</span>`;
