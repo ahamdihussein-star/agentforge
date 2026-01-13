@@ -92,6 +92,9 @@ else\n\
      echo "🔧 Fixing Super Admin permissions..."\n\
      python scripts/fix_super_admin_permissions.py 2>&1\n\
      echo ""\n\
+     echo "🔍 Diagnosing roles issue (checking why only 1 role visible)..."\n\
+     python scripts/diagnose_roles_issue.py 2>&1\n\
+     echo ""\n\
      break\n\
     fi\n\
     \n\
