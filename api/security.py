@@ -1768,11 +1768,23 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
     
     # Check role hierarchy - user can only edit roles with higher level (lower privilege)
     # Super Admin (level 0) can edit any role
-    user_min_level = min([security_state.roles[r].level for r in user.role_ids if r in security_state.roles], default=100)
+    # Ensure all levels are int (might be string from database)
+    user_levels = []
+    for role_id in user.role_ids:
+        if role_id in security_state.roles:
+            r = security_state.roles[role_id]
+            level = int(r.level) if isinstance(r.level, str) else r.level
+            user_levels.append(level)
+    
+    user_min_level = min(user_levels) if user_levels else 100
+    
+    # Ensure role level is int
+    role_level = int(role.level) if isinstance(role.level, str) else role.level
+    
     if user_min_level == 0:
         # Super Admin can edit any role (including system roles)
         pass
-    elif role.level <= user_min_level:
+    elif role_level <= user_min_level:
         raise HTTPException(status_code=403, detail="Cannot modify a role with equal or higher privilege than yours")
     
     # Allow editing system roles permissions, but not renaming them
