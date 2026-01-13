@@ -526,25 +526,25 @@ class SecurityState:
         
         # Load audit logs from JSON only if database loading failed
         if not db_audit_loaded:
-        audit_path = os.path.join(security_dir, "audit_logs.json")
-        if os.path.exists(audit_path):
-            try:
-                with open(audit_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.audit_logs = []
-                    for log_data in data:
-                        try:
-                            # Handle enum conversion
-                            if 'action' in log_data and isinstance(log_data['action'], str):
-                                log_data['action'] = ActionType(log_data['action'])
-                            if 'resource_type' in log_data and isinstance(log_data['resource_type'], str):
-                                log_data['resource_type'] = ResourceType(log_data['resource_type'])
-                            self.audit_logs.append(AuditLog(**log_data))
-                        except Exception as item_error:
-                            pass  # Skip malformed log entries
-                print(f"✅ Loaded audit_logs.json: {len(self.audit_logs)} entries")
-            except Exception as e:
-                print(f"⚠️ Error loading audit logs: {e}")
+            audit_path = os.path.join(security_dir, "audit_logs.json")
+            if os.path.exists(audit_path):
+                try:
+                    with open(audit_path, encoding="utf-8") as f:
+                        data = json.load(f)
+                        self.audit_logs = []
+                        for log_data in data:
+                            try:
+                                # Handle enum conversion
+                                if 'action' in log_data and isinstance(log_data['action'], str):
+                                    log_data['action'] = ActionType(log_data['action'])
+                                if 'resource_type' in log_data and isinstance(log_data['resource_type'], str):
+                                    log_data['resource_type'] = ResourceType(log_data['resource_type'])
+                                self.audit_logs.append(AuditLog(**log_data))
+                            except Exception as item_error:
+                                pass  # Skip malformed log entries
+                    print(f"✅ Loaded audit_logs.json: {len(self.audit_logs)} entries")
+                except Exception as e:
+                    print(f"⚠️ Error loading audit logs: {e}")
         else:
             print(f"📋 Skipping audit_logs.json (already loaded {len(self.audit_logs)} audit logs from database)")
         
