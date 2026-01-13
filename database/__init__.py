@@ -4,8 +4,10 @@ Database-agnostic ORM layer using SQLAlchemy
 Supports: PostgreSQL, MySQL, SQLite, SQL Server, Oracle
 """
 from .base import Base, get_engine, get_session, init_db, check_connection
-from .types import UUID, JSON, JSONB, JSONArray, GUID
 
-__all__ = ['Base', 'get_engine', 'get_session', 'init_db', 'check_connection', 
-           'UUID', 'JSON', 'JSONB', 'JSONArray', 'GUID']
+# Don't import types at module level to avoid circular import
+# Types should be imported directly from database.types in model files
+# Example: from ..types import UUID, JSON
+
+__all__ = ['Base', 'get_engine', 'get_session', 'init_db', 'check_connection']
 

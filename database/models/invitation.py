@@ -31,7 +31,7 @@ class Invitation(Base):
     group_ids = Column(JSONArray, default=list)  # List of group IDs
     
     # Invitation details
-    invited_by = Column(UUID, nullable=False)  # User ID
+    invited_by = Column(UUID, nullable=True)  # User ID (nullable for legacy invitations)
     message = Column(Text, nullable=True)
     
     # Status

@@ -80,19 +80,36 @@ class InvitationService:
                         if user:
                             invited_by_uuid = user.id
                         else:
-                            print(f"⚠️  [DATABASE ERROR] User not found for invited_by: {invited_by_uuid}")
+                            print(f"⚠️  [DATABASE ERROR] User not found for invited_by: {invited_by_uuid}, setting to None")
                             invited_by_uuid = None
                     else:
                         # Try to find by old string ID (e.g., "user_super_admin")
-                        all_users = UserService.get_all_users()
-                        # Look for user with matching old ID pattern
-                        for user in all_users:
-                            if user.id == str(invited_by_uuid) or (hasattr(user, 'old_id') and user.old_id == str(invited_by_uuid)):
-                                invited_by_uuid = user.id
-                                break
-                        else:
-                            print(f"⚠️  [DATABASE ERROR] User not found for invited_by: {invited_by_uuid}, setting to None")
-                            invited_by_uuid = None
+                        # First, try to find Super Admin user (most common case)
+                        if str(invited_by_uuid) == "user_super_admin":
+                            all_users = UserService.get_all_users()
+                            for user in all_users:
+                                # Check if user has Super Admin role
+                                if user.role_ids:
+                                    from .role_service import RoleService
+                                    all_roles = RoleService.get_all_roles()
+                                    for role in all_roles:
+                                        if role.name == "Super Admin" and role.id in user.role_ids:
+                                            invited_by_uuid = user.id
+                                            print(f"🔄 Converted 'user_super_admin' to user UUID: {user.id[:8]}...")
+                                            break
+                                    if invited_by_uuid != invitation.invited_by:
+                                        break
+                        
+                        # If still not found, try all users
+                        if invited_by_uuid == invitation.invited_by:
+                            all_users = UserService.get_all_users()
+                            for user in all_users:
+                                if user.id == str(invited_by_uuid) or (hasattr(user, 'old_id') and user.old_id == str(invited_by_uuid)):
+                                    invited_by_uuid = user.id
+                                    break
+                            else:
+                                print(f"⚠️  [DATABASE ERROR] User not found for invited_by: {invited_by_uuid}, setting to None")
+                                invited_by_uuid = None
             
             # Ensure invited_by is a valid UUID string
             if invited_by_uuid:
@@ -102,6 +119,36 @@ class InvitationService:
                     print(f"⚠️  [DATABASE ERROR] Invalid invited_by format: {invited_by_uuid}, setting to None")
                     invited_by_uuid = None
             
+            # Convert role_ids from string IDs to UUIDs (e.g., "role_admin" -> UUID)
+            role_ids_uuid = []
+            if invitation.role_ids:
+                from .role_service import RoleService
+                all_roles = RoleService.get_all_roles()
+                role_name_to_uuid = {role.name.lower(): role.id for role in all_roles}
+                
+                for role_id in invitation.role_ids:
+                    # Check if it's already a UUID
+                    try:
+                        uuid.UUID(role_id)
+                        role_ids_uuid.append(role_id)  # Already a UUID
+                    except (ValueError, TypeError):
+                        # It's a string ID, try to find by name
+                        # Handle common patterns: "role_admin" -> "Admin", "role_super_admin" -> "Super Admin"
+                        role_name = str(role_id).replace("role_", "").replace("_", " ").title()
+                        # Special case for "Super Admin"
+                        if "super admin" in role_name.lower():
+                            role_name = "Super Admin"
+                        elif "admin" in role_name.lower() and "super" not in role_name.lower():
+                            role_name = "Admin"
+                        
+                        if role_name.lower() in role_name_to_uuid:
+                            role_ids_uuid.append(role_name_to_uuid[role_name.lower()])
+                            print(f"🔄 Converted role_id '{role_id}' to UUID: {role_name_to_uuid[role_name.lower()][:8]}...")
+                        else:
+                            print(f"⚠️  [DATABASE ERROR] Role not found for role_id: {role_id} (tried: {role_name}), skipping")
+            else:
+                role_ids_uuid = []
+            
             db_inv = session.query(DBInvitation).filter_by(id=invitation.id).first()
             if db_inv:
                 # Update existing
@@ -109,7 +156,7 @@ class InvitationService:
                 db_inv.org_id = org_id_uuid
                 db_inv.email = invitation.email
                 db_inv.token = invitation.token
-                db_inv.role_ids = json.dumps(invitation.role_ids)
+                db_inv.role_ids = json.dumps(role_ids_uuid)
                 db_inv.department_id = invitation.department_id
                 db_inv.group_ids = json.dumps(invitation.group_ids)
                 db_inv.invited_by = invited_by_uuid
@@ -128,7 +175,7 @@ class InvitationService:
                     org_id=org_id_uuid,
                     email=invitation.email,
                     token=invitation.token,
-                    role_ids=json.dumps(invitation.role_ids),
+                    role_ids=json.dumps(role_ids_uuid),
                     department_id=invitation.department_id,
                     group_ids=json.dumps(invitation.group_ids),
                     invited_by=invited_by_uuid,
