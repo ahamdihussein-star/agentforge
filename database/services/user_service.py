@@ -185,16 +185,28 @@ class UserService:
         except (ValueError, AttributeError):
             auth_provider = AuthProvider.LOCAL  # Default to LOCAL
         
-        # Parse JSON arrays from TEXT columns (stored as JSON strings in DB)
+        # Parse JSON arrays from TEXT columns (may be DOUBLE-ENCODED!)
         # DEBUG: Log the type and value of role_ids
-        print(f"   🔍 DEBUG [{db_user.email}] role_ids type: {type(db_user.role_ids)}, value: {repr(db_user.role_ids)}")
+        print(f"   🔍 DEBUG [{db_user.email}] raw role_ids type: {type(db_user.role_ids)}, value: {repr(db_user.role_ids)}")
         
         try:
             # Always ensure role_ids is a list
             if isinstance(db_user.role_ids, str):
-                print(f"   🔍 DEBUG [{db_user.email}] role_ids is STRING, parsing...")
+                print(f"   🔍 DEBUG [{db_user.email}] role_ids is STRING, parsing (1st attempt)...")
                 role_ids = json.loads(db_user.role_ids) if db_user.role_ids else []
-                print(f"   🔍 DEBUG [{db_user.email}] Parsed role_ids: {role_ids} (type: {type(role_ids)})")
+                print(f"   🔍 DEBUG [{db_user.email}] After 1st parse: {role_ids} (type: {type(role_ids)})")
+                
+                # 🔥 CRITICAL FIX: Handle DOUBLE JSON encoding!
+                # If the result is STILL a string, parse again!
+                if isinstance(role_ids, str):
+                    print(f"   🔥 DOUBLE-ENCODED DETECTED! Parsing again...")
+                    role_ids = json.loads(role_ids)
+                    print(f"   ✅ After 2nd parse: {role_ids} (type: {type(role_ids)})")
+                
+                # Final sanity check
+                if not isinstance(role_ids, list):
+                    print(f"   ⚠️  Final role_ids is STILL not a list! type={type(role_ids)}, defaulting to []")
+                    role_ids = []
             elif isinstance(db_user.role_ids, list):
                 print(f"   🔍 DEBUG [{db_user.email}] role_ids is already a LIST")
                 role_ids = db_user.role_ids
@@ -203,18 +215,25 @@ class UserService:
                 role_ids = []
         except (json.JSONDecodeError, TypeError) as e:
             print(f"   ⚠️  Error parsing role_ids for {db_user.email}: {e}")
+            traceback.print_exc()
             role_ids = []
         
         try:
-            # Always ensure group_ids is a list
+            # Always ensure group_ids is a list (with same double-encoding handling)
             if isinstance(db_user.group_ids, str):
                 group_ids = json.loads(db_user.group_ids) if db_user.group_ids else []
+                # Handle double JSON encoding
+                if isinstance(group_ids, str):
+                    group_ids = json.loads(group_ids)
+                if not isinstance(group_ids, list):
+                    group_ids = []
             elif isinstance(db_user.group_ids, list):
                 group_ids = db_user.group_ids
             else:
                 group_ids = []
         except (json.JSONDecodeError, TypeError) as e:
             print(f"   ⚠️  Error parsing group_ids for {db_user.email}: {e}")
+            traceback.print_exc()
             group_ids = []
         
         return User(
