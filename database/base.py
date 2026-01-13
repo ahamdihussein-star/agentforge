@@ -81,15 +81,45 @@ def init_db():
     """Initialize database (create all tables)"""
     engine = get_engine()
     
-    # Import models to register with Base.metadata
+    # Import ALL models to register with Base.metadata
     try:
+        print("📦 Importing all database models...")
+        
+        # Security & Access Control
         from .models.organization import Organization
-        from .models.role import Role, Permission
+        from .models.role import Role, Permission, role_permissions
         from .models.user import User, UserSession, MFASetting, PasswordHistory
+        from .models.invitation import Invitation
+        from .models.department import Department
+        from .models.user_group import UserGroup
+        from .models.policy import Policy
+        from .models.tool_permission import ToolPermission
+        from .models.kb_permission import KnowledgeBasePermission
+        from .models.db_permission import DatabasePermission
+        from .models.ldap_config import LDAPConfig
+        from .models.oauth_config import OAuthConfig
+        from .models.security_settings import SecuritySettings
+        
+        # Core Platform
+        from .models.agent import Agent
+        from .models.tool import Tool, ToolExecution
+        from .models.conversation import Conversation, Message, ConversationShare
+        from .models.knowledge_base import KnowledgeBase, Document, DocumentChunk, KBQuery
+        
+        # Configuration
+        from .models.settings import SystemSetting, OrganizationSetting, APIKey, Integration, UserIntegration
+        
+        # Audit & Compliance
+        from .models.audit import AuditLog, SecurityEvent, DataExport, ComplianceReport
+        
+        print("✅ All models imported successfully")
     except ImportError as e:
-        print(f"⚠️  Could not import models: {e}")
+        print(f"⚠️  Could not import some models: {e}")
+        import traceback
+        traceback.print_exc()
     
-    # Just create all tables
+    # Create all tables
+    print("🔨 Creating all database tables...")
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables created successfully")
 

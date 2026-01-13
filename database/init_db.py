@@ -40,6 +40,16 @@ def main():
         from database.models.organization import Organization
         from database.models.role import Role, Permission, role_permissions
         from database.models.user import User, UserSession, MFASetting, PasswordHistory
+        from database.models.invitation import Invitation
+        from database.models.department import Department
+        from database.models.user_group import UserGroup
+        from database.models.policy import Policy
+        from database.models.tool_permission import ToolPermission
+        from database.models.kb_permission import KnowledgeBasePermission
+        from database.models.db_permission import DatabasePermission
+        from database.models.ldap_config import LDAPConfig
+        from database.models.oauth_config import OAuthConfig
+        from database.models.security_settings import SecuritySettings
         
         print("   🤖 Loading Core Platform models...")
         from database.models.agent import Agent
@@ -59,7 +69,7 @@ def main():
         print("   ✅ All models imported successfully")
         print()
         
-        # Initialize database
+        # Initialize database (this will create all tables)
         init_db()
         print("✅ All tables created successfully!")
         print()

@@ -15,37 +15,103 @@ class SecuritySettingsService:
     @staticmethod
     def get_settings(org_id: str) -> CoreSecuritySettings:
         """Get security settings for an organization (creates default if not exists)"""
+        import uuid as uuid_lib
+        from database.services import OrganizationService
+        
+        # Convert org_id to UUID if it's "org_default"
+        if org_id == "org_default":
+            # Try to find default organization by slug
+            default_org = OrganizationService.get_organization_by_slug("default")
+            if default_org:
+                org_id = default_org.id
+            else:
+                # If no default org found, try to get first org
+                all_orgs = OrganizationService.get_all_organizations()
+                if all_orgs:
+                    org_id = all_orgs[0].id
+                else:
+                    # Last resort: use a fixed UUID for org_default
+                    # This should match the UUID used in migration script
+                    try:
+                        org_id = uuid_lib.UUID("2c969bf1-16d3-43d3-95da-66965c3fa132")  # Default org UUID from migration
+                    except:
+                        org_id = str(uuid_lib.uuid4())
+        
+        # Ensure org_id is UUID
+        try:
+            org_uuid = uuid_lib.UUID(org_id) if not isinstance(org_id, uuid_lib.UUID) else org_id
+        except ValueError:
+            # If org_id is not a valid UUID, try to find org by slug
+            default_org = OrganizationService.get_organization_by_slug(org_id.replace("org_", ""))
+            if default_org:
+                org_uuid = uuid_lib.UUID(default_org.id)
+            else:
+                raise ValueError(f"Invalid org_id: {org_id}")
+        
         with get_db_session() as session:
-            db_settings = session.query(DBSecuritySettings).filter_by(org_id=org_id).first()
+            db_settings = session.query(DBSecuritySettings).filter_by(org_id=org_uuid).first()
             if not db_settings:
                 # Create default settings
-                print(f"💾 [DATABASE] Creating default security settings for org: {org_id[:8]}...")
-                db_settings = DBSecuritySettings(org_id=org_id)
+                print(f"💾 [DATABASE] Creating default security settings for org: {str(org_uuid)[:8]}...")
+                db_settings = DBSecuritySettings(org_id=org_uuid)
                 session.add(db_settings)
                 session.commit()
                 session.refresh(db_settings)
-                print(f"✅ [DATABASE] Default security settings created for org: {org_id[:8]}...")
+                print(f"✅ [DATABASE] Default security settings created for org: {str(org_uuid)[:8]}...")
             else:
-                print(f"📊 [DATABASE] Retrieved security settings from database for org: {org_id[:8]}...")
+                print(f"📊 [DATABASE] Retrieved security settings from database for org: {str(org_uuid)[:8]}...")
             return SecuritySettingsService._db_to_core_settings(db_settings)
     
     @staticmethod
     def save_settings(settings: CoreSecuritySettings) -> CoreSecuritySettings:
         """Save security settings to database"""
+        import uuid as uuid_lib
+        from database.services import OrganizationService
+        
+        # Convert org_id to UUID if it's "org_default"
+        org_id = settings.org_id
+        if org_id == "org_default":
+            # Try to find default organization by slug
+            default_org = OrganizationService.get_organization_by_slug("default")
+            if default_org:
+                org_id = default_org.id
+            else:
+                # If no default org found, try to get first org
+                all_orgs = OrganizationService.get_all_organizations()
+                if all_orgs:
+                    org_id = all_orgs[0].id
+                else:
+                    # Last resort: use a fixed UUID for org_default
+                    try:
+                        org_id = str(uuid_lib.UUID("2c969bf1-16d3-43d3-95da-66965c3fa132"))
+                    except:
+                        org_id = str(uuid_lib.uuid4())
+        
+        # Ensure org_id is UUID
+        try:
+            org_uuid = uuid_lib.UUID(org_id) if not isinstance(org_id, uuid_lib.UUID) else org_id
+        except ValueError:
+            # If org_id is not a valid UUID, try to find org by slug
+            default_org = OrganizationService.get_organization_by_slug(org_id.replace("org_", ""))
+            if default_org:
+                org_uuid = uuid_lib.UUID(default_org.id)
+            else:
+                raise ValueError(f"Invalid org_id: {org_id}")
+        
         with get_db_session() as session:
-            db_settings = session.query(DBSecuritySettings).filter_by(org_id=settings.org_id).first()
+            db_settings = session.query(DBSecuritySettings).filter_by(org_id=org_uuid).first()
             if db_settings:
                 # Update existing
-                print(f"💾 [DATABASE] Updating security settings in database for org: {settings.org_id[:8]}...")
+                print(f"💾 [DATABASE] Updating security settings in database for org: {str(org_uuid)[:8]}...")
                 SecuritySettingsService._update_db_settings(db_settings, settings)
-                print(f"✅ [DATABASE] Security settings updated successfully for org: {settings.org_id[:8]}...")
+                print(f"✅ [DATABASE] Security settings updated successfully for org: {str(org_uuid)[:8]}...")
             else:
                 # Create new
-                print(f"💾 [DATABASE] Creating new security settings in database for org: {settings.org_id[:8]}...")
-                db_settings = DBSecuritySettings(org_id=settings.org_id)
+                print(f"💾 [DATABASE] Creating new security settings in database for org: {str(org_uuid)[:8]}...")
+                db_settings = DBSecuritySettings(org_id=org_uuid)
                 SecuritySettingsService._update_db_settings(db_settings, settings)
                 session.add(db_settings)
-                print(f"✅ [DATABASE] Security settings created successfully for org: {settings.org_id[:8]}...")
+                print(f"✅ [DATABASE] Security settings created successfully for org: {str(org_uuid)[:8]}...")
             session.commit()
             session.refresh(db_settings)
             return SecuritySettingsService._db_to_core_settings(db_settings)
