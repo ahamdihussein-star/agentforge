@@ -1760,7 +1760,9 @@ class AppState:
                     with open(settings_path) as f:
                         settings_data = json.load(f)
                         self.settings = SystemSettings(**settings_data)
-                        print(f"✅ Loaded settings from file: LLM={self.settings.llm.provider.value}, VectorDB={self.settings.vector_db.provider.value}")
+                        llm_provider = self.settings.llm.provider.value if hasattr(self.settings.llm.provider, 'value') else str(self.settings.llm.provider)
+                        vector_db_provider = self.settings.vector_db.provider.value if hasattr(self.settings.vector_db.provider, 'value') else str(self.settings.vector_db.provider)
+                        print(f"✅ Loaded settings from file: LLM={llm_provider}, VectorDB={vector_db_provider}")
                         if self.settings.llm_providers:
                             print(f"✅ Loaded {len(self.settings.llm_providers)} LLM providers from file: {[p.name for p in self.settings.llm_providers]}")
                 except Exception as e:
@@ -5697,7 +5699,9 @@ async def get_settings():
         if db_settings:
             # Update app_state with database settings
             app_state.settings = SystemSettings(**db_settings)
-            print(f"✅ [API] Loaded platform settings from database (LLM: {app_state.settings.llm.provider.value}, VectorDB: {app_state.settings.vector_db.provider.value}, Theme: {app_state.settings.theme})")
+            llm_provider = app_state.settings.llm.provider.value if hasattr(app_state.settings.llm.provider, 'value') else str(app_state.settings.llm.provider)
+            vector_db_provider = app_state.settings.vector_db.provider.value if hasattr(app_state.settings.vector_db.provider, 'value') else str(app_state.settings.vector_db.provider)
+            print(f"✅ [API] Loaded platform settings from database (LLM: {llm_provider}, VectorDB: {vector_db_provider}, Theme: {app_state.settings.theme})")
         else:
             print(f"📊 [API] No platform settings in database, using in-memory settings")
     except Exception as e:
@@ -5784,7 +5788,10 @@ async def update_settings(request: Dict[str, Any]):
                 category="platform",
                 description="Complete platform settings including LLM, Embedding, Vector DB, RAG, Features, Theme"
             )
-            print(f"✅ [API] Platform settings updated successfully in database (LLM: {app_state.settings.llm.provider.value}, VectorDB: {app_state.settings.vector_db.provider.value}, Theme: {app_state.settings.theme})")
+            # Handle provider as enum or string
+            llm_provider = app_state.settings.llm.provider.value if hasattr(app_state.settings.llm.provider, 'value') else str(app_state.settings.llm.provider)
+            vector_db_provider = app_state.settings.vector_db.provider.value if hasattr(app_state.settings.vector_db.provider, 'value') else str(app_state.settings.vector_db.provider)
+            print(f"✅ [API] Platform settings updated successfully in database (LLM: {llm_provider}, VectorDB: {vector_db_provider}, Theme: {app_state.settings.theme})")
         except Exception as e:
             print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
             import traceback

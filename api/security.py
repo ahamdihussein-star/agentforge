@@ -2673,10 +2673,10 @@ async def oauth_login(provider: str, req: Request):
         raise HTTPException(status_code=400, detail="OAuth provider not enabled")
     
     # Build redirect URI - force https in production
-    base_url = str(req.base_url)
+    base_url = str(req.base_url).rstrip('/')
     if "localhost" not in base_url and "127.0.0.1" not in base_url:
         base_url = base_url.replace("http://", "https://")
-    redirect_uri = base_url + f"api/security/oauth/{provider}/callback"
+    redirect_uri = f"{base_url}/api/security/oauth/{provider}/callback"
     auth_url = OAuthService.get_authorization_url(auth_provider, org, redirect_uri)
     
     return {"auth_url": auth_url}
@@ -2695,10 +2695,10 @@ async def oauth_callback(provider: str, req: Request):
     org = security_state.organizations.get(org_id)
     
     # Build redirect URI - force https in production
-    base_url = str(req.base_url)
+    base_url = str(req.base_url).rstrip('/')
     if "localhost" not in base_url and "127.0.0.1" not in base_url:
         base_url = base_url.replace("http://", "https://")
-    redirect_uri = base_url + f"api/security/oauth/{provider}/callback"
+    redirect_uri = f"{base_url}/api/security/oauth/{provider}/callback"
     
     try:
         user_info = await OAuthService.exchange_code(auth_provider, org, code, redirect_uri)
