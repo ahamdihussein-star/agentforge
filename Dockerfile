@@ -66,7 +66,10 @@ else\n\
     if [ $? -eq 0 ]; then\n\
       echo "✅ Database connection successful"\n\
       echo "📋 Initializing database tables..."\n\
-      python database/init_db.py 2>&1 | grep -E "✅|❌|Database"\n\
+      python database/init_db.py 2>&1\n\
+      echo ""\n\
+      echo "🔧 Creating any missing tables..."\n\
+      python scripts/create_missing_tables.py 2>&1\n\
       echo ""\n\
       echo "🔧 Fixing tools table (removing PostgreSQL enum)..."\n\
       python scripts/fix_tools_table.py 2>&1\n\
