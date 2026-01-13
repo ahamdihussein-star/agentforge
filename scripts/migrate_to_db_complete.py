@@ -165,6 +165,27 @@ def migrate_roles(org_mapping):
                 # Store mapping (for user role_ids lookup later)
                 id_mapping[old_id] = role_uuid
                 
+                # Map org_id (needed for both insert and update)
+                old_org_id = role_data.get('org_id')
+                org_uuid = None
+                if old_org_id:
+                    org_uuid = org_mapping.get(old_org_id)
+                    if not org_uuid:
+                        try:
+                            org_uuid = uuid.UUID(old_org_id)
+                        except ValueError:
+                            print(f"   ⚠️  Unknown org_id '{old_org_id}', setting to None")
+                
+                # Map parent_id if exists (needed for both insert and update)
+                parent_uuid = None
+                if role_data.get('parent_id'):
+                    parent_uuid = id_mapping.get(role_data['parent_id']) or role_data.get('parent_id')
+                    if parent_uuid:
+                        try:
+                            parent_uuid = uuid.UUID(parent_uuid) if isinstance(parent_uuid, str) else parent_uuid
+                        except ValueError:
+                            parent_uuid = None
+                
                 # Check if already exists by UUID (UPSERT pattern - update if exists)
                 existing = session.query(Role).filter_by(id=role_uuid).first()
                 if existing:
@@ -205,22 +226,6 @@ def migrate_roles(org_mapping):
                     id_mapping[old_id] = role_uuid
                     count += 1
                     continue
-                
-                # Map org_id
-                old_org_id = role_data.get('org_id')
-                org_uuid = None
-                if old_org_id:
-                    org_uuid = org_mapping.get(old_org_id)
-                    if not org_uuid:
-                        try:
-                            org_uuid = uuid.UUID(old_org_id)
-                        except ValueError:
-                            print(f"   ⚠️  Unknown org_id '{old_org_id}', setting to None")
-                
-                # Map parent_id if exists
-                parent_uuid = None
-                if role_data.get('parent_id'):
-                    parent_uuid = id_mapping.get(role_data['parent_id']) or role_data.get('parent_id')
                 
                 role = Role(
                     id=role_uuid,

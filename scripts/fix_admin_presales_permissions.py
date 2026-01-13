@@ -52,7 +52,7 @@ def fix_role_permissions():
                     elif isinstance(admin_role.permissions, list):
                         current_perms = admin_role.permissions
                 
-                print(f"\n🔄 Updating Admin role (ID: {admin_role.id[:8]}...):")
+                print(f"\n🔄 Updating Admin role (ID: {str(admin_role.id)[:8]}...):")
                 print(f"   Current: {len(current_perms)} permissions")
                 print(f"   Target: {len(admin_permissions)} permissions")
                 
@@ -101,7 +101,7 @@ def fix_role_permissions():
                     elif isinstance(presales_role.permissions, list):
                         current_perms = presales_role.permissions
                 
-                print(f"\n🔄 Updating Presales role (ID: {presales_role.id[:8]}...):")
+                print(f"\n🔄 Updating Presales role (ID: {str(presales_role.id)[:8]}...):")
                 print(f"   Current: {len(current_perms)} permissions")
                 print(f"   Target: {len(presales_permissions)} permissions")
                 
@@ -140,7 +140,7 @@ def fix_role_permissions():
                         perms = []
                 elif isinstance(admin_role.permissions, list):
                     perms = admin_role.permissions
-            print(f"   ✅ Admin (ID: {admin_role.id[:8]}...): {len(perms)} permissions")
+            print(f"   ✅ Admin (ID: {str(admin_role.id)[:8]}...): {len(perms)} permissions")
         
         presales_roles = session.query(DBRole).filter(DBRole.name == 'Presales').all()
         for presales_role in presales_roles:
@@ -153,7 +153,7 @@ def fix_role_permissions():
                         perms = []
                 elif isinstance(presales_role.permissions, list):
                     perms = presales_role.permissions
-            print(f"   ✅ Presales (ID: {presales_role.id[:8]}...): {len(perms)} permissions")
+            print(f"   ✅ Presales (ID: {str(presales_role.id)[:8]}...): {len(perms)} permissions")
     
     print("\n" + "="*60)
     print("✅ SUCCESS: Admin & Presales permissions fixed!")

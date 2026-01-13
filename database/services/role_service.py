@@ -54,9 +54,15 @@ class RoleService:
             parent_id = str(db_role.parent_id) if db_role.parent_id else None
             
             # Parse permissions (stored as JSON array in DB)
+            # Handle double JSON encoding (Issue #26)
             try:
                 if isinstance(db_role.permissions, str):
+                    # First parse attempt
                     permissions = json.loads(db_role.permissions)
+                    # Check if result is still a string (double encoding)
+                    if isinstance(permissions, str):
+                        # Second parse attempt
+                        permissions = json.loads(permissions)
                 elif isinstance(db_role.permissions, list):
                     permissions = db_role.permissions
                 else:
