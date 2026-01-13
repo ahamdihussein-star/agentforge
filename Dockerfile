@@ -79,27 +79,15 @@ else\n\
       echo ""\n\
       echo "📦 Migrating data from JSON to Database..."\n\
       python scripts/migrate_to_db_complete.py 2>&1\n\
-      echo ""\n\
-      echo "🔄 Updating user role_ids (Issue #19 fix)..."\n\
-      python scripts/update_user_role_ids.py 2>&1\n\
-      echo ""\n\
-      echo "🔧 Fixing user roles (ensuring Super Admin role assigned)..."\n\
-      python scripts/fix_user_roles.py 2>&1\n\
      echo ""\n\
-     echo "🧹 Cleaning up duplicate roles (SMART VERSION - keeps best role)..."\n\
-     python scripts/cleanup_duplicate_roles_v2.py 2>&1\n\
+     echo "🔄 Updating user role_ids (Issue #19 fix)..."\n\
+     python scripts/update_user_role_ids.py 2>&1\n\
+     echo ""\n\
+     echo "💣 NUCLEAR CLEANUP - Fixing all role issues in one go..."\n\
+     python scripts/nuclear_cleanup_roles.py 2>&1\n\
      echo ""\n\
      echo "🔧 Fixing Super Admin permissions..."\n\
      python scripts/fix_super_admin_permissions.py 2>&1\n\
-     echo ""\n\
-     echo "🔍 Diagnosing roles issue (checking why only 1 role visible)..."\n\
-     python scripts/diagnose_roles_issue.py 2>&1\n\
-     echo ""\n\
-     echo "🔍 Checking user role assignments (orphaned role IDs?)..."\n\
-     python scripts/check_user_role_assignments.py 2>&1\n\
-     echo ""\n\
-     echo "🔧 Fixing orphaned user role IDs..."\n\
-     python scripts/fix_orphaned_role_ids.py 2>&1\n\
      echo ""\n\
      break\n\
     fi\n\
