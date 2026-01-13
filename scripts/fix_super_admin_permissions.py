@@ -8,60 +8,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.base import get_db_session
 from database.models.role import Role
+from core.security.models import ALL_PERMISSIONS  # Import from source of truth!
 import json
 import traceback
 
-# CORRECT Super Admin permissions (FROM roles.json - 31 permissions)
-ALL_PERMISSIONS = [
-    # System (2)
-    "system:admin",
-    "system:settings",
-    
-    # Users (4)
-    "users:view",
-    "users:create",
-    "users:edit",
-    "users:delete",
-    
-    # Roles (4)
-    "roles:view",
-    "roles:create",
-    "roles:edit",
-    "roles:delete",
-    
-    # Agents (6)
-    "agents:view",
-    "agents:create",
-    "agents:edit",
-    "agents:delete",
-    "agents:publish",
-    "agents:test",
-    
-    # Tools (5)
-    "tools:view",
-    "tools:create",
-    "tools:edit",
-    "tools:delete",
-    "tools:execute",
-    
-    # Knowledge Base (5)
-    "kb:view",
-    "kb:create",
-    "kb:edit",
-    "kb:delete",
-    "kb:upload",
-    
-    # Chat (3)
-    "chat:use",
-    "chat:view_all",
-    "chat:delete",
-    
-    # Audit (2)
-    "audit:view",
-    "audit:export",
-]
-
-# TOTAL: 31 permissions (verified from roles.json!)
+# Use ALL_PERMISSIONS from core.security.models (the actual source of truth!)
+# This ensures we're using the EXACT permissions defined in the system
+print(f"\n📋 Using permissions from core.security.models.ALL_PERMISSIONS")
+print(f"   Total permissions in system: {len(ALL_PERMISSIONS)}")
+print(f"   Sample: {ALL_PERMISSIONS[:5]}...\n")
 
 def fix_super_admin_permissions():
     """Add all permissions to ALL Super Admin roles (handle duplicates)"""
