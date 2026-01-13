@@ -165,10 +165,26 @@ def migrate_roles(org_mapping):
                 # Store mapping (for user role_ids lookup later)
                 id_mapping[old_id] = role_uuid
                 
-                # Check if already exists by UUID
+                # Check if already exists by UUID (UPSERT pattern - update if exists)
                 existing = session.query(Role).filter_by(id=role_uuid).first()
                 if existing:
-                    print(f"⏭️  Role with ID '{role_uuid}' already exists (name: {existing.name}), skipping")
+                    # UPDATE existing role (don't skip!)
+                    print(f"🔄 Role with ID '{role_uuid}' already exists (name: {existing.name}), updating...")
+                    existing.name = role_data['name']
+                    existing.description = role_data.get('description', '')
+                    existing.permissions = json.dumps(role_data.get('permissions', []))
+                    existing.parent_id = parent_uuid
+                    existing.level = str(role_data.get('level', 100))
+                    existing.is_system = role_data.get('is_system', False)
+                    if org_uuid:
+                        existing.org_id = org_uuid
+                    if role_data.get('created_by'):
+                        existing.created_by = role_data.get('created_by')
+                    existing.updated_at = datetime.utcnow()
+                    session.commit()
+                    print(f"✅ Updated role: {role_data['name']} (UUID: {role_uuid})")
+                    id_mapping[old_id] = role_uuid
+                    count += 1
                     continue
                 
                 # Map org_id

@@ -89,3 +89,111 @@ class RoleService:
             traceback.print_exc()
             raise
 
+    @staticmethod
+    def save_role(role: Role) -> bool:
+        """
+        Save or update a role in the database (UPSERT pattern).
+        Returns True if successful, False otherwise.
+        """
+        try:
+            import uuid as uuid_lib
+            from sqlalchemy import text
+            
+            with get_db_session() as session:
+                # Check if role exists
+                try:
+                    role_uuid = uuid_lib.UUID(role.id)
+                except ValueError:
+                    print(f"❌ Invalid role ID: {role.id}")
+                    return False
+                
+                existing = session.query(DBRole).filter_by(id=role_uuid).first()
+                
+                # Prepare permissions as JSON string
+                permissions_json = json.dumps(role.permissions) if role.permissions else json.dumps([])
+                
+                # Prepare org_id
+                try:
+                    org_uuid = uuid_lib.UUID(role.org_id) if role.org_id else None
+                except ValueError:
+                    org_uuid = None
+                
+                # Prepare parent_id
+                parent_uuid = None
+                if role.parent_id:
+                    try:
+                        parent_uuid = uuid_lib.UUID(role.parent_id)
+                    except ValueError:
+                        parent_uuid = None
+                
+                if existing:
+                    # UPDATE existing role
+                    existing.name = role.name
+                    existing.description = role.description or ""
+                    existing.permissions = permissions_json
+                    existing.parent_id = parent_uuid
+                    existing.level = str(role.level) if role.level else "100"
+                    existing.is_system = role.is_system if hasattr(role, 'is_system') else False
+                    if hasattr(role, 'created_by') and role.created_by:
+                        existing.created_by = role.created_by
+                    existing.updated_at = datetime.utcnow()
+                    
+                    session.commit()
+                    print(f"✅ Updated role '{role.name}' (ID: {role.id[:8]}...) in database")
+                    return True
+                else:
+                    # INSERT new role
+                    new_role = DBRole(
+                        id=role_uuid,
+                        name=role.name,
+                        description=role.description or "",
+                        permissions=permissions_json,
+                        parent_id=parent_uuid,
+                        level=str(role.level) if role.level else "100",
+                        is_system=role.is_system if hasattr(role, 'is_system') else False,
+                        org_id=org_uuid,
+                        created_by=role.created_by if hasattr(role, 'created_by') and role.created_by else None,
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    session.add(new_role)
+                    session.commit()
+                    print(f"✅ Created role '{role.name}' (ID: {role.id[:8]}...) in database")
+                    return True
+                    
+        except Exception as e:
+            print(f"❌ Error saving role '{role.name}': {type(e).__name__}: {e}")
+            traceback.print_exc()
+            return False
+
+    @staticmethod
+    def delete_role(role_id: str) -> bool:
+        """
+        Delete a role from the database.
+        Returns True if successful, False otherwise.
+        """
+        try:
+            import uuid as uuid_lib
+            
+            with get_db_session() as session:
+                try:
+                    role_uuid = uuid_lib.UUID(role_id)
+                except ValueError:
+                    print(f"❌ Invalid role ID: {role_id}")
+                    return False
+                
+                role = session.query(DBRole).filter_by(id=role_uuid).first()
+                if not role:
+                    print(f"⚠️  Role with ID '{role_id}' not found in database")
+                    return False
+                
+                session.delete(role)
+                session.commit()
+                print(f"✅ Deleted role '{role.name}' (ID: {role_id[:8]}...) from database")
+                return True
+                
+        except Exception as e:
+            print(f"❌ Error deleting role '{role_id}': {type(e).__name__}: {e}")
+            traceback.print_exc()
+            return False
+

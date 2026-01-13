@@ -1744,6 +1744,23 @@ async def create_role(request: CreateRoleRequest, user: User = Depends(require_a
     )
     
     security_state.roles[role.id] = role
+    
+    # Save to database (primary storage)
+    try:
+        from database.services import RoleService
+        success = RoleService.save_role(role)
+        if success:
+            print(f"💾 Role saved to database")
+        else:
+            print(f"⚠️  Failed to save role to database, saving to disk only")
+            security_state.save_to_disk()
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+    
+    # Also save to disk for backward compatibility (dual-write)
     security_state.save_to_disk()
     
     security_state.add_audit_log(
@@ -1842,8 +1859,24 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
     
     role.updated_at = datetime.utcnow().isoformat()
     print(f"🔧 Updating role {role.name}: {role.permissions}")
+    
+    # Save to database (primary storage)
+    try:
+        from database.services import RoleService
+        success = RoleService.save_role(role)
+        if success:
+            print(f"💾 Role saved to database")
+        else:
+            print(f"⚠️  Failed to save role to database, saving to disk only")
+            security_state.save_to_disk()
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+    
+    # Also save to disk for backward compatibility (dual-write)
     security_state.save_to_disk()
-    print(f"💾 Role saved to disk")
     
     security_state.add_audit_log(
         user=user,
@@ -1950,6 +1983,17 @@ async def delete_role(role_id: str, user: User = Depends(require_admin)):
     for u in security_state.users.values():
         if role_id in u.role_ids:
             u.role_ids.remove(role_id)
+    
+    # Delete from database (primary storage)
+    try:
+        from database.services import RoleService
+        success = RoleService.delete_role(role_id)
+        if not success:
+            print(f"⚠️  Failed to delete role from database, deleting from memory only")
+    except Exception as e:
+        print(f"⚠️  Database delete failed: {e}")
+        import traceback
+        traceback.print_exc()
     
     del security_state.roles[role_id]
     security_state.save_to_disk()
