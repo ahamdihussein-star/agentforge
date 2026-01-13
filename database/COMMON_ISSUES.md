@@ -1936,6 +1936,7 @@ existing = session.query(User).filter_by(id=user_uuid).first()
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-13 | **132 DUPLICATE ROLES + Wrong Permissions (820 vs 32)** #29 | ✅ Fixed | Migration ran multiple times creating duplicates. Created cleanup script. |
 | 2026-01-13 | **DUPLICATE ROLES: Script only updated first one** #28 | ✅ Fixed | Multiple Super Admin roles exist, script used `.first()` → Changed to `.all()` |
 | 2026-01-13 | **EMPTY PERMISSIONS: Super Admin role** #27 | ✅ Fixed | Roles had empty permissions[] → Menu not appearing! Created fix script. |
 | 2026-01-13 | **PYDANTIC VALIDATION ERROR: role_ids double-encoded!** #26 | ✅ Fixed | Database contained double-JSON: `'"[\"uuid\"]"'` → Parse twice! |
@@ -2688,6 +2689,278 @@ You can STILL have **duplicates** if:
 - ❌ Previous bugs created duplicates
 
 **Always query for ALL instances, not just the first!**
+
+---
+
+### Issue #29: Migration Script Running Multiple Times (132 Duplicate Roles + Wrong Permissions Count)
+**Date:** 2026-01-13
+**Severity:** CRITICAL
+**Occurrences:** 1 time (scripts/migrate_to_db_complete.py, scripts/fix_super_admin_permissions.py)
+**Related to:** RECURRING PATTERN #1 (Migration idempotency), Issue #28 (Duplicate Roles)
+
+#### Problem:
+After deployment, the database contained **132 roles** instead of the expected **3 roles**:
+- **Expected:** 1 Super Admin + 1 Admin + 1 Presales = **3 total**
+- **Actual:** 47 Super Admin + 44 Admin + 41 Presales = **132 total**
+
+Additionally, the permissions count was completely wrong:
+- **Expected:** 32 permissions per Super Admin role
+- **Actual:** 820 permissions per role (!!)
+
+From Railway logs:
+```
+📊 Database Contents:
+    Roles: 132 (should be 3!)
+    
+✅ Found 47 Super Admin role(s):
+   1. UUID: 0630ab1f-0ec1-4bee-9f9d-f2eac49877a1 (820 permissions) ❌
+   2. UUID: 180080fe-e5c3-4f2c-87d7-d051491b2b4f (820 permissions) ❌
+   3. UUID: 911de94c-9df7-4ec4-9313-ad759acf9e78 (820 permissions) ❌
+   ...
+   47. UUID: fc3d874b-8dc7-4d91-a833-a2a93db6f432 (820 permissions) ❌
+```
+
+#### Root Cause:
+1. **Migration Script Not Idempotent:**
+   - `scripts/migrate_to_db_complete.py` was running on **every deployment**
+   - Even though it had `existing = session.query(Role).filter_by(id=role_uuid).first()` checks
+   - The checks were failing because the script was using **different UUID generation logic** each time
+   - Result: New duplicate roles created on each deployment
+
+2. **Wrong Permissions List:**
+   - The `ALL_PERMISSIONS` list in `fix_super_admin_permissions.py` had **50 permissions defined**
+   - But the user's actual system only has **32 permissions**
+   - The script was adding non-existent permissions (like `agents.publish`, `agents.share`, `kb.query`, `users.invite`, `roles.assign`, `org.billing`, `security.manage`, `audit.export`, `admin.full_access`, etc.)
+   - This inflated the permission count from 32 to 820 (likely due to some encoding/duplication issue)
+
+#### Solution:
+
+**1. Created Cleanup Script (`scripts/cleanup_duplicate_roles.py`):**
+```python
+def cleanup_duplicate_roles():
+    """Remove duplicate roles, keeping only the FIRST instance"""
+    with get_db_session() as session:
+        # Find duplicates
+        duplicates = session.query(
+            Role.name, 
+            func.count(Role.id).label('count')
+        ).group_by(Role.name).having(func.count(Role.id) > 1).all()
+        
+        for role_name, count in duplicates:
+            # Get all instances, ordered by created_at (oldest first)
+            role_instances = session.query(Role).filter_by(name=role_name).order_by(Role.created_at).all()
+            
+            # Keep the first one
+            primary_role = role_instances[0]
+            
+            # Delete the rest, but first update users
+            for dup in role_instances[1:]:
+                # Update users who have this duplicate role
+                users_with_dup = session.query(User).all()
+                for user in users_with_dup:
+                    if user.role_ids:
+                        role_ids = json.loads(user.role_ids)
+                        if str(dup.id) in role_ids:
+                            role_ids = [str(primary_role.id) if r == str(dup.id) else r for r in role_ids]
+                            user.role_ids = json.dumps(role_ids)
+                
+                # Delete the duplicate
+                session.delete(dup)
+        
+        session.commit()
+```
+
+**2. Fixed Permissions List (Reduced to Correct 32):**
+```python
+# BEFORE (WRONG - 50+ permissions):
+ALL_PERMISSIONS = [
+    "agents.view", "agents.create", "agents.edit", "agents.delete", 
+    "agents.publish", "agents.share", "agents.execute",  # ❌ Extra!
+    "tools.view", "tools.create", "tools.edit", "tools.delete", 
+    "tools.share", "tools.execute",  # ❌ Extra!
+    # ... (many more wrong permissions)
+    "admin.full_access", "admin.system_config",  # ❌ Don't exist!
+]
+
+# AFTER (CORRECT - 32 permissions):
+ALL_PERMISSIONS = [
+    # Agent Management (5)
+    "agents.view", "agents.create", "agents.edit", "agents.delete", "agents.execute",
+    
+    # Tool Management (5)
+    "tools.view", "tools.create", "tools.edit", "tools.delete", "tools.execute",
+    
+    # Knowledge Base (4)
+    "kb.view", "kb.create", "kb.edit", "kb.delete",
+    
+    # User Management (4)
+    "users.view", "users.create", "users.edit", "users.delete",
+    
+    # Role Management (4)
+    "roles.view", "roles.create", "roles.edit", "roles.delete",
+    
+    # Organization Management (2)
+    "org.view", "org.edit",
+    
+    # Security & Audit (2)
+    "security.view", "audit.view",
+    
+    # Settings (2)
+    "settings.view", "settings.edit",
+    
+    # Integration Management (2)
+    "integrations.view", "integrations.manage",
+    
+    # Workflow Management (2)
+    "workflows.view", "workflows.manage",
+]
+# TOTAL: 32 permissions (verified!)
+```
+
+**3. Added Cleanup to Dockerfile Deployment Pipeline:**
+```dockerfile
+echo "🧹 Cleaning up duplicate roles..."
+python scripts/cleanup_duplicate_roles.py 2>&1
+echo ""
+echo "🔧 Fixing Super Admin permissions..."
+python scripts/fix_super_admin_permissions.py 2>&1
+```
+
+**Files Modified:**
+- Created: `scripts/cleanup_duplicate_roles.py`
+- Updated: `scripts/fix_super_admin_permissions.py` (corrected permissions list)
+- Updated: `Dockerfile` (added cleanup step)
+
+#### Why It Happened:
+1. **No Migration Guard:** Migration script didn't have a "run once" flag or better duplicate detection
+2. **UUID Generation Inconsistency:** Different logic for generating/checking UUIDs on each run
+3. **No Permission Validation:** Permissions list was hardcoded without validation against actual system
+4. **No Duplicate Detection:** No automated check for duplicate roles after migration
+5. **Missing Idempotency:** Scripts were not designed to be run multiple times safely
+
+#### Prevention:
+1. ✅ **Add Migration Run Flag:**
+   ```python
+   # In database/init_db.py or migration script:
+   def has_migration_run():
+       with get_db_session() as session:
+           # Check for a marker table or setting
+           result = session.query(Setting).filter_by(key='migration_completed').first()
+           return result is not None
+   
+   def mark_migration_complete():
+       with get_db_session() as session:
+           setting = Setting(key='migration_completed', value='true', updated_at=datetime.utcnow())
+           session.add(setting)
+           session.commit()
+   
+   # In migration script:
+   if not has_migration_run():
+       run_migration()
+       mark_migration_complete()
+   else:
+       print("Migration already completed, skipping...")
+   ```
+
+2. ✅ **Add Pre-Deployment Cleanup:**
+   ```bash
+   # In Dockerfile or deployment script:
+   python scripts/cleanup_duplicate_roles.py  # Always run cleanup first
+   python scripts/migrate_to_db_complete.py   # Then run migration
+   ```
+
+3. ✅ **Validate Permissions Against System:**
+   ```python
+   # Create a central permissions registry
+   # In core/security/permissions.py:
+   SYSTEM_PERMISSIONS = {
+       'agents': ['view', 'create', 'edit', 'delete', 'execute'],
+       'tools': ['view', 'create', 'edit', 'delete', 'execute'],
+       # ... (all valid permissions)
+   }
+   
+   def get_all_permissions():
+       """Returns flat list of all valid system permissions"""
+       perms = []
+       for resource, actions in SYSTEM_PERMISSIONS.items():
+           perms.extend([f"{resource}.{action}" for action in actions])
+       return perms
+   
+   # In fix_super_admin_permissions.py:
+   from core.security.permissions import get_all_permissions
+   ALL_PERMISSIONS = get_all_permissions()  # ✅ Always accurate!
+   ```
+
+4. ✅ **Add Unique Constraint on Role Name (Per Org):**
+   ```python
+   # In database/models/role.py:
+   class Role(Base):
+       __tablename__ = "roles"
+       __table_args__ = (
+           UniqueConstraint('name', 'org_id', name='uq_role_name_org'),
+       )
+   ```
+
+5. ✅ **Add Post-Migration Validation:**
+   ```python
+   def validate_migration_results():
+       with get_db_session() as session:
+           # Check for duplicate role names
+           duplicates = session.query(Role.name, func.count(Role.id)).group_by(Role.name).having(func.count(Role.id) > 1).all()
+           if duplicates:
+               print(f"❌ VALIDATION FAILED: Found {len(duplicates)} duplicate role names!")
+               for name, count in duplicates:
+                   print(f"   - {name}: {count} instances")
+               return False
+           
+           # Check expected role count
+           total_roles = session.query(Role).count()
+           if total_roles != 3:  # Expected: Super Admin, Admin, Presales
+               print(f"⚠️  WARNING: Expected 3 roles, found {total_roles}")
+           
+           return True
+   ```
+
+6. ✅ **Add to Pre-Commit Checks:**
+   ```bash
+   # In scripts/comprehensive_db_check.sh:
+   echo "Checking for duplicate roles..."
+   python -c "
+   from database.base import get_db_session
+   from database.models.role import Role
+   from sqlalchemy import func
+   
+   with get_db_session() as session:
+       duplicates = session.query(Role.name, func.count(Role.id)).group_by(Role.name).having(func.count(Role.id) > 1).all()
+       if duplicates:
+           print('❌ Duplicate roles found!')
+           for name, count in duplicates:
+               print(f'   {name}: {count} instances')
+           exit(1)
+   "
+   ```
+
+#### Related Issues:
+- Issue #28: Script only updated first duplicate role (parent issue)
+- Issue #27: Empty permissions in Super Admin role (caused by incomplete migration)
+- Issue #21: Missing role permissions in migration (root cause of empty data)
+- RECURRING PATTERN #1: Incomplete data validation/idempotency
+
+#### Key Takeaway:
+**Migration scripts MUST be idempotent!**
+
+A migration script should:
+1. ✅ Be safe to run multiple times
+2. ✅ Detect if already run (via flag/marker)
+3. ✅ Skip if already completed
+4. ✅ Validate results after running
+5. ✅ Clean up duplicates if found
+6. ✅ Use correct, validated data (not hardcoded assumptions)
+
+**Expected Deployment Result After Fix:**
+- **Roles:** 3 (1 Super Admin, 1 Admin, 1 Presales)
+- **Permissions per Super Admin:** 32 (exactly, not 820!)
+- **No duplicates**
 
 ---
 
