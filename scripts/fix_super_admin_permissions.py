@@ -11,80 +11,62 @@ from database.models.role import Role
 import json
 import traceback
 
-# All available permissions in the system
+# All available permissions in the system (CORRECT - 32 permissions only!)
 ALL_PERMISSIONS = [
-    # Agent Management
+    # Agent Management (5)
     "agents.view",
     "agents.create",
     "agents.edit",
     "agents.delete",
-    "agents.publish",
-    "agents.share",
     "agents.execute",
     
-    # Tool Management
+    # Tool Management (5)
     "tools.view",
     "tools.create",
     "tools.edit",
     "tools.delete",
-    "tools.share",
     "tools.execute",
     
-    # Knowledge Base
+    # Knowledge Base (4)
     "kb.view",
     "kb.create",
     "kb.edit",
     "kb.delete",
-    "kb.share",
-    "kb.query",
     
-    # User Management
+    # User Management (4)
     "users.view",
     "users.create",
     "users.edit",
     "users.delete",
-    "users.invite",
-    "users.manage_roles",
     
-    # Role Management
+    # Role Management (4)
     "roles.view",
     "roles.create",
     "roles.edit",
     "roles.delete",
-    "roles.assign",
     
-    # Organization Management
+    # Organization Management (2)
     "org.view",
     "org.edit",
-    "org.settings",
-    "org.billing",
     
-    # Security & Audit
+    # Security & Audit (2)
     "security.view",
-    "security.manage",
     "audit.view",
-    "audit.export",
     
-    # Settings
+    # Settings (2)
     "settings.view",
     "settings.edit",
     
-    # Integration Management
+    # Integration Management (2)
     "integrations.view",
-    "integrations.configure",
-    "integrations.delete",
+    "integrations.manage",
     
-    # Workflow Management
+    # Workflow Management (2)
     "workflows.view",
-    "workflows.create",
-    "workflows.edit",
-    "workflows.delete",
-    "workflows.execute",
-    
-    # Admin
-    "admin.full_access",
-    "admin.system_config",
+    "workflows.manage",
 ]
+
+# TOTAL: 32 permissions (verified!)
 
 def fix_super_admin_permissions():
     """Add all permissions to ALL Super Admin roles (handle duplicates)"""

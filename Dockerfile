@@ -85,11 +85,14 @@ else\n\
       echo ""\n\
       echo "🔧 Fixing user roles (ensuring Super Admin role assigned)..."\n\
       python scripts/fix_user_roles.py 2>&1\n\
-      echo ""\n\
-      echo "🔧 Fixing Super Admin permissions..."\n\
-      python scripts/fix_super_admin_permissions.py 2>&1\n\
-      echo ""\n\
-      break\n\
+     echo ""\n\
+     echo "🧹 Cleaning up duplicate roles..."\n\
+     python scripts/cleanup_duplicate_roles.py 2>&1\n\
+     echo ""\n\
+     echo "🔧 Fixing Super Admin permissions..."\n\
+     python scripts/fix_super_admin_permissions.py 2>&1\n\
+     echo ""\n\
+     break\n\
     fi\n\
     \n\
     if [ $i -eq $MAX_ATTEMPTS ]; then\n\
