@@ -87,44 +87,45 @@ ALL_PERMISSIONS = [
 ]
 
 def fix_super_admin_permissions():
-    """Add all permissions to the Super Admin role"""
+    """Add all permissions to ALL Super Admin roles (handle duplicates)"""
     print("\n" + "="*80)
-    print("🔧 FIXING SUPER ADMIN PERMISSIONS")
+    print("🔧 FIXING SUPER ADMIN PERMISSIONS (ALL INSTANCES)")
     print("="*80 + "\n")
     
     try:
         with get_db_session() as session:
-            # Find Super Admin role
-            print("📌 Step 1: Finding Super Admin role...")
-            super_admin_role = session.query(Role).filter_by(name="Super Admin").first()
+            # Find ALL Super Admin roles (not just first one!)
+            print("📌 Step 1: Finding ALL Super Admin roles...")
+            super_admin_roles = session.query(Role).filter_by(name="Super Admin").all()
             
-            if not super_admin_role:
-                print("   ❌ Super Admin role not found!")
+            if not super_admin_roles:
+                print("   ❌ No Super Admin roles found!")
                 return False
             
-            print(f"   ✅ Found Super Admin role: {super_admin_role.id}")
-            print(f"   Current permissions: {super_admin_role.permissions}\n")
+            print(f"   ✅ Found {len(super_admin_roles)} Super Admin role(s):\n")
+            for i, role in enumerate(super_admin_roles, 1):
+                print(f"      {i}. UUID: {role.id}")
+                current_perms = []
+                if role.permissions:
+                    if isinstance(role.permissions, str):
+                        try:
+                            current_perms = json.loads(role.permissions)
+                        except:
+                            current_perms = []
+                    elif isinstance(role.permissions, list):
+                        current_perms = role.permissions
+                print(f"         Current permissions: {len(current_perms)}")
             
-            # Parse current permissions
-            current_perms = []
-            if super_admin_role.permissions:
-                if isinstance(super_admin_role.permissions, str):
-                    try:
-                        current_perms = json.loads(super_admin_role.permissions)
-                    except:
-                        current_perms = []
-                elif isinstance(super_admin_role.permissions, list):
-                    current_perms = super_admin_role.permissions
+            # Update ALL Super Admin roles with all permissions
+            print(f"\n📌 Step 2: Updating ALL Super Admin roles...")
+            print(f"   Adding {len(ALL_PERMISSIONS)} permissions to each role...")
             
-            print(f"   Parsed current permissions: {len(current_perms)} permissions")
+            updated_count = 0
+            for role in super_admin_roles:
+                role.permissions = json.dumps(ALL_PERMISSIONS)
+                updated_count += 1
             
-            # Update with all permissions
-            print(f"\n📌 Step 2: Updating permissions...")
-            print(f"   Adding {len(ALL_PERMISSIONS)} permissions...")
-            
-            super_admin_role.permissions = json.dumps(ALL_PERMISSIONS)
-            
-            print(f"   ✅ Permissions updated\n")
+            print(f"   ✅ Updated {updated_count} role(s)\n")
             
             # Save changes
             print("📌 Step 3: Saving changes...")
@@ -133,14 +134,15 @@ def fix_super_admin_permissions():
             
             # Verify
             print("📌 Step 4: Verifying changes...")
-            session.refresh(super_admin_role)
+            for i, role in enumerate(super_admin_roles, 1):
+                session.refresh(role)
+                verified_perms = json.loads(role.permissions) if isinstance(role.permissions, str) else role.permissions
+                print(f"   ✅ Role {i} ({role.id}): {len(verified_perms)} permissions")
             
-            verified_perms = json.loads(super_admin_role.permissions) if isinstance(super_admin_role.permissions, str) else super_admin_role.permissions
-            print(f"   ✅ Super Admin now has {len(verified_perms)} permissions")
-            print(f"   Permissions: {verified_perms[:5]}... (showing first 5)\n")
+            print(f"\n   Sample permissions: {ALL_PERMISSIONS[:5]}... (showing first 5)\n")
             
             print("="*80)
-            print("✅ SUCCESS: Super Admin permissions fixed!")
+            print(f"✅ SUCCESS: Fixed {len(super_admin_roles)} Super Admin role(s)!")
             print("="*80 + "\n")
             
             return True
