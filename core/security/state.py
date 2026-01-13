@@ -414,11 +414,19 @@ class SecurityState:
             db_audit_logs = AuditService.get_all_audit_logs(limit=1000)
             if db_audit_logs:
                 self.audit_logs = db_audit_logs
-                print(f"✅ [DATABASE] Loaded {len(db_audit_logs)} audit logs from database")
+                print(f"📊 [DATABASE] Retrieved {len(db_audit_logs)} audit logs from database (limit: 1000)")
                 db_audit_loaded = True
+            else:
+                # Initialize empty list if no logs found
+                if not hasattr(self, 'audit_logs') or self.audit_logs is None:
+                    self.audit_logs = []
+                print(f"📊 [DATABASE] Retrieved 0 audit logs from database (limit: 1000)")
         except Exception as db_error:
             print(f"❌ [DATABASE ERROR] Failed to load audit logs: {type(db_error).__name__}: {str(db_error)}")
             traceback.print_exc()
+            # Ensure audit_logs is initialized even if database fails
+            if not hasattr(self, 'audit_logs') or self.audit_logs is None:
+                self.audit_logs = []
         
         # --- Load Security Settings from database ---
         db_settings_loaded = False
