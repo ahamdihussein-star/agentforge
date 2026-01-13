@@ -1742,7 +1742,9 @@ class AppState:
             db_settings = SystemSettingsService.get_system_setting("system_settings")
             if db_settings:
                 self.settings = SystemSettings(**db_settings)
-                print(f"✅ [DATABASE] Loaded platform settings from database: LLM={self.settings.llm.provider.value}, VectorDB={self.settings.vector_db.provider.value}, Theme={self.settings.theme}")
+                llm_provider = self.settings.llm.provider.value if hasattr(self.settings.llm.provider, 'value') else str(self.settings.llm.provider)
+                vector_db_provider = self.settings.vector_db.provider.value if hasattr(self.settings.vector_db.provider, 'value') else str(self.settings.vector_db.provider)
+                print(f"✅ [DATABASE] Loaded platform settings from database: LLM={llm_provider}, VectorDB={vector_db_provider}, Theme={self.settings.theme}")
                 if self.settings.llm_providers:
                     print(f"✅ [DATABASE] Loaded {len(self.settings.llm_providers)} LLM providers from database: {[p.name for p in self.settings.llm_providers]}")
                 db_settings_loaded = True
