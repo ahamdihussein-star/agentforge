@@ -2681,9 +2681,37 @@ async def oauth_login(provider: str, req: Request):
     """Initiate OAuth login"""
     auth_provider = AuthProvider(provider)
     org_id = req.query_params.get("org_id", "org_default")
+    
+    # Try to get organization from security_state first
     org = security_state.organizations.get(org_id)
     
-    if not org or auth_provider not in org.allowed_auth_providers:
+    # If not found or missing OAuth credentials, load from database
+    if not org:
+        print(f"🔄 [OAUTH] Organization '{org_id}' not in security_state, loading from database...")
+        try:
+            from database.services import OrganizationService
+            if org_id == "org_default":
+                # Try to find by slug
+                orgs = OrganizationService.get_all_organizations()
+                org = next((o for o in orgs if o.slug == "default"), None)
+                if not org:
+                    org = orgs[0] if orgs else None
+            else:
+                org = OrganizationService.get_organization_by_id(org_id)
+            
+            if org:
+                # Update security_state cache
+                security_state.organizations[org.id] = org
+                print(f"✅ [OAUTH] Loaded organization '{org.name}' from database")
+        except Exception as e:
+            print(f"❌ [OAUTH ERROR] Failed to load organization from database: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    if auth_provider not in org.allowed_auth_providers:
         raise HTTPException(status_code=400, detail="OAuth provider not enabled")
     
     # Build redirect URI - force https in production
@@ -2694,11 +2722,13 @@ async def oauth_login(provider: str, req: Request):
     
     # Log the redirect URI for debugging
     client_id = getattr(org, f'{provider}_client_id', None)
-    client_id_display = f"{client_id[:20]}..." if client_id else "NOT SET"
+    if client_id:
+        print(f"🔍 [OAUTH DEBUG] Client ID: {str(client_id)[:20]}...")
+    else:
+        print(f"🔍 [OAUTH DEBUG] Client ID: NOT SET (or None)")
     print(f"🔍 [OAUTH DEBUG] Provider: {provider}")
     print(f"🔍 [OAUTH DEBUG] Base URL: {base_url}")
     print(f"🔍 [OAUTH DEBUG] Redirect URI: {redirect_uri}")
-    print(f"🔍 [OAUTH DEBUG] Client ID: {client_id_display}")
     print(f"🔍 [OAUTH DEBUG] Allowed providers: {org.allowed_auth_providers}")
     
     if not client_id:
@@ -2722,7 +2752,35 @@ async def oauth_callback(provider: str, req: Request):
     
     auth_provider = AuthProvider(provider)
     org_id = "org_default"  # Should be extracted from state
+    
+    # Try to get organization from security_state first
     org = security_state.organizations.get(org_id)
+    
+    # If not found or missing OAuth credentials, load from database
+    if not org:
+        print(f"🔄 [OAUTH] Organization '{org_id}' not in security_state, loading from database...")
+        try:
+            from database.services import OrganizationService
+            if org_id == "org_default":
+                # Try to find by slug
+                orgs = OrganizationService.get_all_organizations()
+                org = next((o for o in orgs if o.slug == "default"), None)
+                if not org:
+                    org = orgs[0] if orgs else None
+            else:
+                org = OrganizationService.get_organization_by_id(org_id)
+            
+            if org:
+                # Update security_state cache
+                security_state.organizations[org.id] = org
+                print(f"✅ [OAUTH] Loaded organization '{org.name}' from database")
+        except Exception as e:
+            print(f"❌ [OAUTH ERROR] Failed to load organization from database: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
     
     # Build redirect URI - force https in production
     base_url = str(req.base_url).rstrip('/')
