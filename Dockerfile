@@ -95,8 +95,12 @@ else\n\
      echo "🔧 Fixing Super Admin permissions (optional - only if needed)..."\n\
      python scripts/fix_super_admin_permissions.py 2>&1 || echo "⚠️  Super Admin permissions script failed (this is OK if permissions already exist)"\n\
      echo ""\n\
-     echo "🔧 Fixing Admin & Presales permissions (optional - only if needed)..."\n\
-     python scripts/fix_admin_presales_permissions.py 2>&1 || echo "⚠️  Admin/Presales permissions script failed (this is OK if permissions already exist)"\n\
+     if [ "$RUN_FIX_SCRIPTS" = "true" ]; then\n\
+       echo "🔧 Fixing Admin & Presales permissions (optional - only if needed)..."\n\
+       python scripts/fix_admin_presales_permissions.py 2>&1 || echo "⚠️  Admin/Presales permissions script failed (this is OK if permissions already exist)"\n\
+     else\n\
+       echo "⏭️  Skipping Admin/Presales permissions fix (RUN_FIX_SCRIPTS not set)"\n\
+     fi\n\
      echo ""\n\
      echo "🔧 Fixing role levels (hierarchy)..."\n\
      python scripts/fix_role_levels.py 2>&1\n\

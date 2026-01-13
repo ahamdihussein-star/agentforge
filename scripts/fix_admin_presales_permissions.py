@@ -56,18 +56,23 @@ def fix_role_permissions():
                 print(f"   Current: {len(current_perms)} permissions")
                 print(f"   Target: {len(admin_permissions)} permissions")
                 
-                # Update using RAW SQL to ensure complete replacement
-                permissions_json = json.dumps(admin_permissions)
-                update_query = text("""
-                    UPDATE roles 
-                    SET permissions = :permissions
-                    WHERE id = :role_id
-                """)
-                session.execute(update_query, {
-                    'permissions': permissions_json,
-                    'role_id': str(admin_role.id)
-                })
-                print(f"   ✅ Updated to {len(admin_permissions)} permissions")
+                # Only update if permissions are empty (0) - preserve user modifications
+                # This prevents overwriting user-modified permissions after deployment
+                if len(current_perms) == 0:
+                    permissions_json = json.dumps(admin_permissions)
+                    update_query = text("""
+                        UPDATE roles 
+                        SET permissions = :permissions
+                        WHERE id = :role_id
+                    """)
+                    session.execute(update_query, {
+                        'permissions': permissions_json,
+                        'role_id': str(admin_role.id)
+                    })
+                    print(f"   ✅ Updated to {len(admin_permissions)} permissions")
+                else:
+                    print(f"   ⏭️  Skipping (already has {len(current_perms)} permissions - preserving user modifications)")
+                    print(f"   💡 To force update, modify this script")
         
         # For Presales role - we don't have default permissions, so we'll set basic ones
         # You can customize this based on your needs
