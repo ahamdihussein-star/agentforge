@@ -106,14 +106,9 @@ class SecurityState:
             )
             self.organizations[default_org.id] = default_org
         
-        # Create default roles
-        for role_data in DEFAULT_ROLES:
-            if role_data["id"] not in self.roles:
-                role = Role(
-                    org_id="org_default",
-                    **role_data
-                )
-                self.roles[role.id] = role
+        # Don't add default roles here - they will be added in _ensure_default_roles()
+        # only if database is not available. This prevents string ID roles from
+        # being added when database roles exist.
         
         # Create default settings
         if "org_default" not in self.settings:
@@ -223,6 +218,17 @@ class SecurityState:
             print("📊 Attempting to load roles from database...")
             db_roles = RoleService.get_all_roles()  # Uses proper JSON parsing!
             if db_roles:
+                # Remove string ID roles (from _init_defaults) before loading from database
+                string_ids = ['role_super_admin', 'role_admin', 'role_manager', 'role_user', 'role_viewer']
+                removed_count = 0
+                for role_id in string_ids:
+                    if role_id in self.roles:
+                        del self.roles[role_id]
+                        removed_count += 1
+                if removed_count > 0:
+                    print(f"   🗑️  Removed {removed_count} string ID role(s) from _init_defaults()")
+                
+                # Load fresh from database
                 for role in db_roles:
                     self.roles[role.id] = role
                     # Debug: Print role permissions count
@@ -333,7 +339,22 @@ class SecurityState:
         print("✅ Security data loaded successfully")
     
     def _ensure_default_roles(self):
-        """Ensure default system roles exist"""
+        """
+        Ensure default system roles exist.
+        Only adds roles if database is not available (fallback mode).
+        If database roles exist, this method does nothing to avoid duplicates.
+        """
+        # Check if we have database roles (UUIDs) - if so, skip adding string ID roles
+        has_database_roles = any(
+            role_id not in ['role_super_admin', 'role_admin', 'role_manager', 'role_user', 'role_viewer']
+            for role_id in self.roles.keys()
+        )
+        
+        if has_database_roles:
+            # Database roles exist, don't add string ID roles
+            return
+        
+        # No database roles - add defaults (fallback mode)
         for role_data in DEFAULT_ROLES:
             if role_data["id"] not in self.roles:
                 role = Role(
