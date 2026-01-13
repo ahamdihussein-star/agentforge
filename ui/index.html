@@ -18540,7 +18540,11 @@ function renderSecurityUsers() {
                 </div>
             </td>
             <td class="p-4">
-                ${(u.role_ids || []).map(r => `<span class="px-2 py-1 rounded text-xs bg-blue-600/30 text-blue-400 mr-1">${r.replace('role_', '')}</span>`).join('')}
+                ${(u.role_ids || []).map(roleId => {
+                    const role = securityRoles.find(r => r.id === roleId);
+                    const roleName = role ? role.name : (roleId.replace('role_', '') || roleId);
+                    return `<span class="px-2 py-1 rounded text-xs bg-blue-600/30 text-blue-400 mr-1">${escHtml(roleName)}</span>`;
+                }).join('')}
             </td>
             <td class="p-4">
                 <span class="px-2 py-1 rounded text-xs ${u.status === 'active' ? 'bg-green-600/30 text-green-400' : u.status === 'pending' ? 'bg-yellow-600/30 text-yellow-400' : 'bg-red-600/30 text-red-400'}">${u.status}</span>
@@ -19223,10 +19227,10 @@ function switchSecurityTab(tab) {
 
 // Initialize security page
 async function initSecurityPage() {
-    // Load data first
+    // Load data first - roles must be loaded before users to display role names
     await loadSecurityStats();
-    await loadSecurityUsers();
-    await loadSecurityRoles();
+    await loadSecurityRoles(); // Load roles first
+    await loadSecurityUsers(); // Then load users (so role names can be displayed)
     await loadSecurityInvitations();
     
     // Find first visible tab and switch to it
