@@ -65,6 +65,43 @@ class InvitationService:
                 print(f"⚠️  [DATABASE ERROR] Invalid org_id format: {org_id_uuid}")
                 raise ValueError(f"Invalid org_id format: {org_id_uuid}")
             
+            # Convert invited_by to UUID if it's a string ID (e.g., "user_super_admin")
+            invited_by_uuid = invitation.invited_by
+            if invited_by_uuid and not isinstance(invited_by_uuid, uuid.UUID):
+                try:
+                    # Try to parse as UUID first
+                    invited_by_uuid = str(uuid.UUID(invited_by_uuid))
+                except (ValueError, AttributeError):
+                    # If not a UUID, try to find user by email or other identifier
+                    from .user_service import UserService
+                    # Try to find user by email if invited_by looks like an email
+                    if "@" in str(invited_by_uuid):
+                        user = UserService.get_user_by_email(str(invited_by_uuid))
+                        if user:
+                            invited_by_uuid = user.id
+                        else:
+                            print(f"⚠️  [DATABASE ERROR] User not found for invited_by: {invited_by_uuid}")
+                            invited_by_uuid = None
+                    else:
+                        # Try to find by old string ID (e.g., "user_super_admin")
+                        all_users = UserService.get_all_users()
+                        # Look for user with matching old ID pattern
+                        for user in all_users:
+                            if user.id == str(invited_by_uuid) or (hasattr(user, 'old_id') and user.old_id == str(invited_by_uuid)):
+                                invited_by_uuid = user.id
+                                break
+                        else:
+                            print(f"⚠️  [DATABASE ERROR] User not found for invited_by: {invited_by_uuid}, setting to None")
+                            invited_by_uuid = None
+            
+            # Ensure invited_by is a valid UUID string
+            if invited_by_uuid:
+                try:
+                    invited_by_uuid = str(uuid.UUID(invited_by_uuid))
+                except (ValueError, AttributeError):
+                    print(f"⚠️  [DATABASE ERROR] Invalid invited_by format: {invited_by_uuid}, setting to None")
+                    invited_by_uuid = None
+            
             db_inv = session.query(DBInvitation).filter_by(id=invitation.id).first()
             if db_inv:
                 # Update existing
@@ -75,7 +112,7 @@ class InvitationService:
                 db_inv.role_ids = json.dumps(invitation.role_ids)
                 db_inv.department_id = invitation.department_id
                 db_inv.group_ids = json.dumps(invitation.group_ids)
-                db_inv.invited_by = invitation.invited_by
+                db_inv.invited_by = invited_by_uuid
                 db_inv.message = invitation.message
                 db_inv.expires_at = datetime.fromisoformat(invitation.expires_at) if invitation.expires_at else None
                 db_inv.accepted_at = datetime.fromisoformat(invitation.accepted_at) if invitation.accepted_at else None
@@ -94,7 +131,7 @@ class InvitationService:
                     role_ids=json.dumps(invitation.role_ids),
                     department_id=invitation.department_id,
                     group_ids=json.dumps(invitation.group_ids),
-                    invited_by=invitation.invited_by,
+                    invited_by=invited_by_uuid,
                     message=invitation.message,
                     created_at=datetime.fromisoformat(invitation.created_at) if invitation.created_at else datetime.utcnow(),
                     expires_at=datetime.fromisoformat(invitation.expires_at) if invitation.expires_at else datetime.utcnow(),

@@ -2,6 +2,7 @@
 Organization Service - Database Operations for Organizations
 """
 import json
+import uuid
 from typing import Optional, List
 from datetime import datetime
 from ..base import get_db_session
@@ -46,10 +47,29 @@ class OrganizationService:
     def save_organization(org: CoreOrganization) -> CoreOrganization:
         """Save organization to database (insert or update)"""
         with get_db_session() as session:
-            db_org = session.query(DBOrganization).filter_by(id=org.id).first()
+            # Convert org.id to UUID if it's "org_default"
+            org_id_uuid = org.id
+            if org_id_uuid == "org_default":
+                # Try to find existing organization by slug
+                existing_org = session.query(DBOrganization).filter_by(slug="default").first()
+                if existing_org:
+                    org_id_uuid = str(existing_org.id)
+                    print(f"🔄 Converting 'org_default' to existing organization UUID: {org_id_uuid[:8]}...")
+                else:
+                    print(f"⚠️  [DATABASE ERROR] Organization 'org_default' not found, cannot save")
+                    raise ValueError("Cannot save organization with id='org_default'. Please use a valid UUID or create the organization first.")
+            
+            # Ensure org_id is a valid UUID
+            try:
+                org_id_uuid = str(uuid.UUID(org_id_uuid)) if org_id_uuid else None
+            except (ValueError, AttributeError):
+                print(f"⚠️  [DATABASE ERROR] Invalid org.id format: {org_id_uuid}")
+                raise ValueError(f"Invalid org.id format: {org_id_uuid}")
+            
+            db_org = session.query(DBOrganization).filter_by(id=org_id_uuid).first()
             if db_org:
                 # Update existing
-                print(f"💾 [DATABASE] Updating organization in database: {org.name} (ID: {org.id[:8]}...)")
+                print(f"💾 [DATABASE] Updating organization in database: {org.name} (ID: {org_id_uuid[:8]}...)")
                 db_org.name = org.name
                 db_org.slug = org.slug
                 db_org.plan = org.settings.get('plan', 'free')
@@ -58,9 +78,9 @@ class OrganizationService:
                 print(f"✅ [DATABASE] Organization updated successfully: {org.name}")
             else:
                 # Create new
-                print(f"💾 [DATABASE] Creating new organization in database: {org.name} (ID: {org.id[:8]}...)")
+                print(f"💾 [DATABASE] Creating new organization in database: {org.name} (ID: {org_id_uuid[:8]}...)")
                 db_org = DBOrganization(
-                    id=org.id,
+                    id=org_id_uuid,
                     name=org.name,
                     slug=org.slug,
                     plan=org.settings.get('plan', 'free'),
