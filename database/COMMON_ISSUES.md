@@ -2966,3 +2966,192 @@ A migration script should:
 
 **💡 Remember: Prevention is better than debugging on production!**
 **🚨 ZERO TOLERANCE for repeated mistakes - system will block them!**
+
+---
+
+## Issue #30: **Empty Permissions in User API Response (JSON Parsing Bug)**
+
+**Date:** 2026-01-13  
+**Severity:** 🔴 CRITICAL  
+**Category:** Data Serialization / JSON Parsing  
+**Status:** ✅ FIXED
+
+### Problem:
+User login successful, but UI menu not appearing because `/api/security/auth/me` returns empty permissions array:
+```json
+{
+  "email": "admin@agentforge.app",
+  "role_ids": ["fc3d874b-8dc7-4d91-a833-a2a93db6f432"],
+  "permissions": []  // ❌ Should have 32 permissions!
+}
+```
+
+### Investigation Path:
+1. ✅ Super Admin role in DB has 32 permissions (verified via logs)
+2. ✅ User has correct `role_ids` pointing to Super Admin role
+3. ✅ `RoleService.get_all_roles()` correctly parses JSON → List
+4. ❌ **But `SecurityState.load_from_disk()` was NOT using `RoleService`!**
+
+### Root Cause:
+**File:** `core/security/state.py` (Lines 218-249)
+
+The `load_from_disk()` method was directly querying the database and doing manual conversion:
+
+```python
+# ❌ WRONG (Lines 226-235):
+with get_db_session() as session:
+    db_roles = session.query(DBRole).all()
+    for db_role in db_roles:
+        role = Role(
+            id=str(db_role.id),
+            org_id=str(db_role.org_id) if db_role.org_id else "org_default",
+            name=db_role.name,
+            description=db_role.description,
+            permissions=db_role.permissions if isinstance(db_role.permissions, list) else [],
+            # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            # BUG: db_role.permissions is a JSON STRING (TEXT column in DB)!
+            # isinstance('["users:view", ...]', list) = False
+            # Result: permissions = []  ❌
+```
+
+**Why It Failed:**
+- `db_role.permissions` is stored as **JSON string** in TEXT column:
+  ```
+  '["users:view", "users:edit", "users:delete", ...]'
+  ```
+- `isinstance(str, list)` returns `False`
+- Fallback: `permissions = []`
+- Result: User has no permissions → No UI menu!
+
+### Error (None - Silent Bug!):
+No error! The code ran "successfully" but with **wrong data**. This is the **worst kind of bug** because:
+- No exception thrown
+- No error logs
+- App appears to work
+- Users just can't see the menu (looks like a permission issue, not a parsing bug!)
+
+### Solution:
+**Use the existing `RoleService.get_all_roles()` method** which has proper JSON parsing:
+
+```python
+# ✅ CORRECT (New implementation):
+from database.services import RoleService
+
+print("📊 Attempting to load roles from database...")
+db_roles = RoleService.get_all_roles()  # Uses proper JSON parsing!
+if db_roles:
+    for role in db_roles:
+        self.roles[role.id] = role
+        print(f"   📋 Loaded role '{role.name}' with {len(role.permissions)} permissions")
+    print(f"✅ Loaded {len(db_roles)} roles from database")
+```
+
+**RoleService._db_to_core_role() does correct parsing (Lines 56-65):**
+```python
+if isinstance(db_role.permissions, str):
+    permissions = json.loads(db_role.permissions)  # ✅ Parse JSON string!
+elif isinstance(db_role.permissions, list):
+    permissions = db_role.permissions
+else:
+    permissions = []
+```
+
+### Why This Happened:
+**Code Duplication!**
+- `RoleService` already had the correct conversion logic
+- `SecurityState` re-implemented the same logic (but incorrectly!)
+- **DRY Principle Violation:** Don't Repeat Yourself
+
+This is a perfect example of why **code duplication is dangerous**:
+1. Logic exists in multiple places
+2. One place gets updated (RoleService)
+3. Other place is forgotten (SecurityState)
+4. **Result: Silent bugs in production!**
+
+### Files Changed:
+1. **`core/security/state.py`**:
+   - Lines 218-249: `load_from_disk()` method
+   - Changed from direct DB query to `RoleService.get_all_roles()`
+
+### Prevention Checklist:
+- [x] ✅ **Always use existing Service classes** instead of direct DB queries
+- [x] ✅ **Follow DRY principle** - Don't duplicate conversion logic
+- [x] ✅ **Add debug logging** for data loading (count of items loaded)
+- [x] ✅ **Test with actual data** - Check API response, not just DB content
+- [ ] 🔄 **TODO: Add unit test** for `SecurityState.load_from_disk()` that verifies permissions are loaded
+- [ ] 🔄 **TODO: Add integration test** for `/api/security/auth/me` that checks permissions count
+
+### Testing Verification:
+**Before Fix:**
+```bash
+curl -H "Authorization: Bearer TOKEN" /api/security/auth/me
+# {"permissions": []}  ❌
+```
+
+**After Fix:**
+```bash
+curl -H "Authorization: Bearer TOKEN" /api/security/auth/me
+# {"permissions": ["users:view", "users:edit", ...]}  ✅ (32 items)
+```
+
+**Deployment Logs (Expected):**
+```
+📊 Attempting to load roles from database...
+🔍 Found 3 roles in database
+   📋 Loaded role 'Super Admin' (ID: fc3d874b...) with 32 permissions  ✅
+   📋 Loaded role 'Admin' (ID: 0fc6b5dd...) with 28 permissions  ✅
+   📋 Loaded role 'Presales' (ID: 04acb22b...) with 15 permissions  ✅
+✅ Successfully converted 3 roles
+✅ Loaded 3 roles from database
+```
+
+### Related Issues:
+- Issue #27: Empty Super Admin permissions (database-level fix)
+- Issue #29: Duplicate roles causing wrong permissions
+- RECURRING PATTERN #1: Incomplete schema mapping
+- **NEW PATTERN:** Code duplication leading to silent bugs
+
+### Key Takeaways:
+1. 🚨 **Always use Service classes** for DB → Model conversion
+2. 🚨 **Never duplicate conversion logic** - single source of truth
+3. 🚨 **Silent bugs are the worst** - Add debug logging for data loading
+4. 🚨 **Test the full flow** - Not just DB, but also API responses
+5. 🚨 **JSON parsing requires explicit handling** - Don't assume types!
+
+### Architecture Lesson:
+```
+┌─────────────────────────────────────────────────────────┐
+│ CORRECT ARCHITECTURE (After Fix)                        │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  SecurityState.load_from_disk()                         │
+│         │                                                │
+│         ├──> RoleService.get_all_roles()  ✅            │
+│         │         │                                      │
+│         │         ├──> Query DB (SQLAlchemy)            │
+│         │         ├──> _db_to_core_role()               │
+│         │         │      ├──> json.loads() if str       │
+│         │         │      └──> Return Pydantic Role      │
+│         │         └──> Return List[Role]                │
+│         │                                                │
+│         └──> Store in self.roles dict                   │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+
+Benefits:
+✅ Single source of truth for conversion logic
+✅ Easier to maintain and update
+✅ Proper error handling in one place
+✅ Consistent behavior across app
+```
+
+**Expected Result After Fix:**
+- ✅ User logs in successfully
+- ✅ `/api/security/auth/me` returns 32 permissions
+- ✅ UI menu appears with all options
+- ✅ System works as expected!
+
+---
+
+**💡 Remember: Prevention is better than debugging on production!**
+**🚨 ZERO TOLERANCE for repeated mistakes - system will block them!**
