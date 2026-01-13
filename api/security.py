@@ -2693,10 +2693,19 @@ async def oauth_login(provider: str, req: Request):
     redirect_uri = f"{base_url}/api/security/oauth/{provider}/callback"
     
     # Log the redirect URI for debugging
+    client_id = getattr(org, f'{provider}_client_id', None)
+    client_id_display = f"{client_id[:20]}..." if client_id else "NOT SET"
     print(f"🔍 [OAUTH DEBUG] Provider: {provider}")
     print(f"🔍 [OAUTH DEBUG] Base URL: {base_url}")
     print(f"🔍 [OAUTH DEBUG] Redirect URI: {redirect_uri}")
-    print(f"🔍 [OAUTH DEBUG] Client ID: {getattr(org, f'{provider}_client_id', 'NOT SET')[:20]}...")
+    print(f"🔍 [OAUTH DEBUG] Client ID: {client_id_display}")
+    print(f"🔍 [OAUTH DEBUG] Allowed providers: {org.allowed_auth_providers}")
+    
+    if not client_id:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"OAuth provider '{provider}' not configured. Please configure Google OAuth credentials in the Security Center."
+        )
     
     auth_url = OAuthService.get_authorization_url(auth_provider, org, redirect_uri)
     

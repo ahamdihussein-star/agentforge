@@ -860,8 +860,9 @@ class OAuthService:
             auth_url = f"{cls.GOOGLE_AUTH_URL}?{urlencode(params)}"
             
             # Log for debugging
+            client_id_display = f"{client_id[:20]}..." if client_id else "NOT SET"
             print(f"🔍 [OAUTH DEBUG] Google Authorization URL generated:")
-            print(f"   Client ID: {client_id[:20]}...")
+            print(f"   Client ID: {client_id_display}")
             print(f"   Redirect URI: {redirect_uri}")
             print(f"   Full Auth URL: {auth_url[:100]}...")
             
