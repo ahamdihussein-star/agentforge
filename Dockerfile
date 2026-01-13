@@ -95,6 +95,12 @@ else\n\
      echo "🔍 Diagnosing roles issue (checking why only 1 role visible)..."\n\
      python scripts/diagnose_roles_issue.py 2>&1\n\
      echo ""\n\
+     echo "🔍 Checking user role assignments (orphaned role IDs?)..."\n\
+     python scripts/check_user_role_assignments.py 2>&1\n\
+     echo ""\n\
+     echo "🔧 Fixing orphaned user role IDs..."\n\
+     python scripts/fix_orphaned_role_ids.py 2>&1\n\
+     echo ""\n\
      break\n\
     fi\n\
     \n\
