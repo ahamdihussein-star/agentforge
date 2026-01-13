@@ -93,16 +93,36 @@ def fix_super_admin_permissions():
                         current_perms = role.permissions
                 print(f"         Current permissions: {len(current_perms)}")
             
-            # Update with all permissions (REPLACE, not add!)
+            # Update with all permissions (REPLACE using RAW SQL to avoid ORM issues!)
             print(f"\n📌 Step 2: Replacing permissions with correct {len(ALL_PERMISSIONS)} permissions...")
+            print(f"   Using RAW SQL UPDATE to ensure complete replacement...\n")
+            
+            from sqlalchemy import text
+            
+            permissions_json = json.dumps(ALL_PERMISSIONS)
             
             for role in super_admin_roles:
                 print(f"   🔄 Role {role.id}:")
-                print(f"      Old: {len(json.loads(role.permissions) if isinstance(role.permissions, str) else (role.permissions or []))} permissions")
-                role.permissions = json.dumps(ALL_PERMISSIONS)  # REPLACE completely
-                print(f"      New: {len(ALL_PERMISSIONS)} permissions")
+                
+                # Get old count
+                old_perms = []
+                if role.permissions:
+                    try:
+                        old_perms = json.loads(role.permissions) if isinstance(role.permissions, str) else (role.permissions or [])
+                    except:
+                        old_perms = []
+                
+                print(f"      Old: {len(old_perms)} permissions")
+                
+                # Use RAW SQL UPDATE to force complete replacement
+                session.execute(
+                    text("UPDATE roles SET permissions = :perms WHERE id = :role_id"),
+                    {"perms": permissions_json, "role_id": str(role.id)}
+                )
+                
+                print(f"      New: {len(ALL_PERMISSIONS)} permissions (via RAW SQL)")
             
-            print(f"   ✅ Updated {len(super_admin_roles)} role(s)\n")
+            print(f"\n   ✅ Updated {len(super_admin_roles)} role(s)\n")
             
             # Save changes
             print("📌 Step 3: Saving changes...")
