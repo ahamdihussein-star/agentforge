@@ -3153,5 +3153,127 @@ Benefits:
 
 ---
 
+## Issue #31: **Duplicate Roles in Database (Wrong Cleanup Logic)**
+
+**Date:** 2026-01-13
+
+### Problem:
+UI shows duplicate roles (5 roles instead of 3):
+- 2× "Super Admin" (one with 0 users, one with 2 users)
+- 2× "Admin" (one with 31 permissions, one with 0 permissions)  
+- 1× "Presales" (0 permissions)
+
+Expected: Only 3 unique roles (Super Admin, Admin, Presales)
+
+### Root Cause:
+The original `scripts/cleanup_duplicate_roles.py` script kept the **OLDEST** role based on `created_at`, but the oldest role might have:
+- ❌ 0 permissions
+- ❌ 0 users assigned
+- ❌ Empty or incomplete data
+
+Meanwhile, a **NEWER** duplicate role might have:
+- ✅ 32 permissions
+- ✅ 2 users assigned
+- ✅ Complete, valid data
+
+**Result:** The script deleted the GOOD role and kept the BAD one! 🤦
+
+### The Flawed Logic:
+```python
+# ❌ OLD (WRONG) - Just keeps oldest
+role_instances = session.query(Role).filter_by(name=role_name).order_by(Role.created_at).all()
+primary_role = role_instances[0]  # Oldest, but might be empty!
+```
+
+### The Fix:
+Created `scripts/cleanup_duplicate_roles_v2.py` with **SMART selection logic**:
+
+```python
+# ✅ NEW (CORRECT) - Keeps BEST role
+def choose_best_role(role_instances, session):
+    """
+    Choose the BEST role from duplicates based on:
+    1. Most permissions (highest priority)
+    2. Most users assigned (second priority)
+    3. Oldest created_at (tiebreaker)
+    """
+    best_role = None
+    best_score = -1
+    
+    for role in role_instances:
+        perms_count = get_permissions_count(role)
+        users_count = get_users_count(role, session)
+        
+        # Score = (permissions × 1000) + (users × 10)
+        score = (perms_count * 1000) + (users_count * 10)
+        
+        if score > best_score:
+            best_score = score
+            best_role = role
+    
+    return best_role
+```
+
+**Example Scoring:**
+- Role A: 32 permissions, 2 users → Score = 32,020 ✅ **WINNER**
+- Role B: 0 permissions, 0 users → Score = 0 ❌ **DELETED**
+
+### Implementation:
+1. Created `scripts/cleanup_duplicate_roles_v2.py` (smarter version)
+2. Updated `Dockerfile` to use v2 script instead of old one
+3. Script now:
+   - Analyzes all duplicates
+   - Calculates score for each (permissions × 1000 + users × 10)
+   - Keeps the highest scoring role
+   - Migrates users from deleted roles to the primary role
+   - Verifies final result
+
+### Prevention:
+**✅ GOLDEN RULE:** When cleaning duplicates, never just sort by `created_at`!
+
+**✅ ALWAYS consider data quality:**
+1. Does this record have complete data?
+2. Is it actively being used?
+3. Does it have valid relationships?
+
+**✅ For cleanup scripts, use a scoring system:**
+```python
+# Priority ranking for choosing "best" record
+score = (
+    (has_data_field_1 * 1000) +     # Critical fields
+    (relationship_count * 100) +     # Active usage
+    (is_older * 1)                   # Age as tiebreaker only
+)
+```
+
+### Files Changed:
+- **NEW:** `scripts/cleanup_duplicate_roles_v2.py` (smart cleanup)
+- **MODIFIED:** `Dockerfile` (use v2 script)
+- **DOCUMENTED:** This issue in `COMMON_ISSUES.md`
+
+### Testing:
+```bash
+# Before fix:
+# SELECT COUNT(*), name FROM roles GROUP BY name;
+# Super Admin: 2
+# Admin: 2
+# Presales: 1
+
+# After fix:
+# Super Admin: 1 (kept the one with 32 perms, 2 users)
+# Admin: 1 (kept the one with 31 perms)
+# Presales: 1 (only one exists)
+```
+
+### Verification:
+After deployment:
+- ✅ Only 3 unique roles in database
+- ✅ Each role has correct permissions count
+- ✅ All users still assigned to correct roles
+- ✅ Browser test passes: `Expected 3 roles, found 3` ✅
+
+---
+
 **💡 Remember: Prevention is better than debugging on production!**
 **🚨 ZERO TOLERANCE for repeated mistakes - system will block them!**
+
