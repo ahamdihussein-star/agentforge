@@ -1759,33 +1759,69 @@ async def create_role(request: CreateRoleRequest, user: User = Depends(require_a
 @router.put("/roles/{role_id}")
 async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Depends(require_admin)):
     """Update a role"""
-    if not security_state.check_permission(user, Permission.ROLES_EDIT.value):
+    print(f"\n🔍 DEBUG update_role START:")
+    print(f"   User: {user.email}")
+    print(f"   User role_ids: {user.role_ids}")
+    print(f"   Target role_id: {role_id}")
+    print(f"   Request permissions: {len(request.permissions) if request.permissions else 0} permissions")
+    
+    # Check permission
+    has_permission = security_state.check_permission(user, Permission.ROLES_EDIT.value)
+    print(f"   Has ROLES_EDIT permission: {has_permission}")
+    if not has_permission:
+        print(f"   ❌ BLOCKED: No ROLES_EDIT permission")
         raise HTTPException(status_code=403, detail="Permission denied")
     
     role = security_state.roles.get(role_id)
+    print(f"   Role found: {role is not None}")
+    if role:
+        print(f"   Role name: {role.name}")
+        print(f"   Role org_id: {role.org_id}")
+        print(f"   Role is_system: {role.is_system}")
+        print(f"   Role level (raw): {role.level} (type: {type(role.level)})")
+    
     if not role or (role.org_id != user.org_id and not role.is_system):
+        print(f"   ❌ BLOCKED: Role not found or org mismatch")
         raise HTTPException(status_code=404, detail="Role not found")
     
     # Check role hierarchy - user can only edit roles with higher level (lower privilege)
     # Super Admin (level 0) can edit any role
     # Ensure all levels are int (might be string from database)
+    print(f"\n   📊 Calculating user_min_level:")
     user_levels = []
-    for role_id in user.role_ids:
-        if role_id in security_state.roles:
-            r = security_state.roles[role_id]
-            level = int(r.level) if isinstance(r.level, str) else r.level
+    for r_id in user.role_ids:
+        if r_id in security_state.roles:
+            r = security_state.roles[r_id]
+            raw_level = r.level
+            level = int(raw_level) if isinstance(raw_level, str) else raw_level
             user_levels.append(level)
+            print(f"      Role {r.name} (ID: {r_id[:8]}...): level={raw_level} (raw) → {level} (int)")
+        else:
+            print(f"      ⚠️  Role ID {r_id} not found in security_state.roles")
     
     user_min_level = min(user_levels) if user_levels else 100
+    print(f"   ✅ user_min_level = {user_min_level}")
     
     # Ensure role level is int
-    role_level = int(role.level) if isinstance(role.level, str) else role.level
+    role_level_raw = role.level
+    role_level = int(role_level_raw) if isinstance(role_level_raw, str) else role_level_raw
+    print(f"   📊 Role level: {role_level_raw} (raw) → {role_level} (int)")
+    
+    print(f"\n   🔐 Hierarchy check:")
+    print(f"      user_min_level: {user_min_level}")
+    print(f"      role_level: {role_level}")
+    print(f"      user_min_level == 0: {user_min_level == 0}")
+    print(f"      role_level <= user_min_level: {role_level <= user_min_level}")
     
     if user_min_level == 0:
         # Super Admin can edit any role (including system roles)
+        print(f"   ✅ ALLOWED: Super Admin (level 0) can edit {role.name} (level {role_level})")
         pass
     elif role_level <= user_min_level:
+        print(f"   ❌ BLOCKED: role_level ({role_level}) <= user_min_level ({user_min_level})")
         raise HTTPException(status_code=403, detail="Cannot modify a role with equal or higher privilege than yours")
+    else:
+        print(f"   ✅ ALLOWED: role_level ({role_level}) > user_min_level ({user_min_level})")
     
     # Allow editing system roles permissions, but not renaming them
     if role.is_system and request.name is not None and request.name != role.name:
