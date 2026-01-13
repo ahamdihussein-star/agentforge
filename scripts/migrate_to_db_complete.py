@@ -168,11 +168,30 @@ def migrate_roles(org_mapping):
                 # Check if already exists by UUID (UPSERT pattern - update if exists)
                 existing = session.query(Role).filter_by(id=role_uuid).first()
                 if existing:
-                    # UPDATE existing role (don't skip!)
+                    # UPDATE existing role - but PRESERVE permissions if they exist in DB
+                    # This prevents overwriting user-modified permissions with old JSON data
                     print(f"🔄 Role with ID '{role_uuid}' already exists (name: {existing.name}), updating...")
                     existing.name = role_data['name']
                     existing.description = role_data.get('description', '')
-                    existing.permissions = json.dumps(role_data.get('permissions', []))
+                    
+                    # PRESERVE existing permissions if they exist (don't overwrite with JSON)
+                    existing_perms = []
+                    if existing.permissions:
+                        try:
+                            if isinstance(existing.permissions, str):
+                                existing_perms = json.loads(existing.permissions)
+                            elif isinstance(existing.permissions, list):
+                                existing_perms = existing.permissions
+                        except:
+                            existing_perms = []
+                    
+                    # Only update permissions if DB role has no permissions (empty)
+                    if len(existing_perms) == 0:
+                        existing.permissions = json.dumps(role_data.get('permissions', []))
+                        print(f"   📝 Updated permissions (was empty)")
+                    else:
+                        print(f"   ⏭️  Preserved existing {len(existing_perms)} permissions (not overwriting with JSON)")
+                    
                     existing.parent_id = parent_uuid
                     existing.level = str(role_data.get('level', 100))
                     existing.is_system = role_data.get('is_system', False)
