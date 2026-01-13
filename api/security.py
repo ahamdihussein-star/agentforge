@@ -2648,16 +2648,30 @@ async def configure_oauth(request: OAuthConfigRequest, user: User = Depends(requ
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
+    # Update OAuth credentials
     setattr(org, f"{request.provider.value}_client_id", request.client_id)
     setattr(org, f"{request.provider.value}_client_secret", request.client_secret)
     if request.tenant_id:
         setattr(org, f"{request.provider.value}_tenant_id", request.tenant_id)
     
+    # Update allowed_auth_providers
     if request.enabled and request.provider not in org.allowed_auth_providers:
         org.allowed_auth_providers.append(request.provider)
     elif not request.enabled and request.provider in org.allowed_auth_providers:
         org.allowed_auth_providers.remove(request.provider)
     
+    # Save to database
+    print(f"💾 [API] Saving OAuth configuration to database for provider: {request.provider.value}")
+    try:
+        from database.services import OrganizationService
+        OrganizationService.save_organization(org)
+        print(f"✅ [API] OAuth configuration saved to database successfully")
+    except Exception as e:
+        print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+    
+    # Save to disk (backup)
     security_state.save_to_disk()
     
     return {"status": "success"}

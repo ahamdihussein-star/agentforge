@@ -74,6 +74,32 @@ class OrganizationService:
                 db_org.slug = org.slug
                 db_org.plan = org.settings.get('plan', 'free')
                 db_org.settings = json.dumps(org.settings)
+                
+                # Auth settings
+                db_org.allowed_auth_providers = json.dumps([p.value if hasattr(p, 'value') else str(p) for p in org.allowed_auth_providers]) if org.allowed_auth_providers else json.dumps([])
+                db_org.require_mfa = "true" if org.require_mfa else "false"
+                db_org.allowed_email_domains = json.dumps(org.allowed_email_domains) if org.allowed_email_domains else json.dumps([])
+                
+                # OAuth credentials
+                db_org.google_client_id = org.google_client_id
+                db_org.google_client_secret = org.google_client_secret
+                db_org.microsoft_client_id = org.microsoft_client_id
+                db_org.microsoft_client_secret = org.microsoft_client_secret
+                db_org.microsoft_tenant_id = org.microsoft_tenant_id
+                
+                # LDAP
+                db_org.ldap_config_id = org.ldap_config_id
+                
+                # Limits
+                db_org.max_users = str(org.max_users) if org.max_users else "100"
+                db_org.max_agents = str(org.max_agents) if org.max_agents else "50"
+                db_org.max_tools = str(org.max_tools) if org.max_tools else "100"
+                
+                # Status & Branding
+                db_org.status = org.status if hasattr(org, 'status') else "active"
+                db_org.domain = org.domain
+                db_org.logo_url = org.logo_url
+                
                 db_org.updated_at = datetime.utcnow()
                 print(f"✅ [DATABASE] Organization updated successfully: {org.name}")
             else:
@@ -85,6 +111,26 @@ class OrganizationService:
                     slug=org.slug,
                     plan=org.settings.get('plan', 'free'),
                     settings=json.dumps(org.settings),
+                    # Auth settings
+                    allowed_auth_providers=json.dumps([p.value if hasattr(p, 'value') else str(p) for p in org.allowed_auth_providers]) if org.allowed_auth_providers else json.dumps([]),
+                    require_mfa="true" if org.require_mfa else "false",
+                    allowed_email_domains=json.dumps(org.allowed_email_domains) if org.allowed_email_domains else json.dumps([]),
+                    # OAuth credentials
+                    google_client_id=org.google_client_id,
+                    google_client_secret=org.google_client_secret,
+                    microsoft_client_id=org.microsoft_client_id,
+                    microsoft_client_secret=org.microsoft_client_secret,
+                    microsoft_tenant_id=org.microsoft_tenant_id,
+                    # LDAP
+                    ldap_config_id=org.ldap_config_id,
+                    # Limits
+                    max_users=str(org.max_users) if org.max_users else "100",
+                    max_agents=str(org.max_agents) if org.max_agents else "50",
+                    max_tools=str(org.max_tools) if org.max_tools else "100",
+                    # Status & Branding
+                    status=org.status if hasattr(org, 'status') else "active",
+                    domain=org.domain,
+                    logo_url=org.logo_url,
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow()
                 )
@@ -108,26 +154,56 @@ class OrganizationService:
         if db_org.plan:
             settings['plan'] = db_org.plan
         
+        # Parse allowed_auth_providers
+        allowed_auth_providers = []
+        if db_org.allowed_auth_providers:
+            if isinstance(db_org.allowed_auth_providers, str):
+                try:
+                    providers_list = json.loads(db_org.allowed_auth_providers)
+                    from core.security import AuthProvider
+                    allowed_auth_providers = [AuthProvider(p) if isinstance(p, str) else p for p in providers_list]
+                except (json.JSONDecodeError, ValueError):
+                    allowed_auth_providers = []
+            elif isinstance(db_org.allowed_auth_providers, list):
+                from core.security import AuthProvider
+                allowed_auth_providers = [AuthProvider(p) if isinstance(p, str) else p for p in db_org.allowed_auth_providers]
+        
+        # Parse allowed_email_domains
+        allowed_email_domains = []
+        if db_org.allowed_email_domains:
+            if isinstance(db_org.allowed_email_domains, str):
+                try:
+                    allowed_email_domains = json.loads(db_org.allowed_email_domains)
+                except json.JSONDecodeError:
+                    allowed_email_domains = []
+            elif isinstance(db_org.allowed_email_domains, list):
+                allowed_email_domains = db_org.allowed_email_domains
+        
+        # Parse require_mfa
+        require_mfa = False
+        if db_org.require_mfa:
+            require_mfa = str(db_org.require_mfa).lower() in ("true", "1", "yes")
+        
         return CoreOrganization(
             id=str(db_org.id),
             name=db_org.name,
             slug=db_org.slug,
-            domain=None,  # Not in DB model yet
-            logo_url=None,  # Not in DB model yet
+            domain=db_org.domain,
+            logo_url=db_org.logo_url,
             settings=settings,
-            allowed_auth_providers=[],  # Not in DB model yet
-            require_mfa=False,  # Not in DB model yet
-            allowed_email_domains=[],  # Not in DB model yet
-            google_client_id=None,  # Not in DB model yet
-            google_client_secret=None,  # Not in DB model yet
-            microsoft_client_id=None,  # Not in DB model yet
-            microsoft_client_secret=None,  # Not in DB model yet
-            microsoft_tenant_id=None,  # Not in DB model yet
-            ldap_config_id=None,  # Not in DB model yet
-            max_users=100,  # Not in DB model yet
-            max_agents=50,  # Not in DB model yet
-            max_tools=100,  # Not in DB model yet
-            status="active",  # Not in DB model yet
+            allowed_auth_providers=allowed_auth_providers,
+            require_mfa=require_mfa,
+            allowed_email_domains=allowed_email_domains,
+            google_client_id=db_org.google_client_id,
+            google_client_secret=db_org.google_client_secret,
+            microsoft_client_id=db_org.microsoft_client_id,
+            microsoft_client_secret=db_org.microsoft_client_secret,
+            microsoft_tenant_id=db_org.microsoft_tenant_id,
+            ldap_config_id=str(db_org.ldap_config_id) if db_org.ldap_config_id else None,
+            max_users=int(db_org.max_users) if db_org.max_users and str(db_org.max_users).isdigit() else 100,
+            max_agents=int(db_org.max_agents) if db_org.max_agents and str(db_org.max_agents).isdigit() else 50,
+            max_tools=int(db_org.max_tools) if db_org.max_tools and str(db_org.max_tools).isdigit() else 100,
+            status=db_org.status if db_org.status else "active",
             created_at=db_org.created_at.isoformat() if db_org.created_at else datetime.utcnow().isoformat(),
             updated_at=db_org.updated_at.isoformat() if db_org.updated_at else datetime.utcnow().isoformat()
         )
