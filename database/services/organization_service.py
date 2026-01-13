@@ -23,6 +23,10 @@ class OrganizationService:
     @staticmethod
     def get_organization_by_id(org_id: str) -> Optional[CoreOrganization]:
         """Get organization by ID"""
+        # Convert org_id to UUID if it's "org_default"
+        if org_id == "org_default":
+            return OrganizationService.get_organization_by_slug("default")
+        
         with get_db_session() as session:
             db_org = session.query(DBOrganization).filter_by(id=org_id).first()
             if not db_org:

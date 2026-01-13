@@ -2,6 +2,7 @@
 Invitation Service - Database Operations for Invitations
 """
 import json
+import uuid
 from typing import Optional, List
 from datetime import datetime
 from ..base import get_db_session
@@ -42,10 +43,33 @@ class InvitationService:
     def save_invitation(invitation: CoreInvitation) -> CoreInvitation:
         """Save invitation to database (insert or update)"""
         with get_db_session() as session:
+            # Convert org_id to UUID if it's "org_default"
+            org_id_uuid = invitation.org_id
+            if org_id_uuid == "org_default":
+                from .organization_service import OrganizationService
+                default_org = OrganizationService.get_organization_by_slug("default")
+                if default_org:
+                    org_id_uuid = default_org.id
+                else:
+                    # Try to get first organization
+                    all_orgs = OrganizationService.get_all_organizations()
+                    if all_orgs:
+                        org_id_uuid = all_orgs[0].id
+                    else:
+                        print(f"⚠️  [DATABASE ERROR] No organization found for 'org_default', using invitation.org_id as-is")
+            
+            # Ensure org_id is a valid UUID
+            try:
+                org_id_uuid = str(uuid.UUID(org_id_uuid)) if org_id_uuid else None
+            except (ValueError, AttributeError):
+                print(f"⚠️  [DATABASE ERROR] Invalid org_id format: {org_id_uuid}")
+                raise ValueError(f"Invalid org_id format: {org_id_uuid}")
+            
             db_inv = session.query(DBInvitation).filter_by(id=invitation.id).first()
             if db_inv:
                 # Update existing
                 print(f"💾 [DATABASE] Updating invitation in database: {invitation.email} (ID: {invitation.id[:8]}...)")
+                db_inv.org_id = org_id_uuid
                 db_inv.email = invitation.email
                 db_inv.token = invitation.token
                 db_inv.role_ids = json.dumps(invitation.role_ids)
@@ -64,7 +88,7 @@ class InvitationService:
                 print(f"💾 [DATABASE] Creating new invitation in database: {invitation.email} (ID: {invitation.id[:8]}...)")
                 db_inv = DBInvitation(
                     id=invitation.id,
-                    org_id=invitation.org_id,
+                    org_id=org_id_uuid,
                     email=invitation.email,
                     token=invitation.token,
                     role_ids=json.dumps(invitation.role_ids),
