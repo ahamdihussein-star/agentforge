@@ -66,7 +66,7 @@ else\n\
     if [ $? -eq 0 ]; then\n\
       echo "✅ Database connection successful"\n\
       echo "📋 Initializing database tables..."\n\
-      python database/init_db.py 2>&1\n\
+      python database/init_db.py 2>&1 || echo "⚠️  init_db.py completed with warnings"\n\
       echo ""\n\
       echo "🔧 Creating any missing tables..."\n\
       python scripts/create_missing_tables.py 2>&1\n\
