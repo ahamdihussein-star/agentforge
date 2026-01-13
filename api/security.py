@@ -1875,6 +1875,64 @@ async def reset_default_roles(user: User = Depends(require_super_admin)):
     
     return {"message": f"Reset {updated} system roles to defaults", "updated": updated}
 
+@router.post("/roles/fix-levels")
+async def fix_role_levels_endpoint(user: User = Depends(require_super_admin)):
+    """Fix role levels in database to match DEFAULT_ROLES hierarchy (Super Admin only)"""
+    if not security_state.check_permission(user, Permission.SYSTEM_ADMIN.value):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    from database.base import get_db_session
+    from core.security.models import DEFAULT_ROLES
+    from sqlalchemy import text
+    
+    # Create mapping from role name to level
+    name_to_level = {}
+    for role_data in DEFAULT_ROLES:
+        name_to_level[role_data['name']] = role_data.get('level', 100)
+    
+    updated_roles = []
+    
+    try:
+        with get_db_session() as session:
+            # Update Super Admin to level 0
+            result1 = session.execute(
+                text("UPDATE roles SET level = '0' WHERE name = 'Super Admin' RETURNING id, name, level")
+            )
+            super_admin = result1.fetchone()
+            if super_admin:
+                updated_roles.append({"id": str(super_admin[0]), "name": super_admin[1], "level": super_admin[2]})
+            
+            # Update Admin to level 1
+            result2 = session.execute(
+                text("UPDATE roles SET level = '1' WHERE name = 'Admin' RETURNING id, name, level")
+            )
+            admin = result2.fetchone()
+            if admin:
+                updated_roles.append({"id": str(admin[0]), "name": admin[1], "level": admin[2]})
+            
+            # Verify all roles
+            result3 = session.execute(
+                text("SELECT id, name, level FROM roles ORDER BY name")
+            )
+            all_roles = [{"id": str(r[0]), "name": r[1], "level": r[2]} for r in result3.fetchall()]
+            
+            session.commit()
+            
+            # Reload roles from database into security_state
+            security_state.reload_roles_from_database()
+            
+            return {
+                "status": "success",
+                "updated": updated_roles,
+                "all_roles": all_roles,
+                "message": "Role levels fixed successfully. Please refresh the page."
+            }
+    except Exception as e:
+        print(f"❌ Error in fix_role_levels_endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error: {e}")
+
 @router.delete("/roles/{role_id}")
 async def delete_role(role_id: str, user: User = Depends(require_admin)):
     """Delete a role"""
