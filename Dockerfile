@@ -95,6 +95,9 @@ else\n\
      echo "🔧 Fixing Super Admin permissions..."\n\
      python scripts/fix_super_admin_permissions.py 2>&1\n\
      echo ""\n\
+     echo "🔧 Fixing Admin & Presales permissions..."\n\
+     python scripts/fix_admin_presales_permissions.py 2>&1\n\
+     echo ""\n\
      echo "🔧 Fixing role levels (hierarchy)..."\n\
      python scripts/fix_role_levels.py 2>&1\n\
      echo ""\n\
