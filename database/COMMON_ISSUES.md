@@ -1936,6 +1936,7 @@ existing = session.query(User).filter_by(id=user_uuid).first()
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-13 | **PYDANTIC VALIDATION ERROR: role_ids double-encoded!** #26 | ✅ Fixed | Database contained double-JSON: `'"[\"uuid\"]"'` → Parse twice! |
 | 2026-01-12 | Generating new IDs instead of preserving #24 | ✅ Fixed | ROOT CAUSE of #22 & #23! Use JSON IDs directly, no uuid4() |
 | 2026-01-12 | User ID mismatch (migration skip) #23 | ⚠️ Symptom | Real cause was Issue #24 (ID generation) |
 | 2026-01-12 | Email mismatch in user lookup #22 | ⚠️ Symptom | Real cause was Issue #24 (ID generation) |
@@ -2202,6 +2203,142 @@ The extra `)` closes the `User(...)` constructor prematurely, then Python sees `
   # In .git/hooks/pre-commit
   python -m compileall database/ || exit 1
   ```
+
+---
+
+## 🔴 **DOUBLE JSON ENCODING - DATABASE SERIALIZATION ISSUE**
+
+### Issue #26: Pydantic validation error - `role_ids` is string after parsing (double-encoded)
+**Date:** 2026-01-13
+**Severity:** CRITICAL
+**Occurrences:** 1 time (database/services/user_service.py)
+**Related to:** RECURRING PATTERN #1 (Incomplete Schema Mapping)
+
+#### Problem:
+After successfully fixing the `fix_user_roles.py` script to assign roles to users, Pydantic validation STILL failed with:
+
+```
+ValidationError: 1 validation error for User
+role_ids
+  Input should be a valid list [type=list_type, input_value='["4e7a15db-..."]', input_type=str]
+```
+
+**Database value:**  
+`'"[\"4e7a15db-753f-4f9f-ae1a-8ad34a7d9790\"]"'` ← Double-encoded!
+
+**After 1st `json.loads()`:**  
+`'["4e7a15db-753f-4f9f-ae1a-8ad34a7d9790"]'` ← STILL a string!
+
+**Pydantic expects:**  
+`["4e7a15db-753f-4f9f-ae1a-8ad34a7d9790"]` ← A Python list
+
+#### Root Cause:
+The `fix_user_roles.py` script does:
+```python
+role_ids_json = json.dumps([str(super_admin_role.id)])  # ← 1st encoding
+user.role_ids = role_ids_json  # Store in DB
+```
+
+But the `role_ids` column in SQLAlchemy is a `TEXT` column, and when SQLAlchemy stores JSON, it **automatically JSON-encodes** it AGAIN! This causes **double encoding**.
+
+So the database actually contains:
+```
+Database: '"[\"4e7a15db-...\"]"'  (outer quotes + escaped inner quotes)
+```
+
+When we `json.loads()` once, we get:
+```python
+'["4e7a15db-..."]'  # Still a string!
+```
+
+We need to `json.loads()` **TWICE** to get the actual list!
+
+#### Error Logs (Debug Output):
+```
+🔍 DEBUG [ahmedhamdi81@yahoo.com] role_ids type: <class 'str'>, value: '"[\"4e7a15db-...\"]"'
+🔍 DEBUG [ahmedhamdi81@yahoo.com] role_ids is STRING, parsing...
+🔍 DEBUG [ahmedhamdi81@yahoo.com] Parsed role_ids: ["4e7a15db-..."] (type: <class 'str'>)
+❌ Error in get_all_users: ValidationError: ... input_value='["4e7a15db-..."]', input_type=str
+```
+
+Notice: **After parsing, it's STILL a string, not a list!**
+
+#### Solution:
+```python
+# ✅ CORRECT - Handle double JSON encoding
+if isinstance(db_user.role_ids, str):
+    role_ids = json.loads(db_user.role_ids) if db_user.role_ids else []
+    
+    # 🔥 CRITICAL: If result is STILL a string, parse AGAIN!
+    if isinstance(role_ids, str):
+        print(f"   🔥 DOUBLE-ENCODED DETECTED! Parsing again...")
+        role_ids = json.loads(role_ids)
+    
+    # Final sanity check
+    if not isinstance(role_ids, list):
+        print(f"   ⚠️  Final role_ids is STILL not a list! Defaulting to []")
+        role_ids = []
+```
+
+**Files Changed:**
+- `database/services/user_service.py` (lines 188-230): Added double-encoding detection and second parse
+
+#### Why Double Encoding Happens:
+1. **Manual `json.dumps()` in script:** Converts list → JSON string
+2. **SQLAlchemy auto-serialization:** SQLAlchemy sees it's a TEXT column storing JSON and encodes AGAIN
+3. **Result:** Double-encoded JSON in database
+
+**Alternative approaches to prevent this:**
+1. **Use SQLAlchemy's JSON type properly:** Let SQLAlchemy handle encoding/decoding automatically
+2. **Store raw strings:** Don't pre-encode with `json.dumps()` if SQLAlchemy will do it
+3. **Use ARRAY type (if database-agnostic):** Use `JSONArray` custom type from `database/types.py`
+
+#### Impact:
+- **User loading failed:** SecurityState couldn't load users from database
+- **Fallback to files:** Application fell back to loading from JSON files
+- **No database integration:** All database work was bypassed due to this validation error
+- **Hours of debugging:** Spent significant time tracking down the double encoding
+
+#### Prevention:
+1. ✅ **Always test Pydantic validation after DB writes:**
+   ```bash
+   # After running fix script
+   python -c "from database.services import UserService; UserService.get_all_users()"
+   ```
+
+2. ✅ **Add explicit type checking after JSON parsing:**
+   ```python
+   parsed = json.loads(db_value)
+   if isinstance(parsed, str):
+       # Handle double encoding!
+       parsed = json.loads(parsed)
+   assert isinstance(parsed, list), f"Expected list, got {type(parsed)}"
+   ```
+
+3. ✅ **Use SQLAlchemy's JSON type correctly:**
+   ```python
+   # In models:
+   role_ids = Column(JSON, default=list)  # Let SQLAlchemy handle encoding
+   
+   # In scripts:
+   user.role_ids = ["uuid1", "uuid2"]  # Pass Python list, not JSON string!
+   ```
+
+4. ✅ **Document JSON storage patterns:**
+   - If column is `TEXT`: Store raw JSON string, SQLAlchemy won't auto-encode
+   - If column is `JSON`: Pass Python objects, SQLAlchemy auto-encodes
+   - Never mix both approaches!
+
+5. ✅ **Add to pre-commit checks:**
+   ```bash
+   # Test that parsing returns expected types
+   python scripts/test_db_json_parsing.py
+   ```
+
+#### Related Issues:
+- Issue #19: Missing `role_ids` in migration (original problem)
+- Issue #21: Role permissions not stored (related to data flow)
+- RECURRING PATTERN #1: Incomplete schema mapping across layers
 
 ---
 
