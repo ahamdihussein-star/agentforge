@@ -18469,6 +18469,9 @@ function getAuthHeaders() {
 
 // Load security statistics
 async function loadSecurityStats() {
+    // Don't make request if not authenticated (best practice)
+    if (!authToken) return;
+    
     try {
         const res = await fetch('/api/security/stats', {
             headers: getAuthHeaders()
@@ -18488,6 +18491,9 @@ async function loadSecurityStats() {
 
 // Load security users
 async function loadSecurityUsers() {
+    // Don't make request if not authenticated (best practice)
+    if (!authToken) return;
+    
     try {
         const res = await fetch('/api/security/users', {
             headers: getAuthHeaders()
@@ -18711,6 +18717,9 @@ function filterSecurityUsers() {
 let securityInvitations = [];
 
 async function loadSecurityInvitations() {
+    // Don't make request if not authenticated (best practice)
+    if (!authToken) return;
+    
     try {
         const res = await fetch('/api/security/invitations', { headers: getAuthHeaders() });
         if (res.ok) {
@@ -18791,6 +18800,9 @@ async function deleteInvitation(invId) {
 }
 
 async function loadSecurityRoles() {
+    // Don't make request if not authenticated (best practice)
+    if (!authToken) return;
+    
     try {
         const res = await fetch('/api/security/roles', {
             headers: getAuthHeaders()
