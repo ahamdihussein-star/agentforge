@@ -86,6 +86,9 @@ else\n\
       echo "🔧 Fixing user roles (ensuring Super Admin role assigned)..."\n\
       python scripts/fix_user_roles.py 2>&1\n\
       echo ""\n\
+      echo "🔧 Fixing Super Admin permissions..."\n\
+      python scripts/fix_super_admin_permissions.py 2>&1\n\
+      echo ""\n\
       break\n\
     fi\n\
     \n\
