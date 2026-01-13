@@ -218,34 +218,22 @@ class SecurityState:
         # --- Load roles from database ---
         db_roles_loaded = False
         try:
-            from database.models.role import Role as DBRole
-            from database.base import get_db_session
+            from database.services import RoleService
             
             print("📊 Attempting to load roles from database...")
-            with get_db_session() as session:
-                db_roles = session.query(DBRole).all()
-                if db_roles:
-                    for db_role in db_roles:
-                        # Convert database role to core Role model
-                        role = Role(
-                            id=str(db_role.id),
-                            org_id=str(db_role.org_id) if db_role.org_id else "org_default",
-                            name=db_role.name,
-                            description=db_role.description,
-                            permissions=db_role.permissions if isinstance(db_role.permissions, list) else [],
-                            parent_id=str(db_role.parent_id) if db_role.parent_id else None,
-                            level=db_role.level if hasattr(db_role, 'level') else 100,
-                            is_system=db_role.is_system if hasattr(db_role, 'is_system') else False,
-                            created_at=db_role.created_at.isoformat() if hasattr(db_role.created_at, 'isoformat') else str(db_role.created_at),
-                            updated_at=db_role.updated_at.isoformat() if hasattr(db_role.updated_at, 'isoformat') else str(db_role.updated_at)
-                        )
-                        self.roles[role.id] = role
-                    print(f"✅ Loaded {len(db_roles)} roles from database")
-                    db_roles_loaded = True
-                else:
-                    print("⚠️  No roles in database, falling back to files...")
+            db_roles = RoleService.get_all_roles()  # Uses proper JSON parsing!
+            if db_roles:
+                for role in db_roles:
+                    self.roles[role.id] = role
+                    # Debug: Print role permissions count
+                    print(f"   📋 Loaded role '{role.name}' (ID: {role.id[:8]}...) with {len(role.permissions)} permissions")
+                print(f"✅ Loaded {len(db_roles)} roles from database")
+                db_roles_loaded = True
+            else:
+                print("⚠️  No roles in database, falling back to files...")
         except Exception as db_error:
             print(f"❌ Database roles error: {type(db_error).__name__}: {str(db_error)}")
+            traceback.print_exc()
             print("📂 Loading roles from files (database unavailable)")
         
         if not os.path.exists(security_dir):
