@@ -98,16 +98,16 @@ def fix_super_admin_permissions():
                         current_perms = role.permissions
                 print(f"         Current permissions: {len(current_perms)}")
             
-            # Update ALL Super Admin roles with all permissions
-            print(f"\n📌 Step 2: Updating ALL Super Admin roles...")
-            print(f"   Adding {len(ALL_PERMISSIONS)} permissions to each role...")
+            # Update with all permissions (REPLACE, not add!)
+            print(f"\n📌 Step 2: Replacing permissions with correct {len(ALL_PERMISSIONS)} permissions...")
             
-            updated_count = 0
             for role in super_admin_roles:
-                role.permissions = json.dumps(ALL_PERMISSIONS)
-                updated_count += 1
+                print(f"   🔄 Role {role.id}:")
+                print(f"      Old: {len(json.loads(role.permissions) if isinstance(role.permissions, str) else (role.permissions or []))} permissions")
+                role.permissions = json.dumps(ALL_PERMISSIONS)  # REPLACE completely
+                print(f"      New: {len(ALL_PERMISSIONS)} permissions")
             
-            print(f"   ✅ Updated {updated_count} role(s)\n")
+            print(f"   ✅ Updated {len(super_admin_roles)} role(s)\n")
             
             # Save changes
             print("📌 Step 3: Saving changes...")
