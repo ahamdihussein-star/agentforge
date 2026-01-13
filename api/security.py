@@ -43,6 +43,46 @@ router = APIRouter(prefix="/api/security", tags=["Security"])
 security_bearer = HTTPBearer(auto_error=False)
 
 # ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def save_user_to_db(user: User):
+    """Save user to database with fallback to disk"""
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+        print(f"💾 User saved to database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+
+def save_invitation_to_db(invitation: Invitation):
+    """Save invitation to database with fallback to disk"""
+    try:
+        from database.services import InvitationService
+        InvitationService.save_invitation(invitation)
+        print(f"💾 Invitation saved to database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+
+def save_audit_log_to_db(log: AuditLog):
+    """Save audit log to database with fallback to disk"""
+    try:
+        from database.services import AuditService
+        AuditService.save_audit_log(log)
+        print(f"💾 Audit log saved to database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+
+# ============================================================================
 # REQUEST/RESPONSE MODELS
 # ============================================================================
 
@@ -423,10 +463,19 @@ async def resend_invitation(invitation_id: str, user: User = Depends(require_adm
     invitation.expires_at = (datetime.utcnow() + timedelta(days=7)).isoformat()
     invitation.resend_count += 1
     
+    # Save to database
+    try:
+        from database.services import InvitationService
+        InvitationService.save_invitation(invitation)
+        print(f"💾 Invitation updated in database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+    
     # Resend email
     sent = await EmailService.send_invitation_email(invitation, user.get_display_name())
-    
-    security_state.save_to_disk()
     
     return {"status": "success", "email_sent": sent}
 
@@ -438,7 +487,17 @@ async def delete_invitation(invitation_id: str, user: User = Depends(require_adm
         raise HTTPException(status_code=404, detail="Invitation not found")
     
     del security_state.invitations[invitation_id]
-    security_state.save_to_disk()
+    
+    # Delete from database
+    try:
+        from database.services import InvitationService
+        InvitationService.delete_invitation(invitation_id)
+        print(f"💾 Invitation deleted from database")
+    except Exception as e:
+        print(f"⚠️  Database delete failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
     
     security_state.add_audit_log(
         user=user,
@@ -522,7 +581,17 @@ async def register(request: RegisterRequest, req: Request):
     )
     
     security_state.users[user.id] = user
-    security_state.save_to_disk()
+    
+    # Save to database
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+        print(f"💾 User saved to database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
     
     # Send verification email if required
     if settings.email_verification_required:
@@ -585,7 +654,7 @@ async def login(request: LoginRequest, req: Request):
         if settings.account_lockout_attempts > 0 and user.failed_login_attempts >= settings.account_lockout_attempts:
             user.status = UserStatus.LOCKED
             user.locked_until = (datetime.utcnow() + timedelta(minutes=settings.account_lockout_duration_minutes)).isoformat()
-            security_state.save_to_disk()
+            save_user_to_db(user)
             
             security_state.add_audit_log(
                 user=user,
@@ -599,7 +668,7 @@ async def login(request: LoginRequest, req: Request):
             
             raise HTTPException(status_code=423, detail="Account locked due to too many failed attempts")
         
-        security_state.save_to_disk()
+        save_user_to_db(user)
         
         security_state.add_audit_log(
             user=user,
@@ -959,11 +1028,31 @@ async def accept_invitation(request: AcceptInvitationRequest, req: Request):
     
     security_state.users[user.id] = user
     
+    # Save user to database
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+        print(f"💾 User saved to database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+    
     # Mark invitation as accepted
     invitation.accepted_at = datetime.utcnow().isoformat()
     # invitation.accepted_by = user.id
     
-    security_state.save_to_disk()
+    # Save invitation to database
+    try:
+        from database.services import InvitationService
+        InvitationService.save_invitation(invitation)
+        print(f"💾 Invitation updated in database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
     
     security_state.add_audit_log(
         user=user,
@@ -1379,7 +1468,17 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
     )
     
     security_state.users[new_user.id] = new_user
-    security_state.save_to_disk()
+    
+    # Save to database
+    try:
+        from database.services import UserService
+        UserService.save_user(new_user)
+        print(f"💾 User saved to database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
     
     if request.send_invitation:
         await EmailService.send_welcome_email(new_user, password)
@@ -1444,7 +1543,18 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
             target_user.status = request.status
     
     target_user.updated_at = datetime.utcnow().isoformat()
-    security_state.save_to_disk()
+    
+    # Save to database
+    print(f"💾 [API] Updating user in database: {target_user.email} (ID: {user_id[:8]}...)")
+    try:
+        from database.services import UserService
+        UserService.save_user(target_user)
+        print(f"✅ [API] User updated successfully in database: {target_user.email}")
+    except Exception as e:
+        print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
     
     security_state.add_audit_log(
         user=user,
@@ -1473,7 +1583,17 @@ async def delete_user(user_id: str, user: User = Depends(require_admin)):
             session.is_active = False
     
     del security_state.users[user_id]
-    security_state.save_to_disk()
+    
+    # Delete from database
+    try:
+        from database.services import UserService
+        UserService.delete_user(user_id, user.org_id)
+        print(f"💾 User deleted from database")
+    except Exception as e:
+        print(f"⚠️  Database delete failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
     
     security_state.add_audit_log(
         user=user,
@@ -1507,7 +1627,17 @@ async def invite_user(request: InviteUserRequest, user: User = Depends(require_a
     )
     
     security_state.invitations[invitation.id] = invitation
-    security_state.save_to_disk()
+    
+    # Save to database
+    try:
+        from database.services import InvitationService
+        InvitationService.save_invitation(invitation)
+        print(f"💾 Invitation saved to database")
+    except Exception as e:
+        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
     
     await EmailService.send_invitation_email(invitation, user)
     
@@ -1746,22 +1876,16 @@ async def create_role(request: CreateRoleRequest, user: User = Depends(require_a
     security_state.roles[role.id] = role
     
     # Save to database (primary storage)
+    print(f"💾 [API] Creating role in database: {role.name} (ID: {role.id[:8]}...)")
     try:
         from database.services import RoleService
-        success = RoleService.save_role(role)
-        if success:
-            print(f"💾 Role saved to database")
-        else:
-            print(f"⚠️  Failed to save role to database, saving to disk only")
-            security_state.save_to_disk()
+        saved_role = RoleService.save_role(role)
+        print(f"✅ [API] Role created successfully in database: {role.name} ({len(role.permissions)} permissions)")
     except Exception as e:
-        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
         import traceback
         traceback.print_exc()
         security_state.save_to_disk()
-    
-    # Also save to disk for backward compatibility (dual-write)
-    security_state.save_to_disk()
     
     security_state.add_audit_log(
         user=user,
@@ -1858,25 +1982,19 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
         role.parent_id = request.parent_id
     
     role.updated_at = datetime.utcnow().isoformat()
-    print(f"🔧 Updating role {role.name}: {role.permissions}")
+    print(f"🔧 [API] Updating role {role.name}: {len(role.permissions)} permissions")
     
     # Save to database (primary storage)
+    print(f"💾 [API] Updating role in database: {role.name} (ID: {role.id[:8]}...)")
     try:
         from database.services import RoleService
-        success = RoleService.save_role(role)
-        if success:
-            print(f"💾 Role saved to database")
-        else:
-            print(f"⚠️  Failed to save role to database, saving to disk only")
-            security_state.save_to_disk()
+        saved_role = RoleService.save_role(role)
+        print(f"✅ [API] Role updated successfully in database: {role.name} ({len(role.permissions)} permissions)")
     except Exception as e:
-        print(f"⚠️  Database save failed: {e}, saving to disk only")
+        print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
         import traceback
         traceback.print_exc()
         security_state.save_to_disk()
-    
-    # Also save to disk for backward compatibility (dual-write)
-    security_state.save_to_disk()
     
     security_state.add_audit_log(
         user=user,
@@ -1902,9 +2020,23 @@ async def reset_default_roles(user: User = Depends(require_super_admin)):
             role = security_state.roles[role_id]
             role.permissions = default_role["permissions"]
             role.description = default_role["description"]
+            
+            # Save to database
+            print(f"💾 [API] Resetting role to defaults in database: {role.name} (ID: {role_id[:8]}...)")
+            try:
+                from database.services import RoleService
+                RoleService.save_role(role)
+                print(f"✅ [API] Role reset successfully in database: {role.name}")
+            except Exception as e:
+                print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
+                import traceback
+                traceback.print_exc()
+                security_state.save_to_disk()
+            
             updated += 1
     
-    security_state.save_to_disk()
+    if updated > 0:
+        security_state.save_to_disk()
     
     return {"message": f"Reset {updated} system roles to defaults", "updated": updated}
 
@@ -1985,13 +2117,13 @@ async def delete_role(role_id: str, user: User = Depends(require_admin)):
             u.role_ids.remove(role_id)
     
     # Delete from database (primary storage)
+    print(f"🗑️  [API] Deleting role from database: {role.name} (ID: {role_id[:8]}...)")
     try:
         from database.services import RoleService
-        success = RoleService.delete_role(role_id)
-        if not success:
-            print(f"⚠️  Failed to delete role from database, deleting from memory only")
+        RoleService.delete_role(role_id)
+        print(f"✅ [API] Role deleted successfully from database: {role.name}")
     except Exception as e:
-        print(f"⚠️  Database delete failed: {e}")
+        print(f"⚠️  [API ERROR] Database delete failed: {e}")
         import traceback
         traceback.print_exc()
     
@@ -2385,7 +2517,7 @@ async def get_security_settings(user: User = Depends(require_admin)):
 
 @router.put("/settings")
 async def update_security_settings(request: UpdateSecuritySettingsRequest, user: User = Depends(require_super_admin)):
-    """Update security settings"""
+    """Update security settings (saves to database)"""
     settings = security_state.get_settings()
     
     changes = {}
@@ -2398,7 +2530,18 @@ async def update_security_settings(request: UpdateSecuritySettingsRequest, user:
     
     settings.updated_at = datetime.utcnow().isoformat()
     settings.updated_by = user.id
-    security_state.save_to_disk()
+    
+    # Save to database
+    print(f"💾 [API] Updating security settings in database for org: {settings.org_id[:8]}...")
+    try:
+        from database.services import SecuritySettingsService
+        SecuritySettingsService.save_settings(settings)
+        print(f"✅ [API] Security settings updated successfully in database")
+    except Exception as e:
+        print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
     
     security_state.add_audit_log(
         user=user,
@@ -2583,7 +2726,17 @@ async def oauth_callback(provider: str, req: Request):
             email_verified=True
         )
         security_state.users[user.id] = user
-        security_state.save_to_disk()
+        
+        # Save to database
+        try:
+            from database.services import UserService
+            UserService.save_user(user)
+            print(f"💾 User saved to database")
+        except Exception as e:
+            print(f"⚠️  Database save failed: {e}, saving to disk only")
+            import traceback
+            traceback.print_exc()
+            security_state.save_to_disk()
     
     # Create session
     session = Session(

@@ -19,11 +19,11 @@ class RoleService:
     @staticmethod
     def get_all_roles() -> List[Role]:
         """Retrieve all roles from the database."""
-        print("📊 Attempting to load roles from database...")
+        print("📊 [DATABASE] Retrieving roles from database...")
         try:
             with get_db_session() as session:
                 db_roles = session.query(DBRole).all()
-                print(f"🔍 Found {len(db_roles)} roles in database")
+                print(f"📊 [DATABASE] Retrieved {len(db_roles)} roles from database")
                 
                 # Convert DB roles to core.security.Role Pydantic models
                 core_roles = []
@@ -32,14 +32,14 @@ class RoleService:
                         core_role = RoleService._db_to_core_role(db_role)
                         core_roles.append(core_role)
                     except Exception as e:
-                        print(f"⚠️  Error converting role '{db_role.name}' (ID: {db_role.id}): {e}")
+                        print(f"⚠️  [DATABASE ERROR] Error converting role '{db_role.name}' (ID: {str(db_role.id)[:8]}...): {e}")
                         continue
                 
-                print(f"✅ Successfully converted {len(core_roles)} roles")
+                print(f"✅ [DATABASE] Successfully converted {len(core_roles)} roles")
                 return core_roles
                 
         except Exception as e:
-            print(f"❌ Error in get_all_roles: {type(e).__name__}: {e}")
+            print(f"❌ [DATABASE ERROR] Failed to retrieve roles: {type(e).__name__}: {e}")
             print("📂 Traceback:")
             traceback.print_exc()
             raise
@@ -96,10 +96,10 @@ class RoleService:
             raise
 
     @staticmethod
-    def save_role(role: Role) -> bool:
+    def save_role(role: Role) -> Role:
         """
         Save or update a role in the database (UPSERT pattern).
-        Returns True if successful, False otherwise.
+        Returns the saved Role model.
         """
         try:
             import uuid as uuid_lib
@@ -134,6 +134,7 @@ class RoleService:
                 
                 if existing:
                     # UPDATE existing role
+                    print(f"💾 [DATABASE] Updating role in database: {role.name} (ID: {role.id[:8]}...)")
                     existing.name = role.name
                     existing.description = role.description or ""
                     existing.permissions = permissions_json
@@ -145,10 +146,12 @@ class RoleService:
                     existing.updated_at = datetime.utcnow()
                     
                     session.commit()
-                    print(f"✅ Updated role '{role.name}' (ID: {role.id[:8]}...) in database")
-                    return True
+                    session.refresh(existing)
+                    print(f"✅ [DATABASE] Role updated successfully: {role.name} ({len(role.permissions)} permissions)")
+                    return RoleService._db_to_core_role(existing)
                 else:
                     # INSERT new role
+                    print(f"💾 [DATABASE] Creating new role in database: {role.name} (ID: {role.id[:8]}...)")
                     new_role = DBRole(
                         id=role_uuid,
                         name=role.name,
@@ -164,13 +167,14 @@ class RoleService:
                     )
                     session.add(new_role)
                     session.commit()
-                    print(f"✅ Created role '{role.name}' (ID: {role.id[:8]}...) in database")
-                    return True
+                    session.refresh(new_role)
+                    print(f"✅ [DATABASE] Role created successfully: {role.name} ({len(role.permissions)} permissions)")
+                    return RoleService._db_to_core_role(new_role)
                     
         except Exception as e:
-            print(f"❌ Error saving role '{role.name}': {type(e).__name__}: {e}")
+            print(f"❌ [DATABASE ERROR] Failed to save role '{role.name}': {type(e).__name__}: {e}")
             traceback.print_exc()
-            return False
+            raise
 
     @staticmethod
     def delete_role(role_id: str) -> bool:
@@ -190,16 +194,17 @@ class RoleService:
                 
                 role = session.query(DBRole).filter_by(id=role_uuid).first()
                 if not role:
-                    print(f"⚠️  Role with ID '{role_id}' not found in database")
+                    print(f"⚠️  [DATABASE] Role with ID '{role_id[:8]}...' not found in database")
                     return False
                 
+                role_name = role.name
                 session.delete(role)
                 session.commit()
-                print(f"✅ Deleted role '{role.name}' (ID: {role_id[:8]}...) from database")
+                print(f"🗑️  [DATABASE] Deleted role from database: {role_name} (ID: {role_id[:8]}...)")
                 return True
                 
         except Exception as e:
-            print(f"❌ Error deleting role '{role_id}': {type(e).__name__}: {e}")
+            print(f"❌ [DATABASE ERROR] Failed to delete role '{role_id[:8]}...': {type(e).__name__}: {e}")
             traceback.print_exc()
-            return False
+            raise
 

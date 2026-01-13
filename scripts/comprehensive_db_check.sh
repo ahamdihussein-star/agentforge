@@ -11,9 +11,9 @@ echo ""
 ERRORS=0
 MODELS_DIR="database/models"
 
-# Issue #1: Check for 'metadata' column
+# Issue #1: Check for 'metadata' column (exact match, not can_view_metadata)
 echo "🔍 Issue #1: Checking for reserved 'metadata'..."
-if grep -r "metadata = Column" "$MODELS_DIR" | grep -v "user_metadata" | grep -v "extra_metadata" | grep -v "custom_metadata" | grep -v "^#"; then
+if grep -r "^\s*metadata\s*=\s*Column" "$MODELS_DIR" | grep -v "user_metadata" | grep -v "extra_metadata" | grep -v "custom_metadata" | grep -v "can_view_metadata" | grep -v "^#"; then
     echo "❌ ERROR: Found 'metadata' column (reserved word)"
     ERRORS=$((ERRORS + 1))
 else

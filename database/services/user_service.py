@@ -68,11 +68,11 @@ class UserService:
                 
                 db_users = query.all()
                 
-                print(f"🔍 Found {len(db_users)} users in database")
+                print(f"📊 [DATABASE] Retrieved {len(db_users)} users from database" + (f" (org: {org_id})" if org_id else ""))
                 
                 return [UserService._db_to_core_user(db_user) for db_user in db_users]
         except Exception as e:
-            print(f"❌ Error in get_all_users: {type(e).__name__}: {str(e)}")
+            print(f"❌ [DATABASE ERROR] Failed to retrieve users: {type(e).__name__}: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -107,6 +107,24 @@ class UserService:
             db.refresh(db_user)
             
             return UserService._db_to_core_user(db_user)
+    
+    @staticmethod
+    def save_user(user: User) -> User:
+        """Save user to database (insert or update)"""
+        with get_db_session() as db:
+            db_user = db.query(DBUser).filter_by(id=user.id).first()
+            if db_user:
+                # Update existing
+                print(f"💾 [DATABASE] Updating user in database: {user.email} (ID: {user.id[:8]}...)")
+                result = UserService.update_user(user)
+                print(f"✅ [DATABASE] User updated successfully: {user.email}")
+                return result
+            else:
+                # Create new
+                print(f"💾 [DATABASE] Creating new user in database: {user.email} (ID: {user.id[:8]}...)")
+                result = UserService.create_user(user)
+                print(f"✅ [DATABASE] User created successfully: {user.email}")
+                return result
     
     @staticmethod
     def update_user(user: User) -> User:
@@ -352,3 +370,16 @@ class SessionService:
                 db_session.is_active = False
                 db_session.expires_at = datetime.utcnow()
                 db.commit()
+    
+    @staticmethod
+    def delete_user(user_id: str, org_id: str):
+        """Delete user from database"""
+        with get_db_session() as db:
+            db_user = db.query(DBUser).filter_by(id=user_id, org_id=org_id).first()
+            if db_user:
+                email = db_user.email
+                db.delete(db_user)
+                db.commit()
+                print(f"🗑️  [DATABASE] Deleted user from database: {email} (ID: {user_id[:8]}...)")
+            else:
+                print(f"⚠️  [DATABASE] User {user_id[:8]}... not found in database for deletion")

@@ -7,6 +7,16 @@ Complete Enterprise-Grade Schema
 from .user import User, UserSession, MFASetting, PasswordHistory, UserStatus, MFAMethod
 from .organization import Organization
 from .role import Role, Permission, role_permissions
+from .invitation import Invitation
+from .department import Department
+from .user_group import UserGroup
+from .policy import Policy
+from .tool_permission import ToolPermission
+from .kb_permission import KnowledgeBasePermission
+from .db_permission import DatabasePermission
+from .ldap_config import LDAPConfig
+from .oauth_config import OAuthConfig
+from .security_settings import SecuritySettings
 
 # Core Platform
 from .agent import Agent, AgentStatus
@@ -35,6 +45,10 @@ __all__ = [
     'UserStatus', 'MFAMethod',
     'Organization',
     'Role', 'Permission', 'role_permissions',
+    'Invitation', 'Department', 'UserGroup',
+    'Policy', 'ToolPermission', 'KnowledgeBasePermission',
+    'DatabasePermission', 'LDAPConfig', 'OAuthConfig',
+    'SecuritySettings',
     
     # Core Platform
     'Agent', 'AgentStatus',

@@ -313,13 +313,33 @@ class AnthropicLLM(BaseLLMProvider):
             for m in messages:
                 if m["role"] == "system":
                     system = m["content"]
-                else:
-                    msgs.append({"role": m["role"], "content": m["content"]})
+                elif m["role"] == "tool":
+                    # Convert OpenAI tool response to Anthropic tool_result format
+                    # Anthropic uses "user" role with tool_result content blocks
+                    tool_call_id = m.get("tool_call_id", "")
+                    tool_content = m.get("content", "")
+                    msgs.append({
+                        "role": "user",
+                        "content": [{
+                            "type": "tool_result",
+                            "tool_use_id": tool_call_id,
+                            "content": tool_content
+                        }]
+                    })
+                elif m["role"] in ["user", "assistant"]:
+                    # Handle both string and list content (for Anthropic block format)
+                    content = m.get("content", "")
+                    if isinstance(content, list):
+                        # Already in Anthropic block format
+                        msgs.append({"role": m["role"], "content": content})
+                    else:
+                        # String content
+                        msgs.append({"role": m["role"], "content": content})
             
             response = await client.messages.create(
                 model=kwargs.get("model", self.config.model),
                 max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-                system=system,
+                system=system if system else None,
                 messages=msgs
             )
             return response.content[0].text
@@ -1714,20 +1734,39 @@ class AppState:
             except Exception as e:
                 print(f"⚠️ Error loading integrations: {e}")
         
-        # Load settings
-        settings_path = os.path.join(data_dir, "settings.json")
-        if os.path.exists(settings_path):
-            try:
-                with open(settings_path) as f:
-                    settings_data = json.load(f)
-                    self.settings = SystemSettings(**settings_data)
-                    print(f"✅ Loaded settings: LLM={self.settings.llm.provider.value}, VectorDB={self.settings.vector_db.provider.value}")
-                    if self.settings.llm_providers:
-                        print(f"✅ Loaded {len(self.settings.llm_providers)} LLM providers: {[p.name for p in self.settings.llm_providers]}")
-            except Exception as e:
-                print(f"⚠️ Error loading settings: {e}, using defaults")
-                import traceback
-                traceback.print_exc()
+        # Load settings from database first
+        db_settings_loaded = False
+        try:
+            from database.services import SystemSettingsService
+            print("📊 [DATABASE] Loading platform settings from database...")
+            db_settings = SystemSettingsService.get_system_setting("system_settings")
+            if db_settings:
+                self.settings = SystemSettings(**db_settings)
+                print(f"✅ [DATABASE] Loaded platform settings from database: LLM={self.settings.llm.provider.value}, VectorDB={self.settings.vector_db.provider.value}, Theme={self.settings.theme}")
+                if self.settings.llm_providers:
+                    print(f"✅ [DATABASE] Loaded {len(self.settings.llm_providers)} LLM providers from database: {[p.name for p in self.settings.llm_providers]}")
+                db_settings_loaded = True
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to load platform settings: {type(db_error).__name__}: {str(db_error)}")
+            import traceback
+            traceback.print_exc()
+            print("📂 Loading settings from files (database unavailable)")
+        
+        # Load settings from JSON only if database loading failed
+        if not db_settings_loaded:
+            settings_path = os.path.join(data_dir, "settings.json")
+            if os.path.exists(settings_path):
+                try:
+                    with open(settings_path) as f:
+                        settings_data = json.load(f)
+                        self.settings = SystemSettings(**settings_data)
+                        print(f"✅ Loaded settings from file: LLM={self.settings.llm.provider.value}, VectorDB={self.settings.vector_db.provider.value}")
+                        if self.settings.llm_providers:
+                            print(f"✅ Loaded {len(self.settings.llm_providers)} LLM providers from file: {[p.name for p in self.settings.llm_providers]}")
+                except Exception as e:
+                    print(f"⚠️ Error loading settings: {e}, using defaults")
+                    import traceback
+                    traceback.print_exc()
         
         for name, cls, container in [("agents.json", AgentData, self.agents), ("tools.json", ToolConfiguration, self.tools), ("documents.json", Document, self.documents), ("scraped_pages.json", ScrapedPage, self.scraped_pages), ("conversations.json", Conversation, self.conversations)]:
             path = os.path.join(data_dir, name)
@@ -2096,6 +2135,9 @@ def build_tool_definitions(tools: List['ToolConfiguration']) -> List[Dict]:
         used_names.add(name)
         return name
     
+    # Additional safeguard: Track function names to ensure final uniqueness
+    final_function_names = set()
+    
     for tool in tools:
         if tool.type == 'email':
             func_name = make_unique_name("send_email", tool.id)
@@ -2251,6 +2293,22 @@ def build_tool_definitions(tools: List['ToolConfiguration']) -> List[Dict]:
                 "_tool_id": tool.id,
                 "_tool_type": "database"
             })
+    
+    # Final validation: Ensure all function names are unique
+    seen_func_names = {}
+    for i, tool_def in enumerate(tool_defs):
+        func_name = tool_def['function']['name']
+        if func_name in seen_func_names:
+            # Duplicate found - make it unique
+            counter = 1
+            new_name = f"{func_name}_{counter}"
+            while new_name in seen_func_names:
+                counter += 1
+                new_name = f"{func_name}_{counter}"
+            tool_def['function']['name'] = new_name
+            func_name = new_name
+            print(f"⚠️  Duplicate tool name detected, renamed to: {new_name}")
+        seen_func_names[func_name] = i
     
     print(f"📦 Built {len(tool_defs)} tool definitions: {[t['function']['name'] for t in tool_defs]}")
     return tool_defs
@@ -5630,7 +5688,23 @@ async def delete_agent(agent_id: str):
 
 @app.get("/api/settings")
 async def get_settings():
-    """Get all system settings"""
+    """Get all system settings (loads from database if available)"""
+    # Try to load from database first
+    print(f"📊 [API] Loading platform settings from database...")
+    try:
+        from database.services import SystemSettingsService
+        db_settings = SystemSettingsService.get_system_setting("system_settings")
+        if db_settings:
+            # Update app_state with database settings
+            app_state.settings = SystemSettings(**db_settings)
+            print(f"✅ [API] Loaded platform settings from database (LLM: {app_state.settings.llm.provider.value}, VectorDB: {app_state.settings.vector_db.provider.value}, Theme: {app_state.settings.theme})")
+        else:
+            print(f"📊 [API] No platform settings in database, using in-memory settings")
+    except Exception as e:
+        print(f"⚠️  [API ERROR] Database load failed: {e}, using in-memory settings")
+        import traceback
+        traceback.print_exc()
+    
     settings = app_state.settings.dict()
     # Mask sensitive values
     if settings['llm']['api_key']:
@@ -5697,7 +5771,26 @@ async def update_settings(request: Dict[str, Any]):
         # Reset providers to pick up new settings
         app_state.reset_providers()
         
-        # Save to disk
+        # Save to database
+        print(f"💾 [API] Updating platform settings in database...")
+        try:
+            from database.services import SystemSettingsService
+            # Save all settings as JSON in system_settings table
+            settings_dict = app_state.settings.dict()
+            SystemSettingsService.set_system_setting(
+                key="system_settings",
+                value=settings_dict,
+                value_type="json",
+                category="platform",
+                description="Complete platform settings including LLM, Embedding, Vector DB, RAG, Features, Theme"
+            )
+            print(f"✅ [API] Platform settings updated successfully in database (LLM: {app_state.settings.llm.provider.value}, VectorDB: {app_state.settings.vector_db.provider.value}, Theme: {app_state.settings.theme})")
+        except Exception as e:
+            print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
+            import traceback
+            traceback.print_exc()
+        
+        # Save to disk (backup)
         app_state.save_to_disk()
         
         return {"status": "success", "message": "Settings updated successfully"}
@@ -5811,7 +5904,25 @@ async def save_integration_settings(request: Dict[str, Any]):
         'client_secret': client_secret
     }
     
-    # Save to disk immediately
+    # Save to database
+    print(f"💾 [API] Saving {provider} integration to database...")
+    try:
+        from database.services import SystemSettingsService
+        integrations_key = f"integrations_{provider}"
+        SystemSettingsService.set_system_setting(
+            key=integrations_key,
+            value={"client_id": client_id, "client_secret": client_secret},
+            value_type="json",
+            category="integrations",
+            description=f"{provider.title()} OAuth integration credentials"
+        )
+        print(f"✅ [API] {provider.title()} integration saved successfully to database")
+    except Exception as e:
+        print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+    
+    # Save to disk immediately (backup)
     app_state.save_to_disk()
     
     print(f"✅ Saved {provider} integration credentials")

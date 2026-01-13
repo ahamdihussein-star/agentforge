@@ -18,9 +18,9 @@ NC='\033[0m' # No Color
 ERRORS=0
 WARNINGS=0
 
-# Check 1: Reserved word 'metadata'
+# Check 1: Reserved word 'metadata' (exact match, not can_view_metadata)
 echo "1️⃣  Checking for reserved word 'metadata'..."
-if grep -r "metadata = Column" database/models/ --exclude="*.pyc" 2>/dev/null | grep -v "user_metadata" | grep -v "extra_metadata" | grep -v "custom_metadata"; then
+if grep -rE "^\s*metadata\s*=\s*Column" database/models/ --exclude="*.pyc" 2>/dev/null | grep -v "user_metadata" | grep -v "extra_metadata" | grep -v "custom_metadata" | grep -v "can_view_metadata"; then
     echo -e "${RED}❌ ERROR: Found 'metadata = Column' (reserved by SQLAlchemy)${NC}"
     echo "   Use: extra_metadata, user_metadata, or custom_data instead"
     ERRORS=$((ERRORS + 1))

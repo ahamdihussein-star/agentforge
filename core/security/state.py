@@ -10,6 +10,7 @@ Main security state container with:
 
 import os
 import json
+import traceback
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -116,18 +117,99 @@ class SecurityState:
         
     
     def get_settings(self, org_id: str = "org_default") -> SecuritySettings:
-        """Get security settings for an organization"""
+        """Get security settings for an organization (loads from database if not in memory)"""
         if org_id not in self.settings:
-            self.settings[org_id] = SecuritySettings(org_id=org_id)
+            # Try to load from database
+            print(f"📊 [DATABASE] Loading security settings from database for org: {org_id[:8]}...")
+            try:
+                from database.services import SecuritySettingsService
+                db_settings = SecuritySettingsService.get_settings(org_id)
+                self.settings[org_id] = db_settings
+                print(f"✅ [DATABASE] Loaded security settings for {org_id[:8]}... from database")
+            except Exception as e:
+                print(f"⚠️  [DATABASE ERROR] Failed to load security settings: {e}, using defaults")
+                import traceback
+                traceback.print_exc()
+                # Fallback to default
+                self.settings[org_id] = SecuritySettings(org_id=org_id)
         return self.settings[org_id]
     
     def save_to_disk(self):
-        """Save security state to disk"""
+        """
+        Save security state to database (primary) and disk (backup).
+        Database is now the primary storage, disk is backup only.
+        """
+        # Save to database first (primary storage)
+        try:
+            # Save organizations
+            from database.services import OrganizationService
+            for org in self.organizations.values():
+                try:
+                    OrganizationService.save_organization(org)
+                except Exception as e:
+                    print(f"⚠️ Error saving organization {org.id} to database: {e}")
+            
+            # Save users
+            from database.services import UserService
+            for user in self.users.values():
+                try:
+                    UserService.save_user(user)
+                except Exception as e:
+                    print(f"⚠️ Error saving user {user.id} to database: {e}")
+            
+            # Save roles
+            from database.services import RoleService
+            for role in self.roles.values():
+                try:
+                    RoleService.save_role(role)
+                except Exception as e:
+                    print(f"⚠️ Error saving role {role.id} to database: {e}")
+            
+            # Save invitations
+            from database.services import InvitationService
+            for invitation in self.invitations.values():
+                try:
+                    InvitationService.save_invitation(invitation)
+                except Exception as e:
+                    print(f"⚠️ Error saving invitation {invitation.id} to database: {e}")
+            
+            # Save departments
+            from database.services import DepartmentService
+            for dept in self.departments.values():
+                try:
+                    DepartmentService.save_department(dept)
+                except Exception as e:
+                    print(f"⚠️ Error saving department {dept.id} to database: {e}")
+            
+            # Save user groups
+            from database.services import UserGroupService
+            for group in self.groups.values():
+                try:
+                    UserGroupService.save_group(group)
+                except Exception as e:
+                    print(f"⚠️ Error saving group {group.id} to database: {e}")
+            
+            # Save security settings
+            from database.services import SecuritySettingsService
+            for org_id, settings in self.settings.items():
+                try:
+                    SecuritySettingsService.save_settings(settings)
+                except Exception as e:
+                    print(f"⚠️ Error saving security settings for {org_id} to database: {e}")
+            
+            print("💾 Security state saved to database")
+        except Exception as db_error:
+            print(f"❌ Database save failed: {type(db_error).__name__}: {str(db_error)}")
+            import traceback
+            traceback.print_exc()
+            print("📂 Falling back to disk save...")
+        
+        # Also save to disk as backup (for backward compatibility)
         data_dir = os.environ.get("DATA_PATH", "data")
         security_dir = os.path.join(data_dir, "security")
         os.makedirs(security_dir, exist_ok=True)
         
-        # Save each collection
+        # Save each collection to disk (backup only)
         collections = {
             "organizations.json": self.organizations,
             "users.json": self.users,
@@ -171,7 +253,7 @@ class SecurityState:
         except Exception as e:
             print(f"⚠️ Error saving settings.json: {e}")
         
-        # Save audit logs (append mode, keep last 10k)
+        # Save audit logs (append mode, keep last 10k) - backup only
         audit_path = os.path.join(security_dir, "audit_logs.json")
         try:
             with open(audit_path, "w", encoding="utf-8") as f:
@@ -192,20 +274,20 @@ class SecurityState:
         try:
             from database.services import UserService
             
-            print("📊 Attempting to load users from database...")
+            print("📊 [DATABASE] Loading users from database...")
             # Check if database is available
             db_users = UserService.get_all_users()
             if db_users:
                 for user in db_users:
                     self.users[user.id] = user
-                print(f"✅ Loaded {len(db_users)} users from database")
+                print(f"✅ [DATABASE] Loaded {len(db_users)} users from database")
                 db_users_loaded = True
             else:
-                print("⚠️  No users in database, falling back to files...")
+                print("⚠️  [DATABASE] No users in database, falling back to files...")
                 
         except Exception as db_error:
             # Fallback to file loading
-            print(f"❌ Database error: {type(db_error).__name__}: {str(db_error)}")
+            print(f"❌ [DATABASE ERROR] Failed to load users: {type(db_error).__name__}: {str(db_error)}")
             print("📂 Traceback:")
             traceback.print_exc()
             print("📂 Loading from files (database unavailable)")
@@ -215,7 +297,7 @@ class SecurityState:
         try:
             from database.services import RoleService
             
-            print("📊 Attempting to load roles from database...")
+            print("📊 [DATABASE] Loading roles from database...")
             db_roles = RoleService.get_all_roles()  # Uses proper JSON parsing!
             if db_roles:
                 # Remove string ID roles (from _init_defaults) before loading from database
@@ -226,19 +308,19 @@ class SecurityState:
                         del self.roles[role_id]
                         removed_count += 1
                 if removed_count > 0:
-                    print(f"   🗑️  Removed {removed_count} string ID role(s) from _init_defaults()")
+                    print(f"   🗑️  [DATABASE] Removed {removed_count} string ID role(s) from _init_defaults()")
                 
                 # Load fresh from database
                 for role in db_roles:
                     self.roles[role.id] = role
                     # Debug: Print role permissions count
-                    print(f"   📋 Loaded role '{role.name}' (ID: {role.id[:8]}...) with {len(role.permissions)} permissions")
-                print(f"✅ Loaded {len(db_roles)} roles from database")
+                    print(f"   📋 [DATABASE] Loaded role '{role.name}' (ID: {role.id[:8]}...) with {len(role.permissions)} permissions")
+                print(f"✅ [DATABASE] Loaded {len(db_roles)} roles from database")
                 db_roles_loaded = True
             else:
-                print("⚠️  No roles in database, falling back to files...")
+                print("⚠️  [DATABASE] No roles in database, falling back to files...")
         except Exception as db_error:
-            print(f"❌ Database roles error: {type(db_error).__name__}: {str(db_error)}")
+            print(f"❌ [DATABASE ERROR] Failed to load roles: {type(db_error).__name__}: {str(db_error)}")
             traceback.print_exc()
             print("📂 Loading roles from files (database unavailable)")
         
@@ -261,32 +343,155 @@ class SecurityState:
             except Exception as e:
                 print(f"⚠️ Error loading settings.json: {e}")
         
-        # Model mapping for each collection
-        # Skip users.json and roles.json if already loaded from database
+        # --- Load Organizations from database ---
+        db_orgs_loaded = False
+        try:
+            from database.services import OrganizationService
+            print("📊 [DATABASE] Loading organizations from database...")
+            db_orgs = OrganizationService.get_all_organizations()
+            if db_orgs:
+                for org in db_orgs:
+                    self.organizations[org.id] = org
+                print(f"✅ [DATABASE] Loaded {len(db_orgs)} organizations from database")
+                db_orgs_loaded = True
+            else:
+                print("⚠️  [DATABASE] No organizations in database, falling back to files...")
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to load organizations: {type(db_error).__name__}: {str(db_error)}")
+            traceback.print_exc()
+            print("📂 Loading organizations from files (database unavailable)")
+        
+        # --- Load Invitations from database ---
+        db_invitations_loaded = False
+        try:
+            from database.services import InvitationService
+            print("📊 [DATABASE] Loading invitations from database...")
+            db_invitations = InvitationService.get_all_invitations()
+            if db_invitations:
+                for inv in db_invitations:
+                    self.invitations[inv.id] = inv
+                print(f"✅ [DATABASE] Loaded {len(db_invitations)} invitations from database")
+                db_invitations_loaded = True
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to load invitations: {type(db_error).__name__}: {str(db_error)}")
+            traceback.print_exc()
+        
+        # --- Load Departments from database ---
+        db_departments_loaded = False
+        try:
+            from database.services import DepartmentService
+            print("📊 [DATABASE] Loading departments from database...")
+            db_departments = DepartmentService.get_all_departments()
+            if db_departments:
+                for dept in db_departments:
+                    self.departments[dept.id] = dept
+                print(f"✅ [DATABASE] Loaded {len(db_departments)} departments from database")
+                db_departments_loaded = True
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to load departments: {type(db_error).__name__}: {str(db_error)}")
+            traceback.print_exc()
+        
+        # --- Load User Groups from database ---
+        db_groups_loaded = False
+        try:
+            from database.services import UserGroupService
+            print("📊 [DATABASE] Loading user groups from database...")
+            db_groups = UserGroupService.get_all_groups()
+            if db_groups:
+                for group in db_groups:
+                    self.groups[group.id] = group
+                print(f"✅ [DATABASE] Loaded {len(db_groups)} user groups from database")
+                db_groups_loaded = True
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to load user groups: {type(db_error).__name__}: {str(db_error)}")
+            traceback.print_exc()
+        
+        # --- Load Audit Logs from database ---
+        db_audit_loaded = False
+        try:
+            from database.services import AuditService
+            print("📊 [DATABASE] Loading audit logs from database...")
+            db_audit_logs = AuditService.get_all_audit_logs(limit=1000)
+            if db_audit_logs:
+                self.audit_logs = db_audit_logs
+                print(f"✅ [DATABASE] Loaded {len(db_audit_logs)} audit logs from database")
+                db_audit_loaded = True
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to load audit logs: {type(db_error).__name__}: {str(db_error)}")
+            traceback.print_exc()
+        
+        # --- Load Security Settings from database ---
+        db_settings_loaded = False
+        try:
+            from database.services import SecuritySettingsService
+            print("📊 [DATABASE] Loading security settings from database...")
+            # Load default org settings
+            default_settings = SecuritySettingsService.get_settings("org_default")
+            self.settings["org_default"] = default_settings
+            print(f"✅ [DATABASE] Loaded security settings for org_default from database")
+            db_settings_loaded = True
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to load security settings: {type(db_error).__name__}: {str(db_error)}")
+            traceback.print_exc()
+            print("📂 Loading settings from files (database unavailable)")
+        
+        # Fallback to JSON files only if database loading failed
+        if not os.path.exists(security_dir):
+            print("📁 Security data directory not found, using database only")
+            return
+        
+        print("📂 Loading remaining data from disk (fallback only)...")
+        
+        # Load settings from JSON only if database loading failed
+        if not db_settings_loaded:
+            settings_path = os.path.join(security_dir, "settings.json")
+            if os.path.exists(settings_path):
+                try:
+                    with open(settings_path, encoding="utf-8") as f:
+                        data = json.load(f)
+                        self.tenancy_mode = TenancyMode(data.get("tenancy_mode", "single"))
+                        for org_id, settings_dict in data.get("settings", {}).items():
+                            self.settings[org_id] = SecuritySettings(**settings_dict)
+                    print(f"✅ Loaded settings.json")
+                except Exception as e:
+                    print(f"⚠️ Error loading settings.json: {e}")
+        else:
+            print(f"📋 Skipping settings.json (already loaded from database)")
+        
+        # Only load from JSON if database loading failed
         loaders = []
         
-        # Organizations - always load from DB first, then JSON for compatibility
-        loaders.append(("organizations.json", Organization, self.organizations))
+        if not db_orgs_loaded:
+            loaders.append(("organizations.json", Organization, self.organizations))
+        else:
+            print(f"📋 Skipping organizations.json (already loaded {len(self.organizations)} organizations from database)")
         
-        # Only load users from file if not loaded from database
         if not db_users_loaded:
             loaders.append(("users.json", User, self.users))
         else:
             print(f"📋 Skipping users.json (already loaded {len(self.users)} users from database)")
         
-        loaders.extend([
-            ("departments.json", Department, self.departments),
-            ("groups.json", UserGroup, self.groups),
-        ])
-        
-        # Only load roles from file if not loaded from database
         if not db_roles_loaded:
             loaders.append(("roles.json", Role, self.roles))
         else:
             print(f"📋 Skipping roles.json (already loaded {len(self.roles)} roles from database)")
-
-
         
+        if not db_departments_loaded:
+            loaders.append(("departments.json", Department, self.departments))
+        else:
+            print(f"📋 Skipping departments.json (already loaded {len(self.departments)} departments from database)")
+        
+        if not db_groups_loaded:
+            loaders.append(("groups.json", UserGroup, self.groups))
+        else:
+            print(f"📋 Skipping groups.json (already loaded {len(self.groups)} groups from database)")
+        
+        if not db_invitations_loaded:
+            loaders.append(("invitations.json", Invitation, self.invitations))
+        else:
+            print(f"📋 Skipping invitations.json (already loaded {len(self.invitations)} invitations from database)")
+        
+        # Policies and permissions - still from JSON (can be migrated later if needed)
         loaders.extend([
             ("policies.json", Policy, self.policies),
             ("tool_permissions.json", ToolPermission, self.tool_permissions),
@@ -294,7 +499,6 @@ class SecurityState:
             ("db_permissions.json", DatabasePermission, self.db_permissions),
             ("ldap_configs.json", LDAPConfig, self.ldap_configs),
             ("oauth_configs.json", OAuthConfig, self.oauth_configs),
-            ("invitations.json", Invitation, self.invitations)
         ])
         
         for filename, cls, container in loaders:
@@ -312,26 +516,29 @@ class SecurityState:
                 except Exception as e:
                     print(f"⚠️ Error loading {filename}: {e}")
         
-        # Load audit logs
-        audit_path = os.path.join(security_dir, "audit_logs.json")
-        if os.path.exists(audit_path):
-            try:
-                with open(audit_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.audit_logs = []
-                    for log_data in data:
-                        try:
-                            # Handle enum conversion
-                            if 'action' in log_data and isinstance(log_data['action'], str):
-                                log_data['action'] = ActionType(log_data['action'])
-                            if 'resource_type' in log_data and isinstance(log_data['resource_type'], str):
-                                log_data['resource_type'] = ResourceType(log_data['resource_type'])
-                            self.audit_logs.append(AuditLog(**log_data))
-                        except Exception as item_error:
-                            pass  # Skip malformed log entries
-                print(f"✅ Loaded audit_logs.json: {len(self.audit_logs)} entries")
-            except Exception as e:
-                print(f"⚠️ Error loading audit logs: {e}")
+        # Load audit logs from JSON only if database loading failed
+        if not db_audit_loaded:
+            audit_path = os.path.join(security_dir, "audit_logs.json")
+            if os.path.exists(audit_path):
+                try:
+                    with open(audit_path, encoding="utf-8") as f:
+                        data = json.load(f)
+                        self.audit_logs = []
+                        for log_data in data:
+                            try:
+                                # Handle enum conversion
+                                if 'action' in log_data and isinstance(log_data['action'], str):
+                                    log_data['action'] = ActionType(log_data['action'])
+                                if 'resource_type' in log_data and isinstance(log_data['resource_type'], str):
+                                    log_data['resource_type'] = ResourceType(log_data['resource_type'])
+                                self.audit_logs.append(AuditLog(**log_data))
+                            except Exception as item_error:
+                                pass  # Skip malformed log entries
+                    print(f"✅ Loaded audit_logs.json: {len(self.audit_logs)} entries")
+                except Exception as e:
+                    print(f"⚠️ Error loading audit logs: {e}")
+        else:
+            print(f"📋 Skipping audit_logs.json (already loaded {len(self.audit_logs)} audit logs from database)")
         
         # Ensure default roles exist
         self._ensure_default_roles()
@@ -438,7 +645,15 @@ class SecurityState:
         )
         self.audit_logs.append(log)
         
-        # Auto-save periodically
+        # Save to database immediately
+        try:
+            from database.services import AuditService
+            AuditService.save_audit_log(log)
+        except Exception as e:
+            # Fallback: keep in memory, will be saved to disk on next save_to_disk()
+            pass
+        
+        # Auto-save periodically (for disk backup)
         if len(self.audit_logs) % 100 == 0:
             self.save_to_disk()
         
