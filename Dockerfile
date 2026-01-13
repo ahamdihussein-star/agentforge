@@ -89,6 +89,9 @@ else\n\
      echo "🔪 DELETING STRING ID ROLES (from roles.json)..."\n\
      python scripts/delete_string_id_roles.py 2>&1\n\
      echo ""\n\
+     echo "🗑️  REMOVING roles.json file (using DB only)..."\n\
+     python scripts/remove_roles_json.py 2>&1\n\
+     echo ""\n\
      echo "🔧 Fixing Super Admin permissions..."\n\
      python scripts/fix_super_admin_permissions.py 2>&1\n\
      echo ""\n\
