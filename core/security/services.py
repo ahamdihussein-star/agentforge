@@ -846,6 +846,7 @@ class OAuthService:
             client_id = org.google_client_id or os.environ.get("GOOGLE_CLIENT_ID")
             if not client_id:
                 raise ValueError("Google OAuth not configured - missing client_id")
+            
             params = {
                 "client_id": client_id,
                 "redirect_uri": redirect_uri,
@@ -855,7 +856,16 @@ class OAuthService:
                 "access_type": "offline",
                 "prompt": "consent"
             }
-            return f"{cls.GOOGLE_AUTH_URL}?{urlencode(params)}"
+            
+            auth_url = f"{cls.GOOGLE_AUTH_URL}?{urlencode(params)}"
+            
+            # Log for debugging
+            print(f"🔍 [OAUTH DEBUG] Google Authorization URL generated:")
+            print(f"   Client ID: {client_id[:20]}...")
+            print(f"   Redirect URI: {redirect_uri}")
+            print(f"   Full Auth URL: {auth_url[:100]}...")
+            
+            return auth_url
         
         elif provider.value == "microsoft":
             # Use org credentials or fallback to environment variables

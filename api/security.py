@@ -2691,6 +2691,13 @@ async def oauth_login(provider: str, req: Request):
     if "localhost" not in base_url and "127.0.0.1" not in base_url:
         base_url = base_url.replace("http://", "https://")
     redirect_uri = f"{base_url}/api/security/oauth/{provider}/callback"
+    
+    # Log the redirect URI for debugging
+    print(f"🔍 [OAUTH DEBUG] Provider: {provider}")
+    print(f"🔍 [OAUTH DEBUG] Base URL: {base_url}")
+    print(f"🔍 [OAUTH DEBUG] Redirect URI: {redirect_uri}")
+    print(f"🔍 [OAUTH DEBUG] Client ID: {getattr(org, f'{provider}_client_id', 'NOT SET')[:20]}...")
+    
     auth_url = OAuthService.get_authorization_url(auth_provider, org, redirect_uri)
     
     return {"auth_url": auth_url}
