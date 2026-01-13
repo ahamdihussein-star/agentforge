@@ -257,13 +257,16 @@ class SecurityState:
         
         # Model mapping for each collection
         # Skip users.json and roles.json if already loaded from database
-        loaders = [
-            ("organizations.json", Organization, self.organizations),
-        ]
+        loaders = []
+        
+        # Organizations - always load from DB first, then JSON for compatibility
+        loaders.append(("organizations.json", Organization, self.organizations))
         
         # Only load users from file if not loaded from database
         if not db_users_loaded:
             loaders.append(("users.json", User, self.users))
+        else:
+            print(f"📋 Skipping users.json (already loaded {len(self.users)} users from database)")
         
         loaders.extend([
             ("departments.json", Department, self.departments),
@@ -273,6 +276,10 @@ class SecurityState:
         # Only load roles from file if not loaded from database
         if not db_roles_loaded:
             loaders.append(("roles.json", Role, self.roles))
+        else:
+            print(f"📋 Skipping roles.json (already loaded {len(self.roles)} roles from database)")
+
+
         
         loaders.extend([
             ("policies.json", Policy, self.policies),
