@@ -11,62 +11,57 @@ from database.models.role import Role
 import json
 import traceback
 
-# All available permissions in the system (CORRECT - 32 permissions only!)
+# CORRECT Super Admin permissions (FROM roles.json - 31 permissions)
 ALL_PERMISSIONS = [
-    # Agent Management (5)
-    "agents.view",
-    "agents.create",
-    "agents.edit",
-    "agents.delete",
-    "agents.execute",
+    # System (2)
+    "system:admin",
+    "system:settings",
     
-    # Tool Management (5)
-    "tools.view",
-    "tools.create",
-    "tools.edit",
-    "tools.delete",
-    "tools.execute",
+    # Users (4)
+    "users:view",
+    "users:create",
+    "users:edit",
+    "users:delete",
     
-    # Knowledge Base (4)
-    "kb.view",
-    "kb.create",
-    "kb.edit",
-    "kb.delete",
+    # Roles (4)
+    "roles:view",
+    "roles:create",
+    "roles:edit",
+    "roles:delete",
     
-    # User Management (4)
-    "users.view",
-    "users.create",
-    "users.edit",
-    "users.delete",
+    # Agents (6)
+    "agents:view",
+    "agents:create",
+    "agents:edit",
+    "agents:delete",
+    "agents:publish",
+    "agents:test",
     
-    # Role Management (4)
-    "roles.view",
-    "roles.create",
-    "roles.edit",
-    "roles.delete",
+    # Tools (5)
+    "tools:view",
+    "tools:create",
+    "tools:edit",
+    "tools:delete",
+    "tools:execute",
     
-    # Organization Management (2)
-    "org.view",
-    "org.edit",
+    # Knowledge Base (5)
+    "kb:view",
+    "kb:create",
+    "kb:edit",
+    "kb:delete",
+    "kb:upload",
     
-    # Security & Audit (2)
-    "security.view",
-    "audit.view",
+    # Chat (3)
+    "chat:use",
+    "chat:view_all",
+    "chat:delete",
     
-    # Settings (2)
-    "settings.view",
-    "settings.edit",
-    
-    # Integration Management (2)
-    "integrations.view",
-    "integrations.manage",
-    
-    # Workflow Management (2)
-    "workflows.view",
-    "workflows.manage",
+    # Audit (2)
+    "audit:view",
+    "audit:export",
 ]
 
-# TOTAL: 32 permissions (verified!)
+# TOTAL: 31 permissions (verified from roles.json!)
 
 def fix_super_admin_permissions():
     """Add all permissions to ALL Super Admin roles (handle duplicates)"""
