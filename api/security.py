@@ -1620,39 +1620,82 @@ async def list_roles(user: User = Depends(require_auth)):
 
 @router.delete("/roles/cleanup-string-ids")
 async def cleanup_string_id_roles(user: User = Depends(require_super_admin)):
-    """Emergency endpoint to delete roles with string IDs (from roles.json)"""
-    from sqlalchemy import text
-    from database.base import get_db_session
-    
-    deleted_roles = []
-    
+    """
+    Emergency endpoint to reload roles from database only.
+    This clears in-memory roles (including string ID roles from roles.json)
+    and reloads fresh from the database.
+    """
     try:
-        with get_db_session() as session:
-            # Delete roles with string IDs
-            result = session.execute(text("""
-                DELETE FROM roles 
-                WHERE id IN ('role_super_admin', 'role_admin', 'role_manager', 'role_user', 'role_viewer')
-                RETURNING id, name
-            """))
-            
-            for row in result:
-                deleted_roles.append({"id": row[0], "name": row[1]})
-            
-            session.commit()
+        old_count = len(security_state.roles)
+        
+        # Use the new reload method
+        security_state.reload_roles_from_database()
+        
+        new_count = len(security_state.roles)
+        
+        return {
+            "status": "success",
+            "message": "Roles reloaded from database",
+            "old_count": old_count,
+            "new_count": new_count,
+            "roles": [{
+                "id": r.id,
+                "name": r.name,
+                "permissions_count": len(r.permissions)
+            } for r in security_state.roles.values()]
+        }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error reloading roles: {str(e)}")
+
+@router.post("/roles/reload-from-database")
+async def reload_roles_from_database(user: User = Depends(require_super_admin)):
+    """
+    Reload roles from database only (removes any roles loaded from roles.json).
+    This endpoint clears the in-memory roles and reloads them fresh from the database.
+    """
+    try:
+        from database.services import RoleService
+        
+        # Clear existing roles
+        old_count = len(security_state.roles)
+        security_state.roles.clear()
+        
+        # Load roles from database
+        db_roles = RoleService.get_all_roles()
+        if db_roles:
+            for role in db_roles:
+                security_state.roles[role.id] = role
+        
+        new_count = len(security_state.roles)
+        
+        # Remove string ID roles if any still exist
+        string_ids = ['role_super_admin', 'role_admin', 'role_manager', 'role_user', 'role_viewer']
+        removed_string_ids = []
+        for role_id in string_ids:
+            if role_id in security_state.roles:
+                del security_state.roles[role_id]
+                removed_string_ids.append(role_id)
+        
+        return {
+            "status": "success",
+            "message": "Roles reloaded from database",
+            "old_count": old_count,
+            "new_count": new_count,
+            "removed_string_ids": removed_string_ids,
+            "roles": [{
+                "id": r.id,
+                "name": r.name,
+                "permissions_count": len(r.permissions)
+            } for r in security_state.roles.values()]
+        }
     
-    # Also remove from in-memory state
-    for role_id in ['role_super_admin', 'role_admin', 'role_manager', 'role_user', 'role_viewer']:
-        if role_id in security_state.roles:
-            del security_state.roles[role_id]
-    
-    return {
-        "message": f"Deleted {len(deleted_roles)} roles with string IDs",
-        "deleted": deleted_roles,
-        "remaining_count": len(security_state.roles)
-    }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error reloading roles: {str(e)}")
 
 
 @router.get("/roles/{role_id}")

@@ -343,6 +343,41 @@ class SecurityState:
                 self.roles[role.id] = role
                 print(f"✨ Created missing default role: {role.name}")
     
+    def reload_roles_from_database(self):
+        """
+        Reload roles from database only, clearing any roles loaded from files.
+        This is useful when roles.json has been removed and we want to refresh
+        the in-memory state without restarting the application.
+        """
+        import traceback
+        from database.services import RoleService
+        
+        # Remove string ID roles first
+        string_ids = ['role_super_admin', 'role_admin', 'role_manager', 'role_user', 'role_viewer']
+        removed_count = 0
+        for role_id in string_ids:
+            if role_id in self.roles:
+                del self.roles[role_id]
+                removed_count += 1
+        
+        # Clear all roles
+        old_count = len(self.roles)
+        self.roles.clear()
+        
+        # Load fresh from database
+        try:
+            db_roles = RoleService.get_all_roles()
+            if db_roles:
+                for role in db_roles:
+                    self.roles[role.id] = role
+                print(f"✅ Reloaded {len(db_roles)} roles from database (removed {removed_count} string ID roles, {old_count} total before)")
+            else:
+                print("⚠️  No roles found in database")
+        except Exception as e:
+            print(f"❌ Error reloading roles from database: {e}")
+            traceback.print_exc()
+            raise
+    
     def add_audit_log(
         self,
         user: User,
