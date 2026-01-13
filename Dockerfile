@@ -86,6 +86,9 @@ else\n\
      echo "💣 NUCLEAR CLEANUP - Fixing all role issues in one go..."\n\
      python scripts/nuclear_cleanup_roles.py 2>&1\n\
      echo ""\n\
+     echo "🔪 DELETING STRING ID ROLES (from roles.json)..."\n\
+     python scripts/delete_string_id_roles.py 2>&1\n\
+     echo ""\n\
      echo "🔧 Fixing Super Admin permissions..."\n\
      python scripts/fix_super_admin_permissions.py 2>&1\n\
      echo ""\n\
