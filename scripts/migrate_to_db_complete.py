@@ -79,12 +79,46 @@ def migrate_organizations():
                     (Organization.id == org_uuid) | (Organization.slug == slug)
                 ).first()
                 
+                # Parse allowed_auth_providers
+                allowed_auth_providers = org_data.get('allowed_auth_providers', [])
+                if isinstance(allowed_auth_providers, list):
+                    allowed_auth_providers_json = json.dumps(allowed_auth_providers)
+                else:
+                    allowed_auth_providers_json = json.dumps([])
+                
+                # Parse allowed_email_domains
+                allowed_email_domains = org_data.get('allowed_email_domains', [])
+                if isinstance(allowed_email_domains, list):
+                    allowed_email_domains_json = json.dumps(allowed_email_domains)
+                else:
+                    allowed_email_domains_json = json.dumps([])
+                
                 if existing:
                     print(f"⏭️  Organization '{org_data['name']}' already exists (updating)")
                     # Update existing
                     existing.name = org_data['name']
                     existing.plan = org_data.get('plan', 'free')
-                    existing.settings = org_data.get('settings', {})
+                    existing.settings = json.dumps(org_data.get('settings', {}))
+                    # Auth settings
+                    existing.allowed_auth_providers = allowed_auth_providers_json
+                    existing.require_mfa = "true" if org_data.get('require_mfa', False) else "false"
+                    existing.allowed_email_domains = allowed_email_domains_json
+                    # OAuth credentials
+                    existing.google_client_id = org_data.get('google_client_id')
+                    existing.google_client_secret = org_data.get('google_client_secret')
+                    existing.microsoft_client_id = org_data.get('microsoft_client_id')
+                    existing.microsoft_client_secret = org_data.get('microsoft_client_secret')
+                    existing.microsoft_tenant_id = org_data.get('microsoft_tenant_id')
+                    # LDAP
+                    existing.ldap_config_id = org_data.get('ldap_config_id')
+                    # Limits
+                    existing.max_users = str(org_data.get('max_users', 100))
+                    existing.max_agents = str(org_data.get('max_agents', 50))
+                    existing.max_tools = str(org_data.get('max_tools', 100))
+                    # Status & Branding
+                    existing.status = org_data.get('status', 'active')
+                    existing.domain = org_data.get('domain')
+                    existing.logo_url = org_data.get('logo_url')
                     existing.updated_at = datetime.utcnow()
                     session.commit()
                     id_mapping[old_id] = existing.id
@@ -96,8 +130,29 @@ def migrate_organizations():
                         name=org_data['name'],
                         slug=slug,
                         plan=org_data.get('plan', 'free'),
-                        settings=org_data.get('settings', {}),
-                        created_at=datetime.fromisoformat(org_data['created_at']) if 'created_at' in org_data else datetime.utcnow()
+                        settings=json.dumps(org_data.get('settings', {})),
+                        # Auth settings
+                        allowed_auth_providers=allowed_auth_providers_json,
+                        require_mfa="true" if org_data.get('require_mfa', False) else "false",
+                        allowed_email_domains=allowed_email_domains_json,
+                        # OAuth credentials
+                        google_client_id=org_data.get('google_client_id'),
+                        google_client_secret=org_data.get('google_client_secret'),
+                        microsoft_client_id=org_data.get('microsoft_client_id'),
+                        microsoft_client_secret=org_data.get('microsoft_client_secret'),
+                        microsoft_tenant_id=org_data.get('microsoft_tenant_id'),
+                        # LDAP
+                        ldap_config_id=org_data.get('ldap_config_id'),
+                        # Limits
+                        max_users=str(org_data.get('max_users', 100)),
+                        max_agents=str(org_data.get('max_agents', 50)),
+                        max_tools=str(org_data.get('max_tools', 100)),
+                        # Status & Branding
+                        status=org_data.get('status', 'active'),
+                        domain=org_data.get('domain'),
+                        logo_url=org_data.get('logo_url'),
+                        created_at=datetime.fromisoformat(org_data['created_at']) if 'created_at' in org_data else datetime.utcnow(),
+                        updated_at=datetime.utcnow()
                     )
                     session.add(org)
                     session.commit()
