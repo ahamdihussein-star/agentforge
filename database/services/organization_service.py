@@ -16,10 +16,19 @@ class OrganizationService:
     @staticmethod
     def get_all_organizations() -> List[CoreOrganization]:
         """Get all organizations from database"""
-        with get_db_session() as session:
-            db_orgs = session.query(DBOrganization).all()
-            print(f"📊 [DATABASE] Retrieved {len(db_orgs)} organizations from database")
-            return [OrganizationService._db_to_core_org(db_org) for db_org in db_orgs]
+        try:
+            with get_db_session() as session:
+                db_orgs = session.query(DBOrganization).all()
+                print(f"📊 [DATABASE] Retrieved {len(db_orgs)} organizations from database")
+                return [OrganizationService._db_to_core_org(db_org) for db_org in db_orgs]
+        except Exception as e:
+            error_msg = str(e)
+            if "does not exist" in error_msg or "UndefinedColumn" in error_msg:
+                print(f"❌ [DATABASE ERROR] Missing columns in organizations table: {e}")
+                print("   💡 This usually means add_organization_oauth_columns.py hasn't run yet")
+                print("   💡 The script should run automatically on deployment")
+                raise
+            raise
     
     @staticmethod
     def get_organization_by_id(org_id: str) -> Optional[CoreOrganization]:
@@ -37,11 +46,19 @@ class OrganizationService:
     @staticmethod
     def get_organization_by_slug(slug: str) -> Optional[CoreOrganization]:
         """Get organization by slug"""
-        with get_db_session() as session:
-            db_org = session.query(DBOrganization).filter_by(slug=slug).first()
-            if not db_org:
-                return None
-            return OrganizationService._db_to_core_org(db_org)
+        try:
+            with get_db_session() as session:
+                db_org = session.query(DBOrganization).filter_by(slug=slug).first()
+                if not db_org:
+                    return None
+                return OrganizationService._db_to_core_org(db_org)
+        except Exception as e:
+            error_msg = str(e)
+            if "does not exist" in error_msg or "UndefinedColumn" in error_msg:
+                print(f"❌ [DATABASE ERROR] Missing columns in organizations table: {e}")
+                print("   💡 This usually means add_organization_oauth_columns.py hasn't run yet")
+                raise
+            raise
     
     @staticmethod
     def save_organization(org: CoreOrganization) -> CoreOrganization:

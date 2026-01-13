@@ -75,14 +75,13 @@ else\n\
       python scripts/fix_tools_table.py 2>&1\n\
       echo ""\n\
       echo "🔧 Adding missing columns to users table..."\n\
-      python scripts/add_user_columns.py 2>&1 && \
-python scripts/add_organization_oauth_columns.py 2>&1\n\
+      python scripts/add_user_columns.py 2>&1\n\
       echo ""\n\
       echo "🔧 Adding missing columns to roles table..."\n\
       python scripts/add_role_columns.py 2>&1\n\
       echo ""\n\
       echo "🔧 Adding OAuth & Auth settings columns to organizations table..."\n\
-      python scripts/add_organization_oauth_columns.py 2>&1\n\
+      python scripts/add_organization_oauth_columns.py 2>&1 || echo "⚠️  OAuth columns script had issues (may already exist)"\n\
       echo ""\n\
       echo "📦 Migrating data from JSON to Database..."\n\
       python scripts/migrate_to_db_complete.py 2>&1\n\

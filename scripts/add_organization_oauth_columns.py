@@ -4,6 +4,7 @@ Add OAuth and Auth Settings Columns to Organizations Table
 """
 import sys
 import os
+import json
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,10 +22,11 @@ def add_organization_oauth_columns():
     engine = get_engine()
     print(f"✅ Database engine created: {engine.dialect.name}")
     
+    # Define columns with proper defaults for PostgreSQL
     columns_to_add = [
-        ("allowed_auth_providers", "TEXT", "[]"),  # JSON array as TEXT
+        ("allowed_auth_providers", "JSONB", "'[]'::jsonb"),  # JSON array as JSONB
         ("require_mfa", "VARCHAR(10)", "'false'"),
-        ("allowed_email_domains", "TEXT", "[]"),  # JSON array as TEXT
+        ("allowed_email_domains", "JSONB", "'[]'::jsonb"),  # JSON array as JSONB
         ("google_client_id", "VARCHAR(500)", "NULL"),
         ("google_client_secret", "VARCHAR(500)", "NULL"),
         ("microsoft_client_id", "VARCHAR(500)", "NULL"),
@@ -52,14 +54,19 @@ def add_organization_oauth_columns():
                     result = session.execute(check_query, {"col_name": col_name})
                     exists = result.fetchone() is not None
                 else:
-                    # For other databases, try to add and catch error
                     exists = False
                 
                 if not exists:
-                    # Use IF NOT EXISTS for PostgreSQL, or try-catch for others
+                    print(f"   Adding column '{col_name}' ({col_type})...")
+                    # PostgreSQL supports IF NOT EXISTS (9.5+)
                     if engine.dialect.name == 'postgresql':
-                        # PostgreSQL supports IF NOT EXISTS
-                        if col_type == "UUID":
+                        # Use proper PostgreSQL syntax
+                        if col_type == "JSONB":
+                            alter_query = text(f"""
+                                ALTER TABLE organizations 
+                                ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {default_value}
+                            """)
+                        elif col_type == "UUID":
                             alter_query = text(f"""
                                 ALTER TABLE organizations 
                                 ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {default_value}
@@ -70,7 +77,7 @@ def add_organization_oauth_columns():
                                 ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {default_value}
                             """)
                     else:
-                        # Generic SQL syntax (will fail if column exists, but we catch it)
+                        # Generic SQL syntax
                         alter_query = text(f"""
                             ALTER TABLE organizations 
                             ADD COLUMN {col_name} {col_type} DEFAULT {default_value}
@@ -82,12 +89,19 @@ def add_organization_oauth_columns():
                 else:
                     print(f"   ⏭️  Column '{col_name}' already exists, skipping")
             except Exception as e:
-                print(f"   ⚠️  Error adding column '{col_name}': {e}")
+                error_msg = str(e)
+                # If column already exists, that's OK
+                if "already exists" in error_msg.lower() or "duplicate column" in error_msg.lower():
+                    print(f"   ⏭️  Column '{col_name}' already exists (caught exception), skipping")
+                else:
+                    print(f"   ❌ Error adding column '{col_name}': {e}")
+                    import traceback
+                    traceback.print_exc()
                 session.rollback()
                 # Continue with next column
     
     print("\n" + "="*60)
-    print("✅ OAuth & Auth Settings columns added successfully!")
+    print("✅ OAuth & Auth Settings columns verification complete!")
     print("="*60 + "\n")
 
 

@@ -357,8 +357,15 @@ class SecurityState:
             else:
                 print("⚠️  [DATABASE] No organizations in database, falling back to files...")
         except Exception as db_error:
-            print(f"❌ [DATABASE ERROR] Failed to load organizations: {type(db_error).__name__}: {str(db_error)}")
-            traceback.print_exc()
+            error_msg = str(db_error)
+            if "does not exist" in error_msg or "UndefinedColumn" in error_msg:
+                print(f"❌ [DATABASE ERROR] Failed to load organizations: Missing columns in organizations table")
+                print(f"   Error: {error_msg[:200]}...")
+                print("   💡 This usually means add_organization_oauth_columns.py hasn't run yet")
+                print("   💡 Falling back to file-based storage for now")
+            else:
+                print(f"❌ [DATABASE ERROR] Failed to load organizations: {type(db_error).__name__}: {str(db_error)}")
+                traceback.print_exc()
             print("📂 Loading organizations from files (database unavailable)")
         
         # --- Load Invitations from database ---
