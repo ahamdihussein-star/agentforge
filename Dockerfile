@@ -92,11 +92,11 @@ else\n\
      echo "🗑️  REMOVING roles.json file (using DB only)..."\n\
      python scripts/remove_roles_json.py 2>&1\n\
      echo ""\n\
-     echo "🔧 Fixing Super Admin permissions..."\n\
-     python scripts/fix_super_admin_permissions.py 2>&1\n\
+     echo "🔧 Fixing Super Admin permissions (optional - only if needed)..."\n\
+     python scripts/fix_super_admin_permissions.py 2>&1 || echo "⚠️  Super Admin permissions script failed (this is OK if permissions already exist)"\n\
      echo ""\n\
-     echo "🔧 Fixing Admin & Presales permissions..."\n\
-     python scripts/fix_admin_presales_permissions.py 2>&1\n\
+     echo "🔧 Fixing Admin & Presales permissions (optional - only if needed)..."\n\
+     python scripts/fix_admin_presales_permissions.py 2>&1 || echo "⚠️  Admin/Presales permissions script failed (this is OK if permissions already exist)"\n\
      echo ""\n\
      echo "🔧 Fixing role levels (hierarchy)..."\n\
      python scripts/fix_role_levels.py 2>&1\n\
