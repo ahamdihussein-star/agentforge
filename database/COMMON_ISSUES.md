@@ -1936,6 +1936,7 @@ existing = session.query(User).filter_by(id=user_uuid).first()
 
 | Date | Issue | Status | Notes |
 |------|-------|--------|-------|
+| 2026-01-13 | **DUPLICATE ROLES: Script only updated first one** #28 | ✅ Fixed | Multiple Super Admin roles exist, script used `.first()` → Changed to `.all()` |
 | 2026-01-13 | **EMPTY PERMISSIONS: Super Admin role** #27 | ✅ Fixed | Roles had empty permissions[] → Menu not appearing! Created fix script. |
 | 2026-01-13 | **PYDANTIC VALIDATION ERROR: role_ids double-encoded!** #26 | ✅ Fixed | Database contained double-JSON: `'"[\"uuid\"]"'` → Parse twice! |
 | 2026-01-12 | Generating new IDs instead of preserving #24 | ✅ Fixed | ROOT CAUSE of #22 & #23! Use JSON IDs directly, no uuid4() |
@@ -2538,6 +2539,157 @@ You can STILL have **empty or invalid data** if:
 
 ---
 
+### Issue #28: Multiple Duplicate Super Admin Roles (Only First One Updated)
+**Date:** 2026-01-13
+**Severity:** CRITICAL
+**Occurrences:** 1 time (scripts/fix_super_admin_permissions.py)
+**Related to:** RECURRING PATTERN #1 (Incomplete Data Migration / Query Logic)
+
+#### Problem:
+After successfully fixing Issue #27 (empty permissions in Super Admin role), the UI menu still didn't appear. Investigation revealed:
+
+1. **User had role_id:** `"911de94c-9df7-4ec4-9313-ad759acf9e78"`
+2. **Script updated role_id:** `"4e7a15db-753f-4f9f-ae1a-8ad34a7d9790"`
+3. **User's `/api/security/auth/me` response:**
+   ```json
+   {
+     "role_ids": ["911de94c-9df7-4ec4-9313-ad759acf9e78"],
+     "permissions": []  <-- STILL EMPTY!
+   }
+   ```
+
+#### Root Cause:
+The `fix_super_admin_permissions.py` script used `.first()` to find and update ONE Super Admin role:
+```python
+super_admin_role = session.query(Role).filter_by(name="Super Admin").first()
+```
+
+However, the database contained **multiple Super Admin roles** with different UUIDs (created during migration due to previous bugs). The script only updated the first role it found, leaving other Super Admin roles with empty permissions.
+
+#### Error Pattern:
+```bash
+# From Railway logs:
+✅ Found Super Admin role: 4e7a15db-753f-4f9f-ae1a-8ad34a7d9790  # Updated this one
+✅ Permissions updated. Added 87 new permissions.
+
+# But user had a DIFFERENT Super Admin role:
+User role_ids: ["911de94c-9df7-4ec4-9313-ad759acf9e78"]  # Not updated!
+User permissions: []  # Still empty!
+```
+
+#### Solution:
+Changed the script to update **ALL** Super Admin roles, not just the first one:
+
+```python
+# OLD (WRONG):
+super_admin_role = session.query(Role).filter_by(name="Super Admin").first()
+super_admin_role.permissions = json.dumps(ALL_PERMISSIONS)
+
+# NEW (CORRECT):
+super_admin_roles = session.query(Role).filter_by(name="Super Admin").all()  # Get ALL
+for role in super_admin_roles:
+    role.permissions = json.dumps(ALL_PERMISSIONS)
+```
+
+**File Modified:** `scripts/fix_super_admin_permissions.py`
+
+#### Why It Happened:
+1. **Migration Script Created Duplicates:** Previous migration bugs created multiple Super Admin roles with different UUIDs (visible in deployment logs with many "Using existing UUID for 'Super Admin'..." messages)
+2. **Assumption of Uniqueness:** Script assumed there was only ONE Super Admin role
+3. **No Duplicate Detection:** No validation to check for or clean up duplicate roles
+4. **No Role Consolidation:** Old duplicate roles were never cleaned up
+
+#### Prevention:
+1. ✅ **Always Use `.all()` for System Roles:**
+   ```python
+   # When updating system roles that might have duplicates:
+   roles = session.query(Role).filter_by(name="Super Admin").all()
+   if len(roles) > 1:
+       print(f"⚠️ WARNING: Found {len(roles)} roles named 'Super Admin'")
+   for role in roles:
+       # Update ALL instances
+       role.permissions = json.dumps(ALL_PERMISSIONS)
+   ```
+
+2. ✅ **Add Duplicate Detection Script:**
+   ```python
+   # scripts/detect_duplicate_roles.py
+   def find_duplicate_roles():
+       with get_db_session() as session:
+           roles = session.query(Role.name, func.count(Role.id)).group_by(Role.name).having(func.count(Role.id) > 1).all()
+           for role_name, count in roles:
+               print(f"⚠️ Duplicate role '{role_name}': {count} instances")
+               instances = session.query(Role).filter_by(name=role_name).all()
+               for instance in instances:
+                   print(f"   - ID: {instance.id}, Permissions: {len(json.loads(instance.permissions or '[]'))}")
+   ```
+
+3. ✅ **Add Unique Constraint to Role Name (Per Org):**
+   ```python
+   # In database/models/role.py:
+   class Role(Base):
+       __tablename__ = "roles"
+       __table_args__ = (
+           UniqueConstraint('name', 'org_id', name='uq_role_name_org'),
+       )
+   ```
+
+4. ✅ **Migration Script Cleanup Phase:**
+   ```python
+   # After migration, consolidate duplicates:
+   def consolidate_duplicate_roles(session):
+       duplicates = session.query(Role.name, Role.org_id).group_by(Role.name, Role.org_id).having(func.count(Role.id) > 1).all()
+       for name, org_id in duplicates:
+           roles = session.query(Role).filter_by(name=name, org_id=org_id).order_by(Role.created_at).all()
+           primary = roles[0]  # Keep the oldest
+           duplicates = roles[1:]
+           
+           # Update users to use primary role
+           for dup in duplicates:
+               users = session.query(User).filter(User.role_ids.contains(str(dup.id))).all()
+               for user in users:
+                   role_ids = json.loads(user.role_ids)
+                   role_ids = [str(primary.id) if r == str(dup.id) else r for r in role_ids]
+                   user.role_ids = json.dumps(role_ids)
+               session.delete(dup)
+   ```
+
+5. ✅ **Log All Role IDs During Updates:**
+   ```python
+   print(f"✅ Found {len(super_admin_roles)} Super Admin role(s):")
+   for i, role in enumerate(super_admin_roles, 1):
+       print(f"   {i}. UUID: {role.id}, Permissions: {len(role.permissions or [])}")
+   ```
+
+#### Related Issues:
+- Issue #19: Missing role_ids in User Migration (created duplicate role scenarios)
+- Issue #21: Missing Role Permissions in Migration (created empty permission scenarios)
+- Issue #27: Empty Permissions in Super Admin Role (parent issue - this is the follow-up)
+- RECURRING PATTERN #1: Incomplete data queries/updates across entities
+
+#### Key Takeaway:
+**When working with system/critical entities:**
+1. Always assume duplicates may exist (especially after migrations)
+2. Use `.all()` instead of `.first()` for updates
+3. Log all affected entities
+4. Add duplicate detection to validation scripts
+5. Clean up duplicates proactively
+
+**Script Assumptions ≠ Database Reality!**
+
+Even when:
+- ✅ Schema enforces uniqueness (or should)
+- ✅ Business logic prevents duplicates (in theory)
+- ✅ You expect only one record
+
+You can STILL have **duplicates** if:
+- ❌ Migration scripts ran multiple times
+- ❌ Unique constraints were added after data was inserted
+- ❌ Previous bugs created duplicates
+
+**Always query for ALL instances, not just the first!**
+
+---
+
 **💡 Remember: Prevention is better than debugging on production!**
 **🚨 ZERO TOLERANCE for repeated mistakes - system will block them!**
-
