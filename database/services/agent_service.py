@@ -302,14 +302,22 @@ class AgentService:
                     memory = []
                 
                 shared_with_user_ids = agent_data.get('shared_with_user_ids', [])
+                # Handle multiple formats: JSON string, list, or already deserialized
                 if isinstance(shared_with_user_ids, str):
-                    shared_with_user_ids = json.loads(shared_with_user_ids)
+                    try:
+                        shared_with_user_ids = json.loads(shared_with_user_ids)
+                    except (json.JSONDecodeError, TypeError):
+                        shared_with_user_ids = []
                 elif not isinstance(shared_with_user_ids, list):
                     shared_with_user_ids = []
                 
                 shared_with_role_ids = agent_data.get('shared_with_role_ids', [])
+                # Handle multiple formats: JSON string, list, or already deserialized
                 if isinstance(shared_with_role_ids, str):
-                    shared_with_role_ids = json.loads(shared_with_role_ids)
+                    try:
+                        shared_with_role_ids = json.loads(shared_with_role_ids)
+                    except (json.JSONDecodeError, TypeError):
+                        shared_with_role_ids = []
                 elif not isinstance(shared_with_role_ids, list):
                     shared_with_role_ids = []
                 
@@ -463,8 +471,12 @@ class AgentService:
                     db_agent.tasks = tasks
                 if 'tool_ids' in agent_data:
                     tool_ids = agent_data['tool_ids']
+                    # Handle multiple formats: JSON string, list, or already deserialized
                     if isinstance(tool_ids, str):
-                        tool_ids = json.loads(tool_ids)
+                        try:
+                            tool_ids = json.loads(tool_ids)
+                        except (json.JSONDecodeError, TypeError):
+                            tool_ids = []
                     elif not isinstance(tool_ids, list):
                         tool_ids = []
                     # Convert to list of strings (for JSONArray type)
@@ -510,8 +522,12 @@ class AgentService:
                     db_agent.is_public = agent_data['is_public']
                 if 'shared_with_user_ids' in agent_data:
                     shared_user_ids = agent_data['shared_with_user_ids']
+                    # Handle multiple formats: JSON string, list, or already deserialized
                     if isinstance(shared_user_ids, str):
-                        shared_user_ids = json.loads(shared_user_ids)
+                        try:
+                            shared_user_ids = json.loads(shared_user_ids)
+                        except (json.JSONDecodeError, TypeError):
+                            shared_user_ids = []
                     elif not isinstance(shared_user_ids, list):
                         shared_user_ids = []
                     # Convert to list of strings (for JSONArray type)
@@ -531,8 +547,12 @@ class AgentService:
                     db_agent.shared_with_user_ids = shared_user_ids_list
                 if 'shared_with_role_ids' in agent_data:
                     shared_role_ids = agent_data['shared_with_role_ids']
+                    # Handle multiple formats: JSON string, list, or already deserialized
                     if isinstance(shared_role_ids, str):
-                        shared_role_ids = json.loads(shared_role_ids)
+                        try:
+                            shared_role_ids = json.loads(shared_role_ids)
+                        except (json.JSONDecodeError, TypeError):
+                            shared_role_ids = []
                     elif not isinstance(shared_role_ids, list):
                         shared_role_ids = []
                     # Convert to list of strings (for JSONArray type)
