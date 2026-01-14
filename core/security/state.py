@@ -683,12 +683,59 @@ class SecurityState:
         return log
     
     def get_user_by_email(self, email: str, org_id: Optional[str] = None) -> Optional[User]:
-        """Find user by email"""
+        """Find user by email - checks security_state first, then database"""
         email_lower = email.lower()
+        
+        # First, check in-memory cache (security_state)
         for user in self.users.values():
             if user.email.lower() == email_lower:
                 if org_id is None or user.org_id == org_id:
                     return user
+        
+        # If not found in cache, try to load from database
+        try:
+            from database.services import UserService
+            import uuid as uuid_lib
+            
+            # Convert org_id to UUID if needed
+            org_uuid = None
+            if org_id:
+                try:
+                    org_uuid = uuid_lib.UUID(org_id) if isinstance(org_id, str) else org_id
+                except ValueError:
+                    # If org_id is not a valid UUID (e.g., "org_default"), try to find org by slug
+                    from database.services import OrganizationService
+                    orgs = OrganizationService.get_all_organizations()
+                    org_obj = next((o for o in orgs if o.slug == org_id or o.id == org_id), None)
+                    if org_obj:
+                        org_uuid = uuid_lib.UUID(org_obj.id)
+            
+            db_users = UserService.get_all_users()
+            for db_user in db_users:
+                if db_user.email.lower() == email_lower:
+                    # Compare org_id (handle both UUID and string like "org_default")
+                    try:
+                        db_org_uuid = uuid_lib.UUID(db_user.org_id) if isinstance(db_user.org_id, str) else db_user.org_id
+                    except (ValueError, AttributeError):
+                        # If org_id is not a valid UUID, try to resolve it
+                        from database.services import OrganizationService
+                        orgs = OrganizationService.get_all_organizations()
+                        db_org_obj = next((o for o in orgs if o.slug == db_user.org_id or o.id == db_user.org_id), None)
+                        if db_org_obj:
+                            db_org_uuid = uuid_lib.UUID(db_org_obj.id)
+                        else:
+                            db_org_uuid = None
+                    
+                    if org_uuid is None or db_org_uuid == org_uuid:
+                        # Add to security_state cache
+                        self.users[db_user.id] = db_user
+                        print(f"📊 [SECURITY_STATE] Loaded user from database: {db_user.email} (ID: {db_user.id[:8]}...)")
+                        return db_user
+        except Exception as e:
+            print(f"⚠️  [SECURITY_STATE] Failed to load user from database: {e}")
+            import traceback
+            traceback.print_exc()
+        
         return None
     
     def get_user_by_external_id(self, external_id: str, provider: AuthProvider, org_id: Optional[str] = None) -> Optional[User]:

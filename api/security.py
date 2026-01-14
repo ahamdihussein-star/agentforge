@@ -673,11 +673,31 @@ async def login(request: LoginRequest, req: Request):
     if not check_ip_whitelist(req):
         raise HTTPException(status_code=403, detail="Access denied from this IP address")
     
-    # Find user
+    # Find user (will check database if not in security_state cache)
     user = security_state.get_user_by_email(request.email, request.org_id)
     
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Ensure user MFA settings are loaded from database (refresh if needed)
+    try:
+        from database.services import UserService
+        import uuid as uuid_lib
+        try:
+            user_uuid = uuid_lib.UUID(user.id)
+            db_users = UserService.get_all_users()
+            db_user = next((u for u in db_users if u.id == user.id), None)
+            if db_user:
+                # Update security_state cache with latest MFA settings from database
+                security_state.users[user.id] = db_user
+                user = db_user
+                print(f"📊 [LOGIN] Refreshed user MFA settings from database: {user.email} (MFA enabled: {user.mfa.enabled if user.mfa else False})")
+        except ValueError:
+            print(f"⚠️  [LOGIN] Invalid user_id format: {user.id}")
+    except Exception as e:
+        print(f"⚠️  [LOGIN] Failed to refresh user from database: {e}")
+        import traceback
+        traceback.print_exc()
     
     # Check if account is locked
     if user.status == UserStatus.LOCKED:
@@ -1394,11 +1414,32 @@ async def verify_mfa_setup(request: VerifyMFARequest, user: User = Depends(requi
 @router.post("/mfa/send-login-code")
 async def send_mfa_login_code(request: LoginRequest, req: Request):
     """Send MFA code for login (Email method)"""
+    # Find user (will check database if not in security_state cache)
     user = security_state.get_user_by_email(request.email, request.org_id)
     
     if not user:
         # Don't reveal if user exists
         return {"status": "success", "message": "If the account exists, a code has been sent"}
+    
+    # Ensure user MFA settings are loaded from database (refresh if needed)
+    try:
+        from database.services import UserService
+        import uuid as uuid_lib
+        try:
+            user_uuid = uuid_lib.UUID(user.id)
+            db_users = UserService.get_all_users()
+            db_user = next((u for u in db_users if u.id == user.id), None)
+            if db_user:
+                # Update security_state cache with latest MFA settings from database
+                security_state.users[user.id] = db_user
+                user = db_user
+                print(f"📊 [MFA_SEND] Refreshed user MFA settings from database: {user.email} (MFA enabled: {user.mfa.enabled if user.mfa else False})")
+        except ValueError:
+            print(f"⚠️  [MFA_SEND] Invalid user_id format: {user.id}")
+    except Exception as e:
+        print(f"⚠️  [MFA_SEND] Failed to refresh user from database: {e}")
+        import traceback
+        traceback.print_exc()
     
     if not user.mfa.enabled or MFAMethod.EMAIL not in user.mfa.methods:
         raise HTTPException(status_code=400, detail="Email MFA not enabled for this account")
