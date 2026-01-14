@@ -12,26 +12,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def main():
     """Initialize database with complete enterprise schema"""
-    # Import here to avoid circular import issues
-    # Use importlib.util to delay import and avoid Python's typing module circular import
-    # This is a known issue with Python 3.11 when importing modules that use typing during startup
-    import importlib.util
-    import time
-    
-    # Small delay to let Python's standard library finish initializing
-    time.sleep(0.1)
-    
-    # Use importlib to load the module
-    spec = importlib.util.find_spec('database.base')
-    if spec is None:
-        raise ImportError("Cannot find database.base module")
-    
-    base_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(base_module)
-    
-    init_db = base_module.init_db
-    check_connection = base_module.check_connection
-    get_engine = base_module.get_engine
+    # Best practice: Use lazy import from database package (not database.base directly)
+    # This leverages the lazy loading mechanism in database/__init__.py
+    # which delays imports until they are actually needed, avoiding circular imports
+    from database import init_db, check_connection, get_engine
     
     print("=" * 60)
     print("🚀 AgentForge Database Initialization")

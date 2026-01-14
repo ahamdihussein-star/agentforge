@@ -1,11 +1,17 @@
 """
 SQLAlchemy Base and Session Management
 """
+from __future__ import annotations  # Enable postponed evaluation of annotations (PEP 563)
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
-from typing import Generator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Type hints only - not imported at runtime to avoid circular imports
+    from typing import Generator
 
 from .config import DatabaseConfig
 
@@ -58,7 +64,7 @@ def get_session() -> Session:
 
 
 @contextmanager
-def get_db_session() -> Generator[Session, None, None]:
+def get_db_session() -> "Generator[Session, None, None]":
     """
     Context manager for database sessions
     
