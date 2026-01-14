@@ -269,8 +269,13 @@ class AgentService:
                     tasks = []
                 
                 tool_ids = agent_data.get('tool_ids', [])
+                # Handle multiple formats: JSON string, list, or already deserialized
                 if isinstance(tool_ids, str):
-                    tool_ids = json.loads(tool_ids)
+                    try:
+                        tool_ids = json.loads(tool_ids)
+                    except (json.JSONDecodeError, TypeError):
+                        # If it's not valid JSON, treat as empty list
+                        tool_ids = []
                 elif not isinstance(tool_ids, list):
                     tool_ids = []
                 
