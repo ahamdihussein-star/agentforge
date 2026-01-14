@@ -342,10 +342,15 @@ def migrate_users(org_mapping, role_mapping):
                     print(f"   ❌ INVALID UUID in JSON for user '{user_data.get('email', 'unknown')}': {old_id}")
                     continue  # Skip invalid UUIDs
                 
-                # Check if already exists
-                existing = session.query(User).filter_by(id=user_uuid).first()  # ← Check by ID, not email!
+                # Check if already exists (by ID or email for UPSERT pattern)
+                existing = session.query(User).filter_by(id=user_uuid).first()
+                if not existing:
+                    # Also check by email (in case ID changed but email is same)
+                    existing = session.query(User).filter_by(email=user_data['email'].lower()).first()
+                
                 if existing:
                     print(f"⏭️  User with ID '{user_uuid}' already exists (email: {existing.email}), skipping")
+                    id_mapping[old_id] = existing.id
                     continue
                 
                 # Map org_id

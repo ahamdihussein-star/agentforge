@@ -1664,8 +1664,13 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
     
     target_user.updated_at = datetime.utcnow().isoformat()
     
+    # Update in-memory state
+    security_state.users[target_user.id] = target_user
+    
     # Save to database
     print(f"💾 [API] Updating user in database: {target_user.email} (ID: {user_id[:8]}...)")
+    print(f"   📝 Profile fields: first_name={target_user.profile.first_name if target_user.profile else 'N/A'}, last_name={target_user.profile.last_name if target_user.profile else 'N/A'}, display_name={target_user.profile.display_name if target_user.profile else 'N/A'}")
+    print(f"   🔐 MFA enabled: {target_user.mfa.enabled if target_user.mfa else False}")
     try:
         from database.services import UserService
         UserService.save_user(target_user)

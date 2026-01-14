@@ -103,17 +103,29 @@ class UserService:
             
             # Convert MFA data
             mfa_enabled = user.mfa.enabled if user.mfa else False
-            mfa_method = MFAMethod.NONE
+            # Import DB MFAMethod which has NONE value
+            from ..models.user import MFAMethod as DBMFAMethod
+            mfa_method = DBMFAMethod.NONE
             mfa_secret_encrypted = None
             
             if user.mfa and user.mfa.enabled:
                 # Get first enabled method (TOTP takes priority)
                 if user.mfa.methods:
-                    mfa_method = user.mfa.methods[0] if isinstance(user.mfa.methods[0], MFAMethod) else MFAMethod(user.mfa.methods[0])
+                    # Convert core MFAMethod to DB MFAMethod
+                    core_method = user.mfa.methods[0] if isinstance(user.mfa.methods[0], MFAMethod) else MFAMethod(user.mfa.methods[0])
+                    # Map to DB enum
+                    if core_method == MFAMethod.TOTP:
+                        mfa_method = DBMFAMethod.TOTP
+                    elif core_method == MFAMethod.EMAIL:
+                        mfa_method = DBMFAMethod.EMAIL
+                    elif core_method == MFAMethod.SMS:
+                        mfa_method = DBMFAMethod.EMAIL  # Fallback to EMAIL if SMS not in DB enum
+                    else:
+                        mfa_method = DBMFAMethod.NONE
                 elif user.mfa.totp_secret:
-                    mfa_method = MFAMethod.TOTP
+                    mfa_method = DBMFAMethod.TOTP
                 elif user.mfa.email_code:
-                    mfa_method = MFAMethod.EMAIL
+                    mfa_method = DBMFAMethod.EMAIL
                 
                 # Store TOTP secret if available (should be encrypted in production)
                 if user.mfa.totp_secret:
@@ -125,6 +137,12 @@ class UserService:
                 org_id=org_uuid,
                 email=user.email.lower(),
                 password_hash=user.password_hash,  # Can be None for OAuth users
+                # Profile fields
+                first_name=user.profile.first_name if user.profile and user.profile.first_name else None,
+                last_name=user.profile.last_name if user.profile and user.profile.last_name else None,
+                display_name=user.profile.display_name if user.profile and user.profile.display_name else None,
+                phone=user.profile.phone if user.profile and user.profile.phone else None,
+                job_title=user.profile.job_title if user.profile and user.profile.job_title else None,
                 status=user.status.value if hasattr(user.status, 'value') else user.status,
                 role_ids=user.role_ids or [],
                 department_id=user.department_id,
@@ -199,17 +217,29 @@ class UserService:
             
             # Convert MFA data
             mfa_enabled = user.mfa.enabled if user.mfa else False
-            mfa_method = MFAMethod.NONE
+            # Import DB MFAMethod which has NONE value
+            from ..models.user import MFAMethod as DBMFAMethod
+            mfa_method = DBMFAMethod.NONE
             mfa_secret_encrypted = None
             
             if user.mfa and user.mfa.enabled:
                 # Get first enabled method (TOTP takes priority)
                 if user.mfa.methods:
-                    mfa_method = user.mfa.methods[0] if isinstance(user.mfa.methods[0], MFAMethod) else MFAMethod(user.mfa.methods[0])
+                    # Convert core MFAMethod to DB MFAMethod
+                    core_method = user.mfa.methods[0] if isinstance(user.mfa.methods[0], MFAMethod) else MFAMethod(user.mfa.methods[0])
+                    # Map to DB enum
+                    if core_method == MFAMethod.TOTP:
+                        mfa_method = DBMFAMethod.TOTP
+                    elif core_method == MFAMethod.EMAIL:
+                        mfa_method = DBMFAMethod.EMAIL
+                    elif core_method == MFAMethod.SMS:
+                        mfa_method = DBMFAMethod.EMAIL  # Fallback to EMAIL if SMS not in DB enum
+                    else:
+                        mfa_method = DBMFAMethod.NONE
                 elif user.mfa.totp_secret:
-                    mfa_method = MFAMethod.TOTP
+                    mfa_method = DBMFAMethod.TOTP
                 elif user.mfa.email_code:
-                    mfa_method = MFAMethod.EMAIL
+                    mfa_method = DBMFAMethod.EMAIL
                 
                 # Store TOTP secret if available (should be encrypted in production)
                 if user.mfa.totp_secret:
@@ -221,6 +251,15 @@ class UserService:
                 db_user.org_id = org_uuid
             if user.password_hash:
                 db_user.password_hash = user.password_hash
+            
+            # Update profile fields
+            if user.profile:
+                db_user.first_name = user.profile.first_name if user.profile.first_name else db_user.first_name
+                db_user.last_name = user.profile.last_name if user.profile.last_name else db_user.last_name
+                db_user.display_name = user.profile.display_name if user.profile.display_name else db_user.display_name
+                db_user.phone = user.profile.phone if user.profile.phone else db_user.phone
+                db_user.job_title = user.profile.job_title if user.profile.job_title else db_user.job_title
+            
             db_user.status = user.status.value if hasattr(user.status, 'value') else user.status
             db_user.role_ids = user.role_ids or []
             db_user.department_id = user.department_id
