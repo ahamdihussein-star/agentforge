@@ -2975,8 +2975,19 @@ async def oauth_callback(provider: str, req: Request):
             db_users = UserService.get_all_users()
             for db_user in db_users:
                 if db_user.email.lower() == email.lower():
-                    # Compare org_id (both should be UUIDs)
-                    db_org_uuid = uuid_lib.UUID(db_user.org_id) if isinstance(db_user.org_id, str) else db_user.org_id
+                    # Compare org_id (handle both UUID and string like "org_default")
+                    try:
+                        db_org_uuid = uuid_lib.UUID(db_user.org_id) if isinstance(db_user.org_id, str) else db_user.org_id
+                    except (ValueError, AttributeError):
+                        # If org_id is not a valid UUID (e.g., "org_default"), try to resolve it
+                        from database.services import OrganizationService
+                        orgs = OrganizationService.get_all_organizations()
+                        db_org_obj = next((o for o in orgs if o.slug == db_user.org_id or o.id == db_user.org_id), None)
+                        if db_org_obj:
+                            db_org_uuid = uuid_lib.UUID(db_org_obj.id)
+                        else:
+                            db_org_uuid = None
+                    
                     if org_uuid is None or db_org_uuid == org_uuid:
                         user = db_user
                         # Add to security_state cache

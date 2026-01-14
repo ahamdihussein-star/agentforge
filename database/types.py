@@ -2,8 +2,7 @@
 Database-Agnostic Type Definitions
 Works with PostgreSQL, MySQL, SQLite, SQL Server, Oracle
 """
-from sqlalchemy import Column, String, Text
-from sqlalchemy.types import TypeDecorator, TEXT
+from sqlalchemy.types import TypeDecorator, TEXT, String
 from sqlalchemy.dialects import postgresql, mysql, sqlite
 import json
 import uuid
