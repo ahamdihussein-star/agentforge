@@ -269,6 +269,38 @@ class UserService:
                 if user.mfa.totp_secret:
                     mfa_secret_encrypted = user.mfa.totp_secret
             
+            # Store MFA temporary codes in user_metadata (email_code, sms_code, etc.)
+            import json
+            user_metadata = {}
+            if hasattr(db_user, 'user_metadata') and db_user.user_metadata:
+                if isinstance(db_user.user_metadata, str):
+                    try:
+                        user_metadata = json.loads(db_user.user_metadata)
+                    except:
+                        user_metadata = {}
+                elif isinstance(db_user.user_metadata, dict):
+                    user_metadata = db_user.user_metadata.copy()
+            
+            # Update MFA codes (always overwrite old codes - single code only)
+            if user.mfa:
+                if user.mfa.email_code:
+                    user_metadata['mfa_email_code'] = user.mfa.email_code
+                    user_metadata['mfa_email_code_expires'] = user.mfa.email_code_expires
+                elif 'mfa_email_code' in user_metadata:
+                    # Clear old code if new code is None
+                    user_metadata.pop('mfa_email_code', None)
+                    user_metadata.pop('mfa_email_code_expires', None)
+                
+                if user.mfa.sms_code:
+                    user_metadata['mfa_sms_code'] = user.mfa.sms_code
+                    user_metadata['mfa_sms_code_expires'] = user.mfa.sms_code_expires
+                elif 'mfa_sms_code' in user_metadata:
+                    user_metadata.pop('mfa_sms_code', None)
+                    user_metadata.pop('mfa_sms_code_expires', None)
+                
+                if user.mfa.last_used:
+                    user_metadata['mfa_last_used'] = user.mfa.last_used
+            
             # Update fields
             db_user.email = user.email.lower()
             if org_uuid:
