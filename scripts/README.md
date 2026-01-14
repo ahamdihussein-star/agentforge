@@ -29,44 +29,7 @@ Automated checks to prevent database-related errors before they reach production
 
 ---
 
-### 2. `validate_db_models.sh`
-**Original validation script with 9 checks**
-
-```bash
-./scripts/validate_db_models.sh
-```
-
-**Checks:**
-- Reserved words (metadata, registry)
-- ForeignKey definitions
-- UTC timestamps
-- Index definitions
-- UPSERT patterns in migrations
-- Database-agnostic imports
-- Import consistency
-
----
-
-### 3. `convert_to_db_agnostic.py`
-**One-time conversion script (DO NOT RUN AGAIN)**
-
-Converts PostgreSQL-specific types to database-agnostic types.
-
-**What it does:**
-```python
-# Before:
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
-
-# After:
-from ..types import UUID, JSON, JSONArray
-JSONB = JSON
-```
-
-**Status:** ✅ Already run on all models
-
----
-
-### 4. `migrate_to_db_complete.py`
+### 2. `migrate_to_db_complete.py`
 **Data migration script**
 
 Migrates data from JSON files to PostgreSQL database.

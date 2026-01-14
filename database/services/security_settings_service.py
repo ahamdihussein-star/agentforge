@@ -57,7 +57,7 @@ class SecuritySettingsService:
                 session.add(db_settings)
                 session.commit()
                 session.refresh(db_settings)
-            else:
+            
             return SecuritySettingsService._db_to_core_settings(db_settings)
     
     @staticmethod

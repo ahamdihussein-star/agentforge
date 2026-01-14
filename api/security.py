@@ -2188,7 +2188,6 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
     elif role_level <= user_min_level:
         print(f"   ❌ BLOCKED: role_level ({role_level}) <= user_min_level ({user_min_level})")
         raise HTTPException(status_code=403, detail="Cannot modify a role with equal or higher privilege than yours")
-    else:
     
     # Allow editing system roles permissions, but not renaming them
     if role.is_system and request.name is not None and request.name != role.name:
