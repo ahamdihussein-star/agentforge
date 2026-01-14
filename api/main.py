@@ -27,6 +27,10 @@ from pydantic import BaseModel, Field
 import uvicorn
 
 # Security Module
+# Initialize User and get_current_user at module level
+User = None
+get_current_user = None
+
 try:
     from core.security import security_state, User
     from api.security import router as security_router, get_current_user
