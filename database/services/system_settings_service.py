@@ -18,7 +18,6 @@ class SystemSettingsService:
             db_setting = session.query(DBSystemSetting).filter_by(key=key).first()
             if not db_setting:
                 return None
-            print(f"📊 [DATABASE] Retrieved system setting from database: {key}")
             
             # Parse value based on type
             if db_setting.value_type == 'json':
@@ -45,7 +44,6 @@ class SystemSettingsService:
         """Get all system settings as a dictionary"""
         with get_db_session() as session:
             db_settings = session.query(DBSystemSetting).all()
-            print(f"📊 [DATABASE] Retrieved {len(db_settings)} system settings from database")
             result = {}
             for db_setting in db_settings:
                 result[db_setting.key] = SystemSettingsService.get_system_setting(db_setting.key)

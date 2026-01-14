@@ -17,7 +17,6 @@ class UserGroupService:
         """Get all user groups from database"""
         with get_db_session() as session:
             db_groups = session.query(DBUserGroup).all()
-            print(f"📊 [DATABASE] Retrieved {len(db_groups)} user groups from database")
             return [UserGroupService._db_to_core_group(db_group) for db_group in db_groups]
     
     @staticmethod

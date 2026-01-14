@@ -16,7 +16,6 @@ class DepartmentService:
         """Get all departments from database"""
         with get_db_session() as session:
             db_depts = session.query(DBDepartment).all()
-            print(f"📊 [DATABASE] Retrieved {len(db_depts)} departments from database")
             return [DepartmentService._db_to_core_dept(db_dept) for db_dept in db_depts]
     
     @staticmethod

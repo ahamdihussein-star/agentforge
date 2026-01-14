@@ -309,8 +309,6 @@ class UserService:
         mfa_enabled_db = hasattr(db_user, 'mfa_enabled') and db_user.mfa_enabled
         mfa_method_db = getattr(db_user, 'mfa_method', None) if hasattr(db_user, 'mfa_method') else None
         
-        print(f"   🔍 DEBUG [{db_user.email}] MFA: enabled={mfa_enabled_db}, method={mfa_method_db} (type: {type(mfa_method_db)})")
-        
         if mfa_enabled_db:
             if mfa_method_db:
                 try:
@@ -346,9 +344,6 @@ class UserService:
             else:
                 print(f"   ⚠️  [{db_user.email}] MFA enabled but no method set, defaulting to EMAIL")
                 mfa_methods = [MFAMethod.EMAIL]
-        else:
-            print(f"   ℹ️  [{db_user.email}] MFA disabled")
-        
         # Type conversions for Pydantic validation
         import json
         
@@ -364,31 +359,22 @@ class UserService:
             auth_provider = AuthProvider.LOCAL  # Default to LOCAL
         
         # Parse JSON arrays from TEXT columns (may be DOUBLE-ENCODED!)
-        # DEBUG: Log the type and value of role_ids
-        print(f"   🔍 DEBUG [{db_user.email}] raw role_ids type: {type(db_user.role_ids)}, value: {repr(db_user.role_ids)}")
-        
         try:
             # Always ensure role_ids is a list
             if isinstance(db_user.role_ids, str):
-                print(f"   🔍 DEBUG [{db_user.email}] role_ids is STRING, parsing (1st attempt)...")
                 role_ids = json.loads(db_user.role_ids) if db_user.role_ids else []
-                print(f"   🔍 DEBUG [{db_user.email}] After 1st parse: {role_ids} (type: {type(role_ids)})")
                 
                 # 🔥 CRITICAL FIX: Handle DOUBLE JSON encoding!
                 # If the result is STILL a string, parse again!
                 if isinstance(role_ids, str):
-                    print(f"   🔥 DOUBLE-ENCODED DETECTED! Parsing again...")
                     role_ids = json.loads(role_ids)
                 
                 # Final sanity check
                 if not isinstance(role_ids, list):
-                    print(f"   ⚠️  Final role_ids is STILL not a list! type={type(role_ids)}, defaulting to []")
                     role_ids = []
             elif isinstance(db_user.role_ids, list):
-                print(f"   🔍 DEBUG [{db_user.email}] role_ids is already a LIST")
                 role_ids = db_user.role_ids
             else:
-                print(f"   🔍 DEBUG [{db_user.email}] role_ids is NEITHER str nor list!")
                 role_ids = []
         except (json.JSONDecodeError, TypeError) as e:
             print(f"   ⚠️  Error parsing role_ids for {db_user.email}: {e}")

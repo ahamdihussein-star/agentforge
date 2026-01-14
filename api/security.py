@@ -2951,10 +2951,8 @@ async def oauth_login(provider: str, req: Request):
         base_url = base_url.replace("http://", "https://")
     redirect_uri = f"{base_url}/api/security/oauth/{provider}/callback"
     
-    # Log the redirect URI for debugging
+    # Get client ID for the provider
     client_id = getattr(org, f'{provider}_client_id', None)
-    if client_id:
-    else:
     
     if not client_id:
         raise HTTPException(

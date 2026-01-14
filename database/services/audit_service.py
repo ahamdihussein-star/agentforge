@@ -16,7 +16,6 @@ class AuditService:
         """Get all audit logs from database (limited)"""
         with get_db_session() as session:
             db_logs = session.query(DBAuditLog).order_by(DBAuditLog.timestamp.desc()).limit(limit).all()
-            print(f"📊 [DATABASE] Retrieved {len(db_logs)} audit logs from database (limit: {limit})")
             return [AuditService._db_to_core_log(db_log) for db_log in db_logs]
     
     @staticmethod

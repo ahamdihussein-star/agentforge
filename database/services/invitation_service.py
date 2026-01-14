@@ -18,7 +18,6 @@ class InvitationService:
         """Get all invitations from database"""
         with get_db_session() as session:
             db_invitations = session.query(DBInvitation).all()
-            print(f"📊 [DATABASE] Retrieved {len(db_invitations)} invitations from database")
             return [InvitationService._db_to_core_invitation(db_inv) for db_inv in db_invitations]
     
     @staticmethod
