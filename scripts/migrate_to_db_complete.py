@@ -432,7 +432,8 @@ def migrate_agents(org_mapping):
     
     data = load_json_file('data/agents.json')
     if not data:
-        print("⚠️  No agents file found")
+        print("✅ No agents file found - new agents will be created directly in database")
+        print("⏭️  Skipping migration (no JSON file to migrate)")
         return 0
     
     if isinstance(data, dict):
@@ -766,7 +767,8 @@ def main():
         org_count, org_mapping = migrate_organizations()
         role_count, role_mapping = migrate_roles(org_mapping)  # ← Returns mapping!
         user_count = migrate_users(org_mapping, role_mapping)  # ← Use role_mapping!
-        agent_count = migrate_agents(org_mapping)
+        # Skip agents migration - new agents are created directly in database via UI
+        agent_count = 0  # migrate_agents(org_mapping)  # ← Skipped: agents created via UI
         tool_count = migrate_tools(org_mapping)
         setting_count = migrate_settings()
         
