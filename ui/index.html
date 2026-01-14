@@ -6884,10 +6884,13 @@ Option 3"></textarea>
         // Reset test conversation
         function resetTestConversation() {
             document.getElementById('test-messages').innerHTML = '';
-            testAgent = null;
+            // Only reset conversation, keep agent ID to prevent duplicates
+            if(testAgent) {
+                testAgent.convId = null; // Reset conversation but keep agent
+            }
             testAttachments = [];
             renderTestAttachments();
-            console.log('Test conversation reset');
+            console.log('Test conversation reset (agent preserved)');
         }
         
         function goStep(s) {
@@ -10870,10 +10873,22 @@ Option 3"></textarea>
             }
             addTestMsg('user', displayMsg);
             
-            if(!testAgent){
-                const r=await fetch(API+'/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:wizard.name,goal:wizard.goal,personality:wizard.personality,tasks:wizard.tasks,tool_ids:wizard.tool_ids,model_id:wizard.model,status:'draft'})});
+            // Use existing agent ID if available (from auto-save or previous test)
+            const existingAgentId = testAgent?.id || wizard.editId;
+            
+            if(!existingAgentId){
+                // Create new agent only if we don't have one
+                console.log('🔧 Creating new test agent...');
+                const r=await fetch(API+'/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:wizard.name || 'Untitled Agent',goal:wizard.goal,personality:wizard.personality || {},tasks:wizard.tasks || [],tool_ids:wizard.tool_ids || [],model_id:wizard.model || 'gpt-4o',status:'draft'})});
                 const d=await r.json();
-                testAgent={id:d.agent_id};
+                const newAgentId = d.agent_id || d.agent?.id;
+                testAgent={id: newAgentId};
+                wizard.editId = newAgentId; // Sync with wizard
+                console.log('✅ Created test agent:', newAgentId);
+            } else if(!testAgent) {
+                // Use existing agent from wizard
+                testAgent = {id: existingAgentId};
+                console.log('📌 Using existing agent for test:', existingAgentId);
             }
             try{
                 let response;
