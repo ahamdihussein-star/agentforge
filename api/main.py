@@ -1135,6 +1135,8 @@ class UpdateAgentRequest(BaseModel):
     model_id: Optional[str] = None
     icon: Optional[str] = None
     status: Optional[str] = None
+    is_active: Optional[bool] = None  # For publishing/unpublishing agents
+    is_published: Optional[bool] = None  # Alternative field for publishing
 
 
 class CreateToolRequest(BaseModel):
@@ -5891,6 +5893,15 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
     if request.model_id is not None: agent.model_id = request.model_id
     if request.icon is not None: agent.icon = request.icon
     if request.status is not None: agent.status = request.status
+    # Handle publishing/unpublishing
+    if request.is_active is not None:
+        agent.is_active = request.is_active
+        if request.is_active:
+            agent.status = "published"
+    if request.is_published is not None:
+        agent.is_active = request.is_published
+        if request.is_published:
+            agent.status = "published"
     agent.updated_at = datetime.utcnow().isoformat()
     
     # Save to database using AgentService

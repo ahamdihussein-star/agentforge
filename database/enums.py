@@ -85,7 +85,8 @@ class ToolType(str, Enum):
 class AgentStatus(str, Enum):
     """Agent lifecycle status"""
     DRAFT = "draft"
-    ACTIVE = "active"
+    PUBLISHED = "published"  # Agent is live and available
+    ACTIVE = "active"  # Alias for published (backwards compatibility)
     PAUSED = "paused"
     ARCHIVED = "archived"
     DELETED = "deleted"  # Soft delete
