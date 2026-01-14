@@ -17813,18 +17813,24 @@ async function handleLogin(event) {
     btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> Signing in...';
     
     try {
+        console.log("🚀 [FRONTEND] Starting login request...");
         const res = await fetch('/api/security/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password, remember_me: remember, mfa_code: mfaCode || undefined })
         });
         
+        console.log("📡 [FRONTEND] Login response received, status:", res.status, res.statusText);
+        
         const data = await res.json();
-        console.log("Login response:", data);
-        console.log("requires_mfa:", data.requires_mfa);
-        console.log("mfa_methods:", data.mfa_methods);
+        console.log("📦 [FRONTEND] Login response data:", JSON.stringify(data, null, 2));
+        console.log("   requires_mfa:", data.requires_mfa, "(type:", typeof data.requires_mfa, ")");
+        console.log("   mfa_required:", data.mfa_required, "(type:", typeof data.mfa_required, ")");
+        console.log("   mfa_methods:", data.mfa_methods);
+        console.log("   access_token:", data.access_token ? "present" : "missing");
         
         if (!res.ok) {
+            console.error("❌ [FRONTEND] Login failed:", data);
             showToast(typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || 'Login failed'), 'error');
             btn.disabled = false;
             btn.textContent = 'Sign In';
@@ -17833,11 +17839,21 @@ async function handleLogin(event) {
         
         // Check if MFA is required (check both requires_mfa and mfa_required for backward compatibility)
         console.log("🔍 [FRONTEND] Checking MFA requirement...");
-        console.log("   requires_mfa:", data.requires_mfa, "(type:", typeof data.requires_mfa, ")");
-        console.log("   mfa_required:", data.mfa_required, "(type:", typeof data.mfa_required, ")");
-        console.log("   mfa_methods:", data.mfa_methods);
+        console.log("   requires_mfa === true:", data.requires_mfa === true);
+        console.log("   requires_mfa === 'true':", data.requires_mfa === "true");
+        console.log("   mfa_required === true:", data.mfa_required === true);
+        console.log("   mfa_required === 'true':", data.mfa_required === "true");
         
-        if (data.requires_mfa === true || data.mfa_required === true || data.requires_mfa === "true" || data.mfa_required === "true") {
+        const isMfaRequired = data.requires_mfa === true || 
+                             data.mfa_required === true || 
+                             data.requires_mfa === "true" || 
+                             data.mfa_required === "true" ||
+                             String(data.requires_mfa).toLowerCase() === "true" ||
+                             String(data.mfa_required).toLowerCase() === "true";
+        
+        console.log("   isMfaRequired:", isMfaRequired);
+        
+        if (isMfaRequired) {
             console.log("✅ [FRONTEND] MFA is required, showing modal...");
             btn.disabled = false;
             btn.textContent = 'Sign In';
@@ -17852,11 +17868,17 @@ async function handleLogin(event) {
             console.log("   Email:", window.pendingLoginEmail);
             console.log("   MFA Methods:", window.pendingMfaMethods);
             console.log("📱 [FRONTEND] Calling showLoginMfaModal...");
-            showLoginMfaModal(window.pendingMfaMethods);
-            console.log("✅ [FRONTEND] showLoginMfaModal called");
+            try {
+                showLoginMfaModal(window.pendingMfaMethods);
+                console.log("✅ [FRONTEND] showLoginMfaModal called successfully");
+            } catch (error) {
+                console.error("❌ [FRONTEND] Error calling showLoginMfaModal:", error);
+                showToast("Error showing MFA modal: " + error.message, 'error');
+            }
             return;
         } else {
             console.log("❌ [FRONTEND] MFA not required, continuing with normal login...");
+            console.log("   Full response keys:", Object.keys(data));
         }
         
         // Store auth data
