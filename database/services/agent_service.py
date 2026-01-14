@@ -249,77 +249,91 @@ class AgentService:
                 else:
                     agent_uuid = uuid_lib.uuid4()
                 
-                # Parse JSON fields
+                # Parse JSON fields - ensure they are dicts/lists, not JSON strings
                 personality = agent_data.get('personality', {})
                 if isinstance(personality, str):
                     personality = json.loads(personality)
+                elif not isinstance(personality, dict):
+                    personality = {}
                 
                 guardrails = agent_data.get('guardrails', {})
                 if isinstance(guardrails, str):
                     guardrails = json.loads(guardrails)
+                elif not isinstance(guardrails, dict):
+                    guardrails = {}
                 
                 tasks = agent_data.get('tasks', [])
                 if isinstance(tasks, str):
                     tasks = json.loads(tasks)
+                elif not isinstance(tasks, list):
+                    tasks = []
                 
                 tool_ids = agent_data.get('tool_ids', [])
                 if isinstance(tool_ids, str):
                     tool_ids = json.loads(tool_ids)
+                elif not isinstance(tool_ids, list):
+                    tool_ids = []
                 
-                # Convert tool_ids to strings (for JSON serialization)
-                tool_ids_str = []
+                # Convert tool_ids to list of strings (for JSONArray type)
+                tool_ids_list = []
                 for tid in tool_ids:
                     try:
                         if isinstance(tid, uuid_lib.UUID):
-                            tool_ids_str.append(str(tid))
+                            tool_ids_list.append(str(tid))
                         elif isinstance(tid, str):
                             # Validate it's a valid UUID string, then keep as string
                             uuid_lib.UUID(tid)  # Validate
-                            tool_ids_str.append(tid)
+                            tool_ids_list.append(tid)
                         else:
-                            tool_ids_str.append(str(tid))
+                            tool_ids_list.append(str(tid))
                     except (ValueError, AttributeError):
                         # Keep as string if not valid UUID
-                        tool_ids_str.append(str(tid))
+                        tool_ids_list.append(str(tid))
                 
                 memory = agent_data.get('memory', [])
                 if isinstance(memory, str):
                     memory = json.loads(memory)
+                elif not isinstance(memory, list):
+                    memory = []
                 
                 shared_with_user_ids = agent_data.get('shared_with_user_ids', [])
                 if isinstance(shared_with_user_ids, str):
                     shared_with_user_ids = json.loads(shared_with_user_ids)
+                elif not isinstance(shared_with_user_ids, list):
+                    shared_with_user_ids = []
                 
                 shared_with_role_ids = agent_data.get('shared_with_role_ids', [])
                 if isinstance(shared_with_role_ids, str):
                     shared_with_role_ids = json.loads(shared_with_role_ids)
+                elif not isinstance(shared_with_role_ids, list):
+                    shared_with_role_ids = []
                 
-                # Convert shared IDs to strings (for JSON serialization)
-                shared_user_ids_str = []
+                # Convert shared IDs to list of strings (for JSONArray type)
+                shared_user_ids_list = []
                 for uid in shared_with_user_ids:
                     try:
                         if isinstance(uid, uuid_lib.UUID):
-                            shared_user_ids_str.append(str(uid))
+                            shared_user_ids_list.append(str(uid))
                         elif isinstance(uid, str):
                             # Validate it's a valid UUID string, then keep as string
                             uuid_lib.UUID(uid)  # Validate
-                            shared_user_ids_str.append(uid)
+                            shared_user_ids_list.append(uid)
                         else:
-                            shared_user_ids_str.append(str(uid))
+                            shared_user_ids_list.append(str(uid))
                     except (ValueError, AttributeError):
                         pass
                 
-                shared_role_ids_str = []
+                shared_role_ids_list = []
                 for rid in shared_with_role_ids:
                     try:
                         if isinstance(rid, uuid_lib.UUID):
-                            shared_role_ids_str.append(str(rid))
+                            shared_role_ids_list.append(str(rid))
                         elif isinstance(rid, str):
                             # Validate it's a valid UUID string, then keep as string
                             uuid_lib.UUID(rid)  # Validate
-                            shared_role_ids_str.append(rid)
+                            shared_role_ids_list.append(rid)
                         else:
-                            shared_role_ids_str.append(str(rid))
+                            shared_role_ids_list.append(str(rid))
                     except (ValueError, AttributeError):
                         pass
                 
@@ -333,6 +347,8 @@ class AgentService:
                     status = AgentStatus.DRAFT
                 
                 # Create database agent
+                # Note: personality, guardrails, tasks, memory, extra_metadata use JSON type (dict/list)
+                # tool_ids, shared_with_user_ids, shared_with_role_ids use JSONArray type (list of strings)
                 db_agent = DBAgent(
                     id=agent_uuid,
                     org_id=org_uuid,
@@ -341,23 +357,23 @@ class AgentService:
                     goal=agent_data.get('goal', ''),
                     description=agent_data.get('description', ''),
                     model_id=agent_data.get('model_id', 'gpt-4o'),
-                    personality=personality,
-                    guardrails=guardrails,
-                    tasks=tasks,
-                    tool_ids=tool_ids_str,  # Store as strings for JSON serialization
-                    memory=memory,
+                    personality=personality,  # JSON type - dict
+                    guardrails=guardrails,  # JSON type - dict
+                    tasks=tasks,  # JSON type - list
+                    tool_ids=tool_ids_list,  # JSONArray type - list of strings
+                    memory=memory,  # JSON type - list
                     memory_enabled=agent_data.get('memory_enabled', True),
                     context_window=agent_data.get('context_window', 4096),
                     status=status,
                     is_published=agent_data.get('is_active', False) or agent_data.get('is_published', False),
                     is_public=agent_data.get('is_public', False),
                     owner_id=owner_uuid,
-                    shared_with_user_ids=shared_user_ids_str,  # Store as strings for JSON serialization
-                    shared_with_role_ids=shared_role_ids_str,  # Store as strings for JSON serialization
+                    shared_with_user_ids=shared_user_ids_list,  # JSONArray type - list of strings
+                    shared_with_role_ids=shared_role_ids_list,  # JSONArray type - list of strings
                     usage_count=agent_data.get('usage_count', 0),
                     version=agent_data.get('version', 1),
                     created_by=created_by_uuid,
-                    extra_metadata=agent_data.get('extra_metadata', {})
+                    extra_metadata=agent_data.get('extra_metadata', {})  # JSON type - dict
                 )
                 
                 db.add(db_agent)
@@ -423,40 +439,50 @@ class AgentService:
                     personality = agent_data['personality']
                     if isinstance(personality, str):
                         personality = json.loads(personality)
+                    elif not isinstance(personality, dict):
+                        personality = {}
                     db_agent.personality = personality
                 if 'guardrails' in agent_data:
                     guardrails = agent_data['guardrails']
                     if isinstance(guardrails, str):
                         guardrails = json.loads(guardrails)
+                    elif not isinstance(guardrails, dict):
+                        guardrails = {}
                     db_agent.guardrails = guardrails
                 if 'tasks' in agent_data:
                     tasks = agent_data['tasks']
                     if isinstance(tasks, str):
                         tasks = json.loads(tasks)
+                    elif not isinstance(tasks, list):
+                        tasks = []
                     db_agent.tasks = tasks
                 if 'tool_ids' in agent_data:
                     tool_ids = agent_data['tool_ids']
                     if isinstance(tool_ids, str):
                         tool_ids = json.loads(tool_ids)
-                    # Convert to strings (for JSON serialization)
-                    tool_ids_str = []
+                    elif not isinstance(tool_ids, list):
+                        tool_ids = []
+                    # Convert to list of strings (for JSONArray type)
+                    tool_ids_list = []
                     for tid in tool_ids:
                         try:
                             if isinstance(tid, uuid_lib.UUID):
-                                tool_ids_str.append(str(tid))
+                                tool_ids_list.append(str(tid))
                             elif isinstance(tid, str):
                                 # Validate it's a valid UUID string, then keep as string
                                 uuid_lib.UUID(tid)  # Validate
-                                tool_ids_str.append(tid)
+                                tool_ids_list.append(tid)
                             else:
-                                tool_ids_str.append(str(tid))
+                                tool_ids_list.append(str(tid))
                         except (ValueError, AttributeError):
-                            tool_ids_str.append(str(tid))  # Keep as string if not valid UUID
-                    db_agent.tool_ids = tool_ids_str
+                            tool_ids_list.append(str(tid))  # Keep as string if not valid UUID
+                    db_agent.tool_ids = tool_ids_list
                 if 'memory' in agent_data:
                     memory = agent_data['memory']
                     if isinstance(memory, str):
                         memory = json.loads(memory)
+                    elif not isinstance(memory, list):
+                        memory = []
                     db_agent.memory = memory
                 if 'memory_enabled' in agent_data:
                     db_agent.memory_enabled = agent_data['memory_enabled']
@@ -481,40 +507,44 @@ class AgentService:
                     shared_user_ids = agent_data['shared_with_user_ids']
                     if isinstance(shared_user_ids, str):
                         shared_user_ids = json.loads(shared_user_ids)
-                    # Convert to strings (for JSON serialization)
-                    shared_user_ids_str = []
+                    elif not isinstance(shared_user_ids, list):
+                        shared_user_ids = []
+                    # Convert to list of strings (for JSONArray type)
+                    shared_user_ids_list = []
                     for uid in shared_user_ids:
                         try:
                             if isinstance(uid, uuid_lib.UUID):
-                                shared_user_ids_str.append(str(uid))
+                                shared_user_ids_list.append(str(uid))
                             elif isinstance(uid, str):
                                 # Validate it's a valid UUID string, then keep as string
                                 uuid_lib.UUID(uid)  # Validate
-                                shared_user_ids_str.append(uid)
+                                shared_user_ids_list.append(uid)
                             else:
-                                shared_user_ids_str.append(str(uid))
+                                shared_user_ids_list.append(str(uid))
                         except (ValueError, AttributeError):
                             pass
-                    db_agent.shared_with_user_ids = shared_user_ids_str
+                    db_agent.shared_with_user_ids = shared_user_ids_list
                 if 'shared_with_role_ids' in agent_data:
                     shared_role_ids = agent_data['shared_with_role_ids']
                     if isinstance(shared_role_ids, str):
                         shared_role_ids = json.loads(shared_role_ids)
-                    # Convert to strings (for JSON serialization)
-                    shared_role_ids_str = []
+                    elif not isinstance(shared_role_ids, list):
+                        shared_role_ids = []
+                    # Convert to list of strings (for JSONArray type)
+                    shared_role_ids_list = []
                     for rid in shared_role_ids:
                         try:
                             if isinstance(rid, uuid_lib.UUID):
-                                shared_role_ids_str.append(str(rid))
+                                shared_role_ids_list.append(str(rid))
                             elif isinstance(rid, str):
                                 # Validate it's a valid UUID string, then keep as string
                                 uuid_lib.UUID(rid)  # Validate
-                                shared_role_ids_str.append(rid)
+                                shared_role_ids_list.append(rid)
                             else:
-                                shared_role_ids_str.append(str(rid))
+                                shared_role_ids_list.append(str(rid))
                         except (ValueError, AttributeError):
                             pass
-                    db_agent.shared_with_role_ids = shared_role_ids_str
+                    db_agent.shared_with_role_ids = shared_role_ids_list
                 if 'usage_count' in agent_data:
                     db_agent.usage_count = agent_data['usage_count']
                 if 'last_used_at' in agent_data:
@@ -527,6 +557,8 @@ class AgentService:
                     extra_metadata = agent_data['extra_metadata']
                     if isinstance(extra_metadata, str):
                         extra_metadata = json.loads(extra_metadata)
+                    elif not isinstance(extra_metadata, dict):
+                        extra_metadata = {}
                     db_agent.extra_metadata = extra_metadata
                 
                 # Update timestamps
