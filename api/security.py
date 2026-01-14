@@ -540,7 +540,7 @@ async def register(request: RegisterRequest, req: Request):
     org_id = request.org_id or "org_default"
     
     # Handle invitation
-    role_ids = ["role_user"]
+    role_ids = None  # Will be set below
     department_id = None
     
     if request.invitation_token:
@@ -559,10 +559,33 @@ async def register(request: RegisterRequest, req: Request):
         if invitation.accepted_at:
             raise HTTPException(status_code=400, detail="Invitation already used")
         
-        role_ids = invitation.role_ids or role_ids
+        role_ids = invitation.role_ids or []
         department_id = invitation.department_id
         org_id = invitation.org_id
         invitation.accepted_at = datetime.utcnow().isoformat()
+    else:
+        # Self-registration: Get or create "User" role
+        try:
+            from database.services import RoleService
+            user_role = RoleService.get_or_create_user_role(org_id)
+            role_ids = [user_role.id]
+            print(f"✅ [REGISTER] Using 'User' role for self-registered user: {user_role.name} (ID: {user_role.id[:8]}...)")
+        except Exception as e:
+            print(f"⚠️  [REGISTER ERROR] Failed to get/create 'User' role: {e}")
+            import traceback
+            traceback.print_exc()
+            # Fallback: try to find any role with name "User" in security_state
+            for role_id, role in security_state.roles.items():
+                if role.name.lower() == "user":
+                    role_ids = [role.id]
+                    print(f"✅ [REGISTER] Found 'User' role in cache: {role.name} (ID: {role.id[:8]}...)")
+                    break
+            
+            if not role_ids:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to assign default role to new user. Please contact administrator."
+                )
     
     # Create user
     user = User(
@@ -586,7 +609,7 @@ async def register(request: RegisterRequest, req: Request):
     try:
         from database.services import UserService
         UserService.save_user(user)
-        print(f"💾 User saved to database")
+        print(f"💾 [REGISTER] User saved to database: {user.email} (ID: {user.id[:8]}...)")
     except Exception as e:
         print(f"⚠️  Database save failed: {e}, saving to disk only")
         import traceback
@@ -2828,6 +2851,30 @@ async def oauth_callback(provider: str, req: Request):
     user = security_state.get_user_by_email(email, org_id)
     
     if not user:
+        # Get or create "User" role for self-registered users
+        try:
+            from database.services import RoleService
+            user_role = RoleService.get_or_create_user_role(org_id)
+            user_role_id = user_role.id
+            print(f"✅ [OAUTH] Using 'User' role for new user: {user_role.name} (ID: {user_role_id[:8]}...)")
+        except Exception as e:
+            print(f"⚠️  [OAUTH ERROR] Failed to get/create 'User' role: {e}")
+            import traceback
+            traceback.print_exc()
+            # Fallback: try to find any role with name "User" in security_state
+            user_role_id = None
+            for role_id, role in security_state.roles.items():
+                if role.name.lower() == "user":
+                    user_role_id = role.id
+                    print(f"✅ [OAUTH] Found 'User' role in cache: {role.name} (ID: {user_role_id[:8]}...)")
+                    break
+            
+            if not user_role_id:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to assign default role to new user. Please contact administrator."
+                )
+        
         # Create new user from OAuth
         user = User(
             org_id=org_id,
@@ -2839,7 +2886,7 @@ async def oauth_callback(provider: str, req: Request):
                 last_name=user_info.get("family_name", ""),
                 avatar_url=user_info.get("picture")
             ),
-            role_ids=["role_user"],
+            role_ids=[user_role_id],  # Use UUID from database
             status=UserStatus.ACTIVE,
             email_verified=True
         )
@@ -2849,9 +2896,9 @@ async def oauth_callback(provider: str, req: Request):
         try:
             from database.services import UserService
             UserService.save_user(user)
-            print(f"💾 User saved to database")
+            print(f"💾 [OAUTH] User saved to database: {user.email} (ID: {user.id[:8]}...)")
         except Exception as e:
-            print(f"⚠️  Database save failed: {e}, saving to disk only")
+            print(f"⚠️  [OAUTH ERROR] Database save failed: {e}, saving to disk only")
             import traceback
             traceback.print_exc()
             security_state.save_to_disk()

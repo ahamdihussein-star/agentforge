@@ -207,4 +207,101 @@ class RoleService:
             print(f"❌ [DATABASE ERROR] Failed to delete role '{role_id[:8]}...': {type(e).__name__}: {e}")
             traceback.print_exc()
             raise
+    
+    @staticmethod
+    def get_or_create_user_role(org_id: str = "org_default") -> Role:
+        """
+        Get or create the default "User" role for self-registered users.
+        This role has limited permissions (chat only).
+        Returns the Role model.
+        """
+        try:
+            import uuid as uuid_lib
+            from core.security import Permission
+            
+            with get_db_session() as session:
+                # Try to find existing "User" role by name
+                # First, resolve org_id to UUID
+                try:
+                    org_uuid = uuid_lib.UUID(org_id) if org_id != "org_default" else None
+                except ValueError:
+                    org_uuid = None
+                
+                # Search for "User" role by name (case-insensitive)
+                if org_uuid:
+                    existing = session.query(DBRole).filter(
+                        DBRole.name.ilike("User"),
+                        DBRole.org_id == org_uuid
+                    ).first()
+                else:
+                    # For org_default, search by name and check if org_id is null or matches default org
+                    from database.services import OrganizationService
+                    orgs = OrganizationService.get_all_organizations()
+                    default_org = next((o for o in orgs if o.slug == "default"), None)
+                    if default_org:
+                        try:
+                            default_org_uuid = uuid_lib.UUID(default_org.id)
+                            existing = session.query(DBRole).filter(
+                                DBRole.name.ilike("User"),
+                                DBRole.org_id == default_org_uuid
+                            ).first()
+                        except ValueError:
+                            existing = None
+                    else:
+                        existing = None
+                
+                if existing:
+                    print(f"✅ [DATABASE] Found existing 'User' role: {existing.name} (ID: {str(existing.id)[:8]}...)")
+                    return RoleService._db_to_core_role(existing)
+                
+                # Create new "User" role with limited permissions (chat only)
+                print(f"💾 [DATABASE] Creating new 'User' role for self-registered users...")
+                user_role_id = uuid_lib.uuid4()
+                
+                # Default permissions for self-registered users (chat only)
+                user_permissions = [
+                    Permission.CHAT_USE.value,  # Only chat permission
+                ]
+                
+                # Resolve org_id to UUID
+                if org_id == "org_default":
+                    from database.services import OrganizationService
+                    orgs = OrganizationService.get_all_organizations()
+                    default_org = next((o for o in orgs if o.slug == "default"), None)
+                    if default_org:
+                        try:
+                            org_uuid = uuid_lib.UUID(default_org.id)
+                        except ValueError:
+                            org_uuid = None
+                    else:
+                        org_uuid = None
+                else:
+                    try:
+                        org_uuid = uuid_lib.UUID(org_id)
+                    except ValueError:
+                        org_uuid = None
+                
+                new_role = DBRole(
+                    id=user_role_id,
+                    name="User",
+                    description="Default role for self-registered users (chat access only)",
+                    permissions=json.dumps(user_permissions),
+                    parent_id=None,
+                    level="100",  # Lowest privilege level
+                    is_system=True,  # System role, cannot be deleted
+                    org_id=org_uuid,
+                    created_by=None,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+                session.add(new_role)
+                session.commit()
+                session.refresh(new_role)
+                print(f"✅ [DATABASE] Created 'User' role: {new_role.name} (ID: {str(new_role.id)[:8]}...) with {len(user_permissions)} permission(s)")
+                return RoleService._db_to_core_role(new_role)
+                
+        except Exception as e:
+            print(f"❌ [DATABASE ERROR] Failed to get/create 'User' role: {type(e).__name__}: {e}")
+            traceback.print_exc()
+            raise
 
