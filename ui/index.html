@@ -17990,21 +17990,68 @@ function showLoginMfaModal(methods) {
             </div>
         </div>
     `;
+    console.log("📝 [FRONTEND] Appending modal to document.body...");
+    console.log("   Body children before:", document.body.children.length);
     document.body.appendChild(modal);
-    console.log("✅ [FRONTEND] MFA modal added to DOM");
-    console.log("   Modal ID:", modal.id);
-    console.log("   Modal visible:", modal.offsetParent !== null);
+    console.log("✅ [FRONTEND] Modal appended to DOM");
+    console.log("   Body children after:", document.body.children.length);
+    
+    // Verify modal is in DOM
+    const modalInDom = document.getElementById('login-mfa-modal');
+    if (modalInDom) {
+        console.log("✅ [FRONTEND] Modal found in DOM by ID");
+        console.log("   Modal element:", modalInDom);
+        console.log("   Modal parent:", modalInDom.parentElement);
+        console.log("   Modal offsetParent:", modalInDom.offsetParent);
+        console.log("   Modal display:", window.getComputedStyle(modalInDom).display);
+        console.log("   Modal visibility:", window.getComputedStyle(modalInDom).visibility);
+        console.log("   Modal z-index:", window.getComputedStyle(modalInDom).zIndex);
+        console.log("   Modal opacity:", window.getComputedStyle(modalInDom).opacity);
+        
+        if (modalInDom.offsetParent !== null) {
+            console.log("✅ [FRONTEND] ✅✅✅ MFA MODAL IS VISIBLE! ✅✅✅");
+        } else {
+            console.error("❌ [FRONTEND] ❌❌❌ MFA MODAL IS NOT VISIBLE! ❌❌❌");
+            console.error("   Possible reasons:");
+            console.error("   1. Modal has display: none");
+            console.error("   2. Modal has visibility: hidden");
+            console.error("   3. Modal has opacity: 0");
+            console.error("   4. Modal is positioned outside viewport");
+            console.error("   5. Parent element is hidden");
+        }
+    } else {
+        console.error("❌ [FRONTEND] ❌❌❌ MODAL NOT FOUND IN DOM! ❌❌❌");
+        console.error("   This means the modal was not added successfully!");
+    }
     
     // Focus on input
     setTimeout(() => {
+        console.log("📝 [FRONTEND] Attempting to focus on MFA code input...");
         const input = document.getElementById('login-mfa-code');
         if (input) {
+            console.log("✅ [FRONTEND] MFA code input found");
+            console.log("   Input element:", input);
+            console.log("   Input parent:", input.parentElement);
             input.focus();
             console.log("✅ [FRONTEND] Focused on MFA code input");
+            console.log("   Input value:", input.value);
         } else {
-            console.error("❌ [FRONTEND] MFA code input not found!");
+            console.error("❌ [FRONTEND] ❌❌❌ MFA CODE INPUT NOT FOUND! ❌❌❌");
+            console.error("   This means the modal HTML was not rendered correctly!");
+            console.error("   Searching for modal in DOM...");
+            const modalCheck = document.getElementById('login-mfa-modal');
+            if (modalCheck) {
+                console.error("   Modal exists but input is missing!");
+                console.error("   Modal innerHTML length:", modalCheck.innerHTML.length);
+            } else {
+                console.error("   Modal itself is missing from DOM!");
+            }
         }
     }, 100);
+    
+    console.log("🎭 [FRONTEND] ========================================");
+    console.log("🎭 [FRONTEND] showLoginMfaModal completed");
+    console.log("🎭 [FRONTEND] ========================================");
 }
 
 function closeLoginMfaModal() {
