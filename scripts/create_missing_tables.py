@@ -123,7 +123,123 @@ def create_missing_tables():
     return True
 
 
+def fix_jsonarray_column_types():
+    """
+    Fix JSONArray columns that were incorrectly created as PostgreSQL ARRAY.
+    Changes them from text[]/uuid[] to JSONB.
+    """
+    print()
+    print("=" * 60)
+    print("🔧 Fixing JSONArray Column Types (ARRAY → JSONB)")
+    print("=" * 60)
+    print()
+    
+    engine = get_engine()
+    
+    # Columns that should be JSONB but might be ARRAY
+    columns_to_fix = [
+        ('agents', 'tool_ids'),
+        ('agents', 'shared_with_user_ids'),
+        ('agents', 'shared_with_role_ids'),
+        ('agents', 'memory'),
+        ('knowledge_bases', 'tags'),
+    ]
+    
+    with engine.connect() as conn:
+        for table_name, column_name in columns_to_fix:
+            try:
+                # Check if table exists
+                result = conn.execute(text(f"""
+                    SELECT column_name, data_type, udt_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = '{table_name}' AND column_name = '{column_name}'
+                """))
+                row = result.fetchone()
+                
+                if not row:
+                    print(f"   ⏭️  Column '{table_name}.{column_name}' doesn't exist, skipping")
+                    continue
+                
+                data_type = row[1]
+                udt_name = row[2]
+                
+                # Check if it's an ARRAY type (udt_name starts with '_')
+                if udt_name.startswith('_') or data_type == 'ARRAY':
+                    print(f"   🔄 Converting {table_name}.{column_name} from {udt_name} to JSONB...")
+                    
+                    # Convert ARRAY to JSONB
+                    # First, create a temp column, convert data, drop old, rename new
+                    conn.execute(text(f"""
+                        ALTER TABLE {table_name} 
+                        ADD COLUMN IF NOT EXISTS {column_name}_new JSONB DEFAULT '[]'::jsonb
+                    """))
+                    
+                    # Copy data from old column, converting ARRAY to JSON
+                    conn.execute(text(f"""
+                        UPDATE {table_name} 
+                        SET {column_name}_new = COALESCE(to_jsonb({column_name}), '[]'::jsonb)
+                        WHERE {column_name} IS NOT NULL
+                    """))
+                    
+                    # Drop old column
+                    conn.execute(text(f"""
+                        ALTER TABLE {table_name} DROP COLUMN {column_name}
+                    """))
+                    
+                    # Rename new column
+                    conn.execute(text(f"""
+                        ALTER TABLE {table_name} RENAME COLUMN {column_name}_new TO {column_name}
+                    """))
+                    
+                    conn.commit()
+                    print(f"   ✅ Converted {table_name}.{column_name} to JSONB")
+                    
+                elif udt_name == 'jsonb' or data_type == 'jsonb':
+                    print(f"   ✅ {table_name}.{column_name} is already JSONB")
+                    
+                elif udt_name == 'text' or data_type == 'text':
+                    print(f"   🔄 Converting {table_name}.{column_name} from TEXT to JSONB...")
+                    
+                    # Convert TEXT to JSONB
+                    conn.execute(text(f"""
+                        ALTER TABLE {table_name} 
+                        ADD COLUMN IF NOT EXISTS {column_name}_new JSONB DEFAULT '[]'::jsonb
+                    """))
+                    
+                    conn.execute(text(f"""
+                        UPDATE {table_name} 
+                        SET {column_name}_new = CASE 
+                            WHEN {column_name} IS NULL THEN '[]'::jsonb
+                            WHEN {column_name} = '' THEN '[]'::jsonb
+                            ELSE {column_name}::jsonb 
+                        END
+                    """))
+                    
+                    conn.execute(text(f"""
+                        ALTER TABLE {table_name} DROP COLUMN {column_name}
+                    """))
+                    
+                    conn.execute(text(f"""
+                        ALTER TABLE {table_name} RENAME COLUMN {column_name}_new TO {column_name}
+                    """))
+                    
+                    conn.commit()
+                    print(f"   ✅ Converted {table_name}.{column_name} to JSONB")
+                else:
+                    print(f"   ⚠️  {table_name}.{column_name} has unexpected type: {data_type}/{udt_name}")
+                    
+            except Exception as e:
+                print(f"   ⚠️  Error processing {table_name}.{column_name}: {e}")
+                # Don't fail on individual column errors
+                continue
+    
+    print()
+    print("✅ Column type fixes complete!")
+    print()
+
+
 if __name__ == "__main__":
     success = create_missing_tables()
+    fix_jsonarray_column_types()  # Fix column types after table creation
     sys.exit(0 if success else 1)
 
