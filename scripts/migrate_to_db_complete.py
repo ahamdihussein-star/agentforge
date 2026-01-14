@@ -419,6 +419,17 @@ def migrate_agents(org_mapping):
     print("🤖 Migrating Agents...")
     print("="*60)
     
+    # Check if agents already exist in database
+    try:
+        from database.services import AgentService
+        existing_agents = AgentService.get_all_agents("org_default")
+        if existing_agents and len(existing_agents) > 0:
+            print(f"✅ Found {len(existing_agents)} agents already in database")
+            print("⏭️  Skipping migration (agents already exist)")
+            return len(existing_agents)
+    except Exception:
+        pass  # Continue with migration if check fails
+    
     data = load_json_file('data/agents.json')
     if not data:
         print("⚠️  No agents file found")
