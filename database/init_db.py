@@ -9,12 +9,12 @@ import os
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import directly from base to avoid circular import
-from database.base import init_db, check_connection, get_engine
-
 
 def main():
     """Initialize database with complete enterprise schema"""
+    # Import here to avoid circular import issues
+    from database.base import init_db, check_connection, get_engine
+    
     print("=" * 60)
     print("🚀 AgentForge Database Initialization")
     print("   ENTERPRISE-GRADE SCHEMA")

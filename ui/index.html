@@ -17954,38 +17954,72 @@ function showLoginMfaModal(methods) {
     console.log("✅ [FRONTEND] Modal element created, ID:", modal.id);
     console.log("✅ [FRONTEND] Modal classes:", modal.className);
     
+    // Get email to display (mask for privacy)
+    const email = window.pendingMfaEmail || window.pendingLoginEmail || 'your email';
+    const maskEmail = (email) => {
+        if (!email || email === 'your email') return email;
+        const [local, domain] = email.split('@');
+        if (local.length <= 2) return email;
+        const visible = local.substring(0, 2);
+        const masked = '*'.repeat(Math.min(local.length - 2, 4));
+        return `${visible}${masked}@${domain}`;
+    };
+    const displayEmail = maskEmail(email);
+    
     console.log("📝 [FRONTEND] Setting modal innerHTML...");
     modal.innerHTML = `
         <div class="card rounded-2xl p-6 w-full max-w-md mx-4">
             <div class="text-center mb-6">
                 <div class="text-5xl mb-3">🔐</div>
-                <h3 class="text-xl font-bold">Two-Factor Authentication</h3>
-                <p class="text-gray-400 text-sm mt-2">A verification code has been sent to your email</p>
+                <h3 class="text-xl font-bold mb-2">Two-Factor Authentication</h3>
+                <p class="text-gray-400 text-sm">Enter the 6-digit code sent to</p>
+                <p class="text-purple-400 font-semibold text-sm mt-1" id="mfa-email-display" title="${email}">${displayEmail}</p>
             </div>
             
             <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
                 <div class="flex items-center gap-3">
-                    <span class="text-2xl">📧</span>
-                    <div>
-                        <p class="text-green-400 font-medium">Code Sent!</p>
-                        <p class="text-sm text-gray-400">Check your email for the 6-digit code</p>
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                        <span class="text-xl">✓</span>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-green-400 font-medium text-sm">Code sent successfully!</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Please check your email inbox</p>
                     </div>
                 </div>
             </div>
             
             <div>
-                <label class="block text-sm text-gray-400 mb-2">Verification Code</label>
-                <input type="text" id="login-mfa-code" class="input-field w-full px-4 py-3 rounded-lg text-center text-2xl tracking-widest" placeholder="000000" maxlength="6" autofocus>
+                <label class="block text-sm font-medium text-gray-300 mb-2">Verification Code</label>
+                <input 
+                    type="text" 
+                    id="login-mfa-code" 
+                    class="input-field w-full px-4 py-4 rounded-lg text-center text-3xl tracking-[0.5em] font-mono font-semibold focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all" 
+                    placeholder="000000" 
+                    maxlength="6" 
+                    pattern="[0-9]{6}"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    autofocus
+                >
+                <p class="text-xs text-gray-500 mt-2 text-center">Enter the 6-digit code from your email</p>
             </div>
             
             <div class="flex gap-3 mt-6">
-                <button onclick="closeLoginMfaModal()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
-                <button onclick="verifyLoginMfa()" id="verify-mfa-btn" class="btn-primary flex-1 py-2 rounded-lg">Verify</button>
+                <button onclick="closeLoginMfaModal()" class="btn-secondary flex-1 py-3 rounded-lg font-medium transition-all hover:bg-gray-700">Cancel</button>
+                <button onclick="verifyLoginMfa()" id="verify-mfa-btn" class="btn-primary flex-1 py-3 rounded-lg font-medium transition-all hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="verify-btn-text">Verify</span>
+                </button>
             </div>
             
-            <div class="text-center mt-4">
-                <button onclick="resendLoginMfaCode()" id="resend-mfa-btn" class="text-sm text-gray-400 hover:text-purple-400 transition">
-                    Didn't receive the code? Resend
+            <div class="text-center mt-4 pt-4 border-t border-gray-700">
+                <p class="text-xs text-gray-500 mb-2">Didn't receive the code?</p>
+                <button onclick="resendLoginMfaCode()" id="resend-mfa-btn" class="text-sm text-gray-400 hover:text-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-800/50" disabled>
+                    <span id="resend-text">
+                        <span class="inline-flex items-center gap-1">
+                            <span>Resend code in</span>
+                            <span id="resend-timer" class="font-mono font-semibold text-purple-400 min-w-[3ch]">10:00</span>
+                        </span>
+                    </span>
                 </button>
             </div>
         </div>
@@ -18024,28 +18058,78 @@ function showLoginMfaModal(methods) {
         console.error("   This means the modal was not added successfully!");
     }
     
-    // Focus on input
+    // Start resend timer (10 minutes = 600 seconds)
+    let resendTimer = 600; // 10 minutes in seconds
+    const resendBtn = document.getElementById('resend-mfa-btn');
+    const resendTimerSpan = document.getElementById('resend-timer');
+    
+    function updateResendTimer() {
+        if (resendTimer > 0) {
+            const minutes = Math.floor(resendTimer / 60);
+            const seconds = resendTimer % 60;
+            resendTimerSpan.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            resendTimer--;
+        } else {
+            if (resendTimerSpan) {
+                resendTimerSpan.textContent = '0:00';
+            }
+            if (resendBtn) {
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = '<span id="resend-text"><span class="inline-flex items-center gap-1"><span>Resend code</span><span class="text-purple-400">→</span></span></span>';
+            }
+            clearInterval(window.mfaResendInterval);
+        }
+    }
+    
+    // Start timer
+    if (window.mfaResendInterval) {
+        clearInterval(window.mfaResendInterval);
+    }
+    window.mfaResendInterval = setInterval(updateResendTimer, 1000);
+    updateResendTimer(); // Initial update
+    
+    // Focus on input and add auto-submit
     setTimeout(() => {
         console.log("📝 [FRONTEND] Attempting to focus on MFA code input...");
         const input = document.getElementById('login-mfa-code');
         if (input) {
             console.log("✅ [FRONTEND] MFA code input found");
-            console.log("   Input element:", input);
-            console.log("   Input parent:", input.parentElement);
             input.focus();
             console.log("✅ [FRONTEND] Focused on MFA code input");
-            console.log("   Input value:", input.value);
+            
+            // Auto-submit when 6 digits are entered
+            input.addEventListener('input', function(e) {
+                const value = e.target.value.replace(/\D/g, ''); // Only numbers
+                e.target.value = value;
+                
+                // Auto-submit when 6 digits entered
+                if (value.length === 6) {
+                    const verifyBtn = document.getElementById('verify-mfa-btn');
+                    if (verifyBtn && !verifyBtn.disabled) {
+                        setTimeout(() => verifyLoginMfa(), 100); // Small delay for UX
+                    }
+                }
+            });
+            
+            // Prevent non-numeric input
+            input.addEventListener('keypress', function(e) {
+                if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'Tab', 'Enter'].includes(e.key)) {
+                    e.preventDefault();
+                }
+            });
+            
+            // Paste handler
+            input.addEventListener('paste', function(e) {
+                e.preventDefault();
+                const pasted = (e.clipboardData || window.clipboardData).getData('text');
+                const numbers = pasted.replace(/\D/g, '').substring(0, 6);
+                e.target.value = numbers;
+                if (numbers.length === 6) {
+                    setTimeout(() => verifyLoginMfa(), 100);
+                }
+            });
         } else {
             console.error("❌ [FRONTEND] ❌❌❌ MFA CODE INPUT NOT FOUND! ❌❌❌");
-            console.error("   This means the modal HTML was not rendered correctly!");
-            console.error("   Searching for modal in DOM...");
-            const modalCheck = document.getElementById('login-mfa-modal');
-            if (modalCheck) {
-                console.error("   Modal exists but input is missing!");
-                console.error("   Modal innerHTML length:", modalCheck.innerHTML.length);
-            } else {
-                console.error("   Modal itself is missing from DOM!");
-            }
         }
     }, 100);
     
@@ -18055,6 +18139,11 @@ function showLoginMfaModal(methods) {
 }
 
 function closeLoginMfaModal() {
+    // Clear timer
+    if (window.mfaResendInterval) {
+        clearInterval(window.mfaResendInterval);
+        window.mfaResendInterval = null;
+    }
     document.getElementById('login-mfa-modal')?.remove();
     window.pendingLoginEmail = null;
     window.pendingLoginPassword = null;
@@ -18066,8 +18155,12 @@ function closeLoginMfaModal() {
 
 async function resendLoginMfaCode() {
     const btn = document.getElementById('resend-mfa-btn');
+    if (btn.disabled) {
+        return; // Timer not expired yet
+    }
+    
     btn.disabled = true;
-    btn.textContent = 'Sending...';
+    btn.innerHTML = '<span id="resend-text">Sending...</span>';
     
     try {
         // Check if this is OAuth MFA (has session_id) or regular login MFA
@@ -18084,18 +18177,46 @@ async function resendLoginMfaCode() {
             });
             
             if (res.ok) {
-                showToast('New code sent to your email', 'success');
-                btn.textContent = 'Code Sent ✓';
-                setTimeout(() => {
-                    btn.textContent = "Didn't receive the code? Resend";
-                    btn.disabled = false;
-                }, 30000);
+                showToast('✅ New code sent to your email', 'success');
+                
+                // Reset timer (10 minutes = 600 seconds)
+                let resendTimer = 600;
+                const resendTimerSpan = document.getElementById('resend-timer');
+                
+                function updateResendTimer() {
+                    if (resendTimer > 0) {
+                        const minutes = Math.floor(resendTimer / 60);
+                        const seconds = resendTimer % 60;
+                        if (resendTimerSpan) {
+                            resendTimerSpan.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                        }
+                        resendTimer--;
+                    } else {
+                        if (resendTimerSpan) {
+                            resendTimerSpan.textContent = '0:00';
+                        }
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<span id="resend-text"><span class="inline-flex items-center gap-1"><span>Resend code</span><span class="text-purple-400">→</span></span></span>';
+                        }
+                        clearInterval(window.mfaResendInterval);
+                    }
+                }
+                
+                // Clear old timer and start new one
+                if (window.mfaResendInterval) {
+                    clearInterval(window.mfaResendInterval);
+                }
+                window.mfaResendInterval = setInterval(updateResendTimer, 1000);
+                updateResendTimer(); // Initial update
+                
+                btn.innerHTML = '<span id="resend-text"><span class="inline-flex items-center gap-1"><span>Resend code in</span><span id="resend-timer" class="font-mono font-semibold text-purple-400 min-w-[3ch]">10:00</span></span></span>';
             } else {
                 const data = await res.json();
                 console.log("📧 [FRONTEND] OAuth MFA resend response:", data);
                 showToast(data.detail || 'Failed to send code', 'error');
                 btn.disabled = false;
-                btn.textContent = "Didn't receive the code? Resend";
+                btn.innerHTML = '<span id="resend-text"><span class="inline-flex items-center gap-1"><span>Resend code</span><span class="text-purple-400">→</span></span></span>';
             }
         } else {
             console.log("📧 [FRONTEND] Resending regular login MFA code");
@@ -18110,38 +18231,79 @@ async function resendLoginMfaCode() {
             });
             
             if (res.ok) {
-                showToast('New code sent to your email', 'success');
-                btn.textContent = 'Code Sent ✓';
-                setTimeout(() => {
-                    btn.textContent = "Didn't receive the code? Resend";
-                    btn.disabled = false;
-                }, 30000);
+                showToast('✅ New code sent to your email', 'success');
+                
+                // Reset timer (10 minutes = 600 seconds)
+                let resendTimer = 600;
+                const resendTimerSpan = document.getElementById('resend-timer');
+                
+                function updateResendTimer() {
+                    if (resendTimer > 0) {
+                        const minutes = Math.floor(resendTimer / 60);
+                        const seconds = resendTimer % 60;
+                        if (resendTimerSpan) {
+                            resendTimerSpan.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                        }
+                        resendTimer--;
+                    } else {
+                        if (resendTimerSpan) {
+                            resendTimerSpan.textContent = '0:00';
+                        }
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<span id="resend-text"><span class="inline-flex items-center gap-1"><span>Resend code</span><span class="text-purple-400">→</span></span></span>';
+                        }
+                        clearInterval(window.mfaResendInterval);
+                    }
+                }
+                
+                // Clear old timer and start new one
+                if (window.mfaResendInterval) {
+                    clearInterval(window.mfaResendInterval);
+                }
+                window.mfaResendInterval = setInterval(updateResendTimer, 1000);
+                updateResendTimer(); // Initial update
+                
+                btn.innerHTML = '<span id="resend-text"><span class="inline-flex items-center gap-1"><span>Resend code in</span><span id="resend-timer" class="font-mono font-semibold text-purple-400 min-w-[3ch]">10:00</span></span></span>';
             } else {
                 const data = await res.json();
                 console.log("📧 [FRONTEND] Regular login MFA resend response:", data);
                 showToast(data.detail || 'Failed to send code', 'error');
                 btn.disabled = false;
-                btn.textContent = "Didn't receive the code? Resend";
+                btn.innerHTML = '<span id="resend-text"><span class="inline-flex items-center gap-1"><span>Resend code</span><span class="text-purple-400">→</span></span></span>';
             }
         }
     } catch (e) {
         console.error("❌ [FRONTEND] MFA resend error:", e);
         showToast('Error: ' + e.message, 'error');
         btn.disabled = false;
-        btn.textContent = "Didn't receive the code? Resend";
+        btn.innerHTML = '<span id="resend-text">Didn\'t receive the code? <span class="text-purple-400">Resend</span></span>';
     }
 }
 
 async function verifyLoginMfa() {
-    const code = document.getElementById('login-mfa-code')?.value;
-    if (!code || code.length < 6) {
-        showToast('Please enter a valid code', 'error');
+    const codeInput = document.getElementById('login-mfa-code');
+    const code = codeInput?.value?.replace(/\D/g, '') || '';
+    
+    if (!code || code.length !== 6) {
+        showToast('Please enter a valid 6-digit code', 'error');
+        if (codeInput) {
+            codeInput.focus();
+            codeInput.select();
+        }
         return;
     }
     
     const btn = document.getElementById('verify-mfa-btn');
-    btn.disabled = true;
-    btn.textContent = 'Verifying...';
+    const btnText = document.getElementById('verify-btn-text');
+    if (btn) {
+        btn.disabled = true;
+        if (btnText) {
+            btnText.textContent = 'Verifying...';
+        } else {
+            btn.textContent = 'Verifying...';
+        }
+    }
     
     try {
         // Check if this is OAuth MFA (has session_id) or regular login MFA
@@ -18162,8 +18324,21 @@ async function verifyLoginMfa() {
             
             if (!res.ok) {
                 showToast(data.detail || 'Invalid code', 'error');
-                btn.disabled = false;
-                btn.textContent = 'Verify';
+                const btnText = document.getElementById('verify-btn-text');
+                if (btn) {
+                    btn.disabled = false;
+                    if (btnText) {
+                        btnText.textContent = 'Verify';
+                    } else {
+                        btn.textContent = 'Verify';
+                    }
+                }
+                // Clear and refocus input
+                const codeInput = document.getElementById('login-mfa-code');
+                if (codeInput) {
+                    codeInput.value = '';
+                    codeInput.focus();
+                }
                 return;
             }
             
@@ -18207,8 +18382,21 @@ async function verifyLoginMfa() {
             
             if (!res.ok) {
                 showToast(data.detail || 'Invalid code', 'error');
-                btn.disabled = false;
-                btn.textContent = 'Verify';
+                const btnText = document.getElementById('verify-btn-text');
+                if (btn) {
+                    btn.disabled = false;
+                    if (btnText) {
+                        btnText.textContent = 'Verify';
+                    } else {
+                        btn.textContent = 'Verify';
+                    }
+                }
+                // Clear and refocus input
+                const codeInput = document.getElementById('login-mfa-code');
+                if (codeInput) {
+                    codeInput.value = '';
+                    codeInput.focus();
+                }
                 return;
             }
             
@@ -18237,8 +18425,21 @@ async function verifyLoginMfa() {
     } catch (e) {
         console.error("❌ [FRONTEND] MFA verification error:", e);
         showToast('Error: ' + e.message, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Verify';
+        const btnText = document.getElementById('verify-btn-text');
+        if (btn) {
+            btn.disabled = false;
+            if (btnText) {
+                btnText.textContent = 'Verify';
+            } else {
+                btn.textContent = 'Verify';
+            }
+        }
+        // Clear and refocus input
+        const codeInput = document.getElementById('login-mfa-code');
+        if (codeInput) {
+            codeInput.value = '';
+            codeInput.focus();
+        }
     }
 }
 
