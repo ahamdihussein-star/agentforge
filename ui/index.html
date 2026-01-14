@@ -17821,6 +17821,8 @@ async function handleLogin(event) {
         
         const data = await res.json();
         console.log("Login response:", data);
+        console.log("requires_mfa:", data.requires_mfa);
+        console.log("mfa_methods:", data.mfa_methods);
         
         if (!res.ok) {
             showToast(typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || 'Login failed'), 'error');
@@ -17829,8 +17831,8 @@ async function handleLogin(event) {
             return;
         }
         
-        // Check if MFA is required
-        if (data.requires_mfa) {
+        // Check if MFA is required (check both requires_mfa and mfa_required for backward compatibility)
+        if (data.requires_mfa === true || data.mfa_required === true) {
             btn.disabled = false;
             btn.textContent = 'Sign In';
             
@@ -17838,9 +17840,10 @@ async function handleLogin(event) {
             window.pendingLoginEmail = email;
             window.pendingLoginPassword = password;
             window.pendingLoginRemember = remember;
-            window.pendingMfaMethods = data.mfa_methods || [];
+            window.pendingMfaMethods = data.mfa_methods || data.mfa_methods || [];
             
-            showLoginMfaModal(data.mfa_methods);
+            console.log("Showing MFA modal with methods:", window.pendingMfaMethods);
+            showLoginMfaModal(window.pendingMfaMethods);
             return;
         }
         

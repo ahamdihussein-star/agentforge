@@ -774,21 +774,37 @@ async def login(request: LoginRequest, req: Request):
         code = MFAService.generate_email_code()
         user.mfa.email_code = code
         user.mfa.email_code_expires = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+        
+        # Save to database
+        try:
+            from database.services import UserService
+            UserService.save_user(user)
+            print(f"💾 [LOGIN] MFA email code saved to database for {user.email}")
+        except Exception as e:
+            print(f"⚠️  [LOGIN ERROR] Database save failed for MFA email code: {e}, saving to disk only")
+            import traceback
+            traceback.print_exc()
+        
         security_state.save_to_disk()
         
         # Send email in background
         try:
             await EmailService.send_mfa_code(user, code)
+            print(f"📧 [LOGIN] MFA code sent to {user.email}")
         except Exception as e:
-            print(f"Failed to send MFA email: {e}")
+            print(f"⚠️  [LOGIN] Failed to send MFA email: {e}")
         
-        return AuthResponse(
+        # Return MFA required response
+        response = AuthResponse(
             access_token="",
             expires_in=0,
             user={"id": user.id, "email": user.email},
             requires_mfa=True,
-            mfa_methods=["email"]
+            mfa_methods=[m.value for m in user.mfa.methods] if user.mfa and user.mfa.methods else ["email"]
         )
+        print(f"🔐 [LOGIN] MFA required for {user.email}, returning requires_mfa=True response")
+        print(f"   📋 MFA methods: {response.mfa_methods}")
+        return response
     
     # Verify MFA if provided
     if mfa_required and request.mfa_code:
