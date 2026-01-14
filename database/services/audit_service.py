@@ -24,7 +24,6 @@ class AuditService:
         with get_db_session() as session:
             action_str = log.action.value if isinstance(log.action, ActionType) else str(log.action)
             resource_str = log.resource_type.value if isinstance(log.resource_type, ResourceType) else str(log.resource_type)
-            print(f"💾 [DATABASE] Saving audit log to database: {action_str} on {resource_str} by {log.user_email}")
             db_log = DBAuditLog(
                 id=log.id,
                 org_id=log.org_id,
@@ -51,7 +50,6 @@ class AuditService:
             session.add(db_log)
             session.commit()
             session.refresh(db_log)
-            print(f"✅ [DATABASE] Audit log saved successfully: {action_str} on {resource_str}")
             return AuditService._db_to_core_log(db_log)
     
     @staticmethod

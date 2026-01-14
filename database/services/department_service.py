@@ -24,7 +24,6 @@ class DepartmentService:
         with get_db_session() as session:
             db_dept = session.query(DBDepartment).filter_by(id=dept.id).first()
             if db_dept:
-                print(f"💾 [DATABASE] Updating department in database: {dept.name} (ID: {dept.id[:8]}...)")
                 db_dept.name = dept.name
                 db_dept.description = dept.description
                 db_dept.parent_id = dept.parent_id

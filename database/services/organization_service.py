@@ -85,7 +85,6 @@ class OrganizationService:
             db_org = session.query(DBOrganization).filter_by(id=org_id_uuid).first()
             if db_org:
                 # Update existing
-                print(f"💾 [DATABASE] Updating organization in database: {org.name} (ID: {org_id_uuid[:8]}...)")
                 db_org.name = org.name
                 db_org.slug = org.slug
                 db_org.plan = org.settings.get('plan', 'free')

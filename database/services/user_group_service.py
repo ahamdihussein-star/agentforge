@@ -25,7 +25,6 @@ class UserGroupService:
         with get_db_session() as session:
             db_group = session.query(DBUserGroup).filter_by(id=group.id).first()
             if db_group:
-                print(f"💾 [DATABASE] Updating user group in database: {group.name} (ID: {group.id[:8]}...)")
                 db_group.name = group.name
                 db_group.description = group.description
                 db_group.user_ids = json.dumps(group.user_ids)

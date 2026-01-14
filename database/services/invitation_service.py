@@ -151,7 +151,6 @@ class InvitationService:
             db_inv = session.query(DBInvitation).filter_by(id=invitation.id).first()
             if db_inv:
                 # Update existing
-                print(f"💾 [DATABASE] Updating invitation in database: {invitation.email} (ID: {invitation.id[:8]}...)")
                 db_inv.org_id = org_id_uuid
                 db_inv.email = invitation.email
                 db_inv.token = invitation.token
@@ -165,7 +164,6 @@ class InvitationService:
                 db_inv.email_sent = invitation.email_sent
                 db_inv.email_sent_at = datetime.fromisoformat(invitation.email_sent_at) if invitation.email_sent_at else None
                 db_inv.resend_count = invitation.resend_count
-                print(f"✅ [DATABASE] Invitation updated successfully: {invitation.email}")
             else:
                 # Create new
                 print(f"💾 [DATABASE] Creating new invitation in database: {invitation.email} (ID: {invitation.id[:8]}...)")

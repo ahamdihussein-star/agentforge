@@ -3162,7 +3162,6 @@ async def oauth_callback(provider: str, req: Request):
             # Send email in background
             try:
                 await EmailService.send_mfa_code(user, code)
-                print(f"📧 [OAUTH] MFA code sent to {user.email}")
             except Exception as e:
                 print(f"⚠️  [OAUTH] Failed to send MFA email: {e}")
         
@@ -3179,7 +3178,6 @@ async def oauth_callback(provider: str, req: Request):
         
         # Redirect to MFA verification page with session ID
         redirect_url = f"/ui/#mfa-verify?session_id={temp_session.id}&email={user.email}&provider={provider}"
-        print(f"🔐 [OAUTH] MFA required for {user.email}, redirecting to MFA verification (session: {temp_session.id[:8]}...)")
         return Response(
             status_code=302,
             headers={"Location": redirect_url}
@@ -3299,7 +3297,6 @@ async def verify_oauth_mfa(request: dict):
         print(f"❌ [OAUTH MFA] Invalid MFA code for {user.email}")
         raise HTTPException(status_code=401, detail="Invalid MFA code")
     
-    print(f"✅ [OAUTH MFA] MFA verified for {user.email}")
     
     # Update user MFA last_used
     user.mfa.last_used = datetime.utcnow().isoformat()
@@ -3309,7 +3306,6 @@ async def verify_oauth_mfa(request: dict):
     try:
         from database.services import UserService
         UserService.save_user(user)
-        print(f"💾 [OAUTH MFA] User MFA last_used updated in database for {user.email}")
     except Exception as e:
         print(f"⚠️  [OAUTH MFA ERROR] Database save failed: {e}")
         import traceback
@@ -3328,7 +3324,6 @@ async def verify_oauth_mfa(request: dict):
     try:
         from database.services import SessionService
         SessionService.create_session(session)
-        print(f"💾 [OAUTH MFA] Session saved to database: {session.id[:8]}...")
     except Exception as e:
         print(f"⚠️  [OAUTH MFA ERROR] Database save failed for session: {e}")
         import traceback

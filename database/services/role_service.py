@@ -131,7 +131,6 @@ class RoleService:
                 
                 if existing:
                     # UPDATE existing role
-                    print(f"💾 [DATABASE] Updating role in database: {role.name} (ID: {role.id[:8]}...)")
                     existing.name = role.name
                     existing.description = role.description or ""
                     existing.permissions = permissions_json

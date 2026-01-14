@@ -100,7 +100,6 @@ class SecuritySettingsService:
             db_settings = session.query(DBSecuritySettings).filter_by(org_id=org_uuid).first()
             if db_settings:
                 # Update existing
-                print(f"💾 [DATABASE] Updating security settings in database for org: {str(org_uuid)[:8]}...")
                 SecuritySettingsService._update_db_settings(db_settings, settings)
             else:
                 # Create new

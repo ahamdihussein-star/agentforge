@@ -1738,15 +1738,11 @@ class AppState:
         db_settings_loaded = False
         try:
             from database.services import SystemSettingsService
-            print("📊 [DATABASE] Loading platform settings from database...")
             db_settings = SystemSettingsService.get_system_setting("system_settings")
             if db_settings:
                 self.settings = SystemSettings(**db_settings)
                 llm_provider = self.settings.llm.provider.value if hasattr(self.settings.llm.provider, 'value') else str(self.settings.llm.provider)
                 vector_db_provider = self.settings.vector_db.provider.value if hasattr(self.settings.vector_db.provider, 'value') else str(self.settings.vector_db.provider)
-                print(f"✅ [DATABASE] Loaded platform settings from database: LLM={llm_provider}, VectorDB={vector_db_provider}, Theme={self.settings.theme}")
-                if self.settings.llm_providers:
-                    print(f"✅ [DATABASE] Loaded {len(self.settings.llm_providers)} LLM providers from database: {[p.name for p in self.settings.llm_providers]}")
                 db_settings_loaded = True
         except Exception as db_error:
             print(f"❌ [DATABASE ERROR] Failed to load platform settings: {type(db_error).__name__}: {str(db_error)}")
@@ -5694,7 +5690,6 @@ async def delete_agent(agent_id: str):
 async def get_settings():
     """Get all system settings (loads from database if available)"""
     # Try to load from database first
-    print(f"📊 [API] Loading platform settings from database...")
     try:
         from database.services import SystemSettingsService
         db_settings = SystemSettingsService.get_system_setting("system_settings")
@@ -5703,9 +5698,6 @@ async def get_settings():
             app_state.settings = SystemSettings(**db_settings)
             llm_provider = app_state.settings.llm.provider.value if hasattr(app_state.settings.llm.provider, 'value') else str(app_state.settings.llm.provider)
             vector_db_provider = app_state.settings.vector_db.provider.value if hasattr(app_state.settings.vector_db.provider, 'value') else str(app_state.settings.vector_db.provider)
-            print(f"✅ [API] Loaded platform settings from database (LLM: {llm_provider}, VectorDB: {vector_db_provider}, Theme: {app_state.settings.theme})")
-        else:
-            print(f"📊 [API] No platform settings in database, using in-memory settings")
     except Exception as e:
         print(f"⚠️  [API ERROR] Database load failed: {e}, using in-memory settings")
         import traceback

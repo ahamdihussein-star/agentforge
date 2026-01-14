@@ -74,7 +74,6 @@ class SystemSettingsService:
             
             if db_setting:
                 # Update existing
-                print(f"💾 [DATABASE] Updating system setting in database: {key}")
                 db_setting.value = serialized_value
                 db_setting.value_type = value_type
                 if category:

@@ -183,7 +183,6 @@ class UserService:
             
             if db_user:
                 # Update existing
-                print(f"💾 [DATABASE] Updating user in database: {user.email} (ID: {user.id[:8]}...)")
                 result = UserService.update_user(user)
                 return result
             else:
