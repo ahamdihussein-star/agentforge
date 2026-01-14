@@ -12,10 +12,11 @@ from .user_group_service import UserGroupService
 from .audit_service import AuditService
 from .security_settings_service import SecuritySettingsService
 from .system_settings_service import SystemSettingsService
+from .agent_service import AgentService
 
 __all__ = [
     'UserService', 'SessionService', 'EncryptionService', 'RoleService',
     'OrganizationService', 'InvitationService', 'DepartmentService',
     'UserGroupService', 'AuditService', 'SecuritySettingsService',
-    'SystemSettingsService'
+    'SystemSettingsService', 'AgentService'
 ]

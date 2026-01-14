@@ -414,7 +414,7 @@ def migrate_users(org_mapping, role_mapping):
 
 
 def migrate_agents(org_mapping):
-    """Migrate agents from JSON to database"""
+    """Migrate agents from JSON to database using AgentService"""
     print("\n" + "="*60)
     print("🤖 Migrating Agents...")
     print("="*60)
@@ -422,6 +422,83 @@ def migrate_agents(org_mapping):
     data = load_json_file('data/agents.json')
     if not data:
         print("⚠️  No agents file found")
+        return 0
+    
+    if isinstance(data, dict):
+        agents = list(data.values())
+    else:
+        agents = data
+    
+    count = 0
+    
+    # Import AgentService
+    try:
+        from database.services import AgentService
+    except ImportError:
+        print("❌ Failed to import AgentService, falling back to direct database access")
+        return migrate_agents_direct(org_mapping)
+    
+    # Get org_id and owner_id
+    org_id = "org_default"
+    if org_mapping:
+        org_id = list(org_mapping.values())[0]
+        # Convert UUID to string
+        if isinstance(org_id, uuid.UUID):
+            org_id = str(org_id)
+        elif org_id == "org_default":
+            # Try to get default org from database
+            with get_db_session() as session:
+                from database.models.organization import Organization
+                default_org = session.query(Organization).filter_by(slug="default").first()
+                if default_org:
+                    org_id = str(default_org.id)
+    
+    # Get owner_id (first user in system)
+    owner_id = None
+    created_by = None
+    with get_db_session() as session:
+        owner = session.query(User).first()
+        if owner:
+            owner_id = str(owner.id)
+            created_by = str(owner.id)
+    
+    if not owner_id:
+        # Fallback UUID
+        owner_id = "00000000-0000-0000-0000-000000000000"
+        created_by = owner_id
+    
+    for agent_data in agents:
+        try:
+            # Use AgentService to save agent (UPSERT pattern)
+            saved_agent = AgentService.save_agent(
+                agent_data,
+                org_id=org_id,
+                owner_id=owner_id,
+                created_by=created_by,
+                updated_by=created_by
+            )
+            
+            if saved_agent:
+                print(f"✅ Migrated agent: {agent_data.get('name', 'unknown')} (ID: {saved_agent.get('id', 'unknown')[:8]}...)")
+                count += 1
+            else:
+                print(f"⏭️  Agent '{agent_data.get('name', 'unknown')}' already exists, skipped")
+                
+        except Exception as e:
+            print(f"❌ Failed to migrate agent {agent_data.get('name', 'unknown')}: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    print(f"\n📊 Total agents migrated: {count}")
+    return count
+
+
+def migrate_agents_direct(org_mapping):
+    """Fallback: Migrate agents directly to database (if AgentService unavailable)"""
+    print("⚠️  Using direct database access (AgentService unavailable)")
+    
+    data = load_json_file('data/agents.json')
+    if not data:
         return 0
     
     if isinstance(data, dict):
@@ -453,20 +530,33 @@ def migrate_agents(org_mapping):
                 owner = session.query(User).first()
                 owner_id = owner.id if owner else uuid.uuid4()
                 
+                # Parse status (normalize to lowercase for enum matching)
+                status_str = agent_data.get('status', 'draft')
+                if isinstance(status_str, str):
+                    status_str = status_str.lower()
+                try:
+                    status = AgentStatus(status_str)
+                except (ValueError, AttributeError):
+                    status = AgentStatus.DRAFT
+                
                 agent = Agent(
                     id=agent_uuid,
                     org_id=org_id,
                     name=agent_data['name'],
                     icon=agent_data.get('icon', '🤖'),
                     goal=agent_data.get('goal', ''),
-                    model_id=agent_data.get('model_id', 'gpt-4'),
-                    personality=agent_data.get('personality', {}),
-                    guardrails=agent_data.get('guardrails', {}),
-                    tasks=agent_data.get('tasks', []),
+                    description=agent_data.get('description', ''),
+                    model_id=agent_data.get('model_id', 'gpt-4o'),
+                    personality=json.dumps(agent_data.get('personality', {})),
+                    guardrails=json.dumps(agent_data.get('guardrails', {})),
+                    tasks=json.dumps(agent_data.get('tasks', [])),
                     tool_ids=agent_data.get('tool_ids', []),
-                    memory=agent_data.get('memory', []),
+                    memory=json.dumps(agent_data.get('memory', [])),
                     memory_enabled=agent_data.get('memory_enabled', True),
-                    status='active',
+                    context_window=agent_data.get('context_window', 4096),
+                    status=status,
+                    is_published=agent_data.get('is_active', False) or agent_data.get('is_published', False),
+                    is_public=agent_data.get('is_public', False),
                     owner_id=owner_id,
                     created_by=owner_id,
                     created_at=datetime.utcnow()
@@ -479,6 +569,8 @@ def migrate_agents(org_mapping):
                 
             except Exception as e:
                 print(f"❌ Failed to migrate agent {agent_data.get('name', 'unknown')}: {e}")
+                import traceback
+                traceback.print_exc()
                 session.rollback()
     
     print(f"\n📊 Total agents migrated: {count}")

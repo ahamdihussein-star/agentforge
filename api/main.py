@@ -1697,7 +1697,81 @@ class AppState:
     def save_to_disk(self):
         data_dir = os.environ.get("DATA_PATH", "data")
         os.makedirs(data_dir, exist_ok=True)
-        for name, data in [("agents.json", self.agents), ("tools.json", self.tools), ("documents.json", self.documents), ("scraped_pages.json", self.scraped_pages), ("conversations.json", self.conversations)]:
+        
+        # Save agents to database first
+        try:
+            from database.services import AgentService
+            # Get default org_id and owner_id
+            org_id = "org_default"
+            owner_id = None
+            created_by = None
+            
+            # Try to get owner_id from security_state if available
+            try:
+                if SECURITY_AVAILABLE and security_state.users:
+                    # Use first user as default owner (or super admin if available)
+                    super_admin = next((u for u in security_state.users.values() if u.role_ids and any(r == "super_admin" or "super" in r.lower() for r in u.role_ids)), None)
+                    if super_admin:
+                        owner_id = super_admin.id
+                        created_by = super_admin.id
+                    else:
+                        first_user = next(iter(security_state.users.values()), None)
+                        if first_user:
+                            owner_id = first_user.id
+                            created_by = first_user.id
+            except Exception:
+                pass
+            
+            # Save each agent to database
+            for agent_id, agent in self.agents.items():
+                try:
+                    agent_dict = agent.dict()
+                    # Get org_id and owner_id from agent_dict if available (from database)
+                    agent_org_id = agent_dict.get('org_id', org_id)
+                    agent_owner_id = agent_dict.get('owner_id', owner_id)
+                    agent_created_by = agent_dict.get('created_by', created_by or agent_owner_id)
+                    
+                    # Remove extra fields that AgentData doesn't have
+                    agent_dict.pop('org_id', None)
+                    agent_dict.pop('owner_id', None)
+                    agent_dict.pop('created_by', None)
+                    agent_dict.pop('shared_with_user_ids', None)
+                    agent_dict.pop('shared_with_role_ids', None)
+                    agent_dict.pop('usage_count', None)
+                    agent_dict.pop('last_used_at', None)
+                    agent_dict.pop('context_window', None)
+                    agent_dict.pop('version', None)
+                    agent_dict.pop('parent_version_id', None)
+                    agent_dict.pop('published_at', None)
+                    agent_dict.pop('extra_metadata', None)
+                    
+                    # Save to database
+                    AgentService.save_agent(
+                        agent_dict,
+                        org_id=agent_org_id,
+                        owner_id=agent_owner_id or "00000000-0000-0000-0000-000000000000",  # Fallback UUID
+                        created_by=agent_created_by or agent_owner_id or "00000000-0000-0000-0000-000000000000",
+                        updated_by=agent_created_by or agent_owner_id
+                    )
+                except Exception as e:
+                    print(f"⚠️  [DATABASE ERROR] Failed to save agent '{agent.name}' (ID: {agent_id[:8]}...): {e}")
+                    import traceback
+                    traceback.print_exc()
+                    continue
+            
+            # Also save to JSON as backup
+            with open(os.path.join(data_dir, "agents.json"), "w") as f:
+                json.dump({k: v.dict() for k, v in self.agents.items()}, f, indent=2)
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to save agents: {type(db_error).__name__}: {str(db_error)}")
+            import traceback
+            traceback.print_exc()
+            # Fallback to JSON only
+            with open(os.path.join(data_dir, "agents.json"), "w") as f:
+                json.dump({k: v.dict() for k, v in self.agents.items()}, f, indent=2)
+        
+        # Save other data to JSON
+        for name, data in [("tools.json", self.tools), ("documents.json", self.documents), ("scraped_pages.json", self.scraped_pages), ("conversations.json", self.conversations)]:
             with open(os.path.join(data_dir, name), "w") as f:
                 json.dump({k: v.dict() for k, v in data.items()}, f, indent=2)
         with open(os.path.join(data_dir, "chunks_index.json"), "w") as f:
@@ -1768,15 +1842,42 @@ class AppState:
                     import traceback
                     traceback.print_exc()
         
-        for name, cls, container in [("agents.json", AgentData, self.agents), ("tools.json", ToolConfiguration, self.tools), ("documents.json", Document, self.documents), ("scraped_pages.json", ScrapedPage, self.scraped_pages), ("conversations.json", Conversation, self.conversations)]:
-            path = os.path.join(data_dir, name)
-            if os.path.exists(path):
+        # Load agents from database first
+        db_agents_loaded = False
+        try:
+            from database.services import AgentService
+            db_agents = AgentService.get_all_agents("org_default")
+            if db_agents:
+                for agent_dict in db_agents:
+                    try:
+                        # Remove extra fields that AgentData doesn't have (Pydantic will ignore them, but let's be explicit)
+                        agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
+                        # Convert dictionary to AgentData
+                        agent_data = AgentData(**agent_dict_clean)
+                        self.agents[agent_data.id] = agent_data
+                    except Exception as e:
+                        print(f"⚠️  Error converting agent from database: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        continue
+                db_agents_loaded = True
+                print(f"✅ Loaded {len(self.agents)} agents from database")
+        except Exception as db_error:
+            print(f"❌ [DATABASE ERROR] Failed to load agents: {type(db_error).__name__}: {str(db_error)}")
+            import traceback
+            traceback.print_exc()
+            print("📂 Loading agents from files (database unavailable)")
+        
+        # Load agents from JSON only if database loading failed
+        if not db_agents_loaded:
+            agents_path = os.path.join(data_dir, "agents.json")
+            if os.path.exists(agents_path):
                 try:
-                    with open(path) as f:
+                    with open(agents_path) as f:
                         data = json.load(f)
                         for k, v in data.items():
                             try:
-                                if cls == AgentData and 'tasks' in v:
+                                if 'tasks' in v:
                                     tasks = []
                                     for t in v.get('tasks', []):
                                         instructions = []
@@ -1787,6 +1888,21 @@ class AppState:
                                     v['tasks'] = tasks
                                     if 'personality' in v and isinstance(v['personality'], dict):
                                         v['personality'] = AgentPersonality(**v['personality'])
+                                self.agents[k] = AgentData(**v)
+                            except Exception as e:
+                                print(f"Error loading agents.json item {k}: {e}")
+                except Exception as e:
+                    print(f"Error loading agents.json: {e}")
+        
+        # Load other data from JSON (tools, documents, etc.)
+        for name, cls, container in [("tools.json", ToolConfiguration, self.tools), ("documents.json", Document, self.documents), ("scraped_pages.json", ScrapedPage, self.scraped_pages), ("conversations.json", Conversation, self.conversations)]:
+            path = os.path.join(data_dir, name)
+            if os.path.exists(path):
+                try:
+                    with open(path) as f:
+                        data = json.load(f)
+                        for k, v in data.items():
+                            try:
                                 if cls == ToolConfiguration and 'api_config' in v and v['api_config']:
                                     api_cfg = v['api_config']
                                     if 'input_parameters' in api_cfg:
@@ -3548,7 +3664,31 @@ async def health():
 # Agent Endpoints
 @app.get("/api/agents")
 async def list_agents(status: Optional[str] = None):
-    agents = list(app_state.agents.values())
+    # Try to load from database first, then fallback to in-memory
+    agents = []
+    try:
+        from database.services import AgentService
+        db_agents = AgentService.get_all_agents("org_default")
+        if db_agents:
+            for agent_dict in db_agents:
+                try:
+                    # Remove extra fields that AgentData doesn't have
+                    agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
+                    agent_data = AgentData(**agent_dict_clean)
+                    agents.append(agent_data)
+                    # Update in-memory cache
+                    app_state.agents[agent_data.id] = agent_data
+                except Exception as e:
+                    print(f"⚠️  Error converting agent from database: {e}")
+                    continue
+    except Exception as e:
+        print(f"⚠️  [DATABASE ERROR] Failed to load agents from database: {e}, using in-memory")
+        agents = list(app_state.agents.values())
+    
+    # Fallback to in-memory if database loading failed or returned no agents
+    if not agents:
+        agents = list(app_state.agents.values())
+    
     if status:
         agents = [a for a in agents if a.status == status]
     return {"agents": [{"id": a.id, "name": a.name, "icon": a.icon, "goal": a.goal[:100] + "..." if len(a.goal) > 100 else a.goal, "tasks_count": len(a.tasks), "tools_count": len(a.tool_ids), "status": a.status, "created_at": a.created_at} for a in agents]}
@@ -3556,9 +3696,24 @@ async def list_agents(status: Optional[str] = None):
 
 @app.get("/api/agents/{agent_id}")
 async def get_agent(agent_id: str):
-    if agent_id not in app_state.agents:
-        raise HTTPException(404, "Agent not found")
-    agent = app_state.agents[agent_id]
+    # Try to get agent from database first, then fallback to in-memory
+    agent = None
+    try:
+        from database.services import AgentService
+        agent_dict = AgentService.get_agent_by_id(agent_id, "org_default")
+        if agent_dict:
+            # Remove extra fields that AgentData doesn't have
+            agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
+            agent = AgentData(**agent_dict_clean)
+            app_state.agents[agent.id] = agent  # Update in-memory cache
+    except Exception as e:
+        print(f"⚠️  [DATABASE ERROR] Failed to load agent from database: {e}, using in-memory")
+    
+    # Fallback to in-memory if not found in database
+    if not agent:
+        if agent_id not in app_state.agents:
+            raise HTTPException(404, "Agent not found")
+        agent = app_state.agents[agent_id]
     
     # Resolve tools - handle prefixed IDs (api:xxx, kb:xxx)
     tools = []
@@ -3952,8 +4107,49 @@ async def create_agent(request: CreateAgentRequest):
         model_id=request.model_id, 
         status=request.status
     )
-    app_state.agents[agent.id] = agent
-    app_state.save_to_disk()
+    
+    # Get org_id and owner_id
+    org_id = "org_default"
+    owner_id = None
+    created_by = None
+    
+    # Try to get owner_id from security_state if available
+    try:
+        if SECURITY_AVAILABLE and security_state.users:
+            # Use first user as default owner (or super admin if available)
+            super_admin = next((u for u in security_state.users.values() if u.role_ids and any(r == "super_admin" or "super" in r.lower() for r in u.role_ids)), None)
+            if super_admin:
+                owner_id = super_admin.id
+                created_by = super_admin.id
+            else:
+                first_user = next(iter(security_state.users.values()), None)
+                if first_user:
+                    owner_id = first_user.id
+                    created_by = first_user.id
+    except Exception:
+        pass
+    
+    # Save to database using AgentService
+    try:
+        from database.services import AgentService
+        agent_dict = agent.dict()
+        saved_agent = AgentService.save_agent(
+            agent_dict,
+            org_id=org_id,
+            owner_id=owner_id or "00000000-0000-0000-0000-000000000000",  # Fallback UUID
+            created_by=created_by or owner_id or "00000000-0000-0000-0000-000000000000",
+            updated_by=created_by or owner_id
+        )
+        # Update agent with saved data (including ID from database)
+        agent.id = saved_agent['id']
+        app_state.agents[agent.id] = agent
+    except Exception as e:
+        print(f"⚠️  [DATABASE ERROR] Failed to save agent to database: {e}, saving to in-memory only")
+        import traceback
+        traceback.print_exc()
+        app_state.agents[agent.id] = agent
+        app_state.save_to_disk()  # Will try to save to database in save_to_disk()
+    
     return {"status": "success", "agent_id": agent.id, "agent": agent.dict()}
 
 
@@ -5628,9 +5824,26 @@ async def refine_unified_demo(request: Dict[str, Any]):
 
 @app.put("/api/agents/{agent_id}")
 async def update_agent(agent_id: str, request: UpdateAgentRequest):
-    if agent_id not in app_state.agents:
-        raise HTTPException(404, "Agent not found")
-    agent = app_state.agents[agent_id]
+    # Try to get agent from database first, then fallback to in-memory
+    agent = None
+    try:
+        from database.services import AgentService
+        agent_dict = AgentService.get_agent_by_id(agent_id, "org_default")
+        if agent_dict:
+            # Remove extra fields that AgentData doesn't have
+            agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
+            agent = AgentData(**agent_dict_clean)
+            app_state.agents[agent.id] = agent  # Update in-memory cache
+    except Exception as e:
+        print(f"⚠️  [DATABASE ERROR] Failed to load agent from database: {e}, using in-memory")
+    
+    # Fallback to in-memory if not found in database
+    if not agent:
+        if agent_id not in app_state.agents:
+            raise HTTPException(404, "Agent not found")
+        agent = app_state.agents[agent_id]
+    
+    # Update agent fields
     if request.name is not None: agent.name = request.name
     if request.goal is not None: agent.goal = request.goal
     if request.personality is not None: agent.personality = AgentPersonality(**request.personality)
@@ -5668,17 +5881,83 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest):
     if request.icon is not None: agent.icon = request.icon
     if request.status is not None: agent.status = request.status
     agent.updated_at = datetime.utcnow().isoformat()
-    app_state.save_to_disk()
+    
+    # Save to database using AgentService
+    try:
+        from database.services import AgentService
+        agent_dict = agent.dict()
+        # Get org_id and updated_by
+        org_id = "org_default"
+        updated_by = None
+        try:
+            if SECURITY_AVAILABLE and security_state.users:
+                first_user = next(iter(security_state.users.values()), None)
+                if first_user:
+                    updated_by = first_user.id
+        except Exception:
+            pass
+        
+        AgentService.update_agent(
+            agent_id=agent.id,
+            agent_data=agent_dict,
+            org_id=org_id,
+            updated_by=updated_by
+        )
+        app_state.agents[agent.id] = agent  # Update in-memory cache
+    except Exception as e:
+        print(f"⚠️  [DATABASE ERROR] Failed to update agent in database: {e}, saving to in-memory only")
+        import traceback
+        traceback.print_exc()
+        app_state.agents[agent.id] = agent
+        app_state.save_to_disk()  # Will try to save to database in save_to_disk()
+    
     return {"status": "success", "agent": agent.dict()}
 
 
 @app.delete("/api/agents/{agent_id}")
 async def delete_agent(agent_id: str):
-    if agent_id not in app_state.agents:
+    # Check if agent exists in database or in-memory
+    agent_exists = False
+    try:
+        from database.services import AgentService
+        agent_dict = AgentService.get_agent_by_id(agent_id, "org_default")
+        if agent_dict:
+            agent_exists = True
+    except Exception:
+        pass
+    
+    # Also check in-memory
+    if not agent_exists and agent_id in app_state.agents:
+        agent_exists = True
+    
+    if not agent_exists:
         raise HTTPException(404, "Agent not found")
-    del app_state.agents[agent_id]
+    
+    # Delete from database
+    try:
+        from database.services import AgentService
+        org_id = "org_default"
+        deleted_by = None
+        try:
+            if SECURITY_AVAILABLE and security_state.users:
+                first_user = next(iter(security_state.users.values()), None)
+                if first_user:
+                    deleted_by = first_user.id
+        except Exception:
+            pass
+        
+        AgentService.delete_agent(agent_id, org_id=org_id, deleted_by=deleted_by)
+    except Exception as e:
+        print(f"⚠️  [DATABASE ERROR] Failed to delete agent from database: {e}, deleting from in-memory only")
+        import traceback
+        traceback.print_exc()
+    
+    # Delete from in-memory
+    if agent_id in app_state.agents:
+        del app_state.agents[agent_id]
     app_state.conversations = {k: v for k, v in app_state.conversations.items() if v.agent_id != agent_id}
-    app_state.save_to_disk()
+    app_state.save_to_disk()  # Will try to sync with database in save_to_disk()
+    
     return {"status": "success"}
 
 
