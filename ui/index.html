@@ -6941,25 +6941,32 @@ Option 3"></textarea>
         
         // Auto-save wizard configuration to database
         async function autoSaveWizardStep() {
-            // Only save if we have minimum required data
-            if (!wizard.name || !wizard.goal || !wizard.personality) {
-                return; // Skip if not enough data
+            // Only save if we have at least a goal (minimum to create draft)
+            if (!wizard.goal) {
+                console.log('⏭️ Skipping auto-save: no goal yet');
+                return; // Skip if no goal
             }
+            
+            // Ensure we have minimum data
+            const agentName = wizard.name || 'Untitled Agent';
+            const agentGoal = wizard.goal;
             
             try {
                 const agentData = {
-                    name: wizard.name,
-                    icon: wizard.icon,
-                    goal: wizard.goal,
-                    personality: wizard.personality,
-                    personality_reason: wizard.personalityReason,
+                    name: agentName,
+                    icon: wizard.icon || '🤖',
+                    goal: agentGoal,
+                    personality: wizard.personality || {tone: 'professional', voice: 'balanced', languages: ['English']},
+                    personality_reason: wizard.personalityReason || '',
                     guardrails: wizard.guardrails || {},
                     tasks: wizard.tasks || [],
                     tool_ids: wizard.tool_ids || [],
-                    model_id: wizard.model,
-                    model_reason: wizard.modelReason,
+                    model_id: wizard.model || 'gpt-4o',
+                    model_reason: wizard.modelReason || '',
                     status: 'draft' // Always save as draft during wizard
                 };
+                
+                console.log('📝 Auto-saving wizard step, editId:', wizard.editId, 'testAgent:', testAgent?.id);
                 
                 let response;
                 const agentId = testAgent?.id || wizard.editId;
