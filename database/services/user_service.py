@@ -309,16 +309,51 @@ class UserService:
         
         # Build MFA methods list
         mfa_methods = []
-        if hasattr(db_user, 'mfa_enabled') and db_user.mfa_enabled:
-            if hasattr(db_user, 'mfa_method') and db_user.mfa_method:
+        mfa_enabled_db = hasattr(db_user, 'mfa_enabled') and db_user.mfa_enabled
+        mfa_method_db = getattr(db_user, 'mfa_method', None) if hasattr(db_user, 'mfa_method') else None
+        
+        print(f"   🔍 DEBUG [{db_user.email}] MFA: enabled={mfa_enabled_db}, method={mfa_method_db} (type: {type(mfa_method_db)})")
+        
+        if mfa_enabled_db:
+            if mfa_method_db:
                 try:
                     # Convert DB MFA method (enum or string) to MFAMethod
-                    if isinstance(db_user.mfa_method, str):
-                        mfa_methods = [MFAMethod(db_user.mfa_method)]
+                    # DB enum uses lowercase: "email", "totp", "none"
+                    # Core enum uses lowercase: MFAMethod.EMAIL = "email"
+                    mfa_method_str = str(mfa_method_db).lower() if mfa_method_db else None
+                    
+                    # Skip NONE method - if mfa_enabled is True, there should be a valid method
+                    if mfa_method_str and mfa_method_str != "none":
+                        try:
+                            # Try direct conversion (handles both "email" and "EMAIL")
+                            mfa_methods = [MFAMethod(mfa_method_str)]
+                            print(f"   ✅ [{db_user.email}] MFA method converted: {mfa_method_str} → {mfa_methods[0]}")
+                        except ValueError:
+                            # If method string doesn't match enum, try to map it
+                            if "email" in mfa_method_str.lower():
+                                mfa_methods = [MFAMethod.EMAIL]
+                                print(f"   ✅ [{db_user.email}] MFA method mapped to EMAIL")
+                            elif "totp" in mfa_method_str.lower():
+                                mfa_methods = [MFAMethod.TOTP]
+                                print(f"   ✅ [{db_user.email}] MFA method mapped to TOTP")
+                            elif "sms" in mfa_method_str.lower():
+                                mfa_methods = [MFAMethod.SMS]
+                                print(f"   ✅ [{db_user.email}] MFA method mapped to SMS")
+                            else:
+                                print(f"   ⚠️  [{db_user.email}] Unknown MFA method: {mfa_method_str}, defaulting to EMAIL")
+                                mfa_methods = [MFAMethod.EMAIL]
                     else:
-                        mfa_methods = [db_user.mfa_method]
-                except (ValueError, AttributeError):
-                    pass  # Skip invalid method
+                        print(f"   ⚠️  [{db_user.email}] MFA enabled but method is NONE or empty, defaulting to EMAIL")
+                        mfa_methods = [MFAMethod.EMAIL]
+                except (ValueError, AttributeError) as e:
+                    print(f"   ⚠️  [{db_user.email}] Error converting MFA method: {e}")
+                    # If mfa_enabled is True but method is invalid, default to EMAIL
+                    mfa_methods = [MFAMethod.EMAIL]
+            else:
+                print(f"   ⚠️  [{db_user.email}] MFA enabled but no method set, defaulting to EMAIL")
+                mfa_methods = [MFAMethod.EMAIL]
+        else:
+            print(f"   ℹ️  [{db_user.email}] MFA disabled")
         
         # Type conversions for Pydantic validation
         import json
