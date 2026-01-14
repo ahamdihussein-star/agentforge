@@ -19,7 +19,6 @@ class OrganizationService:
         try:
             with get_db_session() as session:
                 db_orgs = session.query(DBOrganization).all()
-                print(f"📊 [DATABASE] Retrieved {len(db_orgs)} organizations from database")
                 return [OrganizationService._db_to_core_org(db_org) for db_org in db_orgs]
         except Exception as e:
             error_msg = str(e)
@@ -118,7 +117,6 @@ class OrganizationService:
                 db_org.logo_url = org.logo_url
                 
                 db_org.updated_at = datetime.utcnow()
-                print(f"✅ [DATABASE] Organization updated successfully: {org.name}")
             else:
                 # Create new
                 print(f"💾 [DATABASE] Creating new organization in database: {org.name} (ID: {org_id_uuid[:8]}...)")
@@ -152,7 +150,6 @@ class OrganizationService:
                     updated_at=datetime.utcnow()
                 )
                 session.add(db_org)
-                print(f"✅ [DATABASE] Organization created successfully: {org.name}")
             session.commit()
             session.refresh(db_org)
             return OrganizationService._db_to_core_org(db_org)

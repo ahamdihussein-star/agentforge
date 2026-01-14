@@ -401,7 +401,6 @@ async def get_current_user(
                 if user:
                     # Add to security_state cache
                     security_state.users[user.id] = user
-                    print(f"✅ [AUTH] Loaded user from database: {user.email} (ID: {user.id[:8]}...)")
             except ValueError:
                 print(f"⚠️  [AUTH] Invalid user_id format: {user_id}")
         except Exception as e:
@@ -597,7 +596,6 @@ async def register(request: RegisterRequest, req: Request):
             from database.services import RoleService
             user_role = RoleService.get_or_create_user_role(org_id)
             role_ids = [user_role.id]
-            print(f"✅ [REGISTER] Using 'User' role for self-registered user: {user_role.name} (ID: {user_role.id[:8]}...)")
         except Exception as e:
             print(f"⚠️  [REGISTER ERROR] Failed to get/create 'User' role: {e}")
             import traceback
@@ -606,7 +604,6 @@ async def register(request: RegisterRequest, req: Request):
             for role_id, role in security_state.roles.items():
                 if role.name.lower() == "user":
                     role_ids = [role.id]
-                    print(f"✅ [REGISTER] Found 'User' role in cache: {role.name} (ID: {role.id[:8]}...)")
                     break
             
             if not role_ids:
@@ -691,7 +688,6 @@ async def login(request: LoginRequest, req: Request):
                 # Update security_state cache with latest MFA settings from database
                 security_state.users[user.id] = db_user
                 user = db_user
-                print(f"📊 [LOGIN] Refreshed user MFA settings from database: {user.email} (MFA enabled: {user.mfa.enabled if user.mfa else False})")
         except ValueError:
             print(f"⚠️  [LOGIN] Invalid user_id format: {user.id}")
     except Exception as e:
@@ -804,8 +800,6 @@ async def login(request: LoginRequest, req: Request):
             mfa_methods=mfa_methods_list
         )
         print(f"🔐 [LOGIN] MFA required for {user.email}, returning requires_mfa=True response")
-        print(f"   📋 MFA methods: {response.mfa_methods}")
-        print(f"   📋 Response JSON: {response.model_dump_json()}")
         return response
     
     # Verify MFA if provided
@@ -939,7 +933,6 @@ async def get_current_user_info(user: User = Depends(require_auth)):
                 # Update security_state cache with latest data from database
                 security_state.users[user.id] = db_user
                 user = db_user
-                print(f"📊 [API] Refreshed user from database: {user.email} (MFA enabled: {user.mfa.enabled if user.mfa else False})")
         except ValueError:
             print(f"⚠️  [API] Invalid user_id format: {user.id}")
     except Exception as e:
@@ -1451,7 +1444,6 @@ async def send_mfa_login_code(request: LoginRequest, req: Request):
                 # Update security_state cache with latest MFA settings from database
                 security_state.users[user.id] = db_user
                 user = db_user
-                print(f"📊 [MFA_SEND] Refreshed user MFA settings from database: {user.email} (MFA enabled: {user.mfa.enabled if user.mfa else False})")
         except ValueError:
             print(f"⚠️  [MFA_SEND] Invalid user_id format: {user.id}")
     except Exception as e:
@@ -1791,7 +1783,6 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
     try:
         from database.services import UserService
         UserService.save_user(target_user)
-        print(f"✅ [API] User updated successfully in database: {target_user.email}")
     except Exception as e:
         print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
         import traceback
@@ -2122,7 +2113,6 @@ async def create_role(request: CreateRoleRequest, user: User = Depends(require_a
     try:
         from database.services import RoleService
         saved_role = RoleService.save_role(role)
-        print(f"✅ [API] Role created successfully in database: {role.name} ({len(role.permissions)} permissions)")
     except Exception as e:
         print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
         import traceback
@@ -2142,7 +2132,6 @@ async def create_role(request: CreateRoleRequest, user: User = Depends(require_a
 @router.put("/roles/{role_id}")
 async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Depends(require_admin)):
     """Update a role"""
-    print(f"\n🔍 DEBUG update_role START:")
     print(f"   User: {user.email}")
     print(f"   User role_ids: {user.role_ids}")
     print(f"   Target role_id: {role_id}")
@@ -2170,7 +2159,6 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
     # Check role hierarchy - user can only edit roles with higher level (lower privilege)
     # Super Admin (level 0) can edit any role
     # Ensure all levels are int (might be string from database)
-    print(f"\n   📊 Calculating user_min_level:")
     user_levels = []
     for r_id in user.role_ids:
         if r_id in security_state.roles:
@@ -2183,12 +2171,10 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
             print(f"      ⚠️  Role ID {r_id} not found in security_state.roles")
     
     user_min_level = min(user_levels) if user_levels else 100
-    print(f"   ✅ user_min_level = {user_min_level}")
     
     # Ensure role level is int
     role_level_raw = role.level
     role_level = int(role_level_raw) if isinstance(role_level_raw, str) else role_level_raw
-    print(f"   📊 Role level: {role_level_raw} (raw) → {role_level} (int)")
     
     print(f"\n   🔐 Hierarchy check:")
     print(f"      user_min_level: {user_min_level}")
@@ -2198,13 +2184,11 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
     
     if user_min_level == 0:
         # Super Admin can edit any role (including system roles)
-        print(f"   ✅ ALLOWED: Super Admin (level 0) can edit {role.name} (level {role_level})")
         pass
     elif role_level <= user_min_level:
         print(f"   ❌ BLOCKED: role_level ({role_level}) <= user_min_level ({user_min_level})")
         raise HTTPException(status_code=403, detail="Cannot modify a role with equal or higher privilege than yours")
     else:
-        print(f"   ✅ ALLOWED: role_level ({role_level}) > user_min_level ({user_min_level})")
     
     # Allow editing system roles permissions, but not renaming them
     if role.is_system and request.name is not None and request.name != role.name:
@@ -2231,7 +2215,6 @@ async def update_role(role_id: str, request: UpdateRoleRequest, user: User = Dep
     try:
         from database.services import RoleService
         saved_role = RoleService.save_role(role)
-        print(f"✅ [API] Role updated successfully in database: {role.name} ({len(role.permissions)} permissions)")
     except Exception as e:
         print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
         import traceback
@@ -2268,7 +2251,6 @@ async def reset_default_roles(user: User = Depends(require_super_admin)):
             try:
                 from database.services import RoleService
                 RoleService.save_role(role)
-                print(f"✅ [API] Role reset successfully in database: {role.name}")
             except Exception as e:
                 print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
                 import traceback
@@ -2363,7 +2345,6 @@ async def delete_role(role_id: str, user: User = Depends(require_admin)):
     try:
         from database.services import RoleService
         RoleService.delete_role(role_id)
-        print(f"✅ [API] Role deleted successfully from database: {role.name}")
     except Exception as e:
         print(f"⚠️  [API ERROR] Database delete failed: {e}")
         import traceback
@@ -2778,7 +2759,6 @@ async def update_security_settings(request: UpdateSecuritySettingsRequest, user:
     try:
         from database.services import SecuritySettingsService
         SecuritySettingsService.save_settings(settings)
-        print(f"✅ [API] Security settings updated successfully in database")
     except Exception as e:
         print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
         import traceback
@@ -2907,7 +2887,6 @@ async def configure_oauth(request: OAuthConfigRequest, user: User = Depends(requ
     try:
         from database.services import OrganizationService
         OrganizationService.save_organization(org)
-        print(f"✅ [API] OAuth configuration saved to database successfully")
     except Exception as e:
         print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
         import traceback
@@ -2980,11 +2959,7 @@ async def oauth_login(provider: str, req: Request):
     # Log the redirect URI for debugging
     client_id = getattr(org, f'{provider}_client_id', None)
     if client_id:
-        print(f"🔍 [OAUTH DEBUG] Client ID: {str(client_id)[:20]}...")
     else:
-        print(f"🔍 [OAUTH DEBUG] Client ID: NOT SET (or None)")
-    print(f"🔍 [OAUTH DEBUG] Provider: {provider}")
-    print(f"🔍 [OAUTH DEBUG] Base URL: {base_url}")
     print(f"🔍 [OAUTH DEBUG] Redirect URI: {redirect_uri}")
     print(f"🔍 [OAUTH DEBUG] Allowed providers: {org.allowed_auth_providers}")
     

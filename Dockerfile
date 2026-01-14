@@ -71,9 +71,6 @@ else\n\
       echo "🔧 Creating any missing tables..."\n\
       python scripts/create_missing_tables.py 2>&1\n\
       echo ""\n\
-      echo "🔧 Fixing tools table (removing PostgreSQL enum)..."\n\
-      python scripts/fix_tools_table.py 2>&1\n\
-      echo ""\n\
       echo "🔧 Adding missing columns to users table..."\n\
       python scripts/add_user_columns.py 2>&1\n\
       echo ""\n\
@@ -88,31 +85,6 @@ else\n\
       echo ""\n\
       echo "📦 Migrating data from JSON to Database..."\n\
       python scripts/migrate_to_db_complete.py 2>&1\n\
-     echo ""\n\
-     echo "🔄 Updating user role_ids (Issue #19 fix)..."\n\
-     python scripts/update_user_role_ids.py 2>&1\n\
-     echo ""\n\
-     echo "💣 NUCLEAR CLEANUP - Fixing all role issues in one go..."\n\
-     python scripts/nuclear_cleanup_roles.py 2>&1\n\
-     echo ""\n\
-     echo "🔪 DELETING STRING ID ROLES (from roles.json)..."\n\
-     python scripts/delete_string_id_roles.py 2>&1\n\
-     echo ""\n\
-     echo "🗑️  REMOVING roles.json file (using DB only)..."\n\
-     python scripts/remove_roles_json.py 2>&1\n\
-     echo ""\n\
-     echo "🔧 Fixing Super Admin permissions (optional - only if needed)..."\n\
-     python scripts/fix_super_admin_permissions.py 2>&1 || echo "⚠️  Super Admin permissions script failed (this is OK if permissions already exist)"\n\
-     echo ""\n\
-     if [ "$RUN_FIX_SCRIPTS" = "true" ]; then\n\
-       echo "🔧 Fixing Admin & Presales permissions (optional - only if needed)..."\n\
-       python scripts/fix_admin_presales_permissions.py 2>&1 || echo "⚠️  Admin/Presales permissions script failed (this is OK if permissions already exist)"\n\
-     else\n\
-       echo "⏭️  Skipping Admin/Presales permissions fix (RUN_FIX_SCRIPTS not set)"\n\
-     fi\n\
-     echo ""\n\
-      echo "🔧 Fixing role levels (hierarchy)..."\n\
-      python scripts/fix_role_levels.py 2>&1\n\
       echo ""\n\
       echo "🔧 Adding Google OAuth credentials..."\n\
       python scripts/add_google_oauth_credentials.py 2>&1 || echo "⚠️  Google OAuth credentials script failed (may already be set)"\n\

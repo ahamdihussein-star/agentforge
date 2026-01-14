@@ -57,9 +57,7 @@ class SecuritySettingsService:
                 session.add(db_settings)
                 session.commit()
                 session.refresh(db_settings)
-                print(f"✅ [DATABASE] Default security settings created for org: {str(org_uuid)[:8]}...")
             else:
-                print(f"📊 [DATABASE] Retrieved security settings from database for org: {str(org_uuid)[:8]}...")
             return SecuritySettingsService._db_to_core_settings(db_settings)
     
     @staticmethod
@@ -104,14 +102,12 @@ class SecuritySettingsService:
                 # Update existing
                 print(f"💾 [DATABASE] Updating security settings in database for org: {str(org_uuid)[:8]}...")
                 SecuritySettingsService._update_db_settings(db_settings, settings)
-                print(f"✅ [DATABASE] Security settings updated successfully for org: {str(org_uuid)[:8]}...")
             else:
                 # Create new
                 print(f"💾 [DATABASE] Creating new security settings in database for org: {str(org_uuid)[:8]}...")
                 db_settings = DBSecuritySettings(org_id=org_uuid)
                 SecuritySettingsService._update_db_settings(db_settings, settings)
                 session.add(db_settings)
-                print(f"✅ [DATABASE] Security settings created successfully for org: {str(org_uuid)[:8]}...")
             session.commit()
             session.refresh(db_settings)
             return SecuritySettingsService._db_to_core_settings(db_settings)

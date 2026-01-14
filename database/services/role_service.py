@@ -19,11 +19,9 @@ class RoleService:
     @staticmethod
     def get_all_roles() -> List[Role]:
         """Retrieve all roles from the database."""
-        print("📊 [DATABASE] Retrieving roles from database...")
         try:
             with get_db_session() as session:
                 db_roles = session.query(DBRole).all()
-                print(f"📊 [DATABASE] Retrieved {len(db_roles)} roles from database")
                 
                 # Convert DB roles to core.security.Role Pydantic models
                 core_roles = []
@@ -35,7 +33,6 @@ class RoleService:
                         print(f"⚠️  [DATABASE ERROR] Error converting role '{db_role.name}' (ID: {str(db_role.id)[:8]}...): {e}")
                         continue
                 
-                print(f"✅ [DATABASE] Successfully converted {len(core_roles)} roles")
                 return core_roles
                 
         except Exception as e:
@@ -147,7 +144,6 @@ class RoleService:
                     
                     session.commit()
                     session.refresh(existing)
-                    print(f"✅ [DATABASE] Role updated successfully: {role.name} ({len(role.permissions)} permissions)")
                     return RoleService._db_to_core_role(existing)
                 else:
                     # INSERT new role
@@ -168,7 +164,6 @@ class RoleService:
                     session.add(new_role)
                     session.commit()
                     session.refresh(new_role)
-                    print(f"✅ [DATABASE] Role created successfully: {role.name} ({len(role.permissions)} permissions)")
                     return RoleService._db_to_core_role(new_role)
                     
         except Exception as e:
@@ -251,7 +246,6 @@ class RoleService:
                         existing = None
                 
                 if existing:
-                    print(f"✅ [DATABASE] Found existing 'User' role: {existing.name} (ID: {str(existing.id)[:8]}...)")
                     return RoleService._db_to_core_role(existing)
                 
                 # Create new "User" role with limited permissions (chat only)
@@ -297,7 +291,6 @@ class RoleService:
                 session.add(new_role)
                 session.commit()
                 session.refresh(new_role)
-                print(f"✅ [DATABASE] Created 'User' role: {new_role.name} (ID: {str(new_role.id)[:8]}...) with {len(user_permissions)} permission(s)")
                 return RoleService._db_to_core_role(new_role)
                 
         except Exception as e:

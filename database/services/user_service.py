@@ -68,7 +68,6 @@ class UserService:
                 
                 db_users = query.all()
                 
-                print(f"📊 [DATABASE] Retrieved {len(db_users)} users from database" + (f" (org: {org_id})" if org_id else ""))
                 
                 return [UserService._db_to_core_user(db_user) for db_user in db_users]
         except Exception as e:
@@ -186,13 +185,11 @@ class UserService:
                 # Update existing
                 print(f"💾 [DATABASE] Updating user in database: {user.email} (ID: {user.id[:8]}...)")
                 result = UserService.update_user(user)
-                print(f"✅ [DATABASE] User updated successfully: {user.email}")
                 return result
             else:
                 # Create new
                 print(f"💾 [DATABASE] Creating new user in database: {user.email} (ID: {user.id[:8]}...)")
                 result = UserService.create_user(user)
-                print(f"✅ [DATABASE] User created successfully: {user.email}")
                 return result
     
     @staticmethod
@@ -327,18 +324,15 @@ class UserService:
                         try:
                             # Try direct conversion (handles both "email" and "EMAIL")
                             mfa_methods = [MFAMethod(mfa_method_str)]
-                            print(f"   ✅ [{db_user.email}] MFA method converted: {mfa_method_str} → {mfa_methods[0]}")
                         except ValueError:
                             # If method string doesn't match enum, try to map it
                             if "email" in mfa_method_str.lower():
                                 mfa_methods = [MFAMethod.EMAIL]
-                                print(f"   ✅ [{db_user.email}] MFA method mapped to EMAIL")
+                                mfa_methods = [MFAMethod.EMAIL]
                             elif "totp" in mfa_method_str.lower():
                                 mfa_methods = [MFAMethod.TOTP]
-                                print(f"   ✅ [{db_user.email}] MFA method mapped to TOTP")
                             elif "sms" in mfa_method_str.lower():
                                 mfa_methods = [MFAMethod.SMS]
-                                print(f"   ✅ [{db_user.email}] MFA method mapped to SMS")
                             else:
                                 print(f"   ⚠️  [{db_user.email}] Unknown MFA method: {mfa_method_str}, defaulting to EMAIL")
                                 mfa_methods = [MFAMethod.EMAIL]
@@ -385,7 +379,6 @@ class UserService:
                 if isinstance(role_ids, str):
                     print(f"   🔥 DOUBLE-ENCODED DETECTED! Parsing again...")
                     role_ids = json.loads(role_ids)
-                    print(f"   ✅ After 2nd parse: {role_ids} (type: {type(role_ids)})")
                 
                 # Final sanity check
                 if not isinstance(role_ids, list):
