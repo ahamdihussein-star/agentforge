@@ -14,7 +14,7 @@ async def check_database_health():
     Returns database type, connection status, and version
     """
     try:
-        from database.base import check_connection, get_engine
+        from database import check_connection, get_engine
         from database.config import DatabaseConfig
         
         # Check connection
