@@ -169,9 +169,19 @@ class UserService:
     
     @staticmethod
     def save_user(user: User) -> User:
-        """Save user to database (insert or update)"""
+        """Save user to database (insert or update) - UPSERT pattern"""
         with get_db_session() as db:
+            # First, try to find by ID
             db_user = db.query(DBUser).filter_by(id=user.id).first()
+            
+            # If not found by ID, try to find by email (for OAuth users with different IDs)
+            if not db_user and user.email:
+                db_user = db.query(DBUser).filter_by(email=user.email.lower()).first()
+                if db_user:
+                    # Update the user.id to match the existing database ID
+                    print(f"🔄 [DATABASE] Found existing user by email '{user.email}' with different ID. Updating ID from {user.id[:8]}... to {str(db_user.id)[:8]}...")
+                    user.id = str(db_user.id)
+            
             if db_user:
                 # Update existing
                 print(f"💾 [DATABASE] Updating user in database: {user.email} (ID: {user.id[:8]}...)")

@@ -2950,7 +2950,43 @@ async def oauth_callback(provider: str, req: Request):
     
     # Find or create user
     email = user_info.get("email")
-    user = security_state.get_user_by_email(email, org_id)
+    # Use org.id (UUID) if available, otherwise use org_id (string)
+    actual_org_id = org.id if hasattr(org, 'id') else org_id
+    user = security_state.get_user_by_email(email, actual_org_id)
+    
+    # If not found in security_state, try to load from database
+    if not user:
+        try:
+            from database.services import UserService
+            import uuid as uuid_lib
+            # Convert org_id to UUID for comparison
+            org_uuid = None
+            if actual_org_id:
+                try:
+                    org_uuid = uuid_lib.UUID(actual_org_id) if isinstance(actual_org_id, str) else actual_org_id
+                except ValueError:
+                    # If org_id is not a valid UUID, try to find org by slug
+                    from database.services import OrganizationService
+                    orgs = OrganizationService.get_all_organizations()
+                    org_obj = next((o for o in orgs if o.slug == "default" or o.id == actual_org_id), None)
+                    if org_obj:
+                        org_uuid = uuid_lib.UUID(org_obj.id)
+            
+            db_users = UserService.get_all_users()
+            for db_user in db_users:
+                if db_user.email.lower() == email.lower():
+                    # Compare org_id (both should be UUIDs)
+                    db_org_uuid = uuid_lib.UUID(db_user.org_id) if isinstance(db_user.org_id, str) else db_user.org_id
+                    if org_uuid is None or db_org_uuid == org_uuid:
+                        user = db_user
+                        # Add to security_state cache
+                        security_state.users[user.id] = user
+                        print(f"✅ [OAUTH] Found existing user in database: {user.email} (ID: {user.id[:8]}...)")
+                        break
+        except Exception as e:
+            print(f"⚠️  [OAUTH] Failed to search database for user: {e}")
+            import traceback
+            traceback.print_exc()
     
     if not user:
         # Get or create "User" role for self-registered users
