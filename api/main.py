@@ -28,7 +28,7 @@ import uvicorn
 
 # Security Module
 try:
-    from core.security import security_state
+    from core.security import security_state, User
     from api.security import router as security_router, get_current_user
     SECURITY_AVAILABLE = True
     print("✅ Security module available")
@@ -36,6 +36,8 @@ except ImportError:
     SECURITY_AVAILABLE = False
     print("⚠️ Security module not installed - running without authentication")
     # Fallback for get_current_user if security module not available
+    class User:
+        pass
     def get_current_user():
         return None
 
