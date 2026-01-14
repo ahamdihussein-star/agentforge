@@ -861,10 +861,17 @@ class OAuthService:
             
             # Log for debugging
             client_id_display = f"{client_id[:20]}..." if client_id else "NOT SET"
+            redirect_encoded = urlencode({'redirect_uri': redirect_uri})
             print(f"🔍 [OAUTH DEBUG] Google Authorization URL generated:")
             print(f"   Client ID: {client_id_display}")
-            print(f"   Redirect URI: {redirect_uri}")
-            print(f"   Full Auth URL: {auth_url[:100]}...")
+            print(f"   Redirect URI (raw): {redirect_uri}")
+            print(f"   Redirect URI (encoded): {redirect_encoded}")
+            print(f"   Full Auth URL: {auth_url}")
+            print(f"   ⚠️  IMPORTANT: Ensure this EXACT redirect_uri is in Google Console:")
+            print(f"      {redirect_uri}")
+            print(f"   📋 Copy this EXACT URL to Google Console → Authorized redirect URIs")
+            print(f"   ⚠️  IMPORTANT: Ensure this EXACT redirect_uri is in Google Console:")
+            print(f"      {redirect_uri}")
             
             return auth_url
         
