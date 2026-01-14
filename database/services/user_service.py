@@ -130,6 +130,23 @@ class UserService:
                 if user.mfa.totp_secret:
                     mfa_secret_encrypted = user.mfa.totp_secret
             
+            # Store MFA temporary codes in user_metadata (email_code, sms_code, etc.)
+            import json
+            user_metadata = {}
+            
+            # Update MFA codes (always overwrite old codes - single code only)
+            if user.mfa:
+                if user.mfa.email_code:
+                    user_metadata['mfa_email_code'] = user.mfa.email_code
+                    user_metadata['mfa_email_code_expires'] = user.mfa.email_code_expires
+                
+                if user.mfa.sms_code:
+                    user_metadata['mfa_sms_code'] = user.mfa.sms_code
+                    user_metadata['mfa_sms_code_expires'] = user.mfa.sms_code_expires
+                
+                if user.mfa.last_used:
+                    user_metadata['mfa_last_used'] = user.mfa.last_used
+            
             # Convert Core model to DB model
             db_user = DBUser(
                 id=user.id,
@@ -157,7 +174,8 @@ class UserService:
                 last_login=datetime.fromisoformat(user.last_login) if user.last_login else None,
                 last_active=datetime.fromisoformat(user.last_active) if user.last_active else None,
                 created_at=datetime.fromisoformat(user.created_at) if user.created_at else datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                updated_at=datetime.utcnow(),
+                user_metadata=user_metadata  # Save MFA codes in metadata
             )
             
             db.add(db_user)
@@ -276,6 +294,7 @@ class UserService:
             db_user.mfa_secret_encrypted = mfa_secret_encrypted
             db_user.must_change_password = user.must_change_password
             db_user.failed_login_attempts = user.failed_login_attempts
+            db_user.user_metadata = user_metadata  # Save MFA codes in metadata
             
             if user.last_login:
                 db_user.last_login = datetime.fromisoformat(user.last_login) if isinstance(user.last_login, str) else user.last_login
@@ -398,6 +417,17 @@ class UserService:
             traceback.print_exc()
             group_ids = []
         
+        # Parse user_metadata (may be JSON string or dict)
+        user_metadata_dict = {}
+        if hasattr(db_user, 'user_metadata') and db_user.user_metadata:
+            if isinstance(db_user.user_metadata, str):
+                try:
+                    user_metadata_dict = json.loads(db_user.user_metadata)
+                except:
+                    user_metadata_dict = {}
+            elif isinstance(db_user.user_metadata, dict):
+                user_metadata_dict = db_user.user_metadata
+        
         return User(
             id=user_id,
             org_id=org_id,
@@ -418,7 +448,13 @@ class UserService:
                 methods=mfa_methods,  # ✅ List of MFAMethods
                 totp_secret=db_user.mfa_secret_encrypted if hasattr(db_user, 'mfa_secret_encrypted') else None,
                 totp_verified=db_user.mfa_enabled if hasattr(db_user, 'mfa_enabled') else False,
-                backup_codes=[]  # Stored in separate MFASetting table
+                backup_codes=[],  # Stored in separate MFASetting table
+                # Load MFA codes from user_metadata
+                email_code=user_metadata_dict.get('mfa_email_code'),
+                email_code_expires=user_metadata_dict.get('mfa_email_code_expires'),
+                sms_code=user_metadata_dict.get('mfa_sms_code'),
+                sms_code_expires=user_metadata_dict.get('mfa_sms_code_expires'),
+                last_used=user_metadata_dict.get('mfa_last_used')
             ),
             auth_provider=auth_provider,  # ✅ AuthProvider enum (required)
             external_id=db_user.external_id,
