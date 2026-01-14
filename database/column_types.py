@@ -83,7 +83,8 @@ class JSON(TypeDecorator):
 class JSONArray(TypeDecorator):
     """
     Platform-independent JSON Array type.
-    Stores arrays as JSON regardless of database.
+    Stores arrays as JSONB (not PostgreSQL ARRAY) regardless of database.
+    IMPORTANT: This stores as JSONB, NOT as native PostgreSQL ARRAY type.
     """
     impl = TEXT
     cache_ok = True
@@ -97,25 +98,40 @@ class JSONArray(TypeDecorator):
             return dialect.type_descriptor(TEXT())
     
     def process_bind_param(self, value, dialect):
+        # Ensure we always have a list, never a string
         if value is None:
-            return []
-        # If value is a JSON string, deserialize it first
+            value = []
+        
+        # If value is a JSON string, deserialize it
         if isinstance(value, str):
             try:
                 value = json.loads(value)
             except (json.JSONDecodeError, TypeError):
-                # If it's not valid JSON, treat as single string element
-                pass
+                # If not valid JSON, wrap in list
+                value = [value] if value else []
+        
+        # Ensure it's a list
+        if not isinstance(value, list):
+            value = [value] if value else []
+        
+        # For PostgreSQL/MySQL with JSONB/JSON, pass the Python list directly
+        # The driver will handle serialization
         if dialect.name in ('postgresql', 'mysql'):
-            return value
+            return value  # Return Python list - psycopg2/mysqlclient handles it
         else:
-            return json.dumps(value)
+            return json.dumps(value)  # Serialize for SQLite etc.
     
     def process_result_value(self, value, dialect):
         if value is None:
             return []
         if dialect.name in ('postgresql', 'mysql'):
-            return value
+            # Should already be a Python list from JSONB
+            if isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except (json.JSONDecodeError, TypeError):
+                    return []
+            return value if isinstance(value, list) else []
         else:
             return json.loads(value) if value else []
 
