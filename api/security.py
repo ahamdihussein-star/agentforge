@@ -388,12 +388,40 @@ async def get_current_user(
             return None
     
     user = security_state.users.get(user_id)
+    
+    # If user not in security_state, try to load from database
+    if not user:
+        try:
+            from database.services import UserService
+            import uuid as uuid_lib
+            try:
+                user_uuid = uuid_lib.UUID(user_id)
+                db_users = UserService.get_all_users()
+                user = next((u for u in db_users if u.id == user_id), None)
+                if user:
+                    # Add to security_state cache
+                    security_state.users[user.id] = user
+                    print(f"✅ [AUTH] Loaded user from database: {user.email} (ID: {user.id[:8]}...)")
+            except ValueError:
+                print(f"⚠️  [AUTH] Invalid user_id format: {user_id}")
+        except Exception as e:
+            print(f"⚠️  [AUTH] Failed to load user from database: {e}")
+            import traceback
+            traceback.print_exc()
+    
     if not user or user.status != UserStatus.ACTIVE:
         return None
     
     # Update last activity
     session.last_activity = datetime.utcnow().isoformat()
     user.last_active = datetime.utcnow().isoformat()
+    
+    # Save last_active to database
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+    except Exception as e:
+        print(f"⚠️  [AUTH] Failed to save last_active to database: {e}")
     
     return user
 
@@ -860,7 +888,32 @@ async def refresh_token(refresh_token: str):
 
 @router.get("/auth/me")
 async def get_current_user_info(user: User = Depends(require_auth)):
-    """Get current user information"""
+    """Get current user information - loads from database"""
+    # Ensure user is loaded from database (refresh from DB to get latest MFA settings)
+    try:
+        from database.services import UserService
+        import uuid as uuid_lib
+        try:
+            user_uuid = uuid_lib.UUID(user.id)
+            db_users = UserService.get_all_users()
+            db_user = next((u for u in db_users if u.id == user.id), None)
+            if db_user:
+                # Update security_state cache with latest data from database
+                security_state.users[user.id] = db_user
+                user = db_user
+                print(f"📊 [API] Refreshed user from database: {user.email} (MFA enabled: {user.mfa.enabled if user.mfa else False})")
+        except ValueError:
+            print(f"⚠️  [API] Invalid user_id format: {user.id}")
+    except Exception as e:
+        print(f"⚠️  [API] Failed to refresh user from database: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # Get first MFA method for UI compatibility (UI expects mfa.method, not mfa_methods array)
+    mfa_method = None
+    if user.mfa and user.mfa.methods:
+        mfa_method = user.mfa.methods[0].value if hasattr(user.mfa.methods[0], 'value') else str(user.mfa.methods[0])
+    
     return {
         "id": user.id,
         "email": user.email,
@@ -875,8 +928,13 @@ async def get_current_user_info(user: User = Depends(require_auth)):
         "group_ids": user.group_ids,
         "groups": [security_state.groups[g].dict() for g in user.group_ids if g in security_state.groups],
         "org_id": user.org_id,
-        "mfa_enabled": user.mfa.enabled, "must_change_password": user.must_change_password,
-        "mfa_methods": [m.value for m in user.mfa.methods],
+        "mfa": {
+            "enabled": user.mfa.enabled if user.mfa else False,
+            "method": mfa_method,  # ✅ Singular method for UI compatibility
+            "methods": [m.value for m in user.mfa.methods] if user.mfa and user.mfa.methods else []  # ✅ Array for backward compatibility
+        },
+        "mfa_enabled": user.mfa.enabled if user.mfa else False,  # ✅ Backward compatibility
+        "mfa_methods": [m.value for m in user.mfa.methods] if user.mfa and user.mfa.methods else [],  # ✅ Backward compatibility
         "must_change_password": user.must_change_password,
         "last_login": user.last_login,
         "created_at": user.created_at

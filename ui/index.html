@@ -19990,8 +19990,18 @@ async function loadProfileInfo() {
 }
 
 function updateMFAStatus(userData) {
-    const mfaEnabled = userData.mfa?.enabled || false;
-    const mfaMethod = userData.mfa?.method || 'none';
+    // Support both formats: mfa.method (singular) and mfa_methods (array) for backward compatibility
+    const mfaEnabled = userData.mfa?.enabled || userData.mfa_enabled || false;
+    let mfaMethod = userData.mfa?.method || 'none';
+    
+    // If mfa.method is not available, try to get from mfa_methods array
+    if (mfaMethod === 'none' && userData.mfa_methods && userData.mfa_methods.length > 0) {
+        mfaMethod = userData.mfa_methods[0];
+    }
+    // Also check mfa.methods array (nested)
+    if (mfaMethod === 'none' && userData.mfa?.methods && userData.mfa.methods.length > 0) {
+        mfaMethod = userData.mfa.methods[0];
+    }
     
     const statusText = document.getElementById('mfa-status-text');
     const statusBadge = document.getElementById('mfa-status-badge');
