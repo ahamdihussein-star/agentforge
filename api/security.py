@@ -1166,6 +1166,18 @@ async def enable_mfa(request: EnableMFARequest, user: User = Depends(require_aut
         
         user.mfa.totp_secret = secret
         user.mfa.totp_verified = False
+        security_state.users[user.id] = user  # Update in-memory state
+        
+        # Save to database
+        try:
+            from database.services import UserService
+            UserService.save_user(user)
+            print(f"💾 [MFA] MFA setup saved to database for {user.email}")
+        except Exception as e:
+            print(f"⚠️  [MFA ERROR] Database save failed: {e}, saving to disk only")
+            import traceback
+            traceback.print_exc()
+        
         security_state.save_to_disk()
         
         return {
@@ -1179,6 +1191,18 @@ async def enable_mfa(request: EnableMFARequest, user: User = Depends(require_aut
         code = MFAService.generate_email_code()
         user.mfa.email_code = code
         user.mfa.email_code_expires = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+        security_state.users[user.id] = user  # Update in-memory state
+        
+        # Save to database
+        try:
+            from database.services import UserService
+            UserService.save_user(user)
+            print(f"💾 [MFA] MFA setup saved to database for {user.email}")
+        except Exception as e:
+            print(f"⚠️  [MFA ERROR] Database save failed: {e}, saving to disk only")
+            import traceback
+            traceback.print_exc()
+        
         security_state.save_to_disk()
         
         await EmailService.send_mfa_code(user, code)
@@ -1192,6 +1216,18 @@ async def enable_mfa(request: EnableMFARequest, user: User = Depends(require_aut
         code = MFAService.generate_sms_code()
         user.mfa.sms_code = code
         user.mfa.sms_code_expires = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+        security_state.users[user.id] = user  # Update in-memory state
+        
+        # Save to database
+        try:
+            from database.services import UserService
+            UserService.save_user(user)
+            print(f"💾 [MFA] MFA setup saved to database for {user.email}")
+        except Exception as e:
+            print(f"⚠️  [MFA ERROR] Database save failed: {e}, saving to disk only")
+            import traceback
+            traceback.print_exc()
+        
         security_state.save_to_disk()
         
         # SMS sending would be implemented here
@@ -1216,6 +1252,18 @@ async def verify_mfa_setup(request: VerifyMFARequest, user: User = Depends(requi
             # Generate backup codes
             backup_codes = MFAService.generate_backup_codes()
             user.mfa.backup_codes = [PasswordService.hash_password(c) for c in backup_codes]
+            
+            security_state.users[user.id] = user  # Update in-memory state
+            
+            # Save to database
+            try:
+                from database.services import UserService
+                UserService.save_user(user)
+                print(f"💾 [MFA] MFA enabled and saved to database for {user.email} (TOTP)")
+            except Exception as e:
+                print(f"⚠️  [MFA ERROR] Database save failed: {e}, saving to disk only")
+                import traceback
+                traceback.print_exc()
             
             security_state.save_to_disk()
             
@@ -1253,6 +1301,18 @@ async def verify_mfa_setup(request: VerifyMFARequest, user: User = Depends(requi
             # Generate backup codes
             backup_codes = MFAService.generate_backup_codes()
             user.mfa.backup_codes = [PasswordService.hash_password(c) for c in backup_codes]
+            
+            security_state.users[user.id] = user  # Update in-memory state
+            
+            # Save to database
+            try:
+                from database.services import UserService
+                UserService.save_user(user)
+                print(f"💾 [MFA] MFA enabled and saved to database for {user.email} (Email)")
+            except Exception as e:
+                print(f"⚠️  [MFA ERROR] Database save failed: {e}, saving to disk only")
+                import traceback
+                traceback.print_exc()
             
             security_state.save_to_disk()
             
@@ -1320,6 +1380,18 @@ async def toggle_user_mfa(request: dict, user: User = Depends(require_auth)):
         # Disable MFA for user
         user.mfa.enabled = False
     
+    security_state.users[user.id] = user  # Update in-memory state
+    
+    # Save to database
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+        print(f"💾 [MFA] MFA toggled and saved to database for {user.email} (enabled: {enabled})")
+    except Exception as e:
+        print(f"⚠️  [MFA ERROR] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+    
     security_state.save_to_disk()
     
     security_state.add_audit_log(
@@ -1349,6 +1421,18 @@ async def disable_mfa(request: DisableMFARequest, user: User = Depends(require_a
     user.mfa.totp_verified = False
     user.mfa.backup_codes = []
     
+    security_state.users[user.id] = user  # Update in-memory state
+    
+    # Save to database
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+        print(f"💾 [MFA] MFA disabled and saved to database for {user.email}")
+    except Exception as e:
+        print(f"⚠️  [MFA ERROR] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+    
     security_state.save_to_disk()
     
     security_state.add_audit_log(
@@ -1368,6 +1452,19 @@ async def regenerate_backup_codes(user: User = Depends(require_auth)):
     
     backup_codes = MFAService.generate_backup_codes()
     user.mfa.backup_codes = [PasswordService.hash_password(c) for c in backup_codes]
+    
+    security_state.users[user.id] = user  # Update in-memory state
+    
+    # Save to database
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+        print(f"💾 [MFA] Backup codes regenerated and saved to database for {user.email}")
+    except Exception as e:
+        print(f"⚠️  [MFA ERROR] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+    
     security_state.save_to_disk()
     
     return {"backup_codes": backup_codes}
@@ -2907,6 +3004,70 @@ async def oauth_callback(provider: str, req: Request):
             traceback.print_exc()
             security_state.save_to_disk()
     
+    # Check MFA requirement (same logic as login endpoint)
+    settings = security_state.get_settings()
+    mfa_required = False
+    mfa_code = req.query_params.get("mfa_code")  # Get MFA code from query params if provided
+    
+    # Super Admin bypass - skip MFA for system admins with non-real emails
+    is_super_admin = security_state.check_permission(user, Permission.SYSTEM_ADMIN.value)
+    if is_super_admin and (user.id == "user_super_admin" or not user.email or user.email.endswith("@local")):
+        mfa_required = False  # Bypass MFA for super admin with fake email
+    elif settings.mfa_enforcement == "all":
+        mfa_required = True
+    elif settings.mfa_enforcement == "admins":
+        is_admin = security_state.check_permission(user, Permission.SYSTEM_ADMIN.value)
+        mfa_required = is_admin
+    elif settings.mfa_enforcement == "optional" and user.mfa.enabled:
+        mfa_required = True
+    
+    # If MFA is required and no code provided, redirect to MFA page
+    if mfa_required and not mfa_code:
+        # Auto-send email code if email MFA is enabled
+        if MFAMethod.EMAIL in user.mfa.methods:
+            code = MFAService.generate_email_code()
+            user.mfa.email_code = code
+            user.mfa.email_code_expires = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+            security_state.save_to_disk()
+            
+            # Send email in background
+            try:
+                await EmailService.send_mfa_code(user, code)
+                print(f"📧 [OAUTH] MFA code sent to {user.email}")
+            except Exception as e:
+                print(f"⚠️  [OAUTH] Failed to send MFA email: {e}")
+        
+        # Create temporary session for MFA verification
+        # This session will be used after MFA verification
+        temp_session = Session(
+            user_id=user.id,
+            org_id=user.org_id,
+            ip_address=req.client.host,
+            user_agent=req.headers.get("user-agent", ""),
+            is_active=False  # Not active until MFA verified
+        )
+        security_state.sessions[temp_session.id] = temp_session
+        
+        # Redirect to MFA verification page with session ID
+        redirect_url = f"/ui/#mfa-verify?session_id={temp_session.id}&email={user.email}&provider={provider}"
+        print(f"🔐 [OAUTH] MFA required for {user.email}, redirecting to MFA verification (session: {temp_session.id[:8]}...)")
+        return Response(
+            status_code=302,
+            headers={"Location": redirect_url}
+        )
+    
+    # Verify MFA if provided (from query param or separate endpoint)
+    if mfa_required and mfa_code:
+        if not MFAService.verify_code(user, mfa_code):
+            print(f"❌ [OAUTH] Invalid MFA code for {user.email}")
+            # Redirect back to login with error
+            return Response(
+                status_code=302,
+                headers={"Location": f"/ui/#login?error=invalid_mfa_code"}
+            )
+        user.mfa.last_used = datetime.utcnow().isoformat()
+        print(f"✅ [OAUTH] MFA verified for {user.email}")
+    
     # Create session
     session = Session(
         user_id=user.id,
@@ -2917,6 +3078,18 @@ async def oauth_callback(provider: str, req: Request):
     security_state.sessions[session.id] = session
     
     access_token = TokenService.create_access_token(user.id, user.org_id, session.id)
+    
+    # Add audit log
+    security_state.add_audit_log(
+        user=user,
+        action=ActionType.LOGIN,
+        resource_type=ResourceType.USER,
+        resource_id=user.id,
+        resource_name=user.email,
+        details={"method": "oauth", "provider": provider, "mfa_used": mfa_required},
+        session=session,
+        ip_address=req.client.host
+    )
     
     # Redirect to frontend with token
     return Response(

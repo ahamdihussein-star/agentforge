@@ -101,6 +101,24 @@ class UserService:
                     except ValueError:
                         org_uuid = None
             
+            # Convert MFA data
+            mfa_enabled = user.mfa.enabled if user.mfa else False
+            mfa_method = MFAMethod.NONE
+            mfa_secret_encrypted = None
+            
+            if user.mfa and user.mfa.enabled:
+                # Get first enabled method (TOTP takes priority)
+                if user.mfa.methods:
+                    mfa_method = user.mfa.methods[0] if isinstance(user.mfa.methods[0], MFAMethod) else MFAMethod(user.mfa.methods[0])
+                elif user.mfa.totp_secret:
+                    mfa_method = MFAMethod.TOTP
+                elif user.mfa.email_code:
+                    mfa_method = MFAMethod.EMAIL
+                
+                # Store TOTP secret if available (should be encrypted in production)
+                if user.mfa.totp_secret:
+                    mfa_secret_encrypted = user.mfa.totp_secret
+            
             # Convert Core model to DB model
             db_user = DBUser(
                 id=user.id,
@@ -114,6 +132,9 @@ class UserService:
                 auth_provider=user.auth_provider.value if user.auth_provider else None,
                 external_id=user.external_id,
                 email_verified=user.email_verified,
+                mfa_enabled=mfa_enabled,
+                mfa_method=mfa_method,
+                mfa_secret_encrypted=mfa_secret_encrypted,
                 must_change_password=user.must_change_password,
                 failed_login_attempts=user.failed_login_attempts,
                 last_login=datetime.fromisoformat(user.last_login) if user.last_login else None,
@@ -176,6 +197,24 @@ class UserService:
                     except ValueError:
                         org_uuid = None
             
+            # Convert MFA data
+            mfa_enabled = user.mfa.enabled if user.mfa else False
+            mfa_method = MFAMethod.NONE
+            mfa_secret_encrypted = None
+            
+            if user.mfa and user.mfa.enabled:
+                # Get first enabled method (TOTP takes priority)
+                if user.mfa.methods:
+                    mfa_method = user.mfa.methods[0] if isinstance(user.mfa.methods[0], MFAMethod) else MFAMethod(user.mfa.methods[0])
+                elif user.mfa.totp_secret:
+                    mfa_method = MFAMethod.TOTP
+                elif user.mfa.email_code:
+                    mfa_method = MFAMethod.EMAIL
+                
+                # Store TOTP secret if available (should be encrypted in production)
+                if user.mfa.totp_secret:
+                    mfa_secret_encrypted = user.mfa.totp_secret
+            
             # Update fields
             db_user.email = user.email.lower()
             if org_uuid:
@@ -187,6 +226,9 @@ class UserService:
             db_user.department_id = user.department_id
             db_user.group_ids = user.group_ids or []
             db_user.email_verified = user.email_verified
+            db_user.mfa_enabled = mfa_enabled
+            db_user.mfa_method = mfa_method
+            db_user.mfa_secret_encrypted = mfa_secret_encrypted
             db_user.must_change_password = user.must_change_password
             db_user.failed_login_attempts = user.failed_login_attempts
             
