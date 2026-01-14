@@ -2912,10 +2912,8 @@ async def oauth_login(provider: str, req: Request):
     
     if not org:
         needs_reload = True
-        print(f"🔄 [OAUTH] Organization '{org_id}' not in security_state, loading from database...")
     elif not hasattr(org, client_id_attr) or not getattr(org, client_id_attr, None):
         needs_reload = True
-        print(f"🔄 [OAUTH] Organization '{org_id}' found in cache but missing OAuth credentials, reloading from database...")
     
     # If not found or missing OAuth credentials, load from database
     if needs_reload:
@@ -2937,8 +2935,6 @@ async def oauth_login(provider: str, req: Request):
                 if db_org.id != org_id:
                     security_state.organizations[org_id] = db_org
                 org = db_org
-                print(f"✅ [OAUTH] Loaded organization '{org.name}' from database (ID: {org.id[:8]}...)")
-                print(f"   🔍 [OAUTH] Client ID present: {bool(getattr(org, client_id_attr, None))}")
         except Exception as e:
             print(f"❌ [OAUTH ERROR] Failed to load organization from database: {e}")
             import traceback
@@ -2960,8 +2956,6 @@ async def oauth_login(provider: str, req: Request):
     client_id = getattr(org, f'{provider}_client_id', None)
     if client_id:
     else:
-    print(f"🔍 [OAUTH DEBUG] Redirect URI: {redirect_uri}")
-    print(f"🔍 [OAUTH DEBUG] Allowed providers: {org.allowed_auth_providers}")
     
     if not client_id:
         raise HTTPException(
@@ -2994,10 +2988,8 @@ async def oauth_callback(provider: str, req: Request):
     
     if not org:
         needs_reload = True
-        print(f"🔄 [OAUTH] Organization '{org_id}' not in security_state, loading from database...")
     elif not hasattr(org, client_id_attr) or not getattr(org, client_id_attr, None):
         needs_reload = True
-        print(f"🔄 [OAUTH] Organization '{org_id}' found in cache but missing OAuth credentials, reloading from database...")
     
     # If not found or missing OAuth credentials, load from database
     if needs_reload:
@@ -3019,8 +3011,6 @@ async def oauth_callback(provider: str, req: Request):
                 if db_org.id != org_id:
                     security_state.organizations[org_id] = db_org
                 org = db_org
-                print(f"✅ [OAUTH] Loaded organization '{org.name}' from database (ID: {org.id[:8]}...)")
-                print(f"   🔍 [OAUTH] Client ID present: {bool(getattr(org, client_id_attr, None))}")
         except Exception as e:
             print(f"❌ [OAUTH ERROR] Failed to load organization from database: {e}")
             import traceback
@@ -3084,7 +3074,6 @@ async def oauth_callback(provider: str, req: Request):
                         user = db_user
                         # Add to security_state cache
                         security_state.users[user.id] = user
-                        print(f"✅ [OAUTH] Found existing user in database: {user.email} (ID: {user.id[:8]}...)")
                         break
         except Exception as e:
             print(f"⚠️  [OAUTH] Failed to search database for user: {e}")
@@ -3099,7 +3088,6 @@ async def oauth_callback(provider: str, req: Request):
             from database.services import RoleService
             user_role = RoleService.get_or_create_user_role(actual_org_id)
             user_role_id = user_role.id
-            print(f"✅ [OAUTH] Using 'User' role for new user: {user_role.name} (ID: {user_role_id[:8]}...)")
         except Exception as e:
             print(f"⚠️  [OAUTH ERROR] Failed to get/create 'User' role: {e}")
             import traceback
@@ -3109,7 +3097,6 @@ async def oauth_callback(provider: str, req: Request):
             for role_id, role in security_state.roles.items():
                 if role.name.lower() == "user":
                     user_role_id = role.id
-                    print(f"✅ [OAUTH] Found 'User' role in cache: {role.name} (ID: {user_role_id[:8]}...)")
                     break
             
             if not user_role_id:
@@ -3210,7 +3197,6 @@ async def oauth_callback(provider: str, req: Request):
                 headers={"Location": f"/ui/#login?error=invalid_mfa_code"}
             )
         user.mfa.last_used = datetime.utcnow().isoformat()
-        print(f"✅ [OAUTH] MFA verified for {user.email}")
     
     # Create session
     session = Session(
