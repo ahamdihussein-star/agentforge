@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def main():
     """Initialize database with complete enterprise schema"""
     # Import here to avoid circular import issues
-    # Use relative import to avoid circular import with database.types
-    from .base import init_db, check_connection, get_engine
+    # Use absolute import since this script is run directly (not as a module)
+    from database.base import init_db, check_connection, get_engine
     
     print("=" * 60)
     print("🚀 AgentForge Database Initialization")
