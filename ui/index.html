@@ -17832,7 +17832,13 @@ async function handleLogin(event) {
         }
         
         // Check if MFA is required (check both requires_mfa and mfa_required for backward compatibility)
-        if (data.requires_mfa === true || data.mfa_required === true) {
+        console.log("🔍 [FRONTEND] Checking MFA requirement...");
+        console.log("   requires_mfa:", data.requires_mfa, "(type:", typeof data.requires_mfa, ")");
+        console.log("   mfa_required:", data.mfa_required, "(type:", typeof data.mfa_required, ")");
+        console.log("   mfa_methods:", data.mfa_methods);
+        
+        if (data.requires_mfa === true || data.mfa_required === true || data.requires_mfa === "true" || data.mfa_required === "true") {
+            console.log("✅ [FRONTEND] MFA is required, showing modal...");
             btn.disabled = false;
             btn.textContent = 'Sign In';
             
@@ -17842,9 +17848,15 @@ async function handleLogin(event) {
             window.pendingLoginRemember = remember;
             window.pendingMfaMethods = data.mfa_methods || data.mfa_methods || [];
             
-            console.log("Showing MFA modal with methods:", window.pendingMfaMethods);
+            console.log("📋 [FRONTEND] Stored pending login data:");
+            console.log("   Email:", window.pendingLoginEmail);
+            console.log("   MFA Methods:", window.pendingMfaMethods);
+            console.log("📱 [FRONTEND] Calling showLoginMfaModal...");
             showLoginMfaModal(window.pendingMfaMethods);
+            console.log("✅ [FRONTEND] showLoginMfaModal called");
             return;
+        } else {
+            console.log("❌ [FRONTEND] MFA not required, continuing with normal login...");
         }
         
         // Store auth data
@@ -17914,9 +17926,20 @@ function showLoginMfaModal(methods) {
         </div>
     `;
     document.body.appendChild(modal);
+    console.log("✅ [FRONTEND] MFA modal added to DOM");
+    console.log("   Modal ID:", modal.id);
+    console.log("   Modal visible:", modal.offsetParent !== null);
     
     // Focus on input
-    setTimeout(() => document.getElementById('login-mfa-code')?.focus(), 100);
+    setTimeout(() => {
+        const input = document.getElementById('login-mfa-code');
+        if (input) {
+            input.focus();
+            console.log("✅ [FRONTEND] Focused on MFA code input");
+        } else {
+            console.error("❌ [FRONTEND] MFA code input not found!");
+        }
+    }, 100);
 }
 
 function closeLoginMfaModal() {

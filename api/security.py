@@ -795,15 +795,17 @@ async def login(request: LoginRequest, req: Request):
             print(f"⚠️  [LOGIN] Failed to send MFA email: {e}")
         
         # Return MFA required response
+        mfa_methods_list = [m.value for m in user.mfa.methods] if user.mfa and user.mfa.methods else ["email"]
         response = AuthResponse(
             access_token="",
             expires_in=0,
             user={"id": user.id, "email": user.email},
             requires_mfa=True,
-            mfa_methods=[m.value for m in user.mfa.methods] if user.mfa and user.mfa.methods else ["email"]
+            mfa_methods=mfa_methods_list
         )
         print(f"🔐 [LOGIN] MFA required for {user.email}, returning requires_mfa=True response")
         print(f"   📋 MFA methods: {response.mfa_methods}")
+        print(f"   📋 Response JSON: {response.model_dump_json()}")
         return response
     
     # Verify MFA if provided
