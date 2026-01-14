@@ -5,7 +5,7 @@ import uuid
 import json
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Boolean, Integer
-from ..types import UUID, JSON, JSONArray
+from ..column_types import UUID, JSON, JSONArray
 JSONB = JSON
 
 from ..base import Base

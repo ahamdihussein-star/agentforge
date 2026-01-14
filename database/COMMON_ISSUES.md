@@ -638,7 +638,7 @@ After converting from PostgreSQL-specific types to database-agnostic types, mode
 
 ```python
 # ❌ WRONG Import Pattern:
-from ..types import UUID, JSON as JSONB
+from ..column_types import UUID, JSON as JSONB
 
 # Code uses:
 user_metadata = Column(JSON, default={})
@@ -659,7 +659,7 @@ NameError: name 'JSON' is not defined. Did you mean: 'JSONB'?
 #### Solution:
 ```python
 # ✅ CORRECT Import Pattern:
-from ..types import UUID, JSON, JSONArray
+from ..column_types import UUID, JSON, JSONArray
 JSONB = JSON  # Alias for backward compatibility
 
 # Now both work:
@@ -671,7 +671,7 @@ config = Column(JSONB, default={})        # ✅
 
 1. **Import Both Names:**
    ```python
-   from ..types import UUID, JSON, JSONArray
+   from ..column_types import UUID, JSON, JSONArray
    JSONB = JSON  # Keep alias for compatibility
    ```
 
@@ -681,7 +681,7 @@ config = Column(JSONB, default={})        # ✅
    REPLACEMENTS = [
        # Import: Add all needed types
        (r'from sqlalchemy\.dialects\.postgresql import UUID, JSONB',
-        'from ..types import UUID, JSON, JSONArray\nJSONB = JSON'),
+        'from ..column_types import UUID, JSON, JSONArray\nJSONB = JSON'),
        
        # Usage: Update column definitions
        (r'Column\(JSONB', 'Column(JSON'),

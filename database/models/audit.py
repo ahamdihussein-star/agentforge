@@ -10,7 +10,7 @@ from enum import Enum
 from sqlalchemy import Column, String, DateTime, Text, Integer, Index, Boolean
 
 from ..base import Base
-from ..types import UUID, JSON, JSONArray
+from ..column_types import UUID, JSON, JSONArray
 
 # Alias for backward compatibility
 JSONB = JSON

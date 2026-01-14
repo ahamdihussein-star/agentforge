@@ -8,7 +8,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, Text, Table
 from sqlalchemy.orm import relationship
 
 from ..base import Base
-from ..types import UUID, JSONArray
+from ..column_types import UUID, JSONArray
 
 # Alias for backward compatibility
 JSONB = JSONArray

@@ -117,7 +117,7 @@ git commit -m "Update user model"
 ### Error: PostgreSQL-specific imports found
 ```bash
 ❌ ERROR: Found PostgreSQL-specific imports
-   Use: from ..types import UUID, JSON, JSONArray
+   Use: from ..column_types import UUID, JSON, JSONArray
 ```
 
 **Fix:**
@@ -126,7 +126,7 @@ git commit -m "Update user model"
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 # ✅ CORRECT:
-from ..types import UUID, JSON, JSONArray
+from ..column_types import UUID, JSON, JSONArray
 JSONB = JSON  # After all imports
 ```
 

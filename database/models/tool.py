@@ -10,7 +10,7 @@ from enum import Enum
 
 from ..base import Base
 from ..enums import ToolType  # Import from centralized enums
-from ..types import UUID, JSON, JSONArray  # Database-agnostic types
+from ..column_types import UUID, JSON, JSONArray  # Database-agnostic types
 
 
 class Tool(Base):

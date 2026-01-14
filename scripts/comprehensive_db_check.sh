@@ -31,7 +31,7 @@ echo "✅ Pass"
 echo "🔍 Issue #7: Checking for PostgreSQL-specific imports..."
 if grep -r "from sqlalchemy.dialects.postgresql" "$MODELS_DIR" | grep -v "^#"; then
     echo "❌ ERROR: Found PostgreSQL-specific imports"
-    echo "   Use: from ..types import UUID, JSON, JSONArray"
+    echo "   Use: from ..column_types import UUID, JSON, JSONArray"
     grep -r "from sqlalchemy.dialects.postgresql" "$MODELS_DIR" | grep -v "^#"
     ERRORS=$((ERRORS + 1))
 else
@@ -138,7 +138,7 @@ if [ $ERRORS -gt 0 ]; then
     echo ""
     echo "🔍 Common fixes:"
     echo "   - Replace 'metadata' with 'extra_metadata'"
-    echo "   - Use 'from ..types import UUID, JSON, JSONArray'"
+    echo "   - Use 'from ..column_types import UUID, JSON, JSONArray'"
     echo "   - Use String(45) for IP addresses"
     echo "   - Use aliases for DB models: 'User as DBUser'"
     echo "   - Check for extra/missing parentheses (syntax)"

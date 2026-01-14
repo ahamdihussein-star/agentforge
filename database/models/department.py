@@ -4,7 +4,7 @@ Department Model - Organization departments
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Text
-from ..types import UUID, JSON
+from ..column_types import UUID, JSON
 JSONB = JSON
 
 from ..base import Base
