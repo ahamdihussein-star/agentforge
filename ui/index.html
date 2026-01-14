@@ -17871,8 +17871,32 @@ async function handleLogin(event) {
             try {
                 showLoginMfaModal(window.pendingMfaMethods);
                 console.log("✅ [FRONTEND] showLoginMfaModal called successfully");
+                
+                // Verify modal was created after a short delay
+                setTimeout(() => {
+                    console.log("🔍 [FRONTEND] Verifying modal after 200ms...");
+                    const modalCheck = document.getElementById('login-mfa-modal');
+                    if (modalCheck) {
+                        console.log("✅ [FRONTEND] ✅✅✅ MODAL VERIFICATION: SUCCESS ✅✅✅");
+                        console.log("   Modal is in DOM");
+                        console.log("   Modal is visible:", modalCheck.offsetParent !== null);
+                        const inputCheck = document.getElementById('login-mfa-code');
+                        if (inputCheck) {
+                            console.log("   Input field is present");
+                        } else {
+                            console.error("   ❌ Input field is missing!");
+                        }
+                    } else {
+                        console.error("❌ [FRONTEND] ❌❌❌ MODAL VERIFICATION: FAILED ❌❌❌");
+                        console.error("   Modal is NOT in DOM after 200ms!");
+                        console.error("   This indicates a serious problem with modal creation!");
+                    }
+                }, 200);
             } catch (error) {
-                console.error("❌ [FRONTEND] Error calling showLoginMfaModal:", error);
+                console.error("❌ [FRONTEND] ❌❌❌ ERROR CALLING showLoginMfaModal ❌❌❌");
+                console.error("   Error:", error);
+                console.error("   Error message:", error.message);
+                console.error("   Error stack:", error.stack);
                 showToast("Error showing MFA modal: " + error.message, 'error');
             }
             return;
@@ -17909,18 +17933,28 @@ async function handleLogin(event) {
 }
 
 function showLoginMfaModal(methods) {
-    console.log("🎭 [FRONTEND] showLoginMfaModal called with methods:", methods);
+    console.log("🎭 [FRONTEND] ========================================");
+    console.log("🎭 [FRONTEND] showLoginMfaModal called");
+    console.log("🎭 [FRONTEND] Methods:", methods);
+    console.log("🎭 [FRONTEND] ========================================");
     
     // Remove existing modal if present
     const existingModal = document.getElementById('login-mfa-modal');
     if (existingModal) {
         console.log("🗑️  [FRONTEND] Removing existing MFA modal");
         existingModal.remove();
+    } else {
+        console.log("✅ [FRONTEND] No existing modal found (good)");
     }
     
+    console.log("📝 [FRONTEND] Creating modal element...");
     const modal = document.createElement('div');
     modal.id = 'login-mfa-modal';
     modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
+    console.log("✅ [FRONTEND] Modal element created, ID:", modal.id);
+    console.log("✅ [FRONTEND] Modal classes:", modal.className);
+    
+    console.log("📝 [FRONTEND] Setting modal innerHTML...");
     modal.innerHTML = `
         <div class="card rounded-2xl p-6 w-full max-w-md mx-4">
             <div class="text-center mb-6">
