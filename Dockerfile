@@ -71,6 +71,9 @@ else\n\
       echo "🔧 Creating any missing tables..."\n\
       python scripts/create_missing_tables.py 2>&1\n\
       echo ""\n\
+      echo "🔧 Fixing AgentStatus enum (adding PUBLISHED)..."\n\
+      python scripts/fix_agent_status_enum.py 2>&1 || echo "⚠️  AgentStatus enum fix had issues"\n\
+      echo ""\n\
       echo "🔧 Adding missing columns to users table..."\n\
       python scripts/add_user_columns.py 2>&1\n\
       echo ""\n\
