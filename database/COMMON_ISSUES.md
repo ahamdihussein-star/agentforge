@@ -3274,6 +3274,205 @@ After deployment:
 
 ---
 
+## Issue #32: **MFA Modal Not Showing After OAuth Redirect**
+
+### Problem:
+When a user logs in via Google OAuth with MFA enabled, the backend correctly:
+1. Detects MFA requirement
+2. Sends MFA code to email
+3. Redirects to `/ui/#mfa-verify?session_id=...&email=...&provider=google`
+
+However, the **MFA modal does not appear** on the frontend, leaving the user stuck on the login page.
+
+### Root Cause:
+1. **Frontend Missing Hash Check**: The `DOMContentLoaded` event listener in `ui/index.html` did not check for `#mfa-verify` hash in the URL.
+2. **No OAuth MFA Endpoint**: The frontend `verifyLoginMfa()` function only handled regular email/password login MFA, not OAuth MFA (which uses `session_id` instead of `email/password`).
+3. **Missing Backend Endpoint**: No API endpoint existed to verify MFA code using `session_id` for OAuth logins.
+
+### Error Symptoms:
+- User completes Google OAuth login
+- Backend logs show: `🔐 [OAUTH] MFA required for {email}, redirecting to MFA verification`
+- Browser redirects to `/ui/#mfa-verify?session_id=...&email=...&provider=google`
+- **MFA modal does not appear**
+- User sees login page but cannot proceed
+
+### Solution:
+
+#### 1. **Frontend - Add Hash Check in DOMContentLoaded** (`ui/index.html`):
+```javascript
+// In DOMContentLoaded event listener
+if (hash.includes('mfa-verify')) {
+    console.log("🔍 [FRONTEND] Detected #mfa-verify in URL hash");
+    const params = new URLSearchParams(hash.split('?')[1]);
+    const sessionId = params.get('session_id');
+    const email = params.get('email');
+    const provider = params.get('provider');
+    
+    if (sessionId && email) {
+        // Store OAuth MFA session info
+        window.pendingMfaSessionId = sessionId;
+        window.pendingMfaEmail = email;
+        window.pendingMfaProvider = provider || 'google';
+        
+        // Show MFA modal with email method
+        showLoginMfaModal(['email']);
+        return;
+    }
+}
+```
+
+#### 2. **Backend - Add OAuth MFA Verification Endpoint** (`api/security.py`):
+```python
+@router.post("/oauth/mfa/verify")
+async def verify_oauth_mfa(request: dict):
+    """
+    Verify MFA code for OAuth login using session_id.
+    """
+    session_id = request.get("session_id")
+    mfa_code = request.get("mfa_code")
+    
+    # Get temporary session
+    temp_session = security_state.sessions.get(session_id)
+    if not temp_session:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    
+    # Get user and verify MFA code
+    user = security_state.users.get(temp_session.user_id)
+    if not MFAService.verify_code(user, mfa_code):
+        raise HTTPException(status_code=401, detail="Invalid MFA code")
+    
+    # Create active session and return access token
+    session = Session(user_id=user.id, org_id=user.org_id, ...)
+    access_token = TokenService.create_access_token(user.id, user.org_id, session.id)
+    
+    return {"access_token": access_token, "user": {...}}
+```
+
+#### 3. **Backend - Add OAuth MFA Resend Endpoint** (`api/security.py`):
+```python
+@router.post("/oauth/mfa/resend")
+async def resend_oauth_mfa_code(request: dict):
+    """
+    Resend MFA code for OAuth login using session_id.
+    """
+    session_id = request.get("session_id")
+    email = request.get("email")
+    
+    # Get session and user
+    temp_session = security_state.sessions.get(session_id)
+    user = security_state.users.get(temp_session.user_id)
+    
+    # Generate and send new code
+    code = MFAService.generate_email_code()
+    user.mfa.email_code = code
+    # ... save to database and send email
+```
+
+#### 4. **Frontend - Update `verifyLoginMfa()` to Handle Both Types** (`ui/index.html`):
+```javascript
+async function verifyLoginMfa() {
+    const code = document.getElementById('login-mfa-code')?.value;
+    
+    // Check if this is OAuth MFA (has session_id) or regular login MFA
+    if (window.pendingMfaSessionId) {
+        // OAuth MFA verification
+        const res = await fetch('/api/security/oauth/mfa/verify', {
+            method: 'POST',
+            body: JSON.stringify({
+                session_id: window.pendingMfaSessionId,
+                mfa_code: code
+            })
+        });
+        // ... handle response
+    } else {
+        // Regular login MFA verification
+        const res = await fetch('/api/security/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({
+                email: window.pendingLoginEmail,
+                password: window.pendingLoginPassword,
+                mfa_code: code
+            })
+        });
+        // ... handle response
+    }
+}
+```
+
+#### 5. **Frontend - Update `resendLoginMfaCode()` to Handle Both Types** (`ui/index.html`):
+```javascript
+async function resendLoginMfaCode() {
+    if (window.pendingMfaSessionId && window.pendingMfaEmail) {
+        // OAuth MFA resend
+        await fetch('/api/security/oauth/mfa/resend', {
+            method: 'POST',
+            body: JSON.stringify({
+                session_id: window.pendingMfaSessionId,
+                email: window.pendingMfaEmail
+            })
+        });
+    } else {
+        // Regular login MFA resend
+        await fetch('/api/security/mfa/send-login-code', {
+            method: 'POST',
+            body: JSON.stringify({
+                email: window.pendingLoginEmail,
+                password: window.pendingLoginPassword
+            })
+        });
+    }
+}
+```
+
+### Files Changed:
+- **MODIFIED:** `ui/index.html`
+  - Added `#mfa-verify` hash check in `DOMContentLoaded`
+  - Updated `verifyLoginMfa()` to handle OAuth MFA
+  - Updated `resendLoginMfaCode()` to handle OAuth MFA
+  - Added OAuth MFA session info storage (`window.pendingMfaSessionId`, etc.)
+
+- **MODIFIED:** `api/security.py`
+  - Added `POST /api/security/oauth/mfa/verify` endpoint
+  - Added `POST /api/security/oauth/mfa/resend` endpoint
+
+### Testing:
+1. **Test OAuth Login with MFA:**
+   - User with MFA enabled logs in via Google OAuth
+   - Backend redirects to `/ui/#mfa-verify?session_id=...&email=...&provider=google`
+   - **✅ MFA modal appears automatically**
+   - User enters code
+   - **✅ Login succeeds**
+
+2. **Test Regular Login with MFA:**
+   - User with MFA enabled logs in with email/password
+   - **✅ MFA modal appears (existing functionality still works)**
+
+3. **Test MFA Code Resend:**
+   - Click "Resend" button in MFA modal
+   - **✅ New code sent (works for both OAuth and regular login)**
+
+### Prevention:
+**✅ GOLDEN RULE:** When implementing OAuth flows, always consider:
+1. **Hash-based redirects**: If backend redirects to `#something`, frontend must check for that hash on page load.
+2. **Different authentication flows**: OAuth uses `session_id`, regular login uses `email/password`. Handle both.
+3. **State management**: Store OAuth session info separately from regular login info.
+
+**✅ Checklist for OAuth MFA:**
+- [ ] Backend creates temporary session for MFA verification
+- [ ] Backend redirects to frontend with hash `#mfa-verify?session_id=...`
+- [ ] Frontend checks for `#mfa-verify` hash in `DOMContentLoaded`
+- [ ] Frontend stores OAuth session info (`session_id`, `email`, `provider`)
+- [ ] Frontend shows MFA modal automatically
+- [ ] Backend has endpoint to verify MFA using `session_id`
+- [ ] Backend has endpoint to resend MFA code using `session_id`
+- [ ] Frontend `verifyLoginMfa()` handles both OAuth and regular login
+- [ ] Frontend `resendLoginMfaCode()` handles both OAuth and regular login
+
+### Related Issues:
+- **Issue #30**: Empty Permissions (different problem, but also related to frontend/backend communication)
+
+---
+
 **💡 Remember: Prevention is better than debugging on production!**
 **🚨 ZERO TOLERANCE for repeated mistakes - system will block them!**
 
