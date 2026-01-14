@@ -3695,12 +3695,13 @@ async def list_agents(status: Optional[str] = None):
 
 
 @app.get("/api/agents/{agent_id}")
-async def get_agent(agent_id: str):
+async def get_agent(agent_id: str, current_user: User = Depends(get_current_user)):
     # Try to get agent from database first, then fallback to in-memory
     agent = None
     try:
         from database.services import AgentService
-        agent_dict = AgentService.get_agent_by_id(agent_id, "org_default")
+        org_id = current_user.org_id if current_user else "org_default"
+        agent_dict = AgentService.get_agent_by_id(agent_id, org_id)
         if agent_dict:
             # Remove extra fields that AgentData doesn't have
             agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
@@ -5823,12 +5824,13 @@ async def refine_unified_demo(request: Dict[str, Any]):
 
 
 @app.put("/api/agents/{agent_id}")
-async def update_agent(agent_id: str, request: UpdateAgentRequest):
+async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user: User = Depends(get_current_user)):
     # Try to get agent from database first, then fallback to in-memory
     agent = None
     try:
         from database.services import AgentService
-        agent_dict = AgentService.get_agent_by_id(agent_id, "org_default")
+        org_id = current_user.org_id if current_user else "org_default"
+        agent_dict = AgentService.get_agent_by_id(agent_id, org_id)
         if agent_dict:
             # Remove extra fields that AgentData doesn't have
             agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
@@ -5886,16 +5888,9 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest):
     try:
         from database.services import AgentService
         agent_dict = agent.dict()
-        # Get org_id and updated_by
-        org_id = "org_default"
-        updated_by = None
-        try:
-            if SECURITY_AVAILABLE and security_state.users:
-                first_user = next(iter(security_state.users.values()), None)
-                if first_user:
-                    updated_by = first_user.id
-        except Exception:
-            pass
+        # Get org_id and updated_by from current_user
+        org_id = current_user.org_id if current_user else "org_default"
+        updated_by = current_user.id if current_user else None
         
         AgentService.update_agent(
             agent_id=agent.id,
@@ -8609,15 +8604,53 @@ async def delete_conversation(conversation_id: str):
 # ============================================================================
 
 @app.post("/api/agents/{agent_id}/test-chat")
-async def test_chat(agent_id: str, request: ChatRequest):
+async def test_chat(agent_id: str, request: ChatRequest, current_user: User = Depends(get_current_user)):
     """
     Test Chat endpoint - for testing agents before deployment.
     Uses the same system as production but in a test environment.
     """
-    if agent_id not in app_state.agents:
-        raise HTTPException(404, "Agent not found")
+    # Try to get agent from in-memory state first
+    agent = app_state.agents.get(agent_id)
     
-    agent = app_state.agents[agent_id]
+    # If not found, try to load from database
+    if not agent:
+        try:
+            from database.services import AgentService
+            from core.agents.models import AgentData, AgentPersonality, AgentGuardrails, TaskDefinition
+            
+            # Get current user for org_id
+            org_id = current_user.org_id if current_user else "org_default"
+            
+            agent_dict = AgentService.get_agent_by_id(agent_id, org_id)
+            if agent_dict:
+                # Convert to AgentData
+                agent = AgentData(
+                    id=agent_dict['id'],
+                    name=agent_dict['name'],
+                    icon=agent_dict.get('icon', '🤖'),
+                    goal=agent_dict.get('goal', ''),
+                    description=agent_dict.get('description', ''),
+                    model_id=agent_dict.get('model_id', 'gpt-4o'),
+                    personality=AgentPersonality(**agent_dict.get('personality', {})) if agent_dict.get('personality') else AgentPersonality(),
+                    guardrails=AgentGuardrails(**agent_dict.get('guardrails', {})) if agent_dict.get('guardrails') else AgentGuardrails(),
+                    tasks=[TaskDefinition(**t) for t in agent_dict.get('tasks', [])],
+                    tool_ids=agent_dict.get('tool_ids', []),
+                    memory=agent_dict.get('memory', []),
+                    memory_enabled=agent_dict.get('memory_enabled', True),
+                    status=agent_dict.get('status', 'draft'),
+                    is_active=agent_dict.get('is_active', False),
+                    created_at=agent_dict.get('created_at', datetime.utcnow().isoformat()),
+                    updated_at=agent_dict.get('updated_at', datetime.utcnow().isoformat()),
+                )
+                # Add to in-memory state
+                app_state.agents[agent.id] = agent
+        except Exception as e:
+            print(f"⚠️  Error loading agent from database: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    if not agent:
+        raise HTTPException(404, "Agent not found")
     
     # Get or create conversation (prefix with demo_ to separate from real chats)
     if request.conversation_id and request.conversation_id in app_state.conversations:
@@ -8661,15 +8694,54 @@ async def test_chat_with_files(
     message: str = Form(""),
     conversation_id: Optional[str] = Form(None),
     timezone: Optional[str] = Form(None),
-    files: List[UploadFile] = File(default=[])
+    files: List[UploadFile] = File(default=[]),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Chat with file attachments - OCR and file processing!
     """
-    if agent_id not in app_state.agents:
-        raise HTTPException(404, "Agent not found")
+    # Try to get agent from in-memory state first
+    agent = app_state.agents.get(agent_id)
     
-    agent = app_state.agents[agent_id]
+    # If not found, try to load from database
+    if not agent:
+        try:
+            from database.services import AgentService
+            from core.agents.models import AgentData, AgentPersonality, AgentGuardrails, TaskDefinition
+            
+            # Get current user for org_id
+            org_id = current_user.org_id if current_user else "org_default"
+            
+            agent_dict = AgentService.get_agent_by_id(agent_id, org_id)
+            if agent_dict:
+                # Convert to AgentData
+                agent = AgentData(
+                    id=agent_dict['id'],
+                    name=agent_dict['name'],
+                    icon=agent_dict.get('icon', '🤖'),
+                    goal=agent_dict.get('goal', ''),
+                    description=agent_dict.get('description', ''),
+                    model_id=agent_dict.get('model_id', 'gpt-4o'),
+                    personality=AgentPersonality(**agent_dict.get('personality', {})) if agent_dict.get('personality') else AgentPersonality(),
+                    guardrails=AgentGuardrails(**agent_dict.get('guardrails', {})) if agent_dict.get('guardrails') else AgentGuardrails(),
+                    tasks=[TaskDefinition(**t) for t in agent_dict.get('tasks', [])],
+                    tool_ids=agent_dict.get('tool_ids', []),
+                    memory=agent_dict.get('memory', []),
+                    memory_enabled=agent_dict.get('memory_enabled', True),
+                    status=agent_dict.get('status', 'draft'),
+                    is_active=agent_dict.get('is_active', False),
+                    created_at=agent_dict.get('created_at', datetime.utcnow().isoformat()),
+                    updated_at=agent_dict.get('updated_at', datetime.utcnow().isoformat()),
+                )
+                # Add to in-memory state
+                app_state.agents[agent.id] = agent
+        except Exception as e:
+            print(f"⚠️  Error loading agent from database: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    if not agent:
+        raise HTTPException(404, "Agent not found")
     
     # Get or create conversation
     if conversation_id and conversation_id in app_state.conversations:

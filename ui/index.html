@@ -6897,7 +6897,7 @@ Option 3"></textarea>
             }
         }
         
-        function nextStep() {
+        async function nextStep() {
             // Validate and collect data based on current step
             if(step === 1) {
                 wizard.name = document.getElementById('w-name').value;
@@ -6931,9 +6931,81 @@ Option 3"></textarea>
             if(step === 3) collectToolsNew();
             if(step === 4) collectGuardrails();
             
+            // Auto-save to database before moving to next step
+            await autoSaveWizardStep();
+            
             step++;
             if(step > 7) step = 7;
             updateStepsNew();
+        }
+        
+        // Auto-save wizard configuration to database
+        async function autoSaveWizardStep() {
+            // Only save if we have minimum required data
+            if (!wizard.name || !wizard.goal || !wizard.personality) {
+                return; // Skip if not enough data
+            }
+            
+            try {
+                const agentData = {
+                    name: wizard.name,
+                    icon: wizard.icon,
+                    goal: wizard.goal,
+                    personality: wizard.personality,
+                    personality_reason: wizard.personalityReason,
+                    guardrails: wizard.guardrails || {},
+                    tasks: wizard.tasks || [],
+                    tool_ids: wizard.tool_ids || [],
+                    model_id: wizard.model,
+                    model_reason: wizard.modelReason,
+                    status: 'draft' // Always save as draft during wizard
+                };
+                
+                let response;
+                const agentId = testAgent?.id || wizard.editId;
+                const hasValidId = agentId && agentId !== 'undefined' && agentId.length > 0;
+                
+                if(hasValidId){
+                    // Update existing agent
+                    response = await fetch(API+'/api/agents/'+agentId, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(agentData)
+                    });
+                } else {
+                    // Create new agent
+                    response = await fetch(API+'/api/agents', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(agentData)
+                    });
+                }
+                
+                if(response.ok) {
+                    const data = await response.json();
+                    // Store agent ID for future updates
+                    if(data.agent_id) {
+                        wizard.editId = data.agent_id;
+                        if(!testAgent) testAgent = {id: data.agent_id};
+                    } else if(data.agent && data.agent.id) {
+                        wizard.editId = data.agent.id;
+                        if(!testAgent) testAgent = {id: data.agent.id};
+                    } else if(data.agent_id === undefined && !wizard.editId) {
+                        // If creating new agent, extract ID from agent object if present
+                        const agentObj = data.agent || data;
+                        if(agentObj && agentObj.id) {
+                            wizard.editId = agentObj.id;
+                            if(!testAgent) testAgent = {id: agentObj.id};
+                        }
+                    }
+                    console.log('✅ Wizard step auto-saved to database, agent ID:', wizard.editId || testAgent?.id);
+                } else {
+                    console.warn('⚠️  Failed to auto-save wizard step:', await response.text());
+                }
+            } catch(e) {
+                console.warn('⚠️  Auto-save error (non-blocking):', e);
+                // Don't block wizard flow if save fails
+            }
         }
         
         function prevStep() {
