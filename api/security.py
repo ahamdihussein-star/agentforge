@@ -2954,6 +2954,7 @@ async def oauth_login(provider: str, req: Request):
     # Get client ID for the provider
     client_id = getattr(org, f'{provider}_client_id', None)
     
+    # Validate client ID exists
     if not client_id:
         raise HTTPException(
             status_code=400, 
