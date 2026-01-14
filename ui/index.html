@@ -17887,6 +17887,15 @@ async function handleLogin(event) {
 }
 
 function showLoginMfaModal(methods) {
+    console.log("🎭 [FRONTEND] showLoginMfaModal called with methods:", methods);
+    
+    // Remove existing modal if present
+    const existingModal = document.getElementById('login-mfa-modal');
+    if (existingModal) {
+        console.log("🗑️  [FRONTEND] Removing existing MFA modal");
+        existingModal.remove();
+    }
+    
     const modal = document.createElement('div');
     modal.id = 'login-mfa-modal';
     modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
