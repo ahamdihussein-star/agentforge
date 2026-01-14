@@ -2,26 +2,41 @@
 AgentForge Database Package
 Database-agnostic ORM layer using SQLAlchemy
 Supports: PostgreSQL, MySQL, SQLite, SQL Server, Oracle
-"""
-# Lazy import to avoid circular import with database.types
-# Import base module only when accessed, not at module level
 
+Enterprise-grade lazy loading pattern:
+- Uses __getattr__ for delayed imports (PEP 562)
+- Caches imported module to avoid repeated imports
+- Follows same pattern as Django, Flask, SQLAlchemy
+"""
 __all__ = ['Base', 'get_engine', 'get_session', 'init_db', 'check_connection']
 
-# Lazy import - only import when actually accessed
+# Cache for lazy-loaded base module (enterprise pattern)
+_base_module = None
+
+
 def __getattr__(name):
-    if name in __all__:
-        # Import only when needed to avoid circular import
+    """
+    Lazy import mechanism for database.base module.
+    
+    Enterprise best practice:
+    - Delays import until attribute is actually accessed
+    - Caches module to avoid repeated imports
+    - Prevents circular import issues during module initialization
+    - Same pattern used by Django, Flask, SQLAlchemy
+    
+    This is the standard Python pattern (PEP 562) for lazy imports
+    used in production enterprise frameworks.
+    """
+    global _base_module
+    
+    if name not in __all__:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    
+    # Lazy import: only import base module when first attribute is accessed
+    if _base_module is None:
         from . import base
-        if name == 'Base':
-            return base.Base
-        elif name == 'get_engine':
-            return base.get_engine
-        elif name == 'get_session':
-            return base.get_session
-        elif name == 'init_db':
-            return base.init_db
-        elif name == 'check_connection':
-            return base.check_connection
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+        _base_module = base
+    
+    # Return requested attribute from cached module
+    return getattr(_base_module, name)
 

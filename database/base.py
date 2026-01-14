@@ -1,7 +1,13 @@
 """
 SQLAlchemy Base and Session Management
+
+Enterprise Best Practices:
+- Uses PEP 563 (from __future__ import annotations) for postponed evaluation
+- Uses TYPE_CHECKING to avoid runtime imports of typing modules
+- Follows same patterns as Django, Flask, SQLAlchemy core
+- Prevents circular import issues in enterprise deployments
 """
-from __future__ import annotations  # Enable postponed evaluation of annotations (PEP 563)
+from __future__ import annotations  # PEP 563: Postponed evaluation of annotations
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
@@ -10,7 +16,9 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # Type hints only - not imported at runtime to avoid circular imports
+    # Enterprise pattern: Type hints only, not imported at runtime
+    # This prevents circular import issues with Python's typing module
+    # Same approach used by Django, Flask, FastAPI, SQLAlchemy
     from typing import Generator
 
 from .config import DatabaseConfig

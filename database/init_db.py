@@ -11,10 +11,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def main():
-    """Initialize database with complete enterprise schema"""
-    # Best practice: Use lazy import from database package (not database.base directly)
-    # This leverages the lazy loading mechanism in database/__init__.py
-    # which delays imports until they are actually needed, avoiding circular imports
+    """
+    Initialize database with complete enterprise schema
+    
+    Enterprise Best Practices:
+    - Uses lazy import from database package (not database.base directly)
+    - Leverages __getattr__ mechanism in database/__init__.py (PEP 562)
+    - Delays imports until actually needed, preventing circular import issues
+    - Same pattern used by Django, Flask, SQLAlchemy in production systems
+    - Safe for enterprise deployments with complex dependency graphs
+    """
     from database import init_db, check_connection, get_engine
     
     print("=" * 60)
