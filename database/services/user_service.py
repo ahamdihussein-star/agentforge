@@ -3,7 +3,7 @@ User Service - Database Operations for User Management
 Enterprise-grade user authentication and management
 """
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
@@ -442,17 +442,30 @@ class SessionService:
     @staticmethod
     def create_session(session: CoreSession) -> CoreSession:
         """Create new session in database"""
+        import hashlib
+        
         with get_db_session() as db:
+            # Generate token_hash from session id
+            token_hash = hashlib.sha256(session.id.encode()).hexdigest()
+            
+            # Calculate expires_at (30 days if remember_me, else 8 hours)
+            if session.expires_at:
+                expires_at = datetime.fromisoformat(session.expires_at) if isinstance(session.expires_at, str) else session.expires_at
+            elif session.remember_me:
+                expires_at = datetime.utcnow() + timedelta(days=30)
+            else:
+                expires_at = datetime.utcnow() + timedelta(hours=8)
+            
             db_session = UserSession(
                 id=session.id,
                 user_id=session.user_id,
-                org_id=session.org_id,
-                is_active=session.is_active,
+                token_hash=token_hash,
                 ip_address=session.ip_address,
                 user_agent=session.user_agent or "",
-                remember_me=session.remember_me,
-                last_activity=datetime.fromisoformat(session.last_activity) if session.last_activity else datetime.utcnow(),
-                created_at=datetime.fromisoformat(session.created_at) if session.created_at else datetime.utcnow()
+                expires_at=expires_at,
+                revoked=False,
+                created_at=datetime.fromisoformat(session.created_at) if isinstance(session.created_at, str) else (session.created_at if session.created_at else datetime.utcnow()),
+                last_activity_at=datetime.fromisoformat(session.last_activity) if isinstance(session.last_activity, str) else (session.last_activity if session.last_activity else datetime.utcnow())
             )
             
             db.add(db_session)
@@ -472,16 +485,31 @@ class SessionService:
             if not db_session:
                 return None
             
+            # Get org_id from user
+            user = db.query(DBUser).filter(DBUser.id == db_session.user_id).first()
+            org_id = str(user.org_id) if user and user.org_id else "org_default"
+            
+            # Determine is_active and remember_me from database fields
+            is_active = not db_session.revoked and db_session.expires_at > datetime.utcnow()
+            
+            # If expires_at is more than 24 hours from now, likely remember_me
+            if db_session.expires_at:
+                time_until_expiry = (db_session.expires_at - datetime.utcnow()).total_seconds()
+                remember_me = time_until_expiry > 86400  # More than 24 hours
+            else:
+                remember_me = False
+            
             return CoreSession(
-                id=db_session.id,
-                user_id=db_session.user_id,
-                org_id=db_session.org_id,
-                is_active=db_session.is_active,
+                id=str(db_session.id),
+                user_id=str(db_session.user_id),
+                org_id=org_id,
+                is_active=is_active,
                 ip_address=db_session.ip_address,
                 user_agent=db_session.user_agent or "",
-                remember_me=db_session.remember_me,
-                last_activity=db_session.last_activity.isoformat() if db_session.last_activity else datetime.utcnow().isoformat(),
-                created_at=db_session.created_at.isoformat() if db_session.created_at else datetime.utcnow().isoformat()
+                remember_me=remember_me,
+                last_activity=db_session.last_activity_at.isoformat() if db_session.last_activity_at else datetime.utcnow().isoformat(),
+                created_at=db_session.created_at.isoformat() if db_session.created_at else datetime.utcnow().isoformat(),
+                expires_at=db_session.expires_at.isoformat() if db_session.expires_at else None
             )
     
     @staticmethod
@@ -495,8 +523,16 @@ class SessionService:
             if not db_session:
                 raise ValueError(f"Session {session.id} not found")
             
-            db_session.is_active = session.is_active
-            db_session.last_activity = datetime.fromisoformat(session.last_activity) if isinstance(session.last_activity, str) else session.last_activity
+            # Update revoked based on is_active
+            db_session.revoked = not session.is_active
+            
+            # Update last_activity_at
+            if session.last_activity:
+                db_session.last_activity_at = datetime.fromisoformat(session.last_activity) if isinstance(session.last_activity, str) else session.last_activity
+            
+            # Update expires_at if provided
+            if session.expires_at:
+                db_session.expires_at = datetime.fromisoformat(session.expires_at) if isinstance(session.expires_at, str) else session.expires_at
             
             db.commit()
             db.refresh(db_session)
