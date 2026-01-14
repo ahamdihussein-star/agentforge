@@ -804,9 +804,38 @@ async def login(request: LoginRequest, req: Request):
     
     # Verify MFA if provided
     if mfa_required and request.mfa_code:
+        # Refresh user from database to get latest MFA code
+        try:
+            from database.services import UserService
+            import uuid as uuid_lib
+            try:
+                user_uuid = uuid_lib.UUID(user.id)
+                db_users = UserService.get_all_users()
+                db_user = next((u for u in db_users if u.id == user.id), None)
+                if db_user:
+                    # Update security_state cache with latest MFA settings from database
+                    security_state.users[user.id] = db_user
+                    user = db_user
+            except ValueError:
+                print(f"⚠️  [LOGIN] Invalid user_id format: {user.id}")
+        except Exception as e:
+            print(f"⚠️  [LOGIN] Failed to refresh user from database for MFA verification: {e}")
+            import traceback
+            traceback.print_exc()
+        
         if not MFAService.verify_code(user, request.mfa_code):
             raise HTTPException(status_code=401, detail="Invalid MFA code")
         user.mfa.last_used = datetime.utcnow().isoformat()
+        
+        # Save updated MFA state to database
+        try:
+            from database.services import UserService
+            UserService.save_user(user)
+            security_state.users[user.id] = user
+        except Exception as e:
+            print(f"⚠️  [LOGIN ERROR] Failed to save MFA last_used to database: {e}")
+            import traceback
+            traceback.print_exc()
     
     
     # Check concurrent sessions
