@@ -18059,6 +18059,9 @@ function closeLoginMfaModal() {
     window.pendingLoginEmail = null;
     window.pendingLoginPassword = null;
     window.pendingLoginRemember = null;
+    window.pendingMfaSessionId = null;
+    window.pendingMfaEmail = null;
+    window.pendingMfaProvider = null;
 }
 
 async function resendLoginMfaCode() {
@@ -18067,30 +18070,62 @@ async function resendLoginMfaCode() {
     btn.textContent = 'Sending...';
     
     try {
-        const res = await fetch('/api/security/mfa/send-login-code', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: window.pendingLoginEmail,
-                password: window.pendingLoginPassword
-            })
-        });
-        
-        if (res.ok) {
-            showToast('New code sent to your email', 'success');
-            btn.textContent = 'Code Sent ✓';
-            setTimeout(() => {
-                btn.textContent = "Didn't receive the code? Resend";
+        // Check if this is OAuth MFA (has session_id) or regular login MFA
+        if (window.pendingMfaSessionId && window.pendingMfaEmail) {
+            console.log("📧 [FRONTEND] Resending OAuth MFA code for session:", window.pendingMfaSessionId);
+            // OAuth MFA resend
+            const res = await fetch('/api/security/oauth/mfa/resend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: window.pendingMfaSessionId,
+                    email: window.pendingMfaEmail
+                })
+            });
+            
+            if (res.ok) {
+                showToast('New code sent to your email', 'success');
+                btn.textContent = 'Code Sent ✓';
+                setTimeout(() => {
+                    btn.textContent = "Didn't receive the code? Resend";
+                    btn.disabled = false;
+                }, 30000);
+            } else {
+                const data = await res.json();
+                console.log("📧 [FRONTEND] OAuth MFA resend response:", data);
+                showToast(data.detail || 'Failed to send code', 'error');
                 btn.disabled = false;
-            }, 30000);
+                btn.textContent = "Didn't receive the code? Resend";
+            }
         } else {
-            const data = await res.json();
-        console.log("Login response:", data);
-            showToast(data.detail || 'Failed to send code', 'error');
-            btn.disabled = false;
-            btn.textContent = "Didn't receive the code? Resend";
+            console.log("📧 [FRONTEND] Resending regular login MFA code");
+            // Regular login MFA resend
+            const res = await fetch('/api/security/mfa/send-login-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: window.pendingLoginEmail,
+                    password: window.pendingLoginPassword
+                })
+            });
+            
+            if (res.ok) {
+                showToast('New code sent to your email', 'success');
+                btn.textContent = 'Code Sent ✓';
+                setTimeout(() => {
+                    btn.textContent = "Didn't receive the code? Resend";
+                    btn.disabled = false;
+                }, 30000);
+            } else {
+                const data = await res.json();
+                console.log("📧 [FRONTEND] Regular login MFA resend response:", data);
+                showToast(data.detail || 'Failed to send code', 'error');
+                btn.disabled = false;
+                btn.textContent = "Didn't receive the code? Resend";
+            }
         }
     } catch (e) {
+        console.error("❌ [FRONTEND] MFA resend error:", e);
         showToast('Error: ' + e.message, 'error');
         btn.disabled = false;
         btn.textContent = "Didn't receive the code? Resend";
@@ -18109,49 +18144,98 @@ async function verifyLoginMfa() {
     btn.textContent = 'Verifying...';
     
     try {
-        const res = await fetch('/api/security/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: window.pendingLoginEmail,
-                password: window.pendingLoginPassword,
-                remember_me: window.pendingLoginRemember,
-                mfa_code: code
-            })
-        });
-        
-        const data = await res.json();
-        console.log("Login response:", data);
-        
-        if (!res.ok) {
-            showToast(data.detail || 'Invalid code', 'error');
-            btn.disabled = false;
-            btn.textContent = 'Verify';
-            return;
-        }
-        
-        // Success - close modal and complete login
-        closeLoginMfaModal();
-        
-        authToken = data.access_token;
-        currentUser = data.user;
-        
-        if (window.pendingLoginRemember) {
+        // Check if this is OAuth MFA (has session_id) or regular login MFA
+        if (window.pendingMfaSessionId) {
+            console.log("🔐 [FRONTEND] Verifying OAuth MFA with session_id:", window.pendingMfaSessionId);
+            // OAuth MFA verification
+            const res = await fetch('/api/security/oauth/mfa/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: window.pendingMfaSessionId,
+                    mfa_code: code
+                })
+            });
+            
+            const data = await res.json();
+            console.log("🔐 [FRONTEND] OAuth MFA verification response:", data);
+            
+            if (!res.ok) {
+                showToast(data.detail || 'Invalid code', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Verify';
+                return;
+            }
+            
+            // Success - close modal and complete login
+            closeLoginMfaModal();
+            
+            authToken = data.access_token;
+            currentUser = data.user;
+            
+            // Clear OAuth MFA session info
+            window.pendingMfaSessionId = null;
+            window.pendingMfaEmail = null;
+            window.pendingMfaProvider = null;
+            
+            // Store auth (use remember_me from OAuth if available, default to true)
             localStorage.setItem('agentforge_token', authToken);
             localStorage.setItem('agentforge_user', JSON.stringify(currentUser));
+            
+            if (data.must_change_password) { showFirstLoginPasswordModal(); return; }
+            showApp();
+            updateUserDisplay();
+            updateUIByPermissions();
+            navigate('agents');
+            showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
         } else {
-            sessionStorage.setItem('agentforge_token', authToken);
-            sessionStorage.setItem('agentforge_user', JSON.stringify(currentUser));
+            console.log("🔐 [FRONTEND] Verifying regular login MFA");
+            // Regular login MFA verification
+            const res = await fetch('/api/security/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: window.pendingLoginEmail,
+                    password: window.pendingLoginPassword,
+                    remember_me: window.pendingLoginRemember,
+                    mfa_code: code
+                })
+            });
+            
+            const data = await res.json();
+            console.log("🔐 [FRONTEND] Regular login MFA verification response:", data);
+            
+            if (!res.ok) {
+                showToast(data.detail || 'Invalid code', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Verify';
+                return;
+            }
+            
+            // Success - close modal and complete login
+            closeLoginMfaModal();
+            
+            authToken = data.access_token;
+            currentUser = data.user;
+            
+            if (window.pendingLoginRemember) {
+                localStorage.setItem('agentforge_token', authToken);
+                localStorage.setItem('agentforge_user', JSON.stringify(currentUser));
+            } else {
+                sessionStorage.setItem('agentforge_token', authToken);
+                sessionStorage.setItem('agentforge_user', JSON.stringify(currentUser));
+            }
+            
+            if (data.must_change_password) { showFirstLoginPasswordModal(); return; }
+            showApp();
+            updateUserDisplay();
+            updateUIByPermissions();
+            navigate('agents');
+            showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
         }
         
-        if (data.must_change_password) { showFirstLoginPasswordModal(); return; }
-        showApp();
-        updateUserDisplay();
-        updateUIByPermissions();
-        navigate('agents');
-        showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
-        
     } catch (e) {
+        console.error("❌ [FRONTEND] MFA verification error:", e);
         showToast('Error: ' + e.message, 'error');
         btn.disabled = false;
         btn.textContent = 'Verify';
@@ -20520,6 +20604,33 @@ document.addEventListener('DOMContentLoaded', function() {
             if (token) {
                 showVerifyEmailPage(token);
                 return;
+            }
+        }
+        
+        // MFA verification page (from OAuth callback)
+        if (hash.includes('mfa-verify')) {
+            console.log("🔍 [FRONTEND] Detected #mfa-verify in URL hash");
+            const params = new URLSearchParams(hash.split('?')[1]);
+            const sessionId = params.get('session_id');
+            const email = params.get('email');
+            const provider = params.get('provider');
+            
+            console.log("   Session ID:", sessionId);
+            console.log("   Email:", email);
+            console.log("   Provider:", provider);
+            
+            if (sessionId && email) {
+                console.log("✅ [FRONTEND] Showing MFA verification modal for OAuth login");
+                // Store session info for MFA verification
+                window.pendingMfaSessionId = sessionId;
+                window.pendingMfaEmail = email;
+                window.pendingMfaProvider = provider || 'google';
+                
+                // Show MFA modal with email method (default for OAuth)
+                showLoginMfaModal(['email']);
+                return;
+            } else {
+                console.error("❌ [FRONTEND] Missing session_id or email in mfa-verify hash");
             }
         }
     }

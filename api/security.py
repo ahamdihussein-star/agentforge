@@ -3266,6 +3266,150 @@ async def oauth_callback(provider: str, req: Request):
         headers={"Location": f"/ui/#login?token={access_token}"}
     )
 
+@router.post("/oauth/mfa/resend")
+async def resend_oauth_mfa_code(request: dict):
+    """
+    Resend MFA code for OAuth login using session_id.
+    """
+    session_id = request.get("session_id")
+    email = request.get("email")
+    
+    if not session_id or not email:
+        raise HTTPException(status_code=400, detail="session_id and email are required")
+    
+    # Get temporary session
+    temp_session = security_state.sessions.get(session_id)
+    if not temp_session:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    
+    # Get user from session
+    user = security_state.users.get(temp_session.user_id)
+    if not user or user.email.lower() != email.lower():
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Generate and send new MFA code
+    code = MFAService.generate_email_code()
+    user.mfa.email_code = code
+    user.mfa.email_code_expires = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+    security_state.users[user.id] = user
+    
+    # Save to database
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+        print(f"💾 [OAUTH MFA RESEND] User MFA email code saved to database for {user.email}")
+    except Exception as e:
+        print(f"⚠️  [OAUTH MFA RESEND ERROR] Database save failed: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # Send email
+    try:
+        await EmailService.send_mfa_code(user, code)
+        print(f"📧 [OAUTH MFA RESEND] MFA code sent to {user.email}")
+    except Exception as e:
+        print(f"⚠️  [OAUTH MFA RESEND] Failed to send MFA email: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send MFA code")
+    
+    return {"status": "success", "message": "MFA code sent"}
+
+@router.post("/oauth/mfa/verify")
+async def verify_oauth_mfa(request: dict):
+    """
+    Verify MFA code for OAuth login using session_id.
+    This is called from the frontend after user enters MFA code.
+    """
+    session_id = request.get("session_id")
+    mfa_code = request.get("mfa_code")
+    
+    if not session_id or not mfa_code:
+        raise HTTPException(status_code=400, detail="session_id and mfa_code are required")
+    
+    # Get temporary session
+    temp_session = security_state.sessions.get(session_id)
+    if not temp_session:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    
+    # Get user from session
+    user = security_state.users.get(temp_session.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify MFA code
+    if not MFAService.verify_code(user, mfa_code):
+        print(f"❌ [OAUTH MFA] Invalid MFA code for {user.email}")
+        raise HTTPException(status_code=401, detail="Invalid MFA code")
+    
+    print(f"✅ [OAUTH MFA] MFA verified for {user.email}")
+    
+    # Update user MFA last_used
+    user.mfa.last_used = datetime.utcnow().isoformat()
+    security_state.users[user.id] = user
+    
+    # Save to database
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+        print(f"💾 [OAUTH MFA] User MFA last_used updated in database for {user.email}")
+    except Exception as e:
+        print(f"⚠️  [OAUTH MFA ERROR] Database save failed: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # Create active session
+    session = Session(
+        user_id=user.id,
+        org_id=user.org_id,
+        ip_address=temp_session.ip_address,
+        user_agent=temp_session.user_agent
+    )
+    security_state.sessions[session.id] = session
+    
+    # Save session to database
+    try:
+        from database.services import SessionService
+        SessionService.create_session(session)
+        print(f"💾 [OAUTH MFA] Session saved to database: {session.id[:8]}...")
+    except Exception as e:
+        print(f"⚠️  [OAUTH MFA ERROR] Database save failed for session: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # Delete temporary session
+    del security_state.sessions[session_id]
+    
+    # Create access token
+    access_token = TokenService.create_access_token(user.id, user.org_id, session.id)
+    
+    # Add audit log
+    security_state.add_audit_log(
+        user=user,
+        action=ActionType.LOGIN,
+        resource_type=ResourceType.USER,
+        resource_id=user.id,
+        resource_name=user.email,
+        details={"method": "oauth", "mfa_used": True},
+        session=session,
+        ip_address=temp_session.ip_address
+    )
+    
+    return {
+        "access_token": access_token,
+        "expires_in": 3600,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.profile.display_name or f"{user.profile.first_name} {user.profile.last_name}".strip() or user.email,
+            "roles": [security_state.roles.get(rid).name if security_state.roles.get(rid) else "Unknown" for rid in user.role_ids],
+            "permissions": security_state.get_user_permissions(user),
+            "mfa": {
+                "enabled": user.mfa.enabled if user.mfa else False,
+                "method": user.mfa.methods[0].value if user.mfa and user.mfa.methods else "none",
+                "methods": [m.value for m in user.mfa.methods] if user.mfa and user.mfa.methods else []
+            }
+        }
+    }
+
 # ============================================================================
 # AUDIT LOG ENDPOINTS
 # ============================================================================
