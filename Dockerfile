@@ -77,6 +77,9 @@ else\n\
       echo "🔧 Adding missing columns to users table..."\n\
       python scripts/add_user_columns.py 2>&1\n\
       echo ""\n\
+      echo "🔧 Making password_hash nullable for OAuth users..."\n\
+      python scripts/make_password_hash_nullable.py 2>&1 || echo "⚠️  password_hash nullable script had issues (may already be nullable)"\n\
+      echo ""\n\
       echo "🔧 Adding missing columns to roles table..."\n\
       python scripts/add_role_columns.py 2>&1\n\
       echo ""\n\

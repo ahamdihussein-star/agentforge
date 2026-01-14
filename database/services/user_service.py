@@ -80,13 +80,33 @@ class UserService:
     @staticmethod
     def create_user(user: User) -> User:
         """Create new user in database"""
+        import uuid as uuid_lib
         with get_db_session() as db:
+            # Resolve org_id: convert "org_default" to actual UUID
+            org_uuid = None
+            if user.org_id:
+                if user.org_id == "org_default":
+                    # Find default organization by slug
+                    from .organization_service import OrganizationService
+                    orgs = OrganizationService.get_all_organizations()
+                    default_org = next((o for o in orgs if o.slug == "default"), None)
+                    if default_org:
+                        try:
+                            org_uuid = uuid_lib.UUID(default_org.id)
+                        except ValueError:
+                            org_uuid = None
+                else:
+                    try:
+                        org_uuid = uuid_lib.UUID(user.org_id)
+                    except ValueError:
+                        org_uuid = None
+            
             # Convert Core model to DB model
             db_user = DBUser(
                 id=user.id,
-                org_id=user.org_id,
+                org_id=org_uuid,
                 email=user.email.lower(),
-                password_hash=user.password_hash,
+                password_hash=user.password_hash,  # Can be None for OAuth users
                 status=user.status.value if hasattr(user.status, 'value') else user.status,
                 role_ids=user.role_ids or [],
                 department_id=user.department_id,
@@ -129,17 +149,37 @@ class UserService:
     @staticmethod
     def update_user(user: User) -> User:
         """Update user in database"""
+        import uuid as uuid_lib
         with get_db_session() as db:
-            db_user = db.query(DBUser).filter(
-                DBUser.id == user.id,
-                DBUser.org_id == user.org_id
-            ).first()
+            # Find user by ID only (org_id might be string)
+            db_user = db.query(DBUser).filter(DBUser.id == user.id).first()
             
             if not db_user:
                 raise ValueError(f"User {user.id} not found")
             
+            # Resolve org_id: convert "org_default" to actual UUID
+            org_uuid = None
+            if user.org_id:
+                if user.org_id == "org_default":
+                    # Find default organization by slug
+                    from .organization_service import OrganizationService
+                    orgs = OrganizationService.get_all_organizations()
+                    default_org = next((o for o in orgs if o.slug == "default"), None)
+                    if default_org:
+                        try:
+                            org_uuid = uuid_lib.UUID(default_org.id)
+                        except ValueError:
+                            org_uuid = None
+                else:
+                    try:
+                        org_uuid = uuid_lib.UUID(user.org_id)
+                    except ValueError:
+                        org_uuid = None
+            
             # Update fields
             db_user.email = user.email.lower()
+            if org_uuid:
+                db_user.org_id = org_uuid
             if user.password_hash:
                 db_user.password_hash = user.password_hash
             db_user.status = user.status.value if hasattr(user.status, 'value') else user.status

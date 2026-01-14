@@ -2852,9 +2852,11 @@ async def oauth_callback(provider: str, req: Request):
     
     if not user:
         # Get or create "User" role for self-registered users
+        # Use org.id (UUID) instead of org_id (string) for role creation
+        actual_org_id = org.id if hasattr(org, 'id') else org_id
         try:
             from database.services import RoleService
-            user_role = RoleService.get_or_create_user_role(org_id)
+            user_role = RoleService.get_or_create_user_role(actual_org_id)
             user_role_id = user_role.id
             print(f"✅ [OAUTH] Using 'User' role for new user: {user_role.name} (ID: {user_role_id[:8]}...)")
         except Exception as e:
@@ -2876,8 +2878,10 @@ async def oauth_callback(provider: str, req: Request):
                 )
         
         # Create new user from OAuth
+        # Use org.id (UUID) if available, otherwise use org_id (will be converted in UserService)
+        user_org_id = org.id if hasattr(org, 'id') else org_id
         user = User(
-            org_id=org_id,
+            org_id=user_org_id,
             email=email.lower(),
             auth_provider=auth_provider,
             external_id=user_info.get("id"),
