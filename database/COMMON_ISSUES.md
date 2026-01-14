@@ -1044,7 +1044,7 @@ Before committing any database model changes:
 - [ ] Verify both old and new type names work (e.g., JSON and JSONB)
 - [ ] Check all Column definitions use correct type names
 - [ ] Ensure no duplicate imports (e.g., `UUID, UUID`)
-- [ ] Run validation script: `./scripts/validate_db_models.sh`
+- [ ] Run validation script: `./scripts/comprehensive_db_check.sh`
 
 ---
 
