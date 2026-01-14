@@ -807,24 +807,40 @@ async def login(request: LoginRequest, req: Request):
         # Refresh user from database to get latest MFA code
         try:
             from database.services import UserService
-            import uuid as uuid_lib
-            try:
-                user_uuid = uuid_lib.UUID(user.id)
-                db_users = UserService.get_all_users()
-                db_user = next((u for u in db_users if u.id == user.id), None)
-                if db_user:
-                    # Update security_state cache with latest MFA settings from database
-                    security_state.users[user.id] = db_user
-                    user = db_user
-            except ValueError:
-                print(f"⚠️  [LOGIN] Invalid user_id format: {user.id}")
+            # Use email to get user (more reliable than ID + org_id)
+            org_id = user.org_id
+            if org_id == "org_default":
+                # Get actual org UUID
+                from database.services import OrganizationService
+                orgs = OrganizationService.get_all_organizations()
+                if orgs:
+                    org_id = orgs[0].id
+            
+            db_user = UserService.get_user_by_email(user.email, org_id)
+            if db_user:
+                # Update security_state cache with latest MFA settings from database
+                security_state.users[user.id] = db_user
+                user = db_user
+                print(f"🔄 [LOGIN] Refreshed user from database for MFA verification: {user.email}")
+            else:
+                print(f"⚠️  [LOGIN] User not found in database: {user.email}, org_id: {org_id}")
         except Exception as e:
             print(f"⚠️  [LOGIN] Failed to refresh user from database for MFA verification: {e}")
             import traceback
             traceback.print_exc()
         
+        # Debug: Print MFA code info
+        if user.mfa:
+            print(f"🔍 [LOGIN MFA DEBUG] User: {user.email}, email_code: {user.mfa.email_code}, expires: {user.mfa.email_code_expires}")
+            print(f"🔍 [LOGIN MFA DEBUG] Code provided: {request.mfa_code}")
+        else:
+            print(f"⚠️  [LOGIN MFA DEBUG] User {user.email} has no MFA object!")
+        
         if not MFAService.verify_code(user, request.mfa_code):
+            print(f"❌ [LOGIN] MFA code verification failed for {user.email}")
             raise HTTPException(status_code=401, detail="Invalid MFA code")
+        
+        print(f"✅ [LOGIN] MFA code verified successfully for {user.email}")
         user.mfa.last_used = datetime.utcnow().isoformat()
         
         # Save updated MFA state to database
