@@ -2685,24 +2685,39 @@ async def oauth_login(provider: str, req: Request):
     # Try to get organization from security_state first
     org = security_state.organizations.get(org_id)
     
-    # If not found or missing OAuth credentials, load from database
+    # Check if OAuth credentials are missing (even if org exists in cache)
+    client_id_attr = f'{provider}_client_id'
+    needs_reload = False
+    
     if not org:
+        needs_reload = True
         print(f"🔄 [OAUTH] Organization '{org_id}' not in security_state, loading from database...")
+    elif not hasattr(org, client_id_attr) or not getattr(org, client_id_attr, None):
+        needs_reload = True
+        print(f"🔄 [OAUTH] Organization '{org_id}' found in cache but missing OAuth credentials, reloading from database...")
+    
+    # If not found or missing OAuth credentials, load from database
+    if needs_reload:
         try:
             from database.services import OrganizationService
             if org_id == "org_default":
                 # Try to find by slug
                 orgs = OrganizationService.get_all_organizations()
-                org = next((o for o in orgs if o.slug == "default"), None)
-                if not org:
-                    org = orgs[0] if orgs else None
+                db_org = next((o for o in orgs if o.slug == "default"), None)
+                if not db_org:
+                    db_org = orgs[0] if orgs else None
             else:
-                org = OrganizationService.get_organization_by_id(org_id)
+                db_org = OrganizationService.get_organization_by_id(org_id)
             
-            if org:
-                # Update security_state cache
-                security_state.organizations[org.id] = org
-                print(f"✅ [OAUTH] Loaded organization '{org.name}' from database")
+            if db_org:
+                # Update security_state cache with fresh data from database
+                security_state.organizations[db_org.id] = db_org
+                # Also update by org_id key if different
+                if db_org.id != org_id:
+                    security_state.organizations[org_id] = db_org
+                org = db_org
+                print(f"✅ [OAUTH] Loaded organization '{org.name}' from database (ID: {org.id[:8]}...)")
+                print(f"   🔍 [OAUTH] Client ID present: {bool(getattr(org, client_id_attr, None))}")
         except Exception as e:
             print(f"❌ [OAUTH ERROR] Failed to load organization from database: {e}")
             import traceback
@@ -2756,24 +2771,39 @@ async def oauth_callback(provider: str, req: Request):
     # Try to get organization from security_state first
     org = security_state.organizations.get(org_id)
     
-    # If not found or missing OAuth credentials, load from database
+    # Check if OAuth credentials are missing (even if org exists in cache)
+    client_id_attr = f'{provider}_client_id'
+    needs_reload = False
+    
     if not org:
+        needs_reload = True
         print(f"🔄 [OAUTH] Organization '{org_id}' not in security_state, loading from database...")
+    elif not hasattr(org, client_id_attr) or not getattr(org, client_id_attr, None):
+        needs_reload = True
+        print(f"🔄 [OAUTH] Organization '{org_id}' found in cache but missing OAuth credentials, reloading from database...")
+    
+    # If not found or missing OAuth credentials, load from database
+    if needs_reload:
         try:
             from database.services import OrganizationService
             if org_id == "org_default":
                 # Try to find by slug
                 orgs = OrganizationService.get_all_organizations()
-                org = next((o for o in orgs if o.slug == "default"), None)
-                if not org:
-                    org = orgs[0] if orgs else None
+                db_org = next((o for o in orgs if o.slug == "default"), None)
+                if not db_org:
+                    db_org = orgs[0] if orgs else None
             else:
-                org = OrganizationService.get_organization_by_id(org_id)
+                db_org = OrganizationService.get_organization_by_id(org_id)
             
-            if org:
-                # Update security_state cache
-                security_state.organizations[org.id] = org
-                print(f"✅ [OAUTH] Loaded organization '{org.name}' from database")
+            if db_org:
+                # Update security_state cache with fresh data from database
+                security_state.organizations[db_org.id] = db_org
+                # Also update by org_id key if different
+                if db_org.id != org_id:
+                    security_state.organizations[org_id] = db_org
+                org = db_org
+                print(f"✅ [OAUTH] Loaded organization '{org.name}' from database (ID: {org.id[:8]}...)")
+                print(f"   🔍 [OAUTH] Client ID present: {bool(getattr(org, client_id_attr, None))}")
         except Exception as e:
             print(f"❌ [OAUTH ERROR] Failed to load organization from database: {e}")
             import traceback
