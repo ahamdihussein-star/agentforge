@@ -61,7 +61,7 @@ else\n\
   \n\
   for i in $(seq 1 $MAX_ATTEMPTS); do\n\
     # Try simple connection test with error output\n\
-    ERROR_OUTPUT=$(python -c "from database import check_connection; import sys; result = check_connection(); sys.exit(0 if result else 1)" 2>&1)\n\
+    ERROR_OUTPUT=$(python -c "from database.base import check_connection; import sys; result = check_connection(); sys.exit(0 if result else 1)" 2>&1)\n\
     \n\
     if [ $? -eq 0 ]; then\n\
       echo "✅ Database connection successful"\n\
