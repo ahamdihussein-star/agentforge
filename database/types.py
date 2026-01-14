@@ -96,6 +96,13 @@ class JSONArray(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return []
+        # If value is a JSON string, deserialize it first
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                # If it's not valid JSON, treat as single string element
+                pass
         if dialect.name in ('postgresql', 'mysql'):
             return value
         else:

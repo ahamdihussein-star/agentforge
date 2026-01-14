@@ -19,7 +19,7 @@ from urllib.parse import urljoin, urlparse
 from abc import ABC, abstractmethod
 from enum import Enum
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
