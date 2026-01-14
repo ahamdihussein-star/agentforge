@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Enum as SQLEnum, Index
 from ..column_types import UUID, JSON, JSONArray
-JSONB = JSON, JSONArray
+JSONB = JSON  # Alias for backwards compatibility
 from enum import Enum
 
 from ..base import Base
