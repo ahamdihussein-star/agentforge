@@ -8910,10 +8910,13 @@ async def get_conversation(conversation_id: str):
 
 @app.delete("/api/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
+    print(f"🗑️  [DELETE] Deleting conversation: {conversation_id}")
     # Try database first
     try:
         from database.services import ConversationService
-        if ConversationService.delete_conversation(conversation_id):
+        result = ConversationService.delete_conversation(conversation_id)
+        print(f"🗑️  [DELETE] Database result: {result}")
+        if result:
             # Also remove from memory if exists
             if conversation_id in app_state.conversations:
                 del app_state.conversations[conversation_id]
