@@ -39,9 +39,17 @@ def fix_agent_status_enum():
                 print("   ⏭️  'published' value already exists in agentstatus enum")
             else:
                 print("   🔄 Adding 'published' value to agentstatus enum...")
-                # Add 'published' to the enum (after 'draft')
+                # First check what values exist in the enum
+                existing = connection.execute(text("""
+                    SELECT enumlabel FROM pg_enum 
+                    WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'agentstatus')
+                    ORDER BY enumsortorder;
+                """)).fetchall()
+                print(f"   📋 Current enum values: {[e[0] for e in existing]}")
+                
+                # Add 'published' without AFTER clause (safer)
                 connection.execute(text("""
-                    ALTER TYPE agentstatus ADD VALUE IF NOT EXISTS 'published' AFTER 'draft';
+                    ALTER TYPE agentstatus ADD VALUE IF NOT EXISTS 'published';
                 """))
                 connection.commit()
                 print("   ✅ Added 'published' to agentstatus enum")
