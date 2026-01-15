@@ -484,62 +484,94 @@ class OpenAICompatibleLLM(BaseLLMProvider):
 
 
 class GoogleLLM(BaseLLMProvider):
-    """Google Gemini LLM provider"""
+    """Google Gemini LLM provider - uses REST API for async compatibility"""
     def __init__(self, config: LLMConfig):
         self.config = config
         self.api_key = config.api_key
     
     async def generate(self, messages: List[Dict], **kwargs) -> str:
+        """Generate response using Google Gemini REST API"""
+        import httpx
+        
+        # Build the prompt from messages
+        contents = []
+        system_instruction = ""
+        
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            
+            if role == "system":
+                system_instruction = content
+            elif role == "user":
+                contents.append({"role": "user", "parts": [{"text": content}]})
+            elif role == "assistant":
+                contents.append({"role": "model", "parts": [{"text": content}]})
+        
+        # If we have a system instruction, prepend it to the first user message
+        if system_instruction and contents:
+            first_user_text = contents[0]["parts"][0]["text"]
+            contents[0]["parts"][0]["text"] = f"{system_instruction}\n\n{first_user_text}"
+        
+        # Ensure we have at least one message
+        if not contents:
+            contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
+        
+        model_name = self.config.model or "gemini-1.5-pro"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+        
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": kwargs.get("temperature", getattr(self.config, 'temperature', 0.7)),
+                "maxOutputTokens": kwargs.get("max_tokens", getattr(self.config, 'max_tokens', 4096))
+            }
+        }
+        
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            
-            # Convert messages to Gemini format
-            model = genai.GenerativeModel(self.config.model)
-            
-            # Build conversation history
-            history = []
-            user_message = ""
-            for msg in messages:
-                if msg["role"] == "system":
-                    # Prepend system message to first user message
-                    user_message = msg["content"] + "\n\n"
-                elif msg["role"] == "user":
-                    user_message += msg["content"]
-                elif msg["role"] == "assistant":
-                    if user_message:
-                        history.append({"role": "user", "parts": [user_message]})
-                        user_message = ""
-                    history.append({"role": "model", "parts": [msg["content"]]})
-            
-            if user_message:
-                history.append({"role": "user", "parts": [user_message]})
-            
-            # Start chat with history
-            chat = model.start_chat(history=history[:-1] if len(history) > 1 else [])
-            response = chat.send_message(history[-1]["parts"][0] if history else "Hello")
-            
-            return response.text
-        except ImportError:
-            # Fallback to REST API if SDK not available
-            import httpx
             async with httpx.AsyncClient() as client:
+                print(f"[GoogleLLM] Calling {model_name} with {len(contents)} messages...")
                 response = await client.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{self.config.model}:generateContent",
+                    url,
                     params={"key": self.api_key},
-                    json={
-                        "contents": [{"parts": [{"text": messages[-1]["content"]}]}],
-                        "generationConfig": {
-                            "temperature": kwargs.get("temperature", self.config.temperature),
-                            "maxOutputTokens": kwargs.get("max_tokens", self.config.max_tokens)
-                        }
-                    },
+                    json=payload,
                     timeout=60.0
                 )
+                
+                if response.status_code != 200:
+                    error_text = response.text
+                    print(f"[GoogleLLM] ❌ API error {response.status_code}: {error_text[:200]}")
+                    return f"Error: Google API returned {response.status_code}"
+                
                 result = response.json()
-                return result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                
+                # Extract text from response
+                candidates = result.get("candidates", [])
+                if not candidates:
+                    print(f"[GoogleLLM] ⚠️ No candidates in response: {result}")
+                    # Check for blocked content
+                    if result.get("promptFeedback", {}).get("blockReason"):
+                        return f"Response blocked: {result['promptFeedback']['blockReason']}"
+                    return ""
+                
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                if not parts:
+                    print(f"[GoogleLLM] ⚠️ No parts in content: {content}")
+                    return ""
+                
+                text = parts[0].get("text", "")
+                print(f"[GoogleLLM] ✅ Got response: {len(text)} chars")
+                return text
+                
+        except httpx.TimeoutException:
+            print(f"[GoogleLLM] ❌ Request timeout")
+            return "Error: Request timed out"
         except Exception as e:
-            raise Exception(f"Google LLM error: {str(e)}")
+            print(f"[GoogleLLM] ❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error: {str(e)}"
     
     def get_available_models(self) -> List[str]:
         return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro", "gemini-pro-vision"]
