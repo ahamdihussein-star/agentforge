@@ -8996,13 +8996,14 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
         conversation = Conversation(agent_id=agent_id, title=title)
         app_state.conversations[conversation.id] = conversation
         
-        # Save to database
+        # Save to database (marked as TEST conversation - won't show in production chat)
         try:
             from database.services import ConversationService
             ConversationService.create_conversation({
                 'id': conversation.id,
                 'agent_id': agent_id,
-                'title': title
+                'title': title,
+                'is_test': True
             }, org_id, user_id)
         except Exception as e:
             print(f"⚠️  Failed to save conversation to DB: {e}")

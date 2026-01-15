@@ -19,11 +19,15 @@ class ConversationService:
     """
     
     @staticmethod
-    def get_all_conversations(org_id: Optional[str] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get all conversations (optionally filtered)"""
+    def get_all_conversations(org_id: Optional[str] = None, user_id: Optional[str] = None, include_test: bool = False) -> List[Dict[str, Any]]:
+        """Get all conversations (optionally filtered). Excludes test conversations by default."""
         try:
             with get_db_session() as db:
                 query = db.query(DBConversation).filter(DBConversation.deleted_at.is_(None))
+                
+                # Exclude test conversations unless specifically requested
+                if not include_test:
+                    query = query.filter((DBConversation.is_test == False) | (DBConversation.is_test.is_(None)))
                 
                 if org_id:
                     try:
@@ -110,6 +114,7 @@ class ConversationService:
                     agent_id=agent_uuid,
                     user_id=user_uuid,
                     title=conv_data.get('title', 'New Conversation'),
+                    is_test=conv_data.get('is_test', False),
                     message_count=0,
                     created_at=datetime.utcnow()
                 )

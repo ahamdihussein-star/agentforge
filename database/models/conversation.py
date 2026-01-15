@@ -46,6 +46,7 @@ class Conversation(Base):
     message_count = Column(Integer, default=0)
     
     # Status
+    is_test = Column(Boolean, default=False, index=True)  # Test/sandbox conversations
     is_archived = Column(Boolean, default=False)
     archived_at = Column(DateTime)
     
