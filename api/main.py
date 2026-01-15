@@ -523,8 +523,16 @@ class GoogleLLM(BaseLLMProvider):
         if not contents:
             contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
         
+        # Fix model name format - Google API uses specific names
         model_name = self.config.model or "gemini-1.5-pro"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+        # Map common names to actual API model names
+        model_mapping = {
+            "gemini-1.5-pro": "gemini-1.5-pro-latest",
+            "gemini-1.5-flash": "gemini-1.5-flash-latest", 
+            "gemini-pro": "gemini-pro",
+        }
+        api_model = model_mapping.get(model_name, model_name)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent"
         
         payload = {
             "contents": contents,
