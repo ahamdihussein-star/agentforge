@@ -1810,67 +1810,82 @@
                 existingModal.remove();
             }
             
-            // Mask email for privacy
+            // Mask email for privacy (same as admin portal)
             const email = window.pendingLoginEmail || 'your email';
             const maskEmail = (email) => {
                 if (!email || email === 'your email') return email;
                 const [local, domain] = email.split('@');
                 if (local.length <= 2) return email;
-                return `${local.substring(0, 2)}${'*'.repeat(Math.min(local.length - 2, 4))}@${domain}`;
+                const visible = local.substring(0, 2);
+                const masked = '*'.repeat(Math.min(local.length - 2, 4));
+                return `${visible}${masked}@${domain}`;
             };
+            const displayEmail = maskEmail(email);
             
             const modal = document.createElement('div');
             modal.id = 'login-mfa-modal';
-            modal.className = 'modal-overlay open';
+            modal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999;';
             modal.onclick = (e) => { if (e.target === modal) closeLoginMfaModal(); };
             
+            // Same HTML structure as admin portal
             modal.innerHTML = `
-                <div class="modal" style="max-width: 400px;">
-                    <div class="modal-header">
-                        <h2 class="modal-title">🔐 Two-Factor Authentication</h2>
-                        <button class="modal-close" onclick="closeLoginMfaModal()">✕</button>
+                <div style="background: var(--bg-card); border-radius: 16px; padding: 24px; width: 100%; max-width: 400px; margin: 16px;">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <div style="font-size: 3rem; margin-bottom: 12px;">🔐</div>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; color: var(--text-primary);">Two-Factor Authentication</h3>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Enter the 6-digit code sent to</p>
+                        <p style="color: var(--accent); font-weight: 600; font-size: 0.875rem; margin-top: 4px;" title="${email}">${displayEmail}</p>
                     </div>
-                    <div class="modal-body" style="text-align: center;">
-                        <div style="background: var(--success); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; opacity: 0.9;">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
+                    
+                    <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; background: rgba(34, 197, 94, 0.2); display: flex; align-items: center; justify-content: center;">
+                                <span style="font-size: 1.25rem; color: #22c55e;">✓</span>
+                            </div>
+                            <div style="flex: 1;">
+                                <p style="color: #22c55e; font-weight: 500; font-size: 0.875rem;">Code sent successfully!</p>
+                                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Please check your email inbox</p>
+                            </div>
                         </div>
-                        <p style="color: var(--text-secondary); margin-bottom: 8px;">Code sent to</p>
-                        <p style="color: var(--accent); font-weight: 600; margin-bottom: 24px;">${maskEmail(email)}</p>
-                        
-                        <div class="modal-form-group">
-                            <label class="modal-form-label">Verification Code</label>
-                            <input type="text" 
-                                   id="login-mfa-code" 
-                                   class="modal-form-input" 
-                                   placeholder="000000" 
-                                   maxlength="6"
-                                   inputmode="numeric"
-                                   pattern="[0-9]{6}"
-                                   autocomplete="one-time-code"
-                                   style="text-align: center; font-size: 2rem; letter-spacing: 12px; font-weight: 600; padding: 16px;"
-                                   onkeydown="if(event.key==='Enter')verifyLoginMfa()">
-                        </div>
-                        
-                        <div style="display: flex; gap: 12px; margin-top: 20px;">
-                            <button class="modal-btn modal-btn-secondary" style="flex: 1;" onclick="closeLoginMfaModal()">Cancel</button>
-                            <button id="login-mfa-verify-btn" class="modal-btn modal-btn-primary" style="flex: 1;" onclick="verifyLoginMfa()">
-                                <span id="verify-btn-text">Verify</span>
-                            </button>
-                        </div>
-                        
-                        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 16px;">
-                            Didn't receive a code? <a href="#" onclick="resendMfaCode(); return false;" style="color: var(--accent);">Resend</a>
-                        </p>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px;">Verification Code</label>
+                        <input 
+                            type="text" 
+                            id="login-mfa-code" 
+                            style="width: 100%; padding: 16px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; text-align: center; font-size: 1.875rem; letter-spacing: 0.5em; font-family: monospace; font-weight: 600; color: var(--text-primary); outline: none; transition: all 0.2s;"
+                            placeholder="000000" 
+                            maxlength="6" 
+                            pattern="[0-9]{6}"
+                            inputmode="numeric"
+                            autocomplete="one-time-code"
+                            onfocus="this.style.borderColor='var(--accent)'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.2)';"
+                            onblur="this.style.borderColor='var(--border-color)'; this.style.boxShadow='none';"
+                            onkeydown="if(event.key==='Enter')verifyLoginMfa()"
+                        >
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; text-align: center;">Enter the 6-digit code from your email</p>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; margin-top: 24px;">
+                        <button onclick="closeLoginMfaModal()" style="flex: 1; padding: 12px; background: var(--bg-hover); border: none; border-radius: 8px; color: var(--text-primary); font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='var(--bg-active)'" onmouseout="this.style.background='var(--bg-hover)'">Cancel</button>
+                        <button onclick="verifyLoginMfa()" id="login-mfa-verify-btn" style="flex: 1; padding: 12px; background: var(--accent); border: none; border-radius: 8px; color: white; font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                            <span id="verify-btn-text">Verify</span>
+                        </button>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">Didn't receive the code?</p>
+                        <button onclick="resendMfaCode()" id="resend-mfa-btn" style="font-size: 0.875rem; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 8px 16px; border-radius: 8px; transition: all 0.2s;" onmouseover="this.style.color='var(--accent)'; this.style.background='var(--bg-hover)'" onmouseout="this.style.color='var(--text-muted)'; this.style.background='none'">
+                            <span id="resend-text">Resend code</span>
+                        </button>
                     </div>
                 </div>
             `;
             
             document.body.appendChild(modal);
             
-            // Focus input
+            // Focus input after a short delay
             setTimeout(() => {
                 const input = document.getElementById('login-mfa-code');
                 if (input) input.focus();
