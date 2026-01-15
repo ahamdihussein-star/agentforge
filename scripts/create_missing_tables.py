@@ -143,6 +143,22 @@ def fix_jsonarray_column_types():
         ('agents', 'shared_with_role_ids'),
         ('agents', 'memory'),
         ('knowledge_bases', 'tags'),
+        # Messages table JSON columns
+        ('messages', 'tool_calls'),
+        ('messages', 'tool_results'),
+        ('messages', 'sources'),
+        ('messages', 'pii_types'),
+        # Documents table JSON columns
+        ('documents', 'tags'),
+        ('documents', 'pii_types'),
+        ('documents', 'allowed_user_ids'),
+        ('documents', 'allowed_role_ids'),
+        # Users table JSON columns
+        ('users', 'role_ids'),
+        ('users', 'group_ids'),
+        # Knowledge bases table JSON columns
+        ('knowledge_bases', 'shared_with_user_ids'),
+        ('knowledge_bases', 'shared_with_role_ids'),
     ]
     
     with engine.connect() as conn:
