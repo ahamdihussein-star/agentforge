@@ -1193,68 +1193,10 @@
             display: none !important;
         }
 
-        /* Modal Styles */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 20px;
-            backdrop-filter: blur(4px);
-        }
-
-        .modal {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            width: 100%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: var(--shadow-lg);
-            animation: modalIn 0.2s ease;
-        }
-
-        @keyframes modalIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        .modal-header {
-            padding: 24px 24px 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .modal-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
-
-        .modal-close {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            border: none;
-            background: transparent;
-            color: var(--text-muted);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-close:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-
+        /* Additional Modal Styles for Profile/Settings */
         .modal-body {
             padding: 24px;
+            overflow-y: auto;
         }
 
         .modal-section {
@@ -2233,12 +2175,12 @@
         
         function showProfile() {
             toggleUserMenu();
-            document.getElementById('profile-modal').classList.remove('hidden');
+            document.getElementById('profile-modal').classList.add('open');
             loadProfileData();
         }
 
         function hideProfile() {
-            document.getElementById('profile-modal').classList.add('hidden');
+            document.getElementById('profile-modal').classList.remove('open');
         }
 
         async function loadProfileData() {
@@ -2265,12 +2207,12 @@
 
         function showSettings() {
             toggleUserMenu();
-            document.getElementById('settings-modal').classList.remove('hidden');
+            document.getElementById('settings-modal').classList.add('open');
             loadThemeSettings();
         }
 
         function hideSettings() {
-            document.getElementById('settings-modal').classList.add('hidden');
+            document.getElementById('settings-modal').classList.remove('open');
         }
 
         function loadThemeSettings() {
@@ -2388,12 +2330,12 @@
         }
 
         function showMFASetup() {
-            document.getElementById('mfa-setup-modal').classList.remove('hidden');
+            document.getElementById('mfa-setup-modal').classList.add('open');
             requestMFASetup();
         }
 
         function hideMFASetup() {
-            document.getElementById('mfa-setup-modal').classList.add('hidden');
+            document.getElementById('mfa-setup-modal').classList.remove('open');
         }
 
         async function requestMFASetup() {
@@ -2525,7 +2467,7 @@
     </script>
 
     <!-- Profile Modal -->
-    <div id="profile-modal" class="modal-overlay hidden" onclick="if(event.target===this)hideProfile()">
+    <div id="profile-modal" class="modal-overlay" onclick="if(event.target===this)hideProfile()">
         <div class="modal">
             <div class="modal-header">
                 <h2 class="modal-title">Profile</h2>
@@ -2584,7 +2526,7 @@
     </div>
 
     <!-- Settings Modal -->
-    <div id="settings-modal" class="modal-overlay hidden" onclick="if(event.target===this)hideSettings()">
+    <div id="settings-modal" class="modal-overlay" onclick="if(event.target===this)hideSettings()">
         <div class="modal">
             <div class="modal-header">
                 <h2 class="modal-title">Settings</h2>
@@ -2624,7 +2566,7 @@
     </div>
 
     <!-- MFA Setup Modal -->
-    <div id="mfa-setup-modal" class="modal-overlay hidden" onclick="if(event.target===this)hideMFASetup()">
+    <div id="mfa-setup-modal" class="modal-overlay" onclick="if(event.target===this)hideMFASetup()">
         <div class="modal">
             <div class="modal-header">
                 <h2 class="modal-title">Enable Two-Factor Authentication</h2>
