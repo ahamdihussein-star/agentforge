@@ -15044,6 +15044,10 @@ async function saveToolEdit() {
             if(conv){
                 try{
                     await fetch(`/api/conversations/${conv}`,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('token')}});
+                    // Remove from dropdown
+                    const sel=document.getElementById('chat-conv');
+                    const opt=sel.querySelector(`option[value="${conv}"]`);
+                    if(opt)opt.remove();
                 }catch(e){console.error('Delete conversation error:',e);}
             }
             conv=null;document.getElementById('chat-conv').value='';clearMsgs();
