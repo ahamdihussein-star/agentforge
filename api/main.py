@@ -8802,6 +8802,9 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
     
     # Process with demo agent (dynamic mockup tools)
     result = await process_test_agent_chat(agent, request.message, conversation, timezone=request.timezone)
+    print(f"📤 Test chat result: content={len(result.get('content', ''))} chars")
+    if not result.get("content"):
+        print(f"⚠️  Empty response from LLM! Full result: {result}")
     
     # Add assistant response
     assistant_msg = ConversationMessage(
@@ -9037,6 +9040,9 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
         print(f"⚠️  Failed to save message to DB: {e}")
     
     result = await process_agent_chat(agent, request.message, conversation, timezone=request.timezone)
+    print(f"📤 Chat result: content={len(result.get('content', ''))} chars, sources={len(result.get('sources', []))}")
+    if not result.get("content"):
+        print(f"⚠️  Empty response from LLM!")
     assistant_msg = ConversationMessage(role="assistant", content=result["content"], sources=result["sources"])
     conversation.messages.append(assistant_msg)
     conversation.updated_at = datetime.utcnow().isoformat()
