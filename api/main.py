@@ -2299,8 +2299,25 @@ async def call_llm(messages: List[Dict], model_id: str = None) -> Dict:
                 llm_provider = ProviderFactory.get_llm_provider(config)
             else:
                 return {"content": "Error: OpenAI API key not configured. Please add it in Settings."}
-        elif model_lower.startswith('llama') or model_lower.startswith('mixtral') or model_lower.startswith('gemma'):
-            # Use Groq for Llama/Mixtral/Gemma models
+        elif model_lower.startswith('mistral') or model_lower.startswith('open-mistral') or model_lower.startswith('codestral') or model_lower.startswith('ministral'):
+            # Use Mistral for Mistral models
+            print(f"[LLM] Detected Mistral model, using Mistral provider")
+            provider_data = next(
+                (p for p in app_state.settings.llm_providers if p.provider == 'mistral'),
+                None
+            )
+            if provider_data and provider_data.api_key:
+                config = LLMConfig(
+                    provider=LLMProvider.MISTRAL,
+                    model=model,
+                    api_key=provider_data.api_key,
+                    api_base="https://api.mistral.ai/v1"
+                )
+                llm_provider = OpenAICompatibleLLM(config, "mistral")
+            else:
+                return {"content": "Error: Mistral API key not configured. Please add it in Settings."}
+        elif model_lower.startswith('llama') or model_lower.startswith('gemma'):
+            # Use Groq for Llama/Gemma models (NOT mixtral - that goes to Mistral)
             print(f"[LLM] Detected Groq model, using Groq provider")
             provider_data = next(
                 (p for p in app_state.settings.llm_providers if p.provider == 'groq'),
