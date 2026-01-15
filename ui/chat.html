@@ -1604,7 +1604,7 @@
 
             <!-- User Section -->
             <div class="user-section" style="position: relative;">
-                <div class="user-profile-trigger" onclick="toggleUserMenu()">
+                <div class="user-profile-trigger" onclick="toggleUserMenu(event)">
                     <div class="user-avatar" id="user-avatar">U</div>
                     <div class="user-info">
                         <div class="user-name" id="user-name">User</div>
@@ -2306,7 +2306,8 @@
             el.style.height = Math.min(el.scrollHeight, 120) + 'px';
         }
 
-        function toggleUserMenu() {
+        function toggleUserMenu(event) {
+            if (event) event.stopPropagation();
             document.getElementById('user-menu').classList.toggle('open');
         }
 
