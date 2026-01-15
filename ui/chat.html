@@ -829,8 +829,590 @@
         }
 
         /* Hidden */
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.open .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            max-height: calc(90vh - 140px);
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .modal-section-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+        }
+
+        .profile-avatar-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .profile-avatar-large {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--gradient-1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        .profile-avatar-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .btn-secondary {
+            padding: 10px 16px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+        }
+
+        .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .setting-info h4 {
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .setting-info p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 48px;
+            height: 28px;
+            background: var(--bg-hover);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle-switch.active {
+            background: var(--primary);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(20px);
+        }
+
+        .theme-options {
+            display: flex;
+            gap: 12px;
+        }
+
+        .theme-option {
+            flex: 1;
+            padding: 16px;
+            background: var(--bg-dark);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s;
+        }
+
+        .theme-option:hover {
+            border-color: var(--primary-light);
+        }
+
+        .theme-option.active {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .theme-icon {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        .theme-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            padding: 12px 20px;
+            background: var(--gradient-1);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-danger {
+            background: var(--error);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Organization Banner */
+        .org-banner {
+            background: var(--gradient-1);
+            padding: 8px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .org-banner-logo {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            object-fit: contain;
+        }
+
         .hidden {
             display: none !important;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+            animation: modalIn 0.2s ease;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            padding: 24px 24px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .modal-section-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        .profile-avatar-large {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            background: var(--gradient-1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        .profile-info h3 {
+            font-size: 1.25rem;
+            margin-bottom: 4px;
+        }
+
+        .profile-info p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .setting-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+
+        .setting-label {
+            font-size: 0.95rem;
+        }
+
+        .setting-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Toggle Switch */
+        .toggle {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            background: var(--bg-hover);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle.active {
+            background: var(--primary);
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: left 0.2s;
+        }
+
+        .toggle.active::after {
+            left: 25px;
+        }
+
+        /* Theme Selector */
+        .theme-options {
+            display: flex;
+            gap: 12px;
+        }
+
+        .theme-option {
+            flex: 1;
+            padding: 12px;
+            background: var(--bg-dark);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .theme-option:hover {
+            border-color: var(--primary-light);
+        }
+
+        .theme-option.active {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .theme-icon {
+            font-size: 1.5rem;
+            margin-bottom: 6px;
+        }
+
+        .theme-name {
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        /* Form in Modal */
+        .modal-form-group {
+            margin-bottom: 16px;
+        }
+
+        .modal-form-label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .modal-form-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+
+        .modal-form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .modal-btn {
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .modal-btn-primary {
+            background: var(--gradient-1);
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .modal-btn-secondary {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .modal-btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .modal-btn-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error);
+        }
+
+        .modal-btn-danger:hover {
+            background: var(--error);
+            color: white;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        /* MFA Badge */
+        .mfa-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .mfa-badge.enabled {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .mfa-badge.disabled {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error);
+        }
+
+        /* Organization Banner */
+        .org-banner {
+            background: var(--gradient-1);
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        /* Light Theme */
+        body.light-theme {
+            --bg-dark: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-hover: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border: #e2e8f0;
         }
     </style>
 </head>
@@ -1412,7 +1994,424 @@
                 menu.classList.remove('open');
             }
         });
+
+        // =============================================
+        // PROFILE & SETTINGS MODALS
+        // =============================================
+        
+        function showProfile() {
+            toggleUserMenu();
+            document.getElementById('profile-modal').classList.remove('hidden');
+            loadProfileData();
+        }
+
+        function hideProfile() {
+            document.getElementById('profile-modal').classList.add('hidden');
+        }
+
+        async function loadProfileData() {
+            if (!currentUser) return;
+            document.getElementById('profile-name-display').textContent = currentUser.full_name || currentUser.email;
+            document.getElementById('profile-email-display').textContent = currentUser.email;
+            document.getElementById('profile-avatar-display').textContent = (currentUser.full_name || currentUser.email)[0].toUpperCase();
+            
+            // Load MFA status
+            const mfaBadge = document.getElementById('mfa-status-badge');
+            const mfaToggle = document.getElementById('mfa-toggle');
+            const isMfaEnabled = currentUser.mfa_enabled || currentUser.mfa_method !== 'none';
+            
+            if (isMfaEnabled) {
+                mfaBadge.textContent = '✓ Enabled';
+                mfaBadge.className = 'mfa-badge enabled';
+                mfaToggle.classList.add('active');
+            } else {
+                mfaBadge.textContent = '✗ Disabled';
+                mfaBadge.className = 'mfa-badge disabled';
+                mfaToggle.classList.remove('active');
+            }
+        }
+
+        function showSettings() {
+            toggleUserMenu();
+            document.getElementById('settings-modal').classList.remove('hidden');
+            loadThemeSettings();
+        }
+
+        function hideSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function loadThemeSettings() {
+            const theme = localStorage.getItem('enduser-theme') || 'dark';
+            document.querySelectorAll('.theme-option').forEach(opt => {
+                opt.classList.toggle('active', opt.dataset.theme === theme);
+            });
+        }
+
+        function setTheme(theme) {
+            localStorage.setItem('enduser-theme', theme);
+            document.querySelectorAll('.theme-option').forEach(opt => {
+                opt.classList.toggle('active', opt.dataset.theme === theme);
+            });
+            applyTheme(theme);
+        }
+
+        function applyTheme(theme) {
+            if (theme === 'light') {
+                document.body.classList.add('light-theme');
+            } else if (theme === 'dark') {
+                document.body.classList.remove('light-theme');
+            } else {
+                // System theme
+                if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+                    document.body.classList.add('light-theme');
+                } else {
+                    document.body.classList.remove('light-theme');
+                }
+            }
+        }
+
+        // Apply saved theme on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('enduser-theme') || 'dark';
+            applyTheme(savedTheme);
+        });
+
+        function showChangePassword() {
+            document.getElementById('change-password-section').classList.remove('hidden');
+        }
+
+        async function changePassword() {
+            const currentPwd = document.getElementById('current-password').value;
+            const newPwd = document.getElementById('new-password').value;
+            const confirmPwd = document.getElementById('confirm-password').value;
+            
+            if (newPwd !== confirmPwd) {
+                alert('New passwords do not match!');
+                return;
+            }
+            
+            if (newPwd.length < 8) {
+                alert('Password must be at least 8 characters!');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API}/api/security/users/me/password`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        current_password: currentPwd,
+                        new_password: newPwd
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('Password changed successfully!');
+                    document.getElementById('change-password-section').classList.add('hidden');
+                    document.getElementById('current-password').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-password').value = '';
+                } else {
+                    const data = await response.json();
+                    alert(data.detail || 'Failed to change password');
+                }
+            } catch (e) {
+                alert('Failed to change password. Please try again.');
+            }
+        }
+
+        async function toggleMFA() {
+            const toggle = document.getElementById('mfa-toggle');
+            const isEnabled = toggle.classList.contains('active');
+            
+            if (isEnabled) {
+                // Disable MFA
+                if (confirm('Are you sure you want to disable MFA? This will reduce your account security.')) {
+                    try {
+                        const response = await fetch(`${API}/api/security/mfa/disable`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            toggle.classList.remove('active');
+                            document.getElementById('mfa-status-badge').textContent = '✗ Disabled';
+                            document.getElementById('mfa-status-badge').className = 'mfa-badge disabled';
+                            currentUser.mfa_enabled = false;
+                        }
+                    } catch (e) {
+                        alert('Failed to disable MFA');
+                    }
+                }
+            } else {
+                // Enable MFA - show setup
+                showMFASetup();
+            }
+        }
+
+        function showMFASetup() {
+            document.getElementById('mfa-setup-modal').classList.remove('hidden');
+            requestMFASetup();
+        }
+
+        function hideMFASetup() {
+            document.getElementById('mfa-setup-modal').classList.add('hidden');
+        }
+
+        async function requestMFASetup() {
+            const method = document.getElementById('mfa-method-select').value;
+            const setupContent = document.getElementById('mfa-setup-content');
+            
+            try {
+                const response = await fetch(`${API}/api/security/mfa/setup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ method })
+                });
+                
+                const data = await response.json();
+                
+                if (method === 'email') {
+                    setupContent.innerHTML = `
+                        <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                            A verification code has been sent to your email.
+                        </p>
+                        <div class="modal-form-group">
+                            <label class="modal-form-label">Enter Code</label>
+                            <input type="text" id="mfa-verify-code" class="modal-form-input" placeholder="Enter 6-digit code" maxlength="6">
+                        </div>
+                        <button class="modal-btn modal-btn-primary" onclick="verifyMFA()">Verify & Enable</button>
+                    `;
+                } else if (method === 'totp' && data.qr_code) {
+                    setupContent.innerHTML = `
+                        <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                            Scan this QR code with your authenticator app:
+                        </p>
+                        <img src="${data.qr_code}" style="width: 200px; margin: 16px auto; display: block; border-radius: 8px;">
+                        <div class="modal-form-group">
+                            <label class="modal-form-label">Enter Code from App</label>
+                            <input type="text" id="mfa-verify-code" class="modal-form-input" placeholder="Enter 6-digit code" maxlength="6">
+                        </div>
+                        <button class="modal-btn modal-btn-primary" onclick="verifyMFA()">Verify & Enable</button>
+                    `;
+                }
+            } catch (e) {
+                setupContent.innerHTML = '<p style="color: var(--error);">Failed to setup MFA. Please try again.</p>';
+            }
+        }
+
+        async function verifyMFA() {
+            const code = document.getElementById('mfa-verify-code').value;
+            
+            if (!code || code.length !== 6) {
+                alert('Please enter a valid 6-digit code');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API}/api/security/mfa/verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ code })
+                });
+                
+                if (response.ok) {
+                    alert('MFA enabled successfully!');
+                    hideMFASetup();
+                    document.getElementById('mfa-toggle').classList.add('active');
+                    document.getElementById('mfa-status-badge').textContent = '✓ Enabled';
+                    document.getElementById('mfa-status-badge').className = 'mfa-badge enabled';
+                    currentUser.mfa_enabled = true;
+                } else {
+                    const data = await response.json();
+                    alert(data.detail || 'Invalid code. Please try again.');
+                }
+            } catch (e) {
+                alert('Verification failed. Please try again.');
+            }
+        }
+
+        // Load organization branding
+        async function loadBranding() {
+            try {
+                const response = await fetch(`${API}/api/organization/branding`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                
+                if (response.ok) {
+                    const branding = await response.json();
+                    applyBranding(branding);
+                }
+            } catch (e) {
+                console.log('No custom branding');
+            }
+        }
+
+        function applyBranding(branding) {
+            // Apply logo
+            if (branding.logo_url) {
+                const logoIcon = document.querySelector('.logo-icon');
+                if (logoIcon) {
+                    logoIcon.innerHTML = `<img src="${branding.logo_url}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px;">`;
+                }
+            }
+            
+            // Apply banner
+            if (branding.banner_enabled && branding.banner_text) {
+                const banner = document.createElement('div');
+                banner.className = 'org-banner';
+                banner.style.background = branding.banner_bg_color || 'var(--gradient-1)';
+                banner.style.color = branding.banner_text_color || '#ffffff';
+                banner.innerHTML = branding.banner_text;
+                document.body.insertBefore(banner, document.body.firstChild);
+            }
+            
+            // Apply colors
+            if (branding.primary_color) {
+                document.documentElement.style.setProperty('--primary', branding.primary_color);
+            }
+        }
+
+        // Load branding after login
+        const originalShowChatInterface = showChatInterface;
+        showChatInterface = function() {
+            originalShowChatInterface();
+            loadBranding();
+        };
     </script>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="modal-overlay hidden" onclick="if(event.target===this)hideProfile()">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Profile</h2>
+                <button class="modal-close" onclick="hideProfile()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-header">
+                    <div class="profile-avatar-large" id="profile-avatar-display">U</div>
+                    <div class="profile-info">
+                        <h3 id="profile-name-display">User Name</h3>
+                        <p id="profile-email-display">user@example.com</p>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-section-title">Security</div>
+                    
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">Two-Factor Authentication</div>
+                            <div class="setting-desc">Add an extra layer of security</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span id="mfa-status-badge" class="mfa-badge disabled">✗ Disabled</span>
+                            <div id="mfa-toggle" class="toggle" onclick="toggleMFA()"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">Password</div>
+                            <div class="setting-desc">Change your account password</div>
+                        </div>
+                        <button class="modal-btn modal-btn-secondary" onclick="showChangePassword()">Change</button>
+                    </div>
+                </div>
+
+                <div id="change-password-section" class="modal-section hidden">
+                    <div class="modal-section-title">Change Password</div>
+                    <div class="modal-form-group">
+                        <label class="modal-form-label">Current Password</label>
+                        <input type="password" id="current-password" class="modal-form-input" placeholder="Enter current password">
+                    </div>
+                    <div class="modal-form-group">
+                        <label class="modal-form-label">New Password</label>
+                        <input type="password" id="new-password" class="modal-form-input" placeholder="Enter new password">
+                    </div>
+                    <div class="modal-form-group">
+                        <label class="modal-form-label">Confirm New Password</label>
+                        <input type="password" id="confirm-password" class="modal-form-input" placeholder="Confirm new password">
+                    </div>
+                    <button class="modal-btn modal-btn-primary" onclick="changePassword()">Update Password</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden" onclick="if(event.target===this)hideSettings()">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Settings</h2>
+                <button class="modal-close" onclick="hideSettings()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <div class="modal-section-title">Appearance</div>
+                    <div class="theme-options">
+                        <div class="theme-option" data-theme="dark" onclick="setTheme('dark')">
+                            <div class="theme-icon">🌙</div>
+                            <div class="theme-name">Dark</div>
+                        </div>
+                        <div class="theme-option" data-theme="light" onclick="setTheme('light')">
+                            <div class="theme-icon">☀️</div>
+                            <div class="theme-name">Light</div>
+                        </div>
+                        <div class="theme-option" data-theme="system" onclick="setTheme('system')">
+                            <div class="theme-icon">💻</div>
+                            <div class="theme-name">System</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-section-title">Notifications</div>
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label">Sound Effects</div>
+                            <div class="setting-desc">Play sound on new messages</div>
+                        </div>
+                        <div class="toggle" onclick="this.classList.toggle('active')"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MFA Setup Modal -->
+    <div id="mfa-setup-modal" class="modal-overlay hidden" onclick="if(event.target===this)hideMFASetup()">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Enable Two-Factor Authentication</h2>
+                <button class="modal-close" onclick="hideMFASetup()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-form-group">
+                    <label class="modal-form-label">Authentication Method</label>
+                    <select id="mfa-method-select" class="modal-form-input" onchange="requestMFASetup()">
+                        <option value="email">Email Code</option>
+                        <option value="totp">Authenticator App</option>
+                    </select>
+                </div>
+                <div id="mfa-setup-content">
+                    <!-- Dynamic content loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
 

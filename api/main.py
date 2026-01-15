@@ -6428,6 +6428,89 @@ async def test_embedding_connection(request: Dict[str, Any]):
 
 
 # ============================================================================
+# ORGANIZATION BRANDING - Customization for End User Portal
+# ============================================================================
+
+@app.get("/api/organization/branding")
+async def get_organization_branding(current_user: User = Depends(get_current_user)):
+    """Get organization branding settings for End User Portal"""
+    try:
+        from database.base import get_db_session
+        from database.models import Organization
+        
+        org_id = current_user.org_id if current_user else None
+        
+        with get_db_session() as db:
+            if org_id:
+                org = db.query(Organization).filter(Organization.id == org_id).first()
+                if org:
+                    branding = org.branding or {}
+                    return {
+                        "logo_url": org.logo_url,
+                        "favicon_url": getattr(org, 'favicon_url', None),
+                        "name": org.name,
+                        **branding
+                    }
+        
+        return {"logo_url": None, "name": "AgentForge"}
+    except Exception as e:
+        print(f"⚠️  Failed to get branding: {e}")
+        return {"logo_url": None, "name": "AgentForge"}
+
+
+@app.put("/api/organization/branding")
+async def update_organization_branding(
+    request: Dict[str, Any],
+    current_user: User = Depends(get_current_user)
+):
+    """Update organization branding settings (Admin only)"""
+    # Check if user has admin permissions
+    if not current_user or not any(r in ['super_admin', 'admin', 'org_admin'] for r in (current_user.roles or [])):
+        raise HTTPException(403, "Admin access required")
+    
+    try:
+        from database.base import get_db_session
+        from database.models import Organization
+        
+        org_id = current_user.org_id
+        
+        with get_db_session() as db:
+            org = db.query(Organization).filter(Organization.id == org_id).first()
+            if not org:
+                raise HTTPException(404, "Organization not found")
+            
+            # Update direct fields
+            if 'logo_url' in request:
+                org.logo_url = request['logo_url']
+            if 'favicon_url' in request:
+                org.favicon_url = request['favicon_url']
+            if 'name' in request:
+                org.name = request['name']
+            
+            # Update branding JSON
+            branding = org.branding or {}
+            branding_fields = [
+                'primary_color', 'secondary_color',
+                'banner_enabled', 'banner_text', 'banner_bg_color', 'banner_text_color',
+                'chat_welcome_title', 'chat_welcome_message',
+                'theme', 'custom_css'
+            ]
+            for field in branding_fields:
+                if field in request:
+                    branding[field] = request[field]
+            
+            org.branding = branding
+            db.commit()
+            
+            return {"status": "success", "message": "Branding updated"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Failed to update branding: {e}")
+        raise HTTPException(500, f"Failed to update branding: {str(e)}")
+
+
+# ============================================================================
 # INTEGRATIONS SETTINGS
 # ============================================================================
 

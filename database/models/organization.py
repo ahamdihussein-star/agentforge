@@ -52,6 +52,23 @@ class Organization(Base):
     # Domain & Branding
     domain = Column(String(255), nullable=True)
     logo_url = Column(String(500), nullable=True)
+    favicon_url = Column(String(500), nullable=True)
+    
+    # Branding Configuration (stored as JSON)
+    branding = Column(JSON, default={})
+    # Expected structure:
+    # {
+    #     "primary_color": "#6366f1",
+    #     "secondary_color": "#8b5cf6",
+    #     "banner_text": "Welcome to Company AI",
+    #     "banner_enabled": true,
+    #     "banner_bg_color": "#1a1a24",
+    #     "banner_text_color": "#ffffff",
+    #     "chat_welcome_title": "How can I help you?",
+    #     "chat_welcome_message": "Select an assistant to start",
+    #     "theme": "dark",  # dark, light, system
+    #     "custom_css": ""
+    # }
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
