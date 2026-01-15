@@ -6316,56 +6316,70 @@ async def get_available_providers():
 
 @app.post("/api/settings/test-llm")
 async def test_llm_connection(request: Dict[str, Any]):
-    """Test LLM connection with provided settings"""
-    try:
-        provider_name = request.get('provider', 'openai')
-        api_key = request.get('api_key', '')
-        model = request.get('model', '')
-        api_base = request.get('api_base', '')
-        
-        print(f"[Test LLM] Testing provider: {provider_name}, model: {model}")
-        
-        # Use the first model if none specified
-        if not model:
-            provider_default_models = {
-                "openai": "gpt-4o-mini",
-                "anthropic": "claude-3-5-haiku-20241022",
-                "google": "gemini-2.0-flash",
-                "groq": "llama-3.3-70b-versatile",
-                "mistral": "mistral-small-2503",
-                "cohere": "command-r-08-2024",
-                "xai": "grok-2-mini",
-                "deepseek": "deepseek-chat",
-                "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-                "perplexity": "sonar",
-            }
-            model = provider_default_models.get(provider_name, "gpt-4o-mini")
-        
-        # Create config based on provider type
-        llm_config = LLMConfig(
-            provider=LLMProvider(provider_name) if provider_name in [p.value for p in LLMProvider] else LLMProvider.CUSTOM,
-            model=model,
-            api_key=api_key,
-            api_base=api_base
-        )
-        
-        # Get the correct provider
-        if provider_name in ['groq', 'xai', 'mistral', 'deepseek', 'together', 'perplexity', 'lmstudio']:
-            # OpenAI-compatible providers
-            provider = OpenAICompatibleLLM(llm_config, provider_name)
-        else:
-            provider = ProviderFactory.get_llm_provider(llm_config)
-        
-        # Test with a simple message
-        response = await provider.generate([
-            {"role": "user", "content": "Say 'Hello!' in exactly that word."}
-        ], max_tokens=20, model=model)
-        
-        print(f"[Test LLM] ✅ Success: {len(response)} chars")
-        return {"status": "success", "response": response}
-    except Exception as e:
-        print(f"[Test LLM] ❌ Failed: {e}")
-        return {"status": "error", "message": str(e)}
+    """Test LLM connection - tests ALL models for the provider"""
+    provider_name = request.get('provider', 'openai')
+    api_key = request.get('api_key', '')
+    api_base = request.get('api_base', '')
+    
+    print(f"\n{'='*50}")
+    print(f"[Test LLM] Testing ALL models for: {provider_name}")
+    print(f"{'='*50}")
+    
+    # Models to test for each provider
+    provider_models = {
+        "openai": ["gpt-4o-mini", "gpt-3.5-turbo"],
+        "anthropic": ["claude-3-5-haiku-20241022"],
+        "google": ["gemini-2.0-flash"],
+        "groq": ["llama-3.3-70b-versatile", "gemma2-9b-it"],
+        "mistral": ["mistral-small-2503", "open-mistral-nemo"],
+        "cohere": ["command-r-08-2024"],
+        "xai": ["grok-2-mini"],
+        "deepseek": ["deepseek-chat"],
+        "together": ["meta-llama/Llama-3.3-70B-Instruct-Turbo"],
+        "perplexity": ["sonar"],
+    }
+    
+    models_to_test = provider_models.get(provider_name, ["gpt-4o-mini"])
+    results = []
+    
+    for model in models_to_test:
+        try:
+            print(f"[Test LLM] Testing: {model}...")
+            
+            llm_config = LLMConfig(
+                provider=LLMProvider(provider_name) if provider_name in [p.value for p in LLMProvider] else LLMProvider.CUSTOM,
+                model=model,
+                api_key=api_key,
+                api_base=api_base
+            )
+            
+            if provider_name in ['groq', 'xai', 'mistral', 'deepseek', 'together', 'perplexity', 'lmstudio']:
+                provider = OpenAICompatibleLLM(llm_config, provider_name)
+            else:
+                provider = ProviderFactory.get_llm_provider(llm_config)
+            
+            response = await provider.generate([
+                {"role": "user", "content": "Say 'Hi' only."}
+            ], max_tokens=10, model=model)
+            
+            print(f"[Test LLM] ✅ {model}: OK")
+            results.append({"model": model, "status": "success", "response": response[:30]})
+            
+        except Exception as e:
+            print(f"[Test LLM] ❌ {model}: {str(e)[:80]}")
+            results.append({"model": model, "status": "error", "message": str(e)})
+    
+    passed = [r for r in results if r['status'] == 'success']
+    failed = [r for r in results if r['status'] == 'error']
+    
+    print(f"[Test LLM] Result: {len(passed)}/{len(results)} passed\n")
+    
+    if len(failed) == 0:
+        return {"status": "success", "message": f"All {len(results)} models OK!", "results": results}
+    elif len(passed) > 0:
+        return {"status": "partial", "message": f"{len(passed)}/{len(results)} passed. Failed: {', '.join([r['model'] for r in failed])}", "results": results}
+    else:
+        return {"status": "error", "message": f"All models failed: {failed[0]['message']}", "results": results}
 
 
 @app.post("/api/settings/test-embedding")
