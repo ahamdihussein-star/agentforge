@@ -1712,10 +1712,14 @@
                 const response = await fetch(`${API}/api/agents?status=published`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
-                agents = await response.json();
+                const data = await response.json();
+                // Handle both array response and object with agents key
+                agents = Array.isArray(data) ? data : (data.agents || data.items || []);
                 renderAgents();
             } catch (e) {
                 console.error('Failed to load agents:', e);
+                agents = [];
+                renderAgents();
             }
         }
 

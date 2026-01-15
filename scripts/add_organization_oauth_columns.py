@@ -39,6 +39,8 @@ def add_organization_oauth_columns():
         ("status", "VARCHAR(20)", "'active'"),
         ("domain", "VARCHAR(255)", "NULL"),
         ("logo_url", "VARCHAR(500)", "NULL"),
+        ("favicon_url", "VARCHAR(500)", "NULL"),
+        ("branding", "JSONB", "'{}'::jsonb"),
     ]
     
     with get_db_session() as session:
