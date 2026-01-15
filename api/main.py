@@ -6122,6 +6122,25 @@ async def get_settings():
         traceback.print_exc()
     
     settings = app_state.settings.dict()
+    
+    # Add default models for each configured provider if not set
+    provider_default_models = {
+        "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"],
+        "anthropic": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
+        "google": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
+        "groq": ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+        "mistral": ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest"],
+        "cohere": ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"],
+        "xai": ["grok-2", "grok-2-mini"],
+        "deepseek": ["deepseek-chat", "deepseek-coder"],
+        "together": ["meta-llama/Llama-3.3-70B-Instruct-Turbo"],
+        "perplexity": ["llama-3.1-sonar-large-128k-online"],
+    }
+    
+    for provider in settings.get('llm_providers', []):
+        if not provider.get('models') or len(provider.get('models', [])) == 0:
+            provider['models'] = provider_default_models.get(provider.get('provider'), [])
+    
     # Mask sensitive values
     if settings['llm']['api_key']:
         settings['llm']['api_key'] = '***' + settings['llm']['api_key'][-4:] if len(settings['llm']['api_key']) > 4 else '****'
