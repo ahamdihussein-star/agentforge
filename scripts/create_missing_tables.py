@@ -254,8 +254,43 @@ def fix_jsonarray_column_types():
     print()
 
 
+def add_missing_columns():
+    """Add missing columns to existing tables"""
+    print("=" * 60)
+    print("🔧 Adding Missing Columns")
+    print("=" * 60)
+    
+    engine = get_engine()
+    
+    columns_to_add = [
+        ("conversations", "is_test", "BOOLEAN DEFAULT FALSE"),
+    ]
+    
+    with engine.connect() as conn:
+        for table_name, column_name, column_def in columns_to_add:
+            try:
+                # Check if column exists
+                result = conn.execute(text(f"""
+                    SELECT column_name FROM information_schema.columns 
+                    WHERE table_name = '{table_name}' AND column_name = '{column_name}'
+                """))
+                if result.fetchone():
+                    print(f"   ✅ {table_name}.{column_name} already exists")
+                else:
+                    conn.execute(text(f"""
+                        ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}
+                    """))
+                    conn.commit()
+                    print(f"   ✅ Added {table_name}.{column_name}")
+            except Exception as e:
+                print(f"   ⚠️  Error adding {table_name}.{column_name}: {e}")
+    
+    print()
+
+
 if __name__ == "__main__":
     success = create_missing_tables()
     fix_jsonarray_column_types()  # Fix column types after table creation
+    add_missing_columns()  # Add any missing columns
     sys.exit(0 if success else 1)
 
