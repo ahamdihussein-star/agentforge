@@ -2222,14 +2222,37 @@
 
         async function loadProfileData() {
             if (!currentUser) return;
-            document.getElementById('profile-name-display').textContent = currentUser.full_name || currentUser.email;
+            
+            // Fetch fresh user data
+            try {
+                const response = await fetch(`${API}/api/security/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (response.ok) {
+                    const userData = await response.json();
+                    currentUser = { ...currentUser, ...userData };
+                }
+            } catch (e) {
+                console.log('Using cached user data');
+            }
+            
+            const firstName = currentUser.profile?.first_name || currentUser.first_name || '';
+            const lastName = currentUser.profile?.last_name || currentUser.last_name || '';
+            const fullName = currentUser.full_name || `${firstName} ${lastName}`.trim() || currentUser.email;
+            
+            document.getElementById('profile-name-display').textContent = fullName;
             document.getElementById('profile-email-display').textContent = currentUser.email;
-            document.getElementById('profile-avatar-display').textContent = (currentUser.full_name || currentUser.email)[0].toUpperCase();
+            document.getElementById('profile-avatar-display').textContent = fullName[0].toUpperCase();
+            
+            // Fill name fields
+            document.getElementById('profile-first-name').value = firstName;
+            document.getElementById('profile-last-name').value = lastName;
             
             // Load MFA status
             const mfaBadge = document.getElementById('mfa-status-badge');
             const mfaToggle = document.getElementById('mfa-toggle');
-            const isMfaEnabled = currentUser.mfa_enabled || currentUser.mfa_method !== 'none';
+            const mfaInfo = currentUser.mfa || {};
+            const isMfaEnabled = mfaInfo.enabled || currentUser.mfa_enabled || (currentUser.mfa_method && currentUser.mfa_method !== 'none');
             
             if (isMfaEnabled) {
                 mfaBadge.textContent = '✓ Enabled';
@@ -2239,6 +2262,47 @@
                 mfaBadge.textContent = '✗ Disabled';
                 mfaBadge.className = 'mfa-badge disabled';
                 mfaToggle.classList.remove('active');
+            }
+        }
+
+        async function updateProfile() {
+            const firstName = document.getElementById('profile-first-name').value.trim();
+            const lastName = document.getElementById('profile-last-name').value.trim();
+            
+            try {
+                const response = await fetch(`${API}/api/security/users/me`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        profile: {
+                            first_name: firstName,
+                            last_name: lastName
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    // Update local state
+                    currentUser.profile = { first_name: firstName, last_name: lastName };
+                    currentUser.full_name = `${firstName} ${lastName}`.trim();
+                    
+                    // Update UI
+                    document.getElementById('profile-name-display').textContent = currentUser.full_name || currentUser.email;
+                    document.getElementById('profile-avatar-display').textContent = (currentUser.full_name || currentUser.email)[0].toUpperCase();
+                    document.getElementById('user-name').textContent = currentUser.full_name || currentUser.email;
+                    document.getElementById('user-avatar').textContent = (currentUser.full_name || currentUser.email)[0].toUpperCase();
+                    
+                    alert('Profile updated successfully!');
+                } else {
+                    const data = await response.json();
+                    alert(data.detail || 'Failed to update profile');
+                }
+            } catch (e) {
+                console.error('Profile update error:', e);
+                alert('Failed to update profile. Please try again.');
             }
         }
 
@@ -2365,35 +2429,86 @@
             const isEnabled = toggle.classList.contains('active');
             
             if (isEnabled) {
-                // Disable MFA
-                if (confirm('Are you sure you want to disable MFA? This will reduce your account security.')) {
-                    try {
-                        const response = await fetch(`${API}/api/security/mfa/disable`, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${localStorage.getItem('token')}`
-                            }
-                        });
-                        
-                        if (response.ok) {
-                            toggle.classList.remove('active');
-                            document.getElementById('mfa-status-badge').textContent = '✗ Disabled';
-                            document.getElementById('mfa-status-badge').className = 'mfa-badge disabled';
-                            currentUser.mfa_enabled = false;
-                        }
-                    } catch (e) {
-                        alert('Failed to disable MFA');
-                    }
-                }
+                // Disable MFA - need password and current MFA code
+                showMFADisableModal();
             } else {
                 // Enable MFA - show setup
                 showMFASetup();
             }
         }
 
+        function showMFADisableModal() {
+            const content = document.getElementById('mfa-setup-content');
+            document.getElementById('mfa-setup-modal').classList.add('open');
+            content.innerHTML = `
+                <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                    To disable MFA, please enter your password and current MFA code.
+                </p>
+                <div class="modal-form-group">
+                    <label class="modal-form-label">Password</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="mfa-disable-password" class="modal-form-input" placeholder="Enter your password">
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('mfa-disable-password', this)">
+                            <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-form-group">
+                    <label class="modal-form-label">Current MFA Code</label>
+                    <input type="text" id="mfa-disable-code" class="modal-form-input" placeholder="Enter 6-digit code" maxlength="6">
+                </div>
+                <button class="modal-btn modal-btn-danger" onclick="disableMFA()">Disable MFA</button>
+            `;
+        }
+
+        async function disableMFA() {
+            const password = document.getElementById('mfa-disable-password').value;
+            const code = document.getElementById('mfa-disable-code').value;
+            
+            if (!password || !code) {
+                alert('Please enter both password and MFA code');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API}/api/security/mfa/disable`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ password, code })
+                });
+                
+                if (response.ok) {
+                    alert('MFA disabled successfully');
+                    hideMFASetup();
+                    document.getElementById('mfa-toggle').classList.remove('active');
+                    document.getElementById('mfa-status-badge').textContent = '✗ Disabled';
+                    document.getElementById('mfa-status-badge').className = 'mfa-badge disabled';
+                    currentUser.mfa_enabled = false;
+                } else {
+                    const data = await response.json();
+                    alert(data.detail || 'Failed to disable MFA. Check your password and code.');
+                }
+            } catch (e) {
+                alert('Failed to disable MFA. Please try again.');
+            }
+        }
+
         function showMFASetup() {
             document.getElementById('mfa-setup-modal').classList.add('open');
-            requestMFASetup();
+            // Reset to method selection
+            const content = document.getElementById('mfa-setup-content');
+            content.innerHTML = `
+                <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                    Select a method and click "Setup" to begin.
+                </p>
+                <button class="modal-btn modal-btn-primary" onclick="requestMFASetup()">Setup MFA</button>
+            `;
         }
 
         function hideMFASetup() {
@@ -2404,8 +2519,10 @@
             const method = document.getElementById('mfa-method-select').value;
             const setupContent = document.getElementById('mfa-setup-content');
             
+            setupContent.innerHTML = '<p style="color: var(--text-muted);">Setting up MFA...</p>';
+            
             try {
-                const response = await fetch(`${API}/api/security/mfa/setup`, {
+                const response = await fetch(`${API}/api/security/mfa/enable`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2416,39 +2533,55 @@
                 
                 const data = await response.json();
                 
+                if (!response.ok) {
+                    setupContent.innerHTML = `<p style="color: var(--error);">${data.detail || 'Failed to setup MFA'}</p>`;
+                    return;
+                }
+                
                 if (method === 'email') {
                     setupContent.innerHTML = `
                         <p style="color: var(--text-secondary); margin-bottom: 16px;">
-                            A verification code has been sent to your email.
+                            A verification code has been sent to your email: <strong>${currentUser.email}</strong>
                         </p>
                         <div class="modal-form-group">
                             <label class="modal-form-label">Enter Code</label>
-                            <input type="text" id="mfa-verify-code" class="modal-form-input" placeholder="Enter 6-digit code" maxlength="6">
+                            <input type="text" id="mfa-verify-code" class="modal-form-input" placeholder="Enter 6-digit code" maxlength="6" style="text-align: center; font-size: 1.5rem; letter-spacing: 8px;">
                         </div>
                         <button class="modal-btn modal-btn-primary" onclick="verifyMFA()">Verify & Enable</button>
                     `;
-                } else if (method === 'totp' && data.qr_code) {
-                    setupContent.innerHTML = `
-                        <p style="color: var(--text-secondary); margin-bottom: 16px;">
-                            Scan this QR code with your authenticator app:
-                        </p>
-                        <img src="${data.qr_code}" style="width: 200px; margin: 16px auto; display: block; border-radius: 8px;">
-                        <div class="modal-form-group">
-                            <label class="modal-form-label">Enter Code from App</label>
-                            <input type="text" id="mfa-verify-code" class="modal-form-input" placeholder="Enter 6-digit code" maxlength="6">
-                        </div>
-                        <button class="modal-btn modal-btn-primary" onclick="verifyMFA()">Verify & Enable</button>
-                    `;
+                } else if (method === 'totp') {
+                    const qrCode = data.qr_code || data.qr_uri;
+                    if (qrCode) {
+                        setupContent.innerHTML = `
+                            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):
+                            </p>
+                            <div style="background: white; padding: 16px; border-radius: 12px; width: fit-content; margin: 16px auto;">
+                                <img src="${qrCode}" style="width: 180px; height: 180px; display: block;">
+                            </div>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 16px; text-align: center;">
+                                Or enter this code manually: <code style="background: var(--bg-hover); padding: 4px 8px; border-radius: 4px;">${data.secret || ''}</code>
+                            </p>
+                            <div class="modal-form-group">
+                                <label class="modal-form-label">Enter Code from App</label>
+                                <input type="text" id="mfa-verify-code" class="modal-form-input" placeholder="Enter 6-digit code" maxlength="6" style="text-align: center; font-size: 1.5rem; letter-spacing: 8px;">
+                            </div>
+                            <button class="modal-btn modal-btn-primary" onclick="verifyMFA()">Verify & Enable</button>
+                        `;
+                    } else {
+                        setupContent.innerHTML = `<p style="color: var(--error);">Failed to generate QR code. Please try again.</p>`;
+                    }
                 }
             } catch (e) {
+                console.error('MFA setup error:', e);
                 setupContent.innerHTML = '<p style="color: var(--error);">Failed to setup MFA. Please try again.</p>';
             }
         }
 
         async function verifyMFA() {
-            const code = document.getElementById('mfa-verify-code').value;
+            const code = document.getElementById('mfa-verify-code').value.trim();
             
-            if (!code || code.length !== 6) {
+            if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
                 alert('Please enter a valid 6-digit code');
                 return;
             }
@@ -2463,18 +2596,43 @@
                     body: JSON.stringify({ code })
                 });
                 
+                const data = await response.json();
+                
                 if (response.ok) {
-                    alert('MFA enabled successfully!');
-                    hideMFASetup();
+                    // Show backup codes if provided
+                    if (data.backup_codes && data.backup_codes.length > 0) {
+                        const codesHtml = data.backup_codes.map(c => `<code style="display: block; padding: 4px; margin: 2px 0;">${c}</code>`).join('');
+                        document.getElementById('mfa-setup-content').innerHTML = `
+                            <div style="text-align: center; color: var(--success); margin-bottom: 16px;">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin: 0 auto 8px;">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                                <h3>MFA Enabled Successfully!</h3>
+                            </div>
+                            <div style="background: var(--bg-dark); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+                                <p style="color: var(--warning); font-weight: 600; margin-bottom: 8px;">⚠️ Save these backup codes!</p>
+                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 12px;">
+                                    Store these in a safe place. You can use them to access your account if you lose your authenticator.
+                                </p>
+                                <div style="font-family: monospace; font-size: 0.9rem;">${codesHtml}</div>
+                            </div>
+                            <button class="modal-btn modal-btn-primary" onclick="hideMFASetup()">Done</button>
+                        `;
+                    } else {
+                        alert('MFA enabled successfully!');
+                        hideMFASetup();
+                    }
+                    
                     document.getElementById('mfa-toggle').classList.add('active');
                     document.getElementById('mfa-status-badge').textContent = '✓ Enabled';
                     document.getElementById('mfa-status-badge').className = 'mfa-badge enabled';
                     currentUser.mfa_enabled = true;
                 } else {
-                    const data = await response.json();
                     alert(data.detail || 'Invalid code. Please try again.');
                 }
             } catch (e) {
+                console.error('MFA verification error:', e);
                 alert('Verification failed. Please try again.');
             }
         }
@@ -2542,6 +2700,21 @@
                         <h3 id="profile-name-display">User Name</h3>
                         <p id="profile-email-display">user@example.com</p>
                     </div>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-section-title">Personal Information</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="modal-form-group" style="margin-bottom: 0;">
+                            <label class="modal-form-label">First Name</label>
+                            <input type="text" id="profile-first-name" class="modal-form-input" placeholder="First name">
+                        </div>
+                        <div class="modal-form-group" style="margin-bottom: 0;">
+                            <label class="modal-form-label">Last Name</label>
+                            <input type="text" id="profile-last-name" class="modal-form-input" placeholder="Last name">
+                        </div>
+                    </div>
+                    <button class="modal-btn modal-btn-primary" style="margin-top: 16px;" onclick="updateProfile()">Save Changes</button>
                 </div>
 
                 <div class="modal-section">
