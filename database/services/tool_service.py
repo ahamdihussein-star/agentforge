@@ -59,9 +59,22 @@ class ToolService:
         """Create a new tool in the database"""
         try:
             with get_db_session() as db:
-                # Parse UUIDs
-                org_uuid = uuid_lib.UUID(org_id) if isinstance(org_id, str) else org_id
-                created_by_uuid = uuid_lib.UUID(created_by) if isinstance(created_by, str) else created_by
+                # Parse UUIDs - handle special values
+                try:
+                    if org_id in ['org_default', 'system', '', None]:
+                        org_uuid = uuid_lib.UUID('2c969bf1-16d3-43d3-95da-66965c3fa132')  # Default org
+                    else:
+                        org_uuid = uuid_lib.UUID(org_id) if isinstance(org_id, str) else org_id
+                except (ValueError, AttributeError):
+                    org_uuid = uuid_lib.UUID('2c969bf1-16d3-43d3-95da-66965c3fa132')
+                
+                try:
+                    if created_by in ['system', '', None]:
+                        created_by_uuid = uuid_lib.UUID('00000000-0000-0000-0000-000000000000')
+                    else:
+                        created_by_uuid = uuid_lib.UUID(created_by) if isinstance(created_by, str) else created_by
+                except (ValueError, AttributeError):
+                    created_by_uuid = uuid_lib.UUID('00000000-0000-0000-0000-000000000000')
                 
                 # Get or generate tool ID
                 tool_id = tool_data.get('id', str(uuid_lib.uuid4()))
