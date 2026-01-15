@@ -446,7 +446,7 @@ class OpenAICompatibleLLM(BaseLLMProvider):
         },
         "mistral": {
             "base_url": "https://api.mistral.ai/v1",
-            "models": ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest", "open-mixtral-8x22b", "codestral-latest"]
+            "models": ["mistral-large-2411", "mistral-small-2503", "open-mistral-nemo", "codestral-2501", "ministral-8b-2410"]
         },
         "deepseek": {
             "base_url": "https://api.deepseek.com/v1",
@@ -6129,7 +6129,7 @@ async def get_settings():
         "anthropic": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
         "google": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
         "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"],
-        "mistral": ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest"],
+        "mistral": ["mistral-large-2411", "mistral-small-2503", "open-mistral-nemo"],
         "cohere": ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"],
         "xai": ["grok-2", "grok-2-mini"],
         "deepseek": ["deepseek-chat", "deepseek-coder"],
@@ -6254,7 +6254,7 @@ async def get_available_providers():
         "google": {"name": "Google Gemini", "default_models": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]},
         "xai": {"name": "xAI (Grok)", "default_models": ["grok-beta", "grok-2"]},
         "groq": {"name": "Groq", "default_models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]},
-        "mistral": {"name": "Mistral AI", "default_models": ["mistral-large-latest", "mistral-medium-latest"]},
+        "mistral": {"name": "Mistral AI", "default_models": ["mistral-large-2411", "mistral-small-2503", "open-mistral-nemo"]},
         "deepseek": {"name": "DeepSeek", "default_models": ["deepseek-chat", "deepseek-coder"]},
         "together": {"name": "Together AI", "default_models": ["meta-llama/Llama-3-70b-chat-hf"]},
         "perplexity": {"name": "Perplexity", "default_models": ["sonar", "sonar-pro"]},
@@ -6332,7 +6332,7 @@ async def test_llm_connection(request: Dict[str, Any]):
                 "anthropic": "claude-3-5-haiku-20241022",
                 "google": "gemini-2.0-flash",
                 "groq": "llama-3.3-70b-versatile",
-                "mistral": "mistral-small-latest",
+                "mistral": "mistral-small-2503",
                 "cohere": "command-r-08-2024",
                 "xai": "grok-2-mini",
                 "deepseek": "deepseek-chat",
