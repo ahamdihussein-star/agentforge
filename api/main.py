@@ -346,12 +346,17 @@ class AnthropicLLM(BaseLLMProvider):
                         # String content
                         msgs.append({"role": m["role"], "content": content})
             
-            response = await client.messages.create(
-                model=kwargs.get("model", self.config.model),
-                max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-                system=system if system else None,
-                messages=msgs
-            )
+            # Build request kwargs - system must be a list for new Anthropic SDK
+            request_kwargs = {
+                "model": kwargs.get("model", self.config.model),
+                "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
+                "messages": msgs
+            }
+            # Only add system if we have one (as a list of content blocks)
+            if system:
+                request_kwargs["system"] = [{"type": "text", "text": system}]
+            
+            response = await client.messages.create(**request_kwargs)
             text = response.content[0].text
             print(f"[AnthropicLLM] ✅ Got response: {len(text)} chars")
             return text
