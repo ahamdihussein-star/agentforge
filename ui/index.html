@@ -2808,6 +2808,7 @@
                     
                     <div class="flex justify-between mt-4">
                         <button onclick="goStep(0)" class="btn-secondary px-4 py-2 rounded-lg text-sm">← Start Over</button>
+                        <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg text-sm">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-5 py-2 rounded-lg text-sm">Next: Tasks →</button>
                     </div>
                 </div>
@@ -2862,6 +2863,7 @@
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
                         <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Tools →</button>
                     </div>
                 </div>
@@ -2921,6 +2923,7 @@
                     <!-- Navigation Buttons -->
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
                         <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Guardrails →</button>
                     </div>
                 </div>
@@ -3118,6 +3121,7 @@
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
                         <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Preview →</button>
                     </div>
                 </div>
@@ -3138,6 +3142,7 @@
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
                         <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Test →</button>
                     </div>
                 </div>
@@ -3179,6 +3184,7 @@
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
                         <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Deploy →</button>
                     </div>
                 </div>
@@ -3883,24 +3889,39 @@ Example: I need an HR agent that can:
         <!-- Steps Indicator -->
         <div id="wizard-steps-bar" class="hidden px-4 md:px-6 py-3 border-b shrink-0" style="background:var(--bg-secondary);border-color:var(--border-color);">
             <div class="flex items-center justify-center gap-2 md:gap-4">
-                <div class="wizard-step flex items-center gap-2" data-step="1">
+                <div class="wizard-step flex items-center gap-2 cursor-pointer hover:opacity-80 transition" data-step="1" onclick="goToStep(1)">
                     <div class="step-num w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-purple-600">1</div>
                     <span class="step-label text-sm hidden md:inline">Basics</span>
                 </div>
                 <div class="w-6 md:w-10 h-0.5 bg-gray-700 step-connector"></div>
-                <div class="wizard-step flex items-center gap-2 opacity-50" data-step="2">
+                <div class="wizard-step flex items-center gap-2 opacity-50 cursor-pointer hover:opacity-80 transition" data-step="2" onclick="goToStep(2)">
                     <div class="step-num w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-gray-700">2</div>
-                    <span class="step-label text-sm hidden md:inline">Config</span>
+                    <span class="step-label text-sm hidden md:inline">Tasks</span>
                 </div>
                 <div class="w-6 md:w-10 h-0.5 bg-gray-700 step-connector"></div>
-                <div class="wizard-step flex items-center gap-2 opacity-50" data-step="3">
+                <div class="wizard-step flex items-center gap-2 opacity-50 cursor-pointer hover:opacity-80 transition" data-step="3" onclick="goToStep(3)">
                     <div class="step-num w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-gray-700">3</div>
-                    <span class="step-label text-sm hidden md:inline">Sources</span>
+                    <span class="step-label text-sm hidden md:inline">Tools</span>
                 </div>
                 <div class="w-6 md:w-10 h-0.5 bg-gray-700 step-connector"></div>
-                <div class="wizard-step flex items-center gap-2 opacity-50" data-step="4">
+                <div class="wizard-step flex items-center gap-2 opacity-50 cursor-pointer hover:opacity-80 transition" data-step="4" onclick="goToStep(4)">
                     <div class="step-num w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-gray-700">4</div>
+                    <span class="step-label text-sm hidden md:inline">Guardrails</span>
+                </div>
+                <div class="w-6 md:w-10 h-0.5 bg-gray-700 step-connector"></div>
+                <div class="wizard-step flex items-center gap-2 opacity-50 cursor-pointer hover:opacity-80 transition" data-step="5" onclick="goToStep(5)">
+                    <div class="step-num w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-gray-700">5</div>
+                    <span class="step-label text-sm hidden md:inline">Preview</span>
+                </div>
+                <div class="w-6 md:w-10 h-0.5 bg-gray-700 step-connector"></div>
+                <div class="wizard-step flex items-center gap-2 opacity-50 cursor-pointer hover:opacity-80 transition" data-step="6" onclick="goToStep(6)">
+                    <div class="step-num w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-gray-700">6</div>
                     <span class="step-label text-sm hidden md:inline">Test</span>
+                </div>
+                <div class="w-6 md:w-10 h-0.5 bg-gray-700 step-connector"></div>
+                <div class="wizard-step flex items-center gap-2 opacity-50 cursor-pointer hover:opacity-80 transition" data-step="7" onclick="goToStep(7)">
+                    <div class="step-num w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-gray-700">7</div>
+                    <span class="step-label text-sm hidden md:inline">Deploy</span>
                 </div>
             </div>
         </div>
@@ -7023,6 +7044,62 @@ Option 3"></textarea>
                 step--;
                 updateStepsNew();
             }
+        }
+        
+        // Go to specific step (for clickable step indicators)
+        async function goToStep(targetStep) {
+            // Collect data from current step before navigating
+            if(step === 1) {
+                wizard.name = document.getElementById('w-name')?.value || wizard.name;
+                wizard.icon = document.getElementById('w-icon')?.value || wizard.icon || '🤖';
+                wizard.goal = document.getElementById('w-goal')?.value || wizard.goal;
+            }
+            if(step === 2) collectTasksNew();
+            if(step === 3) collectToolsNew();
+            if(step === 4) collectGuardrails();
+            
+            // Navigate to target step
+            step = targetStep;
+            updateStepsNew();
+        }
+        
+        // Manual save button for wizard
+        async function saveWizardProgress() {
+            // Collect current step data
+            if(step === 1) {
+                wizard.name = document.getElementById('w-name')?.value || wizard.name;
+                wizard.icon = document.getElementById('w-icon')?.value || wizard.icon || '🤖';
+                wizard.goal = document.getElementById('w-goal')?.value || wizard.goal;
+                
+                // Collect personality if available
+                const creativity = parseInt(document.getElementById('p-creativity')?.value);
+                const length = parseInt(document.getElementById('p-length')?.value);
+                const formality = parseInt(document.getElementById('p-formality')?.value);
+                const empathy = parseInt(document.getElementById('p-empathy')?.value);
+                const proactivity = parseInt(document.getElementById('p-proactivity')?.value);
+                const confidence = parseInt(document.getElementById('p-confidence')?.value);
+                if(creativity && length && formality && empathy && proactivity && confidence) {
+                    wizard.personality = { creativity, length, formality, empathy, proactivity, confidence };
+                }
+            }
+            if(step === 2) collectTasksNew();
+            if(step === 3) collectToolsNew();
+            if(step === 4) collectGuardrails();
+            
+            // Save to database
+            await autoSaveWizardStep();
+            
+            // Show confirmation
+            showToast('✅ Progress saved!', 'success');
+        }
+        
+        // Toast notification helper
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded-lg text-white text-sm z-50 animate-fade-in ${type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
         }
         
         // Agent Templates
