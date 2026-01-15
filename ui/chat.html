@@ -220,53 +220,68 @@
 
         /* User Section */
         .user-section {
-            padding: 16px 20px;
+            padding: 12px 16px;
             border-top: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
+            margin-top: auto;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         .user-avatar {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
+            min-width: 32px;
+            flex-shrink: 0;
             border-radius: 50%;
             background: var(--gradient-1);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.8rem;
         }
 
         .user-info {
             flex: 1;
             min-width: 0;
+            overflow: hidden;
         }
 
         .user-name {
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 160px;
         }
 
         .user-email {
-            font-size: 0.75rem;
+            font-size: 0.65rem;
             color: var(--text-muted);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            max-width: 160px;
         }
 
         .user-profile-trigger {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
             flex: 1;
-            padding: 8px;
-            margin: -8px;
-            border-radius: 12px;
+            padding: 6px;
+            margin: -6px;
+            border-radius: 10px;
             cursor: pointer;
             transition: background 0.15s;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .user-profile-trigger:hover {
@@ -276,6 +291,7 @@
         .user-chevron {
             color: var(--text-muted);
             transition: transform 0.2s;
+            flex-shrink: 0;
             margin-left: auto;
         }
 
