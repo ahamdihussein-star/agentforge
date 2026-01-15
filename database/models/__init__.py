@@ -19,7 +19,7 @@ from .oauth_config import OAuthConfig
 from .security_settings import SecuritySettings
 
 # Core Platform
-from .agent import Agent, AgentStatus
+from .agent import Agent
 from .tool import Tool, ToolExecution, ToolType
 from .conversation import Conversation, Message, ConversationShare, MessageRole
 from .knowledge_base import (
@@ -51,7 +51,7 @@ __all__ = [
     'SecuritySettings',
     
     # Core Platform
-    'Agent', 'AgentStatus',
+    'Agent',
     'Tool', 'ToolExecution', 'ToolType',
     'Conversation', 'Message', 'ConversationShare', 'MessageRole',
     'KnowledgeBase', 'Document', 'DocumentChunk', 'KBQuery',
