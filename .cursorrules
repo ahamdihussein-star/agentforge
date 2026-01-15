@@ -1,5 +1,19 @@
 # AgentForge AI Development Rules
 
+## 📚 START HERE - READ FIRST!
+
+**Before starting any work, read `PROJECT_STATUS.md`** for:
+- Current project state and completion status
+- What's been completed
+- **NEXT TASK: End User Security Module** (access control for agents)
+- Key files and their purposes
+- Implementation checklist
+
+The database models for the security module are **already created** in:
+`database/models/agent_access.py`
+
+---
+
 ## 🚨 CRITICAL - READ BEFORE ANY DATABASE WORK!
 
 ### MANDATORY PRE-WORK CHECKLIST:
