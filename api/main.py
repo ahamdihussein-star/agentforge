@@ -6347,7 +6347,7 @@ async def test_llm_connection(request: Dict[str, Any]):
     # Models to test for each provider (verified working Jan 2026)
     provider_models = {
         "openai": ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
-        "anthropic": ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
+        "anthropic": ["claude-opus-4-5-20251101", "claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
         "google": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
         "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],  # mixtral deprecated
         "mistral": ["mistral-small-2503", "mistral-large-2411"],  # open-mistral-nemo slow/deprecated
