@@ -15040,7 +15040,14 @@ async function saveToolEdit() {
         }
 
         function rmTyping(){document.getElementById('typing')?.remove();}
-        function clearChat(){conv=null;document.getElementById('chat-conv').value='';clearMsgs();}
+        async function clearChat(){
+            if(conv){
+                try{
+                    await fetch(`/api/conversations/${conv}`,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('token')}});
+                }catch(e){console.error('Delete conversation error:',e);}
+            }
+            conv=null;document.getElementById('chat-conv').value='';clearMsgs();
+        }
         function clearMsgs(){document.getElementById('chat-messages').innerHTML=`<div class="text-center text-gray-500 py-10 md:py-20"><span class="text-4xl md:text-6xl mb-4 block">💬</span><p>Start a conversation!</p></div>`;}
         function showModal(id){document.getElementById(id).classList.remove('hidden');}
         function hideModal(id){document.getElementById(id).classList.add('hidden');}
