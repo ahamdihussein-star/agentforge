@@ -314,6 +314,7 @@ class AnthropicLLM(BaseLLMProvider):
     
     async def generate(self, messages: List[Dict], **kwargs) -> str:
         try:
+            print(f"[AnthropicLLM] Calling with {len(messages)} messages, model: {kwargs.get('model', self.config.model)}")
             import anthropic
             client = anthropic.AsyncAnthropic(api_key=self.api_key)
             # Convert messages format
@@ -351,8 +352,13 @@ class AnthropicLLM(BaseLLMProvider):
                 system=system if system else None,
                 messages=msgs
             )
-            return response.content[0].text
+            text = response.content[0].text
+            print(f"[AnthropicLLM] ✅ Got response: {len(text)} chars")
+            return text
         except Exception as e:
+            print(f"[AnthropicLLM] ❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
             raise Exception(f"Anthropic error: {str(e)}")
     
     def get_available_models(self) -> List[str]:
