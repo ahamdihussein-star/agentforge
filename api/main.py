@@ -9553,6 +9553,21 @@ async def serve_ui(path: str = ""):
     return "<html><body><h1>UI not found</h1></body></html>"
 
 
+# ============================================================================
+# END USER CHAT PORTAL - Separate interface for end users
+# ============================================================================
+@app.get("/chat", response_class=HTMLResponse)
+@app.get("/chat/", response_class=HTMLResponse)
+@app.get("/chat/{path:path}", response_class=HTMLResponse)
+async def serve_chat_portal(path: str = ""):
+    """End User Chat Portal - Modern chat interface for using agents"""
+    chat_file = "ui/chat.html"
+    if os.path.exists(chat_file):
+        with open(chat_file) as f:
+            return f.read()
+    return "<html><body><h1>Chat Portal not found</h1></body></html>"
+
+
 @app.get("/frontend", response_class=HTMLResponse)
 @app.get("/frontend/", response_class=HTMLResponse)
 @app.get("/frontend/{path:path}", response_class=HTMLResponse)

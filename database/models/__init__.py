@@ -22,6 +22,10 @@ from .security_settings import SecuritySettings
 from .agent import Agent
 from .tool import Tool, ToolExecution, ToolType
 from .conversation import Conversation, Message, ConversationShare, MessageRole
+from .agent_access import (
+    AgentAccessPolicy, AgentDataPolicy, AgentActionPolicy,
+    AgentDeployment, EndUserSession
+)
 from .knowledge_base import (
     KnowledgeBase, Document, DocumentChunk, KBQuery,
     DocumentStatus, DocumentType
@@ -56,6 +60,8 @@ __all__ = [
     'Conversation', 'Message', 'ConversationShare', 'MessageRole',
     'KnowledgeBase', 'Document', 'DocumentChunk', 'KBQuery',
     'DocumentStatus', 'DocumentType',
+    'AgentAccessPolicy', 'AgentDataPolicy', 'AgentActionPolicy',
+    'AgentDeployment', 'EndUserSession',
     
     # Configuration
     'SystemSetting', 'OrganizationSetting',
