@@ -442,7 +442,7 @@ class OpenAICompatibleLLM(BaseLLMProvider):
         },
         "groq": {
             "base_url": "https://api.groq.com/openai/v1",
-            "models": ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]
+            "models": ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma2-9b-it"]
         },
         "mistral": {
             "base_url": "https://api.mistral.ai/v1",
@@ -6217,7 +6217,7 @@ async def get_available_providers():
         "ollama": {"name": "Ollama (Local)", "default_models": ["llama3.2", "llama3.1", "mistral", "codellama", "phi3", "gemma2"]},
         "google": {"name": "Google Gemini", "default_models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"]},
         "xai": {"name": "xAI (Grok)", "default_models": ["grok-beta", "grok-2"]},
-        "groq": {"name": "Groq", "default_models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"]},
+        "groq": {"name": "Groq", "default_models": ["llama-3.1-70b-versatile", "llama3-70b-8192", "mixtral-8x7b-32768"]},
         "mistral": {"name": "Mistral AI", "default_models": ["mistral-large-latest", "mistral-medium-latest"]},
         "deepseek": {"name": "DeepSeek", "default_models": ["deepseek-chat", "deepseek-coder"]},
         "together": {"name": "Together AI", "default_models": ["meta-llama/Llama-3-70b-chat-hf"]},
