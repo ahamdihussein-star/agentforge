@@ -2015,14 +2015,37 @@
             setTimeout(() => toast.remove(), 4000);
         }
 
-        function handleGoogleLogin() {
-            window.location.href = `${API}/api/security/auth/google`;
+        // OAuth Login - same as admin portal
+        async function handleGoogleLogin() {
+            try {
+                showToast('Redirecting to Google...', 'info');
+                const response = await fetch(`${API}/api/security/oauth/google/login`);
+                const data = await response.json();
+                
+                if (data.auth_url) {
+                    window.location.href = data.auth_url;
+                } else {
+                    showToast(data.detail || 'Google OAuth not configured', 'error');
+                }
+            } catch (e) {
+                showToast('OAuth error: ' + e.message, 'error');
+            }
         }
 
-        function handleMicrosoftLogin() {
-            // Redirect to Microsoft OAuth if configured
-            const redirectUri = encodeURIComponent(window.location.origin + '/api/security/auth/microsoft/callback');
-            window.location.href = `${API}/api/security/auth/microsoft?redirect_uri=${redirectUri}`;
+        async function handleMicrosoftLogin() {
+            try {
+                showToast('Redirecting to Microsoft...', 'info');
+                const response = await fetch(`${API}/api/security/oauth/microsoft/login`);
+                const data = await response.json();
+                
+                if (data.auth_url) {
+                    window.location.href = data.auth_url;
+                } else {
+                    showToast(data.detail || 'Microsoft OAuth not configured', 'error');
+                }
+            } catch (e) {
+                showToast('OAuth error: ' + e.message, 'error');
+            }
         }
 
         function showChatInterface() {
