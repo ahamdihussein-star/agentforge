@@ -6333,13 +6333,15 @@ async def get_available_providers():
 
 @app.post("/api/settings/test-llm")
 async def test_llm_connection(request: Dict[str, Any]):
-    """Test LLM connection - tests ALL models for the provider"""
+    """Test LLM connection - tests ALL models for the provider IN PARALLEL"""
+    import asyncio
+    
     provider_name = request.get('provider', 'openai')
     api_key = request.get('api_key', '')
     api_base = request.get('api_base', '')
     
     print(f"\n{'='*50}")
-    print(f"[Test LLM] Testing ALL models for: {provider_name}")
+    print(f"[Test LLM] Testing ALL models for: {provider_name} (parallel)")
     print(f"{'='*50}")
     
     # Models to test for each provider (latest working models Jan 2026)
@@ -6357,12 +6359,10 @@ async def test_llm_connection(request: Dict[str, Any]):
     }
     
     models_to_test = provider_models.get(provider_name, ["gpt-4o-mini"])
-    results = []
     
-    for model in models_to_test:
+    async def test_single_model(model: str) -> dict:
+        """Test a single model with timeout"""
         try:
-            print(f"[Test LLM] Testing: {model}...")
-            
             llm_config = LLMConfig(
                 provider=LLMProvider(provider_name) if provider_name in [p.value for p in LLMProvider] else LLMProvider.CUSTOM,
                 model=model,
@@ -6375,16 +6375,24 @@ async def test_llm_connection(request: Dict[str, Any]):
             else:
                 provider = ProviderFactory.get_llm_provider(llm_config)
             
-            response = await provider.generate([
-                {"role": "user", "content": "Say 'Hi' only."}
-            ], max_tokens=10, model=model)
+            # 30 second timeout per model
+            response = await asyncio.wait_for(
+                provider.generate([{"role": "user", "content": "Hi"}], max_tokens=5, model=model),
+                timeout=30.0
+            )
             
             print(f"[Test LLM] ✅ {model}: OK")
-            results.append({"model": model, "status": "success", "response": response[:30]})
+            return {"model": model, "status": "success", "response": response[:30] if response else ""}
             
+        except asyncio.TimeoutError:
+            print(f"[Test LLM] ⏱️ {model}: Timeout")
+            return {"model": model, "status": "error", "message": "Timeout (30s)"}
         except Exception as e:
-            print(f"[Test LLM] ❌ {model}: {str(e)[:80]}")
-            results.append({"model": model, "status": "error", "message": str(e)})
+            print(f"[Test LLM] ❌ {model}: {str(e)[:60]}")
+            return {"model": model, "status": "error", "message": str(e)}
+    
+    # Run all tests in parallel
+    results = await asyncio.gather(*[test_single_model(m) for m in models_to_test])
     
     passed = [r for r in results if r['status'] == 'success']
     failed = [r for r in results if r['status'] == 'error']
