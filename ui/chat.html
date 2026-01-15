@@ -229,7 +229,7 @@
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
-            overflow: hidden;
+            /* overflow: hidden removed - was clipping the dropdown menu */
         }
 
         .user-avatar {
@@ -913,15 +913,17 @@
         /* User Menu Dropdown */
         .user-menu {
             position: absolute;
-            bottom: 70px;
-            left: 20px;
-            right: 20px;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            margin-bottom: 8px;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 8px;
             display: none;
             box-shadow: var(--shadow-lg);
+            z-index: 1000;
         }
 
         .user-menu.open {
