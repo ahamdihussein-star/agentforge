@@ -1781,8 +1781,23 @@ class AppState:
             with open(os.path.join(data_dir, "agents.json"), "w") as f:
                 json.dump({k: v.dict() for k, v in self.agents.items()}, f, indent=2)
         
-        # Save other data to JSON
-        for name, data in [("tools.json", self.tools), ("documents.json", self.documents), ("scraped_pages.json", self.scraped_pages), ("conversations.json", self.conversations)]:
+        # Save tools to database
+        try:
+            from database.services import ToolService
+            for tool_id, tool in self.tools.items():
+                tool_dict = tool.dict()
+                # Convert api_config to dict if it's an object
+                if hasattr(tool, 'api_config') and tool.api_config:
+                    tool_dict['api_config'] = tool.api_config.dict() if hasattr(tool.api_config, 'dict') else tool.api_config
+                ToolService.create_tool(tool_dict, "org_default", tool_dict.get('owner_id', 'system'))
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to save tools: {e}")
+            # Fallback to JSON
+            with open(os.path.join(data_dir, "tools.json"), "w") as f:
+                json.dump({k: v.dict() for k, v in self.tools.items()}, f, indent=2)
+        
+        # Save other data to JSON (documents, scraped_pages, conversations)
+        for name, data in [("documents.json", self.documents), ("scraped_pages.json", self.scraped_pages), ("conversations.json", self.conversations)]:
             with open(os.path.join(data_dir, name), "w") as f:
                 json.dump({k: v.dict() for k, v in data.items()}, f, indent=2)
         with open(os.path.join(data_dir, "chunks_index.json"), "w") as f:
@@ -1905,8 +1920,32 @@ class AppState:
                 except Exception as e:
                     print(f"Error loading agents.json: {e}")
         
-        # Load other data from JSON (tools, documents, etc.)
-        for name, cls, container in [("tools.json", ToolConfiguration, self.tools), ("documents.json", Document, self.documents), ("scraped_pages.json", ScrapedPage, self.scraped_pages), ("conversations.json", Conversation, self.conversations)]:
+        # Load tools from database first
+        db_tools_loaded = False
+        try:
+            from database.services import ToolService
+            db_tools = ToolService.get_all_tools()
+            if db_tools:
+                for tool_dict in db_tools:
+                    try:
+                        # Convert api_config if present
+                        if 'api_config' in tool_dict and tool_dict['api_config']:
+                            api_cfg = tool_dict['api_config']
+                            if 'input_parameters' in api_cfg:
+                                params = [APIInputParameter(**p) for p in api_cfg['input_parameters']]
+                                api_cfg['input_parameters'] = params
+                            tool_dict['api_config'] = APIEndpointConfig(**api_cfg)
+                        tool = ToolConfiguration(**{k: v for k, v in tool_dict.items() if k in ToolConfiguration.__fields__})
+                        self.tools[tool.id] = tool
+                    except Exception as e:
+                        print(f"⚠️  Error converting tool from database: {e}")
+                db_tools_loaded = True
+                print(f"✅ Loaded {len(self.tools)} tools from database")
+        except Exception as db_error:
+            print(f"⚠️  [DATABASE] Failed to load tools: {db_error}")
+        
+        # Load other data from JSON (tools only if DB failed, documents, etc.)
+        for name, cls, container in [("documents.json", Document, self.documents), ("scraped_pages.json", ScrapedPage, self.scraped_pages), ("conversations.json", Conversation, self.conversations)] + ([] if db_tools_loaded else [("tools.json", ToolConfiguration, self.tools)]):
             path = os.path.join(data_dir, name)
             if os.path.exists(path):
                 try:
@@ -6368,6 +6407,17 @@ async def create_tool(request: CreateToolRequest):
             print(f"⚠️ Warning: Could not initialize KB collection: {e}")
     
     app_state.tools[tool.id] = tool
+    
+    # Save to database
+    try:
+        from database.services import ToolService
+        tool_dict = tool.dict()
+        if tool.api_config:
+            tool_dict['api_config'] = tool.api_config.dict() if hasattr(tool.api_config, 'dict') else tool.api_config
+        ToolService.create_tool(tool_dict, "org_default", "system")
+    except Exception as e:
+        print(f"⚠️  [DATABASE] Failed to save tool: {e}")
+    
     app_state.save_to_disk()
     return {"status": "success", "tool_id": tool.id, "tool": tool.dict()}
 
@@ -6624,6 +6674,14 @@ async def delete_tool(tool_id: str):
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
     del app_state.tools[tool_id]
+    
+    # Delete from database
+    try:
+        from database.services import ToolService
+        ToolService.delete_tool(tool_id)
+    except Exception as e:
+        print(f"⚠️  [DATABASE] Failed to delete tool: {e}")
+    
     doc_ids = [d.id for d in app_state.documents.values() if d.tool_id == tool_id]
     for doc_id in doc_ids:
         del app_state.documents[doc_id]
