@@ -458,7 +458,7 @@ class OpenAICompatibleLLM(BaseLLMProvider):
         },
         "perplexity": {
             "base_url": "https://api.perplexity.ai",
-            "models": ["llama-3.1-sonar-large-128k-online", "llama-3.1-sonar-small-128k-online", "llama-3.1-sonar-huge-128k-online"]
+            "models": ["sonar", "sonar-pro", "sonar-reasoning"]
         },
         "lmstudio": {
             "base_url": "http://localhost:1234/v1",
@@ -594,7 +594,7 @@ class GoogleLLM(BaseLLMProvider):
             return f"Error: {str(e)}"
     
     def get_available_models(self) -> List[str]:
-        return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro", "gemini-pro-vision"]
+        return ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
 
 
 class CohereLLM(BaseLLMProvider):
@@ -6127,14 +6127,14 @@ async def get_settings():
     provider_default_models = {
         "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"],
         "anthropic": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
-        "google": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
+        "google": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
         "groq": ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"],
         "mistral": ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest"],
         "cohere": ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"],
         "xai": ["grok-2", "grok-2-mini"],
         "deepseek": ["deepseek-chat", "deepseek-coder"],
         "together": ["meta-llama/Llama-3.3-70B-Instruct-Turbo"],
-        "perplexity": ["llama-3.1-sonar-large-128k-online"],
+        "perplexity": ["sonar", "sonar-pro", "sonar-reasoning"],
     }
     
     for provider in settings.get('llm_providers', []):
@@ -6251,13 +6251,13 @@ async def get_available_providers():
         "azure_openai": {"name": "Azure OpenAI", "default_models": ["gpt-4o", "gpt-4", "gpt-35-turbo"]},
         "anthropic": {"name": "Anthropic Claude", "default_models": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"]},
         "ollama": {"name": "Ollama (Local)", "default_models": ["llama3.2", "llama3.1", "mistral", "codellama", "phi3", "gemma2"]},
-        "google": {"name": "Google Gemini", "default_models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"]},
+        "google": {"name": "Google Gemini", "default_models": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]},
         "xai": {"name": "xAI (Grok)", "default_models": ["grok-beta", "grok-2"]},
         "groq": {"name": "Groq", "default_models": ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]},
         "mistral": {"name": "Mistral AI", "default_models": ["mistral-large-latest", "mistral-medium-latest"]},
         "deepseek": {"name": "DeepSeek", "default_models": ["deepseek-chat", "deepseek-coder"]},
         "together": {"name": "Together AI", "default_models": ["meta-llama/Llama-3-70b-chat-hf"]},
-        "perplexity": {"name": "Perplexity", "default_models": ["llama-3.1-sonar-large-128k-online"]},
+        "perplexity": {"name": "Perplexity", "default_models": ["sonar", "sonar-pro"]},
         "lmstudio": {"name": "LM Studio (Local)", "default_models": []},
         "cohere": {"name": "Cohere", "default_models": ["command-r-plus", "command-r"]},
         "custom": {"name": "Custom (OpenAI Compatible)", "default_models": []},
