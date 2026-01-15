@@ -257,23 +257,30 @@
             text-overflow: ellipsis;
         }
 
-        .user-menu-btn {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            border: none;
-            background: transparent;
-            color: var(--text-secondary);
-            cursor: pointer;
+        .user-profile-trigger {
             display: flex;
             align-items: center;
-            justify-content: center;
-            transition: all 0.15s;
+            gap: 12px;
+            flex: 1;
+            padding: 8px;
+            margin: -8px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.15s;
         }
 
-        .user-menu-btn:hover {
+        .user-profile-trigger:hover {
             background: var(--bg-hover);
-            color: var(--text-primary);
+        }
+
+        .user-chevron {
+            color: var(--text-muted);
+            transition: transform 0.2s;
+            margin-left: auto;
+        }
+
+        .user-section:has(.user-menu.open) .user-chevron {
+            transform: rotate(180deg);
         }
 
         /* Main Chat Area */
@@ -1544,18 +1551,16 @@
 
             <!-- User Section -->
             <div class="user-section" style="position: relative;">
-                <div class="user-avatar" id="user-avatar">U</div>
-                <div class="user-info">
-                    <div class="user-name" id="user-name">User</div>
-                    <div class="user-email" id="user-email">user@example.com</div>
-                </div>
-                <button class="user-menu-btn" onclick="toggleUserMenu()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="1"></circle>
-                        <circle cx="12" cy="5" r="1"></circle>
-                        <circle cx="12" cy="19" r="1"></circle>
+                <div class="user-profile-trigger" onclick="toggleUserMenu()">
+                    <div class="user-avatar" id="user-avatar">U</div>
+                    <div class="user-info">
+                        <div class="user-name" id="user-name">User</div>
+                        <div class="user-email" id="user-email">user@example.com</div>
+                    </div>
+                    <svg class="user-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
-                </button>
+                </div>
                 
                 <div class="user-menu" id="user-menu">
                     <div class="user-menu-item" onclick="showProfile()">
@@ -2163,8 +2168,8 @@
         // Close user menu on outside click
         document.addEventListener('click', (e) => {
             const menu = document.getElementById('user-menu');
-            const btn = e.target.closest('.user-menu-btn');
-            if (!btn && !e.target.closest('.user-menu')) {
+            const trigger = e.target.closest('.user-profile-trigger');
+            if (!trigger && !e.target.closest('.user-menu')) {
                 menu.classList.remove('open');
             }
         });
