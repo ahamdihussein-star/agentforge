@@ -1371,6 +1371,38 @@
             border-color: var(--primary);
         }
 
+        .password-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .password-input-wrapper .modal-form-input {
+            padding-right: 48px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s;
+        }
+
+        .password-toggle:hover {
+            color: var(--text-primary);
+        }
+
+        .password-toggle.active {
+            color: var(--primary);
+        }
+
         .modal-btn {
             padding: 12px 20px;
             border-radius: 10px;
@@ -2260,6 +2292,31 @@
             document.getElementById('change-password-section').classList.remove('hidden');
         }
 
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const eyeIcon = btn.querySelector('.eye-icon');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.classList.add('active');
+                // Eye with slash (password visible)
+                eyeIcon.innerHTML = `
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
+                    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                `;
+            } else {
+                input.type = 'password';
+                btn.classList.remove('active');
+                // Eye open (password hidden)
+                eyeIcon.innerHTML = `
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                `;
+            }
+        }
+
         async function changePassword() {
             const currentPwd = document.getElementById('current-password').value;
             const newPwd = document.getElementById('new-password').value;
@@ -2514,15 +2571,39 @@
                     <div class="modal-section-title">Change Password</div>
                     <div class="modal-form-group">
                         <label class="modal-form-label">Current Password</label>
-                        <input type="password" id="current-password" class="modal-form-input" placeholder="Enter current password">
+                        <div class="password-input-wrapper">
+                            <input type="password" id="current-password" class="modal-form-input" placeholder="Enter current password">
+                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('current-password', this)">
+                                <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="modal-form-group">
                         <label class="modal-form-label">New Password</label>
-                        <input type="password" id="new-password" class="modal-form-input" placeholder="Enter new password">
+                        <div class="password-input-wrapper">
+                            <input type="password" id="new-password" class="modal-form-input" placeholder="Enter new password">
+                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('new-password', this)">
+                                <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="modal-form-group">
                         <label class="modal-form-label">Confirm New Password</label>
-                        <input type="password" id="confirm-password" class="modal-form-input" placeholder="Confirm new password">
+                        <div class="password-input-wrapper">
+                            <input type="password" id="confirm-password" class="modal-form-input" placeholder="Confirm new password">
+                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('confirm-password', this)">
+                                <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <button class="modal-btn modal-btn-primary" onclick="changePassword()">Update Password</button>
                 </div>
