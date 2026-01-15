@@ -8655,6 +8655,17 @@ async def clear_agent_memory(agent_id: str):
 # Chat Endpoints
 @app.get("/api/agents/{agent_id}/conversations")
 async def list_conversations(agent_id: str):
+    # Try database first
+    try:
+        from database.services import ConversationService
+        convs = ConversationService.get_all_conversations()
+        # Filter by agent_id
+        agent_convs = [c for c in convs if c.get('agent_id') == agent_id]
+        return {"conversations": sorted(agent_convs, key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True)}
+    except Exception as e:
+        print(f"⚠️  Database error, falling back to memory: {e}")
+    
+    # Fallback to memory
     if agent_id not in app_state.agents:
         raise HTTPException(404, "Agent not found")
     convs = [{"id": c.id, "title": c.title, "messages_count": len(c.messages), "created_at": c.created_at, "updated_at": c.updated_at} for c in app_state.conversations.values() if c.agent_id == agent_id]
@@ -8663,6 +8674,16 @@ async def list_conversations(agent_id: str):
 
 @app.get("/api/conversations/{conversation_id}")
 async def get_conversation(conversation_id: str):
+    # Try database first
+    try:
+        from database.services import ConversationService
+        conv = ConversationService.get_conversation_by_id(conversation_id)
+        if conv:
+            return conv
+    except Exception as e:
+        print(f"⚠️  Database error, falling back to memory: {e}")
+    
+    # Fallback to memory
     if conversation_id not in app_state.conversations:
         raise HTTPException(404, "Conversation not found")
     return app_state.conversations[conversation_id].dict()
@@ -8670,6 +8691,18 @@ async def get_conversation(conversation_id: str):
 
 @app.delete("/api/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
+    # Try database first
+    try:
+        from database.services import ConversationService
+        if ConversationService.delete_conversation(conversation_id):
+            # Also remove from memory if exists
+            if conversation_id in app_state.conversations:
+                del app_state.conversations[conversation_id]
+            return {"status": "success"}
+    except Exception as e:
+        print(f"⚠️  Database error, falling back to memory: {e}")
+    
+    # Fallback to memory
     if conversation_id not in app_state.conversations:
         raise HTTPException(404, "Conversation not found")
     del app_state.conversations[conversation_id]
@@ -8731,16 +8764,41 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
         raise HTTPException(404, "Agent not found")
     
     # Get or create conversation (prefix with demo_ to separate from real chats)
+    org_id = current_user.org_id if current_user else "org_default"
+    user_id = str(current_user.id) if current_user else "system"
+    
     if request.conversation_id and request.conversation_id in app_state.conversations:
         conversation = app_state.conversations[request.conversation_id]
     else:
         title = f"[TEST] {request.message[:40]}..." if len(request.message) > 40 else f"[TEST] {request.message}"
         conversation = Conversation(agent_id=agent_id, title=title)
         app_state.conversations[conversation.id] = conversation
+        
+        # Save to database
+        try:
+            from database.services import ConversationService
+            ConversationService.create_conversation({
+                'id': conversation.id,
+                'agent_id': agent_id,
+                'title': title
+            }, org_id, user_id)
+        except Exception as e:
+            print(f"⚠️  Failed to save conversation to DB: {e}")
     
     # Add user message
     user_msg = ConversationMessage(role="user", content=request.message)
     conversation.messages.append(user_msg)
+    
+    # Save user message to database
+    try:
+        from database.services import ConversationService
+        ConversationService.add_message(conversation.id, {
+            'id': user_msg.id,
+            'role': 'user',
+            'content': request.message
+        }, org_id, user_id)
+    except Exception as e:
+        print(f"⚠️  Failed to save message to DB: {e}")
     
     # Process with demo agent (dynamic mockup tools)
     result = await process_test_agent_chat(agent, request.message, conversation, timezone=request.timezone)
@@ -8753,6 +8811,18 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
     )
     conversation.messages.append(assistant_msg)
     conversation.updated_at = datetime.utcnow().isoformat()
+    
+    # Save assistant message to database
+    try:
+        from database.services import ConversationService
+        ConversationService.add_message(conversation.id, {
+            'id': assistant_msg.id,
+            'role': 'assistant',
+            'content': result["content"],
+            'sources': result.get("sources", [])
+        }, org_id, user_id)
+    except Exception as e:
+        print(f"⚠️  Failed to save assistant message to DB: {e}")
     
     app_state.save_to_disk()
     
@@ -8822,6 +8892,9 @@ async def test_chat_with_files(
         raise HTTPException(404, "Agent not found")
     
     # Get or create conversation
+    org_id = current_user.org_id if current_user else "org_default"
+    user_id = str(current_user.id) if current_user else "system"
+    
     if conversation_id and conversation_id in app_state.conversations:
         conversation = app_state.conversations[conversation_id]
     else:
@@ -8830,6 +8903,17 @@ async def test_chat_with_files(
             title = f"[TEST] Chat with {len(files)} file(s)"
         conversation = Conversation(agent_id=agent_id, title=title)
         app_state.conversations[conversation.id] = conversation
+        
+        # Save to database
+        try:
+            from database.services import ConversationService
+            ConversationService.create_conversation({
+                'id': conversation.id,
+                'agent_id': agent_id,
+                'title': title
+            }, org_id, user_id)
+        except Exception as e:
+            print(f"⚠️  Failed to save conversation to DB: {e}")
     
     # Save uploaded files and prepare attachments info
     attachments = []
@@ -8862,6 +8946,17 @@ async def test_chat_with_files(
     user_msg = ConversationMessage(role="user", content=display_message)
     conversation.messages.append(user_msg)
     
+    # Save user message to database
+    try:
+        from database.services import ConversationService
+        ConversationService.add_message(conversation.id, {
+            'id': user_msg.id,
+            'role': 'user',
+            'content': display_message
+        }, org_id, user_id)
+    except Exception as e:
+        print(f"⚠️  Failed to save message to DB: {e}")
+    
     # Process with demo agent - includes REAL OCR/file processing
     result = await process_test_agent_chat(agent, message, conversation, attachments, timezone=timezone)
     
@@ -8873,6 +8968,18 @@ async def test_chat_with_files(
     )
     conversation.messages.append(assistant_msg)
     conversation.updated_at = datetime.utcnow().isoformat()
+    
+    # Save assistant message to database
+    try:
+        from database.services import ConversationService
+        ConversationService.add_message(conversation.id, {
+            'id': assistant_msg.id,
+            'role': 'assistant',
+            'content': result["content"],
+            'sources': result.get("sources", [])
+        }, org_id, user_id)
+    except Exception as e:
+        print(f"⚠️  Failed to save assistant message to DB: {e}")
     
     app_state.save_to_disk()
     
@@ -8889,21 +8996,63 @@ async def test_chat_with_files(
 
 
 @app.post("/api/agents/{agent_id}/chat")
-async def chat(agent_id: str, request: ChatRequest):
+async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends(get_current_user)):
     if agent_id not in app_state.agents:
         raise HTTPException(404, "Agent not found")
     agent = app_state.agents[agent_id]
+    
+    org_id = current_user.org_id if current_user else "org_default"
+    user_id = str(current_user.id) if current_user else "system"
+    
     if request.conversation_id and request.conversation_id in app_state.conversations:
         conversation = app_state.conversations[request.conversation_id]
     else:
-        conversation = Conversation(agent_id=agent_id, title=request.message[:50] + "..." if len(request.message) > 50 else request.message)
+        title = request.message[:50] + "..." if len(request.message) > 50 else request.message
+        conversation = Conversation(agent_id=agent_id, title=title)
         app_state.conversations[conversation.id] = conversation
+        
+        # Save to database
+        try:
+            from database.services import ConversationService
+            ConversationService.create_conversation({
+                'id': conversation.id,
+                'agent_id': agent_id,
+                'title': title
+            }, org_id, user_id)
+        except Exception as e:
+            print(f"⚠️  Failed to save conversation to DB: {e}")
+    
     user_msg = ConversationMessage(role="user", content=request.message)
     conversation.messages.append(user_msg)
+    
+    # Save user message to database
+    try:
+        from database.services import ConversationService
+        ConversationService.add_message(conversation.id, {
+            'id': user_msg.id,
+            'role': 'user',
+            'content': request.message
+        }, org_id, user_id)
+    except Exception as e:
+        print(f"⚠️  Failed to save message to DB: {e}")
+    
     result = await process_agent_chat(agent, request.message, conversation, timezone=request.timezone)
     assistant_msg = ConversationMessage(role="assistant", content=result["content"], sources=result["sources"])
     conversation.messages.append(assistant_msg)
     conversation.updated_at = datetime.utcnow().isoformat()
+    
+    # Save assistant message to database
+    try:
+        from database.services import ConversationService
+        ConversationService.add_message(conversation.id, {
+            'id': assistant_msg.id,
+            'role': 'assistant',
+            'content': result["content"],
+            'sources': result.get("sources", [])
+        }, org_id, user_id)
+    except Exception as e:
+        print(f"⚠️  Failed to save assistant message to DB: {e}")
+    
     app_state.save_to_disk()
     
     # Update agent memory in background (every 5 messages)

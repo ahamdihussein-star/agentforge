@@ -4,7 +4,7 @@ Enterprise-grade with PII protection and audit trail
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, Enum as SQLEnum, Index, Boolean
+from sqlalchemy import Column, String, DateTime, Text, Integer, Index, Boolean
 from ..column_types import UUID, JSON, JSONArray
 JSONB = JSON  # Alias for backwards compatibility
 from enum import Enum
@@ -101,8 +101,8 @@ class Message(Base):
     org_id = Column(UUID, nullable=False, index=True)
     user_id = Column(UUID, nullable=False, index=True)
     
-    # Message Content
-    role = Column(SQLEnum(MessageRole), nullable=False)
+    # Message Content (String for database-agnostic design)
+    role = Column(String(20), nullable=False)  # 'user', 'assistant', 'system', 'tool'
     content = Column(Text, nullable=False)
     content_masked = Column(Text)  # PII-masked version
     
@@ -152,7 +152,7 @@ class Message(Base):
         return {
             'id': str(self.id),
             'conversation_id': str(self.conversation_id),
-            'role': self.role.value if self.role else None,
+            'role': self.role,
             'content': self.content if include_pii or not self.pii_masked else self.content_masked,
             'tool_calls': self.tool_calls,
             'sources': self.sources,

@@ -14,10 +14,11 @@ from .security_settings_service import SecuritySettingsService
 from .system_settings_service import SystemSettingsService
 from .agent_service import AgentService
 from .tool_service import ToolService
+from .conversation_service import ConversationService
 
 __all__ = [
     'UserService', 'SessionService', 'EncryptionService', 'RoleService',
     'OrganizationService', 'InvitationService', 'DepartmentService',
     'UserGroupService', 'AuditService', 'SecuritySettingsService',
-    'SystemSettingsService', 'AgentService', 'ToolService'
+    'SystemSettingsService', 'AgentService', 'ToolService', 'ConversationService'
 ]
