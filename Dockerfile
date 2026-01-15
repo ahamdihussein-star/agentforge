@@ -89,11 +89,8 @@ else\n\
       echo "🔧 Adding Google OAuth credentials..."\n\
       python scripts/add_google_oauth_credentials.py 2>&1 || echo "⚠️  Google OAuth credentials script failed (may already be set)"\n\
       echo ""\n\
-      echo "🔧 Converting AgentStatus from ENUM to VARCHAR..."\n\
-      python scripts/fix_agent_status_to_string.py 2>&1 || echo "⚠️  AgentStatus conversion had issues (may already be VARCHAR)"\n\
-      echo ""\n\
-      echo "🔧 Converting MessageRole from ENUM to VARCHAR..."\n\
-      python scripts/fix_message_role_to_string.py 2>&1 || echo "⚠️  MessageRole conversion had issues (may already be VARCHAR)"\n\
+      echo "🔧 Converting ALL ENUMs to VARCHAR (database-agnostic)..."\n\
+      python scripts/fix_all_enums_to_string.py 2>&1 || echo "⚠️  Some ENUM conversions had issues (may already be VARCHAR)"\n\
       echo ""\n\
       break\n\
     fi\n\

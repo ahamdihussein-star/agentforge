@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum as SQLEnum, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer
 from sqlalchemy.orm import relationship
 
 from ..base import Base
@@ -46,13 +46,13 @@ class User(Base):
     phone = Column(String(20))
     job_title = Column(String(100))
     
-    # Status
-    status = Column(SQLEnum(UserStatus), default=UserStatus.ACTIVE, nullable=False)
+    # Status (String for database-agnostic design)
+    status = Column(String(20), default="active", nullable=False)
     email_verified = Column(Boolean, default=False)
     
     # MFA
     mfa_enabled = Column(Boolean, default=False)
-    mfa_method = Column(SQLEnum(MFAMethod), default=MFAMethod.NONE)
+    mfa_method = Column(String(20), default="none")  # 'totp', 'email', 'none'
     mfa_secret_encrypted = Column(Text)  # Encrypted TOTP secret
     
     # Organization (Multi-tenancy) - FK removed for simplicity
@@ -99,7 +99,7 @@ class User(Base):
             'first_name': self.first_name,
             'last_name': self.last_name,
             'display_name': self.display_name,
-            'status': self.status.value if self.status else None,
+            'status': self.status,
             'email_verified': self.email_verified,
             'mfa_enabled': self.mfa_enabled,
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -139,7 +139,7 @@ class MFASetting(Base):
     user_id = Column(UUID, unique=True, nullable=False)  # FK removed
     
     # MFA Configuration
-    method = Column(SQLEnum(MFAMethod), nullable=False)
+    method = Column(String(20), nullable=False)  # 'totp', 'email', 'none'
     secret_encrypted = Column(Text)  # TOTP secret (encrypted)
     backup_codes_encrypted = Column(Text)  # JSON array of backup codes (encrypted)
     

@@ -4,7 +4,7 @@ Enterprise document management with access control
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, Integer, Enum as SQLEnum, Index, Boolean, Float
+from sqlalchemy import Column, String, DateTime, Text, Integer, Index, Boolean, Float
 from ..column_types import UUID, JSON, JSONArray
 JSONB = JSON  # Alias for backwards compatibility
 from enum import Enum
@@ -119,7 +119,7 @@ class Document(Base):
     
     # File Info
     filename = Column(String(500), nullable=False)
-    file_type = Column(SQLEnum(DocumentType), nullable=False)
+    file_type = Column(String(20), nullable=False)  # 'pdf', 'docx', 'txt', etc.
     file_size_bytes = Column(Integer, nullable=False)
     file_hash = Column(String(64), index=True)  # SHA-256 for duplicate detection
     storage_path = Column(String(1000))  # S3 key or local path
@@ -130,7 +130,7 @@ class Document(Base):
     content_preview = Column(String(500))  # First 500 chars
     
     # Processing
-    status = Column(SQLEnum(DocumentStatus), default=DocumentStatus.PENDING, nullable=False)
+    status = Column(String(20), default="pending", nullable=False)  # 'pending', 'processing', 'indexed', 'failed', 'archived'
     processing_started_at = Column(DateTime)
     processing_completed_at = Column(DateTime)
     processing_error = Column(Text)
