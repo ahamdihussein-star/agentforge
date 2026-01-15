@@ -525,13 +525,14 @@ class GoogleLLM(BaseLLMProvider):
         
         # Fix model name format - Google API uses specific names
         model_name = self.config.model or "gemini-1.5-pro"
-        # Map common names to actual API model names
+        # Map common names to actual API model names (use gemini-2.0-flash as default - most reliable)
         model_mapping = {
-            "gemini-1.5-pro": "gemini-1.5-pro-latest",
-            "gemini-1.5-flash": "gemini-1.5-flash-latest", 
-            "gemini-pro": "gemini-pro",
+            "gemini-1.5-pro": "gemini-2.0-flash",
+            "gemini-1.5-flash": "gemini-2.0-flash", 
+            "gemini-pro": "gemini-2.0-flash",
         }
-        api_model = model_mapping.get(model_name, model_name)
+        api_model = model_mapping.get(model_name, "gemini-2.0-flash")
+        print(f"[GoogleLLM] Using API model: {api_model}")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent"
         
         payload = {
