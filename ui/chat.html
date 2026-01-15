@@ -417,6 +417,11 @@
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
 
         .message.user {
             align-self: flex-end;
@@ -1545,42 +1550,6 @@
         </div>
     </div>
 
-    <!-- Login MFA Verification Modal -->
-    <div id="login-mfa-modal" class="modal-overlay" onclick="if(event.target===this)hideLoginMFAModal()">
-        <div class="modal" style="max-width: 400px;">
-            <div class="modal-header">
-                <h2 class="modal-title">🔐 Two-Factor Authentication</h2>
-                <button class="modal-close" onclick="hideLoginMFAModal()">✕</button>
-            </div>
-            <div class="modal-body" style="text-align: center;">
-                <div style="width: 64px; height: 64px; background: var(--gradient-1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                </div>
-                <p style="color: var(--text-secondary); margin-bottom: 24px;">
-                    Enter the 6-digit code from your <span id="login-mfa-method-text">email</span> to continue.
-                </p>
-                <div class="modal-form-group">
-                    <input type="text" 
-                           id="login-mfa-code" 
-                           class="modal-form-input" 
-                           placeholder="000000" 
-                           maxlength="6" 
-                           style="text-align: center; font-size: 2rem; letter-spacing: 12px; font-weight: 600; padding: 16px;"
-                           onkeydown="if(event.key==='Enter')verifyLoginMFA()">
-                </div>
-                <button id="login-mfa-verify-btn" class="modal-btn modal-btn-primary" style="width: 100%;" onclick="verifyLoginMFA()">
-                    Verify & Sign In
-                </button>
-                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 16px;">
-                    Didn't receive a code? <a href="#" onclick="handleLogin(event); return false;" style="color: var(--accent);">Resend</a>
-                </p>
-            </div>
-        </div>
-    </div>
-
     <!-- Main Chat Interface -->
     <div id="chat-interface" class="hidden" style="display: none; width: 100%; height: 100vh;">
         <!-- Sidebar -->
@@ -1768,8 +1737,10 @@
             }
         }
 
-        let pendingLoginEmail = null;
-        let pendingLoginPassword = null;
+        // MFA Login State (same pattern as admin portal)
+        window.pendingLoginEmail = null;
+        window.pendingLoginPassword = null;
+        window.pendingMfaMethods = [];
 
         async function handleLogin(e) {
             e.preventDefault();
@@ -1789,81 +1760,244 @@
                 
                 const data = await response.json();
                 
-                if (response.ok && data.access_token) {
-                    localStorage.setItem('token', data.access_token);
-                    currentUser = data.user;
-                    showChatInterface();
-                    loadAgents();
-                } else if (data.requires_mfa) {
-                    // MFA is required - show MFA verification modal
-                    pendingLoginEmail = email;
-                    pendingLoginPassword = password;
-                    showLoginMFAModal(data.mfa_method || 'email');
-                } else {
-                    alert(data.detail || 'Login failed');
+                if (!response.ok && !data.requires_mfa && !data.mfa_required) {
+                    showToast(data.detail || 'Login failed', 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
+                    return;
                 }
+                
+                // Check if MFA is required (same robust check as admin portal)
+                const isMfaRequired = data.requires_mfa === true || 
+                                     data.mfa_required === true || 
+                                     data.requires_mfa === "true" || 
+                                     data.mfa_required === "true" ||
+                                     String(data.requires_mfa).toLowerCase() === "true" ||
+                                     String(data.mfa_required).toLowerCase() === "true";
+                
+                if (isMfaRequired) {
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
+                    
+                    // Store credentials temporarily for MFA verification
+                    window.pendingLoginEmail = email;
+                    window.pendingLoginPassword = password;
+                    window.pendingMfaMethods = data.mfa_methods || [];
+                    
+                    showLoginMfaModal(window.pendingMfaMethods);
+                    return;
+                }
+                
+                // Success - complete login
+                localStorage.setItem('token', data.access_token);
+                currentUser = data.user;
+                showChatInterface();
+                loadAgents();
+                showToast('Welcome back!', 'success');
+                
             } catch (e) {
-                alert('Login failed. Please try again.');
+                showToast('Connection error. Please try again.', 'error');
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Sign In';
             }
         }
 
-        function showLoginMFAModal(method) {
-            document.getElementById('login-mfa-modal').classList.add('open');
-            const methodText = method === 'totp' ? 'authenticator app' : 'email';
-            document.getElementById('login-mfa-method-text').textContent = methodText;
-            document.getElementById('login-mfa-code').value = '';
-            document.getElementById('login-mfa-code').focus();
-        }
-
-        function hideLoginMFAModal() {
-            document.getElementById('login-mfa-modal').classList.remove('open');
-            pendingLoginEmail = null;
-            pendingLoginPassword = null;
-        }
-
-        async function verifyLoginMFA() {
-            const code = document.getElementById('login-mfa-code').value.trim();
-            
-            if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
-                alert('Please enter a valid 6-digit code');
-                return;
+        function showLoginMfaModal(methods) {
+            // Remove existing modal if present (same as admin portal)
+            const existingModal = document.getElementById('login-mfa-modal');
+            if (existingModal) {
+                existingModal.remove();
             }
             
-            const btn = document.getElementById('login-mfa-verify-btn');
-            btn.disabled = true;
-            btn.textContent = 'Verifying...';
+            // Mask email for privacy
+            const email = window.pendingLoginEmail || 'your email';
+            const maskEmail = (email) => {
+                if (!email || email === 'your email') return email;
+                const [local, domain] = email.split('@');
+                if (local.length <= 2) return email;
+                return `${local.substring(0, 2)}${'*'.repeat(Math.min(local.length - 2, 4))}@${domain}`;
+            };
+            
+            const modal = document.createElement('div');
+            modal.id = 'login-mfa-modal';
+            modal.className = 'modal-overlay open';
+            modal.onclick = (e) => { if (e.target === modal) closeLoginMfaModal(); };
+            
+            modal.innerHTML = `
+                <div class="modal" style="max-width: 400px;">
+                    <div class="modal-header">
+                        <h2 class="modal-title">🔐 Two-Factor Authentication</h2>
+                        <button class="modal-close" onclick="closeLoginMfaModal()">✕</button>
+                    </div>
+                    <div class="modal-body" style="text-align: center;">
+                        <div style="background: var(--success); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; opacity: 0.9;">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                        <p style="color: var(--text-secondary); margin-bottom: 8px;">Code sent to</p>
+                        <p style="color: var(--accent); font-weight: 600; margin-bottom: 24px;">${maskEmail(email)}</p>
+                        
+                        <div class="modal-form-group">
+                            <label class="modal-form-label">Verification Code</label>
+                            <input type="text" 
+                                   id="login-mfa-code" 
+                                   class="modal-form-input" 
+                                   placeholder="000000" 
+                                   maxlength="6"
+                                   inputmode="numeric"
+                                   pattern="[0-9]{6}"
+                                   autocomplete="one-time-code"
+                                   style="text-align: center; font-size: 2rem; letter-spacing: 12px; font-weight: 600; padding: 16px;"
+                                   onkeydown="if(event.key==='Enter')verifyLoginMfa()">
+                        </div>
+                        
+                        <div style="display: flex; gap: 12px; margin-top: 20px;">
+                            <button class="modal-btn modal-btn-secondary" style="flex: 1;" onclick="closeLoginMfaModal()">Cancel</button>
+                            <button id="login-mfa-verify-btn" class="modal-btn modal-btn-primary" style="flex: 1;" onclick="verifyLoginMfa()">
+                                <span id="verify-btn-text">Verify</span>
+                            </button>
+                        </div>
+                        
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 16px;">
+                            Didn't receive a code? <a href="#" onclick="resendMfaCode(); return false;" style="color: var(--accent);">Resend</a>
+                        </p>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Focus input
+            setTimeout(() => {
+                const input = document.getElementById('login-mfa-code');
+                if (input) input.focus();
+            }, 100);
+        }
+
+        function closeLoginMfaModal() {
+            const modal = document.getElementById('login-mfa-modal');
+            if (modal) modal.remove();
+            window.pendingLoginEmail = null;
+            window.pendingLoginPassword = null;
+            window.pendingMfaMethods = [];
+        }
+
+        async function resendMfaCode() {
+            if (!window.pendingLoginEmail || !window.pendingLoginPassword) {
+                showToast('Session expired. Please login again.', 'error');
+                closeLoginMfaModal();
+                return;
+            }
             
             try {
                 const response = await fetch(`${API}/api/security/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        email: pendingLoginEmail, 
-                        password: pendingLoginPassword,
+                        email: window.pendingLoginEmail, 
+                        password: window.pendingLoginPassword 
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast('New code sent to your email', 'success');
+                } else {
+                    showToast('Failed to resend code', 'error');
+                }
+            } catch (e) {
+                showToast('Failed to resend code', 'error');
+            }
+        }
+
+        async function verifyLoginMfa() {
+            const codeInput = document.getElementById('login-mfa-code');
+            const code = codeInput?.value?.replace(/\D/g, '') || '';
+            
+            if (!code || code.length !== 6) {
+                showToast('Please enter a valid 6-digit code', 'error');
+                if (codeInput) {
+                    codeInput.focus();
+                    codeInput.select();
+                }
+                return;
+            }
+            
+            const btn = document.getElementById('login-mfa-verify-btn');
+            const btnText = document.getElementById('verify-btn-text');
+            if (btn) {
+                btn.disabled = true;
+                if (btnText) btnText.textContent = 'Verifying...';
+            }
+            
+            try {
+                const response = await fetch(`${API}/api/security/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: window.pendingLoginEmail, 
+                        password: window.pendingLoginPassword,
                         mfa_code: code
                     })
                 });
                 
                 const data = await response.json();
                 
-                if (response.ok && data.access_token) {
-                    localStorage.setItem('token', data.access_token);
-                    currentUser = data.user;
-                    hideLoginMFAModal();
-                    showChatInterface();
-                    loadAgents();
-                } else {
-                    alert(data.detail || 'Invalid MFA code. Please try again.');
+                if (!response.ok) {
+                    showToast(data.detail || 'Invalid code', 'error');
+                    if (btn) {
+                        btn.disabled = false;
+                        if (btnText) btnText.textContent = 'Verify';
+                    }
+                    if (codeInput) {
+                        codeInput.value = '';
+                        codeInput.focus();
+                    }
+                    return;
                 }
+                
+                // Success
+                closeLoginMfaModal();
+                localStorage.setItem('token', data.access_token);
+                currentUser = data.user;
+                showChatInterface();
+                loadAgents();
+                showToast('Welcome back!', 'success');
+                
             } catch (e) {
-                alert('Verification failed. Please try again.');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Verify & Sign In';
+                showToast('Verification failed. Please try again.', 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    if (btnText) btnText.textContent = 'Verify';
+                }
             }
+        }
+        
+        // Toast notification (same as admin portal)
+        function showToast(message, type = 'info') {
+            const existing = document.querySelector('.toast-notification');
+            if (existing) existing.remove();
+            
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                padding: 16px 24px;
+                border-radius: 12px;
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+                background: ${type === 'error' ? '#ef4444' : type === 'success' ? '#22c55e' : '#6366f1'};
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.remove(), 4000);
         }
 
         function handleGoogleLogin() {
