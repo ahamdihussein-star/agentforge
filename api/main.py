@@ -6177,17 +6177,57 @@ async def update_settings(request: Dict[str, Any]):
 
 @app.get("/api/settings/providers")
 async def get_available_providers():
-    """Get list of available providers and their status"""
+    """Get list of available providers - returns ONLY configured providers from database/settings"""
+    
+    # Get configured LLM providers from settings (loaded from database)
+    configured_llm_providers = []
+    
+    # Provider metadata for display
+    provider_meta = {
+        "openai": {"name": "OpenAI", "default_models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "o1-preview", "o1-mini"]},
+        "azure_openai": {"name": "Azure OpenAI", "default_models": ["gpt-4o", "gpt-4", "gpt-35-turbo"]},
+        "anthropic": {"name": "Anthropic Claude", "default_models": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"]},
+        "ollama": {"name": "Ollama (Local)", "default_models": ["llama3.2", "llama3.1", "mistral", "codellama", "phi3", "gemma2"]},
+        "google": {"name": "Google Gemini", "default_models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"]},
+        "xai": {"name": "xAI (Grok)", "default_models": ["grok-beta", "grok-2"]},
+        "groq": {"name": "Groq", "default_models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"]},
+        "mistral": {"name": "Mistral AI", "default_models": ["mistral-large-latest", "mistral-medium-latest"]},
+        "deepseek": {"name": "DeepSeek", "default_models": ["deepseek-chat", "deepseek-coder"]},
+        "together": {"name": "Together AI", "default_models": ["meta-llama/Llama-3-70b-chat-hf"]},
+        "perplexity": {"name": "Perplexity", "default_models": ["llama-3.1-sonar-large-128k-online"]},
+        "lmstudio": {"name": "LM Studio (Local)", "default_models": []},
+        "cohere": {"name": "Cohere", "default_models": ["command-r-plus", "command-r"]},
+        "custom": {"name": "Custom (OpenAI Compatible)", "default_models": []},
+    }
+    
+    # Check configured providers from app_state.settings.llm_providers
+    for provider in app_state.settings.llm_providers:
+        provider_id = provider.provider
+        has_api_key = bool(provider.api_key)
+        meta = provider_meta.get(provider_id, {"name": provider_id.title(), "default_models": []})
+        
+        configured_llm_providers.append({
+            "id": provider_id,
+            "name": meta["name"],
+            "available": has_api_key,  # Only available if API key is set
+            "configured": True,
+            "models": meta["default_models"]
+        })
+    
+    # Add unconfigured providers as "available: False" so users know they exist
+    configured_ids = {p["id"] for p in configured_llm_providers}
+    for provider_id, meta in provider_meta.items():
+        if provider_id not in configured_ids:
+            configured_llm_providers.append({
+                "id": provider_id,
+                "name": meta["name"],
+                "available": False,
+                "configured": False,
+                "models": meta["default_models"]
+            })
+    
     return {
-        "llm_providers": [
-            {"id": "openai", "name": "OpenAI", "available": True, "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]},
-            {"id": "azure_openai", "name": "Azure OpenAI", "available": True, "models": ["gpt-4o", "gpt-4", "gpt-35-turbo"]},
-            {"id": "anthropic", "name": "Anthropic Claude", "available": True, "models": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"]},
-            {"id": "ollama", "name": "Ollama (Local)", "available": True, "models": ["llama3.2", "llama3.1", "mistral", "codellama", "phi3", "gemma2"]},
-            {"id": "google", "name": "Google Vertex AI", "available": False, "models": ["gemini-pro", "gemini-pro-vision"]},
-            {"id": "aws_bedrock", "name": "AWS Bedrock", "available": False, "models": ["claude-3", "llama2", "titan"]},
-            {"id": "custom", "name": "Custom (OpenAI Compatible)", "available": True, "models": []},
-        ],
+        "llm_providers": configured_llm_providers,
         "embedding_providers": [
             {"id": "openai", "name": "OpenAI Embeddings", "available": True, "models": ["text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002"]},
             {"id": "sentence_transformers", "name": "Sentence Transformers (Local)", "available": SENTENCE_TRANSFORMERS_AVAILABLE, "models": ["all-MiniLM-L6-v2", "all-mpnet-base-v2", "paraphrase-multilingual-MiniLM-L12-v2"]},
