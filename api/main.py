@@ -2248,8 +2248,10 @@ async def call_llm(messages: List[Dict], model_id: str = None) -> Dict:
                 None
             )
             api_key = provider_data.api_key if provider_data else None
+            print(f"[LLM] Google provider from settings: {provider_data is not None}, API key set: {bool(api_key)}")
             if not api_key and app_state.settings.google:
                 api_key = app_state.settings.google.gemini_key
+                print(f"[LLM] Fallback to settings.google.gemini_key: {bool(api_key)}")
             if api_key:
                 config = LLMConfig(
                     provider=LLMProvider.GOOGLE,
@@ -2258,16 +2260,19 @@ async def call_llm(messages: List[Dict], model_id: str = None) -> Dict:
                 )
                 llm_provider = ProviderFactory.get_llm_provider(config)
             else:
+                print(f"[LLM] ❌ No Google API key found!")
                 return {"content": "Error: Google API key not configured. Please add it in Settings."}
         else:
             # Use default provider from settings
             print(f"[LLM] Using default provider from settings")
             llm_provider = app_state.get_llm_provider()
         
+        print(f"[LLM] Calling provider.generate()...")
         content = await llm_provider.generate(messages, model=model)
+        print(f"[LLM] Response received: {len(content) if content else 0} chars")
         return {"content": content}
     except Exception as e:
-        print(f"[LLM] Error: {e}")
+        print(f"[LLM] ❌ Error: {e}")
         import traceback
         traceback.print_exc()
         return {"content": f"Error: {str(e)}"}
@@ -2864,8 +2869,12 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
                 }
         
         else:
-            # Fallback - no tool support
+            # Fallback - no tool support (Gemini etc.)
+            print(f"   ⚠️  Model {model} doesn't support tools, falling back to basic LLM call")
             result = await call_llm(messages, model_id)
+            print(f"   📤 Fallback LLM result: {len(result.get('content', '') or '')} chars")
+            if not result.get('content'):
+                print(f"   ⚠️  Empty content from fallback! Full result: {result}")
             return {"content": result.get('content', ''), "tool_calls": []}
     
     except Exception as e:
