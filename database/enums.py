@@ -83,13 +83,13 @@ class ToolType(str, Enum):
 
 
 class AgentStatus(str, Enum):
-    """Agent lifecycle status"""
-    DRAFT = "draft"
-    PUBLISHED = "published"  # Agent is live and available
-    ACTIVE = "active"  # Alias for published (backwards compatibility)
-    PAUSED = "paused"
-    ARCHIVED = "archived"
-    DELETED = "deleted"  # Soft delete
+    """Agent lifecycle status - values match PostgreSQL enum (UPPERCASE)"""
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"  # Agent is live and available
+    ACTIVE = "ACTIVE"  # Alias for published (backwards compatibility)
+    PAUSED = "PAUSED"
+    ARCHIVED = "ARCHIVED"
+    DELETED = "DELETED"  # Soft delete
     
     @classmethod
     def values(cls) -> List[str]:

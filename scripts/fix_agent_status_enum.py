@@ -26,11 +26,11 @@ def fix_agent_status_enum():
         print(f"✅ Database engine created: {engine.dialect.name}")
         
         with engine.connect() as connection:
-            # Check if 'published' already exists in the enum
+            # Check if 'PUBLISHED' already exists in the enum (uppercase)
             result = connection.execute(text("""
                 SELECT EXISTS (
                     SELECT 1 FROM pg_enum 
-                    WHERE enumlabel = 'published' 
+                    WHERE enumlabel = 'PUBLISHED' 
                     AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'agentstatus')
                 );
             """)).fetchone()
@@ -47,9 +47,9 @@ def fix_agent_status_enum():
                 """)).fetchall()
                 print(f"   📋 Current enum values: {[e[0] for e in existing]}")
                 
-                # Add 'published' without AFTER clause (safer)
+                # Add 'PUBLISHED' (uppercase to match existing enum values)
                 connection.execute(text("""
-                    ALTER TYPE agentstatus ADD VALUE IF NOT EXISTS 'published';
+                    ALTER TYPE agentstatus ADD VALUE IF NOT EXISTS 'PUBLISHED';
                 """))
                 connection.commit()
                 print("   ✅ Added 'published' to agentstatus enum")

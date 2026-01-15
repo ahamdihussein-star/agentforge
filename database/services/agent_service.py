@@ -350,10 +350,10 @@ class AgentService:
                     except (ValueError, AttributeError):
                         pass
                 
-                # Parse status (normalize to lowercase for enum matching)
-                status_str = agent_data.get('status', 'draft')
+                # Parse status (normalize to UPPERCASE for PostgreSQL enum matching)
+                status_str = agent_data.get('status', 'DRAFT')
                 if isinstance(status_str, str):
-                    status_str = status_str.lower()
+                    status_str = status_str.upper()
                 try:
                     status = AgentStatus(status_str)
                 except (ValueError, AttributeError):
@@ -509,7 +509,7 @@ class AgentService:
                     try:
                         status_str = agent_data['status']
                         if isinstance(status_str, str):
-                            status_str = status_str.lower()
+                            status_str = status_str.upper()
                         db_agent.status = AgentStatus(status_str)
                     except (ValueError, AttributeError):
                         pass
