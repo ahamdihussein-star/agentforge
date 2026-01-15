@@ -2299,6 +2299,23 @@ async def call_llm(messages: List[Dict], model_id: str = None) -> Dict:
                 llm_provider = ProviderFactory.get_llm_provider(config)
             else:
                 return {"content": "Error: OpenAI API key not configured. Please add it in Settings."}
+        elif model_lower.startswith('llama') or model_lower.startswith('mixtral') or model_lower.startswith('gemma'):
+            # Use Groq for Llama/Mixtral/Gemma models
+            print(f"[LLM] Detected Groq model, using Groq provider")
+            provider_data = next(
+                (p for p in app_state.settings.llm_providers if p.provider == 'groq'),
+                None
+            )
+            if provider_data and provider_data.api_key:
+                config = LLMConfig(
+                    provider=LLMProvider.GROQ,
+                    model=model,
+                    api_key=provider_data.api_key,
+                    api_base="https://api.groq.com/openai/v1"
+                )
+                llm_provider = OpenAICompatibleLLM(config, "groq")
+            else:
+                return {"content": "Error: Groq API key not configured. Please add it in Settings."}
         elif model_lower.startswith('gemini'):
             # Use Google for Gemini models
             print(f"[LLM] Detected Gemini model, using Google provider")
