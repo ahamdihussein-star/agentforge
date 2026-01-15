@@ -6342,18 +6342,18 @@ async def test_llm_connection(request: Dict[str, Any]):
     print(f"[Test LLM] Testing ALL models for: {provider_name}")
     print(f"{'='*50}")
     
-    # Models to test for each provider
+    # Models to test for each provider (latest working models Jan 2026)
     provider_models = {
-        "openai": ["gpt-4o-mini", "gpt-3.5-turbo"],
-        "anthropic": ["claude-3-5-haiku-20241022"],
-        "google": ["gemini-2.0-flash"],
-        "groq": ["llama-3.3-70b-versatile", "gemma2-9b-it"],
-        "mistral": ["mistral-small-2503", "open-mistral-nemo"],
-        "cohere": ["command-r-08-2024"],
-        "xai": ["grok-2-mini"],
-        "deepseek": ["deepseek-chat"],
+        "openai": ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
+        "anthropic": ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229"],
+        "google": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+        "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+        "mistral": ["mistral-small-2503", "mistral-large-2411", "open-mistral-nemo"],
+        "cohere": ["command-r-08-2024", "command-r-plus-08-2024"],
+        "xai": ["grok-2", "grok-2-mini"],
+        "deepseek": ["deepseek-chat", "deepseek-coder"],
         "together": ["meta-llama/Llama-3.3-70B-Instruct-Turbo"],
-        "perplexity": ["sonar"],
+        "perplexity": ["sonar", "sonar-pro"],
     }
     
     models_to_test = provider_models.get(provider_name, ["gpt-4o-mini"])
