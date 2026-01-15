@@ -4,13 +4,11 @@ Enterprise-grade schema with audit trail and security
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Enum as SQLEnum, Index
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Index
 from ..column_types import UUID, JSON, JSONArray
 JSONB = JSON  # Alias for backwards compatibility
-from enum import Enum
 
 from ..base import Base
-from ..enums import AgentStatus  # Import from centralized enums
 
 
 class Agent(Base):
@@ -47,8 +45,8 @@ class Agent(Base):
     memory_enabled = Column(Boolean, default=True)
     context_window = Column(Integer, default=4096)
     
-    # Status & Publishing
-    status = Column(SQLEnum(AgentStatus), default=AgentStatus.DRAFT, nullable=False)
+    # Status & Publishing (String for database-agnostic design)
+    status = Column(String(20), default="draft", nullable=False)
     is_published = Column(Boolean, default=False)
     published_at = Column(DateTime)
     
@@ -97,7 +95,7 @@ class Agent(Base):
             'tasks': self.tasks,
             'tool_ids': self.tool_ids,
             'memory_enabled': self.memory_enabled,
-            'status': self.status.value if self.status else None,
+            'status': self.status,
             'is_published': self.is_published,
             'is_public': self.is_public,
             'owner_id': str(self.owner_id),

@@ -11,7 +11,6 @@ import uuid as uuid_lib
 from sqlalchemy.orm import Session
 from ..base import get_db_session
 from ..models.agent import Agent as DBAgent
-from ..enums import AgentStatus
 
 # Import core models for API compatibility
 # Note: AgentData is defined in api/main.py, we'll import it there when needed
@@ -180,7 +179,7 @@ class AgentService:
                 'tool_ids': tool_ids_str,
                 'memory': memory,
                 'memory_enabled': db_agent.memory_enabled if db_agent.memory_enabled is not None else True,
-                'status': db_agent.status.value if db_agent.status else "draft",
+                'status': db_agent.status or "draft",
                 'is_active': db_agent.is_published if db_agent.is_published is not None else False,
                 'created_at': db_agent.created_at.isoformat() if db_agent.created_at else datetime.utcnow().isoformat(),
                 'updated_at': db_agent.updated_at.isoformat() if db_agent.updated_at else datetime.utcnow().isoformat(),
@@ -350,14 +349,12 @@ class AgentService:
                     except (ValueError, AttributeError):
                         pass
                 
-                # Parse status (normalize to UPPERCASE for PostgreSQL enum matching)
-                status_str = agent_data.get('status', 'DRAFT')
+                # Parse status (normalize to lowercase for database-agnostic storage)
+                status_str = agent_data.get('status', 'draft')
                 if isinstance(status_str, str):
-                    status_str = status_str.upper()
-                try:
-                    status = AgentStatus(status_str)
-                except (ValueError, AttributeError):
-                    status = AgentStatus.DRAFT
+                    status_str = status_str.lower()
+                else:
+                    status_str = 'draft'
                 
                 # Create database agent
                 # Note: personality, guardrails, tasks, memory, extra_metadata use JSON type (dict/list)
@@ -377,7 +374,7 @@ class AgentService:
                     memory=memory,  # JSON type - list
                     memory_enabled=agent_data.get('memory_enabled', True),
                     context_window=agent_data.get('context_window', 4096),
-                    status=status,
+                    status=status_str,
                     is_published=agent_data.get('is_active', False) or agent_data.get('is_published', False),
                     is_public=agent_data.get('is_public', False),
                     owner_id=owner_uuid,
@@ -506,13 +503,11 @@ class AgentService:
                 if 'context_window' in agent_data:
                     db_agent.context_window = agent_data['context_window']
                 if 'status' in agent_data:
-                    try:
-                        status_str = agent_data['status']
-                        if isinstance(status_str, str):
-                            status_str = status_str.upper()
-                        db_agent.status = AgentStatus(status_str)
-                    except (ValueError, AttributeError):
-                        pass
+                    status_str = agent_data['status']
+                    if isinstance(status_str, str):
+                        db_agent.status = status_str.lower()
+                    else:
+                        db_agent.status = 'draft'
                 if 'is_active' in agent_data or 'is_published' in agent_data:
                     is_published = agent_data.get('is_published', agent_data.get('is_active', False))
                     db_agent.is_published = is_published

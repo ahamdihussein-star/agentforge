@@ -71,9 +71,6 @@ else\n\
       echo "🔧 Creating any missing tables..."\n\
       python scripts/create_missing_tables.py 2>&1\n\
       echo ""\n\
-      echo "🔧 Fixing AgentStatus enum (adding PUBLISHED)..."\n\
-      python scripts/fix_agent_status_enum.py 2>&1 || echo "⚠️  AgentStatus enum fix had issues"\n\
-      echo ""\n\
       echo "🔧 Adding missing columns to users table..."\n\
       python scripts/add_user_columns.py 2>&1\n\
       echo ""\n\
@@ -91,6 +88,9 @@ else\n\
       echo ""\n\
       echo "🔧 Adding Google OAuth credentials..."\n\
       python scripts/add_google_oauth_credentials.py 2>&1 || echo "⚠️  Google OAuth credentials script failed (may already be set)"\n\
+      echo ""\n\
+      echo "🔧 Converting AgentStatus from ENUM to VARCHAR..."\n\
+      python scripts/fix_agent_status_to_string.py 2>&1 || echo "⚠️  AgentStatus conversion had issues (may already be VARCHAR)"\n\
       echo ""\n\
       break\n\
     fi\n\
