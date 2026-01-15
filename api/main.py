@@ -275,7 +275,7 @@ class OpenAILLM(BaseLLMProvider):
             raise Exception(f"OpenAI error: {str(e)}")
     
     def get_available_models(self) -> List[str]:
-        return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo", "o1-preview", "o1-mini"]
+        return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"]
 
 
 class AzureOpenAILLM(BaseLLMProvider):
@@ -6211,7 +6211,7 @@ async def get_available_providers():
     
     # Provider metadata for display
     provider_meta = {
-        "openai": {"name": "OpenAI", "default_models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "o1-preview", "o1-mini"]},
+        "openai": {"name": "OpenAI", "default_models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"]},
         "azure_openai": {"name": "Azure OpenAI", "default_models": ["gpt-4o", "gpt-4", "gpt-35-turbo"]},
         "anthropic": {"name": "Anthropic Claude", "default_models": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"]},
         "ollama": {"name": "Ollama (Local)", "default_models": ["llama3.2", "llama3.1", "mistral", "codellama", "phi3", "gemma2"]},
