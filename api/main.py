@@ -605,6 +605,7 @@ class CohereLLM(BaseLLMProvider):
     
     async def generate(self, messages: List[Dict], **kwargs) -> str:
         try:
+            print(f"[CohereLLM] Calling with {len(messages)} messages, model: {kwargs.get('model', self.config.model)}")
             import httpx
             
             # Convert messages to Cohere format
@@ -653,11 +654,17 @@ class CohereLLM(BaseLLMProvider):
                 if "message" in result and "content" in result["message"]:
                     content = result["message"]["content"]
                     if isinstance(content, list) and len(content) > 0:
-                        return content[0].get("text", "")
+                        text = content[0].get("text", "")
+                        print(f"[CohereLLM] ✅ Got response: {len(text)} chars")
+                        return text
+                    print(f"[CohereLLM] ✅ Got response: {len(str(content))} chars")
                     return str(content)
-                return result.get("text", "")
+                text = result.get("text", "")
+                print(f"[CohereLLM] ✅ Got response: {len(text)} chars")
+                return text
                 
         except Exception as e:
+            print(f"[CohereLLM] ❌ Error: {e}")
             raise Exception(f"Cohere LLM error: {str(e)}")
     
     def get_available_models(self) -> List[str]:
