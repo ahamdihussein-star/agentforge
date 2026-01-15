@@ -6318,17 +6318,53 @@ async def get_available_providers():
 async def test_llm_connection(request: Dict[str, Any]):
     """Test LLM connection with provided settings"""
     try:
-        # Create temporary config
-        llm_config = LLMConfig(**request)
-        provider = ProviderFactory.get_llm_provider(llm_config)
+        provider_name = request.get('provider', 'openai')
+        api_key = request.get('api_key', '')
+        model = request.get('model', '')
+        api_base = request.get('api_base', '')
+        
+        print(f"[Test LLM] Testing provider: {provider_name}, model: {model}")
+        
+        # Use the first model if none specified
+        if not model:
+            provider_default_models = {
+                "openai": "gpt-4o-mini",
+                "anthropic": "claude-3-5-haiku-20241022",
+                "google": "gemini-2.0-flash",
+                "groq": "llama-3.3-70b-versatile",
+                "mistral": "mistral-small-latest",
+                "cohere": "command-r-08-2024",
+                "xai": "grok-2-mini",
+                "deepseek": "deepseek-chat",
+                "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                "perplexity": "sonar",
+            }
+            model = provider_default_models.get(provider_name, "gpt-4o-mini")
+        
+        # Create config based on provider type
+        llm_config = LLMConfig(
+            provider=LLMProvider(provider_name) if provider_name in [p.value for p in LLMProvider] else LLMProvider.CUSTOM,
+            model=model,
+            api_key=api_key,
+            api_base=api_base
+        )
+        
+        # Get the correct provider
+        if provider_name in ['groq', 'xai', 'mistral', 'deepseek', 'together', 'perplexity', 'lmstudio']:
+            # OpenAI-compatible providers
+            provider = OpenAICompatibleLLM(llm_config, provider_name)
+        else:
+            provider = ProviderFactory.get_llm_provider(llm_config)
         
         # Test with a simple message
         response = await provider.generate([
-            {"role": "user", "content": "Say 'Hello, AgentForge!' in exactly those words."}
-        ], max_tokens=50)
+            {"role": "user", "content": "Say 'Hello!' in exactly that word."}
+        ], max_tokens=20, model=model)
         
+        print(f"[Test LLM] ✅ Success: {len(response)} chars")
         return {"status": "success", "response": response}
     except Exception as e:
+        print(f"[Test LLM] ❌ Failed: {e}")
         return {"status": "error", "message": str(e)}
 
 
