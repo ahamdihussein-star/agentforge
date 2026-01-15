@@ -1691,7 +1691,9 @@
         }
 
         function handleMicrosoftLogin() {
-            alert('Microsoft login coming soon!');
+            // Redirect to Microsoft OAuth if configured
+            const redirectUri = encodeURIComponent(window.location.origin + '/api/security/auth/microsoft/callback');
+            window.location.href = `${API}/api/security/auth/microsoft?redirect_uri=${redirectUri}`;
         }
 
         function showChatInterface() {
@@ -1852,6 +1854,11 @@
         }
 
         async function sendMessage() {
+            // Use the file-aware version
+            return sendMessageWithFiles();
+        }
+        
+        async function sendMessageOriginal() {
             const input = document.getElementById('message-input');
             const message = input.value.trim();
             if (!message || !currentAgent) return;
@@ -1941,16 +1948,6 @@
             location.reload();
         }
 
-        function showProfile() {
-            alert('Profile settings coming soon!');
-            toggleUserMenu();
-        }
-
-        function showSettings() {
-            alert('Settings coming soon!');
-            toggleUserMenu();
-        }
-
         async function clearCurrentChat() {
             if (currentConversation && confirm('Clear this conversation?')) {
                 try {
@@ -1966,8 +1963,138 @@
             }
         }
 
+        let selectedFiles = [];
+        
         function attachFile() {
-            alert('File attachment coming soon!');
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = '.pdf,.doc,.docx,.txt,.csv,.json,.md';
+            input.onchange = (e) => {
+                const files = Array.from(e.target.files);
+                selectedFiles = [...selectedFiles, ...files];
+                showSelectedFiles();
+            };
+            input.click();
+        }
+        
+        function showSelectedFiles() {
+            let container = document.getElementById('selected-files');
+            if (!container) {
+                const inputArea = document.querySelector('.input-area');
+                container = document.createElement('div');
+                container.id = 'selected-files';
+                container.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 16px; border-bottom: 1px solid var(--border);';
+                inputArea.insertBefore(container, inputArea.firstChild);
+            }
+            
+            container.innerHTML = selectedFiles.map((file, idx) => `
+                <div style="background: var(--bg-hover); padding: 6px 10px; border-radius: 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 8px;">
+                    <span>📎 ${file.name}</span>
+                    <button onclick="removeFile(${idx})" style="background: none; border: none; color: var(--text-muted); cursor: pointer;">✕</button>
+                </div>
+            `).join('');
+            
+            if (selectedFiles.length === 0) {
+                container.remove();
+            }
+        }
+        
+        function removeFile(idx) {
+            selectedFiles.splice(idx, 1);
+            showSelectedFiles();
+        }
+        
+        async function sendMessageWithFiles() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            if ((!message && selectedFiles.length === 0) || !currentAgent) return;
+            
+            input.value = '';
+            autoResize(input);
+            
+            // Hide welcome screen
+            const welcome = document.getElementById('welcome-screen');
+            if (welcome) welcome.style.display = 'none';
+            
+            // Show user message with file indicators
+            const container = document.getElementById('messages-container');
+            let fileIndicators = selectedFiles.map(f => `📎 ${f.name}`).join(', ');
+            container.innerHTML += createMessageHTML('user', message + (fileIndicators ? `\n\n${fileIndicators}` : ''));
+            
+            // Add typing indicator
+            container.innerHTML += `
+                <div class="message assistant" id="typing-msg">
+                    <div class="message-avatar">${currentAgent.icon || '🤖'}</div>
+                    <div class="message-content">
+                        <div class="typing-indicator">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.scrollTop = container.scrollHeight;
+            
+            try {
+                let response;
+                
+                if (selectedFiles.length > 0) {
+                    // Send with files
+                    const formData = new FormData();
+                    formData.append('message', message);
+                    if (currentConversation?.id) {
+                        formData.append('conversation_id', currentConversation.id);
+                    }
+                    selectedFiles.forEach(file => formData.append('files', file));
+                    
+                    response = await fetch(`${API}/api/agents/${currentAgent.id}/chat-with-files`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: formData
+                    });
+                    
+                    // Clear selected files
+                    selectedFiles = [];
+                    showSelectedFiles();
+                } else {
+                    // Send without files
+                    response = await fetch(`${API}/api/agents/${currentAgent.id}/chat`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: JSON.stringify({
+                            message,
+                            conversation_id: currentConversation?.id
+                        })
+                    });
+                }
+                
+                const data = await response.json();
+                
+                // Remove typing indicator
+                document.getElementById('typing-msg')?.remove();
+                
+                // Update conversation ID
+                if (data.conversation_id) {
+                    currentConversation = { id: data.conversation_id };
+                }
+                
+                // Add assistant response
+                container.innerHTML += createMessageHTML('assistant', data.response || data.content || 'Sorry, I could not process that request.');
+                container.scrollTop = container.scrollHeight;
+                
+            } catch (e) {
+                console.error('Failed to send message:', e);
+                document.getElementById('typing-msg')?.remove();
+                container.innerHTML += createMessageHTML('assistant', 'Sorry, there was an error processing your request.');
+                container.scrollTop = container.scrollHeight;
+            }
         }
 
         // Mobile menu
