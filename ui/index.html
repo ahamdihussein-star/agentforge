@@ -10465,6 +10465,7 @@ Option 3"></textarea>
                 if(groupsRes.ok) {
                     const groupsData = await groupsRes.json();
                     accessControlState.allGroups = Array.isArray(groupsData) ? groupsData : (groupsData.groups || []);
+                    console.log('✅ Loaded groups for access control:', accessControlState.allGroups.length, accessControlState.allGroups);
                 }
                 
             } catch(e) {
@@ -10535,6 +10536,19 @@ Option 3"></textarea>
                     type: 'role',
                     name: r.name,
                     sub: `${r.permissions?.length || 0} permissions`
+                });
+            });
+            
+            // Search groups
+            accessControlState.allGroups.filter(g => 
+                g.name?.toLowerCase().includes(query) ||
+                g.description?.toLowerCase().includes(query)
+            ).slice(0, 5).forEach(g => {
+                results.push({
+                    id: g.id,
+                    type: 'group',
+                    name: g.name,
+                    sub: `${(g.member_ids || g.user_ids || []).length} members`
                 });
             });
             
