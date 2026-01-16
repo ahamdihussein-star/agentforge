@@ -10352,9 +10352,10 @@ Option 3"></textarea>
             try {
                 // Get current org_id from session
                 const orgId = currentUser?.org_id || 'default';
+                const headers = getAuthHeaders();
                 
                 // Load full access config
-                const response = await fetch(`${API}/api/access-control/agents/${accessControlState.agentId}/full?org_id=${orgId}`);
+                const response = await fetch(`${API}/api/access-control/agents/${accessControlState.agentId}/full?org_id=${orgId}`, { headers });
                 
                 if(response.ok) {
                     const data = await response.json();
@@ -10369,7 +10370,7 @@ Option 3"></textarea>
                 }
                 
                 // Load agent details for tasks/tools
-                const agentResponse = await fetch(`${API}/api/agents/${accessControlState.agentId}`);
+                const agentResponse = await fetch(`${API}/api/agents/${accessControlState.agentId}`, { headers });
                 if(agentResponse.ok) {
                     const agent = await agentResponse.json();
                     
@@ -10396,7 +10397,7 @@ Option 3"></textarea>
                     }
                     
                     // Load tool names
-                    const toolsResponse = await fetch(`${API}/api/tools`);
+                    const toolsResponse = await fetch(`${API}/api/tools`, { headers });
                     if(toolsResponse.ok) {
                         const allTools = await toolsResponse.json();
                         accessControlState.tools = toolIds.map(tid => {
@@ -10427,20 +10428,28 @@ Option 3"></textarea>
         
         async function loadAccessEntities() {
             try {
+                const headers = getAuthHeaders();
+                
                 // Load users
-                const usersRes = await fetch(`${API}/api/security/users`);
+                const usersRes = await fetch(`${API}/api/security/users`, { headers });
                 if(usersRes.ok) {
-                    accessControlState.allUsers = await usersRes.json();
+                    const usersData = await usersRes.json();
+                    accessControlState.allUsers = Array.isArray(usersData) ? usersData : (usersData.users || []);
                 }
                 
                 // Load roles
-                const rolesRes = await fetch(`${API}/api/security/roles`);
+                const rolesRes = await fetch(`${API}/api/security/roles`, { headers });
                 if(rolesRes.ok) {
-                    accessControlState.allRoles = await rolesRes.json();
+                    const rolesData = await rolesRes.json();
+                    accessControlState.allRoles = Array.isArray(rolesData) ? rolesData : (rolesData.roles || []);
                 }
                 
-                // Groups would come from a groups endpoint
-                accessControlState.allGroups = [];
+                // Load groups
+                const groupsRes = await fetch(`${API}/api/security/groups`, { headers });
+                if(groupsRes.ok) {
+                    const groupsData = await groupsRes.json();
+                    accessControlState.allGroups = Array.isArray(groupsData) ? groupsData : (groupsData.groups || []);
+                }
                 
             } catch(e) {
                 console.error('Error loading entities:', e);
@@ -10673,11 +10682,12 @@ Option 3"></textarea>
             if(!templateId) return;
             
             const orgId = currentUser?.org_id || 'default';
+            const headers = getAuthHeaders();
             
             try {
                 const response = await fetch(
                     `${API}/api/access-control/agents/${accessControlState.agentId}/apply-template?template_id=${templateId}&org_id=${orgId}&user_id=${currentUser?.id || 'system'}`,
-                    { method: 'POST' }
+                    { method: 'POST', headers }
                 );
                 
                 if(response.ok) {
@@ -10701,6 +10711,7 @@ Option 3"></textarea>
         async function saveAccessControl() {
             const orgId = currentUser?.org_id || 'default';
             const userId = currentUser?.id || 'system';
+            const authHeaders = getAuthHeaders();
             
             try {
                 // Save Level 1: Agent Access
@@ -10708,7 +10719,7 @@ Option 3"></textarea>
                     `${API}/api/access-control/agents/${accessControlState.agentId}/access?org_id=${orgId}&user_id=${userId}`,
                     {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { ...authHeaders, 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             access_type: accessControlState.accessType,
                             entities: accessControlState.entities
@@ -10721,7 +10732,7 @@ Option 3"></textarea>
                     `${API}/api/access-control/agents/${accessControlState.agentId}/tasks?org_id=${orgId}&user_id=${userId}`,
                     {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { ...authHeaders, 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             allow_all_by_default: accessControlState.taskDefault === 'allow',
                             task_permissions: accessControlState.tasks
@@ -10734,7 +10745,7 @@ Option 3"></textarea>
                     `${API}/api/access-control/agents/${accessControlState.agentId}/tools?org_id=${orgId}&user_id=${userId}`,
                     {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { ...authHeaders, 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             allow_all_by_default: accessControlState.toolDefault === 'allow',
                             tool_permissions: accessControlState.tools
