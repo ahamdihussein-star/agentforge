@@ -10582,6 +10582,10 @@ Option 3"></textarea>
             accessControlState.entities.push({ id, type, name });
             renderSelectedEntities();
             
+            // Update matrices to show new entity columns
+            renderTasksMatrix();
+            renderToolsMatrix();
+            
             // Clear search
             document.getElementById('access-entity-search').value = '';
             document.getElementById('access-entity-results').classList.add('hidden');
@@ -10590,6 +10594,22 @@ Option 3"></textarea>
         function removeAccessEntity(id) {
             accessControlState.entities = accessControlState.entities.filter(e => e.id !== id);
             renderSelectedEntities();
+            
+            // Also remove this entity from all task/tool denied lists
+            accessControlState.tasks.forEach(t => {
+                if (t.denied_entity_ids) {
+                    t.denied_entity_ids = t.denied_entity_ids.filter(eid => eid !== id);
+                }
+            });
+            accessControlState.tools.forEach(t => {
+                if (t.denied_entity_ids) {
+                    t.denied_entity_ids = t.denied_entity_ids.filter(eid => eid !== id);
+                }
+            });
+            
+            // Update matrices
+            renderTasksMatrix();
+            renderToolsMatrix();
         }
         
         function renderSelectedEntities() {
@@ -10612,8 +10632,10 @@ Option 3"></textarea>
         
         function renderTasksMatrix() {
             const container = document.getElementById('access-tasks-matrix');
+            const entities = accessControlState.entities;
+            const tasks = accessControlState.tasks;
             
-            if(accessControlState.tasks.length === 0) {
+            if(tasks.length === 0) {
                 container.innerHTML = `
                     <div class="text-center text-gray-500 py-8">
                         <div class="text-4xl mb-2">📋</div>
@@ -10623,42 +10645,115 @@ Option 3"></textarea>
                 return;
             }
             
-            container.innerHTML = accessControlState.tasks.map((task, idx) => `
-                <div class="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 hover:bg-gray-800">
-                    <div class="flex items-center gap-3">
-                        <span class="text-xl">📋</span>
-                        <div>
-                            <div class="font-medium">${task.task_name}</div>
-                            <div class="text-xs text-gray-400">Task ID: ${task.task_id?.slice(0, 8)}...</div>
+            if(entities.length === 0) {
+                // No specific entities - show simple allow/deny for each task
+                container.innerHTML = `
+                    <div class="text-sm text-gray-400 mb-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                        💡 <strong>Tip:</strong> Add specific users, groups, or roles in "Agent Access" tab to configure per-entity task permissions.
+                    </div>
+                    ${tasks.map((task, idx) => `
+                        <div class="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 hover:bg-gray-800 mb-2">
+                            <div class="flex items-center gap-3">
+                                <span class="text-xl">📋</span>
+                                <div>
+                                    <div class="font-medium">${task.task_name}</div>
+                                </div>
+                            </div>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" class="accent-green-500 w-5 h-5" 
+                                       ${!task.denied_all ? 'checked' : ''}
+                                       onchange="toggleTaskGlobal(${idx}, this.checked)">
+                                <span class="text-sm">${!task.denied_all ? '✅ Allowed' : '❌ Denied'}</span>
+                            </label>
                         </div>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" class="accent-green-500 w-4 h-4" 
-                                   ${task.denied_entity_ids?.length === 0 ? 'checked' : ''}
-                                   onchange="toggleTaskAccess(${idx}, this.checked)">
-                            <span class="text-sm ${task.denied_entity_ids?.length === 0 ? 'text-green-400' : 'text-red-400'}">
-                                ${task.denied_entity_ids?.length === 0 ? '✅ Allowed' : '❌ Denied'}
-                            </span>
-                        </label>
-                    </div>
+                    `).join('')}
+                `;
+                return;
+            }
+            
+            // Show permission matrix: rows = tasks, columns = entities
+            container.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-700">
+                                <th class="text-left p-3 font-medium">Task</th>
+                                ${entities.map(e => `
+                                    <th class="p-3 text-center">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <span>${e.type === 'user' ? '👤' : e.type === 'role' ? '🏷️' : '👥'}</span>
+                                            <span class="text-xs font-normal truncate max-w-[80px]" title="${e.name}">${e.name}</span>
+                                        </div>
+                                    </th>
+                                `).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tasks.map((task, tIdx) => `
+                                <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+                                    <td class="p-3">
+                                        <div class="flex items-center gap-2">
+                                            <span>📋</span>
+                                            <span class="font-medium">${task.task_name}</span>
+                                        </div>
+                                    </td>
+                                    ${entities.map((e, eIdx) => {
+                                        const allowed = isTaskAllowedForEntity(tIdx, e.id);
+                                        return `
+                                            <td class="p-3 text-center">
+                                                <button onclick="toggleTaskEntityAccess(${tIdx}, '${e.id}')" 
+                                                        class="w-10 h-10 rounded-lg transition-all ${allowed ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400' : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'}">
+                                                    ${allowed ? '✅' : '❌'}
+                                                </button>
+                                            </td>
+                                        `;
+                                    }).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                 </div>
-            `).join('');
+            `;
         }
         
-        function toggleTaskAccess(idx, allowed) {
-            if(allowed) {
-                accessControlState.tasks[idx].denied_entity_ids = [];
+        function isTaskAllowedForEntity(taskIdx, entityId) {
+            const task = accessControlState.tasks[taskIdx];
+            if (!task) return true;
+            const denied = task.denied_entity_ids || [];
+            return !denied.includes(entityId) && !denied.includes('all');
+        }
+        
+        function toggleTaskGlobal(idx, allowed) {
+            accessControlState.tasks[idx].denied_all = !allowed;
+            accessControlState.tasks[idx].denied_entity_ids = allowed ? [] : ['all'];
+            renderTasksMatrix();
+        }
+        
+        function toggleTaskEntityAccess(taskIdx, entityId) {
+            const task = accessControlState.tasks[taskIdx];
+            if (!task.denied_entity_ids) task.denied_entity_ids = [];
+            
+            const idx = task.denied_entity_ids.indexOf(entityId);
+            if (idx > -1) {
+                // Currently denied, remove from denied list (allow)
+                task.denied_entity_ids.splice(idx, 1);
             } else {
-                accessControlState.tasks[idx].denied_entity_ids = ['all'];
+                // Currently allowed, add to denied list (deny)
+                task.denied_entity_ids.push(entityId);
             }
+            // Remove 'all' if individual permissions are being set
+            const allIdx = task.denied_entity_ids.indexOf('all');
+            if (allIdx > -1) task.denied_entity_ids.splice(allIdx, 1);
+            
             renderTasksMatrix();
         }
         
         function renderToolsMatrix() {
             const container = document.getElementById('access-tools-matrix');
+            const entities = accessControlState.entities;
+            const tools = accessControlState.tools;
             
-            if(accessControlState.tools.length === 0) {
+            if(tools.length === 0) {
                 container.innerHTML = `
                     <div class="text-center text-gray-500 py-8">
                         <div class="text-4xl mb-2">🔧</div>
@@ -10668,35 +10763,106 @@ Option 3"></textarea>
                 return;
             }
             
-            container.innerHTML = accessControlState.tools.map((tool, idx) => `
-                <div class="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 hover:bg-gray-800">
-                    <div class="flex items-center gap-3">
-                        <span class="text-xl">🔧</span>
-                        <div>
-                            <div class="font-medium">${tool.tool_name}</div>
-                            <div class="text-xs text-gray-400">Tool ID: ${tool.tool_id?.slice(0, 8)}...</div>
+            if(entities.length === 0) {
+                // No specific entities - show simple allow/deny for each tool
+                container.innerHTML = `
+                    <div class="text-sm text-gray-400 mb-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                        💡 <strong>Tip:</strong> Add specific users, groups, or roles in "Agent Access" tab to configure per-entity tool permissions.
+                    </div>
+                    ${tools.map((tool, idx) => `
+                        <div class="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 hover:bg-gray-800 mb-2">
+                            <div class="flex items-center gap-3">
+                                <span class="text-xl">🔧</span>
+                                <div>
+                                    <div class="font-medium">${tool.tool_name}</div>
+                                </div>
+                            </div>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" class="accent-green-500 w-5 h-5" 
+                                       ${!tool.denied_all ? 'checked' : ''}
+                                       onchange="toggleToolGlobal(${idx}, this.checked)">
+                                <span class="text-sm">${!tool.denied_all ? '✅ Allowed' : '❌ Denied'}</span>
+                            </label>
                         </div>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" class="accent-green-500 w-4 h-4"
-                                   ${tool.denied_entity_ids?.length === 0 ? 'checked' : ''}
-                                   onchange="toggleToolAccess(${idx}, this.checked)">
-                            <span class="text-sm ${tool.denied_entity_ids?.length === 0 ? 'text-green-400' : 'text-red-400'}">
-                                ${tool.denied_entity_ids?.length === 0 ? '✅ Allowed' : '❌ Denied'}
-                            </span>
-                        </label>
-                    </div>
+                    `).join('')}
+                `;
+                return;
+            }
+            
+            // Show permission matrix: rows = tools, columns = entities
+            container.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-700">
+                                <th class="text-left p-3 font-medium">Tool</th>
+                                ${entities.map(e => `
+                                    <th class="p-3 text-center">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <span>${e.type === 'user' ? '👤' : e.type === 'role' ? '🏷️' : '👥'}</span>
+                                            <span class="text-xs font-normal truncate max-w-[80px]" title="${e.name}">${e.name}</span>
+                                        </div>
+                                    </th>
+                                `).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tools.map((tool, tIdx) => `
+                                <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+                                    <td class="p-3">
+                                        <div class="flex items-center gap-2">
+                                            <span>🔧</span>
+                                            <span class="font-medium">${tool.tool_name}</span>
+                                        </div>
+                                    </td>
+                                    ${entities.map((e, eIdx) => {
+                                        const allowed = isToolAllowedForEntity(tIdx, e.id);
+                                        return `
+                                            <td class="p-3 text-center">
+                                                <button onclick="toggleToolEntityAccess(${tIdx}, '${e.id}')" 
+                                                        class="w-10 h-10 rounded-lg transition-all ${allowed ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400' : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'}">
+                                                    ${allowed ? '✅' : '❌'}
+                                                </button>
+                                            </td>
+                                        `;
+                                    }).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                 </div>
-            `).join('');
+            `;
         }
         
-        function toggleToolAccess(idx, allowed) {
-            if(allowed) {
-                accessControlState.tools[idx].denied_entity_ids = [];
+        function isToolAllowedForEntity(toolIdx, entityId) {
+            const tool = accessControlState.tools[toolIdx];
+            if (!tool) return true;
+            const denied = tool.denied_entity_ids || [];
+            return !denied.includes(entityId) && !denied.includes('all');
+        }
+        
+        function toggleToolGlobal(idx, allowed) {
+            accessControlState.tools[idx].denied_all = !allowed;
+            accessControlState.tools[idx].denied_entity_ids = allowed ? [] : ['all'];
+            renderToolsMatrix();
+        }
+        
+        function toggleToolEntityAccess(toolIdx, entityId) {
+            const tool = accessControlState.tools[toolIdx];
+            if (!tool.denied_entity_ids) tool.denied_entity_ids = [];
+            
+            const idx = tool.denied_entity_ids.indexOf(entityId);
+            if (idx > -1) {
+                // Currently denied, remove from denied list (allow)
+                tool.denied_entity_ids.splice(idx, 1);
             } else {
-                accessControlState.tools[idx].denied_entity_ids = ['all'];
+                // Currently allowed, add to denied list (deny)
+                tool.denied_entity_ids.push(entityId);
             }
+            // Remove 'all' if individual permissions are being set
+            const allIdx = tool.denied_entity_ids.indexOf('all');
+            if (allIdx > -1) tool.denied_entity_ids.splice(allIdx, 1);
+            
             renderToolsMatrix();
         }
         
