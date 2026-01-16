@@ -3753,6 +3753,14 @@ if HEALTH_CHECK_AVAILABLE:
     app.include_router(health_router)
     print("✅ Health check endpoints registered")
 
+# Include Access Control Module Router
+try:
+    from api.modules.access_control import router as access_control_router
+    app.include_router(access_control_router)
+    print("✅ Access Control module registered")
+except ImportError as e:
+    print(f"⚠️ Access Control module not available: {e}")
+
 
 @app.get("/")
 async def root():
