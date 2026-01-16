@@ -3837,7 +3837,7 @@ Example: I need an HR agent that can:
                 </div>
                 
                 <!-- Access Control Modal - 3-Level Security -->
-                <div id="access-control-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50" style="display: none;">
+                <div id="access-control-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center" style="display: none; z-index: 9999;">
                     <div class="modal-content-box rounded-2xl w-full max-w-5xl mx-4 max-h-[90vh] overflow-hidden" style="background: var(--bg-card);">
                         <!-- Header -->
                         <div class="p-4 border-b border-gray-700 flex items-center justify-between">
@@ -10315,7 +10315,7 @@ Option 3"></textarea>
             
             document.getElementById('access-control-agent-name').textContent = agentName;
             
-            // Show modal using inline style only
+            // Show modal
             const modal = document.getElementById('access-control-modal');
             if (!modal) {
                 console.error('❌ Access control modal not found!');
@@ -10323,9 +10323,14 @@ Option 3"></textarea>
                 return;
             }
             
+            // Move modal to body to escape any overflow:hidden containers
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            
             modal.style.display = 'flex';
             
-            console.log('✅ Modal opened. Display:', modal.style.display);
+            console.log('✅ Modal opened and moved to body. Display:', modal.style.display);
             
             // Reset to first tab
             switchAccessTab(1);
@@ -19972,7 +19977,7 @@ function renderGroups() {
                     <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-xl">👥</div>
                     <div>
                         <h4 class="font-semibold">${g.name}</h4>
-                        <p class="text-xs text-gray-400">${g.member_count || 0} members</p>
+                        <p class="text-xs text-gray-400">${(g.member_ids || g.user_ids || []).length} members</p>
                     </div>
                 </div>
                 <div class="flex gap-1">
