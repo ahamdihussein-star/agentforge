@@ -10451,6 +10451,7 @@ Option 3"></textarea>
                 if(usersRes.ok) {
                     const usersData = await usersRes.json();
                     accessControlState.allUsers = Array.isArray(usersData) ? usersData : (usersData.users || []);
+                    console.log('✅ Loaded users for access control:', accessControlState.allUsers.length, accessControlState.allUsers);
                 }
                 
                 // Load roles
@@ -10513,17 +10514,23 @@ Option 3"></textarea>
             query = query.toLowerCase();
             let results = [];
             
-            // Search users
-            accessControlState.allUsers.filter(u => 
-                (u.email?.toLowerCase().includes(query) || 
-                 u.first_name?.toLowerCase().includes(query) ||
-                 u.last_name?.toLowerCase().includes(query))
-            ).slice(0, 5).forEach(u => {
+            // Search users - use profile.first_name/last_name as API returns nested structure
+            accessControlState.allUsers.filter(u => {
+                const firstName = u.profile?.first_name || u.first_name || '';
+                const lastName = u.profile?.last_name || u.last_name || '';
+                const email = u.email || '';
+                return email.toLowerCase().includes(query) || 
+                       firstName.toLowerCase().includes(query) ||
+                       lastName.toLowerCase().includes(query);
+            }).slice(0, 5).forEach(u => {
+                const firstName = u.profile?.first_name || u.first_name || '';
+                const lastName = u.profile?.last_name || u.last_name || '';
+                const displayName = `${firstName} ${lastName}`.trim() || u.email || `User ${u.id.slice(0, 8)}`;
                 results.push({
                     id: u.id,
                     type: 'user',
-                    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
-                    sub: u.email
+                    name: displayName,
+                    sub: u.email || ''
                 });
             });
             
@@ -10534,20 +10541,20 @@ Option 3"></textarea>
                 results.push({
                     id: r.id,
                     type: 'role',
-                    name: r.name,
+                    name: r.name || `Role ${r.id.slice(0, 8)}`,
                     sub: `${r.permissions?.length || 0} permissions`
                 });
             });
             
             // Search groups
             accessControlState.allGroups.filter(g => 
-                g.name?.toLowerCase().includes(query) ||
-                g.description?.toLowerCase().includes(query)
+                (g.name || '').toLowerCase().includes(query) ||
+                (g.description || '').toLowerCase().includes(query)
             ).slice(0, 5).forEach(g => {
                 results.push({
                     id: g.id,
                     type: 'group',
-                    name: g.name,
+                    name: g.name || `Group ${g.id.slice(0, 8)}`,
                     sub: `${(g.member_ids || g.user_ids || []).length} members`
                 });
             });
