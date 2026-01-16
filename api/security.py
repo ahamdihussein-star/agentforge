@@ -2753,14 +2753,26 @@ async def list_groups(user: User = Depends(require_auth)):
 @router.post("/groups")
 async def create_group(request: CreateGroupRequest, user: User = Depends(require_admin)):
     """Create group"""
+    # Combine member_ids and user_ids
+    all_members = list(set(request.user_ids + request.member_ids))
+    
     group = UserGroup(
         org_id=user.org_id,
         name=request.name,
         description=request.description,
-        user_ids=request.user_ids,
+        user_ids=all_members,
+        member_ids=all_members,
         role_ids=request.role_ids
     )
     security_state.groups[group.id] = group
+    
+    # Save to database
+    try:
+        from database.services import UserGroupService
+        UserGroupService.save_group(group)
+    except Exception as e:
+        print(f"⚠️ Error saving group to database: {e}")
+    
     security_state.save_to_disk()
     
     return {"status": "success", "group": group.dict()}
@@ -2783,6 +2795,13 @@ async def update_group(group_id: str, request: CreateGroupRequest, user: User = 
         group.member_ids = members
     
     group.updated_at = datetime.utcnow().isoformat()
+    
+    # Save to database
+    try:
+        from database.services import UserGroupService
+        UserGroupService.save_group(group)
+    except Exception as e:
+        print(f"⚠️ Error saving group to database: {e}")
     
     security_state.save_to_disk()
     

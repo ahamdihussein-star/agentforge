@@ -73,6 +73,7 @@ class UserGroupService:
             name=db_group.name,
             description=db_group.description,
             user_ids=user_ids,
+            member_ids=user_ids,  # member_ids is an alias for user_ids
             role_ids=role_ids,
             created_at=db_group.created_at.isoformat() if db_group.created_at else datetime.utcnow().isoformat(),
             updated_at=db_group.updated_at.isoformat() if db_group.updated_at else datetime.utcnow().isoformat()
