@@ -10469,9 +10469,49 @@ Option 3"></textarea>
                     console.log('✅ Loaded groups for access control:', accessControlState.allGroups.length, accessControlState.allGroups);
                 }
                 
+                // Enrich entities with proper names from loaded data
+                enrichEntitiesWithNames();
+                
             } catch(e) {
                 console.error('Error loading entities:', e);
             }
+        }
+        
+        function enrichEntitiesWithNames() {
+            // Enrich each entity with its proper name from loaded users/groups/roles
+            accessControlState.entities = accessControlState.entities.map(e => {
+                if (e.name && !e.name.includes('...') && e.name.length > 10) {
+                    // Already has a good name
+                    return e;
+                }
+                
+                // Try to find the entity's real name
+                if (e.type === 'user') {
+                    const user = accessControlState.allUsers.find(u => u.id === e.id);
+                    if (user) {
+                        return { ...e, name: user.name || user.email || `User ${e.id.slice(0, 8)}` };
+                    }
+                } else if (e.type === 'group') {
+                    const group = accessControlState.allGroups.find(g => g.id === e.id);
+                    if (group) {
+                        return { ...e, name: group.name || `Group ${e.id.slice(0, 8)}` };
+                    }
+                } else if (e.type === 'role') {
+                    const role = accessControlState.allRoles.find(r => r.id === e.id);
+                    if (role) {
+                        return { ...e, name: role.name || `Role ${e.id.slice(0, 8)}` };
+                    }
+                }
+                
+                return e;
+            });
+            
+            console.log('✅ Enriched entities:', accessControlState.entities);
+            
+            // Re-render to show updated names
+            renderSelectedEntities();
+            renderTasksMatrix();
+            renderToolsMatrix();
         }
         
         function selectAccessType(type) {
@@ -10514,18 +10554,14 @@ Option 3"></textarea>
             query = query.toLowerCase();
             let results = [];
             
-            // Search users - use profile.first_name/last_name as API returns nested structure
+            // Search users - API returns 'name' field directly or nested in profile
             accessControlState.allUsers.filter(u => {
-                const firstName = u.profile?.first_name || u.first_name || '';
-                const lastName = u.profile?.last_name || u.last_name || '';
+                const displayName = u.name || `${u.profile?.first_name || u.first_name || ''} ${u.profile?.last_name || u.last_name || ''}`.trim() || '';
                 const email = u.email || '';
                 return email.toLowerCase().includes(query) || 
-                       firstName.toLowerCase().includes(query) ||
-                       lastName.toLowerCase().includes(query);
+                       displayName.toLowerCase().includes(query);
             }).slice(0, 5).forEach(u => {
-                const firstName = u.profile?.first_name || u.first_name || '';
-                const lastName = u.profile?.last_name || u.last_name || '';
-                const displayName = `${firstName} ${lastName}`.trim() || u.email || `User ${u.id.slice(0, 8)}`;
+                const displayName = u.name || `${u.profile?.first_name || u.first_name || ''} ${u.profile?.last_name || u.last_name || ''}`.trim() || u.email || `User ${u.id.slice(0, 8)}`;
                 results.push({
                     id: u.id,
                     type: 'user',
