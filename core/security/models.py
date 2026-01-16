@@ -314,12 +314,13 @@ class Department(BaseModel):
 
 class UserGroup(BaseModel):
     """User group for permission assignment"""
-    id: str = Field(default_factory=lambda: f"grp_{uuid.uuid4().hex[:12]}")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # Use proper UUID for database compatibility
     org_id: str
     name: str
     description: Optional[str] = None
     user_ids: List[str] = []
     role_ids: List[str] = []  # Roles assigned to this group
+    member_ids: List[str] = []  # Alias for user_ids (for consistency)
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
