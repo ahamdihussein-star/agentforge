@@ -54,6 +54,16 @@ except ImportError:
     HEALTH_CHECK_AVAILABLE = False
     print("⚠️ Health check module not available")
 
+# Access Control Service
+ACCESS_CONTROL_AVAILABLE = False
+AccessControlService = None
+try:
+    from api.modules.access_control.service import AccessControlService
+    ACCESS_CONTROL_AVAILABLE = True
+    print("✅ Access Control Service available")
+except ImportError as e:
+    print(f"⚠️ Access Control Service not available: {e}")
+
 # Check for Playwright availability
 PLAYWRIGHT_AVAILABLE = False
 try:
@@ -3447,8 +3457,28 @@ def extract_text_from_docx(file_path: str) -> str:
         return ""
 
 
-async def process_agent_chat(agent: AgentData, message: str, conversation: Conversation, timezone: str = None) -> Dict:
+async def process_agent_chat(agent: AgentData, message: str, conversation: Conversation, timezone: str = None, access_control = None) -> Dict:
+    """
+    Process agent chat with access control enforcement.
+    
+    Args:
+        agent: The agent to use
+        message: User's message
+        conversation: Current conversation
+        timezone: User's timezone
+        access_control: AccessCheckResult with denied_tasks and denied_tools
+    """
     agent_tools = get_agent_tools(agent)  # Resolves prefixed IDs
+    
+    # ========================================================================
+    # ACCESS CONTROL: Filter tools based on permissions (Level 3)
+    # ========================================================================
+    denied_tool_ids = []
+    if access_control and hasattr(access_control, 'denied_tools') and access_control.denied_tools:
+        denied_tool_ids = access_control.denied_tools
+        print(f"🔐 Filtering out {len(denied_tool_ids)} denied tools")
+        agent_tools = [t for t in agent_tools if t.id not in denied_tool_ids]
+    
     tool_ids = [t.id for t in agent_tools]
     search_results = search_documents(message, tool_ids, top_k=5)
     context = ""
@@ -3473,6 +3503,7 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     empathy_desc = "(Direct)" if p.empathy <= 3 else "(Empathetic)" if p.empathy >= 7 else "(Supportive)"
     
     # Build tool definitions for action tools (non-knowledge)
+    # These are already filtered by access control above
     action_tools = [t for t in agent_tools if t.type in ['email', 'api', 'webhook', 'slack', 'websearch', 'database']]
     tool_definitions = build_tool_definitions(action_tools) if action_tools else []
     
@@ -3483,6 +3514,17 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
         for t in action_tools:
             tools_description += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
         tools_description += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
+    
+    # ========================================================================
+    # ACCESS CONTROL: Filter tasks based on permissions (Level 2)
+    # ========================================================================
+    denied_task_ids = []
+    if access_control and hasattr(access_control, 'denied_tasks') and access_control.denied_tasks:
+        denied_task_ids = access_control.denied_tasks
+        print(f"🔐 Filtering out {len(denied_task_ids)} denied tasks")
+    
+    # Get tasks that user has access to
+    accessible_tasks = [task for task in agent.tasks if task.id not in denied_task_ids]
     
     system_prompt = f"""You are {agent.name}.
 
@@ -3513,12 +3555,18 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
 • Empathy: {p.empathy}/10 {empathy_desc}
 
 === TASKS ==="""
-    for task in agent.tasks:
+    
+    # Only include tasks the user has access to
+    for task in accessible_tasks:
         system_prompt += f"\n\n### {task.name}\n{task.description}"
         if task.instructions:
             system_prompt += "\n**Steps:**"
             for i, inst in enumerate(task.instructions, 1):
                 system_prompt += f"\n{i}. {inst.text}"
+    
+    # Add note about restricted tasks if any
+    if denied_task_ids and len(denied_task_ids) > 0:
+        system_prompt += "\n\n**Note:** Some tasks are not available based on your permissions."
     
     # Add tools description
     system_prompt += tools_description
@@ -9321,6 +9369,46 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     org_id = current_user.org_id if current_user else "org_default"
     user_id = str(current_user.id) if current_user else "system"
     
+    # ========================================================================
+    # ACCESS CONTROL ENFORCEMENT (3-Level Check)
+    # ========================================================================
+    access_result = None
+    if ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+        try:
+            # Get user's roles and groups
+            user_role_ids = getattr(current_user, 'role_ids', []) or []
+            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            
+            # Check access
+            access_result = AccessControlService.check_user_access(
+                user_id=user_id,
+                user_role_ids=user_role_ids,
+                user_group_ids=user_group_ids,
+                agent_id=agent_id,
+                org_id=org_id
+            )
+            
+            print(f"🔐 Access Control Check for user {user_id} on agent {agent_id}:")
+            print(f"   Has Access: {access_result.has_access}")
+            print(f"   Denied Tasks: {access_result.denied_tasks}")
+            print(f"   Denied Tools: {access_result.denied_tools}")
+            
+            # Level 1: Check if user can access the agent at all
+            if not access_result.has_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "access_denied",
+                        "message": access_result.reason or "You don't have permission to access this agent",
+                        "agent_id": agent_id
+                    }
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Access control check failed (allowing by default): {e}")
+            access_result = None
+    
     if request.conversation_id and request.conversation_id in app_state.conversations:
         conversation = app_state.conversations[request.conversation_id]
     else:
@@ -9353,7 +9441,14 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     except Exception as e:
         print(f"⚠️  Failed to save message to DB: {e}")
     
-    result = await process_agent_chat(agent, request.message, conversation, timezone=request.timezone)
+    # Pass access control result to process_agent_chat for task/tool filtering
+    result = await process_agent_chat(
+        agent, 
+        request.message, 
+        conversation, 
+        timezone=request.timezone,
+        access_control=access_result  # Pass the access control result
+    )
     print(f"📤 Chat result: content={len(result.get('content', ''))} chars, sources={len(result.get('sources', []))}")
     if not result.get("content"):
         print(f"⚠️  Empty response from LLM!")
@@ -9389,13 +9484,49 @@ async def chat_with_files(
     message: str = Form(""),
     conversation_id: Optional[str] = Form(None),
     timezone: Optional[str] = Form(None),
-    files: List[UploadFile] = File(default=[])
+    files: List[UploadFile] = File(default=[]),
+    current_user: User = Depends(get_current_user)
 ):
     """Chat with agent including file attachments."""
     if agent_id not in app_state.agents:
         raise HTTPException(404, "Agent not found")
     
     agent = app_state.agents[agent_id]
+    
+    org_id = current_user.org_id if current_user else "org_default"
+    user_id = str(current_user.id) if current_user else "system"
+    
+    # ========================================================================
+    # ACCESS CONTROL ENFORCEMENT (3-Level Check)
+    # ========================================================================
+    access_result = None
+    if ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+        try:
+            user_role_ids = getattr(current_user, 'role_ids', []) or []
+            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            
+            access_result = AccessControlService.check_user_access(
+                user_id=user_id,
+                user_role_ids=user_role_ids,
+                user_group_ids=user_group_ids,
+                agent_id=agent_id,
+                org_id=org_id
+            )
+            
+            if not access_result.has_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "access_denied",
+                        "message": access_result.reason or "You don't have permission to access this agent",
+                        "agent_id": agent_id
+                    }
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Access control check failed (allowing by default): {e}")
+            access_result = None
     
     # Get or create conversation
     if conversation_id and conversation_id in app_state.conversations:
@@ -9616,8 +9747,8 @@ async def chat_with_files(
         except Exception as e:
             result = {"content": f"Error analyzing images: {str(e)}", "sources": []}
     else:
-        # Process chat with enhanced message (no images)
-        result = await process_agent_chat(agent, enhanced_message, conversation, timezone=timezone)
+        # Process chat with enhanced message (no images) - with access control
+        result = await process_agent_chat(agent, enhanced_message, conversation, timezone=timezone, access_control=access_result)
     
     # Add assistant response
     assistant_msg = ConversationMessage(role="assistant", content=result["content"], sources=result["sources"])
