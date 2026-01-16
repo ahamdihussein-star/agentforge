@@ -3789,6 +3789,167 @@ Example: I need an HR agent that can:
                     </div>
                 </div>
                 
+                <!-- Access Control Modal - 3-Level Security -->
+                <div id="access-control-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
+                    <div class="modal-content-box rounded-2xl w-full max-w-5xl mx-4 max-h-[90vh] overflow-hidden" style="background: var(--bg-card);">
+                        <!-- Header -->
+                        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">🔐</div>
+                                <div>
+                                    <h3 class="font-bold text-lg">Access Control</h3>
+                                    <p class="text-xs text-gray-400" id="access-control-agent-name">Configure who can use this agent</p>
+                                </div>
+                            </div>
+                            <button onclick="closeAccessControlModal()" class="p-2 hover:bg-gray-700 rounded-lg text-xl">✕</button>
+                        </div>
+                        
+                        <!-- 3-Tab Navigation -->
+                        <div class="flex border-b border-gray-700">
+                            <button onclick="switchAccessTab(1)" id="access-tab-1" class="flex-1 py-3 px-4 text-center border-b-2 border-purple-500 text-white font-medium transition-all">
+                                <span class="text-lg mr-2">👥</span> Agent Access
+                            </button>
+                            <button onclick="switchAccessTab(2)" id="access-tab-2" class="flex-1 py-3 px-4 text-center border-b-2 border-transparent text-gray-400 hover:text-white transition-all">
+                                <span class="text-lg mr-2">📋</span> Task Access
+                            </button>
+                            <button onclick="switchAccessTab(3)" id="access-tab-3" class="flex-1 py-3 px-4 text-center border-b-2 border-transparent text-gray-400 hover:text-white transition-all">
+                                <span class="text-lg mr-2">🔧</span> Tool Access
+                            </button>
+                        </div>
+                        
+                        <!-- Tab Content -->
+                        <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 200px);">
+                            
+                            <!-- Tab 1: Agent Access (Who can use this agent?) -->
+                            <div id="access-content-1" class="">
+                                <div class="mb-6">
+                                    <h4 class="text-lg font-semibold mb-2">🎯 Who can access this agent?</h4>
+                                    <p class="text-sm text-gray-400 mb-4">Choose who is allowed to use this agent</p>
+                                    
+                                    <!-- Access Type Cards -->
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                        <div onclick="selectAccessType('public')" id="access-type-public" class="access-type-card cursor-pointer rounded-xl p-4 border-2 border-gray-600 hover:border-purple-500 transition-all">
+                                            <div class="text-3xl mb-2">🌍</div>
+                                            <h5 class="font-semibold">Public</h5>
+                                            <p class="text-xs text-gray-400 mt-1">Anyone can use this agent without logging in</p>
+                                        </div>
+                                        <div onclick="selectAccessType('authenticated')" id="access-type-authenticated" class="access-type-card cursor-pointer rounded-xl p-4 border-2 border-purple-500 bg-purple-500/10 transition-all">
+                                            <div class="text-3xl mb-2">🔓</div>
+                                            <h5 class="font-semibold">Logged In Users</h5>
+                                            <p class="text-xs text-gray-400 mt-1">Any authenticated user can access</p>
+                                        </div>
+                                        <div onclick="selectAccessType('specific')" id="access-type-specific" class="access-type-card cursor-pointer rounded-xl p-4 border-2 border-gray-600 hover:border-purple-500 transition-all">
+                                            <div class="text-3xl mb-2">👥</div>
+                                            <h5 class="font-semibold">Specific Access</h5>
+                                            <p class="text-xs text-gray-400 mt-1">Only specific users, groups, or roles</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Entity Selector (shown when "specific" is selected) -->
+                                    <div id="access-entity-selector" class="hidden">
+                                        <div class="relative mb-4">
+                                            <input type="text" id="access-entity-search" placeholder="🔍 Search users, groups, or roles..." class="w-full input-field rounded-lg px-4 py-3" oninput="searchAccessEntities(this.value)">
+                                            <!-- Search Results Dropdown -->
+                                            <div id="access-entity-results" class="hidden absolute top-full left-0 right-0 mt-1 rounded-lg bg-gray-800 border border-gray-600 shadow-xl max-h-48 overflow-y-auto z-10">
+                                                <!-- Results populated by JS -->
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Selected Entities -->
+                                        <div class="mb-4">
+                                            <label class="text-sm text-gray-400 block mb-2">Selected (with access):</label>
+                                            <div id="access-selected-entities" class="flex flex-wrap gap-2">
+                                                <!-- Selected entities will be rendered here -->
+                                                <span class="text-gray-500 text-sm italic">No specific access configured - all authenticated users have access</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Tab 2: Task Access (Which tasks can users use?) -->
+                            <div id="access-content-2" class="hidden">
+                                <div class="mb-6">
+                                    <h4 class="text-lg font-semibold mb-2">📋 Task Permissions</h4>
+                                    <p class="text-sm text-gray-400 mb-4">Control which tasks different users can trigger</p>
+                                    
+                                    <!-- Default Mode Toggle -->
+                                    <div class="flex items-center gap-4 mb-6 p-3 rounded-lg bg-gray-800/50">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="task-default" value="allow" checked onchange="updateTaskDefault('allow')" class="accent-purple-500">
+                                            <span>✅ Allow all tasks by default</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="task-default" value="deny" onchange="updateTaskDefault('deny')">
+                                            <span>❌ Deny all tasks by default</span>
+                                        </label>
+                                    </div>
+                                    
+                                    <!-- Tasks Matrix -->
+                                    <div id="access-tasks-matrix" class="space-y-3">
+                                        <div class="text-center text-gray-500 py-8">
+                                            <div class="text-4xl mb-2">📋</div>
+                                            <p>No tasks configured for this agent</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Tab 3: Tool Access (Which tools can the agent use?) -->
+                            <div id="access-content-3" class="hidden">
+                                <div class="mb-6">
+                                    <h4 class="text-lg font-semibold mb-2">🔧 Tool Permissions</h4>
+                                    <p class="text-sm text-gray-400 mb-4">Control which tools the agent can use for different users</p>
+                                    
+                                    <!-- Default Mode Toggle -->
+                                    <div class="flex items-center gap-4 mb-6 p-3 rounded-lg bg-gray-800/50">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="tool-default" value="allow" checked onchange="updateToolDefault('allow')" class="accent-purple-500">
+                                            <span>✅ Allow all tools by default</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="tool-default" value="deny" onchange="updateToolDefault('deny')">
+                                            <span>❌ Deny all tools by default</span>
+                                        </label>
+                                    </div>
+                                    
+                                    <!-- Tools Matrix -->
+                                    <div id="access-tools-matrix" class="space-y-3">
+                                        <div class="text-center text-gray-500 py-8">
+                                            <div class="text-4xl mb-2">🔧</div>
+                                            <p>No tools configured for this agent</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                        <!-- Footer -->
+                        <div class="p-4 border-t border-gray-700 flex justify-between items-center">
+                            <div class="flex items-center gap-4">
+                                <!-- Quick Templates -->
+                                <select id="access-template-select" class="input-field rounded-lg px-3 py-2 text-sm" onchange="applyAccessTemplate(this.value)">
+                                    <option value="">📋 Quick Templates</option>
+                                    <option value="read_only">🔒 Read Only</option>
+                                    <option value="standard">📖 Standard</option>
+                                    <option value="full_access">⚡ Full Access</option>
+                                </select>
+                                <!-- Preview Button -->
+                                <button onclick="previewAccessAsUser()" class="px-3 py-2 rounded-lg border border-gray-600 hover:bg-gray-700 text-sm flex items-center gap-2">
+                                    👁️ Preview as User
+                                </button>
+                            </div>
+                            <div class="flex gap-3">
+                                <button onclick="closeAccessControlModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
+                                <button onclick="saveAccessControl()" class="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 font-medium">
+                                    💾 Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Edit Asset Modal (Assets don't have a Tools page) -->
                 <div id="edit-asset-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
                     <div class="modal-content-box rounded-2xl w-full max-w-xl mx-4 max-h-[85vh] overflow-hidden">
@@ -10080,6 +10241,473 @@ Option 3"></textarea>
             document.getElementById('kb-view-modal').classList.remove('flex');
         }
 
+        // ============================================================
+        // ACCESS CONTROL MODULE
+        // 3-Level Security: Agent Access, Task Access, Tool Access
+        // ============================================================
+        
+        let accessControlState = {
+            agentId: null,
+            agentName: '',
+            accessType: 'authenticated',
+            entities: [],
+            tasks: [],
+            tools: [],
+            taskDefault: 'allow',
+            toolDefault: 'allow',
+            allUsers: [],
+            allGroups: [],
+            allRoles: []
+        };
+        
+        async function openAccessControl(agentId, agentName) {
+            accessControlState.agentId = agentId;
+            accessControlState.agentName = agentName;
+            
+            document.getElementById('access-control-agent-name').textContent = agentName;
+            
+            // Show modal
+            const modal = document.getElementById('access-control-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            // Reset to first tab
+            switchAccessTab(1);
+            
+            // Load data
+            await loadAccessControlData();
+        }
+        
+        function closeAccessControlModal() {
+            document.getElementById('access-control-modal').classList.add('hidden');
+            document.getElementById('access-control-modal').classList.remove('flex');
+        }
+        
+        function switchAccessTab(tab) {
+            // Update tab buttons
+            for(let i = 1; i <= 3; i++) {
+                const btn = document.getElementById('access-tab-' + i);
+                const content = document.getElementById('access-content-' + i);
+                
+                if(i === tab) {
+                    btn.classList.add('border-purple-500', 'text-white', 'font-medium');
+                    btn.classList.remove('border-transparent', 'text-gray-400');
+                    content.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('border-purple-500', 'text-white', 'font-medium');
+                    btn.classList.add('border-transparent', 'text-gray-400');
+                    content.classList.add('hidden');
+                }
+            }
+        }
+        
+        async function loadAccessControlData() {
+            try {
+                // Get current org_id from session
+                const orgId = currentUser?.org_id || 'default';
+                
+                // Load full access config
+                const response = await fetch(`${API}/api/access-control/agents/${accessControlState.agentId}/full?org_id=${orgId}`);
+                
+                if(response.ok) {
+                    const data = await response.json();
+                    
+                    // Set access type
+                    accessControlState.accessType = data.agent_access?.access_type || 'authenticated';
+                    accessControlState.entities = data.agent_access?.entities || [];
+                    accessControlState.tasks = data.task_access?.task_permissions || [];
+                    accessControlState.tools = data.tool_access?.tool_permissions || [];
+                    accessControlState.taskDefault = data.task_access?.allow_all_by_default ? 'allow' : 'deny';
+                    accessControlState.toolDefault = data.tool_access?.allow_all_by_default ? 'allow' : 'deny';
+                }
+                
+                // Load agent details for tasks/tools
+                const agentResponse = await fetch(`${API}/api/agents/${accessControlState.agentId}`);
+                if(agentResponse.ok) {
+                    const agent = await agentResponse.json();
+                    
+                    // Parse tasks
+                    let tasks = [];
+                    if(typeof agent.tasks === 'string') {
+                        try { tasks = JSON.parse(agent.tasks); } catch(e) {}
+                    } else if(Array.isArray(agent.tasks)) {
+                        tasks = agent.tasks;
+                    }
+                    accessControlState.tasks = tasks.map(t => ({
+                        task_id: t.id,
+                        task_name: t.name,
+                        allowed_entity_ids: [],
+                        denied_entity_ids: []
+                    }));
+                    
+                    // Parse tools
+                    let toolIds = [];
+                    if(typeof agent.tool_ids === 'string') {
+                        try { toolIds = JSON.parse(agent.tool_ids); } catch(e) {}
+                    } else if(Array.isArray(agent.tool_ids)) {
+                        toolIds = agent.tool_ids;
+                    }
+                    
+                    // Load tool names
+                    const toolsResponse = await fetch(`${API}/api/tools`);
+                    if(toolsResponse.ok) {
+                        const allTools = await toolsResponse.json();
+                        accessControlState.tools = toolIds.map(tid => {
+                            const tool = allTools.find(t => t.id === tid);
+                            return {
+                                tool_id: tid,
+                                tool_name: tool?.name || 'Unknown Tool',
+                                allowed_entity_ids: [],
+                                denied_entity_ids: []
+                            };
+                        });
+                    }
+                }
+                
+                // Load users, groups, roles for entity selector
+                await loadAccessEntities();
+                
+                // Render UI
+                renderAccessType();
+                renderTasksMatrix();
+                renderToolsMatrix();
+                
+            } catch(e) {
+                console.error('Error loading access control data:', e);
+                showToast('Failed to load access control data', 'error');
+            }
+        }
+        
+        async function loadAccessEntities() {
+            try {
+                // Load users
+                const usersRes = await fetch(`${API}/api/security/users`);
+                if(usersRes.ok) {
+                    accessControlState.allUsers = await usersRes.json();
+                }
+                
+                // Load roles
+                const rolesRes = await fetch(`${API}/api/security/roles`);
+                if(rolesRes.ok) {
+                    accessControlState.allRoles = await rolesRes.json();
+                }
+                
+                // Groups would come from a groups endpoint
+                accessControlState.allGroups = [];
+                
+            } catch(e) {
+                console.error('Error loading entities:', e);
+            }
+        }
+        
+        function selectAccessType(type) {
+            accessControlState.accessType = type;
+            renderAccessType();
+        }
+        
+        function renderAccessType() {
+            const types = ['public', 'authenticated', 'specific'];
+            
+            types.forEach(t => {
+                const el = document.getElementById('access-type-' + t);
+                if(t === accessControlState.accessType) {
+                    el.classList.add('border-purple-500', 'bg-purple-500/10');
+                    el.classList.remove('border-gray-600');
+                } else {
+                    el.classList.remove('border-purple-500', 'bg-purple-500/10');
+                    el.classList.add('border-gray-600');
+                }
+            });
+            
+            // Show/hide entity selector
+            const selector = document.getElementById('access-entity-selector');
+            if(accessControlState.accessType === 'specific') {
+                selector.classList.remove('hidden');
+                renderSelectedEntities();
+            } else {
+                selector.classList.add('hidden');
+            }
+        }
+        
+        function searchAccessEntities(query) {
+            const resultsEl = document.getElementById('access-entity-results');
+            
+            if(!query || query.length < 2) {
+                resultsEl.classList.add('hidden');
+                return;
+            }
+            
+            query = query.toLowerCase();
+            let results = [];
+            
+            // Search users
+            accessControlState.allUsers.filter(u => 
+                (u.email?.toLowerCase().includes(query) || 
+                 u.first_name?.toLowerCase().includes(query) ||
+                 u.last_name?.toLowerCase().includes(query))
+            ).slice(0, 5).forEach(u => {
+                results.push({
+                    id: u.id,
+                    type: 'user',
+                    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
+                    sub: u.email
+                });
+            });
+            
+            // Search roles
+            accessControlState.allRoles.filter(r => 
+                r.name?.toLowerCase().includes(query)
+            ).slice(0, 5).forEach(r => {
+                results.push({
+                    id: r.id,
+                    type: 'role',
+                    name: r.name,
+                    sub: `${r.permissions?.length || 0} permissions`
+                });
+            });
+            
+            if(results.length === 0) {
+                resultsEl.innerHTML = '<div class="p-3 text-gray-500 text-sm">No results found</div>';
+            } else {
+                resultsEl.innerHTML = results.map(r => `
+                    <div onclick="addAccessEntity('${r.id}', '${r.type}', '${r.name.replace(/'/g, "\\'")}')" 
+                         class="p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-b-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">${r.type === 'user' ? '👤' : r.type === 'role' ? '🏷️' : '👥'}</span>
+                            <div>
+                                <div class="font-medium">${r.name}</div>
+                                <div class="text-xs text-gray-400">${r.sub}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            resultsEl.classList.remove('hidden');
+        }
+        
+        function addAccessEntity(id, type, name) {
+            // Check if already added
+            if(accessControlState.entities.find(e => e.id === id)) {
+                showToast('Already added', 'info');
+                return;
+            }
+            
+            accessControlState.entities.push({ id, type, name });
+            renderSelectedEntities();
+            
+            // Clear search
+            document.getElementById('access-entity-search').value = '';
+            document.getElementById('access-entity-results').classList.add('hidden');
+        }
+        
+        function removeAccessEntity(id) {
+            accessControlState.entities = accessControlState.entities.filter(e => e.id !== id);
+            renderSelectedEntities();
+        }
+        
+        function renderSelectedEntities() {
+            const container = document.getElementById('access-selected-entities');
+            
+            if(accessControlState.entities.length === 0) {
+                container.innerHTML = '<span class="text-gray-500 text-sm italic">No specific access configured - all authenticated users have access</span>';
+                return;
+            }
+            
+            container.innerHTML = accessControlState.entities.map(e => `
+                <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm"
+                      style="background: ${e.type === 'user' ? 'rgba(59, 130, 246, 0.2)' : e.type === 'role' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)'}">
+                    ${e.type === 'user' ? '👤' : e.type === 'role' ? '🏷️' : '👥'}
+                    ${e.name}
+                    <button onclick="removeAccessEntity('${e.id}')" class="hover:text-red-400 ml-1">✕</button>
+                </span>
+            `).join('');
+        }
+        
+        function renderTasksMatrix() {
+            const container = document.getElementById('access-tasks-matrix');
+            
+            if(accessControlState.tasks.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <div class="text-4xl mb-2">📋</div>
+                        <p>No tasks configured for this agent</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = accessControlState.tasks.map((task, idx) => `
+                <div class="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 hover:bg-gray-800">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">📋</span>
+                        <div>
+                            <div class="font-medium">${task.task_name}</div>
+                            <div class="text-xs text-gray-400">Task ID: ${task.task_id?.slice(0, 8)}...</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" class="accent-green-500 w-4 h-4" 
+                                   ${task.denied_entity_ids?.length === 0 ? 'checked' : ''}
+                                   onchange="toggleTaskAccess(${idx}, this.checked)">
+                            <span class="text-sm ${task.denied_entity_ids?.length === 0 ? 'text-green-400' : 'text-red-400'}">
+                                ${task.denied_entity_ids?.length === 0 ? '✅ Allowed' : '❌ Denied'}
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function toggleTaskAccess(idx, allowed) {
+            if(allowed) {
+                accessControlState.tasks[idx].denied_entity_ids = [];
+            } else {
+                accessControlState.tasks[idx].denied_entity_ids = ['all'];
+            }
+            renderTasksMatrix();
+        }
+        
+        function renderToolsMatrix() {
+            const container = document.getElementById('access-tools-matrix');
+            
+            if(accessControlState.tools.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <div class="text-4xl mb-2">🔧</div>
+                        <p>No tools configured for this agent</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = accessControlState.tools.map((tool, idx) => `
+                <div class="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 hover:bg-gray-800">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">🔧</span>
+                        <div>
+                            <div class="font-medium">${tool.tool_name}</div>
+                            <div class="text-xs text-gray-400">Tool ID: ${tool.tool_id?.slice(0, 8)}...</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" class="accent-green-500 w-4 h-4"
+                                   ${tool.denied_entity_ids?.length === 0 ? 'checked' : ''}
+                                   onchange="toggleToolAccess(${idx}, this.checked)">
+                            <span class="text-sm ${tool.denied_entity_ids?.length === 0 ? 'text-green-400' : 'text-red-400'}">
+                                ${tool.denied_entity_ids?.length === 0 ? '✅ Allowed' : '❌ Denied'}
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function toggleToolAccess(idx, allowed) {
+            if(allowed) {
+                accessControlState.tools[idx].denied_entity_ids = [];
+            } else {
+                accessControlState.tools[idx].denied_entity_ids = ['all'];
+            }
+            renderToolsMatrix();
+        }
+        
+        function updateTaskDefault(mode) {
+            accessControlState.taskDefault = mode;
+        }
+        
+        function updateToolDefault(mode) {
+            accessControlState.toolDefault = mode;
+        }
+        
+        async function applyAccessTemplate(templateId) {
+            if(!templateId) return;
+            
+            const orgId = currentUser?.org_id || 'default';
+            
+            try {
+                const response = await fetch(
+                    `${API}/api/access-control/agents/${accessControlState.agentId}/apply-template?template_id=${templateId}&org_id=${orgId}&user_id=${currentUser?.id || 'system'}`,
+                    { method: 'POST' }
+                );
+                
+                if(response.ok) {
+                    showToast(`Template "${templateId}" applied!`, 'success');
+                    await loadAccessControlData();
+                } else {
+                    throw new Error('Failed to apply template');
+                }
+            } catch(e) {
+                showToast('Failed to apply template', 'error');
+            }
+            
+            // Reset select
+            document.getElementById('access-template-select').value = '';
+        }
+        
+        function previewAccessAsUser() {
+            showToast('Preview feature coming soon!', 'info');
+        }
+        
+        async function saveAccessControl() {
+            const orgId = currentUser?.org_id || 'default';
+            const userId = currentUser?.id || 'system';
+            
+            try {
+                // Save Level 1: Agent Access
+                await fetch(
+                    `${API}/api/access-control/agents/${accessControlState.agentId}/access?org_id=${orgId}&user_id=${userId}`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            access_type: accessControlState.accessType,
+                            entities: accessControlState.entities
+                        })
+                    }
+                );
+                
+                // Save Level 2: Task Access
+                await fetch(
+                    `${API}/api/access-control/agents/${accessControlState.agentId}/tasks?org_id=${orgId}&user_id=${userId}`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            allow_all_by_default: accessControlState.taskDefault === 'allow',
+                            task_permissions: accessControlState.tasks
+                        })
+                    }
+                );
+                
+                // Save Level 3: Tool Access
+                await fetch(
+                    `${API}/api/access-control/agents/${accessControlState.agentId}/tools?org_id=${orgId}&user_id=${userId}`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            allow_all_by_default: accessControlState.toolDefault === 'allow',
+                            tool_permissions: accessControlState.tools
+                        })
+                    }
+                );
+                
+                showToast('Access control saved successfully!', 'success');
+                closeAccessControlModal();
+                
+            } catch(e) {
+                console.error('Error saving access control:', e);
+                showToast('Failed to save access control', 'error');
+            }
+        }
+        
+        // ============================================================
+        // END ACCESS CONTROL MODULE
+        // ============================================================
+
         // Generate asset file
         async function generateAssetFile(kitId, assetId) {
             try {
@@ -10614,6 +11242,7 @@ Option 3"></textarea>
                         </div>
                         <div style="display:flex;gap:6px;">
                             ${a.status === 'draft' ? `<button data-permission="agents:publish" onclick="event.stopPropagation();publishAgent('${a.id}')" class="agent-btn publish" title="Publish">🚀</button>` : ''}
+                            <button data-permission="agents:edit" onclick="event.stopPropagation();openAccessControl('${a.id}', '${a.name}')" class="agent-btn" title="Access Control" style="background:linear-gradient(135deg,#8b5cf6,#3b82f6);">🔐</button>
                             <button data-permission="agents:edit" onclick="event.stopPropagation();editAgent('${a.id}')" class="agent-btn edit" title="Edit">✏️</button>
                             <button data-permission="agents:delete" onclick="event.stopPropagation();deleteAgent('${a.id}')" class="agent-btn delete" title="Delete">🗑️</button>
                         </div>
