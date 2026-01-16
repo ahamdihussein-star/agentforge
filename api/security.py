@@ -284,6 +284,7 @@ class CreateGroupRequest(BaseModel):
     name: str
     description: Optional[str] = None
     user_ids: List[str] = []
+    member_ids: List[str] = []  # Alias for user_ids
     role_ids: List[str] = []
 
 # Settings Requests
@@ -2774,8 +2775,14 @@ async def update_group(group_id: str, request: CreateGroupRequest, user: User = 
     # Update fields
     group.name = request.name
     group.description = request.description
-    if hasattr(request, 'member_ids') and request.member_ids:
-        group.member_ids = request.member_ids
+    
+    # Handle member_ids (prefer member_ids over user_ids for new API)
+    members = request.member_ids if request.member_ids else request.user_ids
+    if members:
+        group.user_ids = members
+        group.member_ids = members
+    
+    group.updated_at = datetime.utcnow().isoformat()
     
     security_state.save_to_disk()
     

@@ -11300,7 +11300,7 @@ Option 3"></textarea>
                         </div>
                         <div style="display:flex;gap:6px;">
                             ${a.status === 'draft' ? `<button data-permission="agents:publish" onclick="event.stopPropagation();publishAgent('${a.id}')" class="agent-btn publish" title="Publish">🚀</button>` : ''}
-                            <button data-permission="agents:edit" onclick="event.stopPropagation();openAccessControl('${a.id}', '${a.name}')" class="agent-btn" title="Access Control" style="background:linear-gradient(135deg,#8b5cf6,#3b82f6);">🔐</button>
+                            <button data-permission="agents:edit" onclick="event.stopPropagation();openAccessControl('${a.id}', '${(a.name || '').replace(/'/g, "\\'")}')" class="agent-btn" title="Access Control" style="background:linear-gradient(135deg,#8b5cf6,#3b82f6);">🔐</button>
                             <button data-permission="agents:edit" onclick="event.stopPropagation();editAgent('${a.id}')" class="agent-btn edit" title="Edit">✏️</button>
                             <button data-permission="agents:delete" onclick="event.stopPropagation();deleteAgent('${a.id}')" class="agent-btn delete" title="Delete">🗑️</button>
                         </div>
@@ -20124,6 +20124,8 @@ async function deleteGroup(id) {
     }
 }
 
+let editGroupMembers = [];
+
 async function editGroup(id) {
     const group = allGroups.find(g => g.id === id);
     if (!group) {
@@ -20131,17 +20133,40 @@ async function editGroup(id) {
         return;
     }
     
+    // Get current member details
+    editGroupMembers = [];
+    const memberIds = group.member_ids || group.user_ids || [];
+    
+    // Fetch user details for current members
+    try {
+        const res = await fetch('/api/security/users', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            const users = Array.isArray(data) ? data : (data.users || []);
+            editGroupMembers = memberIds.map(mid => {
+                const user = users.find(u => u.id === mid);
+                return user ? {
+                    id: user.id,
+                    name: `${user.profile?.first_name || ''} ${user.profile?.last_name || ''}`.trim() || user.email,
+                    email: user.email
+                } : { id: mid, name: 'Unknown User', email: '' };
+            });
+        }
+    } catch (e) {
+        console.error('Error loading members:', e);
+    }
+    
     // Create edit modal
     const modal = document.createElement('div');
     modal.id = 'edit-group-modal';
     modal.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50';
     modal.innerHTML = `
-        <div class="modal-content-box rounded-2xl w-full max-w-lg mx-4">
+        <div class="modal-content-box rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden">
             <div class="p-4 border-b border-gray-700 flex items-center justify-between">
                 <h3 class="font-bold text-lg">✏️ Edit Group: ${group.name}</h3>
                 <button onclick="document.getElementById('edit-group-modal').remove()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
             </div>
-            <div class="p-6 space-y-4">
+            <div class="p-6 space-y-4 overflow-y-auto" style="max-height: calc(90vh - 140px);">
                 <div>
                     <label class="block text-sm font-medium mb-2">Group Name *</label>
                     <input type="text" id="edit-group-name" class="w-full input-field rounded-lg px-4 py-2" value="${group.name || ''}">
@@ -20151,11 +20176,14 @@ async function editGroup(id) {
                     <textarea id="edit-group-description" class="w-full input-field rounded-lg px-4 py-2 h-20">${group.description || ''}</textarea>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-2">Members (${(group.member_ids || []).length})</label>
-                    <div class="text-sm text-gray-400 p-3 bg-gray-800 rounded-lg">
-                        ${(group.member_ids || []).length > 0 
-                            ? `${(group.member_ids || []).length} members in this group`
-                            : 'No members yet'}
+                    <label class="block text-sm font-medium mb-2">Add Members</label>
+                    <input type="text" id="edit-group-member-search" class="w-full input-field rounded-lg px-4 py-2 mb-2" placeholder="🔍 Search users to add..." oninput="searchEditGroupMembers(this.value)">
+                    <div id="edit-group-member-results" class="hidden max-h-32 overflow-y-auto rounded-lg border border-gray-600 bg-gray-800"></div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Current Members (${editGroupMembers.length})</label>
+                    <div id="edit-group-selected-members" class="flex flex-wrap gap-2">
+                        ${renderEditGroupMembers()}
                     </div>
                 </div>
             </div>
@@ -20168,9 +20196,89 @@ async function editGroup(id) {
     document.body.appendChild(modal);
 }
 
+function renderEditGroupMembers() {
+    if (editGroupMembers.length === 0) {
+        return '<span class="text-gray-500 text-sm italic">No members yet</span>';
+    }
+    return editGroupMembers.map(m => `
+        <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-sm">
+            👤 ${m.name}
+            <button onclick="removeEditGroupMember('${m.id}')" class="hover:text-red-400">✕</button>
+        </span>
+    `).join('');
+}
+
+function updateEditGroupMembersUI() {
+    const container = document.getElementById('edit-group-selected-members');
+    if (container) {
+        container.innerHTML = renderEditGroupMembers();
+    }
+}
+
+async function searchEditGroupMembers(query) {
+    const resultsEl = document.getElementById('edit-group-member-results');
+    
+    if (!query || query.length < 2) {
+        resultsEl.classList.add('hidden');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/security/users', { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        const users = Array.isArray(data) ? data : (data.users || []);
+        
+        const filtered = users.filter(u => 
+            (u.email?.toLowerCase().includes(query.toLowerCase()) ||
+             u.profile?.first_name?.toLowerCase().includes(query.toLowerCase()) ||
+             u.profile?.last_name?.toLowerCase().includes(query.toLowerCase())) &&
+            !editGroupMembers.find(m => m.id === u.id)
+        ).slice(0, 5);
+        
+        if (filtered.length === 0) {
+            resultsEl.innerHTML = '<div class="p-3 text-gray-500 text-sm">No users found</div>';
+        } else {
+            resultsEl.innerHTML = filtered.map(u => `
+                <div onclick="addEditGroupMember('${u.id}', '${(u.profile?.first_name || '').replace(/'/g, "\\'")} ${(u.profile?.last_name || '').replace(/'/g, "\\'")}', '${(u.email || '').replace(/'/g, "\\'")}')" 
+                     class="p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-b-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">👤</span>
+                        <div>
+                            <div class="font-medium">${u.profile?.first_name || ''} ${u.profile?.last_name || ''}</div>
+                            <div class="text-xs text-gray-400">${u.email}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        resultsEl.classList.remove('hidden');
+    } catch (e) {
+        console.error('Error searching members:', e);
+    }
+}
+
+function addEditGroupMember(id, name, email) {
+    if (editGroupMembers.find(m => m.id === id)) return;
+    
+    editGroupMembers.push({ id, name: name.trim() || email, email });
+    updateEditGroupMembersUI();
+    
+    document.getElementById('edit-group-member-search').value = '';
+    document.getElementById('edit-group-member-results').classList.add('hidden');
+}
+
+function removeEditGroupMember(id) {
+    editGroupMembers = editGroupMembers.filter(m => m.id !== id);
+    updateEditGroupMembersUI();
+}
+
 async function updateGroup(id) {
     const name = document.getElementById('edit-group-name').value.trim();
     const description = document.getElementById('edit-group-description').value.trim();
+    const memberIds = editGroupMembers.map(m => m.id);
     
     if (!name) {
         showToast('Group name is required', 'error');
@@ -20184,7 +20292,7 @@ async function updateGroup(id) {
                 ...getAuthHeaders(),
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ name, description })
+            body: JSON.stringify({ name, description, member_ids: memberIds })
         });
         
         if (res.ok) {
