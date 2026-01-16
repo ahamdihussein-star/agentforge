@@ -3905,137 +3905,7 @@ Example: I need an HR agent that can:
                     </div>
                 </div>
                 
-                <!-- Access Control Modal - 3-Level Security -->
-                <div id="access-control-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center" style="display: none; z-index: 9999;">
-                    <div class="modal-content-box rounded-2xl w-full max-w-5xl mx-4 max-h-[90vh] overflow-hidden" style="background: var(--bg-card);">
-                        <!-- Header -->
-                        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">🔐</div>
-                                <div>
-                                    <h3 class="font-bold text-lg">Access Control</h3>
-                                    <p class="text-xs text-gray-400" id="access-control-agent-name">Configure who can use this agent</p>
-                                </div>
-                            </div>
-                            <button onclick="closeAccessControlModal()" class="p-2 hover:bg-gray-700 rounded-lg text-xl">✕</button>
-                        </div>
-                        
-                        <!-- 2-Tab Navigation (Agent + Task Access only) -->
-                        <div class="flex border-b border-gray-700">
-                            <button onclick="switchAccessTab(1)" id="access-tab-1" class="flex-1 py-3 px-4 text-center border-b-2 border-purple-500 text-white font-medium transition-all">
-                                <span class="text-lg mr-2">👥</span> Agent Access
-                            </button>
-                            <button onclick="switchAccessTab(2)" id="access-tab-2" class="flex-1 py-3 px-4 text-center border-b-2 border-transparent text-gray-400 hover:text-white transition-all">
-                                <span class="text-lg mr-2">📋</span> Task Access
-                            </button>
-                        </div>
-                        
-                        <!-- Tab Content -->
-                        <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 200px);">
-                            
-                            <!-- Tab 1: Agent Access (Who can use this agent?) -->
-                            <div id="access-content-1" class="">
-                                <div class="mb-6">
-                                    <h4 class="text-lg font-semibold mb-2">🎯 Who can access this agent?</h4>
-                                    <p class="text-sm text-gray-400 mb-4">Choose who is allowed to use this agent</p>
-                                    
-                                    <!-- Access Type Cards -->
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                        <div onclick="selectAccessType('public')" id="access-type-public" class="access-type-card cursor-pointer rounded-xl p-4 border-2 border-gray-600 hover:border-purple-500 transition-all">
-                                            <div class="text-3xl mb-2">🌍</div>
-                                            <h5 class="font-semibold">Public</h5>
-                                            <p class="text-xs text-gray-400 mt-1">Anyone can use this agent without logging in</p>
-                                        </div>
-                                        <div onclick="selectAccessType('authenticated')" id="access-type-authenticated" class="access-type-card cursor-pointer rounded-xl p-4 border-2 border-purple-500 bg-purple-500/10 transition-all">
-                                            <div class="text-3xl mb-2">🔓</div>
-                                            <h5 class="font-semibold">Logged In Users</h5>
-                                            <p class="text-xs text-gray-400 mt-1">Any authenticated user can access</p>
-                                        </div>
-                                        <div onclick="selectAccessType('specific')" id="access-type-specific" class="access-type-card cursor-pointer rounded-xl p-4 border-2 border-gray-600 hover:border-purple-500 transition-all">
-                                            <div class="text-3xl mb-2">👥</div>
-                                            <h5 class="font-semibold">Specific Access</h5>
-                                            <p class="text-xs text-gray-400 mt-1">Only specific users, groups, or roles</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Entity Selector (shown when "specific" is selected) -->
-                                    <div id="access-entity-selector" class="hidden">
-                                        <div class="relative mb-4">
-                                            <input type="text" id="access-entity-search" placeholder="🔍 Search users, groups, or roles..." class="w-full input-field rounded-lg px-4 py-3" oninput="searchAccessEntities(this.value)">
-                                            <!-- Search Results Dropdown -->
-                                            <div id="access-entity-results" class="hidden absolute top-full left-0 right-0 mt-1 rounded-lg bg-gray-800 border border-gray-600 shadow-xl max-h-48 overflow-y-auto z-10">
-                                                <!-- Results populated by JS -->
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Selected Entities -->
-                                        <div class="mb-4">
-                                            <label class="text-sm text-gray-400 block mb-2">Selected (with access):</label>
-                                            <div id="access-selected-entities" class="flex flex-wrap gap-2">
-                                                <!-- Selected entities will be rendered here -->
-                                                <span class="text-gray-500 text-sm italic">No specific access configured - all authenticated users have access</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Tab 2: Task Access (Which tasks can users use?) -->
-                            <div id="access-content-2" class="hidden">
-                                <div class="mb-6">
-                                    <h4 class="text-lg font-semibold mb-2">📋 Task Permissions</h4>
-                                    <p class="text-sm text-gray-400 mb-4">Control which tasks different users can trigger</p>
-                                    
-                                    <!-- Default Mode Toggle -->
-                                    <div class="flex items-center gap-4 mb-6 p-3 rounded-lg bg-gray-800/50">
-                                        <label class="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="task-default" value="allow" checked onchange="updateTaskDefault('allow')" class="accent-purple-500">
-                                            <span>✅ Allow all tasks by default</span>
-                                        </label>
-                                        <label class="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="task-default" value="deny" onchange="updateTaskDefault('deny')">
-                                            <span>❌ Deny all tasks by default</span>
-                                        </label>
-                                    </div>
-                                    
-                                    <!-- Tasks Matrix -->
-                                    <div id="access-tasks-matrix" class="space-y-3">
-                                        <div class="text-center text-gray-500 py-8">
-                                            <div class="text-4xl mb-2">📋</div>
-                                            <p>No tasks configured for this agent</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Tool Access tab removed - Tasks define which tools are used -->
-                            
-                        </div>
-                        
-                        <!-- Footer -->
-                        <div class="p-4 border-t border-gray-700 flex justify-between items-center">
-                            <div class="flex items-center gap-4">
-                                <!-- Quick Templates -->
-                                <select id="access-template-select" class="input-field rounded-lg px-3 py-2 text-sm" onchange="applyAccessTemplate(this.value)">
-                                    <option value="">📋 Quick Templates</option>
-                                    <option value="read_only">🔒 Read Only</option>
-                                    <option value="standard">📖 Standard</option>
-                                    <option value="full_access">⚡ Full Access</option>
-                                </select>
-                                <!-- Preview Button -->
-                                <button onclick="previewAccessAsUser()" class="px-3 py-2 rounded-lg border border-gray-600 hover:bg-gray-700 text-sm flex items-center gap-2">
-                                    👁️ Preview as User
-                                </button>
-                            </div>
-                            <div class="flex gap-3">
-                                <button onclick="closeAccessControlModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
-                                <button onclick="saveAccessControl()" class="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 font-medium">
-                                    💾 Save Changes
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Access Control is now integrated in the Agent Wizard (Step 4: Guardrails & Safety) -->
 
                 <!-- Edit Asset Modal (Assets don't have a Tools page) -->
                 <div id="edit-asset-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
@@ -8925,11 +8795,8 @@ Option 3"></textarea>
         
         // Initialize wizard access control event listeners
         function initWizardAccessControl() {
-            console.log('Initializing wizard access control...');
-            
             // Pre-load users/groups if user is logged in
             if (authToken) {
-                console.log('User is logged in, pre-loading entities...');
                 loadWizardAccessEntities();
             }
             
@@ -8996,47 +8863,24 @@ Option 3"></textarea>
         
         // Load users and groups for access control
         async function loadWizardAccessEntities() {
-            console.log('Loading wizard access entities...');
-            console.log('Auth token available:', !!authToken);
-            
-            const headers = getAuthHeaders();
-            console.log('Headers:', JSON.stringify(headers));
-            
             try {
+                const headers = getAuthHeaders();
                 const [usersRes, groupsRes] = await Promise.all([
-                    fetch('/api/security/users', { 
-                        headers: headers,
-                        credentials: 'include'
-                    }),
-                    fetch('/api/security/groups', { 
-                        headers: headers,
-                        credentials: 'include'
-                    })
+                    fetch('/api/security/users', { headers, credentials: 'include' }),
+                    fetch('/api/security/groups', { headers, credentials: 'include' })
                 ]);
-                
-                console.log('Users response status:', usersRes.status);
-                console.log('Groups response status:', groupsRes.status);
                 
                 if (usersRes.ok) {
                     const usersData = await usersRes.json();
                     wizardAccessState.allUsers = Array.isArray(usersData) ? usersData : (usersData.users || []);
-                    console.log('Loaded users:', wizardAccessState.allUsers.length);
-                } else {
-                    console.error('Failed to load users:', usersRes.status, await usersRes.text());
                 }
                 
                 if (groupsRes.ok) {
                     const groupsData = await groupsRes.json();
                     wizardAccessState.allGroups = Array.isArray(groupsData) ? groupsData : (groupsData.groups || []);
-                    console.log('Loaded groups:', wizardAccessState.allGroups.length);
-                } else {
-                    console.error('Failed to load groups:', groupsRes.status, await groupsRes.text());
                 }
-                
-                console.log('Total loaded:', wizardAccessState.allUsers.length, 'users and', wizardAccessState.allGroups.length, 'groups');
             } catch (e) {
                 console.error('Failed to load users/groups:', e);
-                console.error('Error details:', e.message, e.stack);
             }
         }
         
@@ -10628,10 +10472,11 @@ Option 3"></textarea>
         }
 
         // ============================================================
-        // ACCESS CONTROL MODULE
-        // 3-Level Security: Agent Access, Task Access, Tool Access
+        // ACCESS CONTROL MODULE - Now integrated in Agent Wizard (Step 4)
+        // Old standalone modal removed for cleaner UX
         // ============================================================
         
+        // Legacy state - kept for any remaining references
         let accessControlState = {
             agentId: null,
             agentName: '',
@@ -11878,7 +11723,6 @@ Option 3"></textarea>
                         </div>
                         <div style="display:flex;gap:6px;">
                             ${a.status === 'draft' ? `<button data-permission="agents:publish" onclick="event.stopPropagation();publishAgent('${a.id}')" class="agent-btn publish" title="Publish">🚀</button>` : ''}
-                            <button data-permission="agents:edit" onclick="event.stopPropagation();openAccessControl('${a.id}', '${(a.name || '').replace(/'/g, "\\'")}')" class="agent-btn" title="Access Control" style="background:linear-gradient(135deg,#8b5cf6,#3b82f6);">🔐</button>
                             <button data-permission="agents:edit" onclick="event.stopPropagation();editAgent('${a.id}')" class="agent-btn edit" title="Edit">✏️</button>
                             <button data-permission="agents:delete" onclick="event.stopPropagation();deleteAgent('${a.id}')" class="agent-btn delete" title="Delete">🗑️</button>
                         </div>
