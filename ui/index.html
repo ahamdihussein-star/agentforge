@@ -19998,9 +19998,15 @@ async function searchGroupMembers(query) {
     
     try {
         const res = await fetch('/api/security/users', { headers: getAuthHeaders() });
-        if (!res.ok) return;
+        if (!res.ok) {
+            console.error('Failed to fetch users:', res.status);
+            return;
+        }
         
-        const users = await res.json();
+        const data = await res.json();
+        // Handle both array and {users: [...]} response formats
+        const users = Array.isArray(data) ? data : (data.users || []);
+        
         const filtered = users.filter(u => 
             (u.email?.toLowerCase().includes(query.toLowerCase()) ||
              u.first_name?.toLowerCase().includes(query.toLowerCase()) ||
@@ -20012,7 +20018,7 @@ async function searchGroupMembers(query) {
             resultsEl.innerHTML = '<div class="p-3 text-gray-500 text-sm">No users found</div>';
         } else {
             resultsEl.innerHTML = filtered.map(u => `
-                <div onclick="addGroupMember('${u.id}', '${(u.first_name || '')} ${(u.last_name || '')}', '${u.email}')" 
+                <div onclick="addGroupMember('${u.id}', '${(u.first_name || '').replace(/'/g, "\\'")} ${(u.last_name || '').replace(/'/g, "\\'")}', '${(u.email || '').replace(/'/g, "\\'")}')" 
                      class="p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-b-0">
                     <div class="flex items-center gap-2">
                         <span class="text-lg">👤</span>
@@ -20118,8 +20124,80 @@ async function deleteGroup(id) {
     }
 }
 
-function editGroup(id) {
-    showToast('Edit group coming soon', 'info');
+async function editGroup(id) {
+    const group = allGroups.find(g => g.id === id);
+    if (!group) {
+        showToast('Group not found', 'error');
+        return;
+    }
+    
+    // Create edit modal
+    const modal = document.createElement('div');
+    modal.id = 'edit-group-modal';
+    modal.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="modal-content-box rounded-2xl w-full max-w-lg mx-4">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                <h3 class="font-bold text-lg">✏️ Edit Group: ${group.name}</h3>
+                <button onclick="document.getElementById('edit-group-modal').remove()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Group Name *</label>
+                    <input type="text" id="edit-group-name" class="w-full input-field rounded-lg px-4 py-2" value="${group.name || ''}">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Description</label>
+                    <textarea id="edit-group-description" class="w-full input-field rounded-lg px-4 py-2 h-20">${group.description || ''}</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Members (${(group.member_ids || []).length})</label>
+                    <div class="text-sm text-gray-400 p-3 bg-gray-800 rounded-lg">
+                        ${(group.member_ids || []).length > 0 
+                            ? `${(group.member_ids || []).length} members in this group`
+                            : 'No members yet'}
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
+                <button onclick="document.getElementById('edit-group-modal').remove()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
+                <button onclick="updateGroup('${id}')" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700">Save Changes</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function updateGroup(id) {
+    const name = document.getElementById('edit-group-name').value.trim();
+    const description = document.getElementById('edit-group-description').value.trim();
+    
+    if (!name) {
+        showToast('Group name is required', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/security/groups/' + id, {
+            method: 'PUT',
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name, description })
+        });
+        
+        if (res.ok) {
+            showToast('Group updated successfully!', 'success');
+            document.getElementById('edit-group-modal').remove();
+            loadGroups();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Failed to update group', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
 }
 
 // ============================================================

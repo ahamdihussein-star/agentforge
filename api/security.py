@@ -2755,6 +2755,23 @@ async def create_group(request: CreateGroupRequest, user: User = Depends(require
     
     return {"status": "success", "group": group.dict()}
 
+@router.put("/groups/{group_id}")
+async def update_group(group_id: str, request: CreateGroupRequest, user: User = Depends(require_admin)):
+    """Update group"""
+    group = security_state.groups.get(group_id)
+    if not group or group.org_id != user.org_id:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Update fields
+    group.name = request.name
+    group.description = request.description
+    if hasattr(request, 'member_ids') and request.member_ids:
+        group.member_ids = request.member_ids
+    
+    security_state.save_to_disk()
+    
+    return {"status": "success", "group": group.dict()}
+
 @router.delete("/groups/{group_id}")
 async def delete_group(group_id: str, user: User = Depends(require_admin)):
     """Delete group"""
