@@ -8925,6 +8925,14 @@ Option 3"></textarea>
         
         // Initialize wizard access control event listeners
         function initWizardAccessControl() {
+            console.log('Initializing wizard access control...');
+            
+            // Pre-load users/groups if user is logged in
+            if (authToken) {
+                console.log('User is logged in, pre-loading entities...');
+                loadWizardAccessEntities();
+            }
+            
             // Search input listener
             const searchInput = document.getElementById('wizard-access-search');
             if (searchInput) {
@@ -8988,22 +8996,47 @@ Option 3"></textarea>
         
         // Load users and groups for access control
         async function loadWizardAccessEntities() {
+            console.log('Loading wizard access entities...');
+            console.log('Auth token available:', !!authToken);
+            
+            const headers = getAuthHeaders();
+            console.log('Headers:', JSON.stringify(headers));
+            
             try {
                 const [usersRes, groupsRes] = await Promise.all([
-                    fetch('/api/security/users', { headers: getAuthHeaders() }),
-                    fetch('/api/security/groups', { headers: getAuthHeaders() })
+                    fetch('/api/security/users', { 
+                        headers: headers,
+                        credentials: 'include'
+                    }),
+                    fetch('/api/security/groups', { 
+                        headers: headers,
+                        credentials: 'include'
+                    })
                 ]);
+                
+                console.log('Users response status:', usersRes.status);
+                console.log('Groups response status:', groupsRes.status);
+                
                 if (usersRes.ok) {
                     const usersData = await usersRes.json();
                     wizardAccessState.allUsers = Array.isArray(usersData) ? usersData : (usersData.users || []);
+                    console.log('Loaded users:', wizardAccessState.allUsers.length);
+                } else {
+                    console.error('Failed to load users:', usersRes.status, await usersRes.text());
                 }
+                
                 if (groupsRes.ok) {
                     const groupsData = await groupsRes.json();
                     wizardAccessState.allGroups = Array.isArray(groupsData) ? groupsData : (groupsData.groups || []);
+                    console.log('Loaded groups:', wizardAccessState.allGroups.length);
+                } else {
+                    console.error('Failed to load groups:', groupsRes.status, await groupsRes.text());
                 }
-                console.log('Loaded', wizardAccessState.allUsers.length, 'users and', wizardAccessState.allGroups.length, 'groups');
+                
+                console.log('Total loaded:', wizardAccessState.allUsers.length, 'users and', wizardAccessState.allGroups.length, 'groups');
             } catch (e) {
                 console.error('Failed to load users/groups:', e);
+                console.error('Error details:', e.message, e.stack);
             }
         }
         
