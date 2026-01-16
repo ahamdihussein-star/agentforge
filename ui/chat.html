@@ -2489,6 +2489,24 @@
                 // Remove typing indicator
                 document.getElementById('typing-msg')?.remove();
                 
+                // Handle access control errors (403)
+                if (response.status === 403) {
+                    const errorMessage = data.detail?.message || data.message || 
+                        'This assistant is not available for your account. Please contact your administrator if you need access.';
+                    container.innerHTML += createMessageHTML('assistant', `⚠️ ${errorMessage}`);
+                    container.scrollTop = container.scrollHeight;
+                    return;
+                }
+                
+                // Handle other errors
+                if (!response.ok) {
+                    const errorMessage = data.detail?.message || data.message || 
+                        'Sorry, I could not process that request. Please try again later.';
+                    container.innerHTML += createMessageHTML('assistant', `Sorry, ${errorMessage}`);
+                    container.scrollTop = container.scrollHeight;
+                    return;
+                }
+                
                 // Update conversation ID
                 if (data.conversation_id) {
                     currentConversation = { id: data.conversation_id };
@@ -2501,7 +2519,7 @@
             } catch (e) {
                 console.error('Failed to send message:', e);
                 document.getElementById('typing-msg')?.remove();
-                container.innerHTML += createMessageHTML('assistant', 'Sorry, there was an error processing your request.');
+                container.innerHTML += createMessageHTML('assistant', 'Sorry, we encountered an unexpected issue. Please try again in a moment.');
                 container.scrollTop = container.scrollHeight;
             }
         }

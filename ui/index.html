@@ -3164,6 +3164,84 @@
                                 </label>
                             </div>
                         </div>
+                        
+                        <!-- Access Control -->
+                        <div class="card rounded-xl p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <span class="text-2xl">👥</span>
+                                <div>
+                                    <h4 class="font-semibold">Access Control</h4>
+                                    <p class="text-sm text-gray-400">Define who can use this agent and what they can do</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Agent Access Level -->
+                            <div class="mb-6">
+                                <label class="text-sm font-medium mb-3 block">Who can use this agent?</label>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <label class="access-option cursor-pointer">
+                                        <input type="radio" name="wizard-access-type" value="public" class="sr-only peer">
+                                        <div class="card p-4 rounded-lg border-2 border-transparent peer-checked:border-green-500 peer-checked:bg-green-500/10 hover:border-gray-600 transition-all">
+                                            <div class="text-center">
+                                                <span class="text-2xl mb-2 block">🌐</span>
+                                                <span class="font-medium text-sm">Public</span>
+                                                <p class="text-xs text-gray-500 mt-1">Anyone can access</p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="access-option cursor-pointer">
+                                        <input type="radio" name="wizard-access-type" value="authenticated" class="sr-only peer" checked>
+                                        <div class="card p-4 rounded-lg border-2 border-transparent peer-checked:border-blue-500 peer-checked:bg-blue-500/10 hover:border-gray-600 transition-all">
+                                            <div class="text-center">
+                                                <span class="text-2xl mb-2 block">🔑</span>
+                                                <span class="font-medium text-sm">Authenticated</span>
+                                                <p class="text-xs text-gray-500 mt-1">Logged-in users only</p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="access-option cursor-pointer">
+                                        <input type="radio" name="wizard-access-type" value="specific" class="sr-only peer">
+                                        <div class="card p-4 rounded-lg border-2 border-transparent peer-checked:border-purple-500 peer-checked:bg-purple-500/10 hover:border-gray-600 transition-all">
+                                            <div class="text-center">
+                                                <span class="text-2xl mb-2 block">👤</span>
+                                                <span class="font-medium text-sm">Specific Users</span>
+                                                <p class="text-xs text-gray-500 mt-1">Selected users/groups only</p>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Specific Users/Groups Selection (shown when "specific" is selected) -->
+                            <div id="wizard-access-specific-section" class="hidden space-y-4">
+                                <div>
+                                    <label class="text-sm text-gray-400 mb-2 block">Search and select users or groups</label>
+                                    <div class="relative">
+                                        <input type="text" id="wizard-access-search" class="input-field w-full rounded-lg px-4 py-3 pr-10" placeholder="Search users or groups...">
+                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
+                                    </div>
+                                    <div id="wizard-access-search-results" class="hidden mt-2 max-h-48 overflow-y-auto card rounded-lg"></div>
+                                </div>
+                                
+                                <!-- Selected entities -->
+                                <div id="wizard-access-selected" class="flex flex-wrap gap-2"></div>
+                            </div>
+                            
+                            <!-- Task Permissions (shown after selecting specific users) -->
+                            <div id="wizard-task-permissions-section" class="hidden mt-6 pt-6 border-t border-gray-700">
+                                <div class="flex items-center gap-2 mb-4">
+                                    <span class="text-lg">📋</span>
+                                    <div>
+                                        <h5 class="font-medium">Task Permissions</h5>
+                                        <p class="text-xs text-gray-500">Control which tasks each user/group can use</p>
+                                    </div>
+                                </div>
+                                <div id="wizard-task-permissions-grid" class="space-y-2">
+                                    <!-- Will be populated dynamically with tasks from wizard.tasks -->
+                                    <p class="text-sm text-gray-500 italic">Define tasks in the Tasks step first</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
@@ -3851,16 +3929,13 @@ Example: I need an HR agent that can:
                             <button onclick="closeAccessControlModal()" class="p-2 hover:bg-gray-700 rounded-lg text-xl">✕</button>
                         </div>
                         
-                        <!-- 3-Tab Navigation -->
+                        <!-- 2-Tab Navigation (Agent + Task Access only) -->
                         <div class="flex border-b border-gray-700">
                             <button onclick="switchAccessTab(1)" id="access-tab-1" class="flex-1 py-3 px-4 text-center border-b-2 border-purple-500 text-white font-medium transition-all">
                                 <span class="text-lg mr-2">👥</span> Agent Access
                             </button>
                             <button onclick="switchAccessTab(2)" id="access-tab-2" class="flex-1 py-3 px-4 text-center border-b-2 border-transparent text-gray-400 hover:text-white transition-all">
                                 <span class="text-lg mr-2">📋</span> Task Access
-                            </button>
-                            <button onclick="switchAccessTab(3)" id="access-tab-3" class="flex-1 py-3 px-4 text-center border-b-2 border-transparent text-gray-400 hover:text-white transition-all">
-                                <span class="text-lg mr-2">🔧</span> Tool Access
                             </button>
                         </div>
                         
@@ -3942,33 +4017,7 @@ Example: I need an HR agent that can:
                                 </div>
                             </div>
                             
-                            <!-- Tab 3: Tool Access (Which tools can the agent use?) -->
-                            <div id="access-content-3" class="hidden">
-                                <div class="mb-6">
-                                    <h4 class="text-lg font-semibold mb-2">🔧 Tool Permissions</h4>
-                                    <p class="text-sm text-gray-400 mb-4">Control which tools the agent can use for different users</p>
-                                    
-                                    <!-- Default Mode Toggle -->
-                                    <div class="flex items-center gap-4 mb-6 p-3 rounded-lg bg-gray-800/50">
-                                        <label class="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="tool-default" value="allow" checked onchange="updateToolDefault('allow')" class="accent-purple-500">
-                                            <span>✅ Allow all tools by default</span>
-                                        </label>
-                                        <label class="flex items-center gap-2 cursor-pointer">
-                                            <input type="radio" name="tool-default" value="deny" onchange="updateToolDefault('deny')">
-                                            <span>❌ Deny all tools by default</span>
-                                        </label>
-                                    </div>
-                                    
-                                    <!-- Tools Matrix -->
-                                    <div id="access-tools-matrix" class="space-y-3">
-                                        <div class="text-center text-gray-500 py-8">
-                                            <div class="text-4xl mb-2">🔧</div>
-                                            <p>No tools configured for this agent</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <!-- Tool Access tab removed - Tasks define which tools are used -->
                             
                         </div>
                         
@@ -8865,6 +8914,236 @@ Option 3"></textarea>
                 maskPii: document.getElementById('guard-mask-pii')?.checked ?? true,
                 noStorePii: document.getElementById('guard-no-store-pii')?.checked ?? true
             };
+            
+            // Collect Access Control settings
+            collectWizardAccessControl();
+        }
+        
+        // ========================================================================
+        // WIZARD ACCESS CONTROL
+        // ========================================================================
+        
+        // State for wizard access control
+        let wizardAccessState = {
+            accessType: 'authenticated',
+            selectedEntities: [],
+            taskPermissions: {},
+            allUsers: [],
+            allGroups: []
+        };
+        
+        // Initialize wizard access control event listeners
+        function initWizardAccessControl() {
+            // Radio button listeners for access type
+            document.querySelectorAll('input[name="wizard-access-type"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    wizardAccessState.accessType = e.target.value;
+                    updateWizardAccessUI();
+                });
+            });
+            
+            // Search input listener
+            const searchInput = document.getElementById('wizard-access-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', debounce((e) => {
+                    searchWizardAccessEntities(e.target.value);
+                }, 300));
+            }
+        }
+        
+        // Simple debounce function
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        function updateWizardAccessUI() {
+            const specificSection = document.getElementById('wizard-access-specific-section');
+            const taskPermSection = document.getElementById('wizard-task-permissions-section');
+            
+            if (wizardAccessState.accessType === 'specific') {
+                specificSection?.classList.remove('hidden');
+                if (wizardAccessState.selectedEntities.length > 0) {
+                    taskPermSection?.classList.remove('hidden');
+                    renderWizardTaskPermissions();
+                }
+            } else {
+                specificSection?.classList.add('hidden');
+                taskPermSection?.classList.add('hidden');
+            }
+            
+            renderWizardSelectedEntities();
+        }
+        
+        async function searchWizardAccessEntities(query) {
+            if (!query || query.length < 2) {
+                document.getElementById('wizard-access-search-results')?.classList.add('hidden');
+                return;
+            }
+            
+            // Load users and groups if not already loaded
+            if (wizardAccessState.allUsers.length === 0) {
+                try {
+                    const [usersRes, groupsRes] = await Promise.all([
+                        fetch('/api/security/users', { headers: getAuthHeaders() }),
+                        fetch('/api/security/groups', { headers: getAuthHeaders() })
+                    ]);
+                    if (usersRes.ok) wizardAccessState.allUsers = await usersRes.json();
+                    if (groupsRes.ok) wizardAccessState.allGroups = await groupsRes.json();
+                } catch (e) {
+                    console.error('Failed to load users/groups:', e);
+                }
+            }
+            
+            const lowerQuery = query.toLowerCase();
+            const results = [];
+            
+            // Search users
+            wizardAccessState.allUsers.forEach(u => {
+                const name = u.name || `${u.profile?.first_name || ''} ${u.profile?.last_name || ''}`.trim() || u.email;
+                if (name.toLowerCase().includes(lowerQuery) || u.email?.toLowerCase().includes(lowerQuery)) {
+                    if (!wizardAccessState.selectedEntities.find(e => e.id === u.id && e.type === 'user')) {
+                        results.push({ id: u.id, name: name, email: u.email, type: 'user', icon: '👤' });
+                    }
+                }
+            });
+            
+            // Search groups
+            wizardAccessState.allGroups.forEach(g => {
+                if (g.name?.toLowerCase().includes(lowerQuery)) {
+                    if (!wizardAccessState.selectedEntities.find(e => e.id === g.id && e.type === 'group')) {
+                        results.push({ id: g.id, name: g.name, type: 'group', icon: '👥' });
+                    }
+                }
+            });
+            
+            renderWizardSearchResults(results);
+        }
+        
+        function renderWizardSearchResults(results) {
+            const container = document.getElementById('wizard-access-search-results');
+            if (!container) return;
+            
+            if (results.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            
+            container.innerHTML = results.slice(0, 10).map(r => `
+                <div class="p-3 hover:bg-gray-700 cursor-pointer flex items-center gap-3 border-b border-gray-700 last:border-0"
+                     onclick="selectWizardAccessEntity('${r.id}', '${r.name.replace(/'/g, "\\'")}', '${r.type}', '${r.icon}')">
+                    <span class="text-lg">${r.icon}</span>
+                    <div>
+                        <div class="font-medium text-sm">${r.name}</div>
+                        ${r.email ? `<div class="text-xs text-gray-500">${r.email}</div>` : ''}
+                        <span class="text-xs px-2 py-0.5 rounded bg-gray-700">${r.type}</span>
+                    </div>
+                </div>
+            `).join('');
+            container.classList.remove('hidden');
+        }
+        
+        function selectWizardAccessEntity(id, name, type, icon) {
+            wizardAccessState.selectedEntities.push({ id, name, type, icon });
+            document.getElementById('wizard-access-search').value = '';
+            document.getElementById('wizard-access-search-results')?.classList.add('hidden');
+            updateWizardAccessUI();
+        }
+        
+        function removeWizardAccessEntity(id) {
+            wizardAccessState.selectedEntities = wizardAccessState.selectedEntities.filter(e => e.id !== id);
+            updateWizardAccessUI();
+        }
+        
+        function renderWizardSelectedEntities() {
+            const container = document.getElementById('wizard-access-selected');
+            if (!container) return;
+            
+            if (wizardAccessState.selectedEntities.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 italic">No users or groups selected yet</p>';
+                return;
+            }
+            
+            container.innerHTML = wizardAccessState.selectedEntities.map(e => `
+                <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/20 border border-purple-500/50">
+                    <span>${e.icon}</span>
+                    <span class="text-sm font-medium">${e.name}</span>
+                    <button onclick="removeWizardAccessEntity('${e.id}')" class="text-gray-400 hover:text-red-400 ml-1">✕</button>
+                </div>
+            `).join('');
+        }
+        
+        function renderWizardTaskPermissions() {
+            const container = document.getElementById('wizard-task-permissions-grid');
+            if (!container) return;
+            
+            const tasks = wizard.tasks || [];
+            
+            if (tasks.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 italic">Define tasks in the Tasks step first</p>';
+                return;
+            }
+            
+            container.innerHTML = tasks.map((task, i) => {
+                const taskId = task.id || `task-${i}`;
+                const isAllowed = wizardAccessState.taskPermissions[taskId] !== false;
+                
+                return `
+                <div class="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 border border-gray-700">
+                    <div class="flex items-center gap-3">
+                        <span class="text-lg">📋</span>
+                        <div>
+                            <div class="font-medium text-sm">${task.name || 'Unnamed Task'}</div>
+                            <div class="text-xs text-gray-500 truncate max-w-md">${(task.description || '').slice(0, 60)}...</div>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" class="sr-only peer" ${isAllowed ? 'checked' : ''} 
+                               onchange="toggleWizardTaskPermission('${taskId}', this.checked)">
+                        <div class="w-11 h-6 bg-gray-700 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                    </label>
+                </div>
+            `}).join('');
+        }
+        
+        function toggleWizardTaskPermission(taskId, allowed) {
+            wizardAccessState.taskPermissions[taskId] = allowed;
+        }
+        
+        function collectWizardAccessControl() {
+            wizard.accessControl = {
+                accessType: wizardAccessState.accessType,
+                entities: wizardAccessState.selectedEntities.map(e => ({
+                    id: e.id,
+                    type: e.type,
+                    name: e.name
+                })),
+                taskPermissions: { ...wizardAccessState.taskPermissions }
+            };
+        }
+        
+        function loadWizardAccessControl() {
+            const ac = wizard.accessControl || {};
+            
+            wizardAccessState.accessType = ac.accessType || 'authenticated';
+            wizardAccessState.selectedEntities = (ac.entities || []).map(e => ({
+                ...e,
+                icon: e.type === 'user' ? '👤' : e.type === 'group' ? '👥' : '🏷️'
+            }));
+            wizardAccessState.taskPermissions = ac.taskPermissions || {};
+            
+            // Set the radio button
+            const radio = document.querySelector(`input[name="wizard-access-type"][value="${wizardAccessState.accessType}"]`);
+            if (radio) radio.checked = true;
+            
+            updateWizardAccessUI();
         }
         
         function loadGuardrailsToForm() {
@@ -8896,6 +9175,9 @@ Option 3"></textarea>
             setChecked('guard-pii-protection', g.piiProtection, true);
             setChecked('guard-mask-pii', g.maskPii, true);
             setChecked('guard-no-store-pii', g.noStorePii, true);
+            
+            // Load access control settings
+            loadWizardAccessControl();
         }
         
         async function showPreviewNew() {
@@ -22426,6 +22708,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
+    
+    // Initialize wizard access control
+    initWizardAccessControl();
     
     // Normal auth flow
     checkAuth();

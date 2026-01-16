@@ -372,12 +372,12 @@ class AccessControlService:
                     has_access = user_has_access or role_has_access or group_has_access
                     
                     if not has_access:
-                        reason = "You don't have permission to access this agent"
+                        reason = "This assistant is not available for your account. Please contact your administrator if you need access."
             
             if not has_access:
                 return AccessCheckResult(
                     has_access=False,
-                    reason=reason or "Access denied"
+                    reason=reason or "This assistant is not available. Please contact your administrator."
                 )
             
             # Check Level 2 & 3: Task and Tool access

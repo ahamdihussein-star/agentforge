@@ -9399,8 +9399,8 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
                     status_code=403,
                     detail={
                         "error": "access_denied",
-                        "message": access_result.reason or "You don't have permission to access this agent",
-                        "agent_id": agent_id
+                        "message": access_result.reason or "This assistant is not available for your account. Please contact your administrator if you need access.",
+                        "user_friendly": True
                     }
                 )
         except HTTPException:
@@ -9518,8 +9518,8 @@ async def chat_with_files(
                     status_code=403,
                     detail={
                         "error": "access_denied",
-                        "message": access_result.reason or "You don't have permission to access this agent",
-                        "agent_id": agent_id
+                        "message": access_result.reason or "This assistant is not available for your account. Please contact your administrator if you need access.",
+                        "user_friendly": True
                     }
                 )
         except HTTPException:
