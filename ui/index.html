@@ -3178,37 +3178,28 @@
                             <!-- Agent Access Level -->
                             <div class="mb-6">
                                 <label class="text-sm font-medium mb-3 block">Who can use this agent?</label>
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <label class="access-option cursor-pointer">
-                                        <input type="radio" name="wizard-access-type" value="public" class="sr-only peer">
-                                        <div class="card p-4 rounded-lg border-2 border-transparent peer-checked:border-green-500 peer-checked:bg-green-500/10 hover:border-gray-600 transition-all">
-                                            <div class="text-center">
-                                                <span class="text-2xl mb-2 block">🌐</span>
-                                                <span class="font-medium text-sm">Public</span>
-                                                <p class="text-xs text-gray-500 mt-1">Anyone can access</p>
-                                            </div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="wizard-access-type-container">
+                                    <div class="access-type-option cursor-pointer rounded-xl p-4 border-2 border-gray-600 hover:border-gray-500 transition-all" data-value="public" onclick="selectWizardAccessType('public')">
+                                        <div class="text-center">
+                                            <span class="text-2xl mb-2 block">🌐</span>
+                                            <span class="font-medium text-sm">Public</span>
+                                            <p class="text-xs text-gray-500 mt-1">Anyone can access</p>
                                         </div>
-                                    </label>
-                                    <label class="access-option cursor-pointer">
-                                        <input type="radio" name="wizard-access-type" value="authenticated" class="sr-only peer" checked>
-                                        <div class="card p-4 rounded-lg border-2 border-transparent peer-checked:border-blue-500 peer-checked:bg-blue-500/10 hover:border-gray-600 transition-all">
-                                            <div class="text-center">
-                                                <span class="text-2xl mb-2 block">🔑</span>
-                                                <span class="font-medium text-sm">Authenticated</span>
-                                                <p class="text-xs text-gray-500 mt-1">Logged-in users only</p>
-                                            </div>
+                                    </div>
+                                    <div class="access-type-option cursor-pointer rounded-xl p-4 border-2 border-blue-500 bg-blue-500/10 transition-all" data-value="authenticated" onclick="selectWizardAccessType('authenticated')">
+                                        <div class="text-center">
+                                            <span class="text-2xl mb-2 block">🔑</span>
+                                            <span class="font-medium text-sm">Authenticated</span>
+                                            <p class="text-xs text-gray-500 mt-1">Logged-in users only</p>
                                         </div>
-                                    </label>
-                                    <label class="access-option cursor-pointer">
-                                        <input type="radio" name="wizard-access-type" value="specific" class="sr-only peer">
-                                        <div class="card p-4 rounded-lg border-2 border-transparent peer-checked:border-purple-500 peer-checked:bg-purple-500/10 hover:border-gray-600 transition-all">
-                                            <div class="text-center">
-                                                <span class="text-2xl mb-2 block">👤</span>
-                                                <span class="font-medium text-sm">Specific Users</span>
-                                                <p class="text-xs text-gray-500 mt-1">Selected users/groups only</p>
-                                            </div>
+                                    </div>
+                                    <div class="access-type-option cursor-pointer rounded-xl p-4 border-2 border-gray-600 hover:border-gray-500 transition-all" data-value="specific" onclick="selectWizardAccessType('specific')">
+                                        <div class="text-center">
+                                            <span class="text-2xl mb-2 block">👤</span>
+                                            <span class="font-medium text-sm">Specific Users</span>
+                                            <p class="text-xs text-gray-500 mt-1">Selected users/groups only</p>
                                         </div>
-                                    </label>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -8934,34 +8925,43 @@ Option 3"></textarea>
         
         // Initialize wizard access control event listeners
         function initWizardAccessControl() {
-            // Radio button listeners for access type
-            document.querySelectorAll('input[name="wizard-access-type"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    wizardAccessState.accessType = e.target.value;
-                    updateWizardAccessUI();
-                });
-            });
-            
             // Search input listener
             const searchInput = document.getElementById('wizard-access-search');
             if (searchInput) {
-                searchInput.addEventListener('input', debounce((e) => {
-                    searchWizardAccessEntities(e.target.value);
-                }, 300));
+                searchInput.addEventListener('input', (e) => {
+                    const query = e.target.value;
+                    if (query.length >= 2) {
+                        searchWizardAccessEntities(query);
+                    } else {
+                        document.getElementById('wizard-access-search-results')?.classList.add('hidden');
+                    }
+                });
             }
         }
         
-        // Simple debounce function
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
+        // Select access type (public, authenticated, specific)
+        function selectWizardAccessType(type) {
+            wizardAccessState.accessType = type;
+            
+            // Update visual selection
+            document.querySelectorAll('.access-type-option').forEach(opt => {
+                const optType = opt.dataset.value;
+                opt.classList.remove('border-green-500', 'bg-green-500/10', 'border-blue-500', 'bg-blue-500/10', 'border-purple-500', 'bg-purple-500/10');
+                opt.classList.add('border-gray-600');
+                
+                if (optType === type) {
+                    opt.classList.remove('border-gray-600');
+                    if (type === 'public') {
+                        opt.classList.add('border-green-500', 'bg-green-500/10');
+                    } else if (type === 'authenticated') {
+                        opt.classList.add('border-blue-500', 'bg-blue-500/10');
+                    } else if (type === 'specific') {
+                        opt.classList.add('border-purple-500', 'bg-purple-500/10');
+                    }
+                }
+            });
+            
+            updateWizardAccessUI();
         }
         
         function updateWizardAccessUI() {
@@ -8970,6 +8970,10 @@ Option 3"></textarea>
             
             if (wizardAccessState.accessType === 'specific') {
                 specificSection?.classList.remove('hidden');
+                // Load users/groups if not loaded
+                if (wizardAccessState.allUsers.length === 0) {
+                    loadWizardAccessEntities();
+                }
                 if (wizardAccessState.selectedEntities.length > 0) {
                     taskPermSection?.classList.remove('hidden');
                     renderWizardTaskPermissions();
@@ -8982,6 +8986,27 @@ Option 3"></textarea>
             renderWizardSelectedEntities();
         }
         
+        // Load users and groups for access control
+        async function loadWizardAccessEntities() {
+            try {
+                const [usersRes, groupsRes] = await Promise.all([
+                    fetch('/api/security/users', { headers: getAuthHeaders() }),
+                    fetch('/api/security/groups', { headers: getAuthHeaders() })
+                ]);
+                if (usersRes.ok) {
+                    const usersData = await usersRes.json();
+                    wizardAccessState.allUsers = Array.isArray(usersData) ? usersData : (usersData.users || []);
+                }
+                if (groupsRes.ok) {
+                    const groupsData = await groupsRes.json();
+                    wizardAccessState.allGroups = Array.isArray(groupsData) ? groupsData : (groupsData.groups || []);
+                }
+                console.log('Loaded', wizardAccessState.allUsers.length, 'users and', wizardAccessState.allGroups.length, 'groups');
+            } catch (e) {
+                console.error('Failed to load users/groups:', e);
+            }
+        }
+        
         async function searchWizardAccessEntities(query) {
             if (!query || query.length < 2) {
                 document.getElementById('wizard-access-search-results')?.classList.add('hidden');
@@ -8990,40 +9015,39 @@ Option 3"></textarea>
             
             // Load users and groups if not already loaded
             if (wizardAccessState.allUsers.length === 0) {
-                try {
-                    const [usersRes, groupsRes] = await Promise.all([
-                        fetch('/api/security/users', { headers: getAuthHeaders() }),
-                        fetch('/api/security/groups', { headers: getAuthHeaders() })
-                    ]);
-                    if (usersRes.ok) wizardAccessState.allUsers = await usersRes.json();
-                    if (groupsRes.ok) wizardAccessState.allGroups = await groupsRes.json();
-                } catch (e) {
-                    console.error('Failed to load users/groups:', e);
-                }
+                await loadWizardAccessEntities();
             }
             
             const lowerQuery = query.toLowerCase();
             const results = [];
             
             // Search users
-            wizardAccessState.allUsers.forEach(u => {
-                const name = u.name || `${u.profile?.first_name || ''} ${u.profile?.last_name || ''}`.trim() || u.email;
-                if (name.toLowerCase().includes(lowerQuery) || u.email?.toLowerCase().includes(lowerQuery)) {
+            const users = Array.isArray(wizardAccessState.allUsers) ? wizardAccessState.allUsers : [];
+            users.forEach(u => {
+                const firstName = u.profile?.first_name || u.first_name || '';
+                const lastName = u.profile?.last_name || u.last_name || '';
+                const name = u.name || `${firstName} ${lastName}`.trim() || u.email || '';
+                const email = u.email || '';
+                
+                if (name.toLowerCase().includes(lowerQuery) || email.toLowerCase().includes(lowerQuery)) {
                     if (!wizardAccessState.selectedEntities.find(e => e.id === u.id && e.type === 'user')) {
-                        results.push({ id: u.id, name: name, email: u.email, type: 'user', icon: '👤' });
+                        results.push({ id: u.id, name: name || email, email: email, type: 'user', icon: '👤' });
                     }
                 }
             });
             
             // Search groups
-            wizardAccessState.allGroups.forEach(g => {
-                if (g.name?.toLowerCase().includes(lowerQuery)) {
+            const groups = Array.isArray(wizardAccessState.allGroups) ? wizardAccessState.allGroups : [];
+            groups.forEach(g => {
+                const name = g.name || '';
+                if (name.toLowerCase().includes(lowerQuery)) {
                     if (!wizardAccessState.selectedEntities.find(e => e.id === g.id && e.type === 'group')) {
-                        results.push({ id: g.id, name: g.name, type: 'group', icon: '👥' });
+                        results.push({ id: g.id, name: name, type: 'group', icon: '👥' });
                     }
                 }
             });
             
+            console.log('Search results for "' + query + '":', results.length);
             renderWizardSearchResults(results);
         }
         
