@@ -382,6 +382,10 @@ class User(BaseModel):
     group_ids: List[str] = []
     role_ids: List[str] = []
     
+    # Portal Access
+    has_admin_access: bool = False    # Can access Admin Portal (/ui)
+    has_enduser_access: bool = True   # Can access End User Portal (/chat)
+    
     # Direct permissions (in addition to role permissions)
     direct_permissions: List[str] = []
     
@@ -451,6 +455,10 @@ class Invitation(BaseModel):
     role_ids: List[str] = []
     department_id: Optional[str] = None
     group_ids: List[str] = []
+    
+    # Portal Access
+    has_admin_access: bool = False    # Can access Admin Portal
+    has_enduser_access: bool = True   # Can access End User Portal
     
     # Invitation details
     invited_by: str  # User ID

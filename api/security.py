@@ -162,10 +162,13 @@ class UpdateUserRequest(BaseModel):
 
 class InviteUserRequest(BaseModel):
     email: EmailStr
-    role_ids: List[str] = ["role_user"]
+    role_ids: List[str] = []
+    group_ids: List[str] = []
     department_id: Optional[str] = None
     message: Optional[str] = None
     expires_in_days: int = 7
+    has_admin_access: bool = False    # Can access Admin Portal
+    has_enduser_access: bool = True   # Can access End User Portal
 
 class BulkInviteRequest(BaseModel):
     emails: List[EmailStr]
@@ -1168,7 +1171,7 @@ async def accept_invitation(request: AcceptInvitationRequest, req: Request):
     if not is_valid:
         raise HTTPException(status_code=400, detail={"message": "Password does not meet requirements", "errors": errors})
     
-    # Create user
+    # Create user with portal access from invitation
     user = User(
         org_id=invitation.org_id,
         email=invitation.email.lower(),
@@ -1177,8 +1180,11 @@ async def accept_invitation(request: AcceptInvitationRequest, req: Request):
             first_name=request.first_name,
             last_name=request.last_name
         ),
-        role_ids=invitation.role_ids or ["role_user"],
+        role_ids=invitation.role_ids or [],
+        group_ids=invitation.group_ids or [],
         department_id=invitation.department_id,
+        has_admin_access=getattr(invitation, 'has_admin_access', False),
+        has_enduser_access=getattr(invitation, 'has_enduser_access', True),
         status=UserStatus.ACTIVE,
         email_verified=True
     )
@@ -1898,9 +1904,12 @@ async def invite_user(request: InviteUserRequest, user: User = Depends(require_a
         org_id=user.org_id,
         email=request.email.lower(),
         role_ids=request.role_ids,
+        group_ids=request.group_ids,
         department_id=request.department_id,
         invited_by=user.id,
         message=request.message,
+        has_admin_access=request.has_admin_access,
+        has_enduser_access=request.has_enduser_access,
         expires_at=(datetime.utcnow() + timedelta(days=request.expires_in_days)).isoformat()
     )
     

@@ -21038,49 +21038,128 @@ async function toggleUserMFA() {
 }
 
 function showInviteModal() {
+    // Load groups for selection
+    const groupsHtml = allGroups.map(g => `
+        <label class="flex items-center gap-2 p-2 rounded hover:bg-gray-700 cursor-pointer">
+            <input type="checkbox" class="invite-group accent-purple-500" value="${g.id}">
+            <span>👥 ${g.name}</span>
+        </label>
+    `).join('') || '<p class="text-gray-500 text-sm p-2">No groups yet. Create groups in the Groups tab.</p>';
+    
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
     modal.id = 'invite-modal';
     modal.innerHTML = `
-        <div class="card rounded-xl p-6 w-full max-w-md">
+        <div class="card rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h3 class="text-xl font-bold mb-4">📨 Invite User</h3>
             <div class="space-y-4">
+                <!-- Email -->
                 <div>
-                    <label class="block text-sm text-gray-400 mb-1">Email Address</label>
+                    <label class="block text-sm text-gray-400 mb-1">Email Address *</label>
                     <input type="email" id="invite-email" placeholder="user@company.com" class="input-field w-full px-4 py-2 rounded-lg">
                 </div>
+                
+                <!-- Portal Access -->
                 <div>
-                    <label class="block text-sm text-gray-400 mb-1">Role</label>
-                    <select id="invite-role" class="input-field w-full px-4 py-2 rounded-lg">
-                        ${securityRoles.map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
-                    </select>
-                            
+                    <label class="block text-sm text-gray-400 mb-2">🎫 Portal Access</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-purple-500 cursor-pointer transition" onclick="togglePortalAccess('admin')">
+                            <input type="checkbox" id="invite-admin-access" class="accent-purple-500 w-5 h-5" onchange="updateInviteUI()">
+                            <div>
+                                <div class="font-medium">🖥️ Admin Portal</div>
+                                <div class="text-xs text-gray-400">Manage platform</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-600 hover:border-purple-500 cursor-pointer transition" onclick="togglePortalAccess('enduser')">
+                            <input type="checkbox" id="invite-enduser-access" class="accent-purple-500 w-5 h-5" onchange="updateInviteUI()" checked>
+                            <div>
+                                <div class="font-medium">💬 End User Portal</div>
+                                <div class="text-xs text-gray-400">Use AI agents</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
+                
+                <!-- Admin Role (shown when admin portal selected) -->
+                <div id="invite-admin-section" class="hidden">
+                    <label class="block text-sm text-gray-400 mb-1">🎭 Admin Role</label>
+                    <select id="invite-role" class="input-field w-full px-4 py-2 rounded-lg">
+                        ${securityRoles.filter(r => !r.name.toLowerCase().includes('end user')).map(r => `<option value="${r.id}">${r.name}</option>`).join('')}
+                    </select>
+                </div>
+                
+                <!-- User Groups (shown when end user portal selected) -->
+                <div id="invite-groups-section">
+                    <label class="block text-sm text-gray-400 mb-2">👥 User Groups</label>
+                    <p class="text-xs text-gray-500 mb-2">Groups determine which AI agents this user can access</p>
+                    <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-700 p-2 space-y-1">
+                        ${groupsHtml}
+                    </div>
+                </div>
+                
                 <div class="flex gap-2 pt-4">
                     <button onclick="document.getElementById('invite-modal').remove()" class="btn-secondary px-4 py-2 rounded-lg flex-1">Cancel</button>
-                    <button onclick="sendInvite()" class="btn-primary px-4 py-2 rounded-lg flex-1">Send Invite</button>
+                    <button onclick="sendInvite()" class="btn-primary px-4 py-2 rounded-lg flex-1">📧 Send Invite</button>
                 </div>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
+    
+    // Initialize UI state
+    updateInviteUI();
+}
+
+function togglePortalAccess(type) {
+    // Allow the checkbox to toggle naturally
+}
+
+function updateInviteUI() {
+    const adminAccess = document.getElementById('invite-admin-access')?.checked;
+    const endUserAccess = document.getElementById('invite-enduser-access')?.checked;
+    
+    const adminSection = document.getElementById('invite-admin-section');
+    const groupsSection = document.getElementById('invite-groups-section');
+    
+    if (adminSection) {
+        adminSection.classList.toggle('hidden', !adminAccess);
+    }
+    if (groupsSection) {
+        groupsSection.classList.toggle('hidden', !endUserAccess);
+    }
 }
 
 // Send invite
 async function sendInvite() {
     const email = document.getElementById('invite-email')?.value;
+    const adminAccess = document.getElementById('invite-admin-access')?.checked;
+    const endUserAccess = document.getElementById('invite-enduser-access')?.checked;
     const role = document.getElementById('invite-role')?.value;
+    const selectedGroups = Array.from(document.querySelectorAll('.invite-group:checked')).map(cb => cb.value);
     
     if (!email) {
         showToast('Please enter an email', 'error');
         return;
     }
     
+    if (!adminAccess && !endUserAccess) {
+        showToast('Please select at least one portal access', 'error');
+        return;
+    }
+    
     try {
+        const inviteData = { 
+            email, 
+            role_ids: adminAccess && role ? [role] : [],
+            group_ids: selectedGroups,
+            has_admin_access: adminAccess,
+            has_enduser_access: endUserAccess
+        };
+        
         const res = await fetch('/api/security/users/invite', {
             method: 'POST',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, role_ids: [role] })
+            body: JSON.stringify(inviteData)
         });
         
         if (res.ok) {
@@ -21090,7 +21169,7 @@ async function sendInvite() {
             loadSecurityStats();
         } else {
             const data = await res.json();
-        console.log("Login response:", data);
+            console.log("Invite response:", data);
             showToast(data.detail || 'Failed to send invite', 'error');
         }
     } catch (e) {
