@@ -3870,6 +3870,83 @@ async def health():
 
 
 # Agent Endpoints
+
+@app.get("/api/agents/accessible")
+async def list_accessible_agents(current_user: User = Depends(get_current_user)):
+    """
+    Get agents that the current user has access to.
+    Used by End User Portal to show only accessible agents.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    org_id = current_user.org_id or "org_default"
+    user_id = str(current_user.id)
+    user_role_ids = getattr(current_user, 'role_ids', []) or []
+    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    
+    # Get all published agents
+    all_agents = []
+    try:
+        from database.services import AgentService
+        db_agents = AgentService.get_all_agents(org_id)
+        if db_agents:
+            for agent_dict in db_agents:
+                try:
+                    agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
+                    agent_data = AgentData(**agent_dict_clean)
+                    if agent_data.status == 'published':
+                        all_agents.append(agent_data)
+                except Exception as e:
+                    continue
+    except Exception as e:
+        print(f"⚠️  [DATABASE ERROR] Failed to load agents: {e}")
+        all_agents = [a for a in app_state.agents.values() if a.status == 'published']
+    
+    if not all_agents:
+        all_agents = [a for a in app_state.agents.values() if a.status == 'published']
+    
+    # Filter agents based on access control
+    accessible_agents = []
+    
+    if ACCESS_CONTROL_AVAILABLE and AccessControlService:
+        for agent in all_agents:
+            try:
+                access_result = AccessControlService.check_user_access(
+                    user_id=user_id,
+                    user_role_ids=user_role_ids,
+                    user_group_ids=user_group_ids,
+                    agent_id=agent.id,
+                    org_id=org_id
+                )
+                if access_result.has_access:
+                    accessible_agents.append(agent)
+            except Exception as e:
+                print(f"⚠️  Access check failed for agent {agent.id}: {e}")
+                # Allow by default on error
+                accessible_agents.append(agent)
+    else:
+        # If access control not available, return all published agents
+        accessible_agents = all_agents
+    
+    return {
+        "agents": [
+            {
+                "id": a.id,
+                "name": a.name,
+                "icon": a.icon,
+                "goal": a.goal[:100] + "..." if len(a.goal) > 100 else a.goal,
+                "description": a.goal[:150] if a.goal else "",
+                "tasks_count": len(a.tasks),
+                "tools_count": len(a.tool_ids),
+                "status": a.status,
+                "created_at": a.created_at
+            }
+            for a in accessible_agents
+        ]
+    }
+
+
 @app.get("/api/agents")
 async def list_agents(status: Optional[str] = None):
     # Try to load from database first, then fallback to in-memory
