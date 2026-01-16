@@ -10308,15 +10308,26 @@ Option 3"></textarea>
         };
         
         async function openAccessControl(agentId, agentName) {
+            console.log('🔐 Opening Access Control for:', agentId, agentName);
+            
             accessControlState.agentId = agentId;
             accessControlState.agentName = agentName;
             
             document.getElementById('access-control-agent-name').textContent = agentName;
             
-            // Show modal
+            // Show modal - force display style
             const modal = document.getElementById('access-control-modal');
+            if (!modal) {
+                console.error('❌ Access control modal not found!');
+                showToast('Access Control modal not found', 'error');
+                return;
+            }
+            
             modal.classList.remove('hidden');
             modal.classList.add('flex');
+            modal.style.display = 'flex'; // Force display
+            
+            console.log('✅ Modal should be visible now. Classes:', modal.className);
             
             // Reset to first tab
             switchAccessTab(1);
@@ -10326,8 +10337,12 @@ Option 3"></textarea>
         }
         
         function closeAccessControlModal() {
-            document.getElementById('access-control-modal').classList.add('hidden');
-            document.getElementById('access-control-modal').classList.remove('flex');
+            const modal = document.getElementById('access-control-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                modal.style.display = 'none';
+            }
         }
         
         function switchAccessTab(tab) {
