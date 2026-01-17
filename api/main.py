@@ -1134,6 +1134,19 @@ class ConversationMessage(BaseModel):
     sources: List[Dict[str, Any]] = []
 
 
+class ConversationAccessCache(BaseModel):
+    """Cached access control for a conversation session"""
+    user_id: str
+    user_name: str = ""
+    user_role: str = ""
+    user_groups: List[str] = []
+    accessible_task_names: List[str] = []
+    denied_task_names: List[str] = []
+    accessible_tool_ids: List[str] = []
+    denied_tool_ids: List[str] = []
+    loaded_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
 class Conversation(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     agent_id: str
@@ -1141,6 +1154,8 @@ class Conversation(BaseModel):
     messages: List[ConversationMessage] = []
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    # Cached access control - loaded once when conversation starts
+    access_cache: Optional[ConversationAccessCache] = None
 
 
 class Document(BaseModel):
@@ -9851,6 +9866,197 @@ async def test_chat_with_files(
     }
 
 
+# ============================================================================
+# CHAT SESSION INITIALIZATION - Load permissions ONCE when chat starts
+# ============================================================================
+
+class StartChatRequest(BaseModel):
+    """Request to start a new chat session"""
+    pass
+
+
+class ChatSessionResponse(BaseModel):
+    """Response with session info and pre-loaded permissions"""
+    conversation_id: str
+    agent_id: str
+    agent_name: str
+    user_name: str
+    user_role: str
+    user_groups: List[str]
+    accessible_tasks: List[str]
+    denied_tasks: List[str]
+    has_full_access: bool
+    message: str
+
+
+@app.post("/api/agents/{agent_id}/start-chat")
+async def start_chat_session(agent_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Start a new chat session and load ALL permissions ONCE.
+    
+    This is the BEST PRACTICE approach:
+    1. Load user info (name, role, groups)
+    2. Check agent access
+    3. Get list of allowed/denied tasks
+    4. Cache everything in the conversation
+    5. Return session info to frontend
+    
+    Frontend can use this to:
+    - Show personalized greeting
+    - Display available features
+    - Know what to expect before user types
+    """
+    if agent_id not in app_state.agents:
+        raise HTTPException(404, "Agent not found")
+    
+    agent = app_state.agents[agent_id]
+    org_id = current_user.org_id if current_user else "org_default"
+    user_id = str(current_user.id) if current_user else "system"
+    
+    # ========================================================================
+    # LOAD USER CONTEXT
+    # ========================================================================
+    user_name = ""
+    if hasattr(current_user, 'first_name') and current_user.first_name:
+        user_name = current_user.first_name
+        if hasattr(current_user, 'last_name') and current_user.last_name:
+            user_name += f" {current_user.last_name}"
+    elif hasattr(current_user, 'display_name') and current_user.display_name:
+        user_name = current_user.display_name
+    elif hasattr(current_user, 'email') and current_user.email:
+        user_name = current_user.email.split('@')[0].replace('.', ' ').title()
+    
+    # Get user's groups
+    user_groups = []
+    if hasattr(current_user, 'group_ids') and current_user.group_ids:
+        try:
+            if SECURITY_AVAILABLE and security_state:
+                for gid in current_user.group_ids:
+                    group = security_state.groups.get(gid)
+                    if group:
+                        user_groups.append(group.name)
+        except:
+            pass
+    
+    # Get user's role
+    user_role = ""
+    if hasattr(current_user, 'role_ids') and current_user.role_ids:
+        try:
+            if SECURITY_AVAILABLE and security_state:
+                for rid in current_user.role_ids:
+                    role = security_state.roles.get(rid)
+                    if role:
+                        user_role = role.name
+                        break
+        except:
+            pass
+    
+    # ========================================================================
+    # LOAD ACCESS PERMISSIONS (ONCE!)
+    # ========================================================================
+    accessible_task_names = [task.name for task in agent.tasks]
+    denied_task_names = []
+    accessible_tool_ids = [tool_id for tool_id in agent.tool_ids]
+    denied_tool_ids = []
+    has_full_access = True
+    
+    if ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+        try:
+            user_role_ids = getattr(current_user, 'role_ids', []) or []
+            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            
+            access_result = AccessControlService.check_user_access(
+                user_id=user_id,
+                user_role_ids=user_role_ids,
+                user_group_ids=user_group_ids,
+                agent_id=agent_id,
+                org_id=org_id
+            )
+            
+            if not access_result.has_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "access_denied",
+                        "message": "This assistant is not available for your account.",
+                        "user_friendly": True
+                    }
+                )
+            
+            # Get denied tasks (by name)
+            denied_task_names = access_result.denied_tasks or []
+            accessible_task_names = [t.name for t in agent.tasks if t.name not in denied_task_names]
+            
+            # Get denied tools
+            denied_tool_ids = access_result.denied_tools or []
+            accessible_tool_ids = [tid for tid in agent.tool_ids if tid not in denied_tool_ids]
+            
+            has_full_access = len(denied_task_names) == 0 and len(denied_tool_ids) == 0
+            
+            print(f"🔐 [START-CHAT] Loaded permissions for {user_name}:")
+            print(f"   Accessible tasks: {accessible_task_names}")
+            print(f"   Denied tasks: {denied_task_names}")
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Access control check failed: {e}")
+    
+    # ========================================================================
+    # CREATE CONVERSATION WITH CACHED PERMISSIONS
+    # ========================================================================
+    access_cache = ConversationAccessCache(
+        user_id=user_id,
+        user_name=user_name,
+        user_role=user_role,
+        user_groups=user_groups,
+        accessible_task_names=accessible_task_names,
+        denied_task_names=denied_task_names,
+        accessible_tool_ids=accessible_tool_ids,
+        denied_tool_ids=denied_tool_ids
+    )
+    
+    conversation = Conversation(
+        agent_id=agent_id,
+        title=f"Chat with {agent.name}",
+        access_cache=access_cache
+    )
+    app_state.conversations[conversation.id] = conversation
+    
+    # Save to database
+    try:
+        from database.services import ConversationService
+        ConversationService.create_conversation({
+            'id': conversation.id,
+            'agent_id': agent_id,
+            'title': conversation.title
+        }, org_id, user_id)
+    except Exception as e:
+        print(f"⚠️ Failed to save conversation to DB: {e}")
+    
+    # Build personalized welcome message
+    welcome = f"Hi {user_name}! " if user_name else "Hello! "
+    welcome += f"I'm {agent.name}. "
+    
+    if has_full_access:
+        welcome += "How can I help you today?"
+    else:
+        welcome += f"I can help you with: {', '.join(accessible_task_names[:3])}..."
+    
+    return ChatSessionResponse(
+        conversation_id=conversation.id,
+        agent_id=agent_id,
+        agent_name=agent.name,
+        user_name=user_name,
+        user_role=user_role,
+        user_groups=user_groups,
+        accessible_tasks=accessible_task_names,
+        denied_tasks=denied_task_names,
+        has_full_access=has_full_access,
+        message=welcome
+    )
+
+
 @app.post("/api/agents/{agent_id}/chat")
 async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends(get_current_user)):
     if agent_id not in app_state.agents:
@@ -9861,10 +10067,33 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     user_id = str(current_user.id) if current_user else "system"
     
     # ========================================================================
-    # ACCESS CONTROL ENFORCEMENT (3-Level Check)
+    # ACCESS CONTROL - Use cached permissions if available (BEST PRACTICE)
     # ========================================================================
     access_result = None
-    if ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+    use_cached = False
+    
+    # Check if we have an existing conversation with cached permissions
+    if request.conversation_id and request.conversation_id in app_state.conversations:
+        conversation = app_state.conversations[request.conversation_id]
+        
+        # Use cached permissions if available and from same user
+        if conversation.access_cache and conversation.access_cache.user_id == user_id:
+            use_cached = True
+            print(f"🔐 Using CACHED permissions for user {user_id[:8]}...")
+            print(f"   Cached denied tasks: {conversation.access_cache.denied_task_names}")
+            
+            # Create access_result from cache
+            from api.modules.access_control.schemas import AccessCheckResult
+            access_result = AccessCheckResult(
+                has_access=True,
+                denied_tasks=conversation.access_cache.denied_task_names,
+                denied_tools=conversation.access_cache.denied_tool_ids
+            )
+    else:
+        conversation = None
+    
+    # If no cache, check permissions (first message or new conversation)
+    if not use_cached and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             # Get user's roles and groups
             user_role_ids = getattr(current_user, 'role_ids', []) or []
@@ -9879,7 +10108,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
                 org_id=org_id
             )
             
-            print(f"🔐 Access Control Check for user {user_id} on agent {agent_id}:")
+            print(f"🔐 FRESH Access Control Check for user {user_id} on agent {agent_id}:")
             print(f"   Has Access: {access_result.has_access}")
             print(f"   Denied Tasks: {access_result.denied_tasks}")
             print(f"   Denied Tools: {access_result.denied_tools}")
@@ -9900,11 +10129,28 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
             print(f"⚠️ Access control check failed (allowing by default): {e}")
             access_result = None
     
-    if request.conversation_id and request.conversation_id in app_state.conversations:
-        conversation = app_state.conversations[request.conversation_id]
-    else:
+    # Create new conversation if needed
+    if not conversation:
         title = request.message[:50] + "..." if len(request.message) > 50 else request.message
         conversation = Conversation(agent_id=agent_id, title=title)
+        
+        # Cache permissions in new conversation
+        if access_result:
+            # Build user context for cache
+            user_name = ""
+            if hasattr(current_user, 'first_name') and current_user.first_name:
+                user_name = f"{current_user.first_name} {getattr(current_user, 'last_name', '') or ''}".strip()
+            elif hasattr(current_user, 'email'):
+                user_name = current_user.email.split('@')[0].replace('.', ' ').title()
+            
+            conversation.access_cache = ConversationAccessCache(
+                user_id=user_id,
+                user_name=user_name,
+                denied_task_names=access_result.denied_tasks or [],
+                denied_tool_ids=access_result.denied_tools or []
+            )
+            print(f"📦 Cached permissions for future messages")
+        
         app_state.conversations[conversation.id] = conversation
         
         # Save to database
