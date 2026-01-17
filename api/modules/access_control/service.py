@@ -60,13 +60,15 @@ class AccessControlService:
     
     @staticmethod
     def get_agent_access(agent_id: str, org_id: str) -> AgentAccessResponse:
-        """Get agent access configuration"""
+        """Get agent access configuration (NOT admin policies)"""
         org_id = normalize_org_id(org_id)
         with get_session() as session:
+            # IMPORTANT: Exclude 'agent_admin' type - those are for delegation, not chat access
             policy = session.query(AgentAccessPolicy).filter(
                 AgentAccessPolicy.agent_id == agent_id,
                 AgentAccessPolicy.org_id == org_id,
-                AgentAccessPolicy.is_active == True
+                AgentAccessPolicy.is_active == True,
+                AgentAccessPolicy.access_type != 'agent_admin'  # ✨ Exclude admin policies
             ).order_by(AgentAccessPolicy.priority.desc()).first()
             
             if not policy:
@@ -600,23 +602,36 @@ class AccessControlService:
             delegated_admins = []
             
             if admin_policy:
+                # Try to parse permissions from description (JSON format)
+                # or use default full_admin
+                default_permissions = ["full_admin"]
+                try:
+                    if admin_policy.description:
+                        import json
+                        perms_data = json.loads(admin_policy.description)
+                        if isinstance(perms_data, dict):
+                            # description contains per-entity permissions
+                            pass
+                except:
+                    perms_data = {}
+                
                 # Get user admins with their permissions
                 for user_id in (admin_policy.user_ids or []):
-                    # Permissions are stored in description as JSON or we use allowed_actions
-                    permissions = admin_policy.allowed_actions or ["full_admin"]
+                    # Check if this user has specific permissions in the description
+                    user_perms = perms_data.get(user_id, default_permissions) if isinstance(perms_data, dict) else default_permissions
                     delegated_admins.append({
                         "entity_id": user_id,
                         "entity_type": "user",
-                        "permissions": permissions
+                        "permissions": user_perms
                     })
                 
                 # Get group admins
                 for group_id in (admin_policy.group_ids or []):
-                    permissions = admin_policy.allowed_actions or ["full_admin"]
+                    group_perms = perms_data.get(group_id, default_permissions) if isinstance(perms_data, dict) else default_permissions
                     delegated_admins.append({
                         "entity_id": group_id,
                         "entity_type": "group",
-                        "permissions": permissions
+                        "permissions": group_perms
                     })
             
             return {
@@ -661,24 +676,31 @@ class AccessControlService:
                 )
                 session.add(policy)
             
-            # Extract user IDs and group IDs
+            # Extract user IDs, group IDs, and per-entity permissions
             user_ids = []
             group_ids = []
-            all_permissions = set()
+            permissions_map = {}  # entity_id -> permissions[]
             
             for admin in delegated_admins:
-                if admin.get('entity_type') == 'user':
-                    user_ids.append(admin['entity_id'])
-                elif admin.get('entity_type') == 'group':
-                    group_ids.append(admin['entity_id'])
+                entity_id = admin.get('entity_id')
+                entity_type = admin.get('entity_type')
+                permissions = admin.get('permissions', ['full_admin'])
                 
-                # Collect all permissions
-                for perm in admin.get('permissions', []):
-                    all_permissions.add(perm)
+                if entity_type == 'user':
+                    user_ids.append(entity_id)
+                elif entity_type == 'group':
+                    group_ids.append(entity_id)
+                
+                # Store per-entity permissions
+                permissions_map[entity_id] = permissions
             
             policy.user_ids = user_ids
             policy.group_ids = group_ids
-            policy.allowed_actions = list(all_permissions)
+            
+            # Store per-entity permissions in description as JSON
+            import json
+            policy.description = json.dumps(permissions_map)
+            
             policy.updated_by = updated_by
             policy.updated_at = datetime.utcnow()
             
