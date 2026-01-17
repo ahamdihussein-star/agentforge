@@ -529,8 +529,7 @@ class AccessControlService:
             print(f"📋 Current agent tasks: {list(task_name_to_current_id.keys())}")
             
             allowed_tasks = []
-            denied_tasks = []  # Will store CURRENT task IDs, not old ones
-            denied_task_names = []  # For logging
+            denied_tasks = []  # Will store TASK NAMES for matching (IDs change)
             allowed_tools = []
             denied_tools = []
             
@@ -556,18 +555,15 @@ class AccessControlService:
                         desc_data = json_lib.loads(policy.description) if policy.description else {}
                         policy_denied_names = desc_data.get('denied_task_names', [])
                         
-                        # Map names to CURRENT task IDs
+                        # Use task NAMES for matching (IDs change on each wizard load)
                         for task_name in policy_denied_names:
-                            current_id = task_name_to_current_id.get(task_name)
-                            if current_id and current_id not in denied_tasks:
-                                denied_tasks.append(current_id)
-                                denied_task_names.append(task_name)
-                                print(f"   ❌ Task '{task_name}' (current ID: {current_id}) DENIED for user")
-                    except:
-                        # Fallback to old method if description isn't valid JSON
-                        for task_id in (policy.denied_task_ids or []):
-                            if task_id not in denied_tasks:
-                                denied_tasks.append(task_id)
+                            if task_name and task_name not in denied_tasks:
+                                denied_tasks.append(task_name)
+                                print(f"   ❌ Task '{task_name}' DENIED for user {user_id[:8]}...")
+                    except Exception as e:
+                        print(f"   ⚠️ Failed to parse policy description: {e}")
+                        # Fallback: try to get task names from current task list
+                        pass
                     
                     # Add allowed tasks from this policy
                     for task_id in (policy.allowed_task_ids or []):
@@ -584,7 +580,7 @@ class AccessControlService:
                         if tool_id not in allowed_tools:
                             allowed_tools.append(tool_id)
             
-            print(f"🔐 Access check for user {user_id[:8]}...: denied_tasks={denied_task_names}, denied_tools={denied_tools}")
+            print(f"🔐 Access check for user {user_id[:8]}...: denied_tasks={denied_tasks}, denied_tools={denied_tools}")
             
             return AccessCheckResult(
                 has_access=True,
