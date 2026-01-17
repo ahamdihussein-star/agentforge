@@ -3906,8 +3906,13 @@ async def health():
 @app.get("/api/agents/accessible")
 async def list_accessible_agents(current_user: User = Depends(get_current_user)):
     """
-    Get agents that the current user has access to.
+    Get PUBLISHED agents that the current user has access to.
     Used by End User Portal to show only accessible agents.
+    
+    OWNERSHIP-BASED ACCESS:
+    - Agents are PRIVATE by default
+    - Owner always sees their agents
+    - Others only see if explicitly granted access via Access Control
     """
     if not current_user:
         raise HTTPException(401, "Authentication required")
@@ -3917,14 +3922,23 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
     user_role_ids = getattr(current_user, 'role_ids', []) or []
     user_group_ids = getattr(current_user, 'group_ids', []) or []
     
-    # Get all published agents
+    # Get all published agents with ownership info
     all_agents = []
+    agent_ownership = {}  # Map agent_id -> owner_id
+    
     try:
         from database.services import AgentService
         db_agents = AgentService.get_all_agents(org_id)
         if db_agents:
             for agent_dict in db_agents:
                 try:
+                    # Store ownership info
+                    agent_id = agent_dict.get('id')
+                    agent_ownership[agent_id] = {
+                        'owner_id': agent_dict.get('owner_id'),
+                        'created_by': agent_dict.get('created_by')
+                    }
+                    
                     agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
                     agent_data = AgentData(**agent_dict_clean)
                     if agent_data.status == 'published':
@@ -3938,11 +3952,25 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
     if not all_agents:
         all_agents = [a for a in app_state.agents.values() if a.status == 'published']
     
-    # Filter agents based on access control
+    # OWNERSHIP-BASED FILTERING: Private by default
     accessible_agents = []
     
-    if ACCESS_CONTROL_AVAILABLE and AccessControlService:
-        for agent in all_agents:
+    for agent in all_agents:
+        # Check if user is the OWNER
+        ownership_info = agent_ownership.get(agent.id, {})
+        owner_id = ownership_info.get('owner_id')
+        created_by = ownership_info.get('created_by')
+        
+        is_owner = (str(owner_id) == user_id) if owner_id else False
+        is_creator = (str(created_by) == user_id) if created_by else False
+        
+        if is_owner or is_creator:
+            # Owner/Creator always sees their published agents
+            accessible_agents.append(agent)
+            continue
+        
+        # For non-owners, check Access Control permissions
+        if ACCESS_CONTROL_AVAILABLE and AccessControlService:
             try:
                 access_result = AccessControlService.check_user_access(
                     user_id=user_id,
@@ -3955,11 +3983,9 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
                     accessible_agents.append(agent)
             except Exception as e:
                 print(f"⚠️  Access check failed for agent {agent.id}: {e}")
-                # Allow by default on error
-                accessible_agents.append(agent)
-    else:
-        # If access control not available, return all published agents
-        accessible_agents = all_agents
+                # FAIL SECURE: Don't show agent on error
+                continue
+        # If no access control configured, agent remains private (not shown)
     
     return {
         "agents": [
@@ -3980,19 +4006,40 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
 
 
 @app.get("/api/agents")
-async def list_agents(status: Optional[str] = None):
+async def list_agents(status: Optional[str] = None, current_user: User = Depends(get_current_user)):
+    """
+    List agents - OWNERSHIP BASED ACCESS CONTROL
+    
+    - Users only see agents they OWN or have been GRANTED access to
+    - Agents are private by default until owner grants access
+    """
+    # Get user info for filtering
+    user_id = str(current_user.id) if current_user else None
+    org_id = current_user.org_id if current_user else "org_default"
+    user_role_ids = getattr(current_user, 'role_ids', []) or []
+    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    
     # Try to load from database first, then fallback to in-memory
-    agents = []
+    all_agents = []
+    agent_ownership = {}  # Map agent_id -> owner_id
+    
     try:
         from database.services import AgentService
-        db_agents = AgentService.get_all_agents("org_default")
+        db_agents = AgentService.get_all_agents(org_id)
         if db_agents:
             for agent_dict in db_agents:
                 try:
+                    # Store ownership info before cleaning
+                    agent_id = agent_dict.get('id')
+                    agent_ownership[agent_id] = {
+                        'owner_id': agent_dict.get('owner_id'),
+                        'created_by': agent_dict.get('created_by')
+                    }
+                    
                     # Remove extra fields that AgentData doesn't have
                     agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
                     agent_data = AgentData(**agent_dict_clean)
-                    agents.append(agent_data)
+                    all_agents.append(agent_data)
                     # Update in-memory cache
                     app_state.agents[agent_data.id] = agent_data
                 except Exception as e:
@@ -4000,15 +4047,67 @@ async def list_agents(status: Optional[str] = None):
                     continue
     except Exception as e:
         print(f"⚠️  [DATABASE ERROR] Failed to load agents from database: {e}, using in-memory")
-        agents = list(app_state.agents.values())
+        all_agents = list(app_state.agents.values())
     
     # Fallback to in-memory if database loading failed or returned no agents
-    if not agents:
-        agents = list(app_state.agents.values())
+    if not all_agents:
+        all_agents = list(app_state.agents.values())
     
+    # Filter by status if specified
     if status:
-        agents = [a for a in agents if a.status == status]
-    return {"agents": [{"id": a.id, "name": a.name, "icon": a.icon, "goal": a.goal[:100] + "..." if len(a.goal) > 100 else a.goal, "tasks_count": len(a.tasks), "tools_count": len(a.tool_ids), "status": a.status, "created_at": a.created_at} for a in agents]}
+        all_agents = [a for a in all_agents if a.status == status]
+    
+    # OWNERSHIP-BASED FILTERING: Only show agents user owns OR has been granted access
+    visible_agents = []
+    
+    for agent in all_agents:
+        # Check if user is the OWNER
+        ownership_info = agent_ownership.get(agent.id, {})
+        owner_id = ownership_info.get('owner_id')
+        created_by = ownership_info.get('created_by')
+        
+        is_owner = (str(owner_id) == user_id) if owner_id else False
+        is_creator = (str(created_by) == user_id) if created_by else False
+        
+        if is_owner or is_creator:
+            # Owner/Creator always sees their agents
+            visible_agents.append((agent, str(owner_id) if owner_id else str(created_by)))
+            continue
+        
+        # Check if user has been GRANTED access via Access Control
+        if ACCESS_CONTROL_AVAILABLE and AccessControlService:
+            try:
+                access_result = AccessControlService.check_user_access(
+                    user_id=user_id,
+                    user_role_ids=user_role_ids,
+                    user_group_ids=user_group_ids,
+                    agent_id=agent.id,
+                    org_id=org_id
+                )
+                if access_result.has_access:
+                    visible_agents.append((agent, str(owner_id) if owner_id else None))
+            except Exception as e:
+                # On error, don't show the agent (fail secure)
+                print(f"⚠️  Access check error for agent {agent.id}: {e}")
+                continue
+    
+    return {
+        "agents": [
+            {
+                "id": a.id,
+                "name": a.name,
+                "icon": a.icon,
+                "goal": a.goal[:100] + "..." if len(a.goal) > 100 else a.goal,
+                "tasks_count": len(a.tasks),
+                "tools_count": len(a.tool_ids),
+                "status": a.status,
+                "created_at": a.created_at,
+                "owner_id": owner_id,
+                "is_owner": str(agent_ownership.get(a.id, {}).get('owner_id')) == user_id or str(agent_ownership.get(a.id, {}).get('created_by')) == user_id
+            }
+            for a, owner_id in visible_agents
+        ]
+    }
 
 
 @app.get("/api/agents/{agent_id}")

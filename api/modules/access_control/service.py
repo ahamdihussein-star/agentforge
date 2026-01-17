@@ -46,10 +46,10 @@ class AccessControlService:
             ).order_by(AgentAccessPolicy.priority.desc()).first()
             
             if not policy:
-                # Default: authenticated users
+                # Default: PRIVATE (only owner can access until they configure access)
                 return AgentAccessResponse(
                     agent_id=agent_id,
-                    access_type=AccessType.AUTHENTICATED,
+                    access_type=AccessType.SPECIFIC,  # Specific with no entities = private
                     entities=[]
                 )
             
@@ -386,23 +386,31 @@ class AccessControlService:
         """
         Check what a user can do with an agent.
         Called from End User Portal during chat.
+        
+        PRIVATE BY DEFAULT: If no access policy exists, only the owner can access.
+        Ownership check is done at the API level before calling this service.
         """
         with get_session() as session:
             # Check Level 1: Agent Access
             access_policy = session.query(AgentAccessPolicy).filter(
                 AgentAccessPolicy.agent_id == agent_id,
                 AgentAccessPolicy.org_id == org_id,
-                AgentAccessPolicy.is_active == True
+                AgentAccessPolicy.is_active == True,
+                AgentAccessPolicy.access_type != 'agent_admin'  # Exclude admin policies from access check
             ).first()
             
-            has_access = True
-            reason = None
+            # PRIVATE BY DEFAULT: No policy means no access (only owner can access)
+            has_access = False
+            reason = "This assistant is not available for your account. Please contact the owner to request access."
             
             if access_policy:
                 if access_policy.access_type == 'public':
                     has_access = True
+                    reason = None
                 elif access_policy.access_type == 'authenticated':
                     has_access = bool(user_id)
+                    if not has_access:
+                        reason = "Please log in to access this assistant."
                 elif access_policy.access_type == 'specific':
                     # Check if user or their role/group has access
                     user_has_access = user_id in (access_policy.user_ids or [])
@@ -411,7 +419,9 @@ class AccessControlService:
                     
                     has_access = user_has_access or role_has_access or group_has_access
                     
-                    if not has_access:
+                    if has_access:
+                        reason = None
+                    else:
                         reason = "This assistant is not available for your account. Please contact your administrator if you need access."
             
             if not has_access:
