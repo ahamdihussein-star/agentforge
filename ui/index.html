@@ -17380,7 +17380,18 @@ async function saveToolEdit() {
                 if(!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
                     console.error('❌ Start chat failed:', response.status, errorData);
-                    throw new Error(errorData.detail || errorData.message || `Failed to start chat session (${response.status})`);
+                    // Handle nested detail object
+                    let errorMsg = `Failed to start chat session (${response.status})`;
+                    if(errorData.detail) {
+                        if(typeof errorData.detail === 'object') {
+                            errorMsg = errorData.detail.message || errorData.detail.error || JSON.stringify(errorData.detail);
+                        } else {
+                            errorMsg = errorData.detail;
+                        }
+                    } else if(errorData.message) {
+                        errorMsg = errorData.message;
+                    }
+                    throw new Error(errorMsg);
                 }
                 
                 const session = await response.json();

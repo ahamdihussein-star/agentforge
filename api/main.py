@@ -10173,7 +10173,17 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     denied_tool_ids = []
     has_full_access = True
     
-    if ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+    # Check if user is the OWNER - owners always have full access
+    is_owner = False
+    if hasattr(agent, 'owner_id') and agent.owner_id:
+        is_owner = str(agent.owner_id) == user_id
+    elif hasattr(agent, 'created_by') and agent.created_by:
+        is_owner = str(agent.created_by) == user_id
+    
+    if is_owner:
+        print(f"👑 [START-CHAT] User {user_id[:8]}... is the OWNER - full access granted")
+        has_full_access = True
+    elif ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             user_role_ids = getattr(current_user, 'role_ids', []) or []
             user_group_ids = getattr(current_user, 'group_ids', []) or []
@@ -10317,9 +10327,20 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     else:
         conversation = None
     
+    # Check if user is the OWNER - owners always have full access
+    is_owner = False
+    if hasattr(agent, 'owner_id') and agent.owner_id:
+        is_owner = str(agent.owner_id) == user_id
+    elif hasattr(agent, 'created_by') and agent.created_by:
+        is_owner = str(agent.created_by) == user_id
+    
     # If no cache, check permissions (first message or new conversation)
-    print(f"   [CHAT] Checking access control: use_cached={use_cached}, ACCESS_CONTROL_AVAILABLE={ACCESS_CONTROL_AVAILABLE}, current_user={current_user is not None}")
-    if not use_cached and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+    print(f"   [CHAT] Checking access control: use_cached={use_cached}, ACCESS_CONTROL_AVAILABLE={ACCESS_CONTROL_AVAILABLE}, is_owner={is_owner}")
+    
+    if is_owner:
+        print(f"👑 [CHAT] User {user_id[:8]}... is the OWNER - full access granted")
+        access_result = None  # Owner has full access, no restrictions
+    elif not use_cached and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             # Get user's roles and groups
             user_role_ids = getattr(current_user, 'role_ids', []) or []
