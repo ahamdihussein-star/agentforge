@@ -7343,6 +7343,15 @@ Option 3"></textarea>
             // Auto-save to database before moving to next step
             await autoSaveWizardStep();
             
+            // Also save Access Control when leaving step 4
+            if(step === 4 && typeof saveAgentAccessControl === 'function') {
+                const agentId = testAgent?.id || wizard.editId || wizard.id;
+                if(agentId) {
+                    console.log('💾 Auto-saving Access Control for step 4...');
+                    await saveAgentAccessControl(agentId);
+                }
+            }
+            
             step++;
             if(step > 8) step = 8;  // Updated for 8 steps (including Access Control)
             console.log('➡️ Moving to step:', step);
