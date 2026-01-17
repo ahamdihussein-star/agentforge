@@ -3215,79 +3215,93 @@
                                         <div class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">4</div>
                                         <div>
                                             <h5 class="font-semibold text-white flex items-center gap-2">
-                                                Share Agent Management
+                                                Delegate Agent Management
                                                 <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">Owner Only</span>
                                             </h5>
-                                            <p class="text-xs text-gray-500">Grant other users permission to edit and manage this agent</p>
+                                            <p class="text-xs text-gray-500">Grant specific permissions to other users to help manage this agent</p>
                                         </div>
                                     </div>
                                     
                                     <div class="rounded-xl p-5" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%); border: 1px solid rgba(245, 158, 11, 0.3);">
                                         
-                                        <!-- What delegated admins can do -->
-                                        <div class="mb-5 p-4 rounded-lg" style="background: rgba(0,0,0,0.2);">
-                                            <h6 class="text-sm font-medium text-amber-400 mb-3">Delegated admins will be able to:</h6>
-                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-400">
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                                    </svg>
-                                                    Edit access control settings
-                                                </div>
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                                    </svg>
-                                                    Add/remove user permissions
-                                                </div>
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                                    </svg>
-                                                    Configure task permissions
-                                                </div>
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                    </svg>
-                                                    <span class="text-gray-500">Cannot add other admins</span>
-                                                </div>
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                    </svg>
-                                                    <span class="text-gray-500">Cannot delete the agent</span>
-                                                </div>
-                                                <div class="flex items-center gap-2">
-                                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                    </svg>
-                                                    <span class="text-gray-500">Cannot transfer ownership</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
                                         <!-- Search for admins -->
-                                        <div class="relative mb-4">
-                                            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400/50">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                                                </svg>
+                                        <div class="mb-5">
+                                            <label class="text-sm font-medium text-gray-300 mb-2 block">Add Admin</label>
+                                            <div class="relative">
+                                                <div class="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400/50">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                                    </svg>
+                                                </div>
+                                                <input type="text" id="wizard-admin-search" 
+                                                       class="w-full rounded-xl px-12 py-3 text-white placeholder-gray-500 transition-all focus:ring-2 focus:ring-amber-500/50" 
+                                                       style="background: rgba(0,0,0,0.3); border: 1px solid rgba(245, 158, 11, 0.2);"
+                                                       placeholder="Search users or groups to add as admin...">
                                             </div>
-                                            <input type="text" id="wizard-admin-search" 
-                                                   class="w-full rounded-xl px-12 py-3 text-white placeholder-gray-500 transition-all focus:ring-2 focus:ring-amber-500/50" 
-                                                   style="background: rgba(0,0,0,0.3); border: 1px solid rgba(245, 158, 11, 0.2);"
-                                                   placeholder="Search users or groups to add as admin...">
+                                            <div id="wizard-admin-search-results" class="hidden mt-2 rounded-xl overflow-hidden max-h-48 overflow-y-auto" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(245, 158, 11, 0.2);">
+                                            </div>
                                         </div>
                                         
-                                        <div id="wizard-admin-search-results" class="hidden mb-4 rounded-xl overflow-hidden max-h-48 overflow-y-auto" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(245, 158, 11, 0.2);">
+                                        <!-- Current Delegated Admins with Permissions -->
+                                        <div class="space-y-4">
+                                            <div class="flex items-center justify-between">
+                                                <h6 class="text-sm font-medium text-gray-300">Delegated Admins & Permissions</h6>
+                                                <button type="button" onclick="showPermissionsGuide()" class="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                    </svg>
+                                                    What do permissions mean?
+                                                </button>
+                                            </div>
+                                            
+                                            <div id="wizard-delegated-admins-list" class="space-y-3">
+                                                <div class="text-sm text-gray-500 italic text-center py-4">
+                                                    You are the only admin. Search above to add users or groups.
+                                                </div>
+                                            </div>
                                         </div>
                                         
-                                        <!-- Current Agent Admins -->
-                                        <div class="space-y-3">
-                                            <h6 class="text-sm font-medium text-gray-300">Current Admins</h6>
-                                            <div id="wizard-current-admins" class="flex flex-wrap gap-2">
-                                                <div class="text-sm text-gray-500 italic">You are the only admin. Add users or groups above to share management access.</div>
+                                        <!-- Permissions Quick Reference (initially hidden) -->
+                                        <div id="permissions-guide" class="hidden mt-5 p-4 rounded-lg" style="background: rgba(0,0,0,0.3);">
+                                            <h6 class="text-sm font-medium text-amber-400 mb-3">📋 Permission Reference</h6>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                                <div class="space-y-2">
+                                                    <div class="font-medium text-white">🎨 Configuration</div>
+                                                    <div class="text-gray-400 pl-4">
+                                                        <div><span class="text-blue-400">edit_basic_info:</span> Name, icon, description</div>
+                                                        <div><span class="text-blue-400">edit_personality:</span> Agent personality</div>
+                                                        <div><span class="text-blue-400">edit_model:</span> LLM model selection</div>
+                                                        <div><span class="text-blue-400">edit_guardrails:</span> Safety settings</div>
+                                                    </div>
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <div class="font-medium text-white">🧩 Components</div>
+                                                    <div class="text-gray-400 pl-4">
+                                                        <div><span class="text-purple-400">manage_tasks:</span> Add/edit/delete tasks</div>
+                                                        <div><span class="text-purple-400">manage_tools:</span> Add/edit/delete tools</div>
+                                                        <div><span class="text-purple-400">manage_knowledge:</span> Knowledge base</div>
+                                                    </div>
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <div class="font-medium text-white">🔐 Access Control</div>
+                                                    <div class="text-gray-400 pl-4">
+                                                        <div><span class="text-green-400">manage_access:</span> End-user access</div>
+                                                        <div><span class="text-green-400">manage_task_permissions:</span> Task permissions</div>
+                                                    </div>
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <div class="font-medium text-white">🚀 Deployment</div>
+                                                    <div class="text-gray-400 pl-4">
+                                                        <div><span class="text-yellow-400">publish_agent:</span> Publish/unpublish</div>
+                                                        <div><span class="text-red-400">delete_agent:</span> Delete (dangerous!)</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-3 pt-3 border-t border-gray-700">
+                                                <div class="flex items-center gap-2 text-xs text-amber-400">
+                                                    <span>⭐</span>
+                                                    <span><strong>full_admin</strong> = All permissions except delete_agent</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -9095,20 +9109,36 @@ Option 3"></textarea>
             return wizard.owner_id === currentUser.id || wizard.created_by === currentUser.id;
         }
         
-        // State for agent admins
+        // State for agent admins with permissions
         let agentAdminState = {
-            adminUserIds: [],
-            adminGroupIds: [],
-            isOwner: false
+            delegatedAdmins: [],  // [{entity_id, entity_type, entity_name, permissions: []}]
+            isOwner: false,
+            ownerId: null
         };
         
-        // Load current agent admins
+        // All available permissions
+        const AGENT_PERMISSIONS = [
+            { id: 'full_admin', name: 'Full Admin', icon: '⭐', desc: 'All permissions except delete', category: 'Special' },
+            { id: 'edit_basic_info', name: 'Edit Info', icon: '📝', desc: 'Name, icon, description', category: 'Config' },
+            { id: 'edit_personality', name: 'Edit Personality', icon: '🎭', desc: 'Agent personality', category: 'Config' },
+            { id: 'edit_model', name: 'Change Model', icon: '🤖', desc: 'LLM model selection', category: 'Config' },
+            { id: 'edit_guardrails', name: 'Edit Guardrails', icon: '🛡️', desc: 'Safety settings', category: 'Config' },
+            { id: 'manage_tasks', name: 'Manage Tasks', icon: '📋', desc: 'Add/edit/delete tasks', category: 'Components' },
+            { id: 'manage_tools', name: 'Manage Tools', icon: '🔧', desc: 'Add/edit/delete tools', category: 'Components' },
+            { id: 'manage_knowledge', name: 'Manage Knowledge', icon: '📚', desc: 'Knowledge base', category: 'Components' },
+            { id: 'manage_access', name: 'Manage Access', icon: '🔐', desc: 'End-user access', category: 'Access' },
+            { id: 'manage_task_permissions', name: 'Task Permissions', icon: '✅', desc: 'Task-level access', category: 'Access' },
+            { id: 'publish_agent', name: 'Publish', icon: '🚀', desc: 'Publish/unpublish', category: 'Deploy' },
+            { id: 'delete_agent', name: 'Delete Agent', icon: '🗑️', desc: 'Delete (dangerous!)', category: 'Danger' }
+        ];
+        
+        // Load current agent management config
         async function loadAgentAdmins(agentId) {
             if (!agentId) return;
             
             try {
                 const orgId = currentUser?.org_id || 'default';
-                const response = await fetch(`/api/access-control/agents/${agentId}/admins?org_id=${orgId}`, {
+                const response = await fetch(`/api/access-control/agents/${agentId}/management?org_id=${orgId}`, {
                     headers: getAuthHeaders()
                 });
                 
@@ -9116,9 +9146,20 @@ Option 3"></textarea>
                 
                 if (response.ok) {
                     const data = await response.json();
-                    agentAdminState.adminUserIds = data.admin_user_ids || [];
-                    agentAdminState.adminGroupIds = data.admin_group_ids || [];
-                    agentAdminState.isOwner = data.is_owner;
+                    agentAdminState.ownerId = data.owner_id;
+                    agentAdminState.isOwner = currentUser && data.owner_id === currentUser.id;
+                    agentAdminState.delegatedAdmins = data.delegated_admins || [];
+                    
+                    // Enrich with names
+                    agentAdminState.delegatedAdmins.forEach(admin => {
+                        if (admin.entity_type === 'user') {
+                            const user = wizardAccessState.allUsers.find(u => u.id === admin.entity_id);
+                            admin.entity_name = user?.name || user?.email || `User ${admin.entity_id.slice(0,8)}...`;
+                        } else {
+                            const group = wizardAccessState.allGroups.find(g => g.id === admin.entity_id);
+                            admin.entity_name = group?.name || `Group ${admin.entity_id.slice(0,8)}...`;
+                        }
+                    });
                     
                     // Show the delegate admin section if user is owner
                     if (section) {
@@ -9131,14 +9172,11 @@ Option 3"></textarea>
                         ownerBadge.style.display = agentAdminState.isOwner ? 'inline-flex' : 'none';
                     }
                     
-                    renderCurrentAdmins();
+                    renderDelegatedAdmins();
                 } else if (response.status === 403) {
-                    // User is not owner - hide delegation section
                     console.log('User is not owner of this agent - hiding delegation section');
                     agentAdminState.isOwner = false;
-                    if (section) {
-                        section.style.display = 'none';
-                    }
+                    if (section) section.style.display = 'none';
                 }
             } catch (e) {
                 console.error('Failed to load agent admins:', e);
@@ -9148,111 +9186,183 @@ Option 3"></textarea>
         // Check if current user is the owner (from wizard data)
         function checkOwnershipFromWizard() {
             if (!currentUser || !wizard.id) return false;
-            
-            const ownerId = wizard.owner_id;
-            const createdBy = wizard.created_by;
-            
-            return ownerId === currentUser.id || createdBy === currentUser.id;
+            return wizard.owner_id === currentUser.id || wizard.created_by === currentUser.id;
         }
         
-        // Render current admins
-        function renderCurrentAdmins() {
-            const container = document.getElementById('wizard-current-admins');
+        // Render delegated admins with permission matrix
+        function renderDelegatedAdmins() {
+            const container = document.getElementById('wizard-delegated-admins-list');
             if (!container) return;
             
-            const allAdmins = [
-                ...agentAdminState.adminUserIds.map(id => {
-                    const user = wizardAccessState.allUsers.find(u => u.id === id);
-                    return { id, name: user?.name || user?.email || `User ${id.slice(0,8)}...`, type: 'user', icon: '👤' };
-                }),
-                ...agentAdminState.adminGroupIds.map(id => {
-                    const group = wizardAccessState.allGroups.find(g => g.id === id);
-                    return { id, name: group?.name || `Group ${id.slice(0,8)}...`, type: 'group', icon: '👥' };
-                })
-            ];
-            
-            if (allAdmins.length === 0) {
-                container.innerHTML = '<p class="text-sm text-gray-500 italic">No additional admins added yet. Only you (the owner) can manage this agent.</p>';
+            if (agentAdminState.delegatedAdmins.length === 0) {
+                container.innerHTML = `
+                    <div class="text-sm text-gray-500 italic text-center py-4 px-6 rounded-lg" style="background: rgba(0,0,0,0.2);">
+                        <p>You are the only admin.</p>
+                        <p class="text-xs mt-1">Search above to add users or groups as delegated admins.</p>
+                    </div>`;
                 return;
             }
             
-            container.innerHTML = allAdmins.map(admin => `
-                <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/20 border border-yellow-500/50">
-                    <span>${admin.icon}</span>
-                    <span class="text-sm font-medium">${admin.name}</span>
-                    <button onclick="removeAgentAdmin('${admin.id}', '${admin.type}')" class="text-gray-400 hover:text-red-400 ml-1">✕</button>
+            container.innerHTML = agentAdminState.delegatedAdmins.map((admin, index) => {
+                const icon = admin.entity_type === 'user' ? '👤' : '👥';
+                const hasFullAdmin = admin.permissions?.includes('full_admin');
+                
+                return `
+                <div class="rounded-xl p-4 space-y-3" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl">${icon}</span>
+                            <div>
+                                <div class="font-medium text-white">${admin.entity_name}</div>
+                                <div class="text-xs text-gray-500">${admin.entity_type === 'user' ? 'User' : 'Group'}</div>
+                            </div>
+                        </div>
+                        <button onclick="removeAgentAdmin('${admin.entity_id}')" 
+                                class="px-3 py-1 text-xs rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all">
+                            Remove
+                        </button>
+                    </div>
+                    
+                    <!-- Quick Permission Toggle -->
+                    <div class="flex items-center gap-2 pt-2 border-t border-gray-700/50">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" 
+                                   onchange="toggleFullAdmin(${index}, this.checked)"
+                                   ${hasFullAdmin ? 'checked' : ''}
+                                   class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-amber-500 focus:ring-amber-500">
+                            <span class="text-sm text-amber-400 font-medium">⭐ Full Admin</span>
+                            <span class="text-xs text-gray-500">(all except delete)</span>
+                        </label>
+                    </div>
+                    
+                    <!-- Granular Permissions (collapsed if full admin) -->
+                    <div id="admin-perms-${index}" class="${hasFullAdmin ? 'hidden' : ''} pt-2">
+                        <div class="text-xs text-gray-400 mb-2">Or select specific permissions:</div>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            ${AGENT_PERMISSIONS.filter(p => p.id !== 'full_admin').map(perm => {
+                                const checked = admin.permissions?.includes(perm.id);
+                                const isDanger = perm.category === 'Danger';
+                                return `
+                                <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-white/5 ${isDanger ? 'border border-red-500/30' : ''}">
+                                    <input type="checkbox" 
+                                           onchange="toggleAdminPermission(${index}, '${perm.id}', this.checked)"
+                                           ${checked ? 'checked' : ''}
+                                           class="w-3 h-3 rounded bg-gray-700 border-gray-600 ${isDanger ? 'text-red-500' : 'text-blue-500'}">
+                                    <span class="text-xs ${isDanger ? 'text-red-400' : 'text-gray-300'}">${perm.icon} ${perm.name}</span>
+                                </label>
+                            `;
+                            }).join('')}
+                        </div>
+                    </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
         
-        // Add agent admin
-        async function addAgentAdmin(id, type) {
+        // Toggle full admin permission
+        function toggleFullAdmin(index, checked) {
+            const admin = agentAdminState.delegatedAdmins[index];
+            if (!admin) return;
+            
+            if (checked) {
+                admin.permissions = ['full_admin'];
+            } else {
+                admin.permissions = [];
+            }
+            
+            saveAgentManagement();
+            renderDelegatedAdmins();
+        }
+        
+        // Toggle individual permission
+        function toggleAdminPermission(index, permId, checked) {
+            const admin = agentAdminState.delegatedAdmins[index];
+            if (!admin) return;
+            
+            admin.permissions = admin.permissions || [];
+            
+            // Remove full_admin if setting individual perms
+            admin.permissions = admin.permissions.filter(p => p !== 'full_admin');
+            
+            if (checked) {
+                if (!admin.permissions.includes(permId)) {
+                    admin.permissions.push(permId);
+                }
+            } else {
+                admin.permissions = admin.permissions.filter(p => p !== permId);
+            }
+            
+            saveAgentManagement();
+        }
+        
+        // Save management config to backend
+        async function saveAgentManagement() {
+            const agentId = wizard.id;
+            if (!agentId) return;
+            
+            const orgId = currentUser?.org_id || 'default';
+            
+            try {
+                await fetch(`/api/access-control/agents/${agentId}/management?org_id=${orgId}`, {
+                    method: 'PUT',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        delegated_admins: agentAdminState.delegatedAdmins.map(a => ({
+                            entity_id: a.entity_id,
+                            entity_type: a.entity_type,
+                            permissions: a.permissions || []
+                        }))
+                    })
+                });
+            } catch (e) {
+                console.error('Failed to save agent management:', e);
+            }
+        }
+        
+        // Add agent admin (with default full_admin)
+        async function addAgentAdmin(id, type, name) {
             const agentId = wizard.id;
             if (!agentId) {
                 showToast('Save the agent first before adding admins', 'warning');
                 return;
             }
             
-            const orgId = currentUser?.org_id || 'default';
-            const body = type === 'user' 
-                ? { add_user_ids: [id] }
-                : { add_group_ids: [id] };
-            
-            try {
-                const response = await fetch(`/api/access-control/agents/${agentId}/admins?org_id=${orgId}`, {
-                    method: 'PUT',
-                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    agentAdminState.adminUserIds = data.admin_user_ids || [];
-                    agentAdminState.adminGroupIds = data.admin_group_ids || [];
-                    renderCurrentAdmins();
-                    showToast('Admin added successfully', 'success');
-                    
-                    // Clear search
-                    document.getElementById('wizard-admin-search').value = '';
-                    document.getElementById('wizard-admin-search-results')?.classList.add('hidden');
-                } else {
-                    const error = await response.json();
-                    showToast(error.detail || 'Failed to add admin', 'error');
-                }
-            } catch (e) {
-                console.error('Failed to add admin:', e);
-                showToast('Failed to add admin', 'error');
+            // Check if already exists
+            if (agentAdminState.delegatedAdmins.some(a => a.entity_id === id)) {
+                showToast('This user/group is already an admin', 'warning');
+                return;
             }
+            
+            // Add to state with full_admin by default
+            agentAdminState.delegatedAdmins.push({
+                entity_id: id,
+                entity_type: type,
+                entity_name: name,
+                permissions: ['full_admin']
+            });
+            
+            await saveAgentManagement();
+            renderDelegatedAdmins();
+            showToast('Admin added with full permissions', 'success');
+            
+            // Clear search
+            document.getElementById('wizard-admin-search').value = '';
+            document.getElementById('wizard-admin-search-results')?.classList.add('hidden');
         }
         
         // Remove agent admin
-        async function removeAgentAdmin(id, type) {
-            const agentId = wizard.id;
-            if (!agentId) return;
-            
-            const orgId = currentUser?.org_id || 'default';
-            const body = type === 'user' 
-                ? { remove_user_ids: [id] }
-                : { remove_group_ids: [id] };
-            
-            try {
-                const response = await fetch(`/api/access-control/agents/${agentId}/admins?org_id=${orgId}`, {
-                    method: 'PUT',
-                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    agentAdminState.adminUserIds = data.admin_user_ids || [];
-                    agentAdminState.adminGroupIds = data.admin_group_ids || [];
-                    renderCurrentAdmins();
-                    showToast('Admin removed', 'success');
-                } else {
-                    showToast('Failed to remove admin', 'error');
-                }
-            } catch (e) {
-                console.error('Failed to remove admin:', e);
+        async function removeAgentAdmin(id) {
+            agentAdminState.delegatedAdmins = agentAdminState.delegatedAdmins.filter(a => a.entity_id !== id);
+            await saveAgentManagement();
+            renderDelegatedAdmins();
+            showToast('Admin removed', 'success');
+        }
+        
+        // Show/hide permissions guide
+        function showPermissionsGuide() {
+            const guide = document.getElementById('permissions-guide');
+            if (guide) {
+                guide.classList.toggle('hidden');
             }
         }
         
@@ -9278,15 +9388,18 @@ Option 3"></textarea>
                 g.name && g.name.toLowerCase().includes(q)
             ).slice(0, 5);
             
+            // Get already added admin IDs
+            const existingAdminIds = agentAdminState.delegatedAdmins.map(a => a.entity_id);
+            
             // Exclude already added admins
             const results = [
-                ...matchedUsers.filter(u => !agentAdminState.adminUserIds.includes(u.id)).map(u => ({
+                ...matchedUsers.filter(u => !existingAdminIds.includes(u.id)).map(u => ({
                     id: u.id,
                     name: u.name || u.email,
                     type: 'user',
                     icon: '👤'
                 })),
-                ...matchedGroups.filter(g => !agentAdminState.adminGroupIds.includes(g.id)).map(g => ({
+                ...matchedGroups.filter(g => !existingAdminIds.includes(g.id)).map(g => ({
                     id: g.id,
                     name: g.name,
                     type: 'group',
@@ -9298,7 +9411,7 @@ Option 3"></textarea>
                 container.innerHTML = '<p class="p-3 text-sm text-gray-500">No results found</p>';
             } else {
                 container.innerHTML = results.map(r => `
-                    <div class="p-3 hover:bg-gray-700 cursor-pointer flex items-center gap-3" onclick="addAgentAdmin('${r.id}', '${r.type}')">
+                    <div class="p-3 hover:bg-gray-700 cursor-pointer flex items-center gap-3" onclick="addAgentAdmin('${r.id}', '${r.type}', '${r.name.replace(/'/g, "\\'")}')">
                         <span class="text-lg">${r.icon}</span>
                         <div>
                             <div class="font-medium text-sm">${r.name}</div>

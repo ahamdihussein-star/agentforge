@@ -171,3 +171,64 @@ class QuickTemplate(BaseModel):
     denied_task_ids: List[str] = []
     denied_tool_ids: List[str] = []
 
+
+# ============================================================================
+# AGENT MANAGEMENT PERMISSIONS (Owner delegation to other admins)
+# ============================================================================
+
+class AgentPermissionType(str, Enum):
+    """Types of permissions an owner can delegate on their agent"""
+    # Core Configuration
+    EDIT_BASIC_INFO = "edit_basic_info"       # Name, icon, description, goal
+    EDIT_PERSONALITY = "edit_personality"      # Personality settings
+    EDIT_MODEL = "edit_model"                  # LLM model selection
+    EDIT_GUARDRAILS = "edit_guardrails"        # Safety guardrails
+    
+    # Components
+    MANAGE_TASKS = "manage_tasks"              # Add/edit/delete tasks
+    MANAGE_TOOLS = "manage_tools"              # Add/edit/delete tools
+    MANAGE_KNOWLEDGE = "manage_knowledge"      # Knowledge base documents
+    
+    # Access Control
+    MANAGE_ACCESS = "manage_access"            # End-user access control
+    MANAGE_TASK_PERMISSIONS = "manage_task_permissions"  # Task-level permissions
+    
+    # Deployment
+    PUBLISH_AGENT = "publish_agent"            # Publish/unpublish
+    DELETE_AGENT = "delete_agent"              # Delete the agent (rarely delegated)
+    
+    # Full Access (shorthand for all permissions except delete)
+    FULL_ADMIN = "full_admin"
+
+
+class AgentAdminPermission(BaseModel):
+    """Permissions granted to a delegated admin"""
+    entity_id: str                          # User or Group ID
+    entity_type: EntityType                 # USER or GROUP
+    entity_name: Optional[str] = None       # Display name
+    permissions: List[AgentPermissionType]  # Granted permissions
+
+
+class AgentManagementConfig(BaseModel):
+    """Complete management delegation configuration"""
+    agent_id: str
+    owner_id: str
+    owner_name: Optional[str] = None
+    delegated_admins: List[AgentAdminPermission] = []
+    updated_at: Optional[datetime] = None
+
+
+class AgentManagementUpdate(BaseModel):
+    """Update delegated admin permissions"""
+    add_admins: Optional[List[AgentAdminPermission]] = None
+    remove_admin_ids: Optional[List[str]] = None
+    update_permissions: Optional[List[AgentAdminPermission]] = None
+
+
+class PermissionCheckResult(BaseModel):
+    """Result of checking if user has a specific permission"""
+    has_permission: bool
+    is_owner: bool = False
+    granted_by: Optional[str] = None  # "owner" or "delegation"
+    reason: Optional[str] = None
+

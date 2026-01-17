@@ -561,4 +561,233 @@ class AccessControlService:
             denied_tasks=[],
             denied_tools=[]
         )
+    
+    # ========================================================================
+    # AGENT MANAGEMENT PERMISSIONS (Owner delegation)
+    # ========================================================================
+    
+    @staticmethod
+    def get_agent_management_config(agent_id: str, org_id: str) -> Dict[str, Any]:
+        """
+        Get the complete management delegation configuration for an agent.
+        Shows owner info and all delegated admins with their permissions.
+        """
+        org_id = normalize_org_id(org_id)
+        
+        with get_session() as session:
+            agent = session.query(Agent).filter(
+                Agent.id == agent_id,
+                Agent.org_id == org_id
+            ).first()
+            
+            if not agent:
+                return {
+                    "agent_id": agent_id,
+                    "owner_id": None,
+                    "delegated_admins": []
+                }
+            
+            owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+            
+            # Get admin policies (where access_type = 'agent_admin')
+            admin_policy = session.query(AgentAccessPolicy).filter(
+                AgentAccessPolicy.agent_id == agent_id,
+                AgentAccessPolicy.org_id == org_id,
+                AgentAccessPolicy.access_type == 'agent_admin',
+                AgentAccessPolicy.is_active == True
+            ).first()
+            
+            delegated_admins = []
+            
+            if admin_policy:
+                # Get user admins with their permissions
+                for user_id in (admin_policy.user_ids or []):
+                    # Permissions are stored in description as JSON or we use allowed_actions
+                    permissions = admin_policy.allowed_actions or ["full_admin"]
+                    delegated_admins.append({
+                        "entity_id": user_id,
+                        "entity_type": "user",
+                        "permissions": permissions
+                    })
+                
+                # Get group admins
+                for group_id in (admin_policy.group_ids or []):
+                    permissions = admin_policy.allowed_actions or ["full_admin"]
+                    delegated_admins.append({
+                        "entity_id": group_id,
+                        "entity_type": "group",
+                        "permissions": permissions
+                    })
+            
+            return {
+                "agent_id": agent_id,
+                "owner_id": owner_id,
+                "delegated_admins": delegated_admins,
+                "updated_at": admin_policy.updated_at if admin_policy else None
+            }
+    
+    @staticmethod
+    def update_agent_management(
+        agent_id: str,
+        org_id: str,
+        delegated_admins: List[Dict[str, Any]],
+        updated_by: str
+    ) -> Dict[str, Any]:
+        """
+        Update the management delegation for an agent.
+        Only the owner can call this.
+        
+        delegated_admins: List of {entity_id, entity_type, permissions[]}
+        """
+        org_id = normalize_org_id(org_id)
+        
+        with get_session() as session:
+            # Find or create the agent_admin policy
+            policy = session.query(AgentAccessPolicy).filter(
+                AgentAccessPolicy.agent_id == agent_id,
+                AgentAccessPolicy.org_id == org_id,
+                AgentAccessPolicy.access_type == 'agent_admin'
+            ).first()
+            
+            if not policy:
+                policy = AgentAccessPolicy(
+                    agent_id=agent_id,
+                    org_id=org_id,
+                    name="Agent Administrators",
+                    description="Users and groups who can manage this agent",
+                    access_type='agent_admin',
+                    is_active=True,
+                    created_by=updated_by
+                )
+                session.add(policy)
+            
+            # Extract user IDs and group IDs
+            user_ids = []
+            group_ids = []
+            all_permissions = set()
+            
+            for admin in delegated_admins:
+                if admin.get('entity_type') == 'user':
+                    user_ids.append(admin['entity_id'])
+                elif admin.get('entity_type') == 'group':
+                    group_ids.append(admin['entity_id'])
+                
+                # Collect all permissions
+                for perm in admin.get('permissions', []):
+                    all_permissions.add(perm)
+            
+            policy.user_ids = user_ids
+            policy.group_ids = group_ids
+            policy.allowed_actions = list(all_permissions)
+            policy.updated_by = updated_by
+            policy.updated_at = datetime.utcnow()
+            
+            session.commit()
+            
+            return AccessControlService.get_agent_management_config(agent_id, org_id)
+    
+    @staticmethod
+    def check_agent_permission(
+        user_id: str,
+        user_role_ids: List[str],
+        user_group_ids: List[str],
+        agent_id: str,
+        org_id: str,
+        permission: str
+    ) -> Dict[str, Any]:
+        """
+        Check if a user has a specific permission on an agent.
+        
+        Returns:
+            {
+                has_permission: bool,
+                is_owner: bool,
+                granted_by: "owner" | "delegation" | None,
+                reason: str
+            }
+        """
+        org_id = normalize_org_id(org_id)
+        
+        with get_session() as session:
+            # Get the agent
+            agent = session.query(Agent).filter(
+                Agent.id == agent_id,
+                Agent.org_id == org_id
+            ).first()
+            
+            if not agent:
+                return {
+                    "has_permission": False,
+                    "is_owner": False,
+                    "granted_by": None,
+                    "reason": "Agent not found"
+                }
+            
+            owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+            
+            # 1. Owner has ALL permissions
+            if user_id == owner_id:
+                return {
+                    "has_permission": True,
+                    "is_owner": True,
+                    "granted_by": "owner",
+                    "reason": "You are the owner of this agent"
+                }
+            
+            # 2. Check delegated permissions
+            admin_policy = session.query(AgentAccessPolicy).filter(
+                AgentAccessPolicy.agent_id == agent_id,
+                AgentAccessPolicy.org_id == org_id,
+                AgentAccessPolicy.access_type == 'agent_admin',
+                AgentAccessPolicy.is_active == True
+            ).first()
+            
+            if not admin_policy:
+                return {
+                    "has_permission": False,
+                    "is_owner": False,
+                    "granted_by": None,
+                    "reason": "No admin delegation exists for this agent"
+                }
+            
+            # Check if user is in the admin list
+            user_is_admin = user_id in (admin_policy.user_ids or [])
+            group_is_admin = any(g in (admin_policy.group_ids or []) for g in user_group_ids)
+            
+            if not user_is_admin and not group_is_admin:
+                return {
+                    "has_permission": False,
+                    "is_owner": False,
+                    "granted_by": None,
+                    "reason": "You are not a delegated admin for this agent"
+                }
+            
+            # Check if the requested permission is granted
+            granted_permissions = admin_policy.allowed_actions or []
+            
+            # FULL_ADMIN grants all permissions except delete
+            if "full_admin" in granted_permissions:
+                if permission != "delete_agent":
+                    return {
+                        "has_permission": True,
+                        "is_owner": False,
+                        "granted_by": "delegation",
+                        "reason": "Granted via full admin delegation"
+                    }
+            
+            # Check specific permission
+            if permission in granted_permissions:
+                return {
+                    "has_permission": True,
+                    "is_owner": False,
+                    "granted_by": "delegation",
+                    "reason": f"Granted via delegated permission: {permission}"
+                }
+            
+            return {
+                "has_permission": False,
+                "is_owner": False,
+                "granted_by": None,
+                "reason": f"Permission '{permission}' not granted"
+            }
 

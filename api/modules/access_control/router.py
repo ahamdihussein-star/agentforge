@@ -658,3 +658,208 @@ async def update_agent_admins(
             "admin_group_ids": current_groups
         }
 
+
+# ============================================================================
+# AGENT MANAGEMENT PERMISSIONS (Full delegation control)
+# ============================================================================
+
+@router.get("/agents/{agent_id}/management")
+async def get_agent_management(
+    agent_id: str,
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get complete management delegation configuration.
+    
+    Shows:
+    - Agent owner
+    - All delegated admins with their specific permissions
+    
+    REQUIRES: Agent owner or delegated admin
+    """
+    check_agent_management_permission(current_user, agent_id, org_id)
+    return AccessControlService.get_agent_management_config(agent_id, org_id)
+
+
+@router.put("/agents/{agent_id}/management")
+async def update_agent_management(
+    agent_id: str,
+    data: dict,  # {delegated_admins: [{entity_id, entity_type, permissions[]}]}
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update management delegation for an agent.
+    
+    Allows the owner to grant specific permissions to other users/groups:
+    - edit_basic_info: Change name, icon, description
+    - edit_personality: Modify personality settings
+    - edit_model: Change LLM model
+    - edit_guardrails: Modify safety settings
+    - manage_tasks: Add/edit/delete tasks
+    - manage_tools: Add/edit/delete tools
+    - manage_knowledge: Manage knowledge base
+    - manage_access: Control end-user access
+    - manage_task_permissions: Set task-level permissions
+    - publish_agent: Publish/unpublish the agent
+    - delete_agent: Delete the agent (use with caution)
+    - full_admin: All permissions except delete
+    
+    REQUIRES: Agent OWNER only
+    """
+    # Normalize org_id
+    org_id = normalize_org_id(org_id)
+    
+    from database.base import get_session
+    from database.models.agent import Agent
+    
+    with get_session() as session:
+        agent = session.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.org_id == org_id
+        ).first()
+        
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        # ONLY the owner can update management delegation
+        owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+        if owner_id != current_user.id:
+            raise HTTPException(
+                status_code=403, 
+                detail="Only the agent owner can manage delegation permissions"
+            )
+    
+    # Update the management config
+    result = AccessControlService.update_agent_management(
+        agent_id=agent_id,
+        org_id=org_id,
+        delegated_admins=data.get('delegated_admins', []),
+        updated_by=current_user.id
+    )
+    
+    return result
+
+
+@router.get("/agents/{agent_id}/check-permission")
+async def check_agent_permission(
+    agent_id: str,
+    permission: str = Query(..., description="Permission to check (e.g., manage_tasks, edit_model)"),
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Check if the current user has a specific permission on this agent.
+    
+    Used by the UI to show/hide edit buttons based on permissions.
+    
+    Available permissions:
+    - edit_basic_info, edit_personality, edit_model, edit_guardrails
+    - manage_tasks, manage_tools, manage_knowledge
+    - manage_access, manage_task_permissions
+    - publish_agent, delete_agent
+    """
+    org_id = normalize_org_id(org_id)
+    
+    result = AccessControlService.check_agent_permission(
+        user_id=current_user.id,
+        user_role_ids=getattr(current_user, 'role_ids', []) or [],
+        user_group_ids=getattr(current_user, 'group_ids', []) or [],
+        agent_id=agent_id,
+        org_id=org_id,
+        permission=permission
+    )
+    
+    return result
+
+
+@router.get("/agents/{agent_id}/my-permissions")
+async def get_my_agent_permissions(
+    agent_id: str,
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all permissions the current user has on this agent.
+    
+    Returns a list of permission strings the user can perform.
+    """
+    org_id = normalize_org_id(org_id)
+    
+    from database.base import get_session
+    from database.models.agent import Agent
+    from database.models.agent_access import AgentAccessPolicy
+    
+    all_permissions = [
+        "edit_basic_info", "edit_personality", "edit_model", "edit_guardrails",
+        "manage_tasks", "manage_tools", "manage_knowledge",
+        "manage_access", "manage_task_permissions",
+        "publish_agent", "delete_agent", "delegate_admins"
+    ]
+    
+    with get_session() as session:
+        agent = session.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.org_id == org_id
+        ).first()
+        
+        if not agent:
+            return {
+                "is_owner": False,
+                "is_admin": False,
+                "permissions": []
+            }
+        
+        owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+        
+        # Owner has ALL permissions
+        if current_user.id == owner_id:
+            return {
+                "is_owner": True,
+                "is_admin": True,
+                "permissions": all_permissions
+            }
+        
+        # Check delegated permissions
+        admin_policy = session.query(AgentAccessPolicy).filter(
+            AgentAccessPolicy.agent_id == agent_id,
+            AgentAccessPolicy.org_id == org_id,
+            AgentAccessPolicy.access_type == 'agent_admin',
+            AgentAccessPolicy.is_active == True
+        ).first()
+        
+        if not admin_policy:
+            return {
+                "is_owner": False,
+                "is_admin": False,
+                "permissions": []
+            }
+        
+        # Check if user is a delegated admin
+        user_groups = getattr(current_user, 'group_ids', []) or []
+        is_user_admin = current_user.id in (admin_policy.user_ids or [])
+        is_group_admin = any(g in (admin_policy.group_ids or []) for g in user_groups)
+        
+        if not is_user_admin and not is_group_admin:
+            return {
+                "is_owner": False,
+                "is_admin": False,
+                "permissions": []
+            }
+        
+        # Get granted permissions
+        granted = admin_policy.allowed_actions or []
+        
+        # Full admin gets all except delete and delegate
+        if "full_admin" in granted:
+            perms = [p for p in all_permissions if p not in ["delete_agent", "delegate_admins"]]
+        else:
+            perms = [p for p in granted if p in all_permissions]
+        
+        return {
+            "is_owner": False,
+            "is_admin": True,
+            "permissions": perms
+        }
+
