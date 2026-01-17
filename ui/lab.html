@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentForge Lab - Test Data Generator</title>
+    <link rel="icon" type="image/png" href="/AgentForge_Logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --accent-purple: #8b5cf6;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --text-primary: #ffffff;
+            --text-secondary: #9ca3af;
+            --border-color: #2d2d3a;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        /* Gradient backgrounds */
+        .gradient-bg {
+            background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.1);
+        }
+        
+        /* Generator Cards */
+        .generator-card {
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .generator-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .generator-card:hover::before {
+            opacity: 1;
+        }
+        
+        .generator-card.api::before {
+            background: linear-gradient(90deg, #10b981, #3b82f6);
+        }
+        
+        .generator-card.document::before {
+            background: linear-gradient(90deg, #f59e0b, #ef4444);
+        }
+        
+        .generator-card.image::before {
+            background: linear-gradient(90deg, #8b5cf6, #ec4899);
+        }
+        
+        .generator-card.active {
+            border-color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.1);
+        }
+        
+        /* Input fields */
+        .input-field {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+        }
+        
+        .input-field::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        /* Buttons */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.1);
+        }
+        
+        /* Tabs */
+        .tab-btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        
+        .tab-btn.active {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: var(--accent-purple);
+            color: var(--accent-purple);
+        }
+        
+        .tab-btn:not(.active):hover {
+            background: var(--bg-secondary);
+        }
+        
+        /* History items */
+        .history-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .history-item:hover {
+            border-color: var(--accent-purple);
+            transform: translateX(4px);
+        }
+        
+        /* Loading spinner */
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-purple);
+        }
+        
+        /* Format badges */
+        .format-badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+        
+        .format-badge:hover {
+            transform: scale(1.05);
+        }
+        
+        .format-badge.selected {
+            border-color: white;
+            box-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .toast.success {
+            border-color: var(--accent-green);
+        }
+        
+        .toast.error {
+            border-color: #ef4444;
+        }
+        
+        /* Preview area */
+        .preview-area {
+            background: var(--bg-secondary);
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        .preview-area.has-content {
+            border-style: solid;
+            border-color: var(--accent-purple);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .generator-cards {
+                grid-template-columns: 1fr !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="border-b border-gray-800 bg-opacity-90 backdrop-blur-lg sticky top-0 z-50" style="background: var(--bg-primary);">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="/ui/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                    <img src="/AgentForge_Logo.png" alt="AgentForge" class="w-10 h-10 rounded-xl">
+                    <div>
+                        <h1 class="text-xl font-bold gradient-text">AgentForge Lab</h1>
+                        <p class="text-xs text-gray-500">Test Data Generator</p>
+                    </div>
+                </a>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <a href="/ui/" class="btn-secondary text-sm">
+                    ← Back to Admin
+                </a>
+                <div id="user-info" class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center font-bold" id="user-avatar">?</div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Hero Section -->
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold mb-4">Create Realistic Test Data</h2>
+            <p class="text-gray-400 text-lg max-w-2xl mx-auto">
+                Generate professional APIs, documents, and images for testing your agents. 
+                Powered by AI to create realistic, production-quality data.
+            </p>
+        </div>
+        
+        <!-- Generator Type Selection -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 generator-cards">
+            <!-- API Generator -->
+            <div class="card generator-card api p-6" onclick="selectGenerator('api')">
+                <div class="text-4xl mb-4">🔌</div>
+                <h3 class="text-xl font-bold mb-2">API Generator</h3>
+                <p class="text-gray-400 text-sm mb-4">
+                    Create mock APIs that return realistic data. Perfect for testing integrations.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400">REST</span>
+                    <span class="px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-400">JSON</span>
+                    <span class="px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-400">AI-Powered</span>
+                </div>
+            </div>
+            
+            <!-- Document Generator -->
+            <div class="card generator-card document p-6" onclick="selectGenerator('document')">
+                <div class="text-4xl mb-4">📄</div>
+                <h3 class="text-xl font-bold mb-2">Document Generator</h3>
+                <p class="text-gray-400 text-sm mb-4">
+                    Generate professional documents with proper formatting and structure.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-400">Word</span>
+                    <span class="px-2 py-1 rounded-full text-xs bg-red-500/20 text-red-400">PDF</span>
+                    <span class="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400">Excel</span>
+                    <span class="px-2 py-1 rounded-full text-xs bg-orange-500/20 text-orange-400">PPT</span>
+                </div>
+            </div>
+            
+            <!-- Image Generator -->
+            <div class="card generator-card image p-6" onclick="selectGenerator('image')">
+                <div class="text-4xl mb-4">🖼️</div>
+                <h3 class="text-xl font-bold mb-2">Image Generator</h3>
+                <p class="text-gray-400 text-sm mb-4">
+                    Create document images for OCR testing. Forms, receipts, IDs, and more.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-400">OCR Ready</span>
+                    <span class="px-2 py-1 rounded-full text-xs bg-pink-500/20 text-pink-400">Forms</span>
+                    <span class="px-2 py-1 rounded-full text-xs bg-yellow-500/20 text-yellow-400">Invoices</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Generator Panels -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left: Input Panel -->
+            <div class="lg:col-span-2">
+                <!-- API Generator Panel -->
+                <div id="panel-api" class="card p-6 hidden">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center text-2xl">🔌</div>
+                        <div>
+                            <h3 class="text-xl font-bold">Create API</h3>
+                            <p class="text-sm text-gray-400">Describe the data you need</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-6">
+                        <!-- API Name -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">API Name</label>
+                            <input type="text" id="api-name" class="input-field w-full px-4 py-3 rounded-xl" placeholder="e.g., Customer Data API">
+                        </div>
+                        
+                        <!-- Description -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">What data should this API return?</label>
+                            <textarea id="api-description" class="input-field w-full px-4 py-3 rounded-xl h-32 resize-none" placeholder="Describe the data you need. For example:
+
+Return a list of customers with:
+- Full name
+- Email address
+- Phone number
+- Company name
+- Registration date"></textarea>
+                        </div>
+                        
+                        <!-- Number of Records -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Number of Records</label>
+                            <div class="flex items-center gap-4">
+                                <input type="range" id="api-records" min="1" max="100" value="10" class="flex-1 accent-purple-500" oninput="updateRecordsLabel(this.value)">
+                                <span id="api-records-label" class="text-lg font-bold text-purple-400 w-12 text-center">10</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Generate Button -->
+                        <button onclick="generateAPI()" class="btn-primary w-full flex items-center justify-center gap-2">
+                            <span>✨</span>
+                            <span>Generate API</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Document Generator Panel -->
+                <div id="panel-document" class="card p-6 hidden">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-2xl">📄</div>
+                        <div>
+                            <h3 class="text-xl font-bold">Create Document</h3>
+                            <p class="text-sm text-gray-400">Generate professional documents</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-6">
+                        <!-- Document Name -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Document Name</label>
+                            <input type="text" id="doc-name" class="input-field w-full px-4 py-3 rounded-xl" placeholder="e.g., Quarterly Report">
+                        </div>
+                        
+                        <!-- Format Selection -->
+                        <div>
+                            <label class="block text-sm font-medium mb-3">Format</label>
+                            <div class="flex flex-wrap gap-3">
+                                <button onclick="selectDocFormat('docx')" class="format-badge bg-blue-500/20 text-blue-400 selected" data-format="docx">
+                                    📝 Word (.docx)
+                                </button>
+                                <button onclick="selectDocFormat('pdf')" class="format-badge bg-red-500/20 text-red-400" data-format="pdf">
+                                    📕 PDF
+                                </button>
+                                <button onclick="selectDocFormat('xlsx')" class="format-badge bg-green-500/20 text-green-400" data-format="xlsx">
+                                    📊 Excel (.xlsx)
+                                </button>
+                                <button onclick="selectDocFormat('pptx')" class="format-badge bg-orange-500/20 text-orange-400" data-format="pptx">
+                                    📽️ PowerPoint (.pptx)
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Description -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Document Content</label>
+                            <textarea id="doc-description" class="input-field w-full px-4 py-3 rounded-xl h-32 resize-none" placeholder="Describe the document you need. For example:
+
+Create a professional quarterly sales report for Q4 2024:
+- Executive summary
+- Sales by region (table)
+- Top performing products
+- Growth trends with charts
+- Recommendations"></textarea>
+                        </div>
+                        
+                        <!-- Generate Button -->
+                        <button onclick="generateDocument()" class="btn-primary w-full flex items-center justify-center gap-2">
+                            <span>✨</span>
+                            <span>Generate Document</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Image Generator Panel -->
+                <div id="panel-image" class="card p-6 hidden">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl">🖼️</div>
+                        <div>
+                            <h3 class="text-xl font-bold">Create Image</h3>
+                            <p class="text-sm text-gray-400">Generate document images for OCR</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-6">
+                        <!-- Image Name -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Image Name</label>
+                            <input type="text" id="img-name" class="input-field w-full px-4 py-3 rounded-xl" placeholder="e.g., Invoice Sample">
+                        </div>
+                        
+                        <!-- Image Type -->
+                        <div>
+                            <label class="block text-sm font-medium mb-3">Document Type</label>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <button onclick="selectImageType('invoice')" class="format-badge bg-blue-500/20 text-blue-400 text-center py-3 selected" data-type="invoice">
+                                    🧾 Invoice
+                                </button>
+                                <button onclick="selectImageType('receipt')" class="format-badge bg-green-500/20 text-green-400 text-center py-3" data-type="receipt">
+                                    🧾 Receipt
+                                </button>
+                                <button onclick="selectImageType('form')" class="format-badge bg-purple-500/20 text-purple-400 text-center py-3" data-type="form">
+                                    📋 Form
+                                </button>
+                                <button onclick="selectImageType('id')" class="format-badge bg-orange-500/20 text-orange-400 text-center py-3" data-type="id">
+                                    🪪 ID Card
+                                </button>
+                                <button onclick="selectImageType('contract')" class="format-badge bg-red-500/20 text-red-400 text-center py-3" data-type="contract">
+                                    📜 Contract
+                                </button>
+                                <button onclick="selectImageType('letter')" class="format-badge bg-cyan-500/20 text-cyan-400 text-center py-3" data-type="letter">
+                                    ✉️ Letter
+                                </button>
+                                <button onclick="selectImageType('table')" class="format-badge bg-pink-500/20 text-pink-400 text-center py-3" data-type="table">
+                                    📊 Table
+                                </button>
+                                <button onclick="selectImageType('custom')" class="format-badge bg-gray-500/20 text-gray-400 text-center py-3" data-type="custom">
+                                    ⚙️ Custom
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Description -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Image Details</label>
+                            <textarea id="img-description" class="input-field w-full px-4 py-3 rounded-xl h-32 resize-none" placeholder="Describe the document image you need. For example:
+
+Create an invoice image with:
+- Company logo at top
+- Invoice number and date
+- Customer billing information
+- List of items with prices
+- Total amount
+- Payment terms"></textarea>
+                        </div>
+                        
+                        <!-- Format -->
+                        <div>
+                            <label class="block text-sm font-medium mb-3">Output Format</label>
+                            <div class="flex gap-3">
+                                <button onclick="selectImgFormat('png')" class="format-badge bg-purple-500/20 text-purple-400 selected" data-imgformat="png">
+                                    PNG
+                                </button>
+                                <button onclick="selectImgFormat('jpg')" class="format-badge bg-blue-500/20 text-blue-400" data-imgformat="jpg">
+                                    JPG
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Generate Button -->
+                        <button onclick="generateImage()" class="btn-primary w-full flex items-center justify-center gap-2">
+                            <span>✨</span>
+                            <span>Generate Image</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Preview Area -->
+                <div id="preview-section" class="mt-8 hidden">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold">Preview</h3>
+                        <button onclick="downloadResult()" class="btn-secondary text-sm flex items-center gap-2">
+                            <span>⬇️</span>
+                            <span>Download</span>
+                        </button>
+                    </div>
+                    <div id="preview-area" class="preview-area">
+                        <div class="text-center text-gray-500">
+                            <div class="text-4xl mb-2">✨</div>
+                            <p>Your generated content will appear here</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right: History Panel -->
+            <div class="lg:col-span-1">
+                <div class="card p-6 sticky top-24">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-bold">Recent Creations</h3>
+                        <button onclick="clearHistory()" class="text-sm text-gray-400 hover:text-red-400 transition-colors">
+                            Clear
+                        </button>
+                    </div>
+                    
+                    <div id="history-list" class="space-y-3 max-h-[60vh] overflow-y-auto">
+                        <div class="text-center text-gray-500 py-8">
+                            <div class="text-3xl mb-2">📭</div>
+                            <p class="text-sm">No items yet</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="mt-6 pt-6 border-t border-gray-700">
+                        <h4 class="text-sm font-medium text-gray-400 mb-3">Quick Actions</h4>
+                        <div class="space-y-2">
+                            <button onclick="openToolsLibrary()" class="w-full btn-secondary text-sm text-left flex items-center gap-2">
+                                <span>🔧</span>
+                                <span>View in Tools Library</span>
+                            </button>
+                            <button onclick="exportAll()" class="w-full btn-secondary text-sm text-left flex items-center gap-2">
+                                <span>📦</span>
+                                <span>Export All</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="spinner mx-auto mb-4" style="width: 48px; height: 48px; border-width: 4px;"></div>
+            <p class="text-lg font-medium" id="loading-text">Generating...</p>
+            <p class="text-sm text-gray-400 mt-2" id="loading-subtext">This may take a moment</p>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div id="toast" class="toast">
+        <div class="flex items-center gap-3">
+            <span id="toast-icon">✅</span>
+            <span id="toast-message">Success!</span>
+        </div>
+    </div>
+    
+    <script>
+        // State
+        let currentGenerator = null;
+        let selectedDocFormat = 'docx';
+        let selectedImageType = 'invoice';
+        let selectedImgFormat = 'png';
+        let generatedResult = null;
+        let history = [];
+        let authToken = localStorage.getItem('agentforge_token');
+        let currentUser = JSON.parse(localStorage.getItem('agentforge_user') || 'null');
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            loadHistory();
+            
+            // Select API generator by default
+            selectGenerator('api');
+        });
+        
+        // Auth
+        function checkAuth() {
+            if (!authToken) {
+                window.location.href = '/ui/';
+                return;
+            }
+            
+            if (currentUser) {
+                const initials = (currentUser.name || currentUser.email || '?').substring(0, 2).toUpperCase();
+                document.getElementById('user-avatar').textContent = initials;
+            }
+        }
+        
+        function getAuthHeaders() {
+            return authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
+        }
+        
+        // Generator Selection
+        function selectGenerator(type) {
+            currentGenerator = type;
+            
+            // Update cards
+            document.querySelectorAll('.generator-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            document.querySelector(`.generator-card.${type}`).classList.add('active');
+            
+            // Show panel
+            document.querySelectorAll('[id^="panel-"]').forEach(panel => {
+                panel.classList.add('hidden');
+            });
+            document.getElementById(`panel-${type}`).classList.remove('hidden');
+            
+            // Hide preview
+            document.getElementById('preview-section').classList.add('hidden');
+        }
+        
+        // Format Selection
+        function selectDocFormat(format) {
+            selectedDocFormat = format;
+            document.querySelectorAll('[data-format]').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.querySelector(`[data-format="${format}"]`).classList.add('selected');
+        }
+        
+        function selectImageType(type) {
+            selectedImageType = type;
+            document.querySelectorAll('[data-type]').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.querySelector(`[data-type="${type}"]`).classList.add('selected');
+        }
+        
+        function selectImgFormat(format) {
+            selectedImgFormat = format;
+            document.querySelectorAll('[data-imgformat]').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.querySelector(`[data-imgformat="${format}"]`).classList.add('selected');
+        }
+        
+        function updateRecordsLabel(value) {
+            document.getElementById('api-records-label').textContent = value;
+        }
+        
+        // Generators
+        async function generateAPI() {
+            const name = document.getElementById('api-name').value.trim();
+            const description = document.getElementById('api-description').value.trim();
+            const records = parseInt(document.getElementById('api-records').value);
+            
+            if (!name || !description) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+            
+            showLoading('Generating API...', 'AI is creating realistic data');
+            
+            try {
+                const response = await fetch('/api/lab/generate/api', {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeaders(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name,
+                        description,
+                        record_count: records
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate API');
+                }
+                
+                const result = await response.json();
+                generatedResult = result;
+                
+                // Show preview
+                showAPIPreview(result);
+                addToHistory('api', name, result);
+                showToast('API generated successfully!', 'success');
+                
+            } catch (e) {
+                console.error('Error:', e);
+                showToast('Failed to generate API: ' + e.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function generateDocument() {
+            const name = document.getElementById('doc-name').value.trim();
+            const description = document.getElementById('doc-description').value.trim();
+            
+            if (!name || !description) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+            
+            showLoading('Generating Document...', `Creating ${selectedDocFormat.toUpperCase()} file`);
+            
+            try {
+                const response = await fetch('/api/lab/generate/document', {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeaders(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name,
+                        description,
+                        format: selectedDocFormat
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate document');
+                }
+                
+                const result = await response.json();
+                generatedResult = result;
+                
+                // Show preview
+                showDocumentPreview(result);
+                addToHistory('document', name, result);
+                showToast('Document generated successfully!', 'success');
+                
+            } catch (e) {
+                console.error('Error:', e);
+                showToast('Failed to generate document: ' + e.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function generateImage() {
+            const name = document.getElementById('img-name').value.trim();
+            const description = document.getElementById('img-description').value.trim();
+            
+            if (!name || !description) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+            
+            showLoading('Generating Image...', 'Creating document image for OCR');
+            
+            try {
+                const response = await fetch('/api/lab/generate/image', {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeaders(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name,
+                        description,
+                        document_type: selectedImageType,
+                        format: selectedImgFormat
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate image');
+                }
+                
+                const result = await response.json();
+                generatedResult = result;
+                
+                // Show preview
+                showImagePreview(result);
+                addToHistory('image', name, result);
+                showToast('Image generated successfully!', 'success');
+                
+            } catch (e) {
+                console.error('Error:', e);
+                showToast('Failed to generate image: ' + e.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Previews
+        function showAPIPreview(result) {
+            const previewSection = document.getElementById('preview-section');
+            const previewArea = document.getElementById('preview-area');
+            
+            previewSection.classList.remove('hidden');
+            previewArea.classList.add('has-content');
+            
+            // Format JSON nicely
+            const jsonContent = JSON.stringify(result.data || result, null, 2);
+            
+            previewArea.innerHTML = `
+                <div class="w-full p-4">
+                    <div class="flex items-center justify-between mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
+                        <div class="flex items-center gap-2">
+                            <span class="text-green-400">🔌</span>
+                            <span class="font-medium">API Endpoint Ready</span>
+                        </div>
+                        <code class="text-sm text-green-400 bg-black/30 px-2 py-1 rounded">${result.endpoint || '/api/mock/' + result.id}</code>
+                    </div>
+                    <pre class="bg-black/50 rounded-lg p-4 overflow-auto max-h-96 text-sm"><code class="text-gray-300">${escapeHtml(jsonContent)}</code></pre>
+                </div>
+            `;
+        }
+        
+        function showDocumentPreview(result) {
+            const previewSection = document.getElementById('preview-section');
+            const previewArea = document.getElementById('preview-area');
+            
+            previewSection.classList.remove('hidden');
+            previewArea.classList.add('has-content');
+            
+            previewArea.innerHTML = `
+                <div class="w-full p-6 text-center">
+                    <div class="w-24 h-32 mx-auto mb-4 rounded-lg bg-gradient-to-b from-gray-700 to-gray-800 flex items-center justify-center text-4xl shadow-lg">
+                        ${getDocIcon(result.format)}
+                    </div>
+                    <h4 class="text-lg font-bold mb-2">${result.name || 'Document'}.${result.format}</h4>
+                    <p class="text-sm text-gray-400 mb-4">${formatFileSize(result.size || 0)}</p>
+                    <button onclick="downloadResult()" class="btn-primary">
+                        ⬇️ Download ${result.format?.toUpperCase()}
+                    </button>
+                </div>
+            `;
+        }
+        
+        function showImagePreview(result) {
+            const previewSection = document.getElementById('preview-section');
+            const previewArea = document.getElementById('preview-area');
+            
+            previewSection.classList.remove('hidden');
+            previewArea.classList.add('has-content');
+            
+            if (result.image_url || result.base64) {
+                const imgSrc = result.image_url || `data:image/${result.format || 'png'};base64,${result.base64}`;
+                previewArea.innerHTML = `
+                    <div class="w-full p-4">
+                        <img src="${imgSrc}" alt="${result.name}" class="max-w-full max-h-96 mx-auto rounded-lg shadow-lg border border-gray-700">
+                    </div>
+                `;
+            } else {
+                previewArea.innerHTML = `
+                    <div class="w-full p-6 text-center">
+                        <div class="w-24 h-24 mx-auto mb-4 rounded-lg bg-gradient-to-b from-purple-700 to-pink-800 flex items-center justify-center text-4xl shadow-lg">
+                            🖼️
+                        </div>
+                        <h4 class="text-lg font-bold mb-2">${result.name || 'Image'}.${result.format}</h4>
+                        <button onclick="downloadResult()" class="btn-primary">
+                            ⬇️ Download Image
+                        </button>
+                    </div>
+                `;
+            }
+        }
+        
+        // History
+        function addToHistory(type, name, result) {
+            const item = {
+                id: Date.now().toString(),
+                type,
+                name,
+                result,
+                createdAt: new Date().toISOString()
+            };
+            
+            history.unshift(item);
+            if (history.length > 20) history.pop();
+            
+            localStorage.setItem('lab_history', JSON.stringify(history));
+            renderHistory();
+        }
+        
+        function loadHistory() {
+            try {
+                history = JSON.parse(localStorage.getItem('lab_history') || '[]');
+            } catch (e) {
+                history = [];
+            }
+            renderHistory();
+        }
+        
+        function renderHistory() {
+            const container = document.getElementById('history-list');
+            
+            if (history.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <div class="text-3xl mb-2">📭</div>
+                        <p class="text-sm">No items yet</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = history.map(item => `
+                <div class="history-item" onclick="loadHistoryItem('${item.id}')">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${getTypeIcon(item.type)}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium truncate">${item.name}</div>
+                            <div class="text-xs text-gray-400">${formatDate(item.createdAt)}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function loadHistoryItem(id) {
+            const item = history.find(h => h.id === id);
+            if (!item) return;
+            
+            selectGenerator(item.type);
+            generatedResult = item.result;
+            
+            if (item.type === 'api') {
+                showAPIPreview(item.result);
+            } else if (item.type === 'document') {
+                showDocumentPreview(item.result);
+            } else if (item.type === 'image') {
+                showImagePreview(item.result);
+            }
+        }
+        
+        function clearHistory() {
+            if (!confirm('Clear all history?')) return;
+            history = [];
+            localStorage.removeItem('lab_history');
+            renderHistory();
+        }
+        
+        // Download
+        async function downloadResult() {
+            if (!generatedResult) {
+                showToast('Nothing to download', 'error');
+                return;
+            }
+            
+            try {
+                if (generatedResult.download_url) {
+                    window.open(generatedResult.download_url, '_blank');
+                } else if (generatedResult.base64) {
+                    const link = document.createElement('a');
+                    link.href = `data:application/octet-stream;base64,${generatedResult.base64}`;
+                    link.download = `${generatedResult.name || 'download'}.${generatedResult.format || 'bin'}`;
+                    link.click();
+                } else if (generatedResult.data) {
+                    const blob = new Blob([JSON.stringify(generatedResult.data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${generatedResult.name || 'api-data'}.json`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                }
+            } catch (e) {
+                showToast('Download failed: ' + e.message, 'error');
+            }
+        }
+        
+        // Quick Actions
+        function openToolsLibrary() {
+            window.location.href = '/ui/#tools';
+        }
+        
+        function exportAll() {
+            if (history.length === 0) {
+                showToast('No items to export', 'error');
+                return;
+            }
+            
+            const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'lab-export.json';
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            showToast('Export complete!', 'success');
+        }
+        
+        // Utilities
+        function showLoading(text, subtext) {
+            document.getElementById('loading-text').textContent = text;
+            document.getElementById('loading-subtext').textContent = subtext;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const msg = document.getElementById('toast-message');
+            
+            icon.textContent = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+            msg.textContent = message;
+            
+            toast.className = 'toast show ' + type;
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function getTypeIcon(type) {
+            switch(type) {
+                case 'api': return '🔌';
+                case 'document': return '📄';
+                case 'image': return '🖼️';
+                default: return '📦';
+            }
+        }
+        
+        function getDocIcon(format) {
+            switch(format) {
+                case 'docx': return '📝';
+                case 'pdf': return '📕';
+                case 'xlsx': return '📊';
+                case 'pptx': return '📽️';
+                default: return '📄';
+            }
+        }
+        
+        function formatFileSize(bytes) {
+            if (!bytes) return 'Unknown size';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+        
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+            return date.toLocaleDateString();
+        }
+    </script>
+</body>
+</html>

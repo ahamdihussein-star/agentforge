@@ -3809,6 +3809,14 @@ try:
 except ImportError as e:
     print(f"⚠️ Access Control module not available: {e}")
 
+# Include Lab Module Router (Test Data Generator)
+try:
+    from api.modules.lab import lab_router
+    app.include_router(lab_router)
+    print("✅ Lab module registered")
+except ImportError as e:
+    print(f"⚠️ Lab module not available: {e}")
+
 
 @app.get("/")
 async def root():
@@ -9865,6 +9873,20 @@ async def serve_chat_portal(path: str = ""):
         with open(chat_file) as f:
             return f.read()
     return "<html><body><h1>Chat Portal not found</h1></body></html>"
+
+
+# ============================================================================
+# LAB PORTAL - Test Data Generator
+# ============================================================================
+@app.get("/lab", response_class=HTMLResponse)
+@app.get("/lab/", response_class=HTMLResponse)
+async def serve_lab_portal():
+    """Lab Portal - Generate test APIs, documents, and images"""
+    lab_file = "ui/lab.html"
+    if os.path.exists(lab_file):
+        with open(lab_file) as f:
+            return f.read()
+    return "<html><body><h1>Lab Portal not found</h1></body></html>"
 
 
 @app.get("/frontend", response_class=HTMLResponse)
