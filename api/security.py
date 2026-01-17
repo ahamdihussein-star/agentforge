@@ -1792,14 +1792,20 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
     changes = {}
     
     # Update profile fields (self or admin)
+    print(f"📝 [PROFILE UPDATE] Updating profile for user: {target_user.email}")
+    print(f"   Request data: first_name={request.first_name}, last_name={request.last_name}, display_name={request.display_name}")
+    
     if request.first_name is not None:
         changes["first_name"] = {"old": target_user.profile.first_name, "new": request.first_name}
         target_user.profile.first_name = request.first_name
+        print(f"   ✅ Updated first_name: {request.first_name}")
     if request.last_name is not None:
         changes["last_name"] = {"old": target_user.profile.last_name, "new": request.last_name}
         target_user.profile.last_name = request.last_name
+        print(f"   ✅ Updated last_name: {request.last_name}")
     if request.display_name is not None:
         target_user.profile.display_name = request.display_name
+        print(f"   ✅ Updated display_name: {request.display_name}")
     if request.phone is not None:
         target_user.profile.phone = request.phone
     if request.job_title is not None:
@@ -1832,9 +1838,13 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
     print(f"💾 [API] Updating user in database: {target_user.email} (ID: {user_id[:8]}...)")
     print(f"   📝 Profile fields: first_name={target_user.profile.first_name if target_user.profile else 'N/A'}, last_name={target_user.profile.last_name if target_user.profile else 'N/A'}, display_name={target_user.profile.display_name if target_user.profile else 'N/A'}")
     print(f"   🔐 MFA enabled: {target_user.mfa.enabled if target_user.mfa else False}")
+    print(f"   📊 Final profile: first_name={target_user.profile.first_name}, last_name={target_user.profile.last_name}, display_name={target_user.profile.display_name}")
+    
     try:
         from database.services import UserService
-        UserService.save_user(target_user)
+        saved_user = UserService.save_user(target_user)
+        print(f"   ✅ User saved to database successfully")
+        print(f"   📊 DB response: first_name={saved_user.profile.first_name if saved_user and saved_user.profile else 'N/A'}, last_name={saved_user.profile.last_name if saved_user and saved_user.profile else 'N/A'}")
     except Exception as e:
         print(f"⚠️  [API ERROR] Database save failed: {e}, saving to disk only")
         import traceback
@@ -1850,7 +1860,19 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
         changes=changes if changes else None
     )
     
-    return {"status": "success", "user": {"id": target_user.id}}
+    # Return the updated user data so frontend can use it immediately
+    return {
+        "status": "success", 
+        "user": {
+            "id": target_user.id,
+            "name": target_user.get_display_name(),
+            "profile": {
+                "first_name": target_user.profile.first_name,
+                "last_name": target_user.profile.last_name,
+                "display_name": target_user.profile.display_name
+            }
+        }
+    }
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, user: User = Depends(require_admin)):
