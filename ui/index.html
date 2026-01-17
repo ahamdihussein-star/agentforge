@@ -10134,21 +10134,30 @@ Option 3"></textarea>
                 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Loaded access control from API:', data);
+                    console.log('🔵 [API] Full access control response:', JSON.stringify(data, null, 2));
+                    console.log('🔵 [API] agent_access:', JSON.stringify(data.agent_access, null, 2));
+                    console.log('🔵 [API] agent_access.entities:', JSON.stringify(data.agent_access?.entities, null, 2));
+                    console.log('🔵 [API] task_access:', JSON.stringify(data.task_access, null, 2));
+                    console.log('🔵 [API] task_access.task_permissions:', JSON.stringify(data.task_access?.task_permissions, null, 2));
                     
                     // Convert API format to wizard format
+                    const mappedEntities = (data.agent_access?.entities || []).map(e => ({
+                        id: e.entity_id || e.id,
+                        type: e.entity_type || e.type,
+                        name: e.name || ''
+                    }));
+                    console.log('🔵 [API] Mapped entities:', JSON.stringify(mappedEntities, null, 2));
+                    
                     wizard.accessControl = {
                         accessType: data.agent_access?.access_type || 'authenticated',
-                        entities: (data.agent_access?.entities || []).map(e => ({
-                            id: e.entity_id || e.id,
-                            type: e.entity_type || e.type,
-                            name: e.name || ''
-                        })),
+                        entities: mappedEntities,
                         taskPermissions: data.task_access?.task_permissions || []
                     };
+                    
+                    console.log('🔵 [API] Final wizard.accessControl:', JSON.stringify(wizard.accessControl, null, 2));
                 }
             } catch (e) {
-                console.log('Could not load access control from API:', e.message);
+                console.error('❌ Could not load access control from API:', e);
             }
         }
         
