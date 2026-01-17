@@ -17378,7 +17378,9 @@ async function saveToolEdit() {
                 });
                 
                 if(!response.ok) {
-                    throw new Error('Failed to start chat session');
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('❌ Start chat failed:', response.status, errorData);
+                    throw new Error(errorData.detail || errorData.message || `Failed to start chat session (${response.status})`);
                 }
                 
                 const session = await response.json();

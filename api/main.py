@@ -10105,7 +10105,16 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     - Display available features
     - Know what to expect before user types
     """
+    # Always log start-chat for debugging (critical path)
+    print(f"🚀 [START-CHAT] Request received: agent_id={agent_id}, current_user={current_user.email if current_user else 'NONE'}")
+    
+    if not current_user:
+        print(f"❌ [START-CHAT] No current_user - authentication missing!")
+        raise HTTPException(401, "Authentication required")
+    
     if agent_id not in app_state.agents:
+        print(f"❌ [START-CHAT] Agent not found: {agent_id}")
+        print(f"   Available agents: {list(app_state.agents.keys())[:5]}...")
         raise HTTPException(404, "Agent not found")
     
     agent = app_state.agents[agent_id]
