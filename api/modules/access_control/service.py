@@ -897,13 +897,17 @@ class AccessControlService:
                     "reason": "You are not a delegated admin for this agent"
                 }
             
-            # Get permissions from description (JSON format)
+            # User is a delegated admin - now check specific permissions
+            # Get permissions from description (JSON format) if available
             # Format: {entity_id: {permissions: [], denied_task_names: []}}
-            granted_permissions = ['full_admin']  # Default
+            granted_permissions = ['full_admin']  # Default - delegated admins get full_admin by default
+            
             try:
                 if admin_policy.description:
                     import json
                     admin_config = json.loads(admin_policy.description)
+                    print(f"   📋 [CHECK_PERM] Parsed description: {admin_config}")
+                    
                     if user_id in admin_config:
                         entity_config = admin_config[user_id]
                         if isinstance(entity_config, dict):
@@ -920,12 +924,17 @@ class AccessControlService:
                                 elif isinstance(entity_config, list):
                                     granted_permissions = entity_config
                                 break
+                else:
+                    print(f"   📋 [CHECK_PERM] No description, using default full_admin")
             except Exception as e:
-                print(f"⚠️ Failed to parse admin permissions: {e}")
+                print(f"⚠️ Failed to parse admin permissions: {e}, using default full_admin")
+            
+            print(f"   📋 [CHECK_PERM] granted_permissions={granted_permissions}, checking for permission='{permission}'")
             
             # FULL_ADMIN grants all permissions except delete
             if "full_admin" in granted_permissions:
                 if permission != "delete_agent":
+                    print(f"   ✅ [CHECK_PERM] GRANTED via full_admin delegation")
                     return {
                         "has_permission": True,
                         "is_owner": False,
@@ -935,6 +944,7 @@ class AccessControlService:
             
             # Check specific permission
             if permission in granted_permissions:
+                print(f"   ✅ [CHECK_PERM] GRANTED via specific permission: {permission}")
                 return {
                     "has_permission": True,
                     "is_owner": False,
@@ -942,6 +952,7 @@ class AccessControlService:
                     "reason": f"Granted via delegated permission: {permission}"
                 }
             
+            print(f"   ❌ [CHECK_PERM] Permission '{permission}' not in granted_permissions")
             return {
                 "has_permission": False,
                 "is_owner": False,
