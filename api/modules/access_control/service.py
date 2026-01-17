@@ -852,8 +852,11 @@ class AccessControlService:
             
             owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
             
+            print(f"   🔍 [CHECK_PERM] agent_id={agent_id[:8]}..., user_id={user_id[:8]}..., owner_id={owner_id[:8] if owner_id else 'None'}...")
+            
             # 1. Owner has ALL permissions
             if user_id == owner_id:
+                print(f"   ✅ [CHECK_PERM] User is OWNER")
                 return {
                     "has_permission": True,
                     "is_owner": True,
@@ -870,6 +873,7 @@ class AccessControlService:
             ).first()
             
             if not admin_policy:
+                print(f"   ❌ [CHECK_PERM] No agent_admin policy found for agent {agent_id[:8]}...")
                 return {
                     "has_permission": False,
                     "is_owner": False,
@@ -878,10 +882,14 @@ class AccessControlService:
                 }
             
             # Check if user is in the admin list
+            print(f"   📋 [CHECK_PERM] Found policy: user_ids={admin_policy.user_ids}, group_ids={admin_policy.group_ids}")
             user_is_admin = user_id in (admin_policy.user_ids or [])
             group_is_admin = any(g in (admin_policy.group_ids or []) for g in user_group_ids)
             
+            print(f"   📋 [CHECK_PERM] user_is_admin={user_is_admin}, group_is_admin={group_is_admin}, user_group_ids={user_group_ids}")
+            
             if not user_is_admin and not group_is_admin:
+                print(f"   ❌ [CHECK_PERM] User not in policy user_ids or group_ids")
                 return {
                     "has_permission": False,
                     "is_owner": False,
