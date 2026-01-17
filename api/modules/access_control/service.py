@@ -942,6 +942,17 @@ class AccessControlService:
                         "reason": "Granted via full admin delegation"
                     }
             
+            # Special case: 'any_admin' permission - grants access if user has ANY admin permission
+            # Used for listing agents in admin portal and chat access
+            if permission == 'any_admin' and len(granted_permissions) > 0:
+                print(f"   ✅ [CHECK_PERM] GRANTED - user has delegated admin permissions: {granted_permissions}")
+                return {
+                    "has_permission": True,
+                    "is_owner": False,
+                    "granted_by": "delegation",
+                    "reason": f"Granted via delegated permissions: {granted_permissions}"
+                }
+            
             # Check specific permission
             if permission in granted_permissions:
                 print(f"   ✅ [CHECK_PERM] GRANTED via specific permission: {permission}")

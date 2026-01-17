@@ -4419,7 +4419,7 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
                     user_group_ids=user_group_ids,
                     agent_id=agent.id,
                     org_id=org_id,
-                    permission='full_admin'
+                    permission='any_admin'
                 )
                 is_delegated_admin = perm_result.get('has_permission', False)
                 if is_delegated_admin:
@@ -4552,14 +4552,14 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
         if ACCESS_CONTROL_AVAILABLE and AccessControlService:
             try:
                 print(f"   🔐 Checking MANAGEMENT permission for agent {agent.id[:8]}...")
-                # Check if user has management permission (not chat access)
+                # Check if user has ANY management permission (not just full_admin)
                 mgmt_result = AccessControlService.check_agent_permission(
                     user_id=user_id,
                     user_role_ids=user_role_ids,
                     user_group_ids=user_group_ids,
                     agent_id=agent.id,
                     org_id=org_id,
-                    permission='full_admin'  # Only delegated admins
+                    permission='any_admin'  # Any delegated admin permission
                 )
                 if mgmt_result.get('has_permission', False):
                     visible_agents.append((agent, str(owner_id) if owner_id else None))
@@ -10295,7 +10295,7 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
                 user_group_ids=user_group_ids,
                 agent_id=agent_id,
                 org_id=org_id,
-                permission='full_admin'
+                permission='any_admin'
             )
             is_delegated_admin = perm_result.get('has_permission', False)
         except Exception as e:
@@ -10509,7 +10509,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
                 user_group_ids=user_group_ids,
                 agent_id=agent_id,
                 org_id=org_id,
-                permission='full_admin'
+                permission='any_admin'
             )
             is_delegated_admin = perm_result.get('has_permission', False)
         except Exception as e:
