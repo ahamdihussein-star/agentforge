@@ -649,8 +649,15 @@ Create an invoice image with:
         let selectedImgFormat = 'png';
         let generatedResult = null;
         let history = [];
-        let authToken = localStorage.getItem('agentforge_token');
-        let currentUser = JSON.parse(localStorage.getItem('agentforge_user') || 'null');
+        
+        // Get token from localStorage or sessionStorage (same as admin portal)
+        let authToken = localStorage.getItem('agentforge_token') || sessionStorage.getItem('agentforge_token');
+        let currentUser = null;
+        try {
+            currentUser = JSON.parse(localStorage.getItem('agentforge_user') || sessionStorage.getItem('agentforge_user') || 'null');
+        } catch(e) {
+            currentUser = null;
+        }
         
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -663,9 +670,20 @@ Create an invoice image with:
         
         // Auth
         function checkAuth() {
+            // Re-check tokens in case they were set after initial load
+            authToken = localStorage.getItem('agentforge_token') || sessionStorage.getItem('agentforge_token');
+            
             if (!authToken) {
+                // Not logged in - redirect to admin portal to login
                 window.location.href = '/ui/';
                 return;
+            }
+            
+            // Try to get user info
+            if (!currentUser) {
+                try {
+                    currentUser = JSON.parse(localStorage.getItem('agentforge_user') || sessionStorage.getItem('agentforge_user') || 'null');
+                } catch(e) {}
             }
             
             if (currentUser) {
