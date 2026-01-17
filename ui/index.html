@@ -10075,14 +10075,22 @@ Option 3"></textarea>
             const tasks = wizard.tasks || [];
             const entities = wizardAccessState.selectedEntities || [];
             
+            console.log('📋 ========== COLLECTING ACCESS CONTROL ==========');
+            console.log('📋 Tasks:', tasks.map(t => ({id: t.id, name: t.name})));
+            console.log('📋 Entities:', entities.map(e => ({id: e.id, name: e.name, type: e.type})));
+            console.log('📋 Task Permissions State:', JSON.stringify(wizardAccessState.taskPermissions, null, 2));
+            
             tasks.forEach((task, i) => {
                 const taskId = task.id || `task-${i}`;
                 const deniedEntityIds = [];
                 
                 entities.forEach(e => {
                     const key = `${taskId}:${e.id}`;
-                    if (wizardAccessState.taskPermissions[key] === false) {
+                    const isAllowed = wizardAccessState.taskPermissions[key];
+                    console.log(`   🔍 Task "${task.name}" for ${e.name}: key=${key}, value=${isAllowed}`);
+                    if (isAllowed === false) {
                         deniedEntityIds.push(e.id);
+                        console.log(`   ❌ DENIED: ${e.name} for task "${task.name}"`);
                     }
                 });
                 
@@ -10096,6 +10104,8 @@ Option 3"></textarea>
                     denied_entity_ids: deniedEntityIds,
                     default_allowed: !defaultDenied
                 });
+                
+                console.log(`📋 Task "${task.name}": denied_entity_ids=[${deniedEntityIds.join(', ')}]`);
             });
             
             wizard.accessControl = {
@@ -10107,6 +10117,9 @@ Option 3"></textarea>
                 })),
                 taskPermissions: taskPermissions
             };
+            
+            console.log('📋 Final Access Control:', JSON.stringify(wizard.accessControl, null, 2));
+            console.log('📋 ================================================');
         }
         
         async function loadAgentAccessControl(agentId) {
@@ -10197,6 +10210,9 @@ Option 3"></textarea>
         async function loadWizardAccessControl() {
             const ac = wizard.accessControl || {};
             
+            console.log('📥 ========== LOADING ACCESS CONTROL ==========');
+            console.log('📥 Raw wizard.accessControl:', JSON.stringify(ac, null, 2));
+            
             wizardAccessState.accessType = ac.accessType || 'authenticated';
             
             // Load all users/groups/roles first if not already loaded
@@ -10233,15 +10249,21 @@ Option 3"></textarea>
                 return { ...e, name, icon };
             });
             
+            console.log('📥 Selected Entities:', wizardAccessState.selectedEntities.map(e => ({id: e.id, name: e.name, type: e.type})));
+            
             // Convert task permissions to internal format
             wizardAccessState.taskPermissions = {};
             const taskPerms = ac.taskPermissions || [];
+            
+            console.log('📥 Task Permissions from API:', JSON.stringify(taskPerms, null, 2));
             
             if (Array.isArray(taskPerms)) {
                 // New format: array of {task_id, denied_entity_ids, default_allowed}
                 taskPerms.forEach(tp => {
                     const taskId = tp.task_id;
                     const deniedIds = tp.denied_entity_ids || [];
+                    
+                    console.log(`📥 Task "${tp.task_name}": denied_entity_ids=[${deniedIds.join(', ')}]`);
                     
                     // Set default permission
                     wizardAccessState.taskPermissions[`${taskId}:default`] = tp.default_allowed !== false;
@@ -10250,12 +10272,20 @@ Option 3"></textarea>
                     wizardAccessState.selectedEntities.forEach(e => {
                         const isDenied = deniedIds.includes(e.id);
                         wizardAccessState.taskPermissions[`${taskId}:${e.id}`] = !isDenied;
+                        if (isDenied) {
+                            console.log(`   ❌ DENIED: ${e.name} for task "${tp.task_name}"`);
+                        } else {
+                            console.log(`   ✅ ALLOWED: ${e.name} for task "${tp.task_name}"`);
+                        }
                     });
                 });
             } else {
                 // Old format: object
                 wizardAccessState.taskPermissions = taskPerms;
             }
+            
+            console.log('📥 Final taskPermissions state:', JSON.stringify(wizardAccessState.taskPermissions, null, 2));
+            console.log('📥 ================================================');
             
             // Set the radio button
             const radio = document.querySelector(`input[name="wizard-access-type"][value="${wizardAccessState.accessType}"]`);

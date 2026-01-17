@@ -226,6 +226,12 @@ class AccessControlService:
                     denied_entity_ids=list(set(mapping['denied']))
                 ))
             
+            print(f"📥 [GET_TASK_ACCESS] Agent {agent_id[:8]}...")
+            print(f"   📋 Found {len(policies)} action policies")
+            for perm in task_permissions:
+                if perm.denied_entity_ids:
+                    print(f"   📋 Task '{perm.task_name}': denied_entity_ids={perm.denied_entity_ids}")
+            
             return TaskAccessConfig(
                 agent_id=agent_id,
                 allow_all_by_default=not has_default_deny,
@@ -314,6 +320,8 @@ class AccessControlService:
             
             session.commit()
             print(f"✅ Saved task permissions: {len(entity_denied_tasks)} entity-specific policies")
+            for entity_id, denied_tasks in entity_denied_tasks.items():
+                print(f"   📋 Entity {entity_id[:8]}...: denied_tasks={denied_tasks}")
             
             return AccessControlService.get_task_access(agent_id, org_id)
     
