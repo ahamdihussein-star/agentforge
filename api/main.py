@@ -1128,6 +1128,9 @@ class AgentData(BaseModel):
     # Memory - stores conversation summaries for continuity
     memory: List[Dict[str, Any]] = []  # [{timestamp, summary, key_facts}]
     memory_enabled: bool = True  # Whether to use memory across conversations
+    # Ownership - who owns this agent
+    owner_id: Optional[str] = None
+    created_by: Optional[str] = None
 
     class Config:
         protected_namespaces = ()
@@ -10175,10 +10178,28 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     
     # Check if user is the OWNER - owners always have full access
     is_owner = False
+    agent_owner_id = None
+    
+    # Try to get owner from in-memory agent
     if hasattr(agent, 'owner_id') and agent.owner_id:
-        is_owner = str(agent.owner_id) == user_id
+        agent_owner_id = str(agent.owner_id)
     elif hasattr(agent, 'created_by') and agent.created_by:
-        is_owner = str(agent.created_by) == user_id
+        agent_owner_id = str(agent.created_by)
+    
+    # If not in memory, try to get from database
+    if not agent_owner_id:
+        try:
+            from database.services import AgentService
+            db_agent = AgentService.get_agent(agent_id, org_id)
+            if db_agent:
+                agent_owner_id = str(db_agent.get('owner_id') or db_agent.get('created_by') or '')
+                print(f"📋 [START-CHAT] Got owner_id from DB: {agent_owner_id[:8] if agent_owner_id else 'None'}...")
+        except Exception as e:
+            print(f"⚠️ [START-CHAT] Failed to get owner from DB: {e}")
+    
+    if agent_owner_id:
+        is_owner = agent_owner_id == user_id
+        print(f"🔍 [START-CHAT] Owner check: agent_owner={agent_owner_id[:8]}..., user={user_id[:8]}..., is_owner={is_owner}")
     
     # Check if user is a DELEGATED ADMIN - they also have full access
     is_delegated_admin = False
@@ -10351,10 +10372,26 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     
     # Check if user is the OWNER - owners always have full access
     is_owner = False
+    agent_owner_id = None
+    
+    # Try to get owner from in-memory agent
     if hasattr(agent, 'owner_id') and agent.owner_id:
-        is_owner = str(agent.owner_id) == user_id
+        agent_owner_id = str(agent.owner_id)
     elif hasattr(agent, 'created_by') and agent.created_by:
-        is_owner = str(agent.created_by) == user_id
+        agent_owner_id = str(agent.created_by)
+    
+    # If not in memory, try to get from database
+    if not agent_owner_id:
+        try:
+            from database.services import AgentService
+            db_agent = AgentService.get_agent(agent_id, org_id)
+            if db_agent:
+                agent_owner_id = str(db_agent.get('owner_id') or db_agent.get('created_by') or '')
+        except Exception as e:
+            print(f"⚠️ [CHAT] Failed to get owner from DB: {e}")
+    
+    if agent_owner_id:
+        is_owner = agent_owner_id == user_id
     
     # Check if user is a DELEGATED ADMIN - they also have full access
     is_delegated_admin = False
