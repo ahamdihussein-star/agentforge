@@ -4649,6 +4649,141 @@ async def get_agent(agent_id: str, current_user: User = Depends(get_current_user
     return response
 
 
+@app.get("/api/agents/{agent_id}/my-permissions")
+async def get_my_agent_permissions(agent_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Get the current user's permissions for a specific agent.
+    Returns:
+    - is_owner: True if user owns this agent
+    - is_admin: True if user is a delegated admin
+    - permissions: List of specific permissions (or ['full_admin'] if owner)
+    - denied_task_names: List of tasks the user cannot access (for chat)
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    user_id = str(current_user.id)
+    org_id = current_user.org_id if current_user else "org_default"
+    user_role_ids = getattr(current_user, 'role_ids', []) or []
+    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    
+    # Check if user is owner
+    is_owner = False
+    owner_id = None
+    
+    try:
+        from database.services import AgentService
+        agent_dict = AgentService.get_agent_by_id(agent_id, org_id)
+        if agent_dict:
+            owner_id = str(agent_dict.get('owner_id')) if agent_dict.get('owner_id') else None
+            created_by = str(agent_dict.get('created_by')) if agent_dict.get('created_by') else None
+            is_owner = (user_id == owner_id) or (user_id == created_by)
+    except Exception as e:
+        print(f"⚠️  Error checking ownership: {e}")
+    
+    if is_owner:
+        # Owner has all permissions
+        return {
+            "is_owner": True,
+            "is_admin": True,
+            "permissions": ["full_admin"],
+            "denied_task_names": [],
+            "can_edit_basic_info": True,
+            "can_edit_personality": True,
+            "can_edit_model": True,
+            "can_edit_guardrails": True,
+            "can_manage_tasks": True,
+            "can_manage_tools": True,
+            "can_manage_knowledge": True,
+            "can_manage_access": True,
+            "can_manage_task_permissions": True,
+            "can_publish": True,
+            "can_delete": True
+        }
+    
+    # Check if user is delegated admin
+    permissions = []
+    denied_task_names = []
+    is_admin = False
+    
+    if ACCESS_CONTROL_AVAILABLE and AccessControlService:
+        try:
+            # Get admin permissions from policy
+            from api.modules.access_control.service import get_session, normalize_org_id
+            from database.models.agent_access import AgentAccessPolicy
+            import json
+            
+            org_id = normalize_org_id(org_id)
+            
+            with get_session() as session:
+                admin_policy = session.query(AgentAccessPolicy).filter(
+                    AgentAccessPolicy.agent_id == agent_id,
+                    AgentAccessPolicy.org_id == org_id,
+                    AgentAccessPolicy.access_type == 'agent_admin',
+                    AgentAccessPolicy.is_active == True
+                ).first()
+                
+                if admin_policy:
+                    # Check if user is in admin list
+                    user_is_admin = user_id in (admin_policy.user_ids or [])
+                    group_is_admin = any(g in (admin_policy.group_ids or []) for g in user_group_ids)
+                    
+                    if user_is_admin or group_is_admin:
+                        is_admin = True
+                        permissions = ['full_admin']  # Default
+                        
+                        # Get specific permissions from description
+                        if admin_policy.description:
+                            try:
+                                admin_config = json.loads(admin_policy.description)
+                                if user_id in admin_config:
+                                    entity_config = admin_config[user_id]
+                                    if isinstance(entity_config, dict):
+                                        permissions = entity_config.get('permissions', ['full_admin'])
+                                        denied_task_names = entity_config.get('denied_task_names', [])
+                                    elif isinstance(entity_config, list):
+                                        permissions = entity_config
+                                else:
+                                    # Check groups
+                                    for group_id in user_group_ids:
+                                        if group_id in admin_config:
+                                            entity_config = admin_config[group_id]
+                                            if isinstance(entity_config, dict):
+                                                permissions = entity_config.get('permissions', ['full_admin'])
+                                                denied_task_names = entity_config.get('denied_task_names', [])
+                                            elif isinstance(entity_config, list):
+                                                permissions = entity_config
+                                            break
+                            except Exception as e:
+                                print(f"⚠️  Error parsing admin permissions: {e}")
+        except Exception as e:
+            print(f"⚠️  Error checking admin permissions: {e}")
+    
+    if not is_admin:
+        raise HTTPException(403, "You don't have management access to this agent")
+    
+    # Build permission flags
+    has_full_admin = 'full_admin' in permissions
+    
+    return {
+        "is_owner": False,
+        "is_admin": True,
+        "permissions": permissions,
+        "denied_task_names": denied_task_names,
+        "can_edit_basic_info": has_full_admin or 'edit_basic_info' in permissions,
+        "can_edit_personality": has_full_admin or 'edit_personality' in permissions,
+        "can_edit_model": has_full_admin or 'edit_model' in permissions,
+        "can_edit_guardrails": has_full_admin or 'edit_guardrails' in permissions,
+        "can_manage_tasks": has_full_admin or 'manage_tasks' in permissions,
+        "can_manage_tools": has_full_admin or 'manage_tools' in permissions,
+        "can_manage_knowledge": has_full_admin or 'manage_knowledge' in permissions,
+        "can_manage_access": has_full_admin or 'manage_access' in permissions,
+        "can_manage_task_permissions": has_full_admin or 'manage_task_permissions' in permissions,
+        "can_publish": has_full_admin or 'publish_agent' in permissions,
+        "can_delete": 'delete_agent' in permissions  # Never included in full_admin
+    }
+
+
 # ============================================================================
 # EMAIL SERVICE
 # ============================================================================
@@ -6766,13 +6901,27 @@ async def refine_unified_demo(request: Dict[str, Any]):
 
 @app.put("/api/agents/{agent_id}")
 async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user: User = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    user_id = str(current_user.id)
+    org_id = current_user.org_id if current_user else "org_default"
+    user_role_ids = getattr(current_user, 'role_ids', []) or []
+    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    
     # Try to get agent from database first, then fallback to in-memory
     agent = None
+    owner_id = None
+    is_owner = False
+    
     try:
         from database.services import AgentService
-        org_id = current_user.org_id if current_user else "org_default"
         agent_dict = AgentService.get_agent_by_id(agent_id, org_id)
         if agent_dict:
+            owner_id = str(agent_dict.get('owner_id')) if agent_dict.get('owner_id') else None
+            created_by = str(agent_dict.get('created_by')) if agent_dict.get('created_by') else None
+            is_owner = (user_id == owner_id) or (user_id == created_by)
+            
             # Remove extra fields that AgentData doesn't have
             agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
             agent = AgentData(**agent_dict_clean)
@@ -6786,11 +6935,70 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
             raise HTTPException(404, "Agent not found")
         agent = app_state.agents[agent_id]
     
-    # Update agent fields
-    if request.name is not None: agent.name = request.name
-    if request.goal is not None: agent.goal = request.goal
-    if request.personality is not None: agent.personality = AgentPersonality(**request.personality)
+    # Get user's permissions for this agent
+    permissions = ['full_admin'] if is_owner else []
+    
+    if not is_owner and ACCESS_CONTROL_AVAILABLE and AccessControlService:
+        try:
+            from api.modules.access_control.service import get_session, normalize_org_id
+            from database.models.agent_access import AgentAccessPolicy
+            import json
+            
+            norm_org_id = normalize_org_id(org_id)
+            
+            with get_session() as session:
+                admin_policy = session.query(AgentAccessPolicy).filter(
+                    AgentAccessPolicy.agent_id == agent_id,
+                    AgentAccessPolicy.org_id == norm_org_id,
+                    AgentAccessPolicy.access_type == 'agent_admin',
+                    AgentAccessPolicy.is_active == True
+                ).first()
+                
+                if admin_policy:
+                    user_is_admin = user_id in (admin_policy.user_ids or [])
+                    group_is_admin = any(g in (admin_policy.group_ids or []) for g in user_group_ids)
+                    
+                    if user_is_admin or group_is_admin:
+                        permissions = ['full_admin']  # Default
+                        if admin_policy.description:
+                            try:
+                                admin_config = json.loads(admin_policy.description)
+                                if user_id in admin_config:
+                                    entity_config = admin_config[user_id]
+                                    if isinstance(entity_config, dict):
+                                        permissions = entity_config.get('permissions', ['full_admin'])
+                                    elif isinstance(entity_config, list):
+                                        permissions = entity_config
+                            except:
+                                pass
+        except Exception as e:
+            print(f"⚠️  Error checking update permissions: {e}")
+    
+    if not permissions:
+        raise HTTPException(403, "You don't have permission to edit this agent")
+    
+    has_full_admin = 'full_admin' in permissions
+    
+    # Permission checks for each field update
+    def check_perm(perm_name, field_name):
+        if not has_full_admin and perm_name not in permissions:
+            raise HTTPException(403, f"You don't have permission to edit {field_name} (requires: {perm_name})")
+    
+    # Update agent fields with permission checks
+    if request.name is not None:
+        check_perm('edit_basic_info', 'name')
+        agent.name = request.name
+    if request.goal is not None:
+        check_perm('edit_basic_info', 'goal')
+        agent.goal = request.goal
+    if request.icon is not None:
+        check_perm('edit_basic_info', 'icon')
+        agent.icon = request.icon
+    if request.personality is not None:
+        check_perm('edit_personality', 'personality')
+        agent.personality = AgentPersonality(**request.personality)
     if request.guardrails is not None:
+        check_perm('edit_guardrails', 'guardrails')
         g = request.guardrails
         agent.guardrails = AgentGuardrails(
             anti_hallucination=g.get('antiHallucination', True),
@@ -6811,6 +7019,7 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
             no_store_pii=g.get('noStorePii', True)
         )
     if request.tasks is not None:
+        check_perm('manage_tasks', 'tasks')
         tasks = []
         for t in request.tasks:
             instructions = []
@@ -6819,16 +7028,27 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
                 elif isinstance(i, str): instructions.append(TaskInstruction(text=i))
             tasks.append(TaskDefinition(id=t.get('id', str(uuid.uuid4())), name=t.get('name', ''), description=t.get('description', ''), instructions=instructions))
         agent.tasks = tasks
-    if request.tool_ids is not None: agent.tool_ids = request.tool_ids
-    if request.model_id is not None: agent.model_id = request.model_id
-    if request.icon is not None: agent.icon = request.icon
-    if request.status is not None: agent.status = request.status
+    if request.tool_ids is not None:
+        check_perm('manage_tools', 'tools')
+        agent.tool_ids = request.tool_ids
+    if request.model_id is not None:
+        check_perm('edit_model', 'model')
+        agent.model_id = request.model_id
+    if request.status is not None:
+        # Publishing requires publish_agent permission
+        if request.status == 'published':
+            check_perm('publish_agent', 'publish status')
+        agent.status = request.status
     # Handle publishing/unpublishing
     if request.is_active is not None:
+        if request.is_active:
+            check_perm('publish_agent', 'publish')
         agent.is_active = request.is_active
         if request.is_active:
             agent.status = "published"
     if request.is_published is not None:
+        if request.is_published:
+            check_perm('publish_agent', 'publish')
         agent.is_active = request.is_published
         if request.is_published:
             agent.status = "published"

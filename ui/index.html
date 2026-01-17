@@ -13167,6 +13167,38 @@ Option 3"></textarea>
             
             console.log('📝 Editing agent:', id, 'owner_id:', agent.owner_id, 'created_by:', agent.created_by);
             
+            // Fetch user's permissions for this agent
+            let userPermissions = null;
+            try {
+                const permRes = await fetch(API+'/api/agents/'+id+'/my-permissions', {
+                    headers: getAuthHeaders()
+                });
+                if (permRes.ok) {
+                    userPermissions = await permRes.json();
+                    console.log('🔐 User permissions for agent:', userPermissions);
+                } else {
+                    console.warn('⚠️ Could not fetch permissions, assuming full access');
+                    userPermissions = {
+                        is_owner: true,
+                        permissions: ['full_admin'],
+                        can_edit_basic_info: true,
+                        can_edit_personality: true,
+                        can_edit_model: true,
+                        can_edit_guardrails: true,
+                        can_manage_tasks: true,
+                        can_manage_tools: true,
+                        can_manage_knowledge: true,
+                        can_manage_access: true,
+                        can_manage_task_permissions: true,
+                        can_publish: true,
+                        can_delete: true
+                    };
+                }
+            } catch (e) {
+                console.error('❌ Error fetching permissions:', e);
+                userPermissions = { is_owner: true, permissions: ['full_admin'] };
+            }
+            
             // First, show the create page WITHOUT resetting
             // Hide all pages
             document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
@@ -13190,6 +13222,7 @@ Option 3"></textarea>
             wizard.id = id;  // Also store as id for access control functions
             wizard.owner_id = agent.owner_id || null;  // For ownership check
             wizard.created_by = agent.created_by || null;  // For ownership check
+            wizard.userPermissions = userPermissions;  // Store user permissions
             wizard.name = agent.name || '';
             wizard.icon = agent.icon || '';
             wizard.goal = agent.goal || '';
@@ -13250,7 +13283,229 @@ Option 3"></textarea>
             // Load guardrails to form (for when user navigates to step 4)
             loadGuardrailsToForm();
             
-            console.log('Editing agent:', id, wizard);
+            // Apply permission-based restrictions to UI
+            applyPermissionRestrictions(userPermissions);
+            
+            console.log('Editing agent:', id, wizard, 'permissions:', userPermissions);
+        }
+        
+        // Apply permission-based restrictions to UI elements
+        function applyPermissionRestrictions(perms) {
+            if (!perms) return;
+            
+            console.log('🔐 Applying permission restrictions:', perms);
+            
+            // Helper function to disable a section
+            const disableSection = (selector, message = 'You do not have permission to edit this section') => {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(el => {
+                    // Add visual indicator
+                    el.style.opacity = '0.5';
+                    el.style.pointerEvents = 'none';
+                    el.style.position = 'relative';
+                    
+                    // Disable all inputs within
+                    el.querySelectorAll('input, textarea, select, button').forEach(input => {
+                        input.disabled = true;
+                    });
+                });
+            };
+            
+            // Helper to add "No Permission" overlay
+            const addNoPermissionOverlay = (elementId, permName) => {
+                const el = document.getElementById(elementId);
+                if (!el) return;
+                
+                // Create overlay
+                const overlay = document.createElement('div');
+                overlay.className = 'no-permission-overlay';
+                overlay.innerHTML = `
+                    <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100;border-radius:8px;">
+                        <div style="text-align:center;color:#ff6b6b;">
+                            <div style="font-size:2rem;">🔒</div>
+                            <div style="font-size:0.9rem;margin-top:0.5rem;">No Permission</div>
+                            <div style="font-size:0.75rem;color:#888;margin-top:0.25rem;">Requires: ${permName}</div>
+                        </div>
+                    </div>
+                `;
+                el.style.position = 'relative';
+                el.appendChild(overlay);
+                
+                // Disable inputs
+                el.querySelectorAll('input, textarea, select, button').forEach(input => {
+                    input.disabled = true;
+                });
+            };
+            
+            // If owner or full_admin, no restrictions
+            if (perms.is_owner || (perms.permissions && perms.permissions.includes('full_admin'))) {
+                console.log('✅ Owner/Full Admin - no restrictions');
+                return;
+            }
+            
+            // Apply restrictions based on specific permissions
+            
+            // Step 1: Basic Info (name, icon, goal)
+            if (!perms.can_edit_basic_info) {
+                console.log('🔒 Restricting: Basic Info');
+                const basicFields = ['w-name', 'w-icon', 'w-goal'];
+                basicFields.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.disabled = true;
+                        el.style.opacity = '0.6';
+                        el.title = 'No permission to edit (requires: edit_basic_info)';
+                    }
+                });
+            }
+            
+            // Step 2: Personality sliders
+            if (!perms.can_edit_personality) {
+                console.log('🔒 Restricting: Personality');
+                const traits = ['creativity', 'length', 'formality', 'empathy', 'proactivity', 'confidence'];
+                traits.forEach(trait => {
+                    const slider = document.getElementById(`p-${trait}`);
+                    const numInput = document.getElementById(`p-${trait}-num`);
+                    if (slider) { slider.disabled = true; slider.style.opacity = '0.6'; }
+                    if (numInput) { numInput.disabled = true; numInput.style.opacity = '0.6'; }
+                });
+                // Add indicator to personality section
+                const persSection = document.querySelector('.wizard-personality-section, [data-section="personality"]');
+                if (persSection) {
+                    persSection.style.opacity = '0.6';
+                    persSection.title = 'No permission to edit personality';
+                }
+            }
+            
+            // Step 3: Tasks
+            if (!perms.can_manage_tasks) {
+                console.log('🔒 Restricting: Tasks');
+                const taskContainer = document.getElementById('w-tasks');
+                if (taskContainer) {
+                    taskContainer.style.opacity = '0.6';
+                    taskContainer.style.pointerEvents = 'none';
+                }
+                // Hide add task button
+                const addTaskBtns = document.querySelectorAll('[onclick*="addTask"], [onclick*="addNewTask"]');
+                addTaskBtns.forEach(btn => {
+                    btn.style.display = 'none';
+                });
+            }
+            
+            // Step 3: Tools
+            if (!perms.can_manage_tools) {
+                console.log('🔒 Restricting: Tools');
+                const toolsSection = document.getElementById('wizard-tools-section');
+                if (toolsSection) {
+                    toolsSection.style.opacity = '0.6';
+                    toolsSection.style.pointerEvents = 'none';
+                }
+            }
+            
+            // Step 3: Knowledge Base
+            if (!perms.can_manage_knowledge) {
+                console.log('🔒 Restricting: Knowledge Base');
+                const kbSection = document.getElementById('wizard-kb-section');
+                if (kbSection) {
+                    kbSection.style.opacity = '0.6';
+                    kbSection.style.pointerEvents = 'none';
+                }
+            }
+            
+            // Step 4: LLM Model
+            if (!perms.can_edit_model) {
+                console.log('🔒 Restricting: LLM Model');
+                const modelSelect = document.getElementById('w-model');
+                if (modelSelect) {
+                    modelSelect.disabled = true;
+                    modelSelect.style.opacity = '0.6';
+                    modelSelect.title = 'No permission to change model';
+                }
+            }
+            
+            // Step 4: Guardrails
+            if (!perms.can_edit_guardrails) {
+                console.log('🔒 Restricting: Guardrails');
+                const guardrailSection = document.querySelector('.guardrails-section, [data-section="guardrails"]');
+                if (guardrailSection) {
+                    guardrailSection.style.opacity = '0.6';
+                    guardrailSection.style.pointerEvents = 'none';
+                }
+                // Disable all guardrail inputs
+                document.querySelectorAll('[id^="g-"]').forEach(input => {
+                    input.disabled = true;
+                    input.style.opacity = '0.6';
+                });
+            }
+            
+            // Step 5: Access Control
+            if (!perms.can_manage_access) {
+                console.log('🔒 Restricting: Access Control');
+                const accessSection = document.getElementById('wizard-access-section');
+                if (accessSection) {
+                    accessSection.style.opacity = '0.6';
+                    accessSection.style.pointerEvents = 'none';
+                }
+            }
+            
+            // Step 5: Delegation (Admin Management)
+            if (!perms.is_owner) {
+                console.log('🔒 Restricting: Delegation (only owner can delegate)');
+                const delegateSection = document.getElementById('wizard-delegate-admin-section');
+                if (delegateSection) {
+                    delegateSection.style.opacity = '0.6';
+                    delegateSection.style.pointerEvents = 'none';
+                    // Add overlay message
+                    const overlay = document.createElement('div');
+                    overlay.innerHTML = `
+                        <div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:1rem;margin-bottom:1rem;text-align:center;">
+                            <span style="color:#ff6b6b;">🔒 Only the agent owner can delegate admin access</span>
+                        </div>
+                    `;
+                    delegateSection.insertBefore(overlay, delegateSection.firstChild);
+                }
+            }
+            
+            // Publish button
+            if (!perms.can_publish) {
+                console.log('🔒 Restricting: Publish');
+                const publishBtns = document.querySelectorAll('[onclick*="publishAgent"], .publish-btn');
+                publishBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.title = 'No permission to publish';
+                });
+            }
+            
+            // Delete button
+            if (!perms.can_delete) {
+                console.log('🔒 Restricting: Delete');
+                const deleteBtns = document.querySelectorAll('[onclick*="deleteAgent"], .delete-btn');
+                deleteBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.title = 'No permission to delete';
+                });
+            }
+            
+            // Show a banner indicating restricted access
+            if (!perms.is_owner) {
+                const wizardHeader = document.querySelector('.wizard-header, #page-create > div:first-child');
+                if (wizardHeader && !document.getElementById('restricted-access-banner')) {
+                    const banner = document.createElement('div');
+                    banner.id = 'restricted-access-banner';
+                    banner.innerHTML = `
+                        <div style="background:linear-gradient(135deg, rgba(255,193,7,0.15), rgba(255,152,0,0.15));border:1px solid rgba(255,193,7,0.4);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;">
+                            <span style="font-size:1.25rem;">🔐</span>
+                            <div>
+                                <div style="color:#ffc107;font-weight:600;">Delegated Admin Access</div>
+                                <div style="color:#888;font-size:0.85rem;">You have limited permissions on this agent. Some sections may be restricted.</div>
+                            </div>
+                        </div>
+                    `;
+                    wizardHeader.parentNode.insertBefore(banner, wizardHeader);
+                }
+            }
         }
         
         // Load agent's tools into selectedDemoTools for display
