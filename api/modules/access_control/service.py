@@ -184,7 +184,8 @@ class AccessControlService:
             
             for policy in policies:
                 # Get the entity IDs from this policy
-                entity_ids = (policy.user_ids or []) + (policy.role_ids or []) + (policy.group_ids or [])
+                # Note: AgentActionPolicy only has user_ids and role_ids, no group_ids
+                entity_ids = (policy.user_ids or []) + (policy.role_ids or [])
                 
                 # Check denied tasks
                 for task_id in (policy.denied_task_ids or []):
