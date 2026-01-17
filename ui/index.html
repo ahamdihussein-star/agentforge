@@ -10138,21 +10138,31 @@ Option 3"></textarea>
                 console.log('Saving access control for agent:', agentId, ac);
                 
                 // Save Level 1: Agent Access (who can use the agent)
-                await fetch(`/api/access-control/agents/${agentId}/access?org_id=${orgId}&user_id=${userId}`, {
+                const accessBody = {
+                    access_type: ac.accessType || 'authenticated',
+                    entities: (ac.entities || []).map(e => ({
+                        id: e.id,           // ✅ Correct field name for AccessEntity schema
+                        type: e.type,       // ✅ Correct field name for AccessEntity schema
+                        name: e.name || 'Unknown'
+                    }))
+                };
+                console.log('📤 Saving access control:', JSON.stringify(accessBody, null, 2));
+                
+                const accessResponse = await fetch(`/api/access-control/agents/${agentId}/access?org_id=${orgId}&user_id=${userId}`, {
                     method: 'PUT',
                     headers: { 
                         ...getAuthHeaders(), 
                         'Content-Type': 'application/json' 
                     },
-                    body: JSON.stringify({
-                        access_type: ac.accessType || 'authenticated',
-                        entities: (ac.entities || []).map(e => ({
-                            entity_id: e.id,
-                            entity_type: e.type,
-                            name: e.name
-                        }))
-                    })
+                    body: JSON.stringify(accessBody)
                 });
+                
+                if (!accessResponse.ok) {
+                    const errorText = await accessResponse.text();
+                    console.error('❌ Failed to save access control:', accessResponse.status, errorText);
+                } else {
+                    console.log('✅ Access control saved');
+                }
                 
                 // Save Level 2: Task Access (which tasks can be used)
                 if (ac.taskPermissions && ac.taskPermissions.length > 0) {
