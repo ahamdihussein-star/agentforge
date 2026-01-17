@@ -4062,6 +4062,8 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
     # Get user info for filtering
     user_id = str(current_user.id) if current_user else None
     org_id = current_user.org_id if current_user else "org_default"
+    
+    print(f"📋 [LIST_AGENTS] Request from user: {current_user.email if current_user else 'None'}, user_id: {user_id}, org_id: {org_id}, status: {status}")
     user_role_ids = getattr(current_user, 'role_ids', []) or []
     user_group_ids = getattr(current_user, 'group_ids', []) or []
     
@@ -4106,6 +4108,8 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
     # OWNERSHIP-BASED FILTERING: Only show agents user owns OR has been granted access
     visible_agents = []
     
+    print(f"📋 [LIST_AGENTS] Filtering {len(all_agents)} agents for user {user_id[:8] if user_id else 'None'}...")
+    
     for agent in all_agents:
         # Check if user is the OWNER
         ownership_info = agent_ownership.get(agent.id, {})
@@ -4114,6 +4118,8 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
         
         is_owner = (str(owner_id) == user_id) if owner_id else False
         is_creator = (str(created_by) == user_id) if created_by else False
+        
+        print(f"   🔍 Agent {agent.id[:8]}... '{agent.name}': owner={owner_id}, created_by={created_by}, user_id={user_id}, is_owner={is_owner}, is_creator={is_creator}")
         
         if is_owner or is_creator:
             # Owner/Creator always sees their agents
@@ -4136,6 +4142,8 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
                 # On error, don't show the agent (fail secure)
                 print(f"⚠️  Access check error for agent {agent.id}: {e}")
                 continue
+    
+    print(f"✅ [LIST_AGENTS] Returning {len(visible_agents)} visible agents out of {len(all_agents)} total")
     
     return {
         "agents": [
