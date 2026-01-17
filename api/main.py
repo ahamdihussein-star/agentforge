@@ -10190,7 +10190,7 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     if not agent_owner_id:
         try:
             from database.services import AgentService
-            db_agent = AgentService.get_agent(agent_id, org_id)
+            db_agent = AgentService.get_agent_by_id(agent_id, org_id)
             if db_agent:
                 agent_owner_id = str(db_agent.get('owner_id') or db_agent.get('created_by') or '')
                 print(f"📋 [START-CHAT] Got owner_id from DB: {agent_owner_id[:8] if agent_owner_id else 'None'}...")
@@ -10384,7 +10384,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     if not agent_owner_id:
         try:
             from database.services import AgentService
-            db_agent = AgentService.get_agent(agent_id, org_id)
+            db_agent = AgentService.get_agent_by_id(agent_id, org_id)
             if db_agent:
                 agent_owner_id = str(db_agent.get('owner_id') or db_agent.get('created_by') or '')
         except Exception as e:
