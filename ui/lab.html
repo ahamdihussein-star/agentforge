@@ -1040,6 +1040,11 @@ Create an invoice image with:
                 const endpoint = `/api/lab/mock/${apiId}`;
                 const fullUrl = window.location.origin + endpoint;
                 
+                // Parse URL to extract base_url and endpoint_path
+                const urlObj = new URL(fullUrl);
+                const baseUrl = urlObj.origin;
+                const endpointPath = urlObj.pathname;
+                
                 const response = await fetch('/api/tools', {
                     method: 'POST',
                     headers: {
@@ -1048,23 +1053,29 @@ Create an invoice image with:
                     },
                     body: JSON.stringify({
                         name: apiName || 'Generated API',
-                        description: `Mock API generated from Lab. Returns test data.`,
+                        description: `Mock API generated from Lab. Endpoint: ${fullUrl}. Returns realistic test data.`,
                         type: 'api',
-                        config: {
-                            url: fullUrl,
-                            method: 'GET',
+                        api_config: {
+                            base_url: baseUrl,
+                            http_method: 'GET',
+                            endpoint_path: endpointPath,
+                            auth_type: 'none',
+                            auth_value: '',
+                            api_key_name: '',
+                            api_key_location: 'header',
                             headers: {},
-                            auth_type: 'none'
+                            input_parameters: []
                         }
                     })
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Failed to create tool');
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Failed to create tool');
                 }
                 
                 const tool = await response.json();
-                showToast(`Tool "${apiName}" created! Go to Tools page to see it.`, 'success');
+                showToast(`Tool "${apiName}" created successfully! Go to Tools page to see it.`, 'success');
                 
             } catch (e) {
                 console.error('Error creating tool:', e);
