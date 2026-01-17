@@ -7177,6 +7177,17 @@ Option 3"></textarea>
                 console.log('Loading Demo Kit Tools for selection');
                 loadDemoKitToolsForSelection();
             }
+            if(step === 4) {
+                console.log('Loading Access Control');
+                // Collect tasks from previous step to ensure they're available
+                collectTasksNew();
+                // Sync task permissions
+                syncTaskPermissions();
+                // Update access control UI
+                updateWizardAccessUI();
+                // Initialize access control (async - will check ownership)
+                initWizardAccessControl();
+            }
             if(step === 5) {
                 console.log('Calling showPreviewNew');
                 // Ensure tools are collected before preview
@@ -8044,12 +8055,42 @@ Option 3"></textarea>
                     if(i.value.trim()) insts.push(i.value.trim());
                 });
                 if(name) {
-                    tasks.push({ name, description: desc, instructions: insts });
-                    console.log('Collected task:', name);
+                    // Generate stable ID based on index or use existing ID
+                    const existingId = wizard.tasks?.[idx]?.id;
+                    const taskId = existingId || `task_${Date.now()}_${idx}`;
+                    
+                    tasks.push({ 
+                        id: taskId,
+                        name, 
+                        description: desc, 
+                        instructions: insts 
+                    });
+                    console.log('Collected task:', name, 'ID:', taskId);
                 }
             });
             wizard.tasks = tasks;
             console.log('Total tasks collected:', tasks.length);
+            
+            // Sync task permissions - ensure all tasks have default permissions
+            syncTaskPermissions();
+        }
+        
+        // Sync task permissions with current tasks
+        function syncTaskPermissions() {
+            const tasks = wizard.tasks || [];
+            
+            // Add default permissions for new tasks
+            tasks.forEach(task => {
+                const taskId = task.id;
+                const defaultKey = `${taskId}:default`;
+                
+                // If no permission exists for this task, set default to allowed
+                if (wizardAccessState.taskPermissions[defaultKey] === undefined) {
+                    wizardAccessState.taskPermissions[defaultKey] = true;
+                }
+            });
+            
+            console.log('Task permissions synced for', tasks.length, 'tasks');
         }
         
         // Tools with business explanations
@@ -9319,17 +9360,27 @@ Option 3"></textarea>
             const specificSection = document.getElementById('wizard-access-specific-section');
             const taskPermSection = document.getElementById('wizard-task-permissions-section');
             
+            // Sync task permissions with current tasks
+            syncTaskPermissions();
+            
             if (wizardAccessState.accessType === 'specific') {
                 specificSection?.classList.remove('hidden');
                 // Load users/groups if not loaded
                 if (wizardAccessState.allUsers.length === 0) {
                     loadWizardAccessEntities();
                 }
-                if (wizardAccessState.selectedEntities.length > 0) {
-                    taskPermSection?.classList.remove('hidden');
-                    renderWizardTaskPermissions();
-                }
+                
+                // Always show task permissions when specific access is selected
+                // (even without selected entities - shows global permissions)
+                taskPermSection?.classList.remove('hidden');
+                renderWizardTaskPermissions();
+            } else if (wizardAccessState.accessType === 'authenticated') {
+                // For authenticated users, also allow task-level permissions
+                specificSection?.classList.add('hidden');
+                taskPermSection?.classList.remove('hidden');
+                renderWizardTaskPermissions();
             } else {
+                // Public access - no need for granular permissions
                 specificSection?.classList.add('hidden');
                 taskPermSection?.classList.add('hidden');
             }
