@@ -10275,24 +10275,35 @@ Option 3"></textarea>
             console.log('📥 Task Permissions from API:', JSON.stringify(taskPerms, null, 2));
             
             if (Array.isArray(taskPerms)) {
-                // New format: array of {task_id, denied_entity_ids, default_allowed}
+                // Build a lookup by task NAME (since IDs change!)
+                const deniedByTaskName = {};
                 taskPerms.forEach(tp => {
-                    const taskId = tp.task_id;
+                    const taskName = tp.task_name;
                     const deniedIds = tp.denied_entity_ids || [];
-                    
-                    console.log(`📥 Task "${tp.task_name}": denied_entity_ids=[${deniedIds.join(', ')}]`);
+                    if (taskName && deniedIds.length > 0) {
+                        deniedByTaskName[taskName] = deniedIds;
+                        console.log(`📥 Task "${taskName}": denied_entity_ids=[${deniedIds.join(', ')}]`);
+                    }
+                });
+                
+                console.log('📥 Denied tasks by name:', JSON.stringify(deniedByTaskName, null, 2));
+                
+                // Now apply to CURRENT wizard tasks (which have new IDs)
+                const currentTasks = wizard.tasks || [];
+                currentTasks.forEach((task, i) => {
+                    const taskId = task.id || `task-${i}`;
+                    const taskName = task.name;
+                    const deniedIds = deniedByTaskName[taskName] || [];
                     
                     // Set default permission
-                    wizardAccessState.taskPermissions[`${taskId}:default`] = tp.default_allowed !== false;
+                    wizardAccessState.taskPermissions[`${taskId}:default`] = true;
                     
                     // Set per-entity permissions
                     wizardAccessState.selectedEntities.forEach(e => {
                         const isDenied = deniedIds.includes(e.id);
                         wizardAccessState.taskPermissions[`${taskId}:${e.id}`] = !isDenied;
                         if (isDenied) {
-                            console.log(`   ❌ DENIED: ${e.name} for task "${tp.task_name}"`);
-                        } else {
-                            console.log(`   ✅ ALLOWED: ${e.name} for task "${tp.task_name}"`);
+                            console.log(`   ❌ DENIED: ${e.name} for task "${taskName}" (${taskId})`);
                         }
                     });
                 });
