@@ -17343,15 +17343,102 @@ async function saveToolEdit() {
         async function onAgentChange(){
             const id=document.getElementById('chat-agent').value;
             if(!id)return;
+            
+            // Load conversations for this agent
             const r=await fetch(API+'/api/agents/'+id+'/conversations');
             const d=await r.json();
             document.getElementById('chat-conv').innerHTML='<option value="">New Chat</option>'+d.conversations.map(c=>`<option value="${c.id}">${c.title}</option>`).join('');
-            clearMsgs();conv=null;
+            
+            // Start a new chat session with welcome message
+            conv=null;
+            await startChatWithWelcome(id);
+        }
+        
+        async function startChatWithWelcome(agentId){
+            const msgContainer = document.getElementById('chat-messages');
+            msgContainer.innerHTML = '<div class="text-center text-gray-400 py-10">Loading...</div>';
+            
+            try {
+                const response = await fetch(API+'/api/agents/'+agentId+'/start-chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    }
+                });
+                
+                if(!response.ok) {
+                    throw new Error('Failed to start chat session');
+                }
+                
+                const session = await response.json();
+                console.log('📨 Start chat response:', session);
+                
+                // Store the conversation ID
+                conv = session.conversation_id;
+                
+                // Add to dropdown if not exists
+                const sel = document.getElementById('chat-conv');
+                if(conv && !sel.querySelector(`option[value="${conv}"]`)) {
+                    const opt = document.createElement('option');
+                    opt.value = conv;
+                    opt.textContent = 'New conversation';
+                    sel.insertBefore(opt, sel.firstChild.nextSibling);
+                    sel.value = conv;
+                }
+                
+                // Build personalized welcome message
+                const userName = session.user_name || 'User';
+                const agentName = session.agent_name || 'Assistant';
+                const tasks = session.accessible_tasks || [];
+                
+                let welcomeHtml = `
+                    <div class="text-center py-6 md:py-10">
+                        <div class="text-3xl md:text-4xl mb-3">👋</div>
+                        <h2 class="text-xl md:text-2xl font-bold text-white mb-2">Hi ${esc(userName)}!</h2>
+                        <p class="text-gray-400 mb-4">I'm <strong>${esc(agentName)}</strong>. How can I help you today?</p>
+                `;
+                
+                if(tasks.length > 0) {
+                    welcomeHtml += `
+                        <div class="mt-4 text-left max-w-md mx-auto bg-gray-800/50 rounded-lg p-4">
+                            <p class="text-sm text-gray-400 mb-2">✅ Available for you:</p>
+                            <ul class="text-sm text-gray-300 space-y-1">
+                                ${tasks.slice(0,5).map(t => `<li>• ${esc(t)}</li>`).join('')}
+                                ${tasks.length > 5 ? `<li class="text-gray-500">... and ${tasks.length - 5} more</li>` : ''}
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                welcomeHtml += '</div>';
+                msgContainer.innerHTML = welcomeHtml;
+                
+            } catch(err) {
+                console.error('Start chat error:', err);
+                // Fallback to simple welcome
+                msgContainer.innerHTML = `
+                    <div class="text-center text-gray-500 py-10 md:py-20">
+                        <span class="text-4xl md:text-6xl mb-4 block">💬</span>
+                        <p>Start a conversation!</p>
+                    </div>
+                `;
+            }
         }
 
         async function onConvChange(){
             const cid=document.getElementById('chat-conv').value;
-            if(!cid){clearMsgs();conv=null;return;}
+            if(!cid){
+                // New Chat selected - show personalized welcome
+                const agentId = document.getElementById('chat-agent').value;
+                if(agentId) {
+                    conv=null;
+                    await startChatWithWelcome(agentId);
+                } else {
+                    clearMsgs();conv=null;
+                }
+                return;
+            }
             const r=await fetch(API+'/api/conversations/'+cid);
             const c=await r.json();
             conv=cid;
@@ -17456,9 +17543,20 @@ async function saveToolEdit() {
                     formData.append('timezone', userTimezone);
                     if(conv) formData.append('conversation_id', conv);
                     chatAttachments.forEach(f => formData.append('files', f));
-                    response = await fetch(API+'/api/agents/'+aid+'/chat-with-files', {method:'POST', body: formData});
+                    response = await fetch(API+'/api/agents/'+aid+'/chat-with-files', {
+                        method:'POST', 
+                        headers: getAuthHeaders(),
+                        body: formData
+                    });
                 } else {
-                    response = await fetch(API+'/api/agents/'+aid+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m,conversation_id:conv,timezone:userTimezone})});
+                    response = await fetch(API+'/api/agents/'+aid+'/chat',{
+                        method:'POST',
+                        headers:{
+                            'Content-Type':'application/json',
+                            ...getAuthHeaders()
+                        },
+                        body:JSON.stringify({message:m,conversation_id:conv,timezone:userTimezone})
+                    });
                 }
                 const d=await response.json();
                 rmTyping();
