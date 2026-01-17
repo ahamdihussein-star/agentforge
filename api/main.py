@@ -3631,13 +3631,14 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     # ========================================================================
     # ACCESS CONTROL: Filter tasks based on permissions (Level 2)
     # ========================================================================
-    denied_task_ids = []
+    denied_task_names = []
     if access_control and hasattr(access_control, 'denied_tasks') and access_control.denied_tasks:
-        denied_task_ids = access_control.denied_tasks
-        print(f"🔐 Filtering out {len(denied_task_ids)} denied tasks")
+        denied_task_names = access_control.denied_tasks  # Now contains task NAMES, not IDs
+        print(f"🔐 Denied tasks (by name): {denied_task_names}")
     
-    # Get tasks that user has access to
-    accessible_tasks = [task for task in agent.tasks if task.id not in denied_task_ids]
+    # Get tasks that user has access to - compare by NAME since IDs can change
+    accessible_tasks = [task for task in agent.tasks if task.name not in denied_task_names]
+    print(f"🔐 Accessible tasks: {[t.name for t in accessible_tasks]}")
     
     system_prompt = f"""You are {agent.name}.
 
@@ -3678,10 +3679,7 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
                 system_prompt += f"\n{i}. {inst.text}"
     
     # Add information about restricted tasks if any
-    if denied_task_ids and len(denied_task_ids) > 0:
-        # Get names of denied tasks for better messaging
-        denied_task_names = [task.name for task in agent.tasks if task.id in denied_task_ids]
-        
+    if denied_task_names and len(denied_task_names) > 0:
         system_prompt += "\n\n=== RESTRICTED TASKS (NOT AVAILABLE FOR THIS USER) ==="
         system_prompt += "\nThe following tasks are NOT available for this user due to permission settings:"
         for task_name in denied_task_names:
@@ -3689,21 +3687,23 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
         
         system_prompt += """
 
-**IMPORTANT - How to handle restricted task requests:**
-When the user asks for help with any of these restricted tasks, you MUST:
-1. Politely acknowledge their request
-2. Explain that this feature is not available for their account
+**🚫 CRITICAL SECURITY RULE - RESTRICTED TASKS:**
+When the user asks for ANYTHING related to these restricted tasks, you MUST:
+1. Politely decline the request
+2. Explain this information is not available for their account
 3. Suggest they contact their administrator if they need access
-4. Offer to help with something else you CAN do
+4. Do NOT provide any information, data, or details related to these tasks
 
-Example response for restricted task:
-"I understand you'd like help with [task name]. Unfortunately, this feature isn't available for your account based on the current permission settings. 
+⚠️ IMPORTANT: You do NOT have access to data for restricted tasks.
+- DO NOT make up, guess, or hallucinate any data
+- DO NOT provide partial information or workarounds
+- DO NOT say "I can look that up" or similar - you CANNOT access this data
+- ANY request related to restricted tasks (even specific items within them) must be declined
 
-If you need access to this feature, please reach out to your administrator. 
+Example response:
+"I'm sorry, but I don't have access to employee information with your current permissions. This data is restricted for your account. Please contact your administrator if you need access to this feature."
 
-In the meantime, I'd be happy to help you with [list other available tasks]. Is there anything else I can assist you with?"
-
-DO NOT attempt to perform restricted tasks or provide workarounds."""
+This applies to ALL variations of the request - whether asking for "all data", "specific items", or "just one piece of information"."""
     
     # Add tools description
     system_prompt += tools_description
