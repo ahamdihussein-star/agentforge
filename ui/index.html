@@ -9155,9 +9155,16 @@ Option 3"></textarea>
                 
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('📋 Agent management data:', data);
+                    
                     agentAdminState.ownerId = data.owner_id;
-                    agentAdminState.isOwner = currentUser && data.owner_id === currentUser.id;
+                    // Compare strings to handle UUID formatting
+                    const ownerIdStr = String(data.owner_id || '');
+                    const currentUserIdStr = String(currentUser?.id || '');
+                    agentAdminState.isOwner = ownerIdStr && currentUserIdStr && ownerIdStr === currentUserIdStr;
                     agentAdminState.delegatedAdmins = data.delegated_admins || [];
+                    
+                    console.log(`🔐 Delegation ownership check: owner_id=${ownerIdStr.slice(0,8)}..., currentUser=${currentUserIdStr.slice(0,8)}..., isOwner=${agentAdminState.isOwner}`);
                     
                     // Enrich with names
                     agentAdminState.delegatedAdmins.forEach(admin => {
@@ -9173,6 +9180,7 @@ Option 3"></textarea>
                     // Show the delegate admin section if user is owner
                     if (section) {
                         section.style.display = agentAdminState.isOwner ? 'block' : 'none';
+                        console.log(`👁️ Delegate section visibility: ${agentAdminState.isOwner ? 'VISIBLE' : 'HIDDEN'}`);
                     }
                     
                     // Show owner badge
@@ -9183,9 +9191,28 @@ Option 3"></textarea>
                     
                     renderDelegatedAdmins();
                 } else if (response.status === 403) {
-                    console.log('User is not owner of this agent - hiding delegation section');
-                    agentAdminState.isOwner = false;
-                    if (section) section.style.display = 'none';
+                    // API says no access, but double-check with local data
+                    const localIsOwner = isAgentOwner();
+                    console.log(`⚠️ 403 Forbidden from API, but local isOwner check: ${localIsOwner}`);
+                    
+                    if (localIsOwner) {
+                        // Local check says we're owner - might be a sync issue
+                        console.log('🔄 Local check says owner - showing delegation section anyway');
+                        agentAdminState.isOwner = true;
+                        agentAdminState.delegatedAdmins = [];
+                        if (section) section.style.display = 'block';
+                        renderDelegatedAdmins();
+                    } else {
+                        agentAdminState.isOwner = false;
+                        if (section) section.style.display = 'none';
+                    }
+                } else {
+                    console.error('❌ Failed to load agent management:', response.status);
+                    // Fallback to local ownership check
+                    const localIsOwner = isAgentOwner();
+                    agentAdminState.isOwner = localIsOwner;
+                    if (section) section.style.display = localIsOwner ? 'block' : 'none';
+                    if (localIsOwner) renderDelegatedAdmins();
                 }
             } catch (e) {
                 console.error('Failed to load agent admins:', e);

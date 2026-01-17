@@ -69,7 +69,15 @@ def check_agent_management_permission(user: User, agent_id: str, org_id: str):
             raise HTTPException(status_code=404, detail="Agent not found")
         
         # 1. Check if user is the OWNER of this agent
-        if str(agent.owner_id) == user.id or str(agent.created_by) == user.id:
+        owner_id_str = str(agent.owner_id) if agent.owner_id else None
+        created_by_str = str(agent.created_by) if agent.created_by else None
+        user_id_str = str(user.id) if user.id else None
+        
+        print(f"🔍 Ownership check: owner_id={owner_id_str}, created_by={created_by_str}, user_id={user_id_str}")
+        
+        is_owner = (owner_id_str and owner_id_str == user_id_str) or (created_by_str and created_by_str == user_id_str)
+        
+        if is_owner:
             print(f"✅ User {user.id[:8]}... is the OWNER of agent {agent_id[:8]}...")
             return  # Owner has full access
         
