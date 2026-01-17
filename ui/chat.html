@@ -1731,11 +1731,25 @@
         let conversations = [];
         const API = '';
 
+        // Helper function to get auth token from either storage
+        function getToken() {
+            return getToken() || sessionStorage.getItem('token');
+        }
+        
+        // Helper function to get auth headers
+        function getAuthHeaders() {
+            const token = getToken();
+            return token ? { 'Authorization': `Bearer ${token}` } : {};
+        }
+
         // Check authentication on load
         document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('token');
+            const token = getToken();
             if (token) {
                 validateToken(token);
+            } else {
+                // Redirect to login
+                window.location.href = '/ui/';
             }
             setupMobileMenu();
         });
@@ -2083,7 +2097,7 @@
             try {
                 // Use the accessible agents endpoint - returns only agents the user has access to
                 const response = await fetch(`${API}/api/agents/accessible`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
                 });
                 
                 if (!response.ok) {
@@ -2137,7 +2151,7 @@
             
             try {
                 const response = await fetch(`${API}/api/agents/${currentAgent.id}/conversations`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
                 });
                 const data = await response.json();
                 conversations = data.conversations || [];
@@ -2165,7 +2179,7 @@
         async function loadConversation(convId) {
             try {
                 const response = await fetch(`${API}/api/conversations/${convId}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
                 });
                 const conv = await response.json();
                 currentConversation = conv;
@@ -2350,7 +2364,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${getToken()}`
                     },
                     body: JSON.stringify({
                         message,
@@ -2410,7 +2424,7 @@
                 try {
                     await fetch(`${API}/api/conversations/${currentConversation.id}`, {
                         method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                        headers: { 'Authorization': `Bearer ${getToken()}` }
                     });
                     startNewChat();
                     loadConversations();
@@ -2509,7 +2523,7 @@
                     response = await fetch(`${API}/api/agents/${currentAgent.id}/chat-with-files`, {
                         method: 'POST',
                         headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            'Authorization': `Bearer ${getToken()}`
                         },
                         body: formData
                     });
@@ -2523,7 +2537,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                            'Authorization': `Bearer ${getToken()}`
                         },
                         body: JSON.stringify({
                             message,
@@ -2621,7 +2635,7 @@
             // Fetch fresh user data
             try {
                 const response = await fetch(`${API}/api/security/auth/me`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
                 });
                 if (response.ok) {
                     const userData = await response.json();
@@ -2674,7 +2688,7 @@
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${getToken()}`
                     },
                     body: JSON.stringify({
                         first_name: firstName,
@@ -2799,7 +2813,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${getToken()}`
                     },
                     body: JSON.stringify({
                         current_password: currentPwd,
@@ -2876,7 +2890,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${getToken()}`
                     },
                     body: JSON.stringify({ password, code })
                 });
@@ -2924,7 +2938,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${getToken()}`
                     },
                     body: JSON.stringify({ method })
                 });
@@ -2989,7 +3003,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Authorization': `Bearer ${getToken()}`
                     },
                     body: JSON.stringify({ code })
                 });
@@ -3039,7 +3053,7 @@
         async function loadBranding() {
             try {
                 const response = await fetch(`${API}/api/organization/branding`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
                 });
                 
                 if (response.ok) {

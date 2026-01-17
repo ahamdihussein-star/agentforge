@@ -4117,7 +4117,14 @@ You have access to a special security tool called 'check_user_permissions'.
                     # Add tool execution summary
                     tool_summary = "\n\n---\n**Actions performed:**\n"
                     for tc in tool_calls_made:
-                        status = "✅" if tc['result'].get('success') else "❌"
+                        # Handle both dict and string results
+                        tool_result = tc['result']
+                        if isinstance(tool_result, str):
+                            try:
+                                tool_result = json.loads(tool_result)
+                            except:
+                                tool_result = {}
+                        status = "✅" if isinstance(tool_result, dict) and tool_result.get('success') else "❌"
                         tool_summary += f"- {status} {tc['tool']}\n"
                     # Don't append summary to content, just log it
                     print(f"   📋 Tool Summary: {len(tool_calls_made)} tools executed")
