@@ -5,6 +5,14 @@ Complete API with Wizard-based Agent Creation, RAG Support, and Multi-Provider C
 
 import os
 import json
+
+# Production mode - set to False to reduce logging
+DEBUG_MODE = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'
+
+def debug_log(*args, **kwargs):
+    """Only print if DEBUG_MODE is enabled"""
+    if DEBUG_MODE:
+        print(*args, **kwargs)
 import uuid
 import hashlib
 import asyncio

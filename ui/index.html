@@ -6800,6 +6800,16 @@ Option 3"></textarea>
     <script>
         const API='';
         
+        // Production mode - disable debug logging for performance
+        const DEBUG_MODE = false;
+        const _originalLog = console.log;
+        const _originalWarn = console.warn;
+        if (!DEBUG_MODE) {
+            console.log = function() {}; // Silence logs in production
+            console.warn = function() {}; // Silence warnings in production
+            // Keep console.error for real errors
+        }
+        
         // Utility function - define early
         function escHtml(text) {
             if(text === null || text === undefined) return '';
