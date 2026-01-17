@@ -2771,7 +2771,9 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
     
     print(f"\n🤖 LLM CALL WITH TOOLS")
     print(f"   Model: {model}")
+    print(f"   Model lower: {model_lower}")
     print(f"   Tools count: {len(tools)}")
+    print(f"   Checking conditions: gpt={model_lower.startswith('gpt')}, claude={model_lower.startswith('claude')}, gemini={model_lower.startswith('gemini')}")
     
     # Extract just the function definitions (without our metadata)
     openai_tools = []
@@ -2973,6 +2975,7 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
         
         elif model_lower.startswith('gemini'):
             # Google Gemini with function calling
+            print(f"   🔧 ENTERING Gemini function calling branch!")
             provider_data = next(
                 (p for p in app_state.settings.llm_providers if p.provider == 'google'),
                 None
