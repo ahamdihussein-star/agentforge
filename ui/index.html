@@ -7257,17 +7257,23 @@ Option 3"></textarea>
                 loadDemoKitToolsForSelection();
             }
             if(step === 4) {
-                console.log('Loading Access Control');
+                console.log('🟢🟢🟢 STEP 4: ACCESS CONTROL LOADING 🟢🟢🟢');
+                console.log('🟢 wizard.accessControl BEFORE load:', JSON.stringify(wizard.accessControl, null, 2));
                 // Collect tasks from previous step to ensure they're available
                 collectTasksNew();
+                console.log('🟢 Tasks collected, now loading wizard access control...');
                 // ✅ IMPORTANT: Load saved access control data FIRST
                 await loadWizardAccessControl();
+                console.log('🟢 loadWizardAccessControl completed');
+                console.log('🟢 wizardAccessState.selectedEntities:', JSON.stringify(wizardAccessState.selectedEntities, null, 2));
+                console.log('🟢 wizardAccessState.taskPermissions:', JSON.stringify(wizardAccessState.taskPermissions, null, 2));
                 // Sync task permissions
                 syncTaskPermissions();
                 // Update access control UI
                 updateWizardAccessUI();
                 // Initialize access control (async - will check ownership)
                 initWizardAccessControl();
+                console.log('🟢🟢🟢 STEP 4 LOADING COMPLETE 🟢🟢🟢');
             }
             if(step === 5) {
                 console.log('Loading Guardrails');
