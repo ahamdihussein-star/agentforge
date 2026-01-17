@@ -1937,21 +1937,21 @@ class AppState:
         
         # Load settings from JSON only if database loading failed
         if not db_settings_loaded:
-        settings_path = os.path.join(data_dir, "settings.json")
-        if os.path.exists(settings_path):
-            try:
-                with open(settings_path) as f:
-                    settings_data = json.load(f)
-                    self.settings = SystemSettings(**settings_data)
+            settings_path = os.path.join(data_dir, "settings.json")
+            if os.path.exists(settings_path):
+                try:
+                    with open(settings_path) as f:
+                        settings_data = json.load(f)
+                        self.settings = SystemSettings(**settings_data)
                         llm_provider = self.settings.llm.provider.value if hasattr(self.settings.llm.provider, 'value') else str(self.settings.llm.provider)
                         vector_db_provider = self.settings.vector_db.provider.value if hasattr(self.settings.vector_db.provider, 'value') else str(self.settings.vector_db.provider)
                         print(f"✅ Loaded settings from file: LLM={llm_provider}, VectorDB={vector_db_provider}")
-                    if self.settings.llm_providers:
+                        if self.settings.llm_providers:
                             print(f"✅ Loaded {len(self.settings.llm_providers)} LLM providers from file: {[p.name for p in self.settings.llm_providers]}")
-            except Exception as e:
-                print(f"⚠️ Error loading settings: {e}, using defaults")
-                import traceback
-                traceback.print_exc()
+                except Exception as e:
+                    print(f"⚠️ Error loading settings: {e}, using defaults")
+                    import traceback
+                    traceback.print_exc()
         
         # Load agents from database first
         db_agents_loaded = False
