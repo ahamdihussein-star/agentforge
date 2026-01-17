@@ -171,12 +171,36 @@ class AccessControlService:
             if not agent:
                 return TaskAccessConfig(agent_id=agent_id, allow_all_by_default=True)
             
-            # Get action policy for task restrictions
-            policy = session.query(AgentActionPolicy).filter(
+            # Get ALL action policies for this agent (not just first!)
+            policies = session.query(AgentActionPolicy).filter(
                 AgentActionPolicy.agent_id == agent_id,
                 AgentActionPolicy.org_id == org_id,
                 AgentActionPolicy.is_active == True
-            ).first()
+            ).all()
+            
+            # Build a mapping: task_id -> {denied_entity_ids: [], allowed_entity_ids: []}
+            task_entity_mapping = {}
+            has_default_deny = False
+            
+            for policy in policies:
+                # Get the entity IDs from this policy
+                entity_ids = (policy.user_ids or []) + (policy.role_ids or []) + (policy.group_ids or [])
+                
+                # Check denied tasks
+                for task_id in (policy.denied_task_ids or []):
+                    if task_id not in task_entity_mapping:
+                        task_entity_mapping[task_id] = {'denied': [], 'allowed': []}
+                    task_entity_mapping[task_id]['denied'].extend(entity_ids)
+                
+                # Check allowed tasks
+                for task_id in (policy.allowed_task_ids or []):
+                    if task_id not in task_entity_mapping:
+                        task_entity_mapping[task_id] = {'denied': [], 'allowed': []}
+                    task_entity_mapping[task_id]['allowed'].extend(entity_ids)
+                
+                # Check for default deny policy
+                if policy.applies_to == 'all' and policy.denied_task_ids:
+                    has_default_deny = True
             
             # Parse agent tasks
             tasks = agent.tasks if isinstance(agent.tasks, list) else []
@@ -192,27 +216,18 @@ class AccessControlService:
                 task_id = task.get('id', '')
                 task_name = task.get('name', 'Unnamed Task')
                 
-                # Check if this task is in denied list
-                denied_ids = []
-                allowed_ids = []
-                
-                if policy:
-                    if task_id in (policy.denied_task_ids or []):
-                        # Task is denied for entities in this policy
-                        denied_ids = (policy.user_ids or []) + (policy.role_ids or [])
-                    if task_id in (policy.allowed_task_ids or []):
-                        allowed_ids = (policy.user_ids or []) + (policy.role_ids or [])
+                mapping = task_entity_mapping.get(task_id, {'denied': [], 'allowed': []})
                 
                 task_permissions.append(TaskPermission(
                     task_id=task_id,
                     task_name=task_name,
-                    allowed_entity_ids=allowed_ids,
-                    denied_entity_ids=denied_ids
+                    allowed_entity_ids=list(set(mapping['allowed'])),
+                    denied_entity_ids=list(set(mapping['denied']))
                 ))
             
             return TaskAccessConfig(
                 agent_id=agent_id,
-                allow_all_by_default=not policy or not policy.denied_task_ids,
+                allow_all_by_default=not has_default_deny,
                 task_permissions=task_permissions
             )
     
