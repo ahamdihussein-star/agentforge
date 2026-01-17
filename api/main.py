@@ -1161,6 +1161,7 @@ class ConversationAccessCache(BaseModel):
 class Conversation(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     agent_id: str
+    user_id: Optional[str] = None  # Owner of this conversation (for privacy)
     title: str = "New Conversation"
     messages: List[ConversationMessage] = []
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
@@ -9722,47 +9723,93 @@ async def clear_agent_memory(agent_id: str):
 
 # Chat Endpoints
 @app.get("/api/agents/{agent_id}/conversations")
-async def list_conversations(agent_id: str):
+async def list_conversations(agent_id: str, current_user: User = Depends(get_current_user)):
+    """
+    List conversations for a specific agent.
+    PRIVACY: Each user can ONLY see their OWN conversations!
+    Even the agent owner cannot see other users' conversations.
+    """
+    user_id = str(current_user.id) if current_user else None
+    
+    if not user_id:
+        return {"conversations": []}  # No user = no conversations
+    
     # Try database first
     try:
         from database.services import ConversationService
         convs = ConversationService.get_all_conversations()
-        # Filter by agent_id
-        agent_convs = [c for c in convs if c.get('agent_id') == agent_id]
+        # Filter by agent_id AND user_id (PRIVACY!)
+        agent_convs = [
+            c for c in convs 
+            if c.get('agent_id') == agent_id and c.get('user_id') == user_id
+        ]
         return {"conversations": sorted(agent_convs, key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True)}
     except Exception as e:
         print(f"⚠️  Database error, falling back to memory: {e}")
     
-    # Fallback to memory
+    # Fallback to memory - also filter by user_id
     if agent_id not in app_state.agents:
         raise HTTPException(404, "Agent not found")
-    convs = [{"id": c.id, "title": c.title, "messages_count": len(c.messages), "created_at": c.created_at, "updated_at": c.updated_at} for c in app_state.conversations.values() if c.agent_id == agent_id]
+    convs = [
+        {"id": c.id, "title": c.title, "messages_count": len(c.messages), "created_at": c.created_at, "updated_at": c.updated_at} 
+        for c in app_state.conversations.values() 
+        if c.agent_id == agent_id and getattr(c, 'user_id', None) == user_id
+    ]
     return {"conversations": sorted(convs, key=lambda x: x["updated_at"], reverse=True)}
 
 
 @app.get("/api/conversations/{conversation_id}")
-async def get_conversation(conversation_id: str):
+async def get_conversation(conversation_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Get a specific conversation.
+    PRIVACY: User can only access their OWN conversations!
+    """
+    user_id = str(current_user.id) if current_user else None
+    
     # Try database first
     try:
         from database.services import ConversationService
         conv = ConversationService.get_conversation_by_id(conversation_id)
         if conv:
+            # PRIVACY CHECK: Verify user owns this conversation
+            if conv.get('user_id') and conv.get('user_id') != user_id:
+                raise HTTPException(403, "You don't have access to this conversation")
             return conv
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"⚠️  Database error, falling back to memory: {e}")
     
     # Fallback to memory
     if conversation_id not in app_state.conversations:
         raise HTTPException(404, "Conversation not found")
-    return app_state.conversations[conversation_id].dict()
+    
+    conv = app_state.conversations[conversation_id]
+    # PRIVACY CHECK for memory-based conversations
+    conv_user_id = getattr(conv, 'user_id', None) or (conv.access_cache.user_id if hasattr(conv, 'access_cache') and conv.access_cache else None)
+    if conv_user_id and conv_user_id != user_id:
+        raise HTTPException(403, "You don't have access to this conversation")
+    
+    return conv.dict()
 
 
 @app.delete("/api/conversations/{conversation_id}")
-async def delete_conversation(conversation_id: str):
-    print(f"🗑️  [DELETE] Deleting conversation: {conversation_id}")
+async def delete_conversation(conversation_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Delete a conversation.
+    PRIVACY: User can only delete their OWN conversations!
+    """
+    user_id = str(current_user.id) if current_user else None
+    print(f"🗑️  [DELETE] Deleting conversation: {conversation_id} by user: {user_id[:8] if user_id else 'None'}...")
+    
     # Try database first
     try:
         from database.services import ConversationService
+        # First, verify ownership
+        conv = ConversationService.get_conversation_by_id(conversation_id)
+        if conv and conv.get('user_id') and conv.get('user_id') != user_id:
+            raise HTTPException(403, "You can only delete your own conversations")
+        
         result = ConversationService.delete_conversation(conversation_id)
         print(f"🗑️  [DELETE] Database result: {result}")
         if result:
@@ -9770,12 +9817,20 @@ async def delete_conversation(conversation_id: str):
             if conversation_id in app_state.conversations:
                 del app_state.conversations[conversation_id]
             return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"⚠️  Database error, falling back to memory: {e}")
     
-    # Fallback to memory
+    # Fallback to memory - check ownership
     if conversation_id not in app_state.conversations:
         raise HTTPException(404, "Conversation not found")
+    
+    conv = app_state.conversations[conversation_id]
+    conv_user_id = getattr(conv, 'user_id', None) or (conv.access_cache.user_id if hasattr(conv, 'access_cache') and conv.access_cache else None)
+    if conv_user_id and conv_user_id != user_id:
+        raise HTTPException(403, "You can only delete your own conversations")
+    
     del app_state.conversations[conversation_id]
     app_state.save_to_disk()
     return {"status": "success"}
@@ -9842,7 +9897,7 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
         conversation = app_state.conversations[request.conversation_id]
     else:
         title = f"[TEST] {request.message[:40]}..." if len(request.message) > 40 else f"[TEST] {request.message}"
-        conversation = Conversation(agent_id=agent_id, title=title)
+        conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         app_state.conversations[conversation.id] = conversation
         
         # Save to database (marked as TEST conversation - won't show in production chat)
@@ -9851,6 +9906,7 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
             ConversationService.create_conversation({
                 'id': conversation.id,
                 'agent_id': agent_id,
+                'user_id': user_id,
                 'title': title,
                 'is_test': True
             }, org_id, user_id)
@@ -9976,7 +10032,7 @@ async def test_chat_with_files(
         title = f"[TEST] {message[:40]}..." if len(message) > 40 else f"[TEST] {message}"
         if not message and files:
             title = f"[TEST] Chat with {len(files)} file(s)"
-        conversation = Conversation(agent_id=agent_id, title=title)
+        conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         app_state.conversations[conversation.id] = conversation
         
         # Save to database
@@ -9985,6 +10041,7 @@ async def test_chat_with_files(
             ConversationService.create_conversation({
                 'id': conversation.id,
                 'agent_id': agent_id,
+                'user_id': user_id,
                 'title': title
             }, org_id, user_id)
         except Exception as e:
@@ -10286,6 +10343,7 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     
     conversation = Conversation(
         agent_id=agent_id,
+        user_id=user_id,  # PRIVACY: Track who owns this conversation
         title=f"Chat with {agent.name}",
         access_cache=access_cache
     )
@@ -10297,6 +10355,7 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
         ConversationService.create_conversation({
             'id': conversation.id,
             'agent_id': agent_id,
+            'user_id': user_id,  # PRIVACY: Track ownership
             'title': conversation.title
         }, org_id, user_id)
     except Exception as e:
@@ -10463,7 +10522,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     # Create new conversation if needed
     if not conversation:
         title = request.message[:50] + "..." if len(request.message) > 50 else request.message
-        conversation = Conversation(agent_id=agent_id, title=title)
+        conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         
         # Cache permissions in new conversation
         if access_result:
@@ -10490,6 +10549,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
             ConversationService.create_conversation({
                 'id': conversation.id,
                 'agent_id': agent_id,
+                'user_id': user_id,  # PRIVACY: Track ownership
                 'title': title
             }, org_id, user_id)
         except Exception as e:
@@ -10604,8 +10664,20 @@ async def chat_with_files(
         title = message[:50] + "..." if len(message) > 50 else message
         if not title and files:
             title = f"Chat with {len(files)} file(s)"
-        conversation = Conversation(agent_id=agent_id, title=title)
+        conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         app_state.conversations[conversation.id] = conversation
+        
+        # Save to database
+        try:
+            from database.services import ConversationService
+            ConversationService.create_conversation({
+                'id': conversation.id,
+                'agent_id': agent_id,
+                'user_id': user_id,  # PRIVACY: Track ownership
+                'title': title
+            }, org_id, user_id)
+        except Exception as e:
+            print(f"⚠️  Failed to save conversation to DB: {e}")
     
     # Process uploaded files and extract text
     file_contents = []
