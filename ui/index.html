@@ -9028,23 +9028,59 @@ Option 3"></textarea>
             container.classList.remove('hidden');
         }
         
+        // Check if current user can manage access control for this agent
+        async function canManageAgentAccess() {
+            // For new agents, the creator will be the owner
+            if (!wizard.id) return true;
+            
+            // Check if owner
+            if (isAgentOwner()) return true;
+            
+            // Check if delegated admin via API
+            try {
+                const orgId = currentUser?.org_id || 'default';
+                const response = await fetch(`/api/access-control/agents/${wizard.id}/admins?org_id=${orgId}`, {
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const adminUserIds = data.admin_user_ids || [];
+                    const adminGroupIds = data.admin_group_ids || [];
+                    
+                    // Check if current user is in admin list
+                    if (adminUserIds.includes(currentUser?.id)) return true;
+                    
+                    // Check if any of user's groups are in admin list
+                    const userGroups = currentUser?.group_ids || [];
+                    if (userGroups.some(g => adminGroupIds.includes(g))) return true;
+                }
+            } catch (e) {
+                console.error('Error checking agent admin status:', e);
+            }
+            
+            return false;
+        }
+        
         // Initialize wizard access control event listeners
-        function initWizardAccessControl() {
-            // SECURITY: Show access control section for admins OR agent owner
+        async function initWizardAccessControl() {
+            // SECURITY: Only show access control for OWNER or DELEGATED ADMINS
+            // Even platform super admins cannot see other users' agent access control
             const accessControlSection = document.getElementById('wizard-access-control-section');
-            const canManageAccess = isUserAdmin() || isAgentOwner();
+            const canManage = await canManageAgentAccess();
             
             if (accessControlSection) {
-                if (!canManageAccess) {
+                if (!canManage) {
                     accessControlSection.style.display = 'none';
-                    console.log('🔐 Access Control section hidden - user is not admin or owner');
+                    console.log('🔐 Access Control section hidden - user is not owner or delegated admin');
                 } else {
                     accessControlSection.style.display = 'block';
+                    console.log('✅ Access Control section visible - user is owner or delegated admin');
                 }
             }
             
             // Pre-load users/groups if user can manage access
-            if (authToken && canManageAccess) {
+            if (authToken && canManage) {
                 loadWizardAccessEntities();
             }
             

@@ -35,10 +35,12 @@ def check_agent_management_permission(user: User, agent_id: str, org_id: str):
     """
     Check if user has permission to manage agent access control.
     
-    Allowed (in order of priority):
-    1. Agent owner/creator - ALWAYS has access to their own agent
-    2. Agent admins - Users granted admin access by the owner
-    3. Platform super admins - Can manage all agents
+    STRICT MODEL - Only allowed:
+    1. Agent owner/creator - FULL control over their agent
+    2. Agent admins - Users explicitly granted admin access by the owner
+    
+    NOTE: Even Super Admins CANNOT manage other users' agents.
+    This ensures complete ownership control.
     """
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -67,8 +69,7 @@ def check_agent_management_permission(user: User, agent_id: str, org_id: str):
             print(f"✅ User {user.id[:8]}... is the OWNER of agent {agent_id[:8]}...")
             return  # Owner has full access
         
-        # 2. Check if user is an AGENT ADMIN (granted by owner)
-        # Look for a special "admin" access policy for this user
+        # 2. Check if user is an AGENT ADMIN (explicitly granted by owner)
         admin_policy = session.query(AgentAccessPolicy).filter(
             AgentAccessPolicy.agent_id == agent_id,
             AgentAccessPolicy.org_id == org_id,
@@ -85,28 +86,11 @@ def check_agent_management_permission(user: User, agent_id: str, org_id: str):
                 print(f"✅ User {user.id[:8]}... is an AGENT ADMIN for agent {agent_id[:8]}...")
                 return  # Agent admin has access
         
-        # 3. Check if user is a PLATFORM SUPER ADMIN
-        from core.security.state import security_state
-        user_permissions = security_state.get_user_permissions(user)
-        
-        # Only super admin / platform admin can manage OTHER people's agents
-        is_super_admin = 'admin' in user_permissions or 'super_admin' in user_permissions
-        
-        # Check if user has super admin role
-        for role_id in (user.role_ids or []):
-            role = security_state.roles.get(role_id)
-            if role and ('super' in role.name.lower()):
-                is_super_admin = True
-                break
-        
-        if is_super_admin:
-            print(f"✅ User {user.id[:8]}... is a SUPER ADMIN")
-            return  # Super admin has access
-        
-        # User doesn't have permission
+        # NO ACCESS - Even super admins cannot manage other users' agents
+        print(f"❌ User {user.id[:8]}... denied access to agent {agent_id[:8]}... (not owner or delegated admin)")
         raise HTTPException(
             status_code=403, 
-            detail="Access denied - only the agent owner or delegated admins can manage this agent's access control"
+            detail="Access denied - only the agent owner or users they have delegated can manage this agent"
         )
 
 
