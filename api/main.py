@@ -10100,6 +10100,9 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     # ========================================================================
     # LOAD USER CONTEXT
     # ========================================================================
+    print(f"🚀 [START-CHAT] Starting chat session for user: {current_user.email if current_user else 'ANONYMOUS'}")
+    print(f"   [START-CHAT] current_user attributes: first_name={getattr(current_user, 'first_name', None)}, last_name={getattr(current_user, 'last_name', None)}, display_name={getattr(current_user, 'display_name', None)}")
+    
     user_name = ""
     if hasattr(current_user, 'first_name') and current_user.first_name:
         user_name = current_user.first_name
@@ -10109,6 +10112,8 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
         user_name = current_user.display_name
     elif hasattr(current_user, 'email') and current_user.email:
         user_name = current_user.email.split('@')[0].replace('.', ' ').title()
+    
+    print(f"   [START-CHAT] Final user_name: '{user_name}'")
     
     # Get user's groups
     user_groups = []
@@ -10226,6 +10231,14 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
         welcome += "How can I help you today?"
     else:
         welcome += f"I can help you with: {', '.join(accessible_task_names[:3])}..."
+    
+    print(f"✅ [START-CHAT] Returning session:")
+    print(f"   user_name: '{user_name}'")
+    print(f"   user_role: '{user_role}'")
+    print(f"   user_groups: {user_groups}")
+    print(f"   accessible_tasks: {accessible_task_names}")
+    print(f"   denied_tasks: {denied_task_names}")
+    print(f"   welcome: '{welcome}'")
     
     return ChatSessionResponse(
         conversation_id=conversation.id,

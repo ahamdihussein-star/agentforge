@@ -2205,6 +2205,9 @@
                 if (response.ok) {
                     const session = await response.json();
                     console.log('📦 Chat session loaded:', session);
+                    console.log('👤 User name from session:', session.user_name);
+                    console.log('🔐 Denied tasks:', session.denied_tasks);
+                    console.log('✅ Accessible tasks:', session.accessible_tasks);
                     
                     // Store conversation ID for later use
                     currentConversation = { id: session.conversation_id, messages: [] };
@@ -2212,6 +2215,8 @@
                     // Build personalized welcome
                     const userName = session.user_name || 'there';
                     const hasRestrictions = session.denied_tasks && session.denied_tasks.length > 0;
+                    
+                    console.log('👋 Welcome message will say: Hi', userName);
                     
                     let welcomeTitle = `Hi ${userName}! 👋`;
                     let welcomeSubtitle = session.message || `I'm ${currentAgent.name}. How can I help you today?`;
