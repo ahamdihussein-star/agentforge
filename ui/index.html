@@ -22055,18 +22055,21 @@ function editSecurityUser(userId) {
 
 // Save user edit
 async function saveUserEdit(userId) {
-    const firstName = document.getElementById('edit-user-firstname').value;
-    const lastName = document.getElementById('edit-user-lastname').value;
+    const firstName = document.getElementById('edit-user-firstname').value?.trim() || '';
+    const lastName = document.getElementById('edit-user-lastname').value?.trim() || '';
     const status = document.getElementById('edit-user-status').value;
     const roleCheckboxes = document.querySelectorAll('#edit-user-roles input[type="checkbox"]:checked');
     const roleIds = Array.from(roleCheckboxes).map(cb => cb.value);
+    
+    console.log('📝 Saving user edit:', { firstName, lastName, status, roleIds });
     
     try {
         const res = await fetch('/api/security/users/' + userId, {
             method: 'PUT',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                profile: { first_name: firstName, last_name: lastName },
+                first_name: firstName,  // ✅ Top-level, not nested in profile
+                last_name: lastName,    // ✅ Top-level, not nested in profile
                 status: status,
                 role_ids: roleIds
             })
@@ -22078,10 +22081,11 @@ async function saveUserEdit(userId) {
             loadSecurityUsers();
         } else {
             const data = await res.json();
-        console.log("Login response:", data);
+            console.error('Failed to update user:', data);
             showToast(data.detail || 'Failed to update user', 'error');
         }
     } catch (e) {
+        console.error('Error saving user:', e);
         showToast('Error: ' + e.message, 'error');
     }
 }
