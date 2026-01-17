@@ -2494,21 +2494,26 @@
                         <div class="w-4 md:w-8 h-0.5 bg-gray-700 flex-shrink-0"></div>
                         <div class="flex items-center gap-1 flex-shrink-0">
                             <div id="step-4" class="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center step-pending cursor-pointer text-xs md:text-sm" onclick="goStep(4)">4</div>
-                            <span class="text-xs text-gray-400 whitespace-nowrap hidden md:inline">Guardrails</span>
+                            <span class="text-xs text-gray-400 whitespace-nowrap hidden md:inline">Access</span>
                         </div>
                         <div class="w-4 md:w-8 h-0.5 bg-gray-700 flex-shrink-0"></div>
                         <div class="flex items-center gap-1 flex-shrink-0">
                             <div id="step-5" class="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center step-pending cursor-pointer text-xs md:text-sm" onclick="goStep(5)">5</div>
-                            <span class="text-xs text-gray-400 whitespace-nowrap hidden md:inline">Preview</span>
+                            <span class="text-xs text-gray-400 whitespace-nowrap hidden md:inline">Safety</span>
                         </div>
                         <div class="w-4 md:w-8 h-0.5 bg-gray-700 flex-shrink-0"></div>
                         <div class="flex items-center gap-1 flex-shrink-0">
                             <div id="step-6" class="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center step-pending cursor-pointer text-xs md:text-sm" onclick="goStep(6)">6</div>
-                            <span class="text-xs text-gray-400 whitespace-nowrap hidden md:inline">Test</span>
+                            <span class="text-xs text-gray-400 whitespace-nowrap hidden md:inline">Preview</span>
                         </div>
                         <div class="w-4 md:w-8 h-0.5 bg-gray-700 flex-shrink-0"></div>
                         <div class="flex items-center gap-1 flex-shrink-0">
                             <div id="step-7" class="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center step-pending cursor-pointer text-xs md:text-sm" onclick="goStep(7)">7</div>
+                            <span class="text-xs text-gray-400 whitespace-nowrap hidden md:inline">Test</span>
+                        </div>
+                        <div class="w-4 md:w-8 h-0.5 bg-gray-700 flex-shrink-0"></div>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <div id="step-8" class="w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center step-pending cursor-pointer text-xs md:text-sm" onclick="goStep(8)">8</div>
                             <span class="text-xs text-gray-400 whitespace-nowrap hidden md:inline">Deploy</span>
                         </div>
                     </div>
@@ -2979,7 +2984,7 @@
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
                         <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
-                        <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Guardrails →</button>
+                        <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Access Control →</button>
                     </div>
                 </div>
                 
@@ -3005,174 +3010,17 @@
                     </div>
                 </div>
 
-                <!-- Step 4: Guardrails & Safety -->
+                <!-- Step 4: Access Control (Separate Step) -->
                 <div id="wizard-step-4" class="hidden max-w-4xl mx-auto">
                     <div class="flex items-center gap-2 mb-6">
-                        <span class="text-2xl">🛡️</span>
+                        <span class="text-2xl">🔐</span>
                         <div>
-                            <h3 class="text-xl font-bold">Guardrails & Safety</h3>
-                            <p class="text-sm text-gray-400">Protect your agent and users with these safety settings</p>
+                            <h3 class="text-xl font-bold">Access Control</h3>
+                            <p class="text-sm text-gray-400">Define who can use this agent and manage their permissions</p>
                         </div>
                     </div>
                     
                     <div class="space-y-6">
-                        <!-- Anti-Hallucination -->
-                        <div class="card rounded-xl p-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="flex items-center gap-3">
-                                    <span class="text-2xl">🎯</span>
-                                    <div>
-                                        <h4 class="font-semibold">Anti-Hallucination</h4>
-                                        <p class="text-sm text-gray-400">Ensure your agent only provides accurate information</p>
-                                    </div>
-                                </div>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="guard-anti-hallucination" class="sr-only peer" checked>
-                                    <div class="w-11 h-6 bg-gray-700 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
-                                </label>
-                            </div>
-                            <div id="anti-hallucination-options" class="space-y-3 pl-10">
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-cite-sources" class="w-4 h-4 rounded" checked>
-                                    <div>
-                                        <span class="text-sm">Always cite sources</span>
-                                        <p class="text-xs text-gray-500">Agent must reference where information comes from</p>
-                                    </div>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-admit-uncertainty" class="w-4 h-4 rounded" checked>
-                                    <div>
-                                        <span class="text-sm">Admit when uncertain</span>
-                                        <p class="text-xs text-gray-500">Say "I don't know" instead of guessing</p>
-                                    </div>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-verify-facts" class="w-4 h-4 rounded" checked>
-                                    <div>
-                                        <span class="text-sm">Verify against knowledge base</span>
-                                        <p class="text-xs text-gray-500">Cross-check answers with your data sources</p>
-                                    </div>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-no-speculation" class="w-4 h-4 rounded">
-                                    <div>
-                                        <span class="text-sm">No speculation</span>
-                                        <p class="text-xs text-gray-500">Only state confirmed facts, never hypothesize</p>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <!-- Content Boundaries -->
-                        <div class="card rounded-xl p-6">
-                            <div class="flex items-center gap-3 mb-4">
-                                <span class="text-2xl">🚧</span>
-                                <div>
-                                    <h4 class="font-semibold">Content Boundaries</h4>
-                                    <p class="text-sm text-gray-400">Define what your agent should and shouldn't discuss</p>
-                                </div>
-                            </div>
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="text-sm text-gray-400 mb-2 block">Topics to AVOID (one per line)</label>
-                                    <textarea id="guard-avoid-topics" rows="3" class="input-field w-full rounded-lg px-4 py-3 text-sm" placeholder="Competitor pricing&#10;Legal advice&#10;Medical diagnoses"></textarea>
-                                </div>
-                                <div>
-                                    <label class="text-sm text-gray-400 mb-2 block">Stay focused on (optional)</label>
-                                    <textarea id="guard-focus-topics" rows="2" class="input-field w-full rounded-lg px-4 py-3 text-sm" placeholder="Only discuss topics related to your business"></textarea>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Response Limits -->
-                        <div class="card rounded-xl p-6">
-                            <div class="flex items-center gap-3 mb-4">
-                                <span class="text-2xl">📏</span>
-                                <div>
-                                    <h4 class="font-semibold">Response Limits</h4>
-                                    <p class="text-sm text-gray-400">Control how your agent responds</p>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="text-sm text-gray-400 mb-2 block">Max response length</label>
-                                    <select id="guard-max-length" class="input-field w-full rounded-lg px-4 py-3">
-                                        <option value="short">Short (1-2 paragraphs)</option>
-                                        <option value="medium" selected>Medium (3-4 paragraphs)</option>
-                                        <option value="long">Long (detailed explanations)</option>
-                                        <option value="unlimited">Unlimited</option>
-                                    </select>
-                            
-                                </div>
-                                <div>
-                                    <label class="text-sm text-gray-400 mb-2 block">Language</label>
-                                    <select id="guard-language" class="input-field w-full rounded-lg px-4 py-3">
-                                        <option value="user">Match user's language</option>
-                                        <option value="en">English only</option>
-                                        <option value="ar">Arabic only</option>
-                                        <option value="multi">Multilingual</option>
-                                    </select>
-                            
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Escalation Rules -->
-                        <div class="card rounded-xl p-6">
-                            <div class="flex items-center gap-3 mb-4">
-                                <span class="text-2xl">🚨</span>
-                                <div>
-                                    <h4 class="font-semibold">Escalation Rules</h4>
-                                    <p class="text-sm text-gray-400">When to hand off to a human</p>
-                                </div>
-                            </div>
-                            <div class="space-y-3">
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-escalate-angry" class="w-4 h-4 rounded" checked>
-                                    <span class="text-sm">Escalate frustrated or angry users</span>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-escalate-complex" class="w-4 h-4 rounded" checked>
-                                    <span class="text-sm">Escalate complex issues agent can't handle</span>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-escalate-request" class="w-4 h-4 rounded" checked>
-                                    <span class="text-sm">Escalate when user asks for human</span>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-escalate-sensitive" class="w-4 h-4 rounded">
-                                    <span class="text-sm">Escalate sensitive topics (legal, financial)</span>
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <!-- PII Protection -->
-                        <div class="card rounded-xl p-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <div class="flex items-center gap-3">
-                                    <span class="text-2xl">🔐</span>
-                                    <div>
-                                        <h4 class="font-semibold">PII Protection</h4>
-                                        <p class="text-sm text-gray-400">Protect personal information</p>
-                                    </div>
-                                </div>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="guard-pii-protection" class="sr-only peer" checked>
-                                    <div class="w-11 h-6 bg-gray-700 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
-                                </label>
-                            </div>
-                            <div class="space-y-3 pl-10">
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-mask-pii" class="w-4 h-4 rounded" checked>
-                                    <span class="text-sm">Mask sensitive data in logs (SSN, credit cards)</span>
-                                </label>
-                                <label class="flex items-center gap-3 cursor-pointer">
-                                    <input type="checkbox" id="guard-no-store-pii" class="w-4 h-4 rounded" checked>
-                                    <span class="text-sm">Don't store personal data in conversation history</span>
-                                </label>
-                            </div>
-                        </div>
-                        
                         <!-- Access Control - Modern Design -->
                         <div id="wizard-access-control-section" class="rounded-2xl overflow-hidden" style="background: linear-gradient(145deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%); border: 1px solid rgba(139, 92, 246, 0.2);">
                             
@@ -3452,12 +3300,186 @@
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
                         <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
+                        <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Guardrails →</button>
+                    </div>
+                </div>
+
+                <!-- Step 5: Guardrails & Safety (Moved from Step 4) -->
+                <div id="wizard-step-5" class="hidden max-w-4xl mx-auto">
+                    <div class="flex items-center gap-2 mb-6">
+                        <span class="text-2xl">🛡️</span>
+                        <div>
+                            <h3 class="text-xl font-bold">Guardrails & Safety</h3>
+                            <p class="text-sm text-gray-400">Protect your agent and users with these safety settings</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-6">
+                        <!-- Anti-Hallucination -->
+                        <div class="card rounded-xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-2xl">🎯</span>
+                                    <div>
+                                        <h4 class="font-semibold">Anti-Hallucination</h4>
+                                        <p class="text-sm text-gray-400">Ensure your agent only provides accurate information</p>
+                                    </div>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="guard-anti-hallucination" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-700 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                                </label>
+                            </div>
+                            <div id="anti-hallucination-options" class="space-y-3 pl-10">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-cite-sources" class="w-4 h-4 rounded" checked>
+                                    <div>
+                                        <span class="text-sm">Always cite sources</span>
+                                        <p class="text-xs text-gray-500">Agent must reference where information comes from</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-admit-uncertainty" class="w-4 h-4 rounded" checked>
+                                    <div>
+                                        <span class="text-sm">Admit when uncertain</span>
+                                        <p class="text-xs text-gray-500">Say "I don't know" instead of guessing</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-verify-facts" class="w-4 h-4 rounded" checked>
+                                    <div>
+                                        <span class="text-sm">Verify against knowledge base</span>
+                                        <p class="text-xs text-gray-500">Cross-check answers with your data sources</p>
+                                    </div>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-no-speculation" class="w-4 h-4 rounded">
+                                    <div>
+                                        <span class="text-sm">No speculation</span>
+                                        <p class="text-xs text-gray-500">Only state confirmed facts, never hypothesize</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Content Boundaries -->
+                        <div class="card rounded-xl p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <span class="text-2xl">🚧</span>
+                                <div>
+                                    <h4 class="font-semibold">Content Boundaries</h4>
+                                    <p class="text-sm text-gray-400">Define what your agent should and shouldn't discuss</p>
+                                </div>
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="text-sm text-gray-400 mb-2 block">Topics to AVOID (one per line)</label>
+                                    <textarea id="guard-avoid-topics" rows="3" class="input-field w-full rounded-lg px-4 py-3 text-sm" placeholder="Competitor pricing&#10;Legal advice&#10;Medical diagnoses"></textarea>
+                                </div>
+                                <div>
+                                    <label class="text-sm text-gray-400 mb-2 block">Stay focused on (optional)</label>
+                                    <textarea id="guard-focus-topics" rows="2" class="input-field w-full rounded-lg px-4 py-3 text-sm" placeholder="Only discuss topics related to your business"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Response Limits -->
+                        <div class="card rounded-xl p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <span class="text-2xl">📏</span>
+                                <div>
+                                    <h4 class="font-semibold">Response Limits</h4>
+                                    <p class="text-sm text-gray-400">Control how your agent responds</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-sm text-gray-400 mb-2 block">Max response length</label>
+                                    <select id="guard-max-length" class="input-field w-full rounded-lg px-4 py-3">
+                                        <option value="short">Short (1-2 paragraphs)</option>
+                                        <option value="medium" selected>Medium (3-4 paragraphs)</option>
+                                        <option value="long">Long (detailed explanations)</option>
+                                        <option value="unlimited">Unlimited</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-sm text-gray-400 mb-2 block">Language</label>
+                                    <select id="guard-language" class="input-field w-full rounded-lg px-4 py-3">
+                                        <option value="user">Match user's language</option>
+                                        <option value="en">English only</option>
+                                        <option value="ar">Arabic only</option>
+                                        <option value="multi">Multilingual</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Escalation Rules -->
+                        <div class="card rounded-xl p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <span class="text-2xl">🚨</span>
+                                <div>
+                                    <h4 class="font-semibold">Escalation Rules</h4>
+                                    <p class="text-sm text-gray-400">When to hand off to a human</p>
+                                </div>
+                            </div>
+                            <div class="space-y-3">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-escalate-angry" class="w-4 h-4 rounded" checked>
+                                    <span class="text-sm">Escalate frustrated or angry users</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-escalate-complex" class="w-4 h-4 rounded" checked>
+                                    <span class="text-sm">Escalate complex issues agent can't handle</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-escalate-request" class="w-4 h-4 rounded" checked>
+                                    <span class="text-sm">Escalate when user asks for human</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-escalate-sensitive" class="w-4 h-4 rounded">
+                                    <span class="text-sm">Escalate sensitive topics (legal, financial)</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- PII Protection -->
+                        <div class="card rounded-xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-2xl">🔐</span>
+                                    <div>
+                                        <h4 class="font-semibold">PII Protection</h4>
+                                        <p class="text-sm text-gray-400">Protect personal information</p>
+                                    </div>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="guard-pii-protection" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-700 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                                </label>
+                            </div>
+                            <div class="space-y-3 pl-10">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-mask-pii" class="w-4 h-4 rounded" checked>
+                                    <span class="text-sm">Mask sensitive data in logs (SSN, credit cards)</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="guard-no-store-pii" class="w-4 h-4 rounded" checked>
+                                    <span class="text-sm">Don't store personal data in conversation history</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
+                        <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Preview →</button>
                     </div>
                 </div>
 
-                <!-- Step 5: Preview -->
-                <div id="wizard-step-5" class="hidden max-w-4xl mx-auto">
+                <!-- Step 6: Preview -->
+                <div id="wizard-step-6" class="hidden max-w-4xl mx-auto">
                     <div class="flex items-center gap-2 mb-6">
                         <span class="text-2xl">👁️</span>
                         <div>
@@ -3477,8 +3499,8 @@
                     </div>
                 </div>
 
-                <!-- Step 6: Test -->
-                <div id="wizard-step-6" class="hidden max-w-4xl mx-auto">
+                <!-- Step 7: Test -->
+                <div id="wizard-step-7" class="hidden max-w-4xl mx-auto">
                     <div class="flex items-center justify-between mb-6">
                         <div class="flex items-center gap-2">
                             <span class="text-2xl">🧪</span>
@@ -3519,8 +3541,8 @@
                     </div>
                 </div>
 
-                <!-- Step 7: Deploy -->
-                <div id="wizard-step-7" class="hidden max-w-4xl mx-auto">
+                <!-- Step 8: Deploy -->
+                <div id="wizard-step-8" class="hidden max-w-4xl mx-auto">
                     <div class="flex items-center gap-2 mb-6">
                         <span class="text-2xl">🚀</span>
                         <div>
@@ -7170,7 +7192,7 @@ Option 3"></textarea>
             document.getElementById('wizard-step-0')?.classList.remove('hidden');
             document.getElementById('wizard-generating')?.classList.add('hidden');
             document.getElementById('wizard-progress')?.classList.add('hidden');
-            for(let i=1; i<=7; i++) {
+            for(let i=1; i<=8; i++) {
                 document.getElementById('wizard-step-'+i)?.classList.add('hidden');
             }
             document.getElementById('w-initial-goal').value = '';
@@ -7196,7 +7218,7 @@ Option 3"></textarea>
             document.getElementById('wizard-progress')?.classList.remove('hidden');
             
             // Update step indicators
-            for(let i=1; i<=7; i++) {
+            for(let i=1; i<=8; i++) {
                 const el = document.getElementById('step-'+i);
                 const content = document.getElementById('wizard-step-'+i);
                 if(el) {
@@ -7232,12 +7254,17 @@ Option 3"></textarea>
                 initWizardAccessControl();
             }
             if(step === 5) {
+                console.log('Loading Guardrails');
+                // Load guardrails values from wizard object if editing
+                loadGuardrailsToForm();
+            }
+            if(step === 6) {
                 console.log('Calling showPreviewNew');
                 // Ensure tools are collected before preview
                 collectToolsNew();
                 showPreviewNew();
             }
-            if(step === 6) {
+            if(step === 7) {
                 console.log('Calling prepareTestSuggestions');
                 prepareTestSuggestions();
                 // Reset test conversation when entering test step
@@ -7296,7 +7323,8 @@ Option 3"></textarea>
             }
             if(step === 2) collectTasksNew();
             if(step === 3) collectToolsNew();
-            if(step === 4) collectGuardrails();
+            if(step === 4 && typeof collectWizardAccessControl === 'function') collectWizardAccessControl();
+            if(step === 5) collectGuardrails();
             
             // Auto-save to database before moving to next step
             await autoSaveWizardStep();
@@ -7399,7 +7427,8 @@ Option 3"></textarea>
             }
             if(step === 2) collectTasksNew();
             if(step === 3) collectToolsNew();
-            if(step === 4) collectGuardrails();
+            if(step === 4 && typeof collectWizardAccessControl === 'function') collectWizardAccessControl();
+            if(step === 5) collectGuardrails();
             
             // Navigate to target step
             step = targetStep;
@@ -7427,7 +7456,8 @@ Option 3"></textarea>
             }
             if(step === 2) collectTasksNew();
             if(step === 3) collectToolsNew();
-            if(step === 4) collectGuardrails();
+            if(step === 4 && typeof collectWizardAccessControl === 'function') collectWizardAccessControl();
+            if(step === 5) collectGuardrails();
             
             // Save to database
             await autoSaveWizardStep();
