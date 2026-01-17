@@ -121,13 +121,14 @@ class AccessControlService:
         entities: List[AccessEntity],
         updated_by: str
     ) -> AgentAccessResponse:
-        """Update agent access configuration"""
+        """Update agent access configuration (NOT admin policies)"""
         org_id = normalize_org_id(org_id)
         with get_session() as session:
-            # Find or create policy
+            # Find or create policy - EXCLUDE agent_admin policies!
             policy = session.query(AgentAccessPolicy).filter(
                 AgentAccessPolicy.agent_id == agent_id,
-                AgentAccessPolicy.org_id == org_id
+                AgentAccessPolicy.org_id == org_id,
+                AgentAccessPolicy.access_type != 'agent_admin'  # ✨ Don't overwrite admin policy!
             ).first()
             
             if not policy:
