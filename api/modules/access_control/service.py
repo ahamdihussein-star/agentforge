@@ -504,6 +504,10 @@ class AccessControlService:
                 AgentActionPolicy.is_active == True
             ).all()
             
+            print(f"🔍 [ACCESS CHECK] Found {len(action_policies)} action policies for agent {agent_id[:8]}...")
+            for i, pol in enumerate(action_policies):
+                print(f"   Policy {i+1}: applies_to={pol.applies_to}, user_ids={pol.user_ids}, description={pol.description[:100] if pol.description else 'None'}...")
+            
             # Get current agent tasks to match by NAME
             agent = session.query(Agent).filter(Agent.id == agent_id).first()
             current_tasks = []
@@ -534,12 +538,17 @@ class AccessControlService:
             denied_tools = []
             
             # Check each policy to see if it applies to this user
+            print(f"🔍 [ACCESS CHECK] Checking {len(action_policies)} policies for user {user_id[:8]}...")
+            print(f"   User role_ids: {user_role_ids}")
+            print(f"   User group_ids: {user_group_ids}")
+            
             for policy in action_policies:
                 applies_to_user = False
                 
                 # Check if policy applies to all users
                 if policy.applies_to == 'all':
                     applies_to_user = True
+                    print(f"   ✓ Policy applies to ALL users")
                 else:
                     # Check if user is specifically in this policy
                     user_in_policy = user_id in (policy.user_ids or [])
@@ -547,6 +556,9 @@ class AccessControlService:
                     group_in_policy = any(g in (policy.user_ids or []) for g in user_group_ids)  # Groups stored in user_ids
                     
                     applies_to_user = user_in_policy or role_in_policy or group_in_policy
+                    
+                    print(f"   Policy check: user_in={user_in_policy}, role_in={role_in_policy}, group_in={group_in_policy}, applies={applies_to_user}")
+                    print(f"     Policy user_ids: {policy.user_ids}")
                 
                 if applies_to_user:
                     # Try to get denied task NAMES from description (JSON)
