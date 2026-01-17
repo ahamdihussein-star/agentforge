@@ -3649,10 +3649,54 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     # ========================================================================
     denied_task_names = []
     print(f"🔐 [PROCESS_CHAT] access_control param: {access_control}")
-    print(f"🔐 [PROCESS_CHAT] current_user param: {current_user}")
+    print(f"🔐 [PROCESS_CHAT] current_user param: {current_user.email if current_user else None}")
     if access_control and hasattr(access_control, 'denied_tasks') and access_control.denied_tasks:
         denied_task_names = access_control.denied_tasks  # Now contains task NAMES, not IDs
         print(f"🔐 Denied tasks (by name): {denied_task_names}")
+        
+        # ========================================================================
+        # CRITICAL: Also filter out tools associated with denied tasks
+        # When a task is denied, the LLM should NOT have access to its tools
+        # ========================================================================
+        if denied_task_names:
+            # Build a list of task-related keywords for tool filtering
+            denied_keywords = []
+            for task_name in denied_task_names:
+                # Extract keywords from task name (lowercase, split by spaces)
+                words = task_name.lower().replace('-', ' ').replace('_', ' ').split()
+                denied_keywords.extend([w for w in words if len(w) > 3])
+            
+            # Filter out tools whose names contain denied task keywords
+            original_tool_count = len(action_tools)
+            filtered_action_tools = []
+            for tool in action_tools:
+                tool_name_lower = (tool.name or '').lower()
+                tool_desc_lower = (tool.description or '').lower()
+                
+                # Check if tool matches any denied task keyword
+                is_denied = False
+                for keyword in denied_keywords:
+                    if keyword in tool_name_lower or keyword in tool_desc_lower:
+                        is_denied = True
+                        print(f"   🔐 Tool '{tool.name}' FILTERED (matches denied keyword '{keyword}')")
+                        break
+                
+                if not is_denied:
+                    filtered_action_tools.append(tool)
+            
+            action_tools = filtered_action_tools
+            print(f"🔐 Tools filtered: {original_tool_count} → {len(action_tools)}")
+            
+            # Rebuild tool definitions with filtered tools
+            tool_definitions = build_tool_definitions(action_tools) if action_tools else []
+            
+            # Rebuild tools description
+            tools_description = ""
+            if action_tools:
+                tools_description = "\n\n=== AVAILABLE TOOLS ===\nYou have access to the following tools. Use them when appropriate:\n"
+                for t in action_tools:
+                    tools_description += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
+                tools_description += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
     else:
         print(f"🔐 [PROCESS_CHAT] No denied tasks - access_control={access_control is not None}, has denied_tasks={hasattr(access_control, 'denied_tasks') if access_control else False}")
     
