@@ -352,7 +352,7 @@ class AnthropicLLM(BaseLLMProvider):
                     if isinstance(content, list):
                         # Already in Anthropic block format
                         msgs.append({"role": m["role"], "content": content})
-                    else:
+                else:
                         # String content
                         msgs.append({"role": m["role"], "content": content})
             
@@ -513,12 +513,12 @@ class GoogleLLM(BaseLLMProvider):
     async def generate(self, messages: List[Dict], **kwargs) -> str:
         """Generate response using Google Gemini REST API"""
         import httpx
-        
+            
         # Build the prompt from messages
         contents = []
         system_instruction = ""
-        
-        for msg in messages:
+            
+            for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             
@@ -1922,21 +1922,21 @@ class AppState:
         
         # Load settings from JSON only if database loading failed
         if not db_settings_loaded:
-            settings_path = os.path.join(data_dir, "settings.json")
-            if os.path.exists(settings_path):
-                try:
-                    with open(settings_path) as f:
-                        settings_data = json.load(f)
-                        self.settings = SystemSettings(**settings_data)
+        settings_path = os.path.join(data_dir, "settings.json")
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path) as f:
+                    settings_data = json.load(f)
+                    self.settings = SystemSettings(**settings_data)
                         llm_provider = self.settings.llm.provider.value if hasattr(self.settings.llm.provider, 'value') else str(self.settings.llm.provider)
                         vector_db_provider = self.settings.vector_db.provider.value if hasattr(self.settings.vector_db.provider, 'value') else str(self.settings.vector_db.provider)
                         print(f"✅ Loaded settings from file: LLM={llm_provider}, VectorDB={vector_db_provider}")
-                        if self.settings.llm_providers:
+                    if self.settings.llm_providers:
                             print(f"✅ Loaded {len(self.settings.llm_providers)} LLM providers from file: {[p.name for p in self.settings.llm_providers]}")
-                except Exception as e:
-                    print(f"⚠️ Error loading settings: {e}, using defaults")
-                    import traceback
-                    traceback.print_exc()
+            except Exception as e:
+                print(f"⚠️ Error loading settings: {e}, using defaults")
+                import traceback
+                traceback.print_exc()
         
         # Load agents from database first
         db_agents_loaded = False
@@ -3005,7 +3005,7 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
             for msg in messages:
                 if msg['role'] == 'system':
                     system_instruction = msg['content']
-                else:
+        else:
                     gemini_messages.append({
                         "role": "user" if msg['role'] == 'user' else "model",
                         "parts": [{"text": msg['content']}]
@@ -3570,7 +3570,7 @@ def extract_text_from_docx(file_path: str) -> str:
         return ""
 
 
-async def process_agent_chat(agent: AgentData, message: str, conversation: Conversation, timezone: str = None, access_control = None) -> Dict:
+async def process_agent_chat(agent: AgentData, message: str, conversation: Conversation, timezone: str = None, access_control = None, current_user = None) -> Dict:
     """
     Process agent chat with access control enforcement.
     
@@ -3580,6 +3580,7 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
         conversation: Current conversation
         timezone: User's timezone
         access_control: AccessCheckResult with denied_tasks and denied_tools
+        current_user: The authenticated user making the request
     """
     agent_tools = get_agent_tools(agent)  # Resolves prefixed IDs
     
@@ -3640,8 +3641,68 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     accessible_tasks = [task for task in agent.tasks if task.name not in denied_task_names]
     print(f"🔐 Accessible tasks: {[t.name for t in accessible_tasks]}")
     
-    system_prompt = f"""You are {agent.name}.
+    # ========================================================================
+    # BUILD USER CONTEXT (Best Practice: Personalization with Security)
+    # ========================================================================
+    user_context = ""
+    if current_user:
+        # Get user's display name
+        user_name = ""
+        if hasattr(current_user, 'first_name') and current_user.first_name:
+            user_name = current_user.first_name
+            if hasattr(current_user, 'last_name') and current_user.last_name:
+                user_name += f" {current_user.last_name}"
+        elif hasattr(current_user, 'display_name') and current_user.display_name:
+            user_name = current_user.display_name
+        elif hasattr(current_user, 'email') and current_user.email:
+            user_name = current_user.email.split('@')[0].replace('.', ' ').title()
+        
+        # Get user's groups (for context, not for permission decisions)
+        user_groups = []
+        if hasattr(current_user, 'group_ids') and current_user.group_ids:
+            # Try to get group names from security_state
+            try:
+                if SECURITY_AVAILABLE and security_state:
+                    for gid in current_user.group_ids:
+                        group = security_state.groups.get(gid)
+                        if group:
+                            user_groups.append(group.name)
+            except:
+                pass
+        
+        # Get user's role (for context)
+        user_role = ""
+        if hasattr(current_user, 'role_ids') and current_user.role_ids:
+            try:
+                if SECURITY_AVAILABLE and security_state:
+                    for rid in current_user.role_ids:
+                        role = security_state.roles.get(rid)
+                        if role:
+                            user_role = role.name
+                            break
+            except:
+                pass
+        
+        user_context = f"\n=== CURRENT USER ==="
+        user_context += f"\n• Name: {user_name}" if user_name else ""
+        user_context += f"\n• Role: {user_role}" if user_role else ""
+        user_context += f"\n• Groups: {', '.join(user_groups)}" if user_groups else ""
+        
+        # Security instruction
+        user_context += """
 
+**USER CONTEXT RULES:**
+- You may greet the user by name for a personalized experience
+- NEVER reveal the user's permissions, role, or group membership
+- NEVER discuss what other users can or cannot do
+- NEVER explain the permission system or how access is determined
+- Focus on what YOU can help with, not on what the user is allowed to do
+"""
+        
+        print(f"👤 User context: name={user_name}, role={user_role}, groups={user_groups}")
+    
+    system_prompt = f"""You are {agent.name}.
+{user_context}
 === LANGUAGE ===
 {get_language_instruction(g.language)}
 
@@ -3887,17 +3948,17 @@ This applies to ALL variations of the request - whether asking for "all data", "
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        print("🔥 Starting AgentForge v3.1...")
-        app_state.load_from_disk()
-        upload_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
-        os.makedirs(upload_dir, exist_ok=True)
-        print(f"✅ Loaded {len(app_state.agents)} agents, {len(app_state.tools)} tools")
-        
-        # Load Security State
-        if SECURITY_AVAILABLE:
-            security_state.load_from_disk()
-            print(f"✅ Security module loaded - {len(security_state.users)} users, {len(security_state.roles)} roles")
-        
+    print("🔥 Starting AgentForge v3.1...")
+    app_state.load_from_disk()
+    upload_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    print(f"✅ Loaded {len(app_state.agents)} agents, {len(app_state.tools)} tools")
+    
+    # Load Security State
+    if SECURITY_AVAILABLE:
+        security_state.load_from_disk()
+        print(f"✅ Security module loaded - {len(security_state.users)} users, {len(security_state.roles)} roles")
+    
         # Test endpoints to catch any import/runtime errors
         print("🧪 Testing endpoints...")
         try:
@@ -3909,15 +3970,15 @@ async def lifespan(app: FastAPI):
             traceback.print_exc()
             raise
         
-        yield
-        
-        print("💾 Saving...")
-        app_state.save_to_disk()
-        
-        # Save Security State
-        if SECURITY_AVAILABLE:
-            security_state.save_to_disk()
-            print("✅ Security state saved")
+    yield
+    
+    print("💾 Saving...")
+    app_state.save_to_disk()
+    
+    # Save Security State
+    if SECURITY_AVAILABLE:
+        security_state.save_to_disk()
+        print("✅ Security state saved")
     except Exception as e:
         print(f"❌❌❌ STARTUP ERROR: {e}")
         import traceback
@@ -3958,7 +4019,7 @@ except ImportError as e:
 @app.get("/")
 async def root():
     try:
-        return {"name": "AgentForge", "version": "3.2.0"}
+    return {"name": "AgentForge", "version": "3.2.0"}
     except Exception as e:
         print(f"❌ ROOT ENDPOINT ERROR: {e}")
         import traceback
@@ -4006,7 +4067,7 @@ async def get_tools_icon():
 @app.get("/health")
 async def health():
     try:
-        return {"status": "healthy", "agents": len(app_state.agents), "tools": len(app_state.tools)}
+    return {"status": "healthy", "agents": len(app_state.agents), "tools": len(app_state.tools)}
     except Exception as e:
         print(f"❌ HEALTH ENDPOINT ERROR: {e}")
         import traceback
@@ -4318,9 +4379,9 @@ async def get_agent(agent_id: str, current_user: User = Depends(get_current_user
     
     # Fallback to in-memory if not found in database
     if not agent:
-        if agent_id not in app_state.agents:
-            raise HTTPException(404, "Agent not found")
-        agent = app_state.agents[agent_id]
+    if agent_id not in app_state.agents:
+        raise HTTPException(404, "Agent not found")
+    agent = app_state.agents[agent_id]
     
     # Resolve tools - handle prefixed IDs (api:xxx, kb:xxx)
     tools = []
@@ -4746,7 +4807,7 @@ async def create_agent(request: CreateAgentRequest, current_user: User = Depends
         )
         # Update agent with saved data (including ID from database)
         agent.id = saved_agent['id']
-        app_state.agents[agent.id] = agent
+    app_state.agents[agent.id] = agent
     except Exception as e:
         print(f"⚠️  [DATABASE ERROR] Failed to save agent to database: {e}, saving to in-memory only")
         import traceback
@@ -6479,9 +6540,9 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
     
     # Fallback to in-memory if not found in database
     if not agent:
-        if agent_id not in app_state.agents:
-            raise HTTPException(404, "Agent not found")
-        agent = app_state.agents[agent_id]
+    if agent_id not in app_state.agents:
+        raise HTTPException(404, "Agent not found")
+    agent = app_state.agents[agent_id]
     
     # Update agent fields
     if request.name is not None: agent.name = request.name
@@ -6596,7 +6657,7 @@ async def delete_agent(agent_id: str):
     
     # Delete from in-memory
     if agent_id in app_state.agents:
-        del app_state.agents[agent_id]
+    del app_state.agents[agent_id]
     app_state.conversations = {k: v for k, v in app_state.conversations.items() if v.agent_id != agent_id}
     app_state.save_to_disk()  # Will try to sync with database in save_to_disk()
     
@@ -6859,8 +6920,8 @@ async def test_llm_connection(request: Dict[str, Any]):
             if provider_name in ['groq', 'xai', 'mistral', 'deepseek', 'together', 'perplexity', 'lmstudio']:
                 provider = OpenAICompatibleLLM(llm_config, provider_name)
             else:
-                provider = ProviderFactory.get_llm_provider(llm_config)
-            
+        provider = ProviderFactory.get_llm_provider(llm_config)
+        
             # 30 second timeout per model
             response = await asyncio.wait_for(
                 provider.generate([{"role": "user", "content": "Hi"}], max_tokens=5, model=model),
@@ -6873,7 +6934,7 @@ async def test_llm_connection(request: Dict[str, Any]):
         except asyncio.TimeoutError:
             print(f"[Test LLM] ⏱️ {model}: Timeout")
             return {"model": model, "status": "error", "message": "Timeout (30s)"}
-        except Exception as e:
+    except Exception as e:
             print(f"[Test LLM] ❌ {model}: {str(e)[:60]}")
             return {"model": model, "status": "error", "message": str(e)}
     
@@ -9871,13 +9932,14 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     except Exception as e:
         print(f"⚠️  Failed to save message to DB: {e}")
     
-    # Pass access control result to process_agent_chat for task/tool filtering
+    # Pass access control result and user to process_agent_chat for task/tool filtering
     result = await process_agent_chat(
         agent, 
         request.message, 
         conversation, 
         timezone=request.timezone,
-        access_control=access_result  # Pass the access control result
+        access_control=access_result,  # Pass the access control result
+        current_user=current_user  # Pass user for personalization
     )
     print(f"📤 Chat result: content={len(result.get('content', ''))} chars, sources={len(result.get('sources', []))}")
     if not result.get("content"):
@@ -10177,8 +10239,8 @@ async def chat_with_files(
         except Exception as e:
             result = {"content": f"Error analyzing images: {str(e)}", "sources": []}
     else:
-        # Process chat with enhanced message (no images) - with access control
-        result = await process_agent_chat(agent, enhanced_message, conversation, timezone=timezone, access_control=access_result)
+        # Process chat with enhanced message (no images) - with access control and user context
+        result = await process_agent_chat(agent, enhanced_message, conversation, timezone=timezone, access_control=access_result, current_user=current_user)
     
     # Add assistant response
     assistant_msg = ConversationMessage(role="assistant", content=result["content"], sources=result["sources"])
