@@ -3363,19 +3363,59 @@
                                 
                                 <!-- Step 4: Delegate Admin Access (Owner Only) -->
                                 <div id="wizard-delegate-admin-section" class="hidden space-y-4 animate-fadeIn">
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">4</div>
+                                        <div>
+                                            <h5 class="font-semibold text-white flex items-center gap-2">
+                                                Share Agent Management
+                                                <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">Owner Only</span>
+                                            </h5>
+                                            <p class="text-xs text-gray-500">Grant other users permission to edit and manage this agent</p>
+                                        </div>
+                                    </div>
+                                    
                                     <div class="rounded-xl p-5" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%); border: 1px solid rgba(245, 158, 11, 0.3);">
-                                        <div class="flex items-center gap-3 mb-4">
-                                            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-                                                </svg>
-                                            </div>
-                                            <div>
-                                                <h5 class="font-semibold text-white flex items-center gap-2">
-                                                    Delegate Admin Access
-                                                    <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">Owner Only</span>
-                                                </h5>
-                                                <p class="text-xs text-gray-400">Allow other users to manage this agent's settings and permissions</p>
+                                        
+                                        <!-- What delegated admins can do -->
+                                        <div class="mb-5 p-4 rounded-lg" style="background: rgba(0,0,0,0.2);">
+                                            <h6 class="text-sm font-medium text-amber-400 mb-3">Delegated admins will be able to:</h6>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-400">
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                    Edit access control settings
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                    Add/remove user permissions
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                    Configure task permissions
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                    <span class="text-gray-500">Cannot add other admins</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                    <span class="text-gray-500">Cannot delete the agent</span>
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                    <span class="text-gray-500">Cannot transfer ownership</span>
+                                                </div>
                                             </div>
                                         </div>
                                         
@@ -3389,15 +3429,18 @@
                                             <input type="text" id="wizard-admin-search" 
                                                    class="w-full rounded-xl px-12 py-3 text-white placeholder-gray-500 transition-all focus:ring-2 focus:ring-amber-500/50" 
                                                    style="background: rgba(0,0,0,0.3); border: 1px solid rgba(245, 158, 11, 0.2);"
-                                                   placeholder="Search users to add as admin...">
+                                                   placeholder="Search users or groups to add as admin...">
                                         </div>
                                         
-                                        <div id="wizard-admin-search-results" class="hidden mb-4 rounded-xl overflow-hidden" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(245, 158, 11, 0.2);">
+                                        <div id="wizard-admin-search-results" class="hidden mb-4 rounded-xl overflow-hidden max-h-48 overflow-y-auto" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(245, 158, 11, 0.2);">
                                         </div>
                                         
                                         <!-- Current Agent Admins -->
-                                        <div id="wizard-current-admins" class="flex flex-wrap gap-2">
-                                            <div class="text-sm text-gray-500 italic">You are the only admin. Add others above to share management access.</div>
+                                        <div class="space-y-3">
+                                            <h6 class="text-sm font-medium text-gray-300">Current Admins</h6>
+                                            <div id="wizard-current-admins" class="flex flex-wrap gap-2">
+                                                <div class="text-sm text-gray-500 italic">You are the only admin. Add users or groups above to share management access.</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -7300,14 +7343,14 @@ Option 3"></textarea>
                     // Update existing agent
                     response = await fetch(API+'/api/agents/'+agentId, {
                         method: 'PUT',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
                         body: JSON.stringify(agentData)
                     });
                 } else {
-                    // Create new agent
+                    // Create new agent - MUST send auth headers for ownership
                     response = await fetch(API+'/api/agents', {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
                         body: JSON.stringify(agentData)
                     });
                 }
@@ -9015,7 +9058,10 @@ Option 3"></textarea>
         
         // Check if current user is the owner of the current agent
         function isAgentOwner() {
-            if (!currentUser || !wizard.id) return false;
+            // For new agents (no id yet), the current user will become the owner
+            if (!wizard.id) return true;
+            
+            if (!currentUser) return false;
             return wizard.owner_id === currentUser.id || wizard.created_by === currentUser.id;
         }
         
@@ -9036,6 +9082,8 @@ Option 3"></textarea>
                     headers: getAuthHeaders()
                 });
                 
+                const section = document.getElementById('wizard-delegate-admin-section');
+                
                 if (response.ok) {
                     const data = await response.json();
                     agentAdminState.adminUserIds = data.admin_user_ids || [];
@@ -9043,16 +9091,38 @@ Option 3"></textarea>
                     agentAdminState.isOwner = data.is_owner;
                     
                     // Show the delegate admin section if user is owner
-                    const section = document.getElementById('wizard-delegate-admin-section');
                     if (section) {
                         section.style.display = agentAdminState.isOwner ? 'block' : 'none';
                     }
                     
+                    // Show owner badge
+                    const ownerBadge = document.getElementById('ac-owner-badge');
+                    if (ownerBadge) {
+                        ownerBadge.style.display = agentAdminState.isOwner ? 'inline-flex' : 'none';
+                    }
+                    
                     renderCurrentAdmins();
+                } else if (response.status === 403) {
+                    // User is not owner - hide delegation section
+                    console.log('User is not owner of this agent - hiding delegation section');
+                    agentAdminState.isOwner = false;
+                    if (section) {
+                        section.style.display = 'none';
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load agent admins:', e);
             }
+        }
+        
+        // Check if current user is the owner (from wizard data)
+        function checkOwnershipFromWizard() {
+            if (!currentUser || !wizard.id) return false;
+            
+            const ownerId = wizard.owner_id;
+            const createdBy = wizard.created_by;
+            
+            return ownerId === currentUser.id || createdBy === currentUser.id;
         }
         
         // Render current admins
@@ -9250,7 +9320,12 @@ Option 3"></textarea>
             // SECURITY: Only show access control for OWNER or DELEGATED ADMINS
             // Even platform super admins cannot see other users' agent access control
             const accessControlSection = document.getElementById('wizard-access-control-section');
+            const ownerBadge = document.getElementById('ac-owner-badge');
             const canManage = await canManageAgentAccess();
+            
+            // Check if current user is the owner (for badge display)
+            const isOwner = isAgentOwner();
+            console.log(`👤 Current user ownership check: isOwner=${isOwner}, owner_id=${wizard.owner_id}, currentUser=${currentUser?.id}`);
             
             if (accessControlSection) {
                 if (!canManage) {
@@ -9259,6 +9334,17 @@ Option 3"></textarea>
                 } else {
                     accessControlSection.style.display = 'block';
                     console.log('✅ Access Control section visible - user is owner or delegated admin');
+                }
+            }
+            
+            // Show owner badge if user is the owner
+            if (ownerBadge) {
+                if (isOwner || !wizard.id) {  // New agents - creator will be owner
+                    ownerBadge.classList.remove('hidden');
+                    ownerBadge.style.display = 'inline-flex';
+                } else {
+                    ownerBadge.classList.add('hidden');
+                    ownerBadge.style.display = 'none';
                 }
             }
             
@@ -9293,9 +9379,20 @@ Option 3"></textarea>
                 });
             }
             
-            // Load agent admins if editing an existing agent
+            // Load agent admins if editing an existing agent (only for owner)
             if (wizard.id) {
-                loadAgentAdmins(wizard.id);
+                // First check ownership from wizard data
+                const isOwner = isAgentOwner();
+                const delegateSection = document.getElementById('wizard-delegate-admin-section');
+                
+                if (isOwner) {
+                    // Owner - show delegation section and load admins
+                    if (delegateSection) delegateSection.style.display = 'block';
+                    loadAgentAdmins(wizard.id);
+                } else {
+                    // Not owner - hide delegation section
+                    if (delegateSection) delegateSection.style.display = 'none';
+                }
             } else {
                 // For new agents, show delegate admin section only for logged-in users
                 // (they will be the owner once saved)

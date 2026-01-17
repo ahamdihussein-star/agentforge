@@ -4015,11 +4015,20 @@ async def list_agents(status: Optional[str] = None):
 async def get_agent(agent_id: str, current_user: User = Depends(get_current_user)):
     # Try to get agent from database first, then fallback to in-memory
     agent = None
+    owner_id = None
+    created_by = None
+    admin_ids = []
+    
     try:
         from database.services import AgentService
         org_id = current_user.org_id if current_user else "org_default"
         agent_dict = AgentService.get_agent_by_id(agent_id, org_id)
         if agent_dict:
+            # Preserve ownership info before cleaning
+            owner_id = agent_dict.get('owner_id')
+            created_by = agent_dict.get('created_by')
+            admin_ids = agent_dict.get('admin_ids') or []
+            
             # Remove extra fields that AgentData doesn't have
             agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
             agent = AgentData(**agent_dict_clean)
@@ -4045,7 +4054,16 @@ async def get_agent(agent_id: str, current_user: User = Depends(get_current_user
             if clean_tid in app_state.tools:
                 tools.append(app_state.tools[clean_tid].dict())
     
-    return {**agent.dict(), "tools": tools}
+    # Include ownership info in response
+    response = {**agent.dict(), "tools": tools}
+    if owner_id:
+        response["owner_id"] = owner_id
+    if created_by:
+        response["created_by"] = created_by
+    if admin_ids:
+        response["admin_ids"] = admin_ids
+    
+    return response
 
 
 # ============================================================================
@@ -4383,7 +4401,7 @@ async def get_logo():
 
 
 @app.post("/api/agents")
-async def create_agent(request: CreateAgentRequest):
+async def create_agent(request: CreateAgentRequest, current_user: User = Depends(get_current_user)):
     tasks = []
     for t in request.tasks:
         instructions = []
@@ -4426,26 +4444,14 @@ async def create_agent(request: CreateAgentRequest):
         status=request.status
     )
     
-    # Get org_id and owner_id
-    org_id = "org_default"
-    owner_id = None
-    created_by = None
+    # Get org_id and owner_id from the AUTHENTICATED USER
+    org_id = current_user.org_id if current_user else "org_default"
+    owner_id = current_user.id if current_user else None
+    created_by = current_user.id if current_user else None
     
-    # Try to get owner_id from security_state if available
-    try:
-        if SECURITY_AVAILABLE and security_state.users:
-            # Use first user as default owner (or super admin if available)
-            super_admin = next((u for u in security_state.users.values() if u.role_ids and any(r == "super_admin" or "super" in r.lower() for r in u.role_ids)), None)
-            if super_admin:
-                owner_id = super_admin.id
-                created_by = super_admin.id
-            else:
-                first_user = next(iter(security_state.users.values()), None)
-                if first_user:
-                    owner_id = first_user.id
-                    created_by = first_user.id
-    except Exception:
-        pass
+    # Log ownership info
+    if current_user:
+        print(f"👤 Creating agent with owner_id={current_user.id[:8]}... (user: {current_user.email})")
     
     # Save to database using AgentService
     try:
