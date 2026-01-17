@@ -7260,6 +7260,8 @@ Option 3"></textarea>
                 console.log('Loading Access Control');
                 // Collect tasks from previous step to ensure they're available
                 collectTasksNew();
+                // ✅ IMPORTANT: Load saved access control data FIRST
+                await loadWizardAccessControl();
                 // Sync task permissions
                 syncTaskPermissions();
                 // Update access control UI
