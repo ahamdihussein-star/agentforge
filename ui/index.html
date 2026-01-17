@@ -23471,42 +23471,74 @@ function updateMFAStatus(userData) {
     }
 }
 
-// Update Profile Form Handler
-document.getElementById('update-profile-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+// Update Profile Form Handler - Wrapped for safety
+function initProfileFormHandler() {
+    const form = document.getElementById('update-profile-form');
+    console.log('🔧 Profile form element:', form);
     
-    const firstName = document.getElementById('update-first-name').value.trim();
-    const lastName = document.getElementById('update-last-name').value.trim();
-    const displayName = document.getElementById('update-display-name').value.trim();
+    if (!form) {
+        console.error('❌ Profile form not found!');
+        return;
+    }
     
-    try {
-        const res = await fetch(API + `/api/security/users/${currentUserProfile.id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify({
-                first_name: firstName,
-                last_name: lastName,
-                display_name: displayName
-            })
-        });
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const firstNameInput = document.getElementById('update-first-name');
+        const lastNameInput = document.getElementById('update-last-name');
+        const displayNameInput = document.getElementById('update-display-name');
+        
+        console.log('📝 Profile Update Debug:');
+        console.log('   First Name Input:', firstNameInput, '=', firstNameInput?.value);
+        console.log('   Last Name Input:', lastNameInput, '=', lastNameInput?.value);
+        console.log('   Display Name Input:', displayNameInput, '=', displayNameInput?.value);
+        
+        const firstName = firstNameInput?.value?.trim() || '';
+        const lastName = lastNameInput?.value?.trim() || '';
+        const displayName = displayNameInput?.value?.trim() || '';
+        
+        // IMPORTANT: Send empty string as is, not null, so it can update to empty
+        const requestBody = {
+            first_name: firstName,
+            last_name: lastName,
+            display_name: displayName || null
+        };
+        
+        console.log('   Request Body:', JSON.stringify(requestBody));
+        console.log('   User ID:', currentUserProfile?.id);
+        
+        try {
+            const res = await fetch(API + `/api/security/users/${currentUserProfile.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify(requestBody)
+            });
         
         if (!res.ok) {
             const error = await res.json();
             throw new Error(error.detail || 'Failed to update profile');
         }
         
-        showToast('Profile updated successfully', 'success');
-        await loadProfileInfo();
-        await fetchCurrentUser(); // Refresh user info in sidebar
-        
-    } catch (error) {
-        console.error('Error updating profile:', error);
-        showToast(error.message || 'Failed to update profile', 'error');
-    }
-});
+            showToast('Profile updated successfully', 'success');
+            await loadProfileInfo();
+            await fetchCurrentUser(); // Refresh user info in sidebar
+            
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            showToast(error.message || 'Failed to update profile', 'error');
+        }
+    });
+}
+
+// Initialize profile form on load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initProfileFormHandler);
+} else {
+    initProfileFormHandler();
+}
 
 // Change Password Form Handler
 document.getElementById('change-password-form')?.addEventListener('submit', async (e) => {
