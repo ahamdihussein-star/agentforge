@@ -9106,7 +9106,15 @@ Option 3"></textarea>
             if (!wizard.id) return true;
             
             if (!currentUser) return false;
-            return wizard.owner_id === currentUser.id || wizard.created_by === currentUser.id;
+            
+            // Use string comparison to handle UUID formatting differences
+            const ownerId = String(wizard.owner_id || '');
+            const createdBy = String(wizard.created_by || '');
+            const userId = String(currentUser.id || '');
+            
+            const isOwner = ownerId === userId || createdBy === userId;
+            console.log(`🔍 isAgentOwner check: ownerId=${ownerId.slice(0,8)}..., userId=${userId.slice(0,8)}..., isOwner=${isOwner}`);
+            return isOwner;
         }
         
         // State for agent admins with permissions
@@ -11167,39 +11175,49 @@ Option 3"></textarea>
                 status: 'published'
             };
             
+            console.log('🚀 Deploying agent...', deployData);
+            
             try {
                 let response;
-                const agentId = testAgent?.id || wizard.editId;
+                const agentId = testAgent?.id || wizard.editId || wizard.id;
+                
+                console.log('Agent ID for deploy:', agentId);
                 
                 if (agentId) {
                     // Update existing agent
                     response = await fetch(API + '/api/agents/' + agentId, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(deployData)
                     });
                 } else {
                     // Create new agent
                     response = await fetch(API + '/api/agents', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(deployData)
                     });
                 }
                 
+                console.log('Deploy response status:', response.status);
+                
                 if(response.ok) {
-                    alert('🚀 Agent deployed successfully!');
+                    const result = await response.json();
+                    console.log('Deploy success:', result);
+                    showToast('🚀 Agent deployed successfully!', 'success');
                     wizard.editId = null;
+                    wizard.id = null;
                     testAgent = null;
                     navigate('agents');
                     setAgentTab('published');
                 } else {
                     const err = await response.json();
-                    alert('Error: ' + (err.detail || 'Failed to deploy'));
+                    console.error('Deploy error response:', err);
+                    showToast('Error: ' + (err.detail || 'Failed to deploy'), 'error');
                 }
             } catch(e) {
                 console.error('Deploy error:', e);
-                alert('Error deploying agent: ' + e.message);
+                showToast('Error deploying agent: ' + e.message, 'error');
             }
         }
 
@@ -12879,9 +12897,13 @@ Option 3"></textarea>
         }
         
         async function editAgent(id){
-            // Fetch agent details
-            const r = await fetch(API+'/api/agents/'+id);
+            // Fetch agent details with auth
+            const r = await fetch(API+'/api/agents/'+id, {
+                headers: getAuthHeaders()
+            });
             const agent = await r.json();
+            
+            console.log('📝 Editing agent:', id, 'owner_id:', agent.owner_id, 'created_by:', agent.created_by);
             
             // First, show the create page WITHOUT resetting
             // Hide all pages
