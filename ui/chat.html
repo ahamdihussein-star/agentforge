@@ -2094,23 +2094,35 @@
         }
 
         async function loadAgents() {
+            console.log('🤖 Loading agents...');
+            console.log('🔑 Token:', getToken() ? 'Present' : 'MISSING!');
+            
             try {
                 // Use the accessible agents endpoint - returns only agents the user has access to
                 const response = await fetch(`${API}/api/agents/accessible`, {
                     headers: { 'Authorization': `Bearer ${getToken()}` }
                 });
                 
+                console.log('📥 Agents API response status:', response.status);
+                
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Failed to load agents:', response.status, errorText);
                     throw new Error('Failed to load agents');
                 }
                 
                 const data = await response.json();
+                console.log('📦 Raw agents data:', data);
+                
                 // Handle both array response and object with agents key
                 agents = Array.isArray(data) ? data : (data.agents || data.items || []);
                 
+                console.log('✅ Parsed agents:', agents.length, 'agents found');
+                agents.forEach(a => console.log('   Agent:', a.id, a.name));
+                
                 renderAgents();
             } catch (e) {
-                console.error('Failed to load agents:', e);
+                console.error('❌ Failed to load agents:', e);
                 agents = [];
                 renderAgents();
             }
