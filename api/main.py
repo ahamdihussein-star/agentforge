@@ -10180,8 +10180,30 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     elif hasattr(agent, 'created_by') and agent.created_by:
         is_owner = str(agent.created_by) == user_id
     
+    # Check if user is a DELEGATED ADMIN - they also have full access
+    is_delegated_admin = False
+    if not is_owner and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+        try:
+            user_role_ids = getattr(current_user, 'role_ids', []) or []
+            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            
+            perm_result = AccessControlService.check_agent_permission(
+                user_id=user_id,
+                user_role_ids=user_role_ids,
+                user_group_ids=user_group_ids,
+                agent_id=agent_id,
+                org_id=org_id,
+                permission='full_admin'
+            )
+            is_delegated_admin = perm_result.get('has_permission', False)
+        except Exception as e:
+            print(f"⚠️ [START-CHAT] Delegated admin check failed: {e}")
+    
     if is_owner:
         print(f"👑 [START-CHAT] User {user_id[:8]}... is the OWNER - full access granted")
+        has_full_access = True
+    elif is_delegated_admin:
+        print(f"🔑 [START-CHAT] User {user_id[:8]}... is a DELEGATED ADMIN - full access granted")
         has_full_access = True
     elif ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
@@ -10334,12 +10356,34 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     elif hasattr(agent, 'created_by') and agent.created_by:
         is_owner = str(agent.created_by) == user_id
     
+    # Check if user is a DELEGATED ADMIN - they also have full access
+    is_delegated_admin = False
+    if not is_owner and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+        try:
+            user_role_ids = getattr(current_user, 'role_ids', []) or []
+            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            
+            perm_result = AccessControlService.check_agent_permission(
+                user_id=user_id,
+                user_role_ids=user_role_ids,
+                user_group_ids=user_group_ids,
+                agent_id=agent_id,
+                org_id=org_id,
+                permission='full_admin'
+            )
+            is_delegated_admin = perm_result.get('has_permission', False)
+        except Exception as e:
+            print(f"⚠️ [CHAT] Delegated admin check failed: {e}")
+    
     # If no cache, check permissions (first message or new conversation)
-    print(f"   [CHAT] Checking access control: use_cached={use_cached}, ACCESS_CONTROL_AVAILABLE={ACCESS_CONTROL_AVAILABLE}, is_owner={is_owner}")
+    print(f"   [CHAT] Checking access control: use_cached={use_cached}, is_owner={is_owner}, is_delegated_admin={is_delegated_admin}")
     
     if is_owner:
         print(f"👑 [CHAT] User {user_id[:8]}... is the OWNER - full access granted")
         access_result = None  # Owner has full access, no restrictions
+    elif is_delegated_admin:
+        print(f"🔑 [CHAT] User {user_id[:8]}... is a DELEGATED ADMIN - full access granted")
+        access_result = None  # Delegated admin has full access, no restrictions
     elif not use_cached and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             # Get user's roles and groups
