@@ -10,6 +10,7 @@ from uuid import UUID
 from datetime import datetime
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
+import re
 
 from database.base import get_session
 from database.models.agent_access import AgentAccessPolicy, AgentActionPolicy
@@ -20,6 +21,28 @@ from .schemas import (
     TaskPermission, ToolPermission, AccessCheckResult,
     FullAccessConfig, UserAccessPreview
 )
+
+
+# Default org UUID for "org_default" fallback
+DEFAULT_ORG_UUID = "2c969bf1-16d3-43d3-95da-66965c3fa132"
+
+# UUID regex pattern
+UUID_PATTERN = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+
+
+def normalize_org_id(org_id: str) -> str:
+    """
+    Normalize org_id to a valid UUID.
+    Converts "org_default" or invalid UUIDs to the default org UUID.
+    """
+    if not org_id or org_id == "org_default" or not UUID_PATTERN.match(org_id):
+        return DEFAULT_ORG_UUID
+    return org_id
+
+
+def is_valid_uuid(value: str) -> bool:
+    """Check if a string is a valid UUID"""
+    return bool(value and UUID_PATTERN.match(value))
 
 
 class AccessControlService:
@@ -38,6 +61,7 @@ class AccessControlService:
     @staticmethod
     def get_agent_access(agent_id: str, org_id: str) -> AgentAccessResponse:
         """Get agent access configuration"""
+        org_id = normalize_org_id(org_id)
         with get_session() as session:
             policy = session.query(AgentAccessPolicy).filter(
                 AgentAccessPolicy.agent_id == agent_id,
@@ -96,6 +120,7 @@ class AccessControlService:
         updated_by: str
     ) -> AgentAccessResponse:
         """Update agent access configuration"""
+        org_id = normalize_org_id(org_id)
         with get_session() as session:
             # Find or create policy
             policy = session.query(AgentAccessPolicy).filter(
@@ -132,6 +157,7 @@ class AccessControlService:
     @staticmethod
     def get_task_access(agent_id: str, org_id: str) -> TaskAccessConfig:
         """Get task access configuration for an agent"""
+        org_id = normalize_org_id(org_id)
         with get_session() as session:
             # Get the agent to see its tasks
             agent = session.query(Agent).filter(
@@ -201,6 +227,7 @@ class AccessControlService:
         Creates separate policies for each entity with their denied tasks.
         This allows fine-grained per-user/group task permissions.
         """
+        org_id = normalize_org_id(org_id)
         with get_session() as session:
             # Delete existing action policies for this agent (clean slate)
             session.query(AgentActionPolicy).filter(
@@ -278,6 +305,7 @@ class AccessControlService:
     @staticmethod
     def get_tool_access(agent_id: str, org_id: str) -> ToolAccessConfig:
         """Get tool access configuration for an agent"""
+        org_id = normalize_org_id(org_id)
         with get_session() as session:
             # Get the agent to see its tools
             agent = session.query(Agent).filter(
@@ -338,6 +366,7 @@ class AccessControlService:
         updated_by: str
     ) -> ToolAccessConfig:
         """Update tool access configuration"""
+        org_id = normalize_org_id(org_id)
         with get_session() as session:
             policy = session.query(AgentActionPolicy).filter(
                 AgentActionPolicy.agent_id == agent_id,
@@ -390,6 +419,7 @@ class AccessControlService:
         PRIVATE BY DEFAULT: If no access policy exists, only the owner can access.
         Ownership check is done at the API level before calling this service.
         """
+        org_id = normalize_org_id(org_id)
         with get_session() as session:
             # Check Level 1: Agent Access
             access_policy = session.query(AgentAccessPolicy).filter(
@@ -496,6 +526,7 @@ class AccessControlService:
     @staticmethod
     def get_full_access_config(agent_id: str, org_id: str) -> FullAccessConfig:
         """Get complete access configuration for UI display"""
+        org_id = normalize_org_id(org_id)
         with get_session() as session:
             agent = session.query(Agent).filter(
                 Agent.id == agent_id,
