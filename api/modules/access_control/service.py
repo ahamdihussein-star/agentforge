@@ -253,6 +253,8 @@ class AccessControlService:
         This allows fine-grained per-user/group task permissions.
         """
         org_id = normalize_org_id(org_id)
+        import json
+        
         with get_session() as session:
             # Delete existing action policies for this agent (clean slate)
             session.query(AgentActionPolicy).filter(
@@ -261,37 +263,44 @@ class AccessControlService:
             ).delete()
             
             # Build per-entity denied task mapping
-            # {entity_id: [denied_task_ids]}
+            # {entity_id: {task_names: [task_name1, task_name2], task_ids: [id1, id2]}}
             entity_denied_tasks = {}
-            global_denied_tasks = []
+            
+            # Also build task_id -> task_name mapping for storage
+            task_id_to_name = {}
+            for perm in task_permissions:
+                task_id_to_name[perm.task_id] = perm.task_name
             
             for perm in task_permissions:
                 task_id = perm.task_id
+                task_name = perm.task_name
                 
-                # Check if task is globally denied (default_allowed is False with no specific entities)
-                if not perm.denied_entity_ids and perm.allowed_entity_ids == []:
-                    # This might be a global deny - check if it's explicitly set
-                    pass
-                
-                # Add to per-entity mapping
+                # Add to per-entity mapping (store both ID and NAME)
                 for entity_id in (perm.denied_entity_ids or []):
                     if entity_id not in entity_denied_tasks:
-                        entity_denied_tasks[entity_id] = []
-                    entity_denied_tasks[entity_id].append(task_id)
+                        entity_denied_tasks[entity_id] = {'task_ids': [], 'task_names': []}
+                    entity_denied_tasks[entity_id]['task_ids'].append(task_id)
+                    entity_denied_tasks[entity_id]['task_names'].append(task_name)
             
             # Create a policy for each entity with their denied tasks
-            for entity_id, denied_tasks in entity_denied_tasks.items():
-                if not denied_tasks:
+            for entity_id, denied_info in entity_denied_tasks.items():
+                if not denied_info['task_ids']:
                     continue
+                
+                # Store task names in description as JSON for later matching
+                description_json = json.dumps({
+                    'entity_id': entity_id,
+                    'denied_task_names': denied_info['task_names']
+                })
                     
                 policy = AgentActionPolicy(
                     agent_id=agent_id,
                     org_id=org_id,
                     name=f"Task Policy for {entity_id[:8]}",
-                    description=f"Denies specific tasks for entity {entity_id}",
+                    description=description_json,  # Store task NAMES for matching
                     applies_to="specific",
                     user_ids=[entity_id],  # Could be user or group ID
-                    denied_task_ids=denied_tasks,
+                    denied_task_ids=denied_info['task_ids'],
                     allowed_task_ids=[],
                     created_by=updated_by
                 )
@@ -495,8 +504,33 @@ class AccessControlService:
                 AgentActionPolicy.is_active == True
             ).all()
             
+            # Get current agent tasks to match by NAME
+            agent = session.query(Agent).filter(Agent.id == agent_id).first()
+            current_tasks = []
+            if agent and agent.tasks:
+                import json as json_lib
+                if isinstance(agent.tasks, str):
+                    try:
+                        current_tasks = json_lib.loads(agent.tasks)
+                    except:
+                        current_tasks = []
+                else:
+                    current_tasks = agent.tasks
+            
+            # Build task_name -> current_task_id mapping
+            task_name_to_current_id = {}
+            for task in current_tasks:
+                if isinstance(task, dict):
+                    name = task.get('name', '')
+                    tid = task.get('id', '')
+                    if name and tid:
+                        task_name_to_current_id[name] = tid
+            
+            print(f"📋 Current agent tasks: {list(task_name_to_current_id.keys())}")
+            
             allowed_tasks = []
-            denied_tasks = []
+            denied_tasks = []  # Will store CURRENT task IDs, not old ones
+            denied_task_names = []  # For logging
             allowed_tools = []
             denied_tools = []
             
@@ -516,10 +550,24 @@ class AccessControlService:
                     applies_to_user = user_in_policy or role_in_policy or group_in_policy
                 
                 if applies_to_user:
-                    # Add denied tasks from this policy
-                    for task_id in (policy.denied_task_ids or []):
-                        if task_id not in denied_tasks:
-                            denied_tasks.append(task_id)
+                    # Try to get denied task NAMES from description (JSON)
+                    try:
+                        import json as json_lib
+                        desc_data = json_lib.loads(policy.description) if policy.description else {}
+                        policy_denied_names = desc_data.get('denied_task_names', [])
+                        
+                        # Map names to CURRENT task IDs
+                        for task_name in policy_denied_names:
+                            current_id = task_name_to_current_id.get(task_name)
+                            if current_id and current_id not in denied_tasks:
+                                denied_tasks.append(current_id)
+                                denied_task_names.append(task_name)
+                                print(f"   ❌ Task '{task_name}' (current ID: {current_id}) DENIED for user")
+                    except:
+                        # Fallback to old method if description isn't valid JSON
+                        for task_id in (policy.denied_task_ids or []):
+                            if task_id not in denied_tasks:
+                                denied_tasks.append(task_id)
                     
                     # Add allowed tasks from this policy
                     for task_id in (policy.allowed_task_ids or []):
@@ -536,7 +584,7 @@ class AccessControlService:
                         if tool_id not in allowed_tools:
                             allowed_tools.append(tool_id)
             
-            print(f"🔐 Access check for user {user_id[:8]}...: denied_tasks={denied_tasks}, denied_tools={denied_tools}")
+            print(f"🔐 Access check for user {user_id[:8]}...: denied_tasks={denied_task_names}, denied_tools={denied_tools}")
             
             return AccessCheckResult(
                 has_access=True,

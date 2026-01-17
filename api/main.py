@@ -4133,29 +4133,29 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
             visible_agents.append((agent, str(owner_id) if owner_id else str(created_by)))
             continue
         
-        # Check if user has been GRANTED access via Access Control
+        # Check if user is a DELEGATED ADMIN for this agent (not just chat access)
+        # Admin Portal should only show agents user can MANAGE, not just chat with
         if ACCESS_CONTROL_AVAILABLE and AccessControlService:
             try:
-                print(f"   🔐 Checking access control for agent {agent.id[:8]}...")
-                access_result = AccessControlService.check_user_access(
+                print(f"   🔐 Checking MANAGEMENT permission for agent {agent.id[:8]}...")
+                # Check if user has management permission (not chat access)
+                mgmt_result = AccessControlService.check_agent_permission(
                     user_id=user_id,
-                    user_role_ids=user_role_ids,
-                    user_group_ids=user_group_ids,
                     agent_id=agent.id,
-                    org_id=org_id
+                    org_id=org_id,
+                    permission='full_admin'  # Only delegated admins
                 )
-                print(f"   📋 Access result: has_access={access_result.has_access}, reason={access_result.reason}")
-                if access_result.has_access:
+                if mgmt_result.get('has_permission', False):
                     visible_agents.append((agent, str(owner_id) if owner_id else None))
-                    print(f"   ✅ Agent added to visible list via access control")
+                    print(f"   ✅ Agent added to visible list - user is delegated admin")
+                else:
+                    print(f"   ⛔ User is not owner or delegated admin - NOT shown in admin portal")
             except Exception as e:
                 # On error, don't show the agent (fail secure)
-                print(f"⚠️  Access check error for agent {agent.id}: {e}")
-                import traceback
-                traceback.print_exc()
+                print(f"⚠️  Management check error for agent {agent.id}: {e}")
                 continue
         else:
-            print(f"   ⚠️ Access Control not available: ACCESS_CONTROL_AVAILABLE={ACCESS_CONTROL_AVAILABLE}, AccessControlService={AccessControlService}")
+            print(f"   ⚠️ Access Control not available")
     
     print(f"✅ [LIST_AGENTS] Returning {len(visible_agents)} visible agents out of {len(all_agents)} total")
     
