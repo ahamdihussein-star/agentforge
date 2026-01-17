@@ -11220,6 +11220,11 @@ Option 3"></textarea>
             // Collect all data and deploy
             collectGuardrails();
             
+            // ✨ Collect Access Control settings before deploy
+            if (typeof collectWizardAccessControl === 'function') {
+                collectWizardAccessControl();
+            }
+            
             const deployData = {
                 name: wizard.name,
                 icon: wizard.icon,
@@ -11261,6 +11266,14 @@ Option 3"></textarea>
                 if(response.ok) {
                     const result = await response.json();
                     console.log('Deploy success:', result);
+                    
+                    // ✨ CRITICAL: Save Access Control settings when deploying
+                    const savedAgentId = result.agent_id || result.agent?.id || agentId;
+                    if (savedAgentId && wizard.accessControl) {
+                        console.log('📋 Saving access control for deployed agent:', savedAgentId);
+                        await saveAgentAccessControl(savedAgentId);
+                    }
+                    
                     showToast('🚀 Agent deployed successfully!', 'success');
                     wizard.editId = null;
                     wizard.id = null;
@@ -17218,7 +17231,9 @@ async function saveToolEdit() {
         }
 
         async function loadChatAgents(){
-            const r=await fetch(API+'/api/agents?status=published', {
+            // Use /api/agents/accessible for chat - shows agents user can CHAT with
+            // (different from /api/agents which shows agents user can MANAGE)
+            const r=await fetch(API+'/api/agents/accessible', {
                 headers: getAuthHeaders()
             });
             const d=await r.json();

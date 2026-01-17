@@ -4018,6 +4018,7 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
         # For non-owners, check Access Control permissions
         if ACCESS_CONTROL_AVAILABLE and AccessControlService:
             try:
+                print(f"   🔐 [ACCESSIBLE] Checking access for agent {agent.id[:8]}... user={user_id[:8]}...")
                 access_result = AccessControlService.check_user_access(
                     user_id=user_id,
                     user_role_ids=user_role_ids,
@@ -4025,12 +4026,18 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
                     agent_id=agent.id,
                     org_id=org_id
                 )
+                print(f"   📋 [ACCESSIBLE] Result: has_access={access_result.has_access}, reason={access_result.reason}")
                 if access_result.has_access:
                     accessible_agents.append(agent)
+                    print(f"   ✅ [ACCESSIBLE] Agent added to list")
             except Exception as e:
                 print(f"⚠️  Access check failed for agent {agent.id}: {e}")
+                import traceback
+                traceback.print_exc()
                 # FAIL SECURE: Don't show agent on error
                 continue
+        else:
+            print(f"   ⚠️ [ACCESSIBLE] Access Control not available")
         # If no access control configured, agent remains private (not shown)
     
     return {
