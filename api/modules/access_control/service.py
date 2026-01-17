@@ -195,39 +195,79 @@ class AccessControlService:
         allow_all_by_default: bool,
         updated_by: str
     ) -> TaskAccessConfig:
-        """Update task access configuration"""
+        """
+        Update task access configuration.
+        
+        Creates separate policies for each entity with their denied tasks.
+        This allows fine-grained per-user/group task permissions.
+        """
         with get_session() as session:
-            # Find or create action policy
-            policy = session.query(AgentActionPolicy).filter(
+            # Delete existing action policies for this agent (clean slate)
+            session.query(AgentActionPolicy).filter(
                 AgentActionPolicy.agent_id == agent_id,
                 AgentActionPolicy.org_id == org_id
-            ).first()
+            ).delete()
             
-            if not policy:
+            # Build per-entity denied task mapping
+            # {entity_id: [denied_task_ids]}
+            entity_denied_tasks = {}
+            global_denied_tasks = []
+            
+            for perm in task_permissions:
+                task_id = perm.task_id
+                
+                # Check if task is globally denied (default_allowed is False with no specific entities)
+                if not perm.denied_entity_ids and perm.allowed_entity_ids == []:
+                    # This might be a global deny - check if it's explicitly set
+                    pass
+                
+                # Add to per-entity mapping
+                for entity_id in (perm.denied_entity_ids or []):
+                    if entity_id not in entity_denied_tasks:
+                        entity_denied_tasks[entity_id] = []
+                    entity_denied_tasks[entity_id].append(task_id)
+            
+            # Create a policy for each entity with their denied tasks
+            for entity_id, denied_tasks in entity_denied_tasks.items():
+                if not denied_tasks:
+                    continue
+                    
                 policy = AgentActionPolicy(
                     agent_id=agent_id,
                     org_id=org_id,
-                    name="Default Action Policy",
-                    applies_to="all",
+                    name=f"Task Policy for {entity_id[:8]}",
+                    description=f"Denies specific tasks for entity {entity_id}",
+                    applies_to="specific",
+                    user_ids=[entity_id],  # Could be user or group ID
+                    denied_task_ids=denied_tasks,
+                    allowed_task_ids=[],
                     created_by=updated_by
                 )
                 session.add(policy)
             
-            # Update denied/allowed task lists
-            denied_task_ids = []
-            allowed_task_ids = []
-            
-            for perm in task_permissions:
-                if perm.denied_entity_ids:
-                    denied_task_ids.append(perm.task_id)
-                if perm.allowed_entity_ids and not allow_all_by_default:
-                    allowed_task_ids.append(perm.task_id)
-            
-            policy.denied_task_ids = denied_task_ids
-            policy.allowed_task_ids = allowed_task_ids if not allow_all_by_default else []
-            policy.updated_at = datetime.utcnow()
+            # Also create a default policy if needed
+            if not allow_all_by_default:
+                # Collect all tasks that should be denied by default
+                all_denied_by_default = []
+                for perm in task_permissions:
+                    if not perm.allowed_entity_ids:
+                        all_denied_by_default.append(perm.task_id)
+                
+                if all_denied_by_default:
+                    default_policy = AgentActionPolicy(
+                        agent_id=agent_id,
+                        org_id=org_id,
+                        name="Default Task Policy",
+                        description="Default policy - denies tasks unless explicitly allowed",
+                        applies_to="all",
+                        denied_task_ids=all_denied_by_default,
+                        allowed_task_ids=[],
+                        created_by=updated_by
+                    )
+                    session.add(default_policy)
             
             session.commit()
+            print(f"✅ Saved task permissions: {len(entity_denied_tasks)} entity-specific policies")
             
             return AccessControlService.get_task_access(agent_id, org_id)
     
@@ -381,36 +421,55 @@ class AccessControlService:
                 )
             
             # Check Level 2 & 3: Task and Tool access
-            action_policy = session.query(AgentActionPolicy).filter(
+            # Get ALL action policies for this agent (we now have per-entity policies)
+            action_policies = session.query(AgentActionPolicy).filter(
                 AgentActionPolicy.agent_id == agent_id,
                 AgentActionPolicy.org_id == org_id,
                 AgentActionPolicy.is_active == True
-            ).first()
+            ).all()
             
             allowed_tasks = []
             denied_tasks = []
             allowed_tools = []
             denied_tools = []
             
-            if action_policy:
-                # Check tasks
-                for task_id in (action_policy.denied_task_ids or []):
-                    # Check if user is in denied list
-                    if user_id in (action_policy.user_ids or []) or \
-                       any(r in (action_policy.role_ids or []) for r in user_role_ids):
-                        denied_tasks.append(task_id)
+            # Check each policy to see if it applies to this user
+            for policy in action_policies:
+                applies_to_user = False
                 
-                for task_id in (action_policy.allowed_task_ids or []):
-                    allowed_tasks.append(task_id)
+                # Check if policy applies to all users
+                if policy.applies_to == 'all':
+                    applies_to_user = True
+                else:
+                    # Check if user is specifically in this policy
+                    user_in_policy = user_id in (policy.user_ids or [])
+                    role_in_policy = any(r in (policy.role_ids or []) for r in user_role_ids)
+                    group_in_policy = any(g in (policy.user_ids or []) for g in user_group_ids)  # Groups stored in user_ids
+                    
+                    applies_to_user = user_in_policy or role_in_policy or group_in_policy
                 
-                # Check tools
-                for tool_id in (action_policy.denied_tool_ids or []):
-                    if user_id in (action_policy.user_ids or []) or \
-                       any(r in (action_policy.role_ids or []) for r in user_role_ids):
-                        denied_tools.append(tool_id)
-                
-                for tool_id in (action_policy.allowed_tool_ids or []):
-                    allowed_tools.append(tool_id)
+                if applies_to_user:
+                    # Add denied tasks from this policy
+                    for task_id in (policy.denied_task_ids or []):
+                        if task_id not in denied_tasks:
+                            denied_tasks.append(task_id)
+                    
+                    # Add allowed tasks from this policy
+                    for task_id in (policy.allowed_task_ids or []):
+                        if task_id not in allowed_tasks:
+                            allowed_tasks.append(task_id)
+                    
+                    # Add denied tools from this policy
+                    for tool_id in (policy.denied_tool_ids or []):
+                        if tool_id not in denied_tools:
+                            denied_tools.append(tool_id)
+                    
+                    # Add allowed tools from this policy
+                    for tool_id in (policy.allowed_tool_ids or []):
+                        if tool_id not in allowed_tools:
+                            allowed_tools.append(tool_id)
+            
+            print(f"🔐 Access check for user {user_id[:8]}...: denied_tasks={denied_tasks}, denied_tools={denied_tools}")
             
             return AccessCheckResult(
                 has_access=True,

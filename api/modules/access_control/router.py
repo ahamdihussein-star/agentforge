@@ -3,6 +3,7 @@ Access Control API Router
 RESTful endpoints for 3-level access control
 
 This router is designed to be extracted to a microservice later.
+SECURITY: All modification endpoints require admin privileges.
 """
 
 from typing import List, Optional
@@ -19,7 +20,55 @@ from .schemas import (
     QuickTemplate
 )
 
+# Import authentication dependencies
+from api.security import get_current_user, require_admin
+from core.security.models import User
+
 router = APIRouter(prefix="/api/access-control", tags=["Access Control"])
+
+
+# ============================================================================
+# AUTHORIZATION HELPER
+# ============================================================================
+
+def check_agent_management_permission(user: User, agent_id: str, org_id: str):
+    """
+    Check if user has permission to manage agent access control.
+    
+    Allowed:
+    - Super admins
+    - Organization admins
+    - Users with 'manage_agents' permission
+    - Agent creator/owner (TODO: implement)
+    """
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Check organization
+    if user.org_id != org_id:
+        raise HTTPException(status_code=403, detail="Access denied - wrong organization")
+    
+    # Check for admin role or manage_agents permission
+    from core.security.state import security_state
+    user_permissions = security_state.get_user_permissions(user)
+    
+    # Check if user has admin permissions
+    admin_permissions = ['admin', 'manage_agents', 'manage_users', 'manage_security']
+    has_admin_permission = any(perm in user_permissions for perm in admin_permissions)
+    
+    # Check if user has an admin role (by looking at role names)
+    is_admin = False
+    for role_id in (user.role_ids or []):
+        role = security_state.roles.get(role_id)
+        if role and ('admin' in role.name.lower() or 'super' in role.name.lower()):
+            is_admin = True
+            break
+    
+    if not is_admin and not has_admin_permission:
+        raise HTTPException(
+            status_code=403, 
+            detail="Access denied - only administrators can manage agent access control"
+        )
 
 
 # ============================================================================
@@ -29,15 +78,26 @@ router = APIRouter(prefix="/api/access-control", tags=["Access Control"])
 @router.get("/agents/{agent_id}/access", response_model=AgentAccessResponse)
 async def get_agent_access(
     agent_id: str,
-    org_id: str = Query(..., description="Organization ID")
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get who can access this agent.
     
     Level 1 of 3-level access control.
+    Requires authentication. Only admins can see detailed config.
     """
     try:
+        # Verify user belongs to this org
+        if current_user.org_id != org_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Only admins can see full access configuration
+        check_agent_management_permission(current_user, agent_id, org_id)
+        
         return AccessControlService.get_agent_access(agent_id, org_id)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -47,7 +107,7 @@ async def update_agent_access(
     agent_id: str,
     data: AgentAccessUpdate,
     org_id: str = Query(..., description="Organization ID"),
-    user_id: str = Query(..., description="User making the update")
+    current_user: User = Depends(get_current_user)
 ):
     """
     Update who can access this agent.
@@ -55,8 +115,13 @@ async def update_agent_access(
     - PUBLIC: Anyone can access (no login required)
     - AUTHENTICATED: Any logged-in user can access
     - SPECIFIC: Only specified users/groups/roles can access
+    
+    REQUIRES: Admin privileges or 'manage_agents' permission
     """
     try:
+        # SECURITY: Check admin permission
+        check_agent_management_permission(current_user, agent_id, org_id)
+        
         entities = data.entities or []
         
         # Handle add/remove operations
@@ -78,8 +143,10 @@ async def update_agent_access(
             org_id=org_id,
             access_type=access_type,
             entities=entities,
-            updated_by=user_id
+            updated_by=current_user.id  # Use authenticated user ID
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -91,15 +158,22 @@ async def update_agent_access(
 @router.get("/agents/{agent_id}/tasks", response_model=TaskAccessConfig)
 async def get_task_access(
     agent_id: str,
-    org_id: str = Query(..., description="Organization ID")
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get which tasks users can use with this agent.
     
     Level 2 of 3-level access control.
+    Requires admin privileges.
     """
     try:
+        # SECURITY: Check admin permission
+        check_agent_management_permission(current_user, agent_id, org_id)
+        
         return AccessControlService.get_task_access(agent_id, org_id)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -109,15 +183,20 @@ async def update_task_access(
     agent_id: str,
     data: TaskAccessUpdate,
     org_id: str = Query(..., description="Organization ID"),
-    user_id: str = Query(..., description="User making the update")
+    current_user: User = Depends(get_current_user)
 ):
     """
     Update which tasks users can use with this agent.
     
     - allow_all_by_default: If true, all tasks are allowed unless denied
     - task_permissions: Per-task access configuration
+    
+    REQUIRES: Admin privileges or 'manage_agents' permission
     """
     try:
+        # SECURITY: Check admin permission
+        check_agent_management_permission(current_user, agent_id, org_id)
+        
         current = AccessControlService.get_task_access(agent_id, org_id)
         
         return AccessControlService.update_task_access(
@@ -125,8 +204,10 @@ async def update_task_access(
             org_id=org_id,
             task_permissions=data.task_permissions or current.task_permissions,
             allow_all_by_default=data.allow_all_by_default if data.allow_all_by_default is not None else current.allow_all_by_default,
-            updated_by=user_id
+            updated_by=current_user.id  # Use authenticated user ID
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -138,15 +219,22 @@ async def update_task_access(
 @router.get("/agents/{agent_id}/tools", response_model=ToolAccessConfig)
 async def get_tool_access(
     agent_id: str,
-    org_id: str = Query(..., description="Organization ID")
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get which tools the agent can use for different users.
     
     Level 3 of 3-level access control.
+    Requires admin privileges.
     """
     try:
+        # SECURITY: Check admin permission
+        check_agent_management_permission(current_user, agent_id, org_id)
+        
         return AccessControlService.get_tool_access(agent_id, org_id)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -156,15 +244,20 @@ async def update_tool_access(
     agent_id: str,
     data: ToolAccessUpdate,
     org_id: str = Query(..., description="Organization ID"),
-    user_id: str = Query(..., description="User making the update")
+    current_user: User = Depends(get_current_user)
 ):
     """
     Update which tools the agent can use for different users.
     
     - allow_all_by_default: If true, all tools are allowed unless denied
     - tool_permissions: Per-tool access configuration
+    
+    REQUIRES: Admin privileges or 'manage_agents' permission
     """
     try:
+        # SECURITY: Check admin permission
+        check_agent_management_permission(current_user, agent_id, org_id)
+        
         current = AccessControlService.get_tool_access(agent_id, org_id)
         
         return AccessControlService.update_tool_access(
@@ -172,28 +265,37 @@ async def update_tool_access(
             org_id=org_id,
             tool_permissions=data.tool_permissions or current.tool_permissions,
             allow_all_by_default=data.allow_all_by_default if data.allow_all_by_default is not None else current.allow_all_by_default,
-            updated_by=user_id
+            updated_by=current_user.id  # Use authenticated user ID
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
-# FULL CONFIG (for UI)
+# FULL CONFIG (for UI - ADMIN ONLY)
 # ============================================================================
 
 @router.get("/agents/{agent_id}/full", response_model=FullAccessConfig)
 async def get_full_access_config(
     agent_id: str,
-    org_id: str = Query(..., description="Organization ID")
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get complete access configuration (all 3 levels) for an agent.
     
     Useful for the Access Control UI tab.
+    REQUIRES: Admin privileges - this exposes all access policies.
     """
     try:
+        # SECURITY: Only admins can see full access configuration
+        check_agent_management_permission(current_user, agent_id, org_id)
+        
         return AccessControlService.get_full_access_config(agent_id, org_id)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -305,11 +407,16 @@ async def apply_template(
     agent_id: str,
     template_id: str = Query(..., description="Template ID to apply"),
     org_id: str = Query(..., description="Organization ID"),
-    user_id: str = Query(..., description="User making the update")
+    current_user: User = Depends(get_current_user)
 ):
     """
     Apply a pre-configured template to an agent.
+    
+    REQUIRES: Admin privileges or 'manage_agents' permission
     """
+    # SECURITY: Check admin permission
+    check_agent_management_permission(current_user, agent_id, org_id)
+    
     templates = {
         "read_only": {
             "access_type": AccessType.AUTHENTICATED,
@@ -339,7 +446,7 @@ async def apply_template(
         org_id=org_id,
         access_type=template["access_type"],
         entities=[],
-        updated_by=user_id
+        updated_by=current_user.id  # Use authenticated user ID
     )
     
     return {
