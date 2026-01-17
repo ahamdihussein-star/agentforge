@@ -3166,12 +3166,12 @@
                             </div>
                         </div>
                         
-                        <!-- Access Control -->
-                        <div class="card rounded-xl p-6">
+                        <!-- Access Control (Admin Only) -->
+                        <div id="wizard-access-control-section" class="card rounded-xl p-6">
                             <div class="flex items-center gap-3 mb-4">
                                 <span class="text-2xl">👥</span>
                                 <div>
-                                    <h4 class="font-semibold">Access Control</h4>
+                                    <h4 class="font-semibold">Access Control <span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded ml-2">Admin Only</span></h4>
                                     <p class="text-sm text-gray-400">Define who can use this agent and what they can do</p>
                                 </div>
                             </div>
@@ -8794,10 +8794,29 @@ Option 3"></textarea>
             allGroups: []
         };
         
+        // Check if current user has admin permissions
+        function isUserAdmin() {
+            if (!currentUser) return false;
+            const userPermissions = currentUser.permissions || [];
+            const adminPermissions = ['admin', 'manage_agents', 'manage_users', 'manage_security'];
+            return adminPermissions.some(p => userPermissions.includes(p));
+        }
+        
         // Initialize wizard access control event listeners
         function initWizardAccessControl() {
-            // Pre-load users/groups if user is logged in
-            if (authToken) {
+            // SECURITY: Only show access control section for admins
+            const accessControlSection = document.getElementById('wizard-access-control-section');
+            if (accessControlSection) {
+                if (!isUserAdmin()) {
+                    accessControlSection.style.display = 'none';
+                    console.log('🔐 Access Control section hidden - user is not admin');
+                } else {
+                    accessControlSection.style.display = 'block';
+                }
+            }
+            
+            // Pre-load users/groups if user is logged in AND is admin
+            if (authToken && isUserAdmin()) {
                 loadWizardAccessEntities();
             }
             
