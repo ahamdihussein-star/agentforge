@@ -3564,9 +3564,33 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
             for i, inst in enumerate(task.instructions, 1):
                 system_prompt += f"\n{i}. {inst.text}"
     
-    # Add note about restricted tasks if any
+    # Add information about restricted tasks if any
     if denied_task_ids and len(denied_task_ids) > 0:
-        system_prompt += "\n\n**Note:** Some tasks are not available based on your permissions."
+        # Get names of denied tasks for better messaging
+        denied_task_names = [task.name for task in agent.tasks if task.id in denied_task_ids]
+        
+        system_prompt += "\n\n=== RESTRICTED TASKS (NOT AVAILABLE FOR THIS USER) ==="
+        system_prompt += "\nThe following tasks are NOT available for this user due to permission settings:"
+        for task_name in denied_task_names:
+            system_prompt += f"\n• {task_name}"
+        
+        system_prompt += """
+
+**IMPORTANT - How to handle restricted task requests:**
+When the user asks for help with any of these restricted tasks, you MUST:
+1. Politely acknowledge their request
+2. Explain that this feature is not available for their account
+3. Suggest they contact their administrator if they need access
+4. Offer to help with something else you CAN do
+
+Example response for restricted task:
+"I understand you'd like help with [task name]. Unfortunately, this feature isn't available for your account based on the current permission settings. 
+
+If you need access to this feature, please reach out to your administrator. 
+
+In the meantime, I'd be happy to help you with [list other available tasks]. Is there anything else I can assist you with?"
+
+DO NOT attempt to perform restricted tasks or provide workarounds."""
     
     # Add tools description
     system_prompt += tools_description
