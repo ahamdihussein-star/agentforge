@@ -513,12 +513,12 @@ class GoogleLLM(BaseLLMProvider):
     async def generate(self, messages: List[Dict], **kwargs) -> str:
         """Generate response using Google Gemini REST API"""
         import httpx
-            
+        
         # Build the prompt from messages
         contents = []
         system_instruction = ""
-            
-            for msg in messages:
+        
+        for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             
