@@ -3648,9 +3648,13 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     # ACCESS CONTROL: Filter tasks based on permissions (Level 2)
     # ========================================================================
     denied_task_names = []
+    print(f"🔐 [PROCESS_CHAT] access_control param: {access_control}")
+    print(f"🔐 [PROCESS_CHAT] current_user param: {current_user}")
     if access_control and hasattr(access_control, 'denied_tasks') and access_control.denied_tasks:
         denied_task_names = access_control.denied_tasks  # Now contains task NAMES, not IDs
         print(f"🔐 Denied tasks (by name): {denied_task_names}")
+    else:
+        print(f"🔐 [PROCESS_CHAT] No denied tasks - access_control={access_control is not None}, has denied_tasks={hasattr(access_control, 'denied_tasks') if access_control else False}")
     
     # Get tasks that user has access to - compare by NAME since IDs can change
     accessible_tasks = [task for task in agent.tasks if task.name not in denied_task_names]
@@ -10066,6 +10070,10 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     org_id = current_user.org_id if current_user else "org_default"
     user_id = str(current_user.id) if current_user else "system"
     
+    # Debug: Log user info
+    print(f"💬 [CHAT] Agent: {agent.name}, User: {current_user.email if current_user else 'ANONYMOUS'}, user_id: {user_id}")
+    print(f"   [CHAT] current_user is None? {current_user is None}, ACCESS_CONTROL_AVAILABLE: {ACCESS_CONTROL_AVAILABLE}")
+    
     # ========================================================================
     # ACCESS CONTROL - Use cached permissions if available (BEST PRACTICE)
     # ========================================================================
@@ -10093,11 +10101,13 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
         conversation = None
     
     # If no cache, check permissions (first message or new conversation)
+    print(f"   [CHAT] Checking access control: use_cached={use_cached}, ACCESS_CONTROL_AVAILABLE={ACCESS_CONTROL_AVAILABLE}, current_user={current_user is not None}")
     if not use_cached and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             # Get user's roles and groups
             user_role_ids = getattr(current_user, 'role_ids', []) or []
             user_group_ids = getattr(current_user, 'group_ids', []) or []
+            print(f"   [CHAT] User roles: {user_role_ids}, groups: {user_group_ids}")
             
             # Check access
             access_result = AccessControlService.check_user_access(
