@@ -893,19 +893,185 @@ Create an invoice image with:
             
             // Format JSON nicely
             const jsonContent = JSON.stringify(result.data || result, null, 2);
+            const fullEndpoint = window.location.origin + (result.endpoint || '/api/lab/mock/' + result.id);
             
             previewArea.innerHTML = `
-                <div class="w-full p-4">
-                    <div class="flex items-center justify-between mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
-                        <div class="flex items-center gap-2">
-                            <span class="text-green-400">🔌</span>
-                            <span class="font-medium">API Endpoint Ready</span>
+                <div class="w-full p-4 space-y-4">
+                    <!-- API Endpoint Info -->
+                    <div class="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-green-400 text-xl">🔌</span>
+                                <span class="font-bold text-lg">API Ready!</span>
+                            </div>
+                            <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-500 text-white">GET</span>
                         </div>
-                        <code class="text-sm text-green-400 bg-black/30 px-2 py-1 rounded">${result.endpoint || '/api/mock/' + result.id}</code>
+                        <div class="flex items-center gap-2 mb-3">
+                            <code class="flex-1 text-sm text-green-400 bg-black/30 px-3 py-2 rounded font-mono overflow-x-auto">${fullEndpoint}</code>
+                            <button onclick="copyToClipboard('${fullEndpoint}')" class="btn-secondary text-sm px-3 py-2">📋 Copy</button>
+                        </div>
+                        <button onclick="testAPI('${result.id}')" class="btn-primary w-full flex items-center justify-center gap-2">
+                            <span>▶️</span>
+                            <span>Test API</span>
+                        </button>
                     </div>
-                    <pre class="bg-black/50 rounded-lg p-4 overflow-auto max-h-96 text-sm"><code class="text-gray-300">${escapeHtml(jsonContent)}</code></pre>
+                    
+                    <!-- Test Result (hidden initially) -->
+                    <div id="api-test-result" class="hidden p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-blue-400">📡</span>
+                            <span class="font-medium">Test Response</span>
+                            <span id="api-test-status" class="ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">200 OK</span>
+                        </div>
+                        <pre id="api-test-response" class="bg-black/50 rounded-lg p-3 overflow-auto max-h-48 text-xs"><code class="text-gray-300">Loading...</code></pre>
+                    </div>
+                    
+                    <!-- Integration Guide -->
+                    <div class="p-4 rounded-lg bg-purple-500/10 border border-purple-500/30">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-purple-400 text-xl">🔧</span>
+                            <span class="font-bold">Add as Tool in AgentForge</span>
+                        </div>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex items-start gap-3">
+                                <span class="w-6 h-6 rounded-full bg-purple-500 text-white text-xs flex items-center justify-center flex-shrink-0">1</span>
+                                <div>
+                                    <p class="font-medium">Go to Tools page</p>
+                                    <p class="text-gray-400 text-xs">Admin Portal → Tools → Create New Tool</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <span class="w-6 h-6 rounded-full bg-purple-500 text-white text-xs flex items-center justify-center flex-shrink-0">2</span>
+                                <div>
+                                    <p class="font-medium">Select "API" as tool type</p>
+                                    <p class="text-gray-400 text-xs">Choose REST API integration</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <span class="w-6 h-6 rounded-full bg-purple-500 text-white text-xs flex items-center justify-center flex-shrink-0">3</span>
+                                <div>
+                                    <p class="font-medium">Configure the endpoint</p>
+                                    <div class="mt-1 p-2 rounded bg-black/30 text-xs font-mono">
+                                        <p><span class="text-gray-500">URL:</span> <span class="text-green-400">${fullEndpoint}</span></p>
+                                        <p><span class="text-gray-500">Method:</span> <span class="text-blue-400">GET</span></p>
+                                        <p><span class="text-gray-500">Auth:</span> <span class="text-yellow-400">None required</span></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <span class="w-6 h-6 rounded-full bg-purple-500 text-white text-xs flex items-center justify-center flex-shrink-0">4</span>
+                                <div>
+                                    <p class="font-medium">Add to your Agent</p>
+                                    <p class="text-gray-400 text-xs">In Agent Wizard → Step 5: Tools → Select this API tool</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="createToolFromAPI('${result.id}', '${result.name}')" class="btn-secondary w-full mt-4 flex items-center justify-center gap-2">
+                            <span>⚡</span>
+                            <span>Quick: Create Tool Automatically</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Data Preview -->
+                    <div class="p-4 rounded-lg bg-gray-800/50 border border-gray-700">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-400">📊</span>
+                                <span class="font-medium">Data Preview</span>
+                            </div>
+                            <span class="text-xs text-gray-500">${result.record_count || (result.data?.length || 0)} records</span>
+                        </div>
+                        <pre class="bg-black/50 rounded-lg p-3 overflow-auto max-h-64 text-xs"><code class="text-gray-300">${escapeHtml(jsonContent)}</code></pre>
+                    </div>
                 </div>
             `;
+        }
+        
+        // Test API endpoint
+        async function testAPI(itemId) {
+            const resultDiv = document.getElementById('api-test-result');
+            const responseCode = document.getElementById('api-test-response');
+            const statusBadge = document.getElementById('api-test-status');
+            
+            resultDiv.classList.remove('hidden');
+            responseCode.innerHTML = '<code class="text-gray-400">⏳ Sending request...</code>';
+            statusBadge.textContent = '...';
+            statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-gray-500/20 text-gray-400';
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(`/api/lab/mock/${itemId}`);
+                const endTime = Date.now();
+                const duration = endTime - startTime;
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusBadge.textContent = `${response.status} OK (${duration}ms)`;
+                    statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400';
+                } else {
+                    statusBadge.textContent = `${response.status} Error`;
+                    statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
+                }
+                
+                responseCode.innerHTML = `<code class="text-gray-300">${escapeHtml(JSON.stringify(data, null, 2))}</code>`;
+                
+            } catch (e) {
+                statusBadge.textContent = 'Error';
+                statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
+                responseCode.innerHTML = `<code class="text-red-400">❌ ${e.message}</code>`;
+            }
+        }
+        
+        // Copy to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast('Failed to copy', 'error');
+            });
+        }
+        
+        // Create tool automatically from generated API
+        async function createToolFromAPI(apiId, apiName) {
+            showLoading('Creating Tool...', 'Adding API to Tools library');
+            
+            try {
+                const endpoint = `/api/lab/mock/${apiId}`;
+                const fullUrl = window.location.origin + endpoint;
+                
+                const response = await fetch('/api/tools', {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeaders(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: apiName || 'Generated API',
+                        description: `Mock API generated from Lab. Returns test data.`,
+                        type: 'api',
+                        config: {
+                            url: fullUrl,
+                            method: 'GET',
+                            headers: {},
+                            auth_type: 'none'
+                        }
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to create tool');
+                }
+                
+                const tool = await response.json();
+                showToast(`Tool "${apiName}" created! Go to Tools page to see it.`, 'success');
+                
+            } catch (e) {
+                console.error('Error creating tool:', e);
+                showToast('Failed to create tool: ' + e.message, 'error');
+            } finally {
+                hideLoading();
+            }
         }
         
         function showDocumentPreview(result) {
