@@ -2183,20 +2183,94 @@
             }
         }
 
-        function startNewChat() {
+        async function startNewChat() {
             currentConversation = null;
             const container = document.getElementById('messages-container');
+            
+            // Show loading state
             container.innerHTML = `
                 <div class="welcome-screen" id="welcome-screen">
-                    <div class="welcome-icon">${currentAgent?.icon || '👋'}</div>
-                    <h1 class="welcome-title">How can I help you today?</h1>
-                    <p class="welcome-subtitle">${currentAgent?.goal || 'Start a conversation with me!'}</p>
-                    <div class="suggestions">
-                        <div class="suggestion-chip" onclick="sendSuggestion(this)">What can you help me with?</div>
-                        <div class="suggestion-chip" onclick="sendSuggestion(this)">Tell me about your capabilities</div>
-                    </div>
+                    <div class="welcome-icon">${currentAgent?.icon || '⏳'}</div>
+                    <h1 class="welcome-title">Loading...</h1>
                 </div>
             `;
+            
+            // Call start-chat to get personalized session
+            try {
+                const response = await fetch(`/api/agents/${currentAgent.id}/start-chat`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.ok) {
+                    const session = await response.json();
+                    console.log('📦 Chat session loaded:', session);
+                    
+                    // Store conversation ID for later use
+                    currentConversation = { id: session.conversation_id, messages: [] };
+                    
+                    // Build personalized welcome
+                    const userName = session.user_name || 'there';
+                    const hasRestrictions = session.denied_tasks && session.denied_tasks.length > 0;
+                    
+                    let welcomeTitle = `Hi ${userName}! 👋`;
+                    let welcomeSubtitle = session.message || `I'm ${currentAgent.name}. How can I help you today?`;
+                    
+                    // Show available tasks if user has restrictions
+                    let tasksInfo = '';
+                    if (hasRestrictions && session.accessible_tasks) {
+                        tasksInfo = `
+                            <div class="available-tasks" style="margin-top: 1rem; padding: 0.75rem; background: rgba(76,175,80,0.1); border-radius: 8px; text-align: left;">
+                                <strong style="color: #4CAF50;">✅ Available for you:</strong>
+                                <div style="margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+                                    ${session.accessible_tasks.map(t => `• ${t}`).join('<br>')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    container.innerHTML = `
+                        <div class="welcome-screen" id="welcome-screen">
+                            <div class="welcome-icon">${currentAgent?.icon || '👋'}</div>
+                            <h1 class="welcome-title">${welcomeTitle}</h1>
+                            <p class="welcome-subtitle">${welcomeSubtitle}</p>
+                            ${tasksInfo}
+                            <div class="suggestions">
+                                <div class="suggestion-chip" onclick="sendSuggestion(this)">What can you help me with?</div>
+                                <div class="suggestion-chip" onclick="sendSuggestion(this)">Tell me about your capabilities</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Fallback to generic welcome
+                    container.innerHTML = `
+                        <div class="welcome-screen" id="welcome-screen">
+                            <div class="welcome-icon">${currentAgent?.icon || '👋'}</div>
+                            <h1 class="welcome-title">How can I help you today?</h1>
+                            <p class="welcome-subtitle">${currentAgent?.goal || 'Start a conversation with me!'}</p>
+                            <div class="suggestions">
+                                <div class="suggestion-chip" onclick="sendSuggestion(this)">What can you help me with?</div>
+                                <div class="suggestion-chip" onclick="sendSuggestion(this)">Tell me about your capabilities</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                console.error('Failed to start chat session:', e);
+                // Fallback to generic welcome
+                container.innerHTML = `
+                    <div class="welcome-screen" id="welcome-screen">
+                        <div class="welcome-icon">${currentAgent?.icon || '👋'}</div>
+                        <h1 class="welcome-title">How can I help you today?</h1>
+                        <p class="welcome-subtitle">${currentAgent?.goal || 'Start a conversation with me!'}</p>
+                        <div class="suggestions">
+                            <div class="suggestion-chip" onclick="sendSuggestion(this)">What can you help me with?</div>
+                            <div class="suggestion-chip" onclick="sendSuggestion(this)">Tell me about your capabilities</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
             renderHistory();
         }
 
