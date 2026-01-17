@@ -539,14 +539,15 @@ class GoogleLLM(BaseLLMProvider):
             contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
         
         # Fix model name format - Google API uses specific names
-        model_name = self.config.model or "gemini-1.5-pro"
-        # Map common names to actual API model names (use gemini-2.0-flash as default - most reliable)
+        model_name = self.config.model or "gemini-1.5-flash"
+        # Map common names to actual API model names that support function calling
         model_mapping = {
-            "gemini-1.5-pro": "gemini-2.0-flash",
-            "gemini-1.5-flash": "gemini-2.0-flash", 
-            "gemini-pro": "gemini-2.0-flash",
+            "gemini-1.5-pro": "gemini-1.5-flash",  # 1.5-pro requires specific version
+            "gemini-1.5-flash": "gemini-1.5-flash", 
+            "gemini-pro": "gemini-1.5-flash",
+            "gemini-2.0-flash": "gemini-1.5-flash",  # 2.0 not stable yet
         }
-        api_model = model_mapping.get(model_name, "gemini-2.0-flash")
+        api_model = model_mapping.get(model_name, "gemini-1.5-flash")
         print(f"[GoogleLLM] Using API model: {api_model}")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent"
         
@@ -2984,14 +2985,17 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
             if not provider_data or not provider_data.api_key:
                 return {"content": "Error: Google API key not configured", "tool_calls": []}
             
-            # Map model name to actual API model
+            # Map model name to actual API model (gemini-1.5-flash is most stable for function calling)
+            # Google API requires specific model names
             model_mapping = {
-                "gemini-pro": "gemini-2.0-flash",
-                "gemini-1.5-flash": "gemini-1.5-flash",
-                "gemini-1.5-pro": "gemini-1.5-pro",
-                "gemini-2.0-flash": "gemini-2.0-flash"
+                "gemini-pro": "gemini-1.5-flash",
+                "gemini-1.5-flash": "gemini-1.5-flash", 
+                "gemini-1.5-pro": "gemini-1.5-flash",  # Use flash for reliability
+                "gemini-2.0-flash": "gemini-1.5-flash",
+                "gemini-flash": "gemini-1.5-flash"
             }
-            api_model = model_mapping.get(model_lower, "gemini-2.0-flash")
+            api_model = model_mapping.get(model_lower, "gemini-1.5-flash")
+            print(f"   📍 Mapped model {model_lower} -> {api_model} (for function calling)")
             
             print(f"   🔧 Gemini function calling with model: {api_model}")
             
