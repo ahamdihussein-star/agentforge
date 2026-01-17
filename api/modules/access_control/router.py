@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from uuid import UUID
 
-from .service import AccessControlService
+from .service import AccessControlService, normalize_org_id
 from .schemas import (
     AccessType, AccessEntity, EntityType,
     AgentAccessCreate, AgentAccessUpdate, AgentAccessResponse,
@@ -45,8 +45,12 @@ def check_agent_management_permission(user: User, agent_id: str, org_id: str):
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
-    # Check organization
-    if user.org_id != org_id:
+    # Normalize org_id to valid UUID
+    org_id = normalize_org_id(org_id)
+    user_org_id = normalize_org_id(user.org_id) if user.org_id else None
+    
+    # Check organization (compare normalized values)
+    if user_org_id and user_org_id != org_id:
         raise HTTPException(status_code=403, detail="Access denied - wrong organization")
     
     # Import database session and models
@@ -98,6 +102,9 @@ def is_agent_owner(user: User, agent_id: str, org_id: str) -> bool:
     """Check if user is the owner of an agent"""
     from database.base import get_session
     from database.models.agent import Agent
+    
+    # Normalize org_id to valid UUID
+    org_id = normalize_org_id(org_id)
     
     with get_session() as session:
         agent = session.query(Agent).filter(
@@ -522,6 +529,9 @@ async def get_agent_admins(
     # Check if user can manage this agent
     check_agent_management_permission(current_user, agent_id, org_id)
     
+    # Normalize org_id
+    org_id = normalize_org_id(org_id)
+    
     from database.base import get_session
     from database.models.agent import Agent
     from database.models.agent_access import AgentAccessPolicy
@@ -565,6 +575,9 @@ async def update_agent_admins(
     
     REQUIRES: Agent OWNER only (not just admins - only owner can delegate admin access)
     """
+    # Normalize org_id
+    org_id = normalize_org_id(org_id)
+    
     from database.base import get_session
     from database.models.agent import Agent
     from database.models.agent_access import AgentAccessPolicy
