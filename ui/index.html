@@ -7295,8 +7295,10 @@ Option 3"></textarea>
         }
         
         // Reset test conversation
-        function resetTestConversation() {
-            document.getElementById('test-messages').innerHTML = '';
+        async function resetTestConversation() {
+            const messagesDiv = document.getElementById('test-messages');
+            messagesDiv.innerHTML = '';
+            
             // Only reset conversation, keep agent ID to prevent duplicates
             if(testAgent) {
                 testAgent.convId = null; // Reset conversation but keep agent
@@ -7304,6 +7306,27 @@ Option 3"></textarea>
             testAttachments = [];
             renderTestAttachments();
             console.log('Test conversation reset (agent preserved)');
+            
+            // Show personalized welcome message
+            const userName = currentUser?.first_name || currentUser?.display_name || 
+                           currentUser?.email?.split('@')[0]?.replace('.', ' ') || 'there';
+            const agentName = wizard.name || 'your agent';
+            
+            const welcomeHtml = `
+                <div class="animate-fade-in">
+                    <div class="text-center py-4">
+                        <div class="text-4xl mb-2">👋</div>
+                        <h3 class="text-lg font-semibold text-white">Hi ${userName}!</h3>
+                        <p class="text-sm text-gray-400 mt-1">I'm ${agentName}. Try asking me something!</p>
+                        ${wizard.tasks && wizard.tasks.length > 0 ? `
+                            <div class="mt-3 text-xs text-gray-500">
+                                <p>Available tasks: ${wizard.tasks.map(t => t.name).slice(0, 3).join(', ')}${wizard.tasks.length > 3 ? '...' : ''}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            messagesDiv.innerHTML = welcomeHtml;
         }
         
         function goStep(s) {
