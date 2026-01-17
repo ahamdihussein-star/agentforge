@@ -1733,7 +1733,7 @@
 
         // Helper function to get auth token from either storage
         function getToken() {
-            return getToken() || sessionStorage.getItem('token');
+            return localStorage.getItem('token') || sessionStorage.getItem('token');
         }
         
         // Helper function to get auth headers
