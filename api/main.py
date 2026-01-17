@@ -3436,11 +3436,19 @@ async def process_test_agent_chat(agent: AgentData, message: str, conversation: 
             if result.get('tool_calls'):
                 for tc in result['tool_calls']:
                     print(f"\n   🔧 Tool call: {tc['name']}")
-                    tool_result = await execute_tool(
-                        tc.get('tool_id', ''),
-                        tc.get('tool_type', ''),
-                        tc.get('arguments', {})
-                    )
+                    
+                    # Check if it's the embedded security tool
+                    if tc['name'] == 'check_user_permissions':
+                        print(f"   🔐 Executing SECURITY TOOL")
+                        task_name = tc.get('arguments', {}).get('task_name')
+                        tool_result = execute_security_tool(current_user, access_control, agent, task_name)
+                        tool_result = json.dumps(tool_result, indent=2)
+                    else:
+                        tool_result = await execute_tool(
+                            tc.get('tool_id', ''),
+                            tc.get('tool_type', ''),
+                            tc.get('arguments', {})
+                        )
                     
                     tool_calls_made.append({
                         "tool": tc['name'],
@@ -3585,6 +3593,102 @@ def extract_text_from_docx(file_path: str) -> str:
         return ""
 
 
+# ========================================================================
+# EMBEDDED SECURITY TOOL - Used by LLM to check user permissions
+# ========================================================================
+def build_security_tool_definition():
+    """
+    Build the embedded security tool that LLM uses to check permissions.
+    This is an INTERNAL tool - not visible to users but used by the agent.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": "check_user_permissions",
+            "description": "IMPORTANT: Call this tool FIRST before executing any task to verify the current user's identity and permissions. Returns the user's name, role, groups, and which tasks they can access.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_name": {
+                        "type": "string",
+                        "description": "The name of the task you want to execute (optional - if provided, checks if user can access this specific task)"
+                    }
+                },
+                "required": []
+            }
+        }
+    }
+
+
+def execute_security_tool(current_user, access_control, agent, task_name: str = None) -> Dict:
+    """
+    Execute the embedded security tool.
+    Returns user context and permission status.
+    """
+    # Build user info
+    user_name = "Anonymous"
+    user_role = "User"
+    user_groups = []
+    
+    if current_user:
+        if hasattr(current_user, 'first_name') and current_user.first_name:
+            user_name = current_user.first_name
+            if hasattr(current_user, 'last_name') and current_user.last_name:
+                user_name += f" {current_user.last_name}"
+        elif hasattr(current_user, 'email'):
+            user_name = current_user.email.split('@')[0].replace('.', ' ').title()
+        
+        # Get role name
+        if hasattr(current_user, 'role_ids') and current_user.role_ids and SECURITY_AVAILABLE and security_state:
+            for rid in current_user.role_ids:
+                role = security_state.roles.get(rid)
+                if role:
+                    user_role = role.name
+                    break
+        
+        # Get group names
+        if hasattr(current_user, 'group_ids') and current_user.group_ids and SECURITY_AVAILABLE and security_state:
+            for gid in current_user.group_ids:
+                group = security_state.groups.get(gid)
+                if group:
+                    user_groups.append(group.name)
+    
+    # Get permissions
+    denied_tasks = []
+    accessible_tasks = [t.name for t in agent.tasks]
+    
+    if access_control and hasattr(access_control, 'denied_tasks'):
+        denied_tasks = access_control.denied_tasks or []
+        accessible_tasks = [t for t in accessible_tasks if t not in denied_tasks]
+    
+    # Check specific task if requested
+    task_allowed = True
+    if task_name:
+        task_allowed = task_name not in denied_tasks
+    
+    result = {
+        "user": {
+            "name": user_name,
+            "role": user_role,
+            "groups": user_groups
+        },
+        "permissions": {
+            "accessible_tasks": accessible_tasks,
+            "restricted_tasks": denied_tasks,
+            "has_full_access": len(denied_tasks) == 0
+        }
+    }
+    
+    if task_name:
+        result["task_check"] = {
+            "task_name": task_name,
+            "allowed": task_allowed,
+            "reason": None if task_allowed else f"Task '{task_name}' is not available for {user_name}'s account"
+        }
+    
+    return result
+
+
 async def process_agent_chat(agent: AgentData, message: str, conversation: Conversation, timezone: str = None, access_control = None, current_user = None) -> Dict:
     """
     Process agent chat with access control enforcement.
@@ -3636,13 +3740,22 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     action_tools = [t for t in agent_tools if t.type in ['email', 'api', 'webhook', 'slack', 'websearch', 'database']]
     tool_definitions = build_tool_definitions(action_tools) if action_tools else []
     
+    # ========================================================================
+    # ADD EMBEDDED SECURITY TOOL (LLM uses this to check permissions)
+    # ========================================================================
+    security_tool = build_security_tool_definition()
+    tool_definitions = [security_tool] + tool_definitions  # Security tool FIRST
+    print(f"🔐 Added embedded security tool. Total tools: {len(tool_definitions)}")
+    
     # Add available tools to system prompt
     tools_description = ""
+    tools_description = "\n\n=== AVAILABLE TOOLS ===\n"
+    tools_description += "**🔐 check_user_permissions** (SECURITY): ALWAYS call this FIRST before executing any task. Returns the current user's identity and what they can access.\n"
     if action_tools:
-        tools_description = "\n\n=== AVAILABLE TOOLS ===\nYou have access to the following tools. Use them when appropriate:\n"
+        tools_description += "\nOther available tools:\n"
         for t in action_tools:
             tools_description += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
-        tools_description += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
+    tools_description += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
     
     # ========================================================================
     # ACCESS CONTROL: Filter tasks based on permissions (Level 2)
@@ -3829,6 +3942,21 @@ Example response:
 
 This applies to ALL variations of the request - whether asking for "all data", "specific items", or "just one piece of information"."""
     
+    # Add security tool instructions
+    system_prompt += """
+
+=== 🔐 MANDATORY SECURITY PROTOCOL ===
+You have access to a special security tool called 'check_user_permissions'.
+
+**CRITICAL RULES:**
+1. You ALREADY know the current user from the USER CONTEXT section above
+2. If you're unsure about a user's permissions, call 'check_user_permissions' 
+3. NEVER ask the user about their role, department, or permissions
+4. If a task is in RESTRICTED TASKS, decline immediately without checking
+5. For tasks that require data access, verify permissions internally using the tool
+
+**REMEMBER:** The user's identity and permissions are KNOWN to you. Never ask them to verify their identity or role."""
+    
     # Add tools description
     system_prompt += tools_description
     
@@ -3911,11 +4039,19 @@ This applies to ALL variations of the request - whether asking for "all data", "
                 # Execute each tool call
                 for tc in result['tool_calls']:
                     print(f"\n   🔧 Tool call: {tc['name']}")
-                    tool_result = await execute_tool(
-                        tc.get('tool_id', ''),
-                        tc.get('tool_type', ''),
-                        tc.get('arguments', {})
-                    )
+                    
+                    # Check if it's the embedded security tool
+                    if tc['name'] == 'check_user_permissions':
+                        print(f"   🔐 Executing SECURITY TOOL")
+                        task_name = tc.get('arguments', {}).get('task_name')
+                        tool_result = execute_security_tool(current_user, access_control, agent, task_name)
+                        tool_result = json.dumps(tool_result, indent=2)
+                    else:
+                        tool_result = await execute_tool(
+                            tc.get('tool_id', ''),
+                            tc.get('tool_type', ''),
+                            tc.get('arguments', {})
+                        )
                     
                     tool_calls_made.append({
                         "tool": tc['name'],
