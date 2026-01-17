@@ -4555,6 +4555,8 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
                 # Check if user has management permission (not chat access)
                 mgmt_result = AccessControlService.check_agent_permission(
                     user_id=user_id,
+                    user_role_ids=user_role_ids,
+                    user_group_ids=user_group_ids,
                     agent_id=agent.id,
                     org_id=org_id,
                     permission='full_admin'  # Only delegated admins

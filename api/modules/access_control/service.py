@@ -889,8 +889,31 @@ class AccessControlService:
                     "reason": "You are not a delegated admin for this agent"
                 }
             
-            # Check if the requested permission is granted
-            granted_permissions = admin_policy.allowed_actions or []
+            # Get permissions from description (JSON format)
+            # Format: {entity_id: {permissions: [], denied_task_names: []}}
+            granted_permissions = ['full_admin']  # Default
+            try:
+                if admin_policy.description:
+                    import json
+                    admin_config = json.loads(admin_policy.description)
+                    if user_id in admin_config:
+                        entity_config = admin_config[user_id]
+                        if isinstance(entity_config, dict):
+                            granted_permissions = entity_config.get('permissions', ['full_admin'])
+                        elif isinstance(entity_config, list):
+                            granted_permissions = entity_config
+                    else:
+                        # Check groups
+                        for group_id in user_group_ids:
+                            if group_id in admin_config:
+                                entity_config = admin_config[group_id]
+                                if isinstance(entity_config, dict):
+                                    granted_permissions = entity_config.get('permissions', ['full_admin'])
+                                elif isinstance(entity_config, list):
+                                    granted_permissions = entity_config
+                                break
+            except Exception as e:
+                print(f"⚠️ Failed to parse admin permissions: {e}")
             
             # FULL_ADMIN grants all permissions except delete
             if "full_admin" in granted_permissions:
