@@ -12901,7 +12901,9 @@ Option 3"></textarea>
         }
 
         async function loadAgents(){
-            const r=await fetch(API+'/api/agents?status='+agentTab);
+            const r=await fetch(API+'/api/agents?status='+agentTab, {
+                headers: getAuthHeaders()
+            });
             const d=await r.json();
             const g=document.getElementById('agents-grid');
             if(!d.agents.length){
@@ -17216,7 +17218,9 @@ async function saveToolEdit() {
         }
 
         async function loadChatAgents(){
-            const r=await fetch(API+'/api/agents?status=published');
+            const r=await fetch(API+'/api/agents?status=published', {
+                headers: getAuthHeaders()
+            });
             const d=await r.json();
             document.getElementById('chat-agent').innerHTML='<option value="">Select Agent...</option>'+d.agents.map(a=>`<option value="${a.id}">${a.icon} ${a.name}</option>`).join('');
         }
