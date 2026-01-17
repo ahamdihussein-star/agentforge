@@ -35,11 +35,10 @@ def check_agent_management_permission(user: User, agent_id: str, org_id: str):
     """
     Check if user has permission to manage agent access control.
     
-    Allowed:
-    - Super admins
-    - Organization admins
-    - Users with 'manage_agents' permission
-    - Agent creator/owner (TODO: implement)
+    Allowed (in order of priority):
+    1. Agent owner/creator - ALWAYS has access to their own agent
+    2. Agent admins - Users granted admin access by the owner
+    3. Platform super admins - Can manage all agents
     """
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -48,27 +47,84 @@ def check_agent_management_permission(user: User, agent_id: str, org_id: str):
     if user.org_id != org_id:
         raise HTTPException(status_code=403, detail="Access denied - wrong organization")
     
-    # Check for admin role or manage_agents permission
-    from core.security.state import security_state
-    user_permissions = security_state.get_user_permissions(user)
+    # Import database session and models
+    from database.base import get_session
+    from database.models.agent import Agent
+    from database.models.agent_access import AgentAccessPolicy
     
-    # Check if user has admin permissions
-    admin_permissions = ['admin', 'manage_agents', 'manage_users', 'manage_security']
-    has_admin_permission = any(perm in user_permissions for perm in admin_permissions)
-    
-    # Check if user has an admin role (by looking at role names)
-    is_admin = False
-    for role_id in (user.role_ids or []):
-        role = security_state.roles.get(role_id)
-        if role and ('admin' in role.name.lower() or 'super' in role.name.lower()):
-            is_admin = True
-            break
-    
-    if not is_admin and not has_admin_permission:
+    with get_session() as session:
+        # Get the agent
+        agent = session.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.org_id == org_id
+        ).first()
+        
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        # 1. Check if user is the OWNER of this agent
+        if str(agent.owner_id) == user.id or str(agent.created_by) == user.id:
+            print(f"✅ User {user.id[:8]}... is the OWNER of agent {agent_id[:8]}...")
+            return  # Owner has full access
+        
+        # 2. Check if user is an AGENT ADMIN (granted by owner)
+        # Look for a special "admin" access policy for this user
+        admin_policy = session.query(AgentAccessPolicy).filter(
+            AgentAccessPolicy.agent_id == agent_id,
+            AgentAccessPolicy.org_id == org_id,
+            AgentAccessPolicy.access_type == 'agent_admin',
+            AgentAccessPolicy.is_active == True
+        ).first()
+        
+        if admin_policy:
+            user_in_admins = user.id in (admin_policy.user_ids or [])
+            role_in_admins = any(r in (admin_policy.role_ids or []) for r in (user.role_ids or []))
+            group_in_admins = any(g in (admin_policy.group_ids or []) for g in (user.group_ids or []))
+            
+            if user_in_admins or role_in_admins or group_in_admins:
+                print(f"✅ User {user.id[:8]}... is an AGENT ADMIN for agent {agent_id[:8]}...")
+                return  # Agent admin has access
+        
+        # 3. Check if user is a PLATFORM SUPER ADMIN
+        from core.security.state import security_state
+        user_permissions = security_state.get_user_permissions(user)
+        
+        # Only super admin / platform admin can manage OTHER people's agents
+        is_super_admin = 'admin' in user_permissions or 'super_admin' in user_permissions
+        
+        # Check if user has super admin role
+        for role_id in (user.role_ids or []):
+            role = security_state.roles.get(role_id)
+            if role and ('super' in role.name.lower()):
+                is_super_admin = True
+                break
+        
+        if is_super_admin:
+            print(f"✅ User {user.id[:8]}... is a SUPER ADMIN")
+            return  # Super admin has access
+        
+        # User doesn't have permission
         raise HTTPException(
             status_code=403, 
-            detail="Access denied - only administrators can manage agent access control"
+            detail="Access denied - only the agent owner or delegated admins can manage this agent's access control"
         )
+
+
+def is_agent_owner(user: User, agent_id: str, org_id: str) -> bool:
+    """Check if user is the owner of an agent"""
+    from database.base import get_session
+    from database.models.agent import Agent
+    
+    with get_session() as session:
+        agent = session.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.org_id == org_id
+        ).first()
+        
+        if not agent:
+            return False
+        
+        return str(agent.owner_id) == user.id or str(agent.created_by) == user.id
 
 
 # ============================================================================
@@ -453,4 +509,155 @@ async def apply_template(
         "status": "success",
         "message": f"Template '{template_id}' applied successfully"
     }
+
+
+# ============================================================================
+# AGENT ADMINS (Owner can delegate admin access)
+# ============================================================================
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class AgentAdminUpdate(PydanticBaseModel):
+    """Update agent admins request"""
+    add_user_ids: Optional[List[str]] = None
+    remove_user_ids: Optional[List[str]] = None
+    add_group_ids: Optional[List[str]] = None
+    remove_group_ids: Optional[List[str]] = None
+
+@router.get("/agents/{agent_id}/admins")
+async def get_agent_admins(
+    agent_id: str,
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get list of users/groups who have admin access to this agent.
+    
+    REQUIRES: Agent owner or existing agent admin
+    """
+    # Check if user can manage this agent
+    check_agent_management_permission(current_user, agent_id, org_id)
+    
+    from database.base import get_session
+    from database.models.agent import Agent
+    from database.models.agent_access import AgentAccessPolicy
+    
+    with get_session() as session:
+        agent = session.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.org_id == org_id
+        ).first()
+        
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        # Get the admin policy
+        admin_policy = session.query(AgentAccessPolicy).filter(
+            AgentAccessPolicy.agent_id == agent_id,
+            AgentAccessPolicy.org_id == org_id,
+            AgentAccessPolicy.access_type == 'agent_admin'
+        ).first()
+        
+        owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+        
+        return {
+            "agent_id": agent_id,
+            "owner_id": owner_id,
+            "admin_user_ids": admin_policy.user_ids if admin_policy else [],
+            "admin_group_ids": admin_policy.group_ids if admin_policy else [],
+            "is_owner": owner_id == current_user.id
+        }
+
+
+@router.put("/agents/{agent_id}/admins")
+async def update_agent_admins(
+    agent_id: str,
+    data: AgentAdminUpdate,
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Add or remove agent admins.
+    
+    REQUIRES: Agent OWNER only (not just admins - only owner can delegate admin access)
+    """
+    from database.base import get_session
+    from database.models.agent import Agent
+    from database.models.agent_access import AgentAccessPolicy
+    from datetime import datetime
+    
+    with get_session() as session:
+        agent = session.query(Agent).filter(
+            Agent.id == agent_id,
+            Agent.org_id == org_id
+        ).first()
+        
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        # ONLY the owner can delegate admin access
+        owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+        if owner_id != current_user.id:
+            # Check if super admin
+            from core.security.state import security_state
+            user_permissions = security_state.get_user_permissions(current_user)
+            if 'super_admin' not in user_permissions and 'admin' not in user_permissions:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Only the agent owner can manage admin delegation"
+                )
+        
+        # Find or create admin policy
+        admin_policy = session.query(AgentAccessPolicy).filter(
+            AgentAccessPolicy.agent_id == agent_id,
+            AgentAccessPolicy.org_id == org_id,
+            AgentAccessPolicy.access_type == 'agent_admin'
+        ).first()
+        
+        if not admin_policy:
+            admin_policy = AgentAccessPolicy(
+                agent_id=agent_id,
+                org_id=org_id,
+                name="Agent Admins",
+                description="Users who can manage this agent's access control",
+                access_type='agent_admin',
+                user_ids=[],
+                group_ids=[],
+                role_ids=[],
+                created_by=current_user.id
+            )
+            session.add(admin_policy)
+        
+        # Update user_ids
+        current_users = admin_policy.user_ids or []
+        if data.add_user_ids:
+            for uid in data.add_user_ids:
+                if uid not in current_users:
+                    current_users.append(uid)
+        if data.remove_user_ids:
+            current_users = [u for u in current_users if u not in data.remove_user_ids]
+        admin_policy.user_ids = current_users
+        
+        # Update group_ids
+        current_groups = admin_policy.group_ids or []
+        if data.add_group_ids:
+            for gid in data.add_group_ids:
+                if gid not in current_groups:
+                    current_groups.append(gid)
+        if data.remove_group_ids:
+            current_groups = [g for g in current_groups if g not in data.remove_group_ids]
+        admin_policy.group_ids = current_groups
+        
+        admin_policy.updated_at = datetime.utcnow()
+        admin_policy.is_active = True
+        
+        session.commit()
+        
+        print(f"✅ Updated agent admins for {agent_id[:8]}...: users={current_users}, groups={current_groups}")
+        
+        return {
+            "status": "success",
+            "admin_user_ids": current_users,
+            "admin_group_ids": current_groups
+        }
 
