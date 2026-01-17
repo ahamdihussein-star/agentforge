@@ -2210,11 +2210,16 @@
             `;
             
             // Call start-chat to get personalized session
+            console.log('🚀 Calling start-chat for agent:', currentAgent.id);
+            console.log('🔑 Auth headers:', getAuthHeaders());
+            
             try {
                 const response = await fetch(`/api/agents/${currentAgent.id}/start-chat`, {
                     method: 'POST',
                     headers: getAuthHeaders()
                 });
+                
+                console.log('📥 start-chat response status:', response.status);
                 
                 if (response.ok) {
                     const session = await response.json();
@@ -2262,6 +2267,8 @@
                     `;
                 } else {
                     // Fallback to generic welcome
+                    const errorText = await response.text();
+                    console.error('⚠️ start-chat failed with status:', response.status, errorText);
                     container.innerHTML = `
                         <div class="welcome-screen" id="welcome-screen">
                             <div class="welcome-icon">${currentAgent?.icon || '👋'}</div>
@@ -2275,7 +2282,8 @@
                     `;
                 }
             } catch (e) {
-                console.error('Failed to start chat session:', e);
+                console.error('❌ Failed to start chat session:', e);
+                console.error('Error details:', e.message, e.stack);
                 // Fallback to generic welcome
                 container.innerHTML = `
                     <div class="welcome-screen" id="welcome-screen">
