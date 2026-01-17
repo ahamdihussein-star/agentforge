@@ -9199,6 +9199,81 @@ Option 3"></textarea>
             };
         }
         
+        async function loadAgentAccessControl(agentId) {
+            // Try to load access control from the API
+            try {
+                const orgId = currentUser?.org_id || 'default';
+                const response = await fetch(`/api/access-control/agents/${agentId}/full?org_id=${orgId}`, {
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Loaded access control from API:', data);
+                    
+                    // Convert API format to wizard format
+                    wizard.accessControl = {
+                        accessType: data.agent_access?.access_type || 'authenticated',
+                        entities: (data.agent_access?.entities || []).map(e => ({
+                            id: e.entity_id || e.id,
+                            type: e.entity_type || e.type,
+                            name: e.name || ''
+                        })),
+                        taskPermissions: data.task_access?.task_permissions || []
+                    };
+                }
+            } catch (e) {
+                console.log('Could not load access control from API:', e.message);
+            }
+        }
+        
+        async function saveAgentAccessControl(agentId) {
+            // Save access control to the API
+            try {
+                const orgId = currentUser?.org_id || 'default';
+                const userId = currentUser?.id || 'system';
+                const ac = wizard.accessControl || {};
+                
+                console.log('Saving access control for agent:', agentId, ac);
+                
+                // Save Level 1: Agent Access (who can use the agent)
+                await fetch(`/api/access-control/agents/${agentId}/access?org_id=${orgId}&user_id=${userId}`, {
+                    method: 'PUT',
+                    headers: { 
+                        ...getAuthHeaders(), 
+                        'Content-Type': 'application/json' 
+                    },
+                    body: JSON.stringify({
+                        access_type: ac.accessType || 'authenticated',
+                        entities: (ac.entities || []).map(e => ({
+                            entity_id: e.id,
+                            entity_type: e.type,
+                            name: e.name
+                        }))
+                    })
+                });
+                
+                // Save Level 2: Task Access (which tasks can be used)
+                if (ac.taskPermissions && ac.taskPermissions.length > 0) {
+                    await fetch(`/api/access-control/agents/${agentId}/tasks?org_id=${orgId}&user_id=${userId}`, {
+                        method: 'PUT',
+                        headers: { 
+                            ...getAuthHeaders(), 
+                            'Content-Type': 'application/json' 
+                        },
+                        body: JSON.stringify({
+                            allow_all_by_default: true,
+                            task_permissions: ac.taskPermissions
+                        })
+                    });
+                }
+                
+                console.log('✅ Access control saved successfully');
+            } catch (e) {
+                console.error('Failed to save access control:', e);
+            }
+        }
+        
         function loadWizardAccessControl() {
             const ac = wizard.accessControl || {};
             
@@ -9207,7 +9282,30 @@ Option 3"></textarea>
                 ...e,
                 icon: e.type === 'user' ? '👤' : e.type === 'group' ? '👥' : '🏷️'
             }));
-            wizardAccessState.taskPermissions = ac.taskPermissions || {};
+            
+            // Convert task permissions to internal format
+            wizardAccessState.taskPermissions = {};
+            const taskPerms = ac.taskPermissions || [];
+            
+            if (Array.isArray(taskPerms)) {
+                // New format: array of {task_id, denied_entity_ids, default_allowed}
+                taskPerms.forEach(tp => {
+                    const taskId = tp.task_id;
+                    const deniedIds = tp.denied_entity_ids || [];
+                    
+                    // Set default permission
+                    wizardAccessState.taskPermissions[`${taskId}:default`] = tp.default_allowed !== false;
+                    
+                    // Set per-entity permissions
+                    wizardAccessState.selectedEntities.forEach(e => {
+                        const isDenied = deniedIds.includes(e.id);
+                        wizardAccessState.taskPermissions[`${taskId}:${e.id}`] = !isDenied;
+                    });
+                });
+            } else {
+                // Old format: object
+                wizardAccessState.taskPermissions = taskPerms;
+            }
             
             // Set the radio button
             const radio = document.querySelector(`input[name="wizard-access-type"][value="${wizardAccessState.accessType}"]`);
@@ -11948,6 +12046,10 @@ Option 3"></textarea>
             wizard.tool_ids = agent.tool_ids || [];
             wizard.generatedTools = [];
             wizard.guardrails = agent.guardrails || {};
+            wizard.accessControl = agent.access_control || null;
+            
+            // Also load access control from API if available
+            await loadAgentAccessControl(id);
             
             // Load personality from agent
             wizard.personality = agent.personality || null;
@@ -12302,6 +12404,9 @@ Option 3"></textarea>
             
             if(typeof collectGuardrails === 'function') collectGuardrails();
             
+            // Collect access control settings
+            if(typeof collectWizardAccessControl === 'function') collectWizardAccessControl();
+            
             // Use wizard personality (from AI generation)
             if (!wizard.personality) {
                 alert('Agent personality not configured. Please generate configuration first.');
@@ -12319,7 +12424,8 @@ Option 3"></textarea>
                 tool_ids: wizard.tool_ids || [],
                 model_id: wizard.model,
                 model_reason: wizard.modelReason,
-                status: status
+                status: status,
+                access_control: wizard.accessControl || null
             };
             
             console.log('Saving agent:', agentData);
@@ -12349,6 +12455,14 @@ Option 3"></textarea>
                 }
                 
                 if(response.ok) {
+                    const savedAgent = await response.json();
+                    const savedAgentId = savedAgent.id || agentId;
+                    
+                    // Save access control to API
+                    if (wizard.accessControl && savedAgentId) {
+                        await saveAgentAccessControl(savedAgentId);
+                    }
+                    
                     alert(status === 'published' ? '🚀 Agent Published!' : '💾 Saved as Draft!');
                     wizard.editId = null;
                     testAgent = null;
