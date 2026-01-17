@@ -1972,10 +1972,12 @@ class AppState:
             if db_agents:
                 for agent_dict in db_agents:
                     try:
-                        # Remove extra fields that AgentData doesn't have (Pydantic will ignore them, but let's be explicit)
-                        agent_dict_clean = {k: v for k, v in agent_dict.items() if k in AgentData.__fields__}
-                        # Convert dictionary to AgentData
-                        agent_data = AgentData(**agent_dict_clean)
+                        # Convert dictionary to AgentData - include owner_id and created_by
+                        # These fields are now in AgentData model
+                        agent_data = AgentData(**{
+                            k: v for k, v in agent_dict.items() 
+                            if k in AgentData.__fields__ or k in ('owner_id', 'created_by')
+                        })
                         self.agents[agent_data.id] = agent_data
                     except Exception as e:
                         print(f"⚠️  Error converting agent from database: {e}")
