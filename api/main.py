@@ -4619,7 +4619,13 @@ async def create_agent(request: CreateAgentRequest, current_user: User = Depends
         app_state.agents[agent.id] = agent
         app_state.save_to_disk()  # Will try to save to database in save_to_disk()
     
-    return {"status": "success", "agent_id": agent.id, "agent": agent.dict()}
+    return {
+        "status": "success", 
+        "agent_id": agent.id, 
+        "agent": agent.dict(),
+        "owner_id": str(owner_id) if owner_id else None,
+        "created_by": str(created_by) if created_by else None
+    }
 
 
 class GenerateAgentConfigRequest(BaseModel):

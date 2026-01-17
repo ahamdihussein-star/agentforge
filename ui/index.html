@@ -7415,6 +7415,20 @@ Option 3"></textarea>
                             if(!testAgent) testAgent = {id: agentObj.id};
                         }
                     }
+                    
+                    // ✨ CRITICAL: Save owner_id when creating new agent
+                    // This is returned from POST /api/agents and is essential for access control
+                    if(data.owner_id && !wizard.owner_id) {
+                        wizard.owner_id = data.owner_id;
+                        wizard.created_by = data.created_by || data.owner_id;
+                        console.log('👤 Agent owner set:', wizard.owner_id);
+                    } else if(!wizard.owner_id && currentUser?.id) {
+                        // Fallback: current user is the owner since they created it
+                        wizard.owner_id = currentUser.id;
+                        wizard.created_by = currentUser.id;
+                        console.log('👤 Agent owner set from currentUser:', wizard.owner_id);
+                    }
+                    
                     console.log('✅ Wizard step auto-saved to database, agent ID:', wizard.editId || testAgent?.id);
                 } else {
                     console.warn('⚠️  Failed to auto-save wizard step:', await response.text());
