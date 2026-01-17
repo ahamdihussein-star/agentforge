@@ -9274,14 +9274,44 @@ Option 3"></textarea>
             }
         }
         
-        function loadWizardAccessControl() {
+        async function loadWizardAccessControl() {
             const ac = wizard.accessControl || {};
             
             wizardAccessState.accessType = ac.accessType || 'authenticated';
-            wizardAccessState.selectedEntities = (ac.entities || []).map(e => ({
-                ...e,
-                icon: e.type === 'user' ? '👤' : e.type === 'group' ? '👥' : '🏷️'
-            }));
+            
+            // Load all users/groups/roles first if not already loaded
+            if (wizardAccessState.allUsers.length === 0) {
+                await loadWizardAccessEntities();
+            }
+            
+            // Map entities and enrich with actual names
+            wizardAccessState.selectedEntities = (ac.entities || []).map(e => {
+                let name = e.name;
+                let icon = '👤';
+                
+                // Try to find actual name from loaded data
+                if (e.type === 'user') {
+                    const user = wizardAccessState.allUsers.find(u => u.id === e.id);
+                    if (user) {
+                        name = user.name || user.email || `User ${e.id.slice(0, 8)}...`;
+                    }
+                    icon = '👤';
+                } else if (e.type === 'group') {
+                    const group = wizardAccessState.allGroups.find(g => g.id === e.id);
+                    if (group) {
+                        name = group.name || `Group ${e.id.slice(0, 8)}...`;
+                    }
+                    icon = '👥';
+                } else if (e.type === 'role') {
+                    const role = wizardAccessState.allRoles.find(r => r.id === e.id);
+                    if (role) {
+                        name = role.name || `Role ${e.id.slice(0, 8)}...`;
+                    }
+                    icon = '🏷️';
+                }
+                
+                return { ...e, name, icon };
+            });
             
             // Convert task permissions to internal format
             wizardAccessState.taskPermissions = {};
@@ -9314,7 +9344,7 @@ Option 3"></textarea>
             updateWizardAccessUI();
         }
         
-        function loadGuardrailsToForm() {
+        async function loadGuardrailsToForm() {
             const g = wizard.guardrails || {};
             
             const setChecked = (id, value, defaultVal = true) => {
@@ -9344,8 +9374,8 @@ Option 3"></textarea>
             setChecked('guard-mask-pii', g.maskPii, true);
             setChecked('guard-no-store-pii', g.noStorePii, true);
             
-            // Load access control settings
-            loadWizardAccessControl();
+            // Load access control settings (async - enriches entity names)
+            await loadWizardAccessControl();
         }
         
         async function showPreviewNew() {
