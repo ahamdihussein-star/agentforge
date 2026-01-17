@@ -2971,8 +2971,114 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
                     "finish_reason": data.get('stop_reason')
                 }
         
+        elif model_lower.startswith('gemini'):
+            # Google Gemini with function calling
+            provider_data = next(
+                (p for p in app_state.settings.llm_providers if p.provider == 'google'),
+                None
+            )
+            
+            if not provider_data or not provider_data.api_key:
+                return {"content": "Error: Google API key not configured", "tool_calls": []}
+            
+            # Map model name to actual API model
+            model_mapping = {
+                "gemini-pro": "gemini-2.0-flash",
+                "gemini-1.5-flash": "gemini-1.5-flash",
+                "gemini-1.5-pro": "gemini-1.5-pro",
+                "gemini-2.0-flash": "gemini-2.0-flash"
+            }
+            api_model = model_mapping.get(model_lower, "gemini-2.0-flash")
+            
+            print(f"   🔧 Gemini function calling with model: {api_model}")
+            
+            # Convert messages to Gemini format
+            gemini_messages = []
+            system_instruction = ""
+            for msg in messages:
+                if msg['role'] == 'system':
+                    system_instruction = msg['content']
+                else:
+                    gemini_messages.append({
+                        "role": "user" if msg['role'] == 'user' else "model",
+                        "parts": [{"text": msg['content']}]
+                    })
+            
+            # Convert tools to Gemini format
+            gemini_tools = []
+            if openai_tools:
+                function_declarations = []
+                for t in openai_tools:
+                    func = t['function']
+                    function_declarations.append({
+                        "name": func['name'],
+                        "description": func.get('description', ''),
+                        "parameters": func.get('parameters', {"type": "object", "properties": {}})
+                    })
+                gemini_tools = [{"function_declarations": function_declarations}]
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                request_body = {
+                    "contents": gemini_messages,
+                    "generationConfig": {
+                        "temperature": 0.7,
+                        "maxOutputTokens": 4096
+                    }
+                }
+                
+                if system_instruction:
+                    request_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+                
+                if gemini_tools:
+                    request_body["tools"] = gemini_tools
+                
+                response = await client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent?key={provider_data.api_key}",
+                    headers={"Content-Type": "application/json"},
+                    json=request_body
+                )
+                
+                if response.status_code != 200:
+                    error = response.text
+                    print(f"   ❌ Gemini error: {error}")
+                    return {"content": f"Error: {error}", "tool_calls": []}
+                
+                data = response.json()
+                
+                if 'candidates' not in data or not data['candidates']:
+                    return {"content": "No response from Gemini", "tool_calls": []}
+                
+                candidate = data['candidates'][0]
+                content_parts = candidate.get('content', {}).get('parts', [])
+                
+                content_text = ""
+                tool_calls = []
+                
+                for part in content_parts:
+                    if 'text' in part:
+                        content_text += part['text']
+                    elif 'functionCall' in part:
+                        func_call = part['functionCall']
+                        func_name = func_call['name']
+                        tool_info = tool_mapping.get(func_name, {})
+                        tool_calls.append({
+                            "id": f"gemini_{func_name}_{id(part)}",
+                            "name": func_name,
+                            "arguments": func_call.get('args', {}),
+                            "tool_id": tool_info.get('tool_id'),
+                            "tool_type": tool_info.get('tool_type')
+                        })
+                
+                print(f"   ✅ Gemini response: {len(content_text)} chars, {len(tool_calls)} tool calls")
+                
+                return {
+                    "content": content_text,
+                    "tool_calls": tool_calls,
+                    "finish_reason": candidate.get('finishReason')
+                }
+        
         else:
-            # Fallback - no tool support (Gemini etc.)
+            # Truly unsupported models
             print(f"   ⚠️  Model {model} doesn't support tools, falling back to basic LLM call")
             result = await call_llm(messages, model_id)
             print(f"   📤 Fallback LLM result: {len(result.get('content', '') or '')} chars")
@@ -4666,18 +4772,39 @@ async def generate_agent_config(request: GenerateAgentConfigRequest):
         
         # Get configured LLM providers to include in prompt
         available_models = []
+        tool_capable_models = []  # Models that support function calling
+        
         for provider in app_state.settings.llm_providers:
             for model in provider.models:
+                model_lower = model.lower()
+                supports_tools = (
+                    model_lower.startswith('gpt') or 
+                    model_lower.startswith('o1') or 
+                    model_lower.startswith('o3') or
+                    model_lower.startswith('claude') or
+                    model_lower.startswith('gemini')  # Gemini now supports tools!
+                )
                 available_models.append({
                     "id": model,
-                    "provider": provider.name
+                    "provider": provider.name,
+                    "supports_tools": supports_tools
                 })
+                if supports_tools:
+                    tool_capable_models.append(model)
         
-        # Build available models string for the prompt
+        # Build available models string for the prompt with tool support info
         if available_models:
-            models_list = "\n".join([f"- {m['id']} ({m['provider']})" for m in available_models])
+            models_list = "\n".join([
+                f"- {m['id']} ({m['provider']}) {'✅ SUPPORTS TOOLS' if m['supports_tools'] else '⚠️ NO TOOL SUPPORT'}" 
+                for m in available_models
+            ])
+            if tool_capable_models:
+                tool_models_note = f"\n\n⚠️ CRITICAL: For agents using tools (APIs, databases, etc.), you MUST choose one of these models: {', '.join(tool_capable_models)}"
+            else:
+                tool_models_note = "\n\n⚠️ WARNING: No tool-capable models are configured. Agent may not work properly with tools."
         else:
             models_list = "- gpt-4o (OpenAI) - default if no models configured"
+            tool_models_note = ""
         
         # Find the best available LLM to use for generation
         generation_llm = await _get_generation_llm()
@@ -4691,6 +4818,7 @@ IMPORTANT: You must analyze the goal deeply and generate ALL configurations dyna
 
 AVAILABLE AI MODELS (only recommend from this list):
 {models_list}
+{tool_models_note}
 
 Return a JSON object with these fields:
 
@@ -4700,11 +4828,18 @@ Return a JSON object with these fields:
 
 3. "goal": Enhanced version of the goal (2-3 clear sentences). Make it specific and actionable.
 
-4. "model": Choose the BEST model from the available list above. Consider:
-   - Complex reasoning/analysis → larger models (gpt-4o, claude-sonnet-4)
-   - High volume/simple tasks → faster models (gpt-4o-mini, gemini-1.5-flash)
+4. "model": Choose the BEST model from the available list above. 
+   
+   🚨 CRITICAL RULE: If the agent needs ANY tools (API calls, database queries, web search, email, etc.), 
+   you MUST select a model marked with "✅ SUPPORTS TOOLS". Models without tool support CANNOT use tools!
+   
+   Tool-capable models: OpenAI (gpt-*), Anthropic (claude-*), Google (gemini-*)
+   
+   Consider:
+   - Agent uses tools → Choose gpt-4o, gpt-4o-mini, claude-sonnet-4, gemini-1.5-pro, etc.
+   - Complex reasoning/analysis → gpt-4o, claude-sonnet-4, gemini-1.5-pro
+   - High volume/simple tasks → gpt-4o-mini, gemini-1.5-flash
    - Creative/writing tasks → claude models
-   - Long documents → gemini-1.5-pro (1M context)
    - Code tasks → gpt-4o or claude
 
 5. "modelReason": Explain WHY this specific model is best for THIS agent (be specific, not generic)
