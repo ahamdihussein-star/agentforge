@@ -4409,7 +4409,27 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
             accessible_agents.append(agent)
             continue
         
-        # For non-owners, check Access Control permissions
+        # Check if user is a DELEGATED ADMIN
+        is_delegated_admin = False
+        if ACCESS_CONTROL_AVAILABLE and AccessControlService:
+            try:
+                perm_result = AccessControlService.check_agent_permission(
+                    user_id=user_id,
+                    user_role_ids=user_role_ids,
+                    user_group_ids=user_group_ids,
+                    agent_id=agent.id,
+                    org_id=org_id,
+                    permission='full_admin'
+                )
+                is_delegated_admin = perm_result.get('has_permission', False)
+                if is_delegated_admin:
+                    print(f"   🔑 [ACCESSIBLE] User is DELEGATED ADMIN for agent {agent.id[:8]}...")
+                    accessible_agents.append(agent)
+                    continue
+            except Exception as e:
+                print(f"⚠️  Delegated admin check failed for agent {agent.id}: {e}")
+        
+        # For non-owners and non-admins, check Access Control permissions
         if ACCESS_CONTROL_AVAILABLE and AccessControlService:
             try:
                 print(f"   🔐 [ACCESSIBLE] Checking access for agent {agent.id[:8]}... user={user_id[:8]}...")
