@@ -3020,7 +3020,7 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
             for msg in messages:
                 if msg['role'] == 'system':
                     system_instruction = msg['content']
-        else:
+                else:
                     gemini_messages.append({
                         "role": "user" if msg['role'] == 'user' else "model",
                         "parts": [{"text": msg['content']}]
@@ -3963,17 +3963,17 @@ This applies to ALL variations of the request - whether asking for "all data", "
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-    print("🔥 Starting AgentForge v3.1...")
-    app_state.load_from_disk()
-    upload_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
-    os.makedirs(upload_dir, exist_ok=True)
-    print(f"✅ Loaded {len(app_state.agents)} agents, {len(app_state.tools)} tools")
-    
-    # Load Security State
-    if SECURITY_AVAILABLE:
-        security_state.load_from_disk()
-        print(f"✅ Security module loaded - {len(security_state.users)} users, {len(security_state.roles)} roles")
-    
+        print("🔥 Starting AgentForge v3.1...")
+        app_state.load_from_disk()
+        upload_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
+        os.makedirs(upload_dir, exist_ok=True)
+        print(f"✅ Loaded {len(app_state.agents)} agents, {len(app_state.tools)} tools")
+        
+        # Load Security State
+        if SECURITY_AVAILABLE:
+            security_state.load_from_disk()
+            print(f"✅ Security module loaded - {len(security_state.users)} users, {len(security_state.roles)} roles")
+        
         # Test endpoints to catch any import/runtime errors
         print("🧪 Testing endpoints...")
         try:
@@ -3985,15 +3985,15 @@ async def lifespan(app: FastAPI):
             traceback.print_exc()
             raise
         
-    yield
-    
-    print("💾 Saving...")
-    app_state.save_to_disk()
-    
-    # Save Security State
-    if SECURITY_AVAILABLE:
-        security_state.save_to_disk()
-        print("✅ Security state saved")
+        yield
+        
+        print("💾 Saving...")
+        app_state.save_to_disk()
+        
+        # Save Security State
+        if SECURITY_AVAILABLE:
+            security_state.save_to_disk()
+            print("✅ Security state saved")
     except Exception as e:
         print(f"❌❌❌ STARTUP ERROR: {e}")
         import traceback
@@ -4034,7 +4034,7 @@ except ImportError as e:
 @app.get("/")
 async def root():
     try:
-    return {"name": "AgentForge", "version": "3.2.0"}
+        return {"name": "AgentForge", "version": "3.2.0"}
     except Exception as e:
         print(f"❌ ROOT ENDPOINT ERROR: {e}")
         import traceback
@@ -4082,7 +4082,7 @@ async def get_tools_icon():
 @app.get("/health")
 async def health():
     try:
-    return {"status": "healthy", "agents": len(app_state.agents), "tools": len(app_state.tools)}
+        return {"status": "healthy", "agents": len(app_state.agents), "tools": len(app_state.tools)}
     except Exception as e:
         print(f"❌ HEALTH ENDPOINT ERROR: {e}")
         import traceback
@@ -4394,9 +4394,9 @@ async def get_agent(agent_id: str, current_user: User = Depends(get_current_user
     
     # Fallback to in-memory if not found in database
     if not agent:
-    if agent_id not in app_state.agents:
-        raise HTTPException(404, "Agent not found")
-    agent = app_state.agents[agent_id]
+        if agent_id not in app_state.agents:
+            raise HTTPException(404, "Agent not found")
+        agent = app_state.agents[agent_id]
     
     # Resolve tools - handle prefixed IDs (api:xxx, kb:xxx)
     tools = []
@@ -4822,7 +4822,7 @@ async def create_agent(request: CreateAgentRequest, current_user: User = Depends
         )
         # Update agent with saved data (including ID from database)
         agent.id = saved_agent['id']
-    app_state.agents[agent.id] = agent
+        app_state.agents[agent.id] = agent
     except Exception as e:
         print(f"⚠️  [DATABASE ERROR] Failed to save agent to database: {e}, saving to in-memory only")
         import traceback
@@ -6555,9 +6555,9 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
     
     # Fallback to in-memory if not found in database
     if not agent:
-    if agent_id not in app_state.agents:
-        raise HTTPException(404, "Agent not found")
-    agent = app_state.agents[agent_id]
+        if agent_id not in app_state.agents:
+            raise HTTPException(404, "Agent not found")
+        agent = app_state.agents[agent_id]
     
     # Update agent fields
     if request.name is not None: agent.name = request.name
@@ -6672,7 +6672,7 @@ async def delete_agent(agent_id: str):
     
     # Delete from in-memory
     if agent_id in app_state.agents:
-    del app_state.agents[agent_id]
+        del app_state.agents[agent_id]
     app_state.conversations = {k: v for k, v in app_state.conversations.items() if v.agent_id != agent_id}
     app_state.save_to_disk()  # Will try to sync with database in save_to_disk()
     
@@ -6935,8 +6935,8 @@ async def test_llm_connection(request: Dict[str, Any]):
             if provider_name in ['groq', 'xai', 'mistral', 'deepseek', 'together', 'perplexity', 'lmstudio']:
                 provider = OpenAICompatibleLLM(llm_config, provider_name)
             else:
-        provider = ProviderFactory.get_llm_provider(llm_config)
-        
+                provider = ProviderFactory.get_llm_provider(llm_config)
+            
             # 30 second timeout per model
             response = await asyncio.wait_for(
                 provider.generate([{"role": "user", "content": "Hi"}], max_tokens=5, model=model),
@@ -6949,7 +6949,7 @@ async def test_llm_connection(request: Dict[str, Any]):
         except asyncio.TimeoutError:
             print(f"[Test LLM] ⏱️ {model}: Timeout")
             return {"model": model, "status": "error", "message": "Timeout (30s)"}
-    except Exception as e:
+        except Exception as e:
             print(f"[Test LLM] ❌ {model}: {str(e)[:60]}")
             return {"model": model, "status": "error", "message": str(e)}
     
