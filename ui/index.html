@@ -8987,40 +8987,207 @@ Option 3"></textarea>
             if (!container) return;
             
             const tasks = wizard.tasks || [];
+            const entities = wizardAccessState.selectedEntities || [];
             
             if (tasks.length === 0) {
                 container.innerHTML = '<p class="text-sm text-gray-500 italic">Define tasks in the Tasks step first</p>';
                 return;
             }
             
-            container.innerHTML = tasks.map((task, i) => {
-                const taskId = task.id || `task-${i}`;
-                const isAllowed = wizardAccessState.taskPermissions[taskId] !== false;
-                
-                return `
-                <div class="flex items-center justify-between p-4 rounded-xl border-2 transition-all ${isAllowed ? 'bg-green-500/10 border-green-500/50' : 'bg-red-500/10 border-red-500/30'}">
-                    <div class="flex items-center gap-3">
-                        <span class="text-xl">${isAllowed ? '✅' : '❌'}</span>
-                        <div>
-                            <div class="font-medium">${task.name || 'Unnamed Task'}</div>
-                            <div class="text-xs text-gray-400 truncate max-w-md">${(task.description || '').slice(0, 60)}...</div>
-                        </div>
+            if (entities.length === 0) {
+                // No specific entities - show simple allow/deny per task
+                container.innerHTML = `
+                    <div class="text-sm text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
+                        💡 Select specific users or groups above to set per-entity permissions
                     </div>
-                    <button onclick="toggleWizardTaskPermission('${taskId}', ${!isAllowed}); renderWizardTaskPermissions();"
-                            class="px-4 py-2 rounded-lg font-medium text-sm transition-all ${isAllowed 
-                                ? 'bg-green-500 text-white hover:bg-green-600' 
-                                : 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white'}">
-                        ${isAllowed ? '✓ Allowed' : '✗ Denied'}
+                    ${tasks.map((task, i) => {
+                        const taskId = task.id || `task-${i}`;
+                        const isAllowed = getTaskPermission(taskId, 'default') !== false;
+                        
+                        return `
+                        <div class="flex items-center justify-between p-4 rounded-xl border-2 transition-all ${isAllowed ? 'bg-green-500/10 border-green-500/50' : 'bg-red-500/10 border-red-500/30'}">
+                            <div class="flex items-center gap-3">
+                                <span class="text-xl">${isAllowed ? '✅' : '❌'}</span>
+                                <div>
+                                    <div class="font-medium">${task.name || 'Unnamed Task'}</div>
+                                    <div class="text-xs text-gray-400 truncate max-w-md">${(task.description || '').slice(0, 60)}...</div>
+                                </div>
+                            </div>
+                            <button onclick="toggleWizardTaskPermission('${taskId}', 'default', ${!isAllowed}); renderWizardTaskPermissions();"
+                                    class="px-4 py-2 rounded-lg font-medium text-sm transition-all ${isAllowed 
+                                        ? 'bg-green-500 text-white hover:bg-green-600' 
+                                        : 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white'}">
+                                ${isAllowed ? '✓ Allowed' : '✗ Denied'}
+                            </button>
+                        </div>
+                    `}).join('')}
+                `;
+                return;
+            }
+            
+            // Matrix view: Tasks x Entities
+            container.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-700">
+                                <th class="text-left p-3 font-medium min-w-[200px]">Task</th>
+                                ${entities.map(e => `
+                                    <th class="p-3 text-center min-w-[100px]">
+                                        <div class="flex flex-col items-center gap-1">
+                                            <span class="text-lg">${e.icon || (e.type === 'user' ? '👤' : '👥')}</span>
+                                            <span class="text-xs font-normal truncate max-w-[80px]" title="${e.name}">${e.name?.split(' ')[0] || 'Unknown'}</span>
+                                        </div>
+                                    </th>
+                                `).join('')}
+                                <th class="p-3 text-center min-w-[80px]">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="text-lg">🌐</span>
+                                        <span class="text-xs font-normal">All</span>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tasks.map((task, tIdx) => {
+                                const taskId = task.id || `task-${tIdx}`;
+                                return `
+                                <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+                                    <td class="p-3">
+                                        <div class="flex items-center gap-2">
+                                            <span>📋</span>
+                                            <div>
+                                                <div class="font-medium">${task.name || 'Unnamed'}</div>
+                                                <div class="text-xs text-gray-500 truncate max-w-[180px]">${(task.description || '').slice(0, 40)}...</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    ${entities.map(e => {
+                                        const isAllowed = getTaskPermission(taskId, e.id) !== false;
+                                        return `
+                                        <td class="p-3 text-center">
+                                            <button onclick="toggleWizardTaskPermission('${taskId}', '${e.id}', ${!isAllowed}); renderWizardTaskPermissions();"
+                                                    class="w-12 h-12 rounded-lg transition-all flex items-center justify-center text-xl
+                                                           ${isAllowed 
+                                                               ? 'bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/50' 
+                                                               : 'bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/50'}">
+                                                ${isAllowed ? '✅' : '❌'}
+                                            </button>
+                                        </td>
+                                    `}).join('')}
+                                    <td class="p-3 text-center">
+                                        <button onclick="toggleAllEntitiesForTask('${taskId}')"
+                                                class="px-3 py-2 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-400 hover:bg-purple-500/40 border border-purple-500/50">
+                                            Toggle All
+                                        </button>
+                                    </td>
+                                </tr>
+                            `}).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-4 flex gap-2">
+                    <button onclick="allowAllTasks()" class="flex-1 px-4 py-2 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-sm font-medium border border-green-500/50">
+                        ✅ Allow All Tasks
+                    </button>
+                    <button onclick="denyAllTasks()" class="flex-1 px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm font-medium border border-red-500/50">
+                        ❌ Deny All Tasks
                     </button>
                 </div>
-            `}).join('');
+            `;
         }
         
-        function toggleWizardTaskPermission(taskId, allowed) {
-            wizardAccessState.taskPermissions[taskId] = allowed;
+        function getTaskPermission(taskId, entityId) {
+            // Check specific entity permission first
+            const key = `${taskId}:${entityId}`;
+            if (wizardAccessState.taskPermissions[key] !== undefined) {
+                return wizardAccessState.taskPermissions[key];
+            }
+            // Fall back to default (allowed)
+            return true;
+        }
+        
+        function toggleWizardTaskPermission(taskId, entityId, allowed) {
+            const key = `${taskId}:${entityId}`;
+            wizardAccessState.taskPermissions[key] = allowed;
+        }
+        
+        function toggleAllEntitiesForTask(taskId) {
+            const entities = wizardAccessState.selectedEntities || [];
+            // Check current state of first entity
+            const firstKey = `${taskId}:${entities[0]?.id || 'default'}`;
+            const currentState = wizardAccessState.taskPermissions[firstKey] !== false;
+            const newState = !currentState;
+            
+            // Toggle all entities for this task
+            entities.forEach(e => {
+                wizardAccessState.taskPermissions[`${taskId}:${e.id}`] = newState;
+            });
+            wizardAccessState.taskPermissions[`${taskId}:default`] = newState;
+            
+            renderWizardTaskPermissions();
+        }
+        
+        function allowAllTasks() {
+            const tasks = wizard.tasks || [];
+            const entities = wizardAccessState.selectedEntities || [];
+            
+            tasks.forEach(task => {
+                const taskId = task.id || `task-${tasks.indexOf(task)}`;
+                entities.forEach(e => {
+                    wizardAccessState.taskPermissions[`${taskId}:${e.id}`] = true;
+                });
+                wizardAccessState.taskPermissions[`${taskId}:default`] = true;
+            });
+            
+            renderWizardTaskPermissions();
+        }
+        
+        function denyAllTasks() {
+            const tasks = wizard.tasks || [];
+            const entities = wizardAccessState.selectedEntities || [];
+            
+            tasks.forEach(task => {
+                const taskId = task.id || `task-${tasks.indexOf(task)}`;
+                entities.forEach(e => {
+                    wizardAccessState.taskPermissions[`${taskId}:${e.id}`] = false;
+                });
+                wizardAccessState.taskPermissions[`${taskId}:default`] = false;
+            });
+            
+            renderWizardTaskPermissions();
         }
         
         function collectWizardAccessControl() {
+            // Convert task permissions to per-entity format
+            const taskPermissions = [];
+            const tasks = wizard.tasks || [];
+            const entities = wizardAccessState.selectedEntities || [];
+            
+            tasks.forEach((task, i) => {
+                const taskId = task.id || `task-${i}`;
+                const deniedEntityIds = [];
+                
+                entities.forEach(e => {
+                    const key = `${taskId}:${e.id}`;
+                    if (wizardAccessState.taskPermissions[key] === false) {
+                        deniedEntityIds.push(e.id);
+                    }
+                });
+                
+                // Check default permission
+                const defaultKey = `${taskId}:default`;
+                const defaultDenied = wizardAccessState.taskPermissions[defaultKey] === false;
+                
+                taskPermissions.push({
+                    task_id: taskId,
+                    task_name: task.name,
+                    denied_entity_ids: deniedEntityIds,
+                    default_allowed: !defaultDenied
+                });
+            });
+            
             wizard.accessControl = {
                 accessType: wizardAccessState.accessType,
                 entities: wizardAccessState.selectedEntities.map(e => ({
@@ -9028,7 +9195,7 @@ Option 3"></textarea>
                     type: e.type,
                     name: e.name
                 })),
-                taskPermissions: { ...wizardAccessState.taskPermissions }
+                taskPermissions: taskPermissions
             };
         }
         
