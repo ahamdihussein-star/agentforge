@@ -683,36 +683,54 @@ class AccessControlService:
             delegated_admins = []
             
             if admin_policy:
-                # Try to parse permissions from description (JSON format)
-                # or use default full_admin
-                default_permissions = ["full_admin"]
+                # Try to parse config from description (JSON format)
+                # New format: {entity_id: {permissions: [], denied_task_names: []}}
+                # Old format: {entity_id: permissions[]}
+                admin_config = {}
                 try:
                     if admin_policy.description:
                         import json
-                        perms_data = json.loads(admin_policy.description)
-                        if isinstance(perms_data, dict):
-                            # description contains per-entity permissions
-                            pass
+                        admin_config = json.loads(admin_policy.description)
                 except:
-                    perms_data = {}
+                    admin_config = {}
                 
-                # Get user admins with their permissions
+                # Get user admins with their permissions and chat restrictions
                 for user_id in (admin_policy.user_ids or []):
-                    # Check if this user has specific permissions in the description
-                    user_perms = perms_data.get(user_id, default_permissions) if isinstance(perms_data, dict) else default_permissions
+                    entity_config = admin_config.get(user_id, {})
+                    
+                    # Handle both old format (list) and new format (dict)
+                    if isinstance(entity_config, list):
+                        # Old format: permissions list
+                        permissions = entity_config
+                        denied_task_names = []
+                    else:
+                        # New format: {permissions: [], denied_task_names: []}
+                        permissions = entity_config.get('permissions', ['full_admin'])
+                        denied_task_names = entity_config.get('denied_task_names', [])
+                    
                     delegated_admins.append({
                         "entity_id": user_id,
                         "entity_type": "user",
-                        "permissions": user_perms
+                        "permissions": permissions,
+                        "denied_task_names": denied_task_names
                     })
                 
                 # Get group admins
                 for group_id in (admin_policy.group_ids or []):
-                    group_perms = perms_data.get(group_id, default_permissions) if isinstance(perms_data, dict) else default_permissions
+                    entity_config = admin_config.get(group_id, {})
+                    
+                    if isinstance(entity_config, list):
+                        permissions = entity_config
+                        denied_task_names = []
+                    else:
+                        permissions = entity_config.get('permissions', ['full_admin'])
+                        denied_task_names = entity_config.get('denied_task_names', [])
+                    
                     delegated_admins.append({
                         "entity_id": group_id,
                         "entity_type": "group",
-                        "permissions": group_perms
+                        "permissions": permissions,
+                        "denied_task_names": denied_task_names
                     })
             
             return {
@@ -733,7 +751,7 @@ class AccessControlService:
         Update the management delegation for an agent.
         Only the owner can call this.
         
-        delegated_admins: List of {entity_id, entity_type, permissions[]}
+        delegated_admins: List of {entity_id, entity_type, permissions[], denied_task_names[]}
         """
         org_id = normalize_org_id(org_id)
         
@@ -760,32 +778,38 @@ class AccessControlService:
             # Extract user IDs, group IDs, and per-entity permissions
             user_ids = []
             group_ids = []
-            permissions_map = {}  # entity_id -> permissions[]
+            admin_config = {}  # entity_id -> {permissions: [], denied_task_names: []}
             
             for admin in delegated_admins:
                 entity_id = admin.get('entity_id')
                 entity_type = admin.get('entity_type')
                 permissions = admin.get('permissions', ['full_admin'])
+                denied_task_names = admin.get('denied_task_names', [])
                 
                 if entity_type == 'user':
                     user_ids.append(entity_id)
                 elif entity_type == 'group':
                     group_ids.append(entity_id)
                 
-                # Store per-entity permissions
-                permissions_map[entity_id] = permissions
+                # Store per-entity config (permissions + chat restrictions)
+                admin_config[entity_id] = {
+                    'permissions': permissions,
+                    'denied_task_names': denied_task_names
+                }
             
             policy.user_ids = user_ids
             policy.group_ids = group_ids
             
-            # Store per-entity permissions in description as JSON
+            # Store per-entity config in description as JSON
             import json
-            policy.description = json.dumps(permissions_map)
+            policy.description = json.dumps(admin_config)
             
             policy.updated_by = updated_by
             policy.updated_at = datetime.utcnow()
             
             session.commit()
+            
+            print(f"✅ [ACCESS CONTROL] Updated admin config: {admin_config}")
             
             return AccessControlService.get_agent_management_config(agent_id, org_id)
     
@@ -892,5 +916,71 @@ class AccessControlService:
                 "is_owner": False,
                 "granted_by": None,
                 "reason": f"Permission '{permission}' not granted"
+            }
+    
+    @staticmethod
+    def get_admin_chat_restrictions(
+        user_id: str,
+        user_group_ids: List[str],
+        agent_id: str,
+        org_id: str
+    ) -> Dict[str, Any]:
+        """
+        Get chat restrictions for a delegated admin.
+        Returns denied_task_names for the admin.
+        """
+        org_id = normalize_org_id(org_id)
+        
+        with get_session() as session:
+            # Get admin policy
+            admin_policy = session.query(AgentAccessPolicy).filter(
+                AgentAccessPolicy.agent_id == agent_id,
+                AgentAccessPolicy.org_id == org_id,
+                AgentAccessPolicy.access_type == 'agent_admin',
+                AgentAccessPolicy.is_active == True
+            ).first()
+            
+            if not admin_policy:
+                return {"denied_task_names": [], "is_admin": False}
+            
+            # Check if user is in admin list
+            user_is_admin = user_id in (admin_policy.user_ids or [])
+            group_is_admin = any(g in (admin_policy.group_ids or []) for g in user_group_ids)
+            
+            if not user_is_admin and not group_is_admin:
+                return {"denied_task_names": [], "is_admin": False}
+            
+            # Get admin config from description
+            admin_config = {}
+            try:
+                if admin_policy.description:
+                    import json
+                    admin_config = json.loads(admin_policy.description)
+            except:
+                admin_config = {}
+            
+            # Get denied tasks for this user
+            denied_task_names = []
+            
+            # Check user-specific restrictions
+            if user_id in admin_config:
+                entity_config = admin_config[user_id]
+                if isinstance(entity_config, dict):
+                    denied_task_names.extend(entity_config.get('denied_task_names', []))
+            
+            # Check group restrictions
+            for group_id in user_group_ids:
+                if group_id in admin_config:
+                    entity_config = admin_config[group_id]
+                    if isinstance(entity_config, dict):
+                        for task in entity_config.get('denied_task_names', []):
+                            if task not in denied_task_names:
+                                denied_task_names.append(task)
+            
+            print(f"🔑 [ADMIN RESTRICTIONS] Admin {user_id[:8]}... denied tasks: {denied_task_names}")
+            
+            return {
+                "denied_task_names": denied_task_names,
+                "is_admin": True
             }
 

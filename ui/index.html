@@ -9309,9 +9309,14 @@ Option 3"></textarea>
                 return;
             }
             
+            // Get tasks from wizard
+            const tasks = wizard.tasks || [];
+            
             container.innerHTML = agentAdminState.delegatedAdmins.map((admin, index) => {
                 const icon = admin.entity_type === 'user' ? '👤' : '👥';
                 const hasFullAdmin = admin.permissions?.includes('full_admin');
+                const deniedTasks = admin.denied_task_names || [];
+                const hasChatRestrictions = deniedTasks.length > 0;
                 
                 return `
                 <div class="rounded-xl p-4 space-y-3" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
@@ -9360,9 +9365,82 @@ Option 3"></textarea>
                             }).join('')}
                         </div>
                     </div>
+                    
+                    <!-- Chat Permissions (Task Access) -->
+                    <div class="pt-3 border-t border-gray-700/50">
+                        <button type="button" onclick="toggleAdminChatPerms(${index})" 
+                                class="flex items-center justify-between w-full text-left">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-medium text-purple-400">💬 Chat Permissions</span>
+                                ${hasChatRestrictions ? `<span class="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">${deniedTasks.length} restricted</span>` : ''}
+                            </div>
+                            <svg id="admin-chat-arrow-${index}" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        
+                        <div id="admin-chat-perms-${index}" class="hidden mt-3 space-y-2">
+                            <p class="text-xs text-gray-500">Which tasks can this admin use when chatting with the agent?</p>
+                            ${tasks.length > 0 ? `
+                                <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                    ${tasks.map(task => {
+                                        const taskName = task.name || 'Unnamed Task';
+                                        const isDenied = deniedTasks.includes(taskName);
+                                        return `
+                                        <label class="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-white/5 ${isDenied ? 'bg-red-500/10 border border-red-500/30' : 'bg-green-500/10 border border-green-500/20'}">
+                                            <input type="checkbox" 
+                                                   onchange="toggleAdminTaskAccess(${index}, '${escHtml(taskName)}', this.checked)"
+                                                   ${!isDenied ? 'checked' : ''}
+                                                   class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-green-500 focus:ring-green-500">
+                                            <div class="flex-1">
+                                                <span class="text-sm ${isDenied ? 'text-red-400 line-through' : 'text-white'}">${escHtml(taskName)}</span>
+                                                ${isDenied ? '<span class="text-xs text-red-400 ml-2">🚫 Denied</span>' : '<span class="text-xs text-green-400 ml-2">✅ Allowed</span>'}
+                                            </div>
+                                        </label>
+                                    `;
+                                    }).join('')}
+                                </div>
+                            ` : `
+                                <p class="text-xs text-gray-500 italic text-center py-2">No tasks defined yet. Add tasks in the Tasks step.</p>
+                            `}
+                        </div>
+                    </div>
                 </div>
             `;
             }).join('');
+        }
+        
+        // Toggle chat permissions visibility
+        function toggleAdminChatPerms(index) {
+            const section = document.getElementById(`admin-chat-perms-${index}`);
+            const arrow = document.getElementById(`admin-chat-arrow-${index}`);
+            if (section) {
+                section.classList.toggle('hidden');
+                if (arrow) {
+                    arrow.classList.toggle('rotate-180');
+                }
+            }
+        }
+        
+        // Toggle task access for admin
+        function toggleAdminTaskAccess(index, taskName, allowed) {
+            const admin = agentAdminState.delegatedAdmins[index];
+            if (!admin) return;
+            
+            admin.denied_task_names = admin.denied_task_names || [];
+            
+            if (allowed) {
+                // Remove from denied list
+                admin.denied_task_names = admin.denied_task_names.filter(t => t !== taskName);
+            } else {
+                // Add to denied list
+                if (!admin.denied_task_names.includes(taskName)) {
+                    admin.denied_task_names.push(taskName);
+                }
+            }
+            
+            saveAgentManagement();
+            renderDelegatedAdmins();
         }
         
         // Toggle full admin permission
@@ -9416,10 +9494,12 @@ Option 3"></textarea>
                         delegated_admins: agentAdminState.delegatedAdmins.map(a => ({
                             entity_id: a.entity_id,
                             entity_type: a.entity_type,
-                            permissions: a.permissions || []
+                            permissions: a.permissions || [],
+                            denied_task_names: a.denied_task_names || []  // Chat permissions
                         }))
                     })
                 });
+                console.log('✅ Agent management saved (including chat permissions)');
             } catch (e) {
                 console.error('Failed to save agent management:', e);
             }

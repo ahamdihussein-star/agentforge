@@ -10303,8 +10303,28 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
         print(f"👑 [START-CHAT] User {user_id[:8]}... is the OWNER - full access granted")
         has_full_access = True
     elif is_delegated_admin:
-        print(f"🔑 [START-CHAT] User {user_id[:8]}... is a DELEGATED ADMIN - full access granted")
-        has_full_access = True
+        print(f"🔑 [START-CHAT] User {user_id[:8]}... is a DELEGATED ADMIN")
+        # Check if admin has task restrictions
+        try:
+            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            admin_restrictions = AccessControlService.get_admin_chat_restrictions(
+                user_id=user_id,
+                user_group_ids=user_group_ids,
+                agent_id=agent_id,
+                org_id=org_id
+            )
+            admin_denied_tasks = admin_restrictions.get('denied_task_names', [])
+            if admin_denied_tasks:
+                denied_task_names = admin_denied_tasks
+                accessible_task_names = [t.name for t in agent.tasks if t.name not in denied_task_names]
+                has_full_access = False
+                print(f"   [START-CHAT] Admin has task restrictions: {denied_task_names}")
+            else:
+                has_full_access = True
+                print(f"   [START-CHAT] Admin has NO task restrictions - full access")
+        except Exception as e:
+            print(f"⚠️ [START-CHAT] Failed to get admin restrictions: {e}")
+            has_full_access = True
     elif ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             user_role_ids = getattr(current_user, 'role_ids', []) or []
@@ -10500,8 +10520,31 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
         print(f"👑 [CHAT] User {user_id[:8]}... is the OWNER - full access granted")
         access_result = None  # Owner has full access, no restrictions
     elif is_delegated_admin:
-        print(f"🔑 [CHAT] User {user_id[:8]}... is a DELEGATED ADMIN - full access granted")
-        access_result = None  # Delegated admin has full access, no restrictions
+        print(f"🔑 [CHAT] User {user_id[:8]}... is a DELEGATED ADMIN")
+        # Check if admin has task restrictions
+        try:
+            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            admin_restrictions = AccessControlService.get_admin_chat_restrictions(
+                user_id=user_id,
+                user_group_ids=user_group_ids,
+                agent_id=agent_id,
+                org_id=org_id
+            )
+            admin_denied_tasks = admin_restrictions.get('denied_task_names', [])
+            if admin_denied_tasks:
+                from api.modules.access_control.schemas import AccessCheckResult
+                access_result = AccessCheckResult(
+                    has_access=True,
+                    denied_tasks=admin_denied_tasks,
+                    denied_tools=[]
+                )
+                print(f"   [CHAT] Admin has task restrictions: {admin_denied_tasks}")
+            else:
+                access_result = None  # No restrictions
+                print(f"   [CHAT] Admin has NO task restrictions - full access")
+        except Exception as e:
+            print(f"⚠️ [CHAT] Failed to get admin restrictions: {e}")
+            access_result = None
     elif not use_cached and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             # Get user's roles and groups
