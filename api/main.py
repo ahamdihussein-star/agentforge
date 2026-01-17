@@ -3901,6 +3901,52 @@ async def health():
         raise
 
 
+@app.get("/api/debug/agents-ownership")
+async def debug_agents_ownership():
+    """
+    TEMPORARY DEBUG ENDPOINT: Show all agents and their owners.
+    Remove this in production!
+    """
+    try:
+        from database.services import AgentService
+        db_agents = AgentService.get_all_agents("org_default")
+        
+        # Also get users for reference
+        users_info = {}
+        try:
+            if SECURITY_AVAILABLE:
+                for user_id, user in security_state.users.items():
+                    users_info[user_id] = {
+                        "email": user.email,
+                        "name": user.get_display_name() if hasattr(user, 'get_display_name') else user.email
+                    }
+        except:
+            pass
+        
+        return {
+            "agents": [
+                {
+                    "id": str(a.get('id')),
+                    "name": a.get('name'),
+                    "status": a.get('status'),
+                    "owner_id": str(a.get('owner_id')) if a.get('owner_id') else None,
+                    "owner_email": users_info.get(str(a.get('owner_id')), {}).get('email', 'Unknown'),
+                    "created_by": str(a.get('created_by')) if a.get('created_by') else None,
+                    "created_by_email": users_info.get(str(a.get('created_by')), {}).get('email', 'Unknown'),
+                }
+                for a in (db_agents or [])
+            ],
+            "users": [
+                {"id": uid, "email": u.get("email")}
+                for uid, u in users_info.items()
+            ],
+            "total_agents": len(db_agents or []),
+            "total_users": len(users_info)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # Agent Endpoints
 
 @app.get("/api/agents/accessible")
