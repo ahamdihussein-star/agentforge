@@ -7429,6 +7429,12 @@ Option 3"></textarea>
                         console.log('👤 Agent owner set from currentUser:', wizard.owner_id);
                     }
                     
+                    // ✨ ALSO set wizard.id (needed for access control checks)
+                    if (!wizard.id && wizard.editId) {
+                        wizard.id = wizard.editId;
+                        console.log('🔗 wizard.id synced from editId:', wizard.id);
+                    }
+                    
                     console.log('✅ Wizard step auto-saved to database, agent ID:', wizard.editId || testAgent?.id);
                 } else {
                     console.warn('⚠️  Failed to auto-save wizard step:', await response.text());
@@ -9573,25 +9579,34 @@ Option 3"></textarea>
             }
             
             // Load agent admins if editing an existing agent (only for owner)
-            if (wizard.id) {
+            const agentId = wizard.id || wizard.editId;
+            console.log(`🔍 Delegation section check: agentId=${agentId}, wizard.id=${wizard.id}, wizard.editId=${wizard.editId}`);
+            
+            if (agentId) {
                 // First check ownership from wizard data
                 const isOwner = isAgentOwner();
                 const delegateSection = document.getElementById('wizard-delegate-admin-section');
                 
+                console.log(`🔐 Delegation visibility: isOwner=${isOwner}, delegateSection=${!!delegateSection}`);
+                
                 if (isOwner) {
                     // Owner - show delegation section and load admins
-                    if (delegateSection) delegateSection.style.display = 'block';
-                    loadAgentAdmins(wizard.id);
+                    if (delegateSection) {
+                        delegateSection.classList.remove('hidden');
+                        delegateSection.style.display = 'block';
+                        console.log('✅ Delegation section SHOWN');
+                    }
+                    loadAgentAdmins(agentId);
                 } else {
                     // Not owner - hide delegation section
                     if (delegateSection) delegateSection.style.display = 'none';
                 }
             } else {
-                // For new agents, show delegate admin section only for logged-in users
-                // (they will be the owner once saved)
+                // For new agents that haven't been saved yet
                 const delegateSection = document.getElementById('wizard-delegate-admin-section');
-                if (delegateSection && currentUser) {
-                    delegateSection.style.display = 'none'; // Hide until agent is saved
+                console.log('⏳ Agent not saved yet - hiding delegation section until saved');
+                if (delegateSection) {
+                    delegateSection.style.display = 'none';
                 }
             }
         }
