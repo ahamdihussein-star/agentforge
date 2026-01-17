@@ -3233,6 +3233,34 @@
                                     <p class="text-sm text-gray-500 italic">Define tasks in the Tasks step first</p>
                                 </div>
                             </div>
+                            
+                            <!-- Delegate Admin Access (Owner Only) -->
+                            <div id="wizard-delegate-admin-section" class="hidden mt-6 pt-6 border-t border-gray-700">
+                                <div class="flex items-center gap-2 mb-4">
+                                    <span class="text-lg">👑</span>
+                                    <div>
+                                        <h5 class="font-medium">Delegate Admin Access <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded ml-2">Owner Only</span></h5>
+                                        <p class="text-xs text-gray-500">Allow other users to manage this agent's access control</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="space-y-4">
+                                    <!-- Search for admins -->
+                                    <div>
+                                        <label class="text-sm text-gray-400 mb-2 block">Add users or groups as agent admins</label>
+                                        <div class="relative">
+                                            <input type="text" id="wizard-admin-search" class="input-field w-full rounded-lg px-4 py-3 pr-10" placeholder="Search users or groups...">
+                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
+                                        </div>
+                                        <div id="wizard-admin-search-results" class="hidden mt-2 max-h-48 overflow-y-auto card rounded-lg"></div>
+                                    </div>
+                                    
+                                    <!-- Current Agent Admins -->
+                                    <div id="wizard-current-admins" class="flex flex-wrap gap-2">
+                                        <p class="text-sm text-gray-500 italic">No additional admins added yet</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -8802,25 +8830,225 @@ Option 3"></textarea>
             return adminPermissions.some(p => userPermissions.includes(p));
         }
         
+        // Check if current user is the owner of the current agent
+        function isAgentOwner() {
+            if (!currentUser || !wizard.id) return false;
+            return wizard.owner_id === currentUser.id || wizard.created_by === currentUser.id;
+        }
+        
+        // State for agent admins
+        let agentAdminState = {
+            adminUserIds: [],
+            adminGroupIds: [],
+            isOwner: false
+        };
+        
+        // Load current agent admins
+        async function loadAgentAdmins(agentId) {
+            if (!agentId) return;
+            
+            try {
+                const orgId = currentUser?.org_id || 'default';
+                const response = await fetch(`/api/access-control/agents/${agentId}/admins?org_id=${orgId}`, {
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    agentAdminState.adminUserIds = data.admin_user_ids || [];
+                    agentAdminState.adminGroupIds = data.admin_group_ids || [];
+                    agentAdminState.isOwner = data.is_owner;
+                    
+                    // Show the delegate admin section if user is owner
+                    const section = document.getElementById('wizard-delegate-admin-section');
+                    if (section) {
+                        section.style.display = agentAdminState.isOwner ? 'block' : 'none';
+                    }
+                    
+                    renderCurrentAdmins();
+                }
+            } catch (e) {
+                console.error('Failed to load agent admins:', e);
+            }
+        }
+        
+        // Render current admins
+        function renderCurrentAdmins() {
+            const container = document.getElementById('wizard-current-admins');
+            if (!container) return;
+            
+            const allAdmins = [
+                ...agentAdminState.adminUserIds.map(id => {
+                    const user = wizardAccessState.allUsers.find(u => u.id === id);
+                    return { id, name: user?.name || user?.email || `User ${id.slice(0,8)}...`, type: 'user', icon: '👤' };
+                }),
+                ...agentAdminState.adminGroupIds.map(id => {
+                    const group = wizardAccessState.allGroups.find(g => g.id === id);
+                    return { id, name: group?.name || `Group ${id.slice(0,8)}...`, type: 'group', icon: '👥' };
+                })
+            ];
+            
+            if (allAdmins.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 italic">No additional admins added yet. Only you (the owner) can manage this agent.</p>';
+                return;
+            }
+            
+            container.innerHTML = allAdmins.map(admin => `
+                <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/20 border border-yellow-500/50">
+                    <span>${admin.icon}</span>
+                    <span class="text-sm font-medium">${admin.name}</span>
+                    <button onclick="removeAgentAdmin('${admin.id}', '${admin.type}')" class="text-gray-400 hover:text-red-400 ml-1">✕</button>
+                </div>
+            `).join('');
+        }
+        
+        // Add agent admin
+        async function addAgentAdmin(id, type) {
+            const agentId = wizard.id;
+            if (!agentId) {
+                showToast('Save the agent first before adding admins', 'warning');
+                return;
+            }
+            
+            const orgId = currentUser?.org_id || 'default';
+            const body = type === 'user' 
+                ? { add_user_ids: [id] }
+                : { add_group_ids: [id] };
+            
+            try {
+                const response = await fetch(`/api/access-control/agents/${agentId}/admins?org_id=${orgId}`, {
+                    method: 'PUT',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    agentAdminState.adminUserIds = data.admin_user_ids || [];
+                    agentAdminState.adminGroupIds = data.admin_group_ids || [];
+                    renderCurrentAdmins();
+                    showToast('Admin added successfully', 'success');
+                    
+                    // Clear search
+                    document.getElementById('wizard-admin-search').value = '';
+                    document.getElementById('wizard-admin-search-results')?.classList.add('hidden');
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to add admin', 'error');
+                }
+            } catch (e) {
+                console.error('Failed to add admin:', e);
+                showToast('Failed to add admin', 'error');
+            }
+        }
+        
+        // Remove agent admin
+        async function removeAgentAdmin(id, type) {
+            const agentId = wizard.id;
+            if (!agentId) return;
+            
+            const orgId = currentUser?.org_id || 'default';
+            const body = type === 'user' 
+                ? { remove_user_ids: [id] }
+                : { remove_group_ids: [id] };
+            
+            try {
+                const response = await fetch(`/api/access-control/agents/${agentId}/admins?org_id=${orgId}`, {
+                    method: 'PUT',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    agentAdminState.adminUserIds = data.admin_user_ids || [];
+                    agentAdminState.adminGroupIds = data.admin_group_ids || [];
+                    renderCurrentAdmins();
+                    showToast('Admin removed', 'success');
+                } else {
+                    showToast('Failed to remove admin', 'error');
+                }
+            } catch (e) {
+                console.error('Failed to remove admin:', e);
+            }
+        }
+        
+        // Search for potential admins
+        function searchPotentialAdmins(query) {
+            const container = document.getElementById('wizard-admin-search-results');
+            if (!container) return;
+            
+            if (!query || query.length < 2) {
+                container.classList.add('hidden');
+                return;
+            }
+            
+            const q = query.toLowerCase();
+            
+            // Filter users and groups
+            const matchedUsers = wizardAccessState.allUsers.filter(u => 
+                (u.name && u.name.toLowerCase().includes(q)) ||
+                (u.email && u.email.toLowerCase().includes(q))
+            ).slice(0, 5);
+            
+            const matchedGroups = wizardAccessState.allGroups.filter(g =>
+                g.name && g.name.toLowerCase().includes(q)
+            ).slice(0, 5);
+            
+            // Exclude already added admins
+            const results = [
+                ...matchedUsers.filter(u => !agentAdminState.adminUserIds.includes(u.id)).map(u => ({
+                    id: u.id,
+                    name: u.name || u.email,
+                    type: 'user',
+                    icon: '👤'
+                })),
+                ...matchedGroups.filter(g => !agentAdminState.adminGroupIds.includes(g.id)).map(g => ({
+                    id: g.id,
+                    name: g.name,
+                    type: 'group',
+                    icon: '👥'
+                }))
+            ];
+            
+            if (results.length === 0) {
+                container.innerHTML = '<p class="p-3 text-sm text-gray-500">No results found</p>';
+            } else {
+                container.innerHTML = results.map(r => `
+                    <div class="p-3 hover:bg-gray-700 cursor-pointer flex items-center gap-3" onclick="addAgentAdmin('${r.id}', '${r.type}')">
+                        <span class="text-lg">${r.icon}</span>
+                        <div>
+                            <div class="font-medium text-sm">${r.name}</div>
+                            <span class="text-xs px-2 py-0.5 rounded bg-gray-700">${r.type}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            container.classList.remove('hidden');
+        }
+        
         // Initialize wizard access control event listeners
         function initWizardAccessControl() {
-            // SECURITY: Only show access control section for admins
+            // SECURITY: Show access control section for admins OR agent owner
             const accessControlSection = document.getElementById('wizard-access-control-section');
+            const canManageAccess = isUserAdmin() || isAgentOwner();
+            
             if (accessControlSection) {
-                if (!isUserAdmin()) {
+                if (!canManageAccess) {
                     accessControlSection.style.display = 'none';
-                    console.log('🔐 Access Control section hidden - user is not admin');
+                    console.log('🔐 Access Control section hidden - user is not admin or owner');
                 } else {
                     accessControlSection.style.display = 'block';
                 }
             }
             
-            // Pre-load users/groups if user is logged in AND is admin
-            if (authToken && isUserAdmin()) {
+            // Pre-load users/groups if user can manage access
+            if (authToken && canManageAccess) {
                 loadWizardAccessEntities();
             }
             
-            // Search input listener
+            // Search input listener for access entities
             const searchInput = document.getElementById('wizard-access-search');
             if (searchInput) {
                 searchInput.addEventListener('input', (e) => {
@@ -8831,6 +9059,31 @@ Option 3"></textarea>
                         document.getElementById('wizard-access-search-results')?.classList.add('hidden');
                     }
                 });
+            }
+            
+            // Search input listener for admin delegation
+            const adminSearchInput = document.getElementById('wizard-admin-search');
+            if (adminSearchInput) {
+                adminSearchInput.addEventListener('input', (e) => {
+                    const query = e.target.value;
+                    if (query.length >= 2) {
+                        searchPotentialAdmins(query);
+                    } else {
+                        document.getElementById('wizard-admin-search-results')?.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // Load agent admins if editing an existing agent
+            if (wizard.id) {
+                loadAgentAdmins(wizard.id);
+            } else {
+                // For new agents, show delegate admin section only for logged-in users
+                // (they will be the owner once saved)
+                const delegateSection = document.getElementById('wizard-delegate-admin-section');
+                if (delegateSection && currentUser) {
+                    delegateSection.style.display = 'none'; // Hide until agent is saved
+                }
             }
         }
         
@@ -12086,6 +12339,9 @@ Option 3"></textarea>
             
             // Store agent ID for update
             wizard.editId = id;
+            wizard.id = id;  // Also store as id for access control functions
+            wizard.owner_id = agent.owner_id || null;  // For ownership check
+            wizard.created_by = agent.created_by || null;  // For ownership check
             wizard.name = agent.name || '';
             wizard.icon = agent.icon || '';
             wizard.goal = agent.goal || '';
@@ -12099,6 +12355,9 @@ Option 3"></textarea>
             
             // Also load access control from API if available
             await loadAgentAccessControl(id);
+            
+            // Load agent admins (for delegation UI)
+            await loadAgentAdmins(id);
             
             // Load personality from agent
             wizard.personality = agent.personality || null;
