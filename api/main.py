@@ -4129,6 +4129,7 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
         # Check if user has been GRANTED access via Access Control
         if ACCESS_CONTROL_AVAILABLE and AccessControlService:
             try:
+                print(f"   🔐 Checking access control for agent {agent.id[:8]}...")
                 access_result = AccessControlService.check_user_access(
                     user_id=user_id,
                     user_role_ids=user_role_ids,
@@ -4136,12 +4137,18 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
                     agent_id=agent.id,
                     org_id=org_id
                 )
+                print(f"   📋 Access result: has_access={access_result.has_access}, reason={access_result.reason}")
                 if access_result.has_access:
                     visible_agents.append((agent, str(owner_id) if owner_id else None))
+                    print(f"   ✅ Agent added to visible list via access control")
             except Exception as e:
                 # On error, don't show the agent (fail secure)
                 print(f"⚠️  Access check error for agent {agent.id}: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
+        else:
+            print(f"   ⚠️ Access Control not available: ACCESS_CONTROL_AVAILABLE={ACCESS_CONTROL_AVAILABLE}, AccessControlService={AccessControlService}")
     
     print(f"✅ [LIST_AGENTS] Returning {len(visible_agents)} visible agents out of {len(all_agents)} total")
     
