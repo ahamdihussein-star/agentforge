@@ -7344,7 +7344,8 @@ Option 3"></textarea>
             await autoSaveWizardStep();
             
             step++;
-            if(step > 7) step = 7;
+            if(step > 8) step = 8;  // Updated for 8 steps (including Access Control)
+            console.log('➡️ Moving to step:', step);
             updateStepsNew();
         }
         
