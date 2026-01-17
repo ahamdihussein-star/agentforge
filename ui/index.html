@@ -170,8 +170,15 @@
         .chat-content td{padding:0.5rem;border:1px solid var(--border-color)}
         .chat-content tr:nth-child(even){background:rgba(45,45,61,0.3)}
         .source-badge{background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.4)}
-        .animate-fade-in{animation:fadeIn 0.3s ease-out}
+        .animate-fade-in, .animate-fadeIn{animation:fadeIn 0.3s ease-out}
         @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        
+        /* Access Control Styles */
+        .access-type-card{transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1)}
+        .access-type-card:hover{transform:translateY(-2px)}
+        .access-type-card.ac-selected{transform:translateY(-4px)}
+        .access-check{display:flex !important}
+        .access-type-card:not(.ac-selected) .access-check{display:none !important}
         .toggle-switch{width:44px;height:24px;background:var(--bg-input);border-radius:12px;position:relative;cursor:pointer;transition:0.3s}
         .toggle-switch.on{background:var(--accent-primary)}
         .toggle-switch::after{content:'';position:absolute;width:20px;height:20px;background:white;border-radius:50%;top:2px;left:2px;transition:0.3s}
@@ -3166,100 +3173,235 @@
                             </div>
                         </div>
                         
-                        <!-- Access Control (Admin Only) -->
-                        <div id="wizard-access-control-section" class="card rounded-xl p-6">
-                            <div class="flex items-center gap-3 mb-4">
-                                <span class="text-2xl">👥</span>
-                                <div>
-                                    <h4 class="font-semibold">Access Control <span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded ml-2">Admin Only</span></h4>
-                                    <p class="text-sm text-gray-400">Define who can use this agent and what they can do</p>
-                                </div>
-                            </div>
+                        <!-- Access Control - Modern Design -->
+                        <div id="wizard-access-control-section" class="rounded-2xl overflow-hidden" style="background: linear-gradient(145deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%); border: 1px solid rgba(139, 92, 246, 0.2);">
                             
-                            <!-- Agent Access Level -->
-                            <div class="mb-6">
-                                <label class="text-sm font-medium mb-3 block">Who can use this agent?</label>
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="wizard-access-type-container">
-                                    <div class="access-type-option cursor-pointer rounded-xl p-4 border-2 border-gray-600 hover:border-gray-500 transition-all" data-value="public" onclick="selectWizardAccessType('public')">
-                                        <div class="text-center">
-                                            <span class="text-2xl mb-2 block">🌐</span>
-                                            <span class="font-medium text-sm">Public</span>
-                                            <p class="text-xs text-gray-500 mt-1">Anyone can access</p>
+                            <!-- Header with ownership indicator -->
+                            <div class="p-6 border-b border-purple-500/20" style="background: linear-gradient(90deg, rgba(139, 92, 246, 0.15) 0%, transparent 100%);">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);">
+                                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-lg font-bold text-white flex items-center gap-2">
+                                                Access Control
+                                                <span id="ac-owner-badge" class="hidden text-xs px-2 py-1 rounded-full font-medium" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #fff;">
+                                                    👑 Owner
+                                                </span>
+                                            </h4>
+                                            <p class="text-sm text-gray-400">Define who can interact with this agent and their permissions</p>
                                         </div>
                                     </div>
-                                    <div class="access-type-option cursor-pointer rounded-xl p-4 border-2 border-blue-500 bg-blue-500/10 transition-all" data-value="authenticated" onclick="selectWizardAccessType('authenticated')">
-                                        <div class="text-center">
-                                            <span class="text-2xl mb-2 block">🔑</span>
-                                            <span class="font-medium text-sm">Authenticated</span>
-                                            <p class="text-xs text-gray-500 mt-1">Logged-in users only</p>
+                                    <div id="ac-quick-stats" class="hidden md:flex items-center gap-4 text-sm">
+                                        <div class="text-center px-4 py-2 rounded-lg bg-white/5">
+                                            <div class="text-2xl font-bold text-purple-400" id="ac-stat-users">0</div>
+                                            <div class="text-xs text-gray-500">Users</div>
                                         </div>
-                                    </div>
-                                    <div class="access-type-option cursor-pointer rounded-xl p-4 border-2 border-gray-600 hover:border-gray-500 transition-all" data-value="specific" onclick="selectWizardAccessType('specific')">
-                                        <div class="text-center">
-                                            <span class="text-2xl mb-2 block">👤</span>
-                                            <span class="font-medium text-sm">Specific Users</span>
-                                            <p class="text-xs text-gray-500 mt-1">Selected users/groups only</p>
+                                        <div class="text-center px-4 py-2 rounded-lg bg-white/5">
+                                            <div class="text-2xl font-bold text-blue-400" id="ac-stat-groups">0</div>
+                                            <div class="text-xs text-gray-500">Groups</div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             
-                            <!-- Specific Users/Groups Selection (shown when "specific" is selected) -->
-                            <div id="wizard-access-specific-section" class="hidden space-y-4">
-                                <div>
-                                    <label class="text-sm text-gray-400 mb-2 block">Search and select users or groups</label>
-                                    <div class="relative">
-                                        <input type="text" id="wizard-access-search" class="input-field w-full rounded-lg px-4 py-3 pr-10" placeholder="Search users or groups...">
-                                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
-                                    </div>
-                                    <div id="wizard-access-search-results" class="hidden mt-2 max-h-48 overflow-y-auto card rounded-lg"></div>
-                                </div>
+                            <div class="p-6 space-y-8">
                                 
-                                <!-- Selected entities -->
-                                <div id="wizard-access-selected" class="flex flex-wrap gap-2"></div>
-                            </div>
-                            
-                            <!-- Task Permissions (shown after selecting specific users) -->
-                            <div id="wizard-task-permissions-section" class="hidden mt-6 pt-6 border-t border-gray-700">
-                                <div class="flex items-center gap-2 mb-4">
-                                    <span class="text-lg">📋</span>
-                                    <div>
-                                        <h5 class="font-medium">Task Permissions</h5>
-                                        <p class="text-xs text-gray-500">Control which tasks each user/group can use</p>
-                                    </div>
-                                </div>
-                                <div id="wizard-task-permissions-grid" class="space-y-2">
-                                    <!-- Will be populated dynamically with tasks from wizard.tasks -->
-                                    <p class="text-sm text-gray-500 italic">Define tasks in the Tasks step first</p>
-                                </div>
-                            </div>
-                            
-                            <!-- Delegate Admin Access (Owner Only) -->
-                            <div id="wizard-delegate-admin-section" class="hidden mt-6 pt-6 border-t border-gray-700">
-                                <div class="flex items-center gap-2 mb-4">
-                                    <span class="text-lg">👑</span>
-                                    <div>
-                                        <h5 class="font-medium">Delegate Admin Access <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded ml-2">Owner Only</span></h5>
-                                        <p class="text-xs text-gray-500">Allow other users to manage this agent's access control</p>
-                                    </div>
-                                </div>
-                                
+                                <!-- Step 1: Access Level Selection -->
                                 <div class="space-y-4">
-                                    <!-- Search for admins -->
-                                    <div>
-                                        <label class="text-sm text-gray-400 mb-2 block">Add users or groups as agent admins</label>
-                                        <div class="relative">
-                                            <input type="text" id="wizard-admin-search" class="input-field w-full rounded-lg px-4 py-3 pr-10" placeholder="Search users or groups...">
-                                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-sm">1</div>
+                                        <div>
+                                            <h5 class="font-semibold text-white">Access Level</h5>
+                                            <p class="text-xs text-gray-500">Who should be able to use this agent?</p>
                                         </div>
-                                        <div id="wizard-admin-search-results" class="hidden mt-2 max-h-48 overflow-y-auto card rounded-lg"></div>
                                     </div>
                                     
-                                    <!-- Current Agent Admins -->
-                                    <div id="wizard-current-admins" class="flex flex-wrap gap-2">
-                                        <p class="text-sm text-gray-500 italic">No additional admins added yet</p>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="wizard-access-type-container">
+                                        <!-- Public Access -->
+                                        <div class="access-type-card group cursor-pointer rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02]" 
+                                             data-value="public" 
+                                             onclick="selectWizardAccessType('public')"
+                                             style="background: rgba(34, 197, 94, 0.05); border: 2px solid rgba(34, 197, 94, 0.2);">
+                                            <div class="flex items-start gap-4">
+                                                <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all group-hover:scale-110" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);">
+                                                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                    </svg>
+                                                </div>
+                                                <div class="flex-1">
+                                                    <h6 class="font-semibold text-white mb-1">Public</h6>
+                                                    <p class="text-xs text-gray-400 leading-relaxed">Anyone can access without logging in. Best for public-facing assistants.</p>
+                                                </div>
+                                                <div class="access-check hidden w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                                                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Authenticated Access -->
+                                        <div class="access-type-card group cursor-pointer rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] ac-selected" 
+                                             data-value="authenticated" 
+                                             onclick="selectWizardAccessType('authenticated')"
+                                             style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%); border: 2px solid rgba(59, 130, 246, 0.5); box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);">
+                                            <div class="flex items-start gap-4">
+                                                <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all group-hover:scale-110" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0.1) 100%);">
+                                                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                                                    </svg>
+                                                </div>
+                                                <div class="flex-1">
+                                                    <h6 class="font-semibold text-white mb-1">Authenticated</h6>
+                                                    <p class="text-xs text-gray-400 leading-relaxed">Any logged-in user in your organization can access. Recommended for internal tools.</p>
+                                                    <span class="inline-block mt-2 text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">Recommended</span>
+                                                </div>
+                                                <div class="access-check w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                                                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Specific Users -->
+                                        <div class="access-type-card group cursor-pointer rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02]" 
+                                             data-value="specific" 
+                                             onclick="selectWizardAccessType('specific')"
+                                             style="background: rgba(168, 85, 247, 0.05); border: 2px solid rgba(168, 85, 247, 0.2);">
+                                            <div class="flex items-start gap-4">
+                                                <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all group-hover:scale-110" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(168, 85, 247, 0.1) 100%);">
+                                                    <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                                    </svg>
+                                                </div>
+                                                <div class="flex-1">
+                                                    <h6 class="font-semibold text-white mb-1">Specific Users</h6>
+                                                    <p class="text-xs text-gray-400 leading-relaxed">Only selected users and groups can access. Maximum control over who uses this agent.</p>
+                                                </div>
+                                                <div class="access-check hidden w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
+                                                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+                                
+                                <!-- Step 2: User/Group Selection (shown when "specific" is selected) -->
+                                <div id="wizard-access-specific-section" class="hidden space-y-4 animate-fadeIn">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-sm">2</div>
+                                        <div>
+                                            <h5 class="font-semibold text-white">Select Users & Groups</h5>
+                                            <p class="text-xs text-gray-500">Choose who can access this agent</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Smart Search -->
+                                    <div class="relative">
+                                        <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                            </svg>
+                                        </div>
+                                        <input type="text" id="wizard-access-search" 
+                                               class="w-full rounded-xl px-12 py-4 text-white placeholder-gray-500 transition-all focus:ring-2 focus:ring-purple-500/50" 
+                                               style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);"
+                                               placeholder="Search by name, email, or group...">
+                                        <div class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500 hidden md:block">
+                                            Press <kbd class="px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">Enter</kbd> to add
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Search Results Dropdown -->
+                                    <div id="wizard-access-search-results" class="hidden mt-2 rounded-xl overflow-hidden" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);">
+                                        <!-- Results will be populated dynamically -->
+                                    </div>
+                                    
+                                    <!-- Selected Entities -->
+                                    <div id="wizard-access-selected" class="flex flex-wrap gap-3">
+                                        <div class="text-sm text-gray-500 italic py-2">Select users or groups from the search above</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Step 3: Task Permissions -->
+                                <div id="wizard-task-permissions-section" class="hidden space-y-4 animate-fadeIn">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-sm">3</div>
+                                            <div>
+                                                <h5 class="font-semibold text-white">Task Permissions</h5>
+                                                <p class="text-xs text-gray-500">Fine-tune which tasks each user can perform</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button onclick="allowAllTasks()" class="px-3 py-1.5 text-xs rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center gap-1">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                                </svg>
+                                                Allow All
+                                            </button>
+                                            <button onclick="denyAllTasks()" class="px-3 py-1.5 text-xs rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center gap-1">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                </svg>
+                                                Deny All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="wizard-task-permissions-grid" class="space-y-3 rounded-xl p-4" style="background: rgba(0,0,0,0.2);">
+                                        <p class="text-sm text-gray-500 italic text-center py-4">Define tasks in the Tasks step first</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Step 4: Delegate Admin Access (Owner Only) -->
+                                <div id="wizard-delegate-admin-section" class="hidden space-y-4 animate-fadeIn">
+                                    <div class="rounded-xl p-5" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%); border: 1px solid rgba(245, 158, 11, 0.3);">
+                                        <div class="flex items-center gap-3 mb-4">
+                                            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h5 class="font-semibold text-white flex items-center gap-2">
+                                                    Delegate Admin Access
+                                                    <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">Owner Only</span>
+                                                </h5>
+                                                <p class="text-xs text-gray-400">Allow other users to manage this agent's settings and permissions</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Search for admins -->
+                                        <div class="relative mb-4">
+                                            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400/50">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                                </svg>
+                                            </div>
+                                            <input type="text" id="wizard-admin-search" 
+                                                   class="w-full rounded-xl px-12 py-3 text-white placeholder-gray-500 transition-all focus:ring-2 focus:ring-amber-500/50" 
+                                                   style="background: rgba(0,0,0,0.3); border: 1px solid rgba(245, 158, 11, 0.2);"
+                                                   placeholder="Search users to add as admin...">
+                                        </div>
+                                        
+                                        <div id="wizard-admin-search-results" class="hidden mb-4 rounded-xl overflow-hidden" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(245, 158, 11, 0.2);">
+                                        </div>
+                                        
+                                        <!-- Current Agent Admins -->
+                                        <div id="wizard-current-admins" class="flex flex-wrap gap-2">
+                                            <div class="text-sm text-gray-500 italic">You are the only admin. Add others above to share management access.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                             </div>
                         </div>
                     </div>
@@ -9127,20 +9269,45 @@ Option 3"></textarea>
         function selectWizardAccessType(type) {
             wizardAccessState.accessType = type;
             
-            // Update visual selection
-            document.querySelectorAll('.access-type-option').forEach(opt => {
-                const optType = opt.dataset.value;
-                opt.classList.remove('border-green-500', 'bg-green-500/10', 'border-blue-500', 'bg-blue-500/10', 'border-purple-500', 'bg-purple-500/10');
-                opt.classList.add('border-gray-600');
+            // Update visual selection for new card design
+            document.querySelectorAll('.access-type-card').forEach(card => {
+                const cardType = card.dataset.value;
+                const checkmark = card.querySelector('.access-check');
                 
-                if (optType === type) {
-                    opt.classList.remove('border-gray-600');
+                // Reset all cards
+                card.classList.remove('ac-selected');
+                card.style.boxShadow = 'none';
+                if (checkmark) checkmark.classList.add('hidden');
+                
+                // Style selected card
+                if (cardType === type) {
+                    card.classList.add('ac-selected');
+                    if (checkmark) checkmark.classList.remove('hidden');
+                    
                     if (type === 'public') {
-                        opt.classList.add('border-green-500', 'bg-green-500/10');
+                        card.style.background = 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%)';
+                        card.style.borderColor = 'rgba(34, 197, 94, 0.5)';
+                        card.style.boxShadow = '0 4px 20px rgba(34, 197, 94, 0.2)';
                     } else if (type === 'authenticated') {
-                        opt.classList.add('border-blue-500', 'bg-blue-500/10');
+                        card.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%)';
+                        card.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+                        card.style.boxShadow = '0 4px 20px rgba(59, 130, 246, 0.2)';
                     } else if (type === 'specific') {
-                        opt.classList.add('border-purple-500', 'bg-purple-500/10');
+                        card.style.background = 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%)';
+                        card.style.borderColor = 'rgba(168, 85, 247, 0.5)';
+                        card.style.boxShadow = '0 4px 20px rgba(168, 85, 247, 0.2)';
+                    }
+                } else {
+                    // Reset unselected cards
+                    if (cardType === 'public') {
+                        card.style.background = 'rgba(34, 197, 94, 0.05)';
+                        card.style.borderColor = 'rgba(34, 197, 94, 0.2)';
+                    } else if (cardType === 'authenticated') {
+                        card.style.background = 'rgba(59, 130, 246, 0.05)';
+                        card.style.borderColor = 'rgba(59, 130, 246, 0.2)';
+                    } else if (cardType === 'specific') {
+                        card.style.background = 'rgba(168, 85, 247, 0.05)';
+                        card.style.borderColor = 'rgba(168, 85, 247, 0.2)';
                     }
                 }
             });
@@ -9276,18 +9443,58 @@ Option 3"></textarea>
             const container = document.getElementById('wizard-access-selected');
             if (!container) return;
             
+            // Update stats
+            const userCount = wizardAccessState.selectedEntities.filter(e => e.type === 'user').length;
+            const groupCount = wizardAccessState.selectedEntities.filter(e => e.type === 'group').length;
+            const userStat = document.getElementById('ac-stat-users');
+            const groupStat = document.getElementById('ac-stat-groups');
+            if (userStat) userStat.textContent = userCount;
+            if (groupStat) groupStat.textContent = groupCount;
+            
+            // Show stats if we have specific users selected
+            const statsContainer = document.getElementById('ac-quick-stats');
+            if (statsContainer) {
+                statsContainer.style.display = wizardAccessState.accessType === 'specific' && wizardAccessState.selectedEntities.length > 0 ? 'flex' : 'none';
+            }
+            
             if (wizardAccessState.selectedEntities.length === 0) {
-                container.innerHTML = '<p class="text-sm text-gray-500 italic">No users or groups selected yet</p>';
+                container.innerHTML = '<div class="text-sm text-gray-500 italic py-2">Select users or groups from the search above</div>';
                 return;
             }
             
-            container.innerHTML = wizardAccessState.selectedEntities.map(e => `
-                <div class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/20 border border-purple-500/50">
-                    <span>${e.icon}</span>
-                    <span class="text-sm font-medium">${e.name}</span>
-                    <button onclick="removeWizardAccessEntity('${e.id}')" class="text-gray-400 hover:text-red-400 ml-1">✕</button>
-                </div>
-            `).join('');
+            container.innerHTML = wizardAccessState.selectedEntities.map(e => {
+                const isUser = e.type === 'user';
+                const bgColor = isUser ? 'rgba(139, 92, 246, 0.15)' : 'rgba(59, 130, 246, 0.15)';
+                const borderColor = isUser ? 'rgba(139, 92, 246, 0.4)' : 'rgba(59, 130, 246, 0.4)';
+                const iconBg = isUser ? 'rgba(139, 92, 246, 0.3)' : 'rgba(59, 130, 246, 0.3)';
+                
+                return `
+                    <div class="group inline-flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all hover:scale-[1.02]" 
+                         style="background: ${bgColor}; border: 1px solid ${borderColor};">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style="background: ${iconBg};">
+                            ${isUser ? `
+                                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                </svg>
+                            ` : `
+                                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                </svg>
+                            `}
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-medium text-white">${e.name}</div>
+                            <div class="text-xs text-gray-500">${isUser ? 'User' : 'Group'}</div>
+                        </div>
+                        <button onclick="removeWizardAccessEntity('${e.id}')" 
+                                class="w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/20 hover:bg-red-500/40 text-red-400">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                `;
+            }).join('');
         }
         
         function renderWizardTaskPermissions() {
@@ -9298,37 +9505,67 @@ Option 3"></textarea>
             const entities = wizardAccessState.selectedEntities || [];
             
             if (tasks.length === 0) {
-                container.innerHTML = '<p class="text-sm text-gray-500 italic">Define tasks in the Tasks step first</p>';
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center" style="background: rgba(255,255,255,0.05);">
+                            <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                            </svg>
+                        </div>
+                        <p class="text-gray-500 text-sm">Define tasks in the Tasks step first</p>
+                        <button onclick="goToStep(2)" class="mt-3 text-purple-400 text-sm hover:underline">Go to Tasks →</button>
+                    </div>
+                `;
                 return;
             }
             
             if (entities.length === 0) {
                 // No specific entities - show simple allow/deny per task
                 container.innerHTML = `
-                    <div class="text-sm text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
-                        💡 Select specific users or groups above to set per-entity permissions
+                    <div class="flex items-center gap-3 p-4 rounded-xl mb-4" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%); border: 1px solid rgba(59, 130, 246, 0.3);">
+                        <svg class="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <p class="text-sm text-blue-300">Select specific users or groups above to configure per-entity permissions</p>
                     </div>
-                    ${tasks.map((task, i) => {
-                        const taskId = task.id || `task-${i}`;
-                        const isAllowed = getTaskPermission(taskId, 'default') !== false;
-                        
-                        return `
-                        <div class="flex items-center justify-between p-4 rounded-xl border-2 transition-all ${isAllowed ? 'bg-green-500/10 border-green-500/50' : 'bg-red-500/10 border-red-500/30'}">
-                            <div class="flex items-center gap-3">
-                                <span class="text-xl">${isAllowed ? '✅' : '❌'}</span>
-                                <div>
-                                    <div class="font-medium">${task.name || 'Unnamed Task'}</div>
-                                    <div class="text-xs text-gray-400 truncate max-w-md">${(task.description || '').slice(0, 60)}...</div>
+                    <div class="space-y-3">
+                        ${tasks.map((task, i) => {
+                            const taskId = task.id || `task-${i}`;
+                            const isAllowed = getTaskPermission(taskId, 'default') !== false;
+                            
+                            return `
+                            <div class="flex items-center justify-between p-4 rounded-xl transition-all" 
+                                 style="background: ${isAllowed ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)'}; 
+                                        border: 1px solid ${isAllowed ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'};">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-xl flex items-center justify-center" 
+                                         style="background: ${isAllowed ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'};">
+                                        <svg class="w-5 h-5 ${isAllowed ? 'text-green-400' : 'text-red-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            ${isAllowed 
+                                                ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+                                                : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>'}
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="font-medium text-white">${task.name || 'Unnamed Task'}</div>
+                                        <div class="text-xs text-gray-500 truncate max-w-md">${(task.description || '').slice(0, 60)}${task.description?.length > 60 ? '...' : ''}</div>
+                                    </div>
                                 </div>
+                                <button onclick="toggleWizardTaskPermission('${taskId}', 'default', ${!isAllowed}); renderWizardTaskPermissions();"
+                                        class="px-5 py-2.5 rounded-xl font-medium text-sm transition-all flex items-center gap-2"
+                                        style="background: ${isAllowed ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'};
+                                               border: 1px solid ${isAllowed ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'};
+                                               color: ${isAllowed ? '#4ade80' : '#f87171'};">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        ${isAllowed 
+                                            ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+                                            : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>'}
+                                    </svg>
+                                    ${isAllowed ? 'Allowed' : 'Denied'}
+                                </button>
                             </div>
-                            <button onclick="toggleWizardTaskPermission('${taskId}', 'default', ${!isAllowed}); renderWizardTaskPermissions();"
-                                    class="px-4 py-2 rounded-lg font-medium text-sm transition-all ${isAllowed 
-                                        ? 'bg-green-500 text-white hover:bg-green-600' 
-                                        : 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white'}">
-                                ${isAllowed ? '✓ Allowed' : '✗ Denied'}
-                            </button>
-                        </div>
-                    `}).join('')}
+                        `}).join('')}
+                    </div>
                 `;
                 return;
             }
