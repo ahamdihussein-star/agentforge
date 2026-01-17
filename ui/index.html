@@ -17388,14 +17388,15 @@ async function saveToolEdit() {
                 }
                 
                 // Build personalized welcome message
-                const userName = session.user_name || 'User';
+                const fullName = session.user_name || 'User';
+                const firstName = fullName.split(' ')[0]; // Get first name only
                 const agentName = session.agent_name || 'Assistant';
                 const tasks = session.accessible_tasks || [];
                 
                 let welcomeHtml = `
                     <div class="text-center py-6 md:py-10">
                         <div class="text-3xl md:text-4xl mb-3">👋</div>
-                        <h2 class="text-xl md:text-2xl font-bold text-white mb-2">Hi ${esc(userName)}!</h2>
+                        <h2 class="text-xl md:text-2xl font-bold text-white mb-2">Hi ${esc(firstName)}!</h2>
                         <p class="text-gray-400 mb-4">I'm <strong>${esc(agentName)}</strong>. How can I help you today?</p>
                 `;
                 
