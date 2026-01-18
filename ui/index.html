@@ -7774,7 +7774,121 @@ Option 3"></textarea>
                 const div = document.createElement('div');
                 div.textContent = str;
                 return div.innerHTML;
+            },
+            
+            // ========== EASY-TO-USE HELPER METHODS ==========
+            success(message, options = {}) {
+                return this.show(message, 'success', options);
+            },
+            
+            error(message, options = {}) {
+                return this.show(message, 'error', options);
+            },
+            
+            warning(message, options = {}) {
+                return this.show(message, 'warning', options);
+            },
+            
+            info(message, options = {}) {
+                return this.show(message, 'info', options);
+            },
+            
+            // Promise-based notification (shows loading, then success/error)
+            async promise(promise, messages = {}) {
+                const loadingMsg = messages.loading || 'Loading...';
+                const successMsg = messages.success || 'Success!';
+                const errorMsg = messages.error || 'Something went wrong';
+                
+                const id = this.show(loadingMsg, 'info', { duration: 60000, showProgress: false });
+                
+                try {
+                    const result = await promise;
+                    this.dismiss(id);
+                    this.success(typeof successMsg === 'function' ? successMsg(result) : successMsg);
+                    return result;
+                } catch (err) {
+                    this.dismiss(id);
+                    this.error(typeof errorMsg === 'function' ? errorMsg(err) : (err.message || errorMsg));
+                    throw err;
+                }
+            },
+            
+            // Confirmation notification with action button
+            confirm(message, onConfirm, options = {}) {
+                const id = 'notif-confirm-' + Date.now();
+                const config = this.getConfig('warning');
+                
+                this.init();
+                
+                const notification = document.createElement('div');
+                notification.id = id;
+                notification.className = `
+                    ${config.bgClass} ${config.borderClass}
+                    backdrop-blur-xl border rounded-xl shadow-2xl
+                    transform translate-x-full opacity-0
+                    transition-all duration-300 ease-out
+                    pointer-events-auto overflow-hidden
+                `;
+                notification.style.cssText = 'box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);';
+                
+                notification.innerHTML = `
+                    <div class="p-4">
+                        <div class="flex items-start gap-3">
+                            <div class="${config.iconBg} rounded-full p-2 flex-shrink-0">
+                                ${config.icon}
+                            </div>
+                            <div class="flex-1 min-w-0 pt-0.5">
+                                <p class="text-sm font-semibold text-white/90">${options.title || 'Confirm'}</p>
+                                <p class="text-sm text-white/80 mt-0.5">${this.escapeHtml(message)}</p>
+                                <div class="flex gap-2 mt-3">
+                                    <button onclick="NotificationSystem.handleConfirm('${id}', true)" 
+                                        class="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors">
+                                        ${options.confirmText || 'Confirm'}
+                                    </button>
+                                    <button onclick="NotificationSystem.handleConfirm('${id}', false)" 
+                                        class="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors">
+                                        ${options.cancelText || 'Cancel'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Store callback
+                this._confirmCallbacks = this._confirmCallbacks || {};
+                this._confirmCallbacks[id] = onConfirm;
+                
+                this.container.insertBefore(notification, this.container.firstChild);
+                this.notifications.push({ id, element: notification, timeout: null });
+                
+                requestAnimationFrame(() => {
+                    notification.classList.remove('translate-x-full', 'opacity-0');
+                    notification.classList.add('translate-x-0', 'opacity-100');
+                });
+                
+                return id;
+            },
+            
+            handleConfirm(id, confirmed) {
+                const callback = this._confirmCallbacks?.[id];
+                if (callback && confirmed) callback();
+                delete this._confirmCallbacks?.[id];
+                this.dismiss(id);
             }
+        };
+        
+        // ========== GLOBAL SHORTHAND: notify ==========
+        // Usage: notify.success('Saved!'), notify.error('Failed'), etc.
+        const notify = {
+            success: (msg, opts) => NotificationSystem.success(msg, opts),
+            error: (msg, opts) => NotificationSystem.error(msg, opts),
+            warning: (msg, opts) => NotificationSystem.warning(msg, opts),
+            info: (msg, opts) => NotificationSystem.info(msg, opts),
+            promise: (p, msgs) => NotificationSystem.promise(p, msgs),
+            confirm: (msg, cb, opts) => NotificationSystem.confirm(msg, cb, opts),
+            dismiss: (id) => NotificationSystem.dismiss(id),
+            dismissAll: () => NotificationSystem.dismissAll()
         };
         
         // Backward compatible showToast function
