@@ -22,11 +22,26 @@ def upgrade() -> None:
     """
     Add 'website' value to tooltype enum in PostgreSQL
     
-    Note: PostgreSQL doesn't allow adding enum values in a transaction,
-    so we need to use execute with specific connection settings.
+    Note: This migration is now a NO-OP because we switched from PostgreSQL 
+    native enums to VARCHAR columns for database-agnostic design.
+    The 'type' column in tools table is now VARCHAR, not an enum.
     """
-    # Check if 'website' already exists in enum
     connection = op.get_bind()
+    
+    # First check if the tooltype enum even exists (we now use VARCHAR instead)
+    result = connection.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_type WHERE typname = 'tooltype'
+        );
+    """))
+    
+    enum_exists = result.scalar()
+    
+    if not enum_exists:
+        print("⏭️  tooltype enum doesn't exist (using VARCHAR columns now) - skipping migration")
+        return
+    
+    # Check if 'website' already exists in enum
     result = connection.execute(sa.text("""
         SELECT EXISTS (
             SELECT 1 FROM pg_enum 
@@ -42,9 +57,12 @@ def upgrade() -> None:
     if not exists:
         # Add 'website' to tooltype enum
         # Note: This must be done outside a transaction block
-        op.execute("COMMIT")  # End current transaction
-        op.execute("ALTER TYPE tooltype ADD VALUE 'website'")
-        print("✅ Added 'website' to tooltype enum")
+        try:
+            op.execute("COMMIT")  # End current transaction
+            op.execute("ALTER TYPE tooltype ADD VALUE 'website'")
+            print("✅ Added 'website' to tooltype enum")
+        except Exception as e:
+            print(f"⚠️  Could not add 'website' to tooltype enum: {e}")
     else:
         print("⏭️  'website' already exists in tooltype enum")
 
