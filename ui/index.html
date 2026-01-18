@@ -7307,12 +7307,24 @@ Option 3"></textarea>
             
             // ⚠️ CRITICAL: Re-apply permission restrictions after step content is rendered
             // This ensures restrictions work on dynamically loaded elements
-            if (wizard.userPermissions && wizard.editId) {
-                console.log('🔐 Re-applying permission restrictions for step', step);
+            console.log('🔐🔐🔐 STEP CHANGE CHECK 🔐🔐🔐');
+            console.log('🔐 step:', step);
+            console.log('🔐 wizard.editId:', wizard.editId);
+            console.log('🔐 wizard.userPermissions:', wizard.userPermissions);
+            console.log('🔐 wizard.id:', wizard.id);
+            
+            // Apply restrictions for delegated admins who are editing
+            const isEditing = wizard.editId || wizard.id;
+            const hasPerms = wizard.userPermissions;
+            
+            if (hasPerms && isEditing) {
+                console.log('🔐✅ Will apply permission restrictions for step', step);
                 // Small delay to ensure DOM is updated
                 setTimeout(() => {
                     applyPermissionRestrictions(wizard.userPermissions);
                 }, 100);
+            } else {
+                console.log('🔐❌ NOT applying restrictions - editId/id:', isEditing, 'perms:', !!hasPerms);
             }
         }
         
@@ -13617,17 +13629,27 @@ Option 3"></textarea>
                 console.log('✅ Tasks: ALLOWED');
             }
             
-            // Step 3: Tools
+            // Step 3: Tools - disable entire step content
             if (!perms.can_manage_tools) {
                 console.log('🔒 Restricting: Tools (can_manage_tools=false)');
-                const toolsSection = document.getElementById('wizard-tools-section');
-                console.log('🔒   wizard-tools-section:', toolsSection ? 'FOUND' : 'NOT FOUND');
-                if (toolsSection) {
-                    toolsSection.style.opacity = '0.6';
-                    toolsSection.style.pointerEvents = 'none';
+                const toolsStep = document.getElementById('wizard-step-3');
+                console.log('🔒   wizard-step-3:', toolsStep ? 'FOUND' : 'NOT FOUND');
+                if (toolsStep) {
+                    // Disable all clickable elements in tools step
+                    toolsStep.querySelectorAll('[onclick], button, .card').forEach(el => {
+                        el.style.pointerEvents = 'none';
+                        el.style.opacity = '0.5';
+                    });
+                    // Add visual overlay
+                    if (!toolsStep.querySelector('.permission-overlay')) {
+                        const overlay = document.createElement('div');
+                        overlay.className = 'permission-overlay';
+                        overlay.innerHTML = `<div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:1rem;margin-bottom:1rem;text-align:center;"><span style="color:#ff6b6b;">🔒 You don't have permission to manage tools</span></div>`;
+                        toolsStep.insertBefore(overlay, toolsStep.firstChild);
+                    }
                 }
-                // Also disable tool selection buttons
-                document.querySelectorAll('.tool-select-btn, .demo-tool-card').forEach(el => {
+                // Also disable tool selection buttons throughout page
+                document.querySelectorAll('.tool-select-btn, .demo-tool-card, [onclick*="showSelectToolModal"], [onclick*="showAddToolModal"]').forEach(el => {
                     el.style.pointerEvents = 'none';
                     el.style.opacity = '0.5';
                 });
@@ -13647,64 +13669,87 @@ Option 3"></textarea>
                 console.log('✅ Knowledge Base: ALLOWED');
             }
             
-            // Step 4: LLM Model
+            // Step 1: LLM Model (model selection is in step 1, right side)
             if (!perms.can_edit_model) {
                 console.log('🔒 Restricting: LLM Model (can_edit_model=false)');
-                const modelSelect = document.getElementById('w-model');
-                console.log('🔒   w-model:', modelSelect ? 'FOUND - disabling' : 'NOT FOUND');
-                if (modelSelect) {
-                    modelSelect.disabled = true;
-                    modelSelect.style.opacity = '0.6';
-                    modelSelect.title = 'No permission to change model';
+                // The model list is in #llm-models-list
+                const modelList = document.getElementById('llm-models-list');
+                console.log('🔒   llm-models-list:', modelList ? 'FOUND' : 'NOT FOUND');
+                if (modelList) {
+                    modelList.style.pointerEvents = 'none';
+                    modelList.style.opacity = '0.5';
+                    // Add notice above model list
+                    const parent = modelList.parentElement;
+                    if (parent && !parent.querySelector('.model-permission-notice')) {
+                        const notice = document.createElement('div');
+                        notice.className = 'model-permission-notice';
+                        notice.innerHTML = `<div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:0.5rem;margin-bottom:0.5rem;text-align:center;font-size:0.75rem;"><span style="color:#ff6b6b;">🔒 No permission to change model</span></div>`;
+                        parent.insertBefore(notice, modelList);
+                    }
                 }
+                // Also disable all model options
+                document.querySelectorAll('.model-option').forEach(el => {
+                    el.style.pointerEvents = 'none';
+                    el.style.opacity = '0.5';
+                    el.onclick = null;
+                });
+            } else {
+                console.log('✅ LLM Model: ALLOWED');
             }
             
-            // Step 4: Guardrails
+            // Step 5: Guardrails (wizard-step-5)
             if (!perms.can_edit_guardrails) {
                 console.log('🔒 Restricting: Guardrails (can_edit_guardrails=false)');
-                const guardrailSection = document.querySelector('.guardrails-section, [data-section="guardrails"]');
-                console.log('🔒   guardrails-section:', guardrailSection ? 'FOUND' : 'NOT FOUND');
-                if (guardrailSection) {
-                    guardrailSection.style.opacity = '0.6';
-                    guardrailSection.style.pointerEvents = 'none';
-                }
-                // Disable all guardrail inputs (any id starting with g-)
-                const guardrailInputs = document.querySelectorAll('[id^="g-"]');
-                console.log('🔒   Guardrail inputs found:', guardrailInputs.length);
-                guardrailInputs.forEach(input => {
-                    input.disabled = true;
-                    input.style.opacity = '0.6';
-                });
-                // Also try specific guardrail element IDs
-                const specificGuardrails = ['g-anti-hallucination', 'g-cite-sources', 'g-admit-uncertainty'];
-                specificGuardrails.forEach(gid => {
-                    const el = document.getElementById(gid);
-                    if (el) {
-                        el.disabled = true;
-                        el.style.opacity = '0.6';
+                const guardrailStep = document.getElementById('wizard-step-5');
+                console.log('🔒   wizard-step-5:', guardrailStep ? 'FOUND' : 'NOT FOUND');
+                if (guardrailStep) {
+                    // Disable all inputs, toggles, buttons in guardrails step
+                    guardrailStep.querySelectorAll('input, button, label, .card').forEach(el => {
+                        if (el.tagName === 'INPUT') {
+                            el.disabled = true;
+                        }
+                        el.style.pointerEvents = 'none';
+                        el.style.opacity = '0.5';
+                    });
+                    // Add visual overlay
+                    if (!guardrailStep.querySelector('.permission-overlay')) {
+                        const overlay = document.createElement('div');
+                        overlay.className = 'permission-overlay';
+                        overlay.innerHTML = `<div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:1rem;margin-bottom:1rem;text-align:center;"><span style="color:#ff6b6b;">🔒 You don't have permission to edit guardrails</span></div>`;
+                        guardrailStep.insertBefore(overlay, guardrailStep.firstChild);
                     }
-                });
+                }
             } else {
                 console.log('✅ Guardrails: ALLOWED');
             }
             
-            // Step 5: Access Control (End-User Access)
+            // Step 4: Access Control (End-User Access) - wizard-step-4
             if (!perms.can_manage_access) {
                 console.log('🔒 Restricting: Access Control (End-User)');
-                const accessSection = document.getElementById('wizard-access-section');
-                if (accessSection) {
-                    accessSection.style.opacity = '0.6';
-                    accessSection.style.pointerEvents = 'none';
+                const accessStep = document.getElementById('wizard-step-4');
+                console.log('🔒   wizard-step-4:', accessStep ? 'FOUND' : 'NOT FOUND');
+                if (accessStep) {
+                    // Find the main access control section (Level 1)
+                    const accessControlSection = document.getElementById('wizard-access-control-section');
+                    if (accessControlSection) {
+                        accessControlSection.querySelectorAll('input, button, [onclick]').forEach(el => {
+                            if (el.tagName === 'INPUT') el.disabled = true;
+                            el.style.pointerEvents = 'none';
+                            el.style.opacity = '0.5';
+                        });
+                        // Add notice
+                        if (!accessControlSection.querySelector('.permission-overlay')) {
+                            const overlay = document.createElement('div');
+                            overlay.className = 'permission-overlay';
+                            overlay.innerHTML = `<div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:0.75rem;margin:0.5rem;text-align:center;"><span style="color:#ff6b6b;">🔒 No permission to manage end-user access</span></div>`;
+                            accessControlSection.insertBefore(overlay, accessControlSection.firstChild);
+                        }
+                    }
                 }
-                // Also disable access type cards
+                // Also disable access type cards anywhere
                 document.querySelectorAll('.access-type-card').forEach(card => {
                     card.style.pointerEvents = 'none';
                     card.style.opacity = '0.5';
-                });
-                // Disable user/group search for access
-                const userSearchInputs = document.querySelectorAll('#wizard-user-search, #wizard-group-search');
-                userSearchInputs.forEach(input => {
-                    if (input) input.disabled = true;
                 });
             }
             
@@ -13779,6 +13824,30 @@ Option 3"></textarea>
                     btn.style.opacity = '0.5';
                     btn.title = 'No permission to delete';
                 });
+            }
+            
+            // Step 7: Test - Only allow if user has at least SOME edit permission
+            // If user only has publish permission, they shouldn't be editing/testing
+            const hasAnyEditPerm = perms.can_edit_basic_info || perms.can_edit_personality || 
+                                   perms.can_edit_model || perms.can_edit_guardrails || 
+                                   perms.can_manage_tasks || perms.can_manage_tools;
+            if (!hasAnyEditPerm && !perms.is_owner) {
+                console.log('🔒 Restricting: Test (no edit permissions)');
+                const testStep = document.getElementById('wizard-step-7');
+                if (testStep) {
+                    testStep.querySelectorAll('input, button, textarea').forEach(el => {
+                        el.disabled = true;
+                        el.style.pointerEvents = 'none';
+                        el.style.opacity = '0.5';
+                    });
+                    // Add notice
+                    if (!testStep.querySelector('.permission-overlay')) {
+                        const overlay = document.createElement('div');
+                        overlay.className = 'permission-overlay';
+                        overlay.innerHTML = `<div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:1rem;margin-bottom:1rem;text-align:center;"><span style="color:#ff6b6b;">🔒 You don't have permission to test this agent (requires edit permissions)</span></div>`;
+                        testStep.insertBefore(overlay, testStep.firstChild);
+                    }
+                }
             }
             
             // Show a banner indicating restricted access

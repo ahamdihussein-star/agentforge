@@ -10116,7 +10116,19 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
     """
     Test Chat endpoint - for testing agents before deployment.
     Uses the same system as production but in a test environment.
+    Requires: owner OR delegated admin with at least one edit permission.
     """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    user_id = str(current_user.id)
+    org_id = current_user.org_id if current_user else "org_default"
+    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    
+    # Check if user has permission to test this agent
+    is_owner = False
+    has_edit_permission = False
+    
     # Try to get agent from in-memory state first
     agent = app_state.agents.get(agent_id)
     
@@ -10160,9 +10172,83 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
     if not agent:
         raise HTTPException(404, "Agent not found")
     
+    # Check permissions - owner or delegated admin with edit permissions can test
+    try:
+        from database.services import AgentService
+        agent_dict = AgentService.get_agent_by_id(agent_id, org_id)
+        if agent_dict:
+            owner_id = str(agent_dict.get('owner_id')) if agent_dict.get('owner_id') else None
+            created_by = str(agent_dict.get('created_by')) if agent_dict.get('created_by') else None
+            is_owner = (user_id == owner_id) or (user_id == created_by)
+        
+        if not is_owner and ACCESS_CONTROL_AVAILABLE and AccessControlService:
+            from api.modules.access_control.service import get_session, normalize_org_id
+            from database.models.agent_access import AgentAccessPolicy
+            import json
+            
+            norm_org_id = normalize_org_id(org_id)
+            
+            with get_session() as session:
+                admin_policy = session.query(AgentAccessPolicy).filter(
+                    AgentAccessPolicy.agent_id == agent_id,
+                    AgentAccessPolicy.org_id == norm_org_id,
+                    AgentAccessPolicy.access_type == 'agent_admin',
+                    AgentAccessPolicy.is_active == True
+                ).first()
+                
+                if admin_policy:
+                    user_is_admin = user_id in (admin_policy.user_ids or [])
+                    group_is_admin = any(g in (admin_policy.group_ids or []) for g in user_group_ids)
+                    
+                    if user_is_admin or group_is_admin:
+                        # Get their permissions
+                        if admin_policy.description:
+                            try:
+                                admin_config = json.loads(admin_policy.description)
+                                permissions = []
+                                
+                                if user_id in admin_config:
+                                    entity_config = admin_config[user_id]
+                                    if isinstance(entity_config, dict):
+                                        permissions = entity_config.get('permissions', [])
+                                    elif isinstance(entity_config, list):
+                                        permissions = entity_config
+                                else:
+                                    for group_id in user_group_ids:
+                                        if group_id in admin_config:
+                                            entity_config = admin_config[group_id]
+                                            if isinstance(entity_config, dict):
+                                                permissions = entity_config.get('permissions', [])
+                                            elif isinstance(entity_config, list):
+                                                permissions = entity_config
+                                            break
+                                
+                                # Check if user has any edit permission (not just publish)
+                                edit_perms = ['full_admin', 'edit_basic_info', 'edit_personality', 
+                                             'edit_model', 'edit_guardrails', 'manage_tasks', 
+                                             'manage_tools', 'manage_knowledge']
+                                has_edit_permission = any(p in permissions for p in edit_perms)
+                                
+                            except Exception as e:
+                                print(f"⚠️  Error parsing test-chat permissions: {e}")
+                                has_edit_permission = True  # Legacy - allow
+                        else:
+                            has_edit_permission = True  # No description = legacy full_admin
+                    else:
+                        has_edit_permission = False  # Not an admin
+                else:
+                    has_edit_permission = False  # No admin policy
+        else:
+            has_edit_permission = is_owner  # If no access control, owner can test
+            
+    except Exception as e:
+        print(f"⚠️  Error checking test-chat permissions: {e}")
+        has_edit_permission = True  # Fallback to allow
+    
+    if not is_owner and not has_edit_permission:
+        raise HTTPException(403, "You need edit permissions to test this agent. Publish-only admins cannot test.")
+    
     # Get or create conversation (prefix with demo_ to separate from real chats)
-    org_id = current_user.org_id if current_user else "org_default"
-    user_id = str(current_user.id) if current_user else "system"
     
     if request.conversation_id and request.conversation_id in app_state.conversations:
         conversation = app_state.conversations[request.conversation_id]
