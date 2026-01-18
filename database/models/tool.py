@@ -55,10 +55,20 @@ class Tool(Base):
     validation_error = Column(Text)  # Last validation error if any
     
     # Access Control
-    is_public = Column(Boolean, default=False)  # Public tools available to all org users
     owner_id = Column(UUID, nullable=False, index=True)
-    shared_with_user_ids = Column(JSONArray, default=[])  # Array of UUIDs as JSON
-    shared_with_role_ids = Column(JSONArray, default=[])  # Array of UUIDs as JSON
+    # Access type: 'owner_only', 'authenticated', 'specific_users', 'public'
+    access_type = Column(String(30), nullable=False, default='owner_only')
+    # For specific_users access type
+    allowed_user_ids = Column(JSONArray, default=[])  # Users who can view/use the tool
+    allowed_group_ids = Column(JSONArray, default=[])  # Groups who can view/use the tool
+    # Granular permissions (only for specific_users type)
+    can_edit_user_ids = Column(JSONArray, default=[])  # Users who can edit the tool
+    can_delete_user_ids = Column(JSONArray, default=[])  # Users who can delete the tool
+    can_execute_user_ids = Column(JSONArray, default=[])  # Users who can use tool in agents
+    # Legacy fields (kept for backward compatibility)
+    is_public = Column(Boolean, default=False)  # Deprecated: Use access_type='public'
+    shared_with_user_ids = Column(JSONArray, default=[])  # Deprecated: Use allowed_user_ids
+    shared_with_role_ids = Column(JSONArray, default=[])  # Deprecated
     
     # Usage Tracking
     usage_count = Column(Integer, default=0)
@@ -111,8 +121,15 @@ class Tool(Base):
             'output_schema': self.output_schema,
             'is_active': self.is_active,
             'is_validated': self.is_validated,
-            'is_public': self.is_public,
+            # Access Control
             'owner_id': str(self.owner_id),
+            'access_type': self.access_type,
+            'allowed_user_ids': self.allowed_user_ids or [],
+            'allowed_group_ids': self.allowed_group_ids or [],
+            'can_edit_user_ids': self.can_edit_user_ids or [],
+            'can_delete_user_ids': self.can_delete_user_ids or [],
+            'can_execute_user_ids': self.can_execute_user_ids or [],
+            'is_public': self.is_public,  # Legacy
             'usage_count': self.usage_count,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }

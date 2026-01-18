@@ -1054,6 +1054,14 @@ class ToolConfiguration(BaseModel):
     scraped_pages: List[Dict[str, Any]] = []
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     is_active: bool = True
+    # Access Control
+    owner_id: str = ""  # User who created/owns the tool
+    access_type: str = "owner_only"  # 'owner_only', 'authenticated', 'specific_users', 'public'
+    allowed_user_ids: List[str] = []  # Users who can view/use the tool
+    allowed_group_ids: List[str] = []  # Groups who can view/use the tool
+    can_edit_user_ids: List[str] = []  # Users who can edit the tool
+    can_delete_user_ids: List[str] = []  # Users who can delete the tool
+    can_execute_user_ids: List[str] = []  # Users who can use tool in agents
 
 
 class TaskInstruction(BaseModel):
@@ -1242,6 +1250,13 @@ class CreateToolRequest(BaseModel):
     description: str = ""
     config: Dict[str, Any] = {}
     api_config: Optional[Dict[str, Any]] = None
+    # Access Control
+    access_type: str = "owner_only"  # 'owner_only', 'authenticated', 'specific_users', 'public'
+    allowed_user_ids: List[str] = []
+    allowed_group_ids: List[str] = []
+    can_edit_user_ids: List[str] = []
+    can_delete_user_ids: List[str] = []
+    can_execute_user_ids: List[str] = []
 
 
 class ScrapeRequest(BaseModel):
@@ -7673,17 +7688,118 @@ async def reindex_knowledge_base():
 
 
 # Tool Endpoints
+
+def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: List[str] = None, permission: str = 'view') -> bool:
+    """
+    Check if a user has access to a tool.
+    
+    permission: 'view', 'edit', 'delete', 'execute'
+    """
+    if not user_id:
+        return tool.access_type == 'public'
+    
+    # Owner always has full access
+    if tool.owner_id == user_id:
+        return True
+    
+    # Check by access_type
+    if tool.access_type == 'public':
+        if permission == 'view' or permission == 'execute':
+            return True
+    
+    if tool.access_type == 'authenticated':
+        if permission == 'view' or permission == 'execute':
+            return True
+    
+    if tool.access_type == 'specific_users':
+        # Check if user is in allowed list
+        if user_id in (tool.allowed_user_ids or []):
+            if permission == 'view':
+                return True
+            if permission == 'edit' and user_id in (tool.can_edit_user_ids or []):
+                return True
+            if permission == 'delete' and user_id in (tool.can_delete_user_ids or []):
+                return True
+            if permission == 'execute' and user_id in (tool.can_execute_user_ids or []):
+                return True
+        
+        # Check if any of user's groups are in allowed list
+        if user_group_ids:
+            for group_id in user_group_ids:
+                if group_id in (tool.allowed_group_ids or []):
+                    if permission == 'view':
+                        return True
+                    # For group-based access, check group-level permissions (can be extended)
+                    if permission == 'execute':
+                        return True
+    
+    return False
+
+
+@app.get("/api/tools/accessible")
+async def list_accessible_tools(current_user: User = Depends(get_current_user)):
+    """
+    Get tools that the current user can USE in agents (execute permission).
+    Used when selecting tools for an agent.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    user_id = str(current_user.id)
+    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    
+    accessible_tools = []
+    
+    for tool in app_state.tools.values():
+        if check_tool_access(tool, user_id, user_group_ids, 'execute'):
+            accessible_tools.append({
+                **tool.dict(),
+                "documents_count": len([d for d in app_state.documents.values() if d.tool_id == tool.id]),
+                "pages_count": len([p for p in app_state.scraped_pages.values() if p.tool_id == tool.id]),
+                "can_edit": check_tool_access(tool, user_id, user_group_ids, 'edit'),
+                "can_delete": check_tool_access(tool, user_id, user_group_ids, 'delete'),
+                "is_owner": tool.owner_id == user_id
+            })
+    
+    return {"tools": accessible_tools}
+
+
 @app.get("/api/tools")
-async def list_tools():
-    return {"tools": [{**t.dict(), "documents_count": len([d for d in app_state.documents.values() if d.tool_id == t.id]), "pages_count": len([p for p in app_state.scraped_pages.values() if p.tool_id == t.id])} for t in app_state.tools.values()]}
+async def list_tools(current_user: User = Depends(get_current_user_optional)):
+    """
+    List tools - with ownership-based filtering.
+    Users only see tools they own or have been granted view access to.
+    """
+    user_id = str(current_user.id) if current_user else None
+    user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
+    
+    viewable_tools = []
+    
+    for tool in app_state.tools.values():
+        # Check if user can view this tool
+        if check_tool_access(tool, user_id, user_group_ids, 'view'):
+            viewable_tools.append({
+                **tool.dict(),
+                "documents_count": len([d for d in app_state.documents.values() if d.tool_id == tool.id]),
+                "pages_count": len([p for p in app_state.scraped_pages.values() if p.tool_id == tool.id]),
+                "can_edit": check_tool_access(tool, user_id, user_group_ids, 'edit'),
+                "can_delete": check_tool_access(tool, user_id, user_group_ids, 'delete'),
+                "can_execute": check_tool_access(tool, user_id, user_group_ids, 'execute'),
+                "is_owner": tool.owner_id == user_id if user_id else False
+            })
+    
+    return {"tools": viewable_tools}
 
 
 @app.post("/api/tools")
-async def create_tool(request: CreateToolRequest):
+async def create_tool(request: CreateToolRequest, current_user: User = Depends(get_current_user_optional)):
     # Check for duplicate name
     existing_names = [t.name.lower() for t in app_state.tools.values()]
     if request.name.lower() in existing_names:
         raise HTTPException(400, f"A tool with name '{request.name}' already exists. Please use a unique name.")
+    
+    # Get owner_id from current user
+    owner_id = str(current_user.id) if current_user else "system"
     
     api_config = None
     kb_config = None
@@ -7726,7 +7842,15 @@ async def create_tool(request: CreateToolRequest):
         description=request.description, 
         config=request.config, 
         api_config=api_config,
-        kb_config=kb_config
+        kb_config=kb_config,
+        # Access Control
+        owner_id=owner_id,
+        access_type=request.access_type,
+        allowed_user_ids=request.allowed_user_ids,
+        allowed_group_ids=request.allowed_group_ids,
+        can_edit_user_ids=request.can_edit_user_ids,
+        can_delete_user_ids=request.can_delete_user_ids,
+        can_execute_user_ids=request.can_execute_user_ids
     )
     
     # Set collection_id if not provided
@@ -8021,9 +8145,17 @@ async def update_table_entry(tool_id: str, source: str, request: Dict[str, Any])
 
 
 @app.delete("/api/tools/{tool_id}")
-async def delete_tool(tool_id: str):
+async def delete_tool(tool_id: str, current_user: User = Depends(get_current_user_optional)):
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
+    
+    tool = app_state.tools[tool_id]
+    user_id = str(current_user.id) if current_user else None
+    user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
+    
+    # Check if user can delete this tool
+    if not check_tool_access(tool, user_id, user_group_ids, 'delete'):
+        raise HTTPException(403, "You don't have permission to delete this tool")
     
     # Check if tool is being used by any agent
     agents_using_tool = []
@@ -9777,17 +9909,31 @@ class UpdateToolRequest(BaseModel):
     api_config: Optional[Dict[str, Any]] = None
     config: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
+    # Access Control
+    access_type: Optional[str] = None
+    allowed_user_ids: Optional[List[str]] = None
+    allowed_group_ids: Optional[List[str]] = None
+    can_edit_user_ids: Optional[List[str]] = None
+    can_delete_user_ids: Optional[List[str]] = None
+    can_execute_user_ids: Optional[List[str]] = None
 
 
 
 
 @app.put("/api/tools/{tool_id}")
-async def update_tool(tool_id: str, request: UpdateToolRequest):
+async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: User = Depends(get_current_user_optional)):
     """Update tool configuration with automatic re-processing"""
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
     
     tool = app_state.tools[tool_id]
+    user_id = str(current_user.id) if current_user else None
+    user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
+    
+    # Check if user can edit this tool
+    if not check_tool_access(tool, user_id, user_group_ids, 'edit'):
+        raise HTTPException(403, "You don't have permission to edit this tool")
+    
     old_config = tool.config.copy() if tool.config else {}
     
     # Update basic fields
@@ -9799,6 +9945,22 @@ async def update_tool(tool_id: str, request: UpdateToolRequest):
         tool.is_active = request.is_active
     if request.api_config is not None:
         tool.api_config = APIConfig(**request.api_config)
+    
+    # Update access control fields (only owner can change these)
+    is_owner = tool.owner_id == user_id
+    if is_owner:
+        if request.access_type is not None:
+            tool.access_type = request.access_type
+        if request.allowed_user_ids is not None:
+            tool.allowed_user_ids = request.allowed_user_ids
+        if request.allowed_group_ids is not None:
+            tool.allowed_group_ids = request.allowed_group_ids
+        if request.can_edit_user_ids is not None:
+            tool.can_edit_user_ids = request.can_edit_user_ids
+        if request.can_delete_user_ids is not None:
+            tool.can_delete_user_ids = request.can_delete_user_ids
+        if request.can_execute_user_ids is not None:
+            tool.can_execute_user_ids = request.can_execute_user_ids
     
     reprocess_result = None
     reprocess_action = None
