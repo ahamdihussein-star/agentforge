@@ -10390,16 +10390,56 @@ Option 3"></textarea>
             if (Array.isArray(taskPerms)) {
                 // Build a lookup by task NAME (since IDs change!)
                 const deniedByTaskName = {};
+                
+                // Also collect ALL entity IDs that have any task restrictions
+                const allDeniedEntityIds = new Set();
+                
                 taskPerms.forEach(tp => {
                     const taskName = tp.task_name;
                     const deniedIds = tp.denied_entity_ids || [];
                     if (taskName && deniedIds.length > 0) {
                         deniedByTaskName[taskName] = deniedIds;
+                        deniedIds.forEach(id => allDeniedEntityIds.add(id));
                         console.log(`📥 Task "${taskName}": denied_entity_ids=[${deniedIds.join(', ')}]`);
                     }
                 });
                 
                 console.log('📥 Denied tasks by name:', JSON.stringify(deniedByTaskName, null, 2));
+                console.log('📥 All entity IDs with restrictions:', [...allDeniedEntityIds]);
+                
+                // Ensure selectedEntities includes ALL entities that have task restrictions
+                // This fixes the issue where denied entities weren't showing in the UI
+                allDeniedEntityIds.forEach(entityId => {
+                    const alreadySelected = wizardAccessState.selectedEntities.some(e => e.id === entityId);
+                    if (!alreadySelected) {
+                        // Try to find entity details from allUsers/allGroups
+                        let entityName = `Entity ${entityId.slice(0, 8)}...`;
+                        let entityType = 'user';
+                        let icon = '👤';
+                        
+                        const user = wizardAccessState.allUsers.find(u => u.id === entityId);
+                        if (user) {
+                            entityName = user.name || user.email || entityName;
+                            entityType = 'user';
+                            icon = '👤';
+                        } else {
+                            const group = wizardAccessState.allGroups.find(g => g.id === entityId);
+                            if (group) {
+                                entityName = group.name || entityName;
+                                entityType = 'group';
+                                icon = '👥';
+                            }
+                        }
+                        
+                        console.log(`📥 Adding missing entity to selection: ${entityName} (${entityId})`);
+                        wizardAccessState.selectedEntities.push({
+                            id: entityId,
+                            type: entityType,
+                            name: entityName,
+                            icon: icon
+                        });
+                    }
+                });
                 
                 // Now apply to CURRENT wizard tasks (which have new IDs)
                 const currentTasks = wizard.tasks || [];
