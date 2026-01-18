@@ -16934,7 +16934,7 @@ Option 3"></textarea>
             }
         }
         
-        // Edit tool - opens modal with existing data
+        // Edit tool - opens wizard with existing data
         let editingToolId = null;
         
         async function editTool(id) {
@@ -16948,111 +16948,30 @@ Option 3"></textarea>
                 
                 editingToolId = id;
                 
-                // Reset and open modal
-                showToolModal();
-                
-                // Set the tool type
-                toolType = tool.type;
-                
-                // Hide categories, show form
-                document.getElementById('tool-categories').classList.add('hidden');
-                document.getElementById('tool-form').classList.remove('hidden');
-                
-                // Show the correct form type
-                const formTypes = ['knowledge','document','website','api','database','spreadsheet','email','slack','calendar','crm','webhook','websearch','imagegen','code','calculator','storage','stt','tts','translate','ocr','hitl'];
-                formTypes.forEach(t => {
-                    const el = document.getElementById('form-' + t);
-                    if (el) el.classList.add('hidden');
-                });
-                
-                const selectedForm = document.getElementById('form-' + tool.type);
-                if (selectedForm) selectedForm.classList.remove('hidden');
+                // Open modal and start wizard for this tool type
+                showModal('modal-tool');
+                startWizard(tool.type);
                 
                 // Update modal title to show we're editing
-                const modalTitle = document.querySelector('#modal-tool h2');
-                if (modalTitle) {
-                    modalTitle.innerHTML = `✏️ Edit Tool: ${escHtml(tool.name)}`;
+                const titleEl = document.getElementById('wizard-title');
+                if (titleEl) {
+                    titleEl.textContent = `Edit: ${tool.name}`;
+                }
+                const subtitleEl = document.getElementById('wizard-subtitle');
+                if (subtitleEl) {
+                    subtitleEl.textContent = 'Editing existing tool';
                 }
                 
-                // Pre-fill common fields based on tool type
-                switch(tool.type) {
-                    case 'api':
-                        document.getElementById('api-name').value = tool.name || '';
-                        document.getElementById('api-desc').value = tool.description || '';
-                        document.getElementById('api-endpoint').value = tool.config?.endpoint || '';
-                        document.getElementById('api-method').value = tool.config?.method || 'GET';
-                        // Load headers
-                        const headersEl = document.getElementById('api-headers');
-                        if (headersEl && tool.config?.headers) {
-                            headersEl.value = JSON.stringify(tool.config.headers, null, 2);
-                        }
-                        // Load parameters
-                        if (tool.config?.parameters && Array.isArray(tool.config.parameters)) {
-                            apiParams = tool.config.parameters;
-                            renderApiParams();
-                        }
-                        break;
-                        
-                    case 'document':
-                    case 'knowledge':
-                        document.getElementById('kb-name').value = tool.name || '';
-                        document.getElementById('kb-desc').value = tool.description || '';
-                        break;
-                        
-                    case 'website':
-                        const wsName = document.getElementById('ws-name') || document.getElementById('website-name');
-                        const wsDesc = document.getElementById('ws-desc') || document.getElementById('website-desc');
-                        const wsUrl = document.getElementById('ws-url') || document.getElementById('website-url');
-                        if (wsName) wsName.value = tool.name || '';
-                        if (wsDesc) wsDesc.value = tool.description || '';
-                        if (wsUrl) wsUrl.value = tool.config?.url || tool.config?.base_url || '';
-                        break;
-                        
-                    case 'database':
-                        const dbName = document.getElementById('db-name');
-                        const dbDesc = document.getElementById('db-desc');
-                        const dbHost = document.getElementById('db-host');
-                        const dbPort = document.getElementById('db-port');
-                        const dbUser = document.getElementById('db-user');
-                        const dbDatabase = document.getElementById('db-database');
-                        if (dbName) dbName.value = tool.name || '';
-                        if (dbDesc) dbDesc.value = tool.description || '';
-                        if (dbHost) dbHost.value = tool.config?.host || '';
-                        if (dbPort) dbPort.value = tool.config?.port || '';
-                        if (dbUser) dbUser.value = tool.config?.user || '';
-                        if (dbDatabase) dbDatabase.value = tool.config?.database || '';
-                        break;
-                        
-                    case 'email':
-                        const emailName = document.getElementById('email-name');
-                        const emailDesc = document.getElementById('email-desc');
-                        if (emailName) emailName.value = tool.name || '';
-                        if (emailDesc) emailDesc.value = tool.description || '';
-                        break;
-                        
-                    case 'webhook':
-                        const webhookName = document.getElementById('webhook-name');
-                        const webhookDesc = document.getElementById('webhook-desc');
-                        const webhookUrl = document.getElementById('webhook-url');
-                        if (webhookName) webhookName.value = tool.name || '';
-                        if (webhookDesc) webhookDesc.value = tool.description || '';
-                        if (webhookUrl) webhookUrl.value = tool.config?.url || '';
-                        break;
-                        
-                    case 'websearch':
-                        const wsearchName = document.getElementById('websearch-name');
-                        const wsearchDesc = document.getElementById('websearch-desc');
-                        if (wsearchName) wsearchName.value = tool.name || '';
-                        if (wsearchDesc) wsearchDesc.value = tool.description || '';
-                        break;
-                        
-                    default:
-                        // Try generic name/desc fields
-                        const genericName = document.getElementById(tool.type + '-name');
-                        const genericDesc = document.getElementById(tool.type + '-desc');
-                        if (genericName) genericName.value = tool.name || '';
-                        if (genericDesc) genericDesc.value = tool.description || '';
-                }
+                // Pre-fill common fields (wiz-name and wiz-desc are used in step 1)
+                setTimeout(() => {
+                    const nameEl = document.getElementById('wiz-name');
+                    const descEl = document.getElementById('wiz-desc');
+                    if (nameEl) nameEl.value = tool.name || '';
+                    if (descEl) descEl.value = tool.description || '';
+                    
+                    // Pre-fill type-specific config in step 2
+                    prefillToolConfig(tool);
+                }, 100);
                 
                 showToast('Editing: ' + tool.name, 'info');
                 
@@ -17062,30 +16981,102 @@ Option 3"></textarea>
             }
         }
         
-        // Helper to render API params in edit mode
-        function renderApiParams() {
-            const container = document.getElementById('api-params-list');
-            if (!container) return;
+        // Pre-fill tool-specific configuration fields
+        function prefillToolConfig(tool) {
+            const config = tool.config || {};
             
-            container.innerHTML = apiParams.map((p, i) => `
-                <div class="flex gap-2 items-center bg-gray-800 p-2 rounded">
-                    <input type="text" value="${escHtml(p.name || '')}" placeholder="Name" 
-                           class="flex-1 bg-gray-700 rounded px-2 py-1 text-sm"
-                           onchange="apiParams[${i}].name = this.value">
-                    <select class="bg-gray-700 rounded px-2 py-1 text-sm"
-                            onchange="apiParams[${i}].type = this.value">
-                        <option value="string" ${p.type === 'string' ? 'selected' : ''}>String</option>
-                        <option value="number" ${p.type === 'number' ? 'selected' : ''}>Number</option>
-                        <option value="boolean" ${p.type === 'boolean' ? 'selected' : ''}>Boolean</option>
-                    </select>
-                    <label class="flex items-center gap-1 text-sm">
-                        <input type="checkbox" ${p.required ? 'checked' : ''} 
-                               onchange="apiParams[${i}].required = this.checked">
-                        Required
-                    </label>
-                    <button onclick="apiParams.splice(${i}, 1); renderApiParams()" class="text-red-400 hover:text-red-300">✕</button>
-                </div>
-            `).join('');
+            switch(tool.type) {
+                case 'api':
+                    // API tool fields
+                    const apiBase = document.getElementById('api-base-url');
+                    const apiPath = document.getElementById('api-path');
+                    const apiMethod = document.getElementById('api-method');
+                    const apiAuth = document.getElementById('api-auth');
+                    const apiAuthValue = document.getElementById('api-auth-value');
+                    
+                    if (apiBase) apiBase.value = config.base_url || '';
+                    if (apiPath) apiPath.value = config.endpoint_path || config.endpoint || '';
+                    if (apiMethod) apiMethod.value = config.http_method || config.method || 'GET';
+                    if (apiAuth) apiAuth.value = config.auth_type || 'none';
+                    if (apiAuthValue) apiAuthValue.value = config.auth_value || '';
+                    
+                    // Load parameters
+                    if (config.input_parameters && Array.isArray(config.input_parameters)) {
+                        apiParams = config.input_parameters.map(p => ({
+                            id: Date.now() + Math.random(),
+                            name: p.name || '',
+                            description: p.description || '',
+                            data_type: p.data_type || 'string',
+                            required: p.required || false,
+                            location: p.location || 'query'
+                        }));
+                    }
+                    break;
+                    
+                case 'website':
+                    const webUrl = document.getElementById('web-url');
+                    const webRecursive = document.getElementById('web-recursive');
+                    const webMax = document.getElementById('web-max');
+                    if (webUrl) webUrl.value = config.url || config.base_url || '';
+                    if (webRecursive) webRecursive.checked = config.recursive || false;
+                    if (webMax) webMax.value = config.max_pages || 10;
+                    break;
+                    
+                case 'database':
+                    const dbType = document.getElementById('db-type');
+                    const dbHost = document.getElementById('db-host');
+                    const dbPort = document.getElementById('db-port');
+                    const dbUser = document.getElementById('db-user');
+                    const dbPass = document.getElementById('db-password');
+                    const dbName = document.getElementById('db-database');
+                    
+                    if (dbType) dbType.value = config.db_type || 'postgresql';
+                    if (dbHost) dbHost.value = config.host || '';
+                    if (dbPort) dbPort.value = config.port || '';
+                    if (dbUser) dbUser.value = config.user || config.username || '';
+                    if (dbPass) dbPass.value = config.password || '';
+                    if (dbName) dbName.value = config.database || '';
+                    break;
+                    
+                case 'knowledge':
+                    const kbCollection = document.getElementById('kb-collection');
+                    const kbChunkSize = document.getElementById('kb-chunk-size');
+                    const kbTopK = document.getElementById('kb-top-k');
+                    
+                    if (kbCollection) kbCollection.value = config.collection_id || '';
+                    if (kbChunkSize) kbChunkSize.value = config.chunk_size || 1000;
+                    if (kbTopK) kbTopK.value = config.top_k || 5;
+                    break;
+                    
+                case 'email':
+                    const emailProvider = document.getElementById('email-provider');
+                    const smtpHost = document.getElementById('smtp-host');
+                    const smtpPort = document.getElementById('smtp-port');
+                    
+                    if (emailProvider) emailProvider.value = config.provider || 'smtp';
+                    if (smtpHost) smtpHost.value = config.smtp_host || config.host || '';
+                    if (smtpPort) smtpPort.value = config.smtp_port || config.port || '';
+                    break;
+                    
+                case 'webhook':
+                    const webhookUrl = document.getElementById('webhook-url');
+                    const webhookMethod = document.getElementById('webhook-method');
+                    
+                    if (webhookUrl) webhookUrl.value = config.url || '';
+                    if (webhookMethod) webhookMethod.value = config.method || 'POST';
+                    break;
+                    
+                case 'websearch':
+                    const searchProvider = document.getElementById('search-provider');
+                    const searchKey = document.getElementById('search-api-key');
+                    
+                    if (searchProvider) searchProvider.value = config.provider || 'tavily';
+                    if (searchKey) searchKey.value = config.api_key || '';
+                    break;
+                    
+                default:
+                    console.log('No specific config prefill for type:', tool.type);
+            }
         }
         
         function toggleToolMenu(toolId) {
@@ -18136,31 +18127,16 @@ async function saveToolEdit() {
 
         function showToolModal(){
             // Reset editing state when opening for new tool
-            if (!editingToolId) {
-                editingToolId = null;
-            }
+            editingToolId = null;
             
-            toolType=null;uploadedFiles=[];apiStep=1;apiParams=[];configMode='manual';
-            document.querySelectorAll('.tool-type').forEach(b=>b.classList.remove('border-purple-500'));
-            document.getElementById('tool-form').classList.add('hidden');
-            // Hide all form types
-            const formTypes = ['knowledge','document','website','api','database','spreadsheet','email','slack','calendar','crm','webhook','websearch','imagegen','code','calculator','storage','stt','tts','translate','ocr','hitl'];
-            formTypes.forEach(t => {
-                const el = document.getElementById('form-'+t);
-                if(el) el.classList.add('hidden');
-            });
-            document.getElementById('tool-categories').classList.remove('hidden');
-            document.getElementById('doc-files-list').innerHTML='';
-            const paramsList = document.getElementById('api-params-list');
-            if(paramsList) paramsList.innerHTML='';
-            const testResult = document.getElementById('api-test-result');
-            if(testResult) testResult.classList.add('hidden');
+            // Reset wizard state
+            resetWizard();
             
-            // Update modal title based on mode
-            const modalTitle = document.querySelector('#modal-tool h2');
-            if (modalTitle && !editingToolId) {
-                modalTitle.innerHTML = '🔧 Create New Tool';
-            }
+            // Update modal title
+            const titleEl = document.getElementById('wizard-title');
+            if (titleEl) titleEl.textContent = 'Create Tool';
+            const subtitleEl = document.getElementById('wizard-subtitle');
+            if (subtitleEl) subtitleEl.textContent = 'Select a tool type';
             
             showModal('modal-tool');
         }
