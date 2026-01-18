@@ -6791,11 +6791,11 @@ Option 3"></textarea>
                                     <span class="text-xs text-gray-400 font-normal">(Optional)</span>
                                 </h6>
                                 <p class="text-xs text-gray-400 mb-3 p-2 rounded" style="background: #374151;">
-                                    💡 <strong>Tip:</strong> Groups get <strong>view + execute</strong> access by default. 
-                                    To give specific users <strong>edit or delete</strong> permissions, first add them individually above, then select them here.
+                                    💡 <strong>Tip:</strong> By default, selected users/groups can <strong>view + execute</strong>. 
+                                    Use the options below to grant <strong>edit or delete</strong> permissions to specific users or entire groups.
                                 </p>
                                 <div id="granular-permissions-empty" class="hidden text-center py-4 text-gray-400 text-sm">
-                                    No individual users selected. Add users above to set granular permissions.
+                                    No users or groups selected above. Add them first to set granular permissions.
                                 </div>
                                 <div id="granular-permissions-grid" class="grid md:grid-cols-3 gap-4">
                                     <!-- Can Edit -->
@@ -20762,16 +20762,18 @@ function updateToolAccessHiddenSelects() {
     }
 }
 
-// Update permission dropdowns with selected users only
+// Update permission dropdowns with selected users AND groups
 function updateToolPermissionDropdowns() {
     const selectedUsers = toolAccessSelected.users;
+    const selectedGroups = toolAccessSelected.groups;
+    const allSelected = [...selectedUsers, ...selectedGroups];
     const selects = ['tool-can-edit-users', 'tool-can-delete-users', 'tool-can-execute-users'];
     
-    // Show/hide empty message and grid based on whether users are selected
+    // Show/hide empty message and grid based on whether anything is selected
     const emptyMsg = document.getElementById('granular-permissions-empty');
     const grid = document.getElementById('granular-permissions-grid');
     
-    if (selectedUsers.length === 0) {
+    if (allSelected.length === 0) {
         if (emptyMsg) emptyMsg.classList.remove('hidden');
         if (grid) grid.classList.add('hidden');
     } else {
@@ -20783,54 +20785,85 @@ function updateToolPermissionDropdowns() {
         const select = document.getElementById(id);
         if (select) {
             const currentValues = Array.from(select.selectedOptions).map(o => o.value);
-            select.innerHTML = `<option value="">+ Add user</option>` + selectedUsers.map(u => 
-                `<option value="${u.id}" ${currentValues.includes(u.id) ? 'selected' : ''}>${u.name}</option>`
-            ).join('');
+            let options = `<option value="">+ Add user/group</option>`;
+            
+            // Add users
+            if (selectedUsers.length > 0) {
+                options += `<optgroup label="👤 Users">`;
+                options += selectedUsers.map(u => 
+                    `<option value="user:${u.id}" ${currentValues.includes('user:'+u.id) ? 'selected' : ''}>${u.name}</option>`
+                ).join('');
+                options += `</optgroup>`;
+            }
+            
+            // Add groups
+            if (selectedGroups.length > 0) {
+                options += `<optgroup label="👥 Groups">`;
+                options += selectedGroups.map(g => 
+                    `<option value="group:${g.id}" ${currentValues.includes('group:'+g.id) ? 'selected' : ''}>${g.name}</option>`
+                ).join('');
+                options += `</optgroup>`;
+            }
+            
+            select.innerHTML = options;
         }
     });
 }
 
-// Add permission chip
+// Add permission chip (handles both users and groups)
 function addToolPermissionChip(permType, selectEl) {
-    const userId = selectEl.value;
-    if (!userId) return;
+    const value = selectEl.value;
+    if (!value) return;
     
-    const user = toolAccessSelected.users.find(u => u.id === userId);
-    if (!user) return;
+    // Parse value format: "user:id" or "group:id"
+    const [type, id] = value.split(':');
+    
+    let entity;
+    if (type === 'user') {
+        entity = toolAccessSelected.users.find(u => u.id === id);
+    } else if (type === 'group') {
+        entity = toolAccessSelected.groups.find(g => g.id === id);
+    }
+    
+    if (!entity) return;
+    
+    // Add entity type for chip display
+    const chipData = { ...entity, entityType: type };
     
     // Add to chips if not already there
-    if (!toolPermissionChips[permType].some(u => u.id === userId)) {
-        toolPermissionChips[permType].push(user);
+    if (!toolPermissionChips[permType].some(e => e.id === id && e.entityType === type)) {
+        toolPermissionChips[permType].push(chipData);
     }
     
     // Update chip display
-    const chipsContainer = document.getElementById(`tool-can-${permType}-chips`);
-    if (chipsContainer) {
-        chipsContainer.innerHTML = toolPermissionChips[permType].map(u => `
-            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs text-white" style="background: #7c3aed;">
-                ${u.name}
-                <button onclick="removeToolPermissionChip('${permType}', '${u.id}')" class="hover:text-red-300 ml-1">×</button>
-            </span>
-        `).join('');
-    }
+    updatePermissionChipsDisplay(permType);
     
     // Reset select
     selectEl.value = '';
 }
 
-// Remove permission chip
-function removeToolPermissionChip(permType, userId) {
-    toolPermissionChips[permType] = toolPermissionChips[permType].filter(u => u.id !== userId);
-    
+// Update permission chips display
+function updatePermissionChipsDisplay(permType) {
     const chipsContainer = document.getElementById(`tool-can-${permType}-chips`);
     if (chipsContainer) {
-        chipsContainer.innerHTML = toolPermissionChips[permType].map(u => `
-            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs text-white" style="background: #7c3aed;">
-                ${u.name}
-                <button onclick="removeToolPermissionChip('${permType}', '${u.id}')" class="hover:text-red-300 ml-1">×</button>
+        chipsContainer.innerHTML = toolPermissionChips[permType].map(e => `
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs text-white" 
+                  style="background: ${e.entityType === 'group' ? '#2563eb' : '#7c3aed'};">
+                ${e.entityType === 'group' ? '👥' : '👤'} ${e.name}
+                <button onclick="removeToolPermissionChip('${permType}', '${e.id}', '${e.entityType}')" class="hover:text-red-300 ml-1">×</button>
             </span>
         `).join('');
     }
+}
+
+// Remove permission chip
+function removeToolPermissionChip(permType, entityId, entityType) {
+    toolPermissionChips[permType] = toolPermissionChips[permType].filter(e => 
+        !(e.id === entityId && e.entityType === entityType)
+    );
+    
+    // Update display
+    updatePermissionChipsDisplay(permType);
 }
 
 // Close search results when clicking outside
