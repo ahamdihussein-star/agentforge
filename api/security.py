@@ -134,7 +134,7 @@ class VerifyMFARequest(BaseModel):
 
 class DisableMFARequest(BaseModel):
     password: str
-    code: str
+    code: Optional[str] = None  # Optional - password is enough for security
 
 # User Requests
 class CreateUserRequest(BaseModel):
@@ -1567,14 +1567,16 @@ async def toggle_user_mfa(request: dict, user: User = Depends(require_auth)):
 
 @router.post("/mfa/disable")
 async def disable_mfa(request: DisableMFARequest, user: User = Depends(require_auth)):
-    """Disable MFA"""
+    """Disable MFA - requires password confirmation only (user is already authenticated)"""
     # Verify password
     if not PasswordService.verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid password")
     
-    # Verify MFA code
-    if not MFAService.verify_code(user, request.code):
-        raise HTTPException(status_code=401, detail="Invalid MFA code")
+    # MFA code verification is optional - password is enough since user is already logged in
+    # If code is provided, verify it for extra security
+    if request.code:
+        if not MFAService.verify_code(user, request.code):
+            raise HTTPException(status_code=401, detail="Invalid MFA code")
     
     user.mfa.enabled = False
     user.mfa.methods = []

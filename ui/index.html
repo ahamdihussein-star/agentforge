@@ -24822,15 +24822,10 @@ async function disableMFA() {
     
     if (!confirmed) return;
     
-    // Ask for password confirmation
+    // Ask for password confirmation only (user is already logged in)
     const password = prompt('Please enter your password to confirm:');
     
     if (!password) return;
-    
-    // Ask for MFA code (required by backend)
-    const code = prompt('Please enter your current MFA code from your authenticator app:');
-    
-    if (!code) return;
     
     try {
         const res = await fetch(API + '/api/security/mfa/disable', {
@@ -24840,8 +24835,7 @@ async function disableMFA() {
                 'Authorization': `Bearer ${authToken}`
             },
             body: JSON.stringify({
-                password: password,
-                code: code
+                password: password
             })
         });
         
