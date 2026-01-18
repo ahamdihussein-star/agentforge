@@ -6798,9 +6798,10 @@ Option 3"></textarea>
 
                 <!-- Test Section -->
                 <div class="card rounded-lg p-4">
-                    <h5 class="font-medium mb-3">🧪 Test Connection</h5>
-                    <button onclick="testWizTool()" class="btn-secondary w-full py-2 rounded-lg mb-3">Run Test</button>
-                    <div id="wiz-test-result" class="hidden p-3 rounded-lg text-sm"></div>
+                    <h5 class="font-medium mb-3">🧪 Test Tool (Optional)</h5>
+                    <p class="text-xs text-gray-400 mb-3">Verify that your configuration works correctly before saving.</p>
+                    <button onclick="testWizTool()" class="btn-secondary w-full py-2 rounded-lg mb-3">▶ Run Test</button>
+                    <div id="wiz-test-result" class="hidden p-3 rounded-lg text-sm max-h-48 overflow-y-auto"></div>
                 </div>
 
                 <div class="bg-green-900/30 border border-green-600/50 rounded-lg p-3 text-sm" id="step4-ready-msg">
@@ -20951,14 +20952,21 @@ async function wizCreate() {
         
         // Reset editing state
         const savedToolId = toolId;
+        const wasEditing = isEditing;
         editingToolId = null;
         
         setTimeout(() => {
             hideProgressModal();
             closeWizard();
             loadTools();
-            // Navigate to tool detail
-            if (savedToolId) viewTool(savedToolId);
+            
+            // For new tools: show the tool detail page
+            // For updates: just show success toast and stay on tools list
+            if (savedToolId && !wasEditing) {
+                viewTool(savedToolId);
+            } else {
+                showToast('Tool updated successfully!', 'success');
+            }
         }, 500);
         
     } catch (e) {
