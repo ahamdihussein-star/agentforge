@@ -94,34 +94,40 @@ class ToolService:
                 else:
                     owner_uuid = created_by_uuid
                 
-                # Create new tool
-                db_tool = DBTool(
-                    id=tool_id,
-                    org_id=org_uuid,
-                    type=tool_data.get('type', 'api'),
-                    name=tool_data.get('name', ''),
-                    description=tool_data.get('description', ''),
-                    config=tool_data.get('config', {}),
-                    api_config=tool_data.get('api_config'),
-                    database_config=tool_data.get('database_config'),
-                    rag_config=tool_data.get('rag_config'),
-                    email_config=tool_data.get('email_config'),
-                    slack_config=tool_data.get('slack_config'),
-                    input_parameters=tool_data.get('input_parameters', []),
-                    output_schema=tool_data.get('output_schema'),
-                    is_active=tool_data.get('is_active', True),
-                    is_public=tool_data.get('is_public', False),
-                    owner_id=owner_uuid,
-                    # Access Control
-                    access_type=tool_data.get('access_type', 'owner_only'),
-                    allowed_user_ids=tool_data.get('allowed_user_ids', []),
-                    allowed_group_ids=tool_data.get('allowed_group_ids', []),
-                    can_edit_user_ids=tool_data.get('can_edit_user_ids', []),
-                    can_delete_user_ids=tool_data.get('can_delete_user_ids', []),
-                    can_execute_user_ids=tool_data.get('can_execute_user_ids', []),
-                    created_by=created_by_uuid,
-                    extra_metadata=tool_data.get('extra_metadata', {})
-                )
+                # Create new tool - use kwargs to handle missing columns gracefully
+                tool_kwargs = {
+                    'id': tool_id,
+                    'org_id': org_uuid,
+                    'type': tool_data.get('type', 'api'),
+                    'name': tool_data.get('name', ''),
+                    'description': tool_data.get('description', ''),
+                    'config': tool_data.get('config', {}),
+                    'api_config': tool_data.get('api_config'),
+                    'database_config': tool_data.get('database_config'),
+                    'rag_config': tool_data.get('rag_config'),
+                    'email_config': tool_data.get('email_config'),
+                    'slack_config': tool_data.get('slack_config'),
+                    'input_parameters': tool_data.get('input_parameters', []),
+                    'output_schema': tool_data.get('output_schema'),
+                    'is_active': tool_data.get('is_active', True),
+                    'is_public': tool_data.get('is_public', False),
+                    'owner_id': owner_uuid,
+                    'created_by': created_by_uuid,
+                    'extra_metadata': tool_data.get('extra_metadata', {})
+                }
+                
+                # Add access control fields if they exist in the model
+                try:
+                    tool_kwargs['access_type'] = tool_data.get('access_type', 'owner_only')
+                    tool_kwargs['allowed_user_ids'] = tool_data.get('allowed_user_ids', [])
+                    tool_kwargs['allowed_group_ids'] = tool_data.get('allowed_group_ids', [])
+                    tool_kwargs['can_edit_user_ids'] = tool_data.get('can_edit_user_ids', [])
+                    tool_kwargs['can_delete_user_ids'] = tool_data.get('can_delete_user_ids', [])
+                    tool_kwargs['can_execute_user_ids'] = tool_data.get('can_execute_user_ids', [])
+                except Exception as e:
+                    print(f"⚠️  Access control fields not available: {e}")
+                
+                db_tool = DBTool(**tool_kwargs)
                 
                 db.add(db_tool)
                 db.commit()

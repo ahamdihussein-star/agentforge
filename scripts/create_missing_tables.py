@@ -264,18 +264,28 @@ def add_missing_columns():
     
     columns_to_add = [
         ("conversations", "is_test", "BOOLEAN DEFAULT FALSE"),
-        # Tool access control columns
+        # Tool access control columns (use JSON for PostgreSQL compatibility)
+        ("tools", "owner_id", "UUID"),  # Might be missing for old tools
         ("tools", "access_type", "VARCHAR(30) DEFAULT 'owner_only'"),
-        ("tools", "allowed_user_ids", "JSONB DEFAULT '[]'::jsonb"),
-        ("tools", "allowed_group_ids", "JSONB DEFAULT '[]'::jsonb"),
-        ("tools", "can_edit_user_ids", "JSONB DEFAULT '[]'::jsonb"),
-        ("tools", "can_delete_user_ids", "JSONB DEFAULT '[]'::jsonb"),
-        ("tools", "can_execute_user_ids", "JSONB DEFAULT '[]'::jsonb"),
+        ("tools", "allowed_user_ids", "JSONB DEFAULT '[]'"),
+        ("tools", "allowed_group_ids", "JSONB DEFAULT '[]'"),
+        ("tools", "can_edit_user_ids", "JSONB DEFAULT '[]'"),
+        ("tools", "can_delete_user_ids", "JSONB DEFAULT '[]'"),
+        ("tools", "can_execute_user_ids", "JSONB DEFAULT '[]'"),
     ]
     
     with engine.connect() as conn:
         for table_name, column_name, column_def in columns_to_add:
             try:
+                # Check if table exists first
+                table_check = conn.execute(text(f"""
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_name = '{table_name}'
+                """))
+                if not table_check.fetchone():
+                    print(f"   ⏭️  Table '{table_name}' doesn't exist, skipping")
+                    continue
+                
                 # Check if column exists
                 result = conn.execute(text(f"""
                     SELECT column_name FROM information_schema.columns 
@@ -285,12 +295,17 @@ def add_missing_columns():
                     print(f"   ✅ {table_name}.{column_name} already exists")
                 else:
                     conn.execute(text(f"""
-                        ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}
+                        ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {column_name} {column_def}
                     """))
                     conn.commit()
                     print(f"   ✅ Added {table_name}.{column_name}")
             except Exception as e:
                 print(f"   ⚠️  Error adding {table_name}.{column_name}: {e}")
+                # Try to continue with other columns
+                try:
+                    conn.rollback()
+                except:
+                    pass
     
     print()
 
