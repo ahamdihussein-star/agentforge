@@ -13176,27 +13176,76 @@ Option 3"></textarea>
                 if (permRes.ok) {
                     userPermissions = await permRes.json();
                     console.log('🔐 User permissions for agent:', userPermissions);
-                } else {
-                    console.warn('⚠️ Could not fetch permissions, assuming full access');
+                } else if (permRes.status === 403) {
+                    // User doesn't have any access - show read-only
+                    console.warn('⚠️ No management access to this agent - read-only mode');
                     userPermissions = {
-                        is_owner: true,
-                        permissions: ['full_admin'],
-                        can_edit_basic_info: true,
-                        can_edit_personality: true,
-                        can_edit_model: true,
-                        can_edit_guardrails: true,
-                        can_manage_tasks: true,
-                        can_manage_tools: true,
-                        can_manage_knowledge: true,
-                        can_manage_access: true,
-                        can_manage_task_permissions: true,
-                        can_publish: true,
-                        can_delete: true
+                        is_owner: false,
+                        is_admin: false,
+                        permissions: [],
+                        can_edit_basic_info: false,
+                        can_edit_personality: false,
+                        can_edit_model: false,
+                        can_edit_guardrails: false,
+                        can_manage_tasks: false,
+                        can_manage_tools: false,
+                        can_manage_knowledge: false,
+                        can_manage_access: false,
+                        can_manage_task_permissions: false,
+                        can_publish: false,
+                        can_delete: false,
+                        _read_only: true
                     };
+                    showToast('You have read-only access to this agent', 'warning');
+                } else {
+                    console.warn('⚠️ Could not fetch permissions, response:', permRes.status);
+                    // Still try to use agent owner/created_by to determine if owner
+                    const currentUserId = currentUser?.id || '';
+                    const isOwner = agent.owner_id === currentUserId || agent.created_by === currentUserId;
+                    if (isOwner) {
+                        userPermissions = {
+                            is_owner: true,
+                            permissions: ['full_admin'],
+                            can_edit_basic_info: true,
+                            can_edit_personality: true,
+                            can_edit_model: true,
+                            can_edit_guardrails: true,
+                            can_manage_tasks: true,
+                            can_manage_tools: true,
+                            can_manage_knowledge: true,
+                            can_manage_access: true,
+                            can_manage_task_permissions: true,
+                            can_publish: true,
+                            can_delete: true
+                        };
+                    } else {
+                        // Not owner and can't get permissions - read-only
+                        userPermissions = {
+                            is_owner: false,
+                            permissions: [],
+                            can_edit_basic_info: false,
+                            can_edit_personality: false,
+                            can_edit_model: false,
+                            can_edit_guardrails: false,
+                            can_manage_tasks: false,
+                            can_manage_tools: false,
+                            can_manage_knowledge: false,
+                            can_manage_access: false,
+                            can_manage_task_permissions: false,
+                            can_publish: false,
+                            can_delete: false,
+                            _read_only: true
+                        };
+                    }
                 }
             } catch (e) {
                 console.error('❌ Error fetching permissions:', e);
-                userPermissions = { is_owner: true, permissions: ['full_admin'] };
+                // Check if owner from agent data
+                const currentUserId = currentUser?.id || '';
+                const isOwner = agent.owner_id === currentUserId || agent.created_by === currentUserId;
+                userPermissions = isOwner 
+                    ? { is_owner: true, permissions: ['full_admin'], can_edit_basic_info: true, can_edit_personality: true, can_edit_model: true, can_edit_guardrails: true, can_manage_tasks: true, can_manage_tools: true, can_manage_knowledge: true, can_manage_access: true, can_manage_task_permissions: true, can_publish: true, can_delete: true }
+                    : { is_owner: false, permissions: [], can_edit_basic_info: false, can_edit_personality: false, can_edit_model: false, can_edit_guardrails: false, can_manage_tasks: false, can_manage_tools: false, can_manage_knowledge: false, can_manage_access: false, can_manage_task_permissions: false, can_publish: false, can_delete: false, _read_only: true };
             }
             
             // First, show the create page WITHOUT resetting
@@ -13294,6 +13343,21 @@ Option 3"></textarea>
             if (!perms) return;
             
             console.log('🔐 Applying permission restrictions:', perms);
+            console.log('🔐 Permissions details:', {
+                is_owner: perms.is_owner,
+                is_admin: perms.is_admin,
+                permissions: perms.permissions,
+                can_edit_basic_info: perms.can_edit_basic_info,
+                can_edit_personality: perms.can_edit_personality,
+                can_edit_model: perms.can_edit_model,
+                can_edit_guardrails: perms.can_edit_guardrails,
+                can_manage_tasks: perms.can_manage_tasks,
+                can_manage_tools: perms.can_manage_tools,
+                can_manage_knowledge: perms.can_manage_knowledge,
+                can_manage_access: perms.can_manage_access,
+                can_publish: perms.can_publish,
+                can_delete: perms.can_delete
+            });
             
             // Helper function to disable a section
             const disableSection = (selector, message = 'You do not have permission to edit this section') => {
@@ -13438,14 +13502,39 @@ Option 3"></textarea>
                 });
             }
             
-            // Step 5: Access Control
+            // Step 5: Access Control (End-User Access)
             if (!perms.can_manage_access) {
-                console.log('🔒 Restricting: Access Control');
+                console.log('🔒 Restricting: Access Control (End-User)');
                 const accessSection = document.getElementById('wizard-access-section');
                 if (accessSection) {
                     accessSection.style.opacity = '0.6';
                     accessSection.style.pointerEvents = 'none';
                 }
+                // Also disable access type cards
+                document.querySelectorAll('.access-type-card').forEach(card => {
+                    card.style.pointerEvents = 'none';
+                    card.style.opacity = '0.5';
+                });
+                // Disable user/group search for access
+                const userSearchInputs = document.querySelectorAll('#wizard-user-search, #wizard-group-search');
+                userSearchInputs.forEach(input => {
+                    if (input) input.disabled = true;
+                });
+            }
+            
+            // Step 5: Task Permissions
+            if (!perms.can_manage_task_permissions) {
+                console.log('🔒 Restricting: Task Permissions');
+                const taskPermSection = document.getElementById('wizard-task-permissions-section');
+                if (taskPermSection) {
+                    taskPermSection.style.opacity = '0.6';
+                    taskPermSection.style.pointerEvents = 'none';
+                }
+                // Disable task-level access toggles
+                document.querySelectorAll('[data-task-permission]').forEach(el => {
+                    el.style.pointerEvents = 'none';
+                    el.style.opacity = '0.5';
+                });
             }
             
             // Step 5: Delegation (Admin Management)
@@ -13455,14 +13544,17 @@ Option 3"></textarea>
                 if (delegateSection) {
                     delegateSection.style.opacity = '0.6';
                     delegateSection.style.pointerEvents = 'none';
-                    // Add overlay message
-                    const overlay = document.createElement('div');
-                    overlay.innerHTML = `
-                        <div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:1rem;margin-bottom:1rem;text-align:center;">
-                            <span style="color:#ff6b6b;">🔒 Only the agent owner can delegate admin access</span>
-                        </div>
-                    `;
-                    delegateSection.insertBefore(overlay, delegateSection.firstChild);
+                    // Add overlay message if not already added
+                    if (!delegateSection.querySelector('.no-permission-overlay-msg')) {
+                        const overlay = document.createElement('div');
+                        overlay.className = 'no-permission-overlay-msg';
+                        overlay.innerHTML = `
+                            <div style="background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:8px;padding:1rem;margin-bottom:1rem;text-align:center;">
+                                <span style="color:#ff6b6b;">🔒 Only the agent owner can delegate admin access</span>
+                            </div>
+                        `;
+                        delegateSection.insertBefore(overlay, delegateSection.firstChild);
+                    }
                 }
             }
             
@@ -13489,21 +13581,73 @@ Option 3"></textarea>
             }
             
             // Show a banner indicating restricted access
-            if (!perms.is_owner) {
+            if (!perms.is_owner && perms.is_admin) {
+                const wizardHeader = document.querySelector('.wizard-header, #page-create > div:first-child');
+                if (wizardHeader && !document.getElementById('restricted-access-banner')) {
+                    // Build list of granted permissions
+                    const grantedPerms = [];
+                    if (perms.can_edit_basic_info) grantedPerms.push('📝 Basic Info');
+                    if (perms.can_edit_personality) grantedPerms.push('🎭 Personality');
+                    if (perms.can_edit_model) grantedPerms.push('🤖 Model');
+                    if (perms.can_edit_guardrails) grantedPerms.push('🛡️ Guardrails');
+                    if (perms.can_manage_tasks) grantedPerms.push('📋 Tasks');
+                    if (perms.can_manage_tools) grantedPerms.push('🔧 Tools');
+                    if (perms.can_manage_knowledge) grantedPerms.push('📚 Knowledge');
+                    if (perms.can_manage_access) grantedPerms.push('🔐 Access Control');
+                    if (perms.can_publish) grantedPerms.push('🚀 Publish');
+                    if (perms.can_delete) grantedPerms.push('🗑️ Delete');
+                    
+                    const banner = document.createElement('div');
+                    banner.id = 'restricted-access-banner';
+                    banner.innerHTML = `
+                        <div style="background:linear-gradient(135deg, rgba(255,193,7,0.15), rgba(255,152,0,0.15));border:1px solid rgba(255,193,7,0.4);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;">
+                                <span style="font-size:1.25rem;">🔐</span>
+                                <div style="flex:1;">
+                                    <div style="color:#ffc107;font-weight:600;">Delegated Admin Access</div>
+                                    <div style="color:#888;font-size:0.85rem;">You can only edit sections you have permission for.</div>
+                                </div>
+                            </div>
+                            ${grantedPerms.length > 0 ? `
+                            <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid rgba(255,193,7,0.2);">
+                                <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">Your permissions:</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:0.25rem;">
+                                    ${grantedPerms.map(p => `<span style="font-size:0.7rem;padding:2px 6px;background:rgba(255,193,7,0.2);border-radius:4px;color:#ffc107;">${p}</span>`).join('')}
+                                </div>
+                            </div>
+                            ` : `
+                            <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid rgba(255,193,7,0.2);">
+                                <div style="font-size:0.85rem;color:#ff6b6b;">⚠️ You have no edit permissions - read-only access</div>
+                            </div>
+                            `}
+                        </div>
+                    `;
+                    wizardHeader.parentNode.insertBefore(banner, wizardHeader);
+                }
+            } else if (perms._read_only) {
+                // Read-only mode banner
                 const wizardHeader = document.querySelector('.wizard-header, #page-create > div:first-child');
                 if (wizardHeader && !document.getElementById('restricted-access-banner')) {
                     const banner = document.createElement('div');
                     banner.id = 'restricted-access-banner';
                     banner.innerHTML = `
-                        <div style="background:linear-gradient(135deg, rgba(255,193,7,0.15), rgba(255,152,0,0.15));border:1px solid rgba(255,193,7,0.4);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;">
-                            <span style="font-size:1.25rem;">🔐</span>
+                        <div style="background:linear-gradient(135deg, rgba(255,107,107,0.15), rgba(255,87,87,0.15));border:1px solid rgba(255,107,107,0.4);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;">
+                            <span style="font-size:1.25rem;">🔒</span>
                             <div>
-                                <div style="color:#ffc107;font-weight:600;">Delegated Admin Access</div>
-                                <div style="color:#888;font-size:0.85rem;">You have limited permissions on this agent. Some sections may be restricted.</div>
+                                <div style="color:#ff6b6b;font-weight:600;">Read-Only Access</div>
+                                <div style="color:#888;font-size:0.85rem;">You can view this agent but cannot make changes.</div>
                             </div>
                         </div>
                     `;
                     wizardHeader.parentNode.insertBefore(banner, wizardHeader);
+                    
+                    // Disable ALL inputs in read-only mode
+                    document.querySelectorAll('#page-create input, #page-create textarea, #page-create select, #page-create button').forEach(el => {
+                        if (!el.classList.contains('nav-btn')) {
+                            el.disabled = true;
+                            el.style.opacity = '0.5';
+                        }
+                    });
                 }
             }
         }

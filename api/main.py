@@ -4730,16 +4730,20 @@ async def get_my_agent_permissions(agent_id: str, current_user: User = Depends(g
                     
                     if user_is_admin or group_is_admin:
                         is_admin = True
-                        permissions = ['full_admin']  # Default
+                        permissions = []  # Start with empty - must get from config
                         
                         # Get specific permissions from description
                         if admin_policy.description:
                             try:
                                 admin_config = json.loads(admin_policy.description)
+                                print(f"🔐 [MY-PERMS] Parsed admin_config: {admin_config}")
+                                print(f"🔐 [MY-PERMS] Looking for user_id: {user_id}")
+                                
                                 if user_id in admin_config:
                                     entity_config = admin_config[user_id]
+                                    print(f"🔐 [MY-PERMS] Found user config: {entity_config}")
                                     if isinstance(entity_config, dict):
-                                        permissions = entity_config.get('permissions', ['full_admin'])
+                                        permissions = entity_config.get('permissions', [])
                                         denied_task_names = entity_config.get('denied_task_names', [])
                                     elif isinstance(entity_config, list):
                                         permissions = entity_config
@@ -4748,16 +4752,23 @@ async def get_my_agent_permissions(agent_id: str, current_user: User = Depends(g
                                     for group_id in user_group_ids:
                                         if group_id in admin_config:
                                             entity_config = admin_config[group_id]
+                                            print(f"🔐 [MY-PERMS] Found group config for {group_id}: {entity_config}")
                                             if isinstance(entity_config, dict):
-                                                permissions = entity_config.get('permissions', ['full_admin'])
+                                                permissions = entity_config.get('permissions', [])
                                                 denied_task_names = entity_config.get('denied_task_names', [])
                                             elif isinstance(entity_config, list):
                                                 permissions = entity_config
                                             break
                             except Exception as e:
                                 print(f"⚠️  Error parsing admin permissions: {e}")
+                        else:
+                            # No description stored yet - means legacy data
+                            print(f"⚠️  [MY-PERMS] No description in policy, defaulting to full_admin (legacy)")
+                            permissions = ['full_admin']
         except Exception as e:
             print(f"⚠️  Error checking admin permissions: {e}")
+    
+    print(f"🔐 [MY-PERMS] Final permissions for user {user_id[:8]}...: {permissions}")
     
     if not is_admin:
         raise HTTPException(403, "You don't have management access to this agent")
@@ -6959,18 +6970,36 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
                     group_is_admin = any(g in (admin_policy.group_ids or []) for g in user_group_ids)
                     
                     if user_is_admin or group_is_admin:
-                        permissions = ['full_admin']  # Default
+                        permissions = []  # Start with empty - must get from config
                         if admin_policy.description:
                             try:
                                 admin_config = json.loads(admin_policy.description)
+                                print(f"🔐 [UPDATE] Parsed admin_config: {admin_config}")
+                                
                                 if user_id in admin_config:
                                     entity_config = admin_config[user_id]
+                                    print(f"🔐 [UPDATE] Found user config: {entity_config}")
                                     if isinstance(entity_config, dict):
-                                        permissions = entity_config.get('permissions', ['full_admin'])
+                                        permissions = entity_config.get('permissions', [])
                                     elif isinstance(entity_config, list):
                                         permissions = entity_config
-                            except:
-                                pass
+                                else:
+                                    # Check groups
+                                    for group_id in user_group_ids:
+                                        if group_id in admin_config:
+                                            entity_config = admin_config[group_id]
+                                            if isinstance(entity_config, dict):
+                                                permissions = entity_config.get('permissions', [])
+                                            elif isinstance(entity_config, list):
+                                                permissions = entity_config
+                                            break
+                            except Exception as parse_err:
+                                print(f"⚠️  [UPDATE] Error parsing permissions: {parse_err}")
+                        else:
+                            # No description = legacy data, grant full_admin
+                            print(f"⚠️  [UPDATE] No description in policy, defaulting to full_admin (legacy)")
+                            permissions = ['full_admin']
+                        print(f"🔐 [UPDATE] Final permissions: {permissions}")
         except Exception as e:
             print(f"⚠️  Error checking update permissions: {e}")
     

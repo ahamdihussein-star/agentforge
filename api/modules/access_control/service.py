@@ -900,7 +900,7 @@ class AccessControlService:
             # User is a delegated admin - now check specific permissions
             # Get permissions from description (JSON format) if available
             # Format: {entity_id: {permissions: [], denied_task_names: []}}
-            granted_permissions = ['full_admin']  # Default - delegated admins get full_admin by default
+            granted_permissions = []  # Start with empty - MUST be set from config
             
             try:
                 if admin_policy.description:
@@ -910,8 +910,9 @@ class AccessControlService:
                     
                     if user_id in admin_config:
                         entity_config = admin_config[user_id]
+                        print(f"   📋 [CHECK_PERM] Found user config: {entity_config}")
                         if isinstance(entity_config, dict):
-                            granted_permissions = entity_config.get('permissions', ['full_admin'])
+                            granted_permissions = entity_config.get('permissions', [])
                         elif isinstance(entity_config, list):
                             granted_permissions = entity_config
                     else:
@@ -919,15 +920,18 @@ class AccessControlService:
                         for group_id in user_group_ids:
                             if group_id in admin_config:
                                 entity_config = admin_config[group_id]
+                                print(f"   📋 [CHECK_PERM] Found group config for {group_id}: {entity_config}")
                                 if isinstance(entity_config, dict):
-                                    granted_permissions = entity_config.get('permissions', ['full_admin'])
+                                    granted_permissions = entity_config.get('permissions', [])
                                 elif isinstance(entity_config, list):
                                     granted_permissions = entity_config
                                 break
                 else:
-                    print(f"   📋 [CHECK_PERM] No description, using default full_admin")
+                    # No description = legacy data, grant full_admin
+                    print(f"   📋 [CHECK_PERM] No description (legacy data), using default full_admin")
+                    granted_permissions = ['full_admin']
             except Exception as e:
-                print(f"⚠️ Failed to parse admin permissions: {e}, using default full_admin")
+                print(f"⚠️ Failed to parse admin permissions: {e}")
             
             print(f"   📋 [CHECK_PERM] granted_permissions={granted_permissions}, checking for permission='{permission}'")
             
