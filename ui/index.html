@@ -6773,13 +6773,13 @@ Option 3"></textarea>
                 </div>
             </div>
 
-            <!-- Step 4: Test & Create -->
+            <!-- Step 4: Test & Create/Update -->
             <div id="wiz-step-4" class="hidden space-y-4">
                 <div class="flex items-center gap-3 p-3 rounded-lg border border-green-700 bg-green-900/20">
                     <span class="text-2xl">🧪</span>
                     <div>
-                        <h4 class="font-semibold">Test & Create</h4>
-                        <p class="text-xs text-gray-400">Step 4 of 4: Verify and finish</p>
+                        <h4 class="font-semibold" id="step4-title">Test & Create</h4>
+                        <p class="text-xs text-gray-400" id="step4-subtitle">Verify and finish</p>
                     </div>
                 </div>
 
@@ -6803,8 +6803,8 @@ Option 3"></textarea>
                     <div id="wiz-test-result" class="hidden p-3 rounded-lg text-sm"></div>
                 </div>
 
-                <div class="bg-green-900/30 border border-green-600/50 rounded-lg p-3 text-sm">
-                    <p class="text-green-300">✅ Ready to create! Click "Create Tool" to finish.</p>
+                <div class="bg-green-900/30 border border-green-600/50 rounded-lg p-3 text-sm" id="step4-ready-msg">
+                    <p class="text-green-300">✅ Ready! Click the button below to finish.</p>
                 </div>
             </div>
 
@@ -20324,7 +20324,7 @@ const toolMeta = {
     spreadsheet: { icon: '📊', name: 'Spreadsheet', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
     storage: { icon: '☁️', name: 'Cloud Storage', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
     // Integrations
-    api: { icon: '🔗', name: 'REST API', hasConfig: true, hasSources: false, steps: ['Basics', 'Endpoint', 'Params', 'Test'] },
+    api: { icon: '🔗', name: 'REST API', hasConfig: true, hasSources: false, steps: ['Basics', 'Configuration', 'Test'] },
     email: { icon: '📧', name: 'Email', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
     slack: { icon: '💬', name: 'Messaging', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
     calendar: { icon: '📅', name: 'Calendar', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
@@ -20518,6 +20518,16 @@ function showStep(step) {
     // Update summary if on last step
     if (step === wizState.maxSteps) {
         updateSummary();
+        
+        // Update step 4 title based on editing state
+        const step4Title = document.getElementById('step4-title');
+        const step4Subtitle = document.getElementById('step4-subtitle');
+        if (step4Title) {
+            step4Title.textContent = editingToolId ? 'Test & Update' : 'Test & Create';
+        }
+        if (step4Subtitle) {
+            step4Subtitle.textContent = editingToolId ? 'Verify changes and update' : 'Verify and finish';
+        }
     }
 }
 
@@ -20566,17 +20576,28 @@ function updateButtons() {
     const btnSkip = document.getElementById('btn-skip');
     const btnCreate = document.getElementById('btn-create');
     
-    // Back button
+    // Back button - always show if not on step 1
     btnBack.style.display = wizState.step > 1 ? 'block' : 'none';
     
     // Skip button (only on sources step)
     const actualStep = getActualStep(wizState.step);
     btnSkip.classList.toggle('hidden', actualStep !== 3);
     
-    // Next vs Create
+    // Next vs Create/Update
     if (wizState.step >= wizState.maxSteps) {
         btnNext.classList.add('hidden');
         btnCreate.classList.remove('hidden');
+        
+        // Update button text based on editing state
+        if (editingToolId) {
+            btnCreate.textContent = '✓ Update Tool';
+            btnCreate.classList.remove('bg-green-600', 'hover:bg-green-700');
+            btnCreate.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        } else {
+            btnCreate.textContent = '✓ Create Tool';
+            btnCreate.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            btnCreate.classList.add('bg-green-600', 'hover:bg-green-700');
+        }
     } else {
         btnNext.classList.remove('hidden');
         btnCreate.classList.add('hidden');
