@@ -17559,87 +17559,339 @@ async function loadEditAccessControl(tool) {
     // Set access type
     const accessType = tool.access_type || 'owner_only';
     selectedToolAccessType = accessType;
-    selectToolAccessType(accessType);
     
-    if (accessType === 'specific_users') {
-        // Reset selections
-        toolAccessSelected = { users: [], groups: [] };
-        toolPermissionChips = { edit: [], delete: [], execute: [] };
-        
-        // Populate allowed users
-        if (tool.allowed_user_ids && tool.allowed_user_ids.length > 0) {
-            tool.allowed_user_ids.forEach(userId => {
-                const user = toolAccessData.users.find(u => u.id === userId);
-                if (user) {
-                    toolAccessSelected.users.push({
-                        id: user.id,
-                        name: user.full_name || user.email || user.username,
-                        email: user.email || '',
-                        type: 'user'
-                    });
-                }
-            });
-        }
-        
-        // Populate allowed groups
-        if (tool.allowed_group_ids && tool.allowed_group_ids.length > 0) {
-            tool.allowed_group_ids.forEach(groupId => {
-                const group = toolAccessData.groups.find(g => g.id === groupId);
-                if (group) {
-                    toolAccessSelected.groups.push({
-                        id: group.id,
-                        name: group.name,
-                        email: '',
-                        type: 'group'
-                    });
-                }
-            });
-        }
-        
-        // Populate granular permissions (can_edit, can_delete, can_execute)
-        // These can be "user_id" or "group:group_id"
-        ['edit', 'delete', 'execute'].forEach(permType => {
-            const field = `can_${permType}_user_ids`;
-            if (tool[field] && tool[field].length > 0) {
-                tool[field].forEach(id => {
-                    if (id.startsWith('group:')) {
-                        const groupId = id.replace('group:', '');
-                        const group = toolAccessData.groups.find(g => g.id === groupId);
-                        if (group) {
-                            toolPermissionChips[permType].push({
-                                id: group.id,
-                                name: group.name,
-                                entityType: 'group'
-                            });
-                        }
-                    } else {
-                        const user = toolAccessData.users.find(u => u.id === id);
-                        if (user) {
-                            toolPermissionChips[permType].push({
-                                id: user.id,
-                                name: user.full_name || user.email || user.username,
-                                entityType: 'user'
-                            });
-                        }
-                    }
+    // Reset selections
+    toolAccessSelected = { users: [], groups: [] };
+    toolPermissionChips = { edit: [], delete: [], execute: [] };
+    
+    // Populate allowed users
+    if (tool.allowed_user_ids && tool.allowed_user_ids.length > 0) {
+        tool.allowed_user_ids.forEach(userId => {
+            const user = toolAccessData.users.find(u => u.id === userId);
+            if (user) {
+                toolAccessSelected.users.push({
+                    id: user.id,
+                    name: user.full_name || user.email || user.username,
+                    email: user.email || '',
+                    type: 'user'
                 });
             }
         });
-        
-        // Update UI
-        updateToolAccessChips();
-        updateToolPermissionDropdowns();
-        ['edit', 'delete', 'execute'].forEach(permType => {
-            updatePermissionChipsDisplay(permType);
+    }
+    
+    // Populate allowed groups
+    if (tool.allowed_group_ids && tool.allowed_group_ids.length > 0) {
+        tool.allowed_group_ids.forEach(groupId => {
+            const group = toolAccessData.groups.find(g => g.id === groupId);
+            if (group) {
+                toolAccessSelected.groups.push({
+                    id: group.id,
+                    name: group.name,
+                    email: '',
+                    type: 'group'
+                });
+            }
         });
     }
     
-    console.log('📋 [LOAD EDIT] Access Control loaded:', {
-        accessType,
-        users: toolAccessSelected.users.length,
-        groups: toolAccessSelected.groups.length,
-        editPerms: toolPermissionChips.edit.length
+    // Populate granular permissions
+    ['edit', 'delete', 'execute'].forEach(permType => {
+        const field = `can_${permType}_user_ids`;
+        if (tool[field] && tool[field].length > 0) {
+            tool[field].forEach(id => {
+                if (id.startsWith('group:')) {
+                    const groupId = id.replace('group:', '');
+                    const group = toolAccessData.groups.find(g => g.id === groupId);
+                    if (group) {
+                        toolPermissionChips[permType].push({ id: group.id, name: group.name, entityType: 'group' });
+                    }
+                } else {
+                    const user = toolAccessData.users.find(u => u.id === id);
+                    if (user) {
+                        toolPermissionChips[permType].push({ id: user.id, name: user.full_name || user.email || user.username, entityType: 'user' });
+                    }
+                }
+            });
+        }
     });
+    
+    // Update Edit Panel UI
+    const isOwner = tool.is_owner === true;
+    updateEditAccessUI(accessType, isOwner);
+    
+    console.log('📋 [LOAD EDIT] Access Control loaded:', { accessType, users: toolAccessSelected.users.length, groups: toolAccessSelected.groups.length, editPerms: toolPermissionChips.edit.length, isOwner });
+}
+
+// Update the Edit Panel Access UI
+function updateEditAccessUI(accessType, isOwner) {
+    const typeLabels = {
+        'owner_only': { icon: '👤', label: 'Owner Only', desc: 'Only you can access this tool' },
+        'authenticated': { icon: '🏢', label: 'All Logged In Users', desc: 'Any authenticated user can access' },
+        'specific_users': { icon: '👥', label: 'Specific Users & Groups', desc: 'Only selected users/groups can access' },
+        'public': { icon: '🌍', label: 'Public', desc: 'Everyone can access this tool' }
+    };
+    
+    const typeInfo = typeLabels[accessType] || typeLabels['owner_only'];
+    
+    // Show access type display
+    const typeDisplay = document.getElementById('edit-access-type-display');
+    if (typeDisplay) {
+        typeDisplay.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">${typeInfo.icon}</span>
+                <div>
+                    <div class="font-medium" style="color: #1f2937;">${typeInfo.label}</div>
+                    <div class="text-xs" style="color: #6b7280;">${typeInfo.desc}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Show/hide entities section for specific_users
+    const entitiesSection = document.getElementById('edit-access-entities');
+    if (entitiesSection) {
+        if (accessType === 'specific_users') {
+            entitiesSection.classList.remove('hidden');
+            
+            // Show chips
+            const chipsDisplay = document.getElementById('edit-access-chips-display');
+            if (chipsDisplay) {
+                const allSelected = [...toolAccessSelected.users, ...toolAccessSelected.groups];
+                if (allSelected.length === 0) {
+                    chipsDisplay.innerHTML = '<span class="text-sm italic" style="color: #9ca3af;">No users or groups assigned</span>';
+                } else {
+                    chipsDisplay.innerHTML = allSelected.map(e => `
+                        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs" 
+                              style="background: ${e.type === 'group' ? '#dbeafe' : '#ede9fe'}; color: ${e.type === 'group' ? '#1e40af' : '#5b21b6'}; border: 1px solid ${e.type === 'group' ? '#93c5fd' : '#c4b5fd'};">
+                            ${e.type === 'group' ? '👥' : '👤'} ${e.name}
+                        </span>
+                    `).join('');
+                }
+            }
+            
+            // Show granular permissions
+            ['edit', 'delete'].forEach(permType => {
+                const permDiv = document.getElementById(`edit-perm-${permType}`);
+                const permList = document.getElementById(`edit-perm-${permType}-list`);
+                if (permDiv && permList) {
+                    const perms = toolPermissionChips[permType];
+                    if (perms.length > 0) {
+                        permDiv.classList.remove('hidden');
+                        permList.textContent = perms.map(p => `${p.entityType === 'group' ? '👥' : '👤'} ${p.name}`).join(', ');
+                    } else {
+                        permDiv.classList.add('hidden');
+                    }
+                }
+            });
+        } else {
+            entitiesSection.classList.add('hidden');
+        }
+    }
+    
+    // Show owner controls or readonly message
+    const ownerControls = document.getElementById('edit-access-owner-controls');
+    const readonlyMsg = document.getElementById('edit-access-readonly-msg');
+    
+    if (isOwner) {
+        if (ownerControls) ownerControls.classList.remove('hidden');
+        if (readonlyMsg) readonlyMsg.classList.add('hidden');
+        
+        // Update access type cards
+        document.querySelectorAll('.edit-access-card').forEach(card => {
+            const cardType = card.dataset.access;
+            const check = card.querySelector('.tool-access-check');
+            if (cardType === accessType) {
+                card.style.borderColor = '#7c3aed';
+                card.style.background = '#f3e8ff';
+                if (check) check.classList.remove('hidden');
+            } else {
+                card.style.borderColor = '#d1d5db';
+                card.style.background = '#ffffff';
+                if (check) check.classList.add('hidden');
+            }
+        });
+        
+        // Show/hide specific config
+        const specificConfig = document.getElementById('edit-specific-config');
+        if (specificConfig) {
+            if (accessType === 'specific_users') {
+                specificConfig.classList.remove('hidden');
+                updateEditSelectedChips();
+                updateEditPermDropdowns();
+            } else {
+                specificConfig.classList.add('hidden');
+            }
+        }
+    } else {
+        if (ownerControls) ownerControls.classList.add('hidden');
+        if (readonlyMsg) readonlyMsg.classList.remove('hidden');
+    }
+}
+
+// Select access type in edit panel
+function selectEditAccessType(accessType) {
+    selectedToolAccessType = accessType;
+    updateEditAccessUI(accessType, true);
+}
+
+// Filter search in edit panel
+function filterEditAccessSearch(query) {
+    const resultsDiv = document.getElementById('edit-access-results');
+    if (!resultsDiv) return;
+    
+    const q = query.toLowerCase();
+    let html = '';
+    
+    const filteredUsers = toolAccessData.users.filter(u => {
+        const name = (u.full_name || u.email || u.username || '').toLowerCase();
+        return name.includes(q) || (u.email || '').toLowerCase().includes(q);
+    }).slice(0, 5);
+    
+    const filteredGroups = toolAccessData.groups.filter(g => (g.name || '').toLowerCase().includes(q)).slice(0, 3);
+    
+    if (filteredUsers.length > 0) {
+        html += `<div class="px-3 py-1 text-xs font-medium" style="background: #e5e7eb; color: #374151;">👤 Users</div>`;
+        filteredUsers.forEach(u => {
+            const isSelected = toolAccessSelected.users.some(s => s.id === u.id);
+            const name = u.full_name || u.email || u.username;
+            html += `<div class="px-3 py-2 cursor-pointer flex items-center justify-between" style="background: ${isSelected ? '#ede9fe' : '#ffffff'};" 
+                         onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${isSelected ? '#ede9fe' : '#ffffff'}'"
+                         onclick="toggleEditAccessEntity('user', '${u.id}', '${name.replace(/'/g, "\\'")}', '${(u.email || '').replace(/'/g, "\\'")}')">
+                        <span class="text-sm" style="color: #1f2937;">${name}</span>
+                        ${isSelected ? '<span style="color: #059669;">✓</span>' : '<span style="color: #9ca3af;">+</span>'}
+                    </div>`;
+        });
+    }
+    
+    if (filteredGroups.length > 0) {
+        html += `<div class="px-3 py-1 text-xs font-medium" style="background: #e5e7eb; color: #374151;">👥 Groups</div>`;
+        filteredGroups.forEach(g => {
+            const isSelected = toolAccessSelected.groups.some(s => s.id === g.id);
+            html += `<div class="px-3 py-2 cursor-pointer flex items-center justify-between" style="background: ${isSelected ? '#dbeafe' : '#ffffff'};"
+                         onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='${isSelected ? '#dbeafe' : '#ffffff'}'"
+                         onclick="toggleEditAccessEntity('group', '${g.id}', '${(g.name || '').replace(/'/g, "\\'")}', '')">
+                        <span class="text-sm" style="color: #1f2937;">${g.name}</span>
+                        ${isSelected ? '<span style="color: #059669;">✓</span>' : '<span style="color: #9ca3af;">+</span>'}
+                    </div>`;
+        });
+    }
+    
+    if (!html) html = '<div class="px-3 py-4 text-center text-sm" style="color: #9ca3af;">No results</div>';
+    resultsDiv.innerHTML = html;
+}
+
+function showEditAccessResults() {
+    const resultsDiv = document.getElementById('edit-access-results');
+    if (resultsDiv) {
+        resultsDiv.classList.remove('hidden');
+        filterEditAccessSearch(document.getElementById('edit-access-search')?.value || '');
+    }
+}
+
+function toggleEditAccessEntity(type, id, name, email) {
+    const list = type === 'user' ? toolAccessSelected.users : toolAccessSelected.groups;
+    const idx = list.findIndex(e => e.id === id);
+    
+    if (idx >= 0) {
+        list.splice(idx, 1);
+    } else {
+        list.push({ id, name, email, type });
+    }
+    
+    updateEditSelectedChips();
+    updateEditPermDropdowns();
+    filterEditAccessSearch(document.getElementById('edit-access-search')?.value || '');
+}
+
+function updateEditSelectedChips() {
+    const container = document.getElementById('edit-selected-chips');
+    const countBadge = document.getElementById('edit-selected-count');
+    if (!container) return;
+    
+    const allSelected = [...toolAccessSelected.users, ...toolAccessSelected.groups];
+    
+    if (allSelected.length === 0) {
+        container.innerHTML = '<span class="text-sm italic" style="color: #9ca3af;">No users or groups selected</span>';
+    } else {
+        container.innerHTML = allSelected.map(e => `
+            <div class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs"
+                 style="background: ${e.type === 'group' ? '#dbeafe' : '#ede9fe'}; color: ${e.type === 'group' ? '#1e40af' : '#5b21b6'}; border: 1px solid ${e.type === 'group' ? '#93c5fd' : '#c4b5fd'};">
+                ${e.type === 'group' ? '👥' : '👤'} ${e.name}
+                <button onclick="toggleEditAccessEntity('${e.type}', '${e.id}', '', '')" style="margin-left: 4px;">×</button>
+            </div>
+        `).join('');
+    }
+    
+    if (countBadge) countBadge.textContent = allSelected.length;
+    
+    // Also update the summary view
+    const summaryChips = document.getElementById('edit-access-chips-display');
+    if (summaryChips && allSelected.length > 0) {
+        summaryChips.innerHTML = allSelected.map(e => `
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs" 
+                  style="background: ${e.type === 'group' ? '#dbeafe' : '#ede9fe'}; color: ${e.type === 'group' ? '#1e40af' : '#5b21b6'};">
+                ${e.type === 'group' ? '👥' : '👤'} ${e.name}
+            </span>
+        `).join('');
+    }
+}
+
+function updateEditPermDropdowns() {
+    const allSelected = [...toolAccessSelected.users, ...toolAccessSelected.groups];
+    
+    ['edit', 'delete'].forEach(permType => {
+        const select = document.getElementById(`edit-can-${permType}-select`);
+        const chipsDiv = document.getElementById(`edit-can-${permType}-chips`);
+        
+        if (select) {
+            let options = '<option value="">+ Add</option>';
+            if (toolAccessSelected.users.length > 0) {
+                options += '<optgroup label="👤 Users">';
+                options += toolAccessSelected.users.map(u => `<option value="user:${u.id}">${u.name}</option>`).join('');
+                options += '</optgroup>';
+            }
+            if (toolAccessSelected.groups.length > 0) {
+                options += '<optgroup label="👥 Groups">';
+                options += toolAccessSelected.groups.map(g => `<option value="group:${g.id}">${g.name}</option>`).join('');
+                options += '</optgroup>';
+            }
+            select.innerHTML = options;
+        }
+        
+        if (chipsDiv) {
+            chipsDiv.innerHTML = toolPermissionChips[permType].map(e => `
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs" 
+                      style="background: ${e.entityType === 'group' ? '#dbeafe' : '#ede9fe'}; color: ${e.entityType === 'group' ? '#1e40af' : '#5b21b6'};">
+                    ${e.entityType === 'group' ? '👥' : '👤'} ${e.name}
+                    <button onclick="removeEditPermChip('${permType}', '${e.id}', '${e.entityType}')" style="margin-left: 2px;">×</button>
+                </span>
+            `).join('');
+        }
+    });
+}
+
+function addEditPermChip(permType, selectEl) {
+    const value = selectEl.value;
+    if (!value) return;
+    
+    const [type, id] = value.split(':');
+    const entity = type === 'user' 
+        ? toolAccessSelected.users.find(u => u.id === id)
+        : toolAccessSelected.groups.find(g => g.id === id);
+    
+    if (!entity) return;
+    
+    if (!toolPermissionChips[permType].some(e => e.id === id && e.entityType === type)) {
+        toolPermissionChips[permType].push({ ...entity, entityType: type });
+    }
+    
+    updateEditPermDropdowns();
+    selectEl.value = '';
+}
+
+function removeEditPermChip(permType, entityId, entityType) {
+    toolPermissionChips[permType] = toolPermissionChips[permType].filter(e => !(e.id === entityId && e.entityType === entityType));
+    updateEditPermDropdowns();
 }
 
 function switchEditTab(tab) {
@@ -26536,65 +26788,134 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <!-- Access Control Tab -->
                 <div id="edit-tab-access" class="edit-tab-content hidden space-y-4">
-                    <div class="rounded-xl p-4" style="background: #f3f4f6; border: 1px solid #e5e7eb;">
-                        <h5 class="font-semibold mb-4" style="color: #1f2937;">🔐 Who Can Access This Tool?</h5>
-                        
-                        <!-- Access Type Radio Buttons -->
-                        <div class="grid grid-cols-2 gap-3 mb-4">
-                            <label class="access-type-card cursor-pointer p-3 rounded-lg border-2 transition-all" 
-                                   style="background: #ffffff; border-color: #d1d5db;"
-                                   onclick="selectToolAccessType('owner_only')">
-                                <input type="radio" name="edit-access-type" value="owner_only" class="hidden">
-                                <div class="flex items-center gap-2">
-                                    <span>👤</span>
-                                    <span class="font-medium" style="color: #1f2937;">Only Me</span>
-                                </div>
-                            </label>
-                            <label class="access-type-card cursor-pointer p-3 rounded-lg border-2 transition-all"
-                                   style="background: #ffffff; border-color: #d1d5db;"
-                                   onclick="selectToolAccessType('authenticated')">
-                                <input type="radio" name="edit-access-type" value="authenticated" class="hidden">
-                                <div class="flex items-center gap-2">
-                                    <span>🏢</span>
-                                    <span class="font-medium" style="color: #1f2937;">All Logged In</span>
-                                </div>
-                            </label>
-                            <label class="access-type-card cursor-pointer p-3 rounded-lg border-2 transition-all"
-                                   style="background: #ffffff; border-color: #d1d5db;"
-                                   onclick="selectToolAccessType('specific_users')">
-                                <input type="radio" name="edit-access-type" value="specific_users" class="hidden">
-                                <div class="flex items-center gap-2">
-                                    <span>👥</span>
-                                    <span class="font-medium" style="color: #1f2937;">Specific Users</span>
-                                </div>
-                            </label>
-                            <label class="access-type-card cursor-pointer p-3 rounded-lg border-2 transition-all"
-                                   style="background: #ffffff; border-color: #d1d5db;"
-                                   onclick="selectToolAccessType('public')">
-                                <input type="radio" name="edit-access-type" value="public" class="hidden">
-                                <div class="flex items-center gap-2">
-                                    <span>🌍</span>
-                                    <span class="font-medium" style="color: #1f2937;">Public</span>
-                                </div>
-                            </label>
+                    <!-- Current Permissions Summary -->
+                    <div id="edit-access-summary" class="rounded-xl p-4" style="background: #f3f4f6; border: 1px solid #e5e7eb;">
+                        <h5 class="font-semibold mb-3" style="color: #1f2937;">🔐 Current Access Control</h5>
+                        <div id="edit-access-type-display" class="p-3 rounded-lg mb-3" style="background: #ffffff; border: 1px solid #d1d5db;">
+                            <!-- Will be populated by JS -->
                         </div>
                         
-                        <!-- Specific Users Config (reuses the same elements from wizard) -->
-                        <div id="edit-specific-access-config" class="hidden">
-                            <p class="text-sm mb-3" style="color: #6b7280;">
-                                Use the search below to add users and groups. The same Access Control panel from tool creation is used here.
-                            </p>
-                            <button onclick="switchEditTab('basic'); document.getElementById('tool-specific-access-config')?.scrollIntoView({behavior: 'smooth'})" 
-                                    class="btn-secondary px-4 py-2 rounded-lg text-sm">
-                                Configure in Tool Wizard →
-                            </button>
+                        <!-- Selected Users/Groups -->
+                        <div id="edit-access-entities" class="hidden">
+                            <h6 class="text-sm font-medium mb-2" style="color: #374151;">👥 Allowed Users & Groups:</h6>
+                            <div id="edit-access-chips-display" class="flex flex-wrap gap-2 p-3 rounded-lg mb-3" style="background: #ffffff; border: 1px solid #d1d5db; min-height: 50px;">
+                                <!-- Chips will be populated by JS -->
+                            </div>
+                            
+                            <!-- Granular Permissions Display -->
+                            <div id="edit-granular-perms" class="space-y-2 mt-3">
+                                <div id="edit-perm-edit" class="hidden">
+                                    <span class="text-xs font-medium" style="color: #374151;">✏️ Can Edit:</span>
+                                    <span id="edit-perm-edit-list" class="text-xs" style="color: #5b21b6;"></span>
+                                </div>
+                                <div id="edit-perm-delete" class="hidden">
+                                    <span class="text-xs font-medium" style="color: #374151;">🗑️ Can Delete:</span>
+                                    <span id="edit-perm-delete-list" class="text-xs" style="color: #dc2626;"></span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <p class="text-xs" style="color: #6b7280;">
-                        💡 <strong>Note:</strong> For detailed user/group permissions, the search and selection UI from the tool wizard is used.
-                        Changes here will be saved when you click "Save Changes".
-                    </p>
+                    <!-- Owner-only: Full Edit UI -->
+                    <div id="edit-access-owner-controls" class="hidden space-y-4">
+                        <div class="rounded-xl p-4" style="background: #f3f4f6; border: 1px solid #e5e7eb;">
+                            <h5 class="font-semibold mb-4" style="color: #1f2937;">⚙️ Modify Access Control</h5>
+                            
+                            <!-- Access Type Selection -->
+                            <div class="grid grid-cols-2 gap-3 mb-4">
+                                <div class="edit-access-card tool-access-card cursor-pointer p-3 rounded-lg border-2 transition-all" 
+                                     data-access="owner_only" style="background: #ffffff; border-color: #d1d5db;"
+                                     onclick="selectEditAccessType('owner_only')">
+                                    <div class="flex items-center gap-2">
+                                        <span>👤</span>
+                                        <span class="font-medium" style="color: #1f2937;">Only Me</span>
+                                    </div>
+                                    <div class="tool-access-check hidden mt-1 text-purple-500 text-xs">✓</div>
+                                </div>
+                                <div class="edit-access-card tool-access-card cursor-pointer p-3 rounded-lg border-2 transition-all"
+                                     data-access="authenticated" style="background: #ffffff; border-color: #d1d5db;"
+                                     onclick="selectEditAccessType('authenticated')">
+                                    <div class="flex items-center gap-2">
+                                        <span>🏢</span>
+                                        <span class="font-medium" style="color: #1f2937;">All Logged In</span>
+                                    </div>
+                                    <div class="tool-access-check hidden mt-1 text-blue-500 text-xs">✓</div>
+                                </div>
+                                <div class="edit-access-card tool-access-card cursor-pointer p-3 rounded-lg border-2 transition-all"
+                                     data-access="specific_users" style="background: #ffffff; border-color: #d1d5db;"
+                                     onclick="selectEditAccessType('specific_users')">
+                                    <div class="flex items-center gap-2">
+                                        <span>👥</span>
+                                        <span class="font-medium" style="color: #1f2937;">Specific Users</span>
+                                    </div>
+                                    <div class="tool-access-check hidden mt-1 text-yellow-500 text-xs">✓</div>
+                                </div>
+                                <div class="edit-access-card tool-access-card cursor-pointer p-3 rounded-lg border-2 transition-all"
+                                     data-access="public" style="background: #ffffff; border-color: #d1d5db;"
+                                     onclick="selectEditAccessType('public')">
+                                    <div class="flex items-center gap-2">
+                                        <span>🌍</span>
+                                        <span class="font-medium" style="color: #1f2937;">Public</span>
+                                    </div>
+                                    <div class="tool-access-check hidden mt-1 text-green-500 text-xs">✓</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Specific Users Config -->
+                            <div id="edit-specific-config" class="hidden space-y-3 pt-3 border-t" style="border-color: #e5e7eb;">
+                                <!-- Search -->
+                                <div>
+                                    <label class="text-sm mb-2 block" style="color: #374151; font-weight: 500;">🔍 Search Users & Groups</label>
+                                    <input type="text" id="edit-access-search" 
+                                           class="w-full rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                           style="background: #ffffff; color: #1f2937; border: 1px solid #d1d5db;"
+                                           placeholder="Type to search..."
+                                           oninput="filterEditAccessSearch(this.value)"
+                                           onfocus="showEditAccessResults()"
+                                           autocomplete="off">
+                                </div>
+                                
+                                <!-- Search Results -->
+                                <div id="edit-access-results" class="hidden rounded-xl overflow-hidden max-h-40 overflow-y-auto shadow-lg" style="background: #ffffff; border: 1px solid #d1d5db;"></div>
+                                
+                                <!-- Selected Chips -->
+                                <div>
+                                    <label class="text-sm mb-2 block" style="color: #374151; font-weight: 500;">
+                                        👥 Selected <span id="edit-selected-count" class="text-xs px-2 py-0.5 rounded-full" style="background: #7c3aed; color: white;">0</span>
+                                    </label>
+                                    <div id="edit-selected-chips" class="flex flex-wrap gap-2 min-h-[50px] p-3 rounded-xl" style="background: #ffffff; border: 1px dashed #d1d5db;">
+                                        <span class="text-sm italic" style="color: #9ca3af;">No users or groups selected</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Granular Permissions -->
+                                <div class="rounded-lg p-3" style="background: #e5e7eb;">
+                                    <h6 class="text-sm font-medium mb-2" style="color: #1f2937;">🔐 Granular Permissions</h6>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="text-xs mb-1 block" style="color: #374151;">✏️ Can Edit</label>
+                                            <div id="edit-can-edit-chips" class="flex flex-wrap gap-1 min-h-[30px] p-2 rounded" style="background: #ffffff; border: 1px solid #d1d5db;"></div>
+                                            <select id="edit-can-edit-select" class="w-full rounded px-2 py-1 text-sm mt-1" style="background: #ffffff; border: 1px solid #d1d5db; color: #1f2937;" onchange="addEditPermChip('edit', this)">
+                                                <option value="">+ Add</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs mb-1 block" style="color: #374151;">🗑️ Can Delete</label>
+                                            <div id="edit-can-delete-chips" class="flex flex-wrap gap-1 min-h-[30px] p-2 rounded" style="background: #ffffff; border: 1px solid #d1d5db;"></div>
+                                            <select id="edit-can-delete-select" class="w-full rounded px-2 py-1 text-sm mt-1" style="background: #ffffff; border: 1px solid #d1d5db; color: #1f2937;" onchange="addEditPermChip('delete', this)">
+                                                <option value="">+ Add</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Non-owner message -->
+                    <div id="edit-access-readonly-msg" class="hidden text-center p-4 rounded-xl" style="background: #fef3c7; border: 1px solid #f59e0b;">
+                        <p class="text-sm" style="color: #92400e;">🔒 Only the tool owner can modify access control settings.</p>
+                    </div>
                 </div>
             </div>
             
