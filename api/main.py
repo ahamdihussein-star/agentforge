@@ -5790,10 +5790,13 @@ async def generate_demo_data_for_agent(request: DemoDataRequest):
 # ============================================================
 
 @app.post("/api/demo-kits/generate")
-async def generate_demo_kit(request: GenerateDemoKitRequest):
+async def generate_demo_kit(request: GenerateDemoKitRequest, current_user: User = Depends(get_current_user_optional)):
     """Generate a complete demo kit from natural language description"""
     try:
         description = request.description
+        
+        # Get owner_id from current user (for access control on created tools)
+        owner_id = str(current_user.id) if current_user else "system"
         
         # Get LLM for generation
         generation_llm = await _get_generation_llm()
@@ -5971,6 +5974,7 @@ IMPORTANT:
             )
             
             # Create tool with same structure as user-created tools
+            # Demo Kit tools are PUBLIC by default so everyone can use them
             tool = ToolConfiguration(
                 id=api.id,
                 type="api",
@@ -5980,12 +5984,16 @@ IMPORTANT:
                 config={
                     "mock_response": api.sample_response,
                     "sample_request": api.sample_request
-                }
+                },
+                # Access Control - Demo tools are PUBLIC by default
+                owner_id=owner_id,
+                access_type="public"
             )
             app_state.tools[api.id] = tool
         
         for kb in knowledge_bases:
             # Create knowledge tool - same structure as user-created KBs
+            # Demo Kit tools are PUBLIC by default so everyone can use them
             tool = ToolConfiguration(
                 id=kb.id,
                 type="knowledge",
@@ -5994,7 +6002,10 @@ IMPORTANT:
                 config={
                     "content": kb.content,
                     "sections": kb.sections
-                }
+                },
+                # Access Control - Demo tools are PUBLIC by default
+                owner_id=owner_id,
+                access_type="public"
             )
             app_state.tools[kb.id] = tool
         
@@ -13652,7 +13663,7 @@ async def test_document_generation():
         return {"error": str(e)}
 
 @app.post("/api/demo/create-tool")
-async def create_tool_from_demo(request: DemoCreateToolRequest):
+async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: User = Depends(get_current_user_optional)):
     """Create an API tool from a generated mock API"""
     demo_id = request.demo_id
     
@@ -13663,6 +13674,9 @@ async def create_tool_from_demo(request: DemoCreateToolRequest):
     
     if item.type != "api":
         return {"success": False, "error": "Only API demos can be converted to tools"}
+    
+    # Get owner_id from current user
+    owner_id = str(current_user.id) if current_user else "system"
     
     # Get base URL from environment or default
     base_url = os.environ.get("PUBLIC_URL", "http://localhost:8000")
@@ -13675,18 +13689,22 @@ async def create_tool_from_demo(request: DemoCreateToolRequest):
         auth_type="none"
     )
     
+    # Demo Lab tools default to PUBLIC access so everyone can use them
     tool = ToolConfiguration(
         type="api",
         name=f"Demo: {item.name}",
         description=f"Mock API - {item.description}",
         api_config=api_config,
-        config=item.config
+        config=item.config,
+        # Access Control - Demo tools are PUBLIC by default
+        owner_id=owner_id,
+        access_type="public"  # Demo tools should be accessible to everyone
     )
     
     app_state.tools[tool.id] = tool
     app_state.save_to_disk()
     
-    return {"success": True, "tool_id": tool.id, "tool_name": tool.name}
+    return {"success": True, "tool_id": tool.id, "tool_name": tool.name, "access_type": "public"}
 
 
 # Dynamic Mock API Routes with Auto-Generated Data
