@@ -7791,25 +7791,36 @@ def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: Lis
     
     if tool_access == 'specific_users':
         # Get permission lists
+        allowed_users = getattr(tool, 'allowed_user_ids', []) or []
+        allowed_groups = getattr(tool, 'allowed_group_ids', []) or []
         can_edit_ids = getattr(tool, 'can_edit_user_ids', []) or []
         can_delete_ids = getattr(tool, 'can_delete_user_ids', []) or []
         
+        print(f"   📋 [PERMS] Tool '{tool.name}': allowed_users={allowed_users}, allowed_groups={allowed_groups}")
+        print(f"   📋 [PERMS] can_edit={can_edit_ids}, can_delete={can_delete_ids}")
+        
         # Check if user is directly in allowed list
-        if user_id in (tool.allowed_user_ids or []):
+        if user_id in allowed_users:
             # Allowed users get view + execute by default
             if permission == 'view':
-                print(f"   🔐 [ACCESS] User '{user_id}' in allowed_user_ids -> view=True")
+                print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in allowed_user_ids -> view=True")
                 return True
             if permission == 'execute':
-                print(f"   🔐 [ACCESS] User '{user_id}' in allowed_user_ids -> execute=True")
+                print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in allowed_user_ids -> execute=True")
                 return True
             # Edit and Delete require explicit permission
-            if permission == 'edit' and user_id in can_edit_ids:
-                print(f"   🔐 [ACCESS] User '{user_id}' in can_edit_user_ids -> edit=True")
-                return True
-            if permission == 'delete' and user_id in can_delete_ids:
-                print(f"   🔐 [ACCESS] User '{user_id}' in can_delete_user_ids -> delete=True")
-                return True
+            if permission == 'edit':
+                if user_id in can_edit_ids:
+                    print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in can_edit_user_ids -> edit=True")
+                    return True
+                else:
+                    print(f"   🔐 [ACCESS] User '{user_id[:8]}...' NOT in can_edit_user_ids -> edit=False")
+            if permission == 'delete':
+                if user_id in can_delete_ids:
+                    print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in can_delete_user_ids -> delete=True")
+                    return True
+                else:
+                    print(f"   🔐 [ACCESS] User '{user_id[:8]}...' NOT in can_delete_user_ids -> delete=False")
         
         # Check if any of user's groups are in allowed list
         if user_group_ids:
