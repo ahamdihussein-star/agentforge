@@ -2059,6 +2059,9 @@ class AppState:
                             # Default to authenticated so existing tools work for logged-in users
                             tool_dict['access_type'] = 'authenticated'
                         
+                        # Debug: Log access control fields from database
+                        print(f"   📦 Loading tool '{tool_dict.get('name')}': access_type={tool_dict.get('access_type')}, allowed_users={tool_dict.get('allowed_user_ids')}, allowed_groups={tool_dict.get('allowed_group_ids')}")
+                        
                         tool = ToolConfiguration(**{k: v for k, v in tool_dict.items() if k in ToolConfiguration.__fields__})
                         self.tools[tool.id] = tool
                     except Exception as e:
