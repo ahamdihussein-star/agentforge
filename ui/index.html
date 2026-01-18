@@ -20320,12 +20320,12 @@ const toolMeta = {
     // Knowledge & Data
     knowledge: { icon: '🧠', name: 'Knowledge Base', hasConfig: true, hasSources: true, steps: ['Basics', 'RAG Config', 'Sources', 'Test'] },
     document: { icon: '📄', name: 'Documents', hasConfig: false, hasSources: true, steps: ['Basics', 'Upload', 'Test'] },
-    website: { icon: '🌐', name: 'Website', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
+    website: { icon: '🌐', name: 'Website', hasConfig: true, hasSources: false, steps: ['Basics', 'Configuration'], noTestStep: true },
     database: { icon: '🗄️', name: 'Database', hasConfig: true, hasSources: false, steps: ['Basics', 'Connection', 'Test'] },
     spreadsheet: { icon: '📊', name: 'Spreadsheet', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
     storage: { icon: '☁️', name: 'Cloud Storage', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
     // Integrations
-    api: { icon: '🔗', name: 'REST API', hasConfig: true, hasSources: false, steps: ['Basics', 'Configuration', 'Test'] },
+    api: { icon: '🔗', name: 'REST API', hasConfig: true, hasSources: false, steps: ['Basics', 'Configuration'], noTestStep: true },
     email: { icon: '📧', name: 'Email', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
     slack: { icon: '💬', name: 'Messaging', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
     calendar: { icon: '📅', name: 'Calendar', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
@@ -20504,6 +20504,17 @@ function showStep(step) {
     // Show appropriate config section
     if (actualStep === 2) {
         showConfigSection();
+        
+        // Update step 2 header for noTestStep tools (this is their final step)
+        const isLastStep = step === wizState.maxSteps;
+        const step2Header = document.querySelector('#wiz-step-2 h4.font-semibold');
+        const step2Desc = document.querySelector('#wiz-step-2 p.text-xs');
+        if (step2Header && isLastStep && meta.noTestStep) {
+            step2Header.textContent = 'Configuration';
+            step2Desc.textContent = editingToolId 
+                ? 'Configure and update your tool' 
+                : 'Configure and create your tool';
+        }
     }
     
     // Show/hide sources tabs based on tool type
@@ -20540,12 +20551,18 @@ function getActualStep(logicalStep) {
     // Map based on tool capabilities
     if (logicalStep === 1) return 1; // Always basics
     
+    // Tools with noTestStep: Basics -> Config only (no test step in wizard)
+    if (meta.noTestStep) {
+        if (logicalStep === 2) return 2;
+        return 2; // Cap at step 2
+    }
+    
     if (!meta.hasConfig && meta.hasSources) {
         // document: Basics -> Sources -> Test
         if (logicalStep === 2) return 3;
         if (logicalStep === 3) return 4;
     } else if (meta.hasConfig && !meta.hasSources) {
-        // api, database, etc: Basics -> Config -> Test
+        // database, etc: Basics -> Config -> Test
         if (logicalStep === 2) return 2;
         if (logicalStep === 3) return 4;
     } else if (!meta.hasConfig && !meta.hasSources) {
@@ -20953,6 +20970,7 @@ async function wizCreate() {
         // Reset editing state
         const savedToolId = toolId;
         const wasEditing = isEditing;
+        const meta = toolMeta[wizState.type];
         editingToolId = null;
         
         setTimeout(() => {
@@ -20960,11 +20978,12 @@ async function wizCreate() {
             closeWizard();
             loadTools();
             
-            // For new tools: show the tool detail page
+            // For tools with noTestStep: always show tool detail for testing
+            // For new tools with test step: show tool detail
             // For updates: just show success toast and stay on tools list
-            if (savedToolId && !wasEditing) {
+            if (savedToolId && (meta?.noTestStep || !wasEditing)) {
                 viewTool(savedToolId);
-            } else {
+            } else if (wasEditing) {
                 showToast('Tool updated successfully!', 'success');
             }
         }, 500);
