@@ -2049,6 +2049,14 @@ class AppState:
                                 params = [APIInputParameter(**p) for p in api_cfg['input_parameters']]
                                 api_cfg['input_parameters'] = params
                             tool_dict['api_config'] = APIEndpointConfig(**api_cfg)
+                        
+                        # Migration: Set defaults for access control on existing tools
+                        if not tool_dict.get('owner_id'):
+                            tool_dict['owner_id'] = tool_dict.get('created_by', 'system')
+                        if not tool_dict.get('access_type'):
+                            # Default to authenticated so existing tools work for logged-in users
+                            tool_dict['access_type'] = 'authenticated'
+                        
                         tool = ToolConfiguration(**{k: v for k, v in tool_dict.items() if k in ToolConfiguration.__fields__})
                         self.tools[tool.id] = tool
                     except Exception as e:
@@ -2073,6 +2081,14 @@ class AppState:
                                         params = [APIInputParameter(**p) for p in api_cfg['input_parameters']]
                                         api_cfg['input_parameters'] = params
                                     v['api_config'] = APIEndpointConfig(**api_cfg)
+                                
+                                # Migration: Set defaults for access control on existing tools (JSON loaded)
+                                if cls == ToolConfiguration:
+                                    if not v.get('owner_id'):
+                                        v['owner_id'] = v.get('created_by', 'system')
+                                    if not v.get('access_type'):
+                                        v['access_type'] = 'authenticated'
+                                
                                 container[k] = cls(**v)
                             except Exception as e:
                                 print(f"Error loading {name} item {k}: {e}")
