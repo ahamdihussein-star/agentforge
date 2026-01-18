@@ -7304,6 +7304,16 @@ Option 3"></textarea>
                 // Reset test conversation when entering test step
                 resetTestConversation();
             }
+            
+            // ⚠️ CRITICAL: Re-apply permission restrictions after step content is rendered
+            // This ensures restrictions work on dynamically loaded elements
+            if (wizard.userPermissions && wizard.editId) {
+                console.log('🔐 Re-applying permission restrictions for step', step);
+                // Small delay to ensure DOM is updated
+                setTimeout(() => {
+                    applyPermissionRestrictions(wizard.userPermissions);
+                }, 100);
+            }
         }
         
         // Reset test conversation
@@ -11485,19 +11495,63 @@ Option 3"></textarea>
                 collectWizardAccessControl();
             }
             
-            const deployData = {
-                name: wizard.name,
-                icon: wizard.icon,
-                goal: wizard.goal,
-                personality: wizard.personality,
-                guardrails: wizard.guardrails || {},
-                tasks: wizard.tasks || [],
-                tool_ids: wizard.tool_ids || [],
-                model_id: wizard.model,
-                status: 'published'
-            };
+            // Get user permissions
+            const perms = wizard.userPermissions || {};
+            const isOwner = perms.is_owner;
+            const hasFullAdmin = perms.permissions?.includes('full_admin');
             
-            console.log('🚀 Deploying agent...', deployData);
+            // Build deploy data based on permissions
+            // Only include fields the user has permission to modify
+            const deployData = {};
+            
+            // Always include status for publish
+            if (isOwner || hasFullAdmin || perms.can_publish) {
+                deployData.status = 'published';
+            }
+            
+            // Basic info (name, icon, goal)
+            if (isOwner || hasFullAdmin || perms.can_edit_basic_info) {
+                deployData.name = wizard.name;
+                deployData.icon = wizard.icon;
+                deployData.goal = wizard.goal;
+            }
+            
+            // Personality
+            if (isOwner || hasFullAdmin || perms.can_edit_personality) {
+                deployData.personality = wizard.personality;
+            }
+            
+            // Guardrails
+            if (isOwner || hasFullAdmin || perms.can_edit_guardrails) {
+                deployData.guardrails = wizard.guardrails || {};
+            }
+            
+            // Tasks
+            if (isOwner || hasFullAdmin || perms.can_manage_tasks) {
+                deployData.tasks = wizard.tasks || [];
+            }
+            
+            // Tools
+            if (isOwner || hasFullAdmin || perms.can_manage_tools) {
+                deployData.tool_ids = wizard.tool_ids || [];
+            }
+            
+            // Model
+            if (isOwner || hasFullAdmin || perms.can_edit_model) {
+                deployData.model_id = wizard.model;
+            }
+            
+            console.log('🚀 Deploying agent with permission-filtered data...');
+            console.log('📦 Deploy data keys:', Object.keys(deployData));
+            console.log('📦 Deploy data:', JSON.stringify(deployData, null, 2));
+            console.log('🔐 User permissions:', JSON.stringify(perms, null, 2));
+            console.log('🔐 isOwner:', isOwner, 'hasFullAdmin:', hasFullAdmin, 'can_publish:', perms.can_publish);
+            
+            // Safety check: if no fields to update, show error
+            if (Object.keys(deployData).length === 0) {
+                showToast('Error: No permissions to update this agent', 'error');
+                return;
+            }
             
             try {
                 let response;
@@ -11506,18 +11560,29 @@ Option 3"></textarea>
                 console.log('Agent ID for deploy:', agentId);
                 
                 if (agentId) {
-                    // Update existing agent
+                    // Update existing agent - only send fields user can modify
                     response = await fetch(API + '/api/agents/' + agentId, {
                         method: 'PUT',
                         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(deployData)
                     });
                 } else {
-                    // Create new agent
+                    // Create new agent - need full data
+                    const fullData = {
+                        name: wizard.name,
+                        icon: wizard.icon,
+                        goal: wizard.goal,
+                        personality: wizard.personality,
+                        guardrails: wizard.guardrails || {},
+                        tasks: wizard.tasks || [],
+                        tool_ids: wizard.tool_ids || [],
+                        model_id: wizard.model,
+                        status: 'published'
+                    };
                     response = await fetch(API + '/api/agents', {
                         method: 'POST',
                         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-                        body: JSON.stringify(deployData)
+                        body: JSON.stringify(fullData)
                     });
                 }
                 
@@ -13628,14 +13693,29 @@ Option 3"></textarea>
                 }
             }
             
-            // Publish button
+            // Publish/Deploy button
             if (!perms.can_publish) {
-                console.log('🔒 Restricting: Publish');
-                const publishBtns = document.querySelectorAll('[onclick*="publishAgent"], .publish-btn');
+                console.log('🔒 Restricting: Publish/Deploy');
+                // Select all publish/deploy related buttons
+                const publishBtns = document.querySelectorAll(
+                    '[onclick*="publishAgent"], [onclick*="deployAgent"], .publish-btn, #btn-deploy'
+                );
                 publishBtns.forEach(btn => {
                     btn.disabled = true;
                     btn.style.opacity = '0.5';
-                    btn.title = 'No permission to publish';
+                    btn.style.pointerEvents = 'none';
+                    btn.title = 'No permission to publish (requires: publish_agent)';
+                });
+                
+                // Also disable the Save as Published option
+                const savePublishBtns = document.querySelectorAll('button[onclick*="published"]');
+                savePublishBtns.forEach(btn => {
+                    if (btn.textContent?.toLowerCase().includes('publish')) {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                        btn.style.pointerEvents = 'none';
+                        btn.title = 'No permission to publish';
+                    }
                 });
             }
             
@@ -14032,41 +14112,78 @@ Option 3"></textarea>
             // Collect access control settings
             if(typeof collectWizardAccessControl === 'function') collectWizardAccessControl();
             
-            // Use wizard personality (from AI generation)
-            if (!wizard.personality) {
-                alert('Agent personality not configured. Please generate configuration first.');
-                return;
+            // Get user permissions
+            const perms = wizard.userPermissions || {};
+            const isOwner = perms.is_owner;
+            const hasFullAdmin = perms.permissions?.includes('full_admin');
+            const agentId = testAgent?.id || wizard.editId;
+            const hasValidId = agentId && agentId !== 'undefined' && agentId.length > 0;
+            
+            // For NEW agents (no ID), owner can save everything
+            // For EXISTING agents, only save fields user has permission to modify
+            let agentData;
+            
+            if (!hasValidId) {
+                // New agent - need personality
+                if (!wizard.personality) {
+                    alert('Agent personality not configured. Please generate configuration first.');
+                    return;
+                }
+                // New agent = full access
+                agentData = {
+                    name: wizard.name,
+                    icon: wizard.icon,
+                    goal: wizard.goal,
+                    personality: wizard.personality,
+                    personality_reason: wizard.personalityReason,
+                    guardrails: wizard.guardrails || {},
+                    tasks: wizard.tasks || [],
+                    tool_ids: wizard.tool_ids || [],
+                    model_id: wizard.model,
+                    model_reason: wizard.modelReason,
+                    status: status,
+                    access_control: wizard.accessControl || null
+                };
+            } else {
+                // Existing agent - build data based on permissions
+                agentData = { status: status };  // Always include status
+                
+                if (isOwner || hasFullAdmin || perms.can_edit_basic_info) {
+                    agentData.name = wizard.name;
+                    agentData.icon = wizard.icon;
+                    agentData.goal = wizard.goal;
+                }
+                if (isOwner || hasFullAdmin || perms.can_edit_personality) {
+                    agentData.personality = wizard.personality;
+                    agentData.personality_reason = wizard.personalityReason;
+                }
+                if (isOwner || hasFullAdmin || perms.can_edit_guardrails) {
+                    agentData.guardrails = wizard.guardrails || {};
+                }
+                if (isOwner || hasFullAdmin || perms.can_manage_tasks) {
+                    agentData.tasks = wizard.tasks || [];
+                }
+                if (isOwner || hasFullAdmin || perms.can_manage_tools) {
+                    agentData.tool_ids = wizard.tool_ids || [];
+                }
+                if (isOwner || hasFullAdmin || perms.can_edit_model) {
+                    agentData.model_id = wizard.model;
+                    agentData.model_reason = wizard.modelReason;
+                }
             }
             
-            const agentData = {
-                name: wizard.name,
-                icon: wizard.icon,
-                goal: wizard.goal,
-                personality: wizard.personality,
-                personality_reason: wizard.personalityReason,
-                guardrails: wizard.guardrails || {},
-                tasks: wizard.tasks || [],
-                tool_ids: wizard.tool_ids || [],
-                model_id: wizard.model,
-                model_reason: wizard.modelReason,
-                status: status,
-                access_control: wizard.accessControl || null
-            };
-            
-            console.log('Saving agent:', agentData);
+            console.log('Saving agent with permission-filtered data:', agentData);
+            console.log('🔐 User permissions:', perms);
             
             try {
                 let response;
-                // Check for valid agent ID (not undefined, not null, not empty string)
-                const agentId = testAgent?.id || wizard.editId;
-                const hasValidId = agentId && agentId !== 'undefined' && agentId.length > 0;
                 
                 if(hasValidId){
                     // Update existing agent
                     console.log('Updating agent:', agentId);
                     response = await fetch(API+'/api/agents/'+agentId, {
                         method: 'PUT',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(agentData)
                     });
                 } else {
@@ -14074,7 +14191,7 @@ Option 3"></textarea>
                     console.log('Creating new agent');
                     response = await fetch(API+'/api/agents', {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(agentData)
                     });
                 }
