@@ -2052,7 +2052,48 @@
                         <div id="mfa-enabled-section" class="hidden">
                             <div class="flex items-center justify-between">
                                 <p class="text-gray-300">MFA is currently enabled for your account.</p>
-                                <button onclick="disableMFA()" class="btn-danger px-4 py-2 rounded-lg">Disable MFA</button>
+                                <button onclick="showDisableMFAModal()" class="btn-danger px-4 py-2 rounded-lg">Disable MFA</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Disable MFA Confirmation Modal -->
+                        <div id="disable-mfa-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+                            <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                                        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-white">Disable MFA</h3>
+                                        <p class="text-sm text-gray-400">This will make your account less secure</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Enter your password to confirm</label>
+                                    <div class="relative">
+                                        <input type="password" id="disable-mfa-password" 
+                                               class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-12 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent" 
+                                               placeholder="••••••••">
+                                        <button type="button" onclick="togglePasswordVisibility('disable-mfa-password')" 
+                                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition" title="Show/Hide password">
+                                            <span id="disable-mfa-password-icon">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                                                </svg>
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div id="disable-mfa-error" class="hidden mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm"></div>
+                                
+                                <div class="flex gap-3">
+                                    <button onclick="hideDisableMFAModal()" class="flex-1 px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition">Cancel</button>
+                                    <button onclick="confirmDisableMFA()" class="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition">Disable MFA</button>
+                                </div>
                             </div>
                         </div>
 
@@ -24817,15 +24858,33 @@ function togglePasswordVisibility(inputId) {
     }
 }
 
-async function disableMFA() {
-    const confirmed = confirm('Are you sure you want to disable MFA? This will make your account less secure.');
+function showDisableMFAModal() {
+    const modal = document.getElementById('disable-mfa-modal');
+    const input = document.getElementById('disable-mfa-password');
+    const errorDiv = document.getElementById('disable-mfa-error');
     
-    if (!confirmed) return;
+    // Reset
+    input.value = '';
+    input.type = 'password';
+    errorDiv.classList.add('hidden');
     
-    // Ask for password confirmation only (user is already logged in)
-    const password = prompt('Please enter your password to confirm:');
+    modal.classList.remove('hidden');
+    input.focus();
+}
+
+function hideDisableMFAModal() {
+    document.getElementById('disable-mfa-modal').classList.add('hidden');
+}
+
+async function confirmDisableMFA() {
+    const password = document.getElementById('disable-mfa-password').value;
+    const errorDiv = document.getElementById('disable-mfa-error');
     
-    if (!password) return;
+    if (!password) {
+        errorDiv.textContent = 'Please enter your password';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
     
     try {
         const res = await fetch(API + '/api/security/mfa/disable', {
@@ -24844,12 +24903,14 @@ async function disableMFA() {
             throw new Error(error.detail || 'Failed to disable MFA');
         }
         
+        hideDisableMFAModal();
         showToast('MFA disabled successfully', 'success');
         await loadProfileInfo();
         
     } catch (error) {
         console.error('Error disabling MFA:', error);
-        showToast(error.message || 'Failed to disable MFA', 'error');
+        errorDiv.textContent = error.message || 'Failed to disable MFA';
+        errorDiv.classList.remove('hidden');
     }
 }
 
