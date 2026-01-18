@@ -6756,10 +6756,11 @@ Option 3"></textarea>
                             <div>
                                 <label class="text-sm text-gray-400 mb-2 block">🔍 Search Users & Groups</label>
                                 <input type="text" id="tool-access-search" 
-                                       class="input-field w-full rounded-lg px-4 py-3 text-white placeholder-gray-500" 
+                                       class="w-full rounded-lg px-4 py-3 text-white placeholder-gray-500 bg-gray-800 border border-gray-600 focus:border-purple-500 focus:outline-none" 
                                        placeholder="Type to search users or groups..."
                                        oninput="filterToolAccessSearch(this.value)"
                                        onfocus="showToolAccessResults()"
+                                       onclick="this.focus()"
                                        autocomplete="off">
                             </div>
                             
