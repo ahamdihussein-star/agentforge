@@ -20592,7 +20592,11 @@ async function loadToolAccessUsersAndGroups() {
         const groupsRes = await fetch(API + '/api/security/groups', { headers: getAuthHeaders() });
         if (groupsRes.ok) {
             const groupsData = await groupsRes.json();
-            toolAccessData.groups = groupsData.groups || groupsData || [];
+            // Add members_count from member_ids or user_ids array length
+            toolAccessData.groups = (groupsData.groups || groupsData || []).map(g => ({
+                ...g,
+                members_count: (g.member_ids || g.user_ids || []).length
+            }));
         }
         
         // Populate permission dropdowns
@@ -21364,17 +21368,29 @@ function saveStepData() {
         wizState.data.access_type = selectedToolAccessType || 'owner_only';
         
         if (wizState.data.access_type === 'specific_users') {
-            const allowedUsers = document.getElementById('tool-allowed-users');
-            const allowedGroups = document.getElementById('tool-allowed-groups');
-            const canEditUsers = document.getElementById('tool-can-edit-users');
-            const canDeleteUsers = document.getElementById('tool-can-delete-users');
-            const canExecuteUsers = document.getElementById('tool-can-execute-users');
+            // Read from toolAccessSelected (chips) instead of hidden selects
+            wizState.data.allowed_user_ids = toolAccessSelected.users.map(u => u.id);
+            wizState.data.allowed_group_ids = toolAccessSelected.groups.map(g => g.id);
             
-            wizState.data.allowed_user_ids = allowedUsers ? Array.from(allowedUsers.selectedOptions).map(o => o.value) : [];
-            wizState.data.allowed_group_ids = allowedGroups ? Array.from(allowedGroups.selectedOptions).map(o => o.value) : [];
-            wizState.data.can_edit_user_ids = canEditUsers ? Array.from(canEditUsers.selectedOptions).map(o => o.value) : [];
-            wizState.data.can_delete_user_ids = canDeleteUsers ? Array.from(canDeleteUsers.selectedOptions).map(o => o.value) : [];
-            wizState.data.can_execute_user_ids = canExecuteUsers ? Array.from(canExecuteUsers.selectedOptions).map(o => o.value) : [];
+            // Read granular permissions from toolPermissionChips
+            // Format: "user:id" or "group:id" so backend can identify type
+            wizState.data.can_edit_user_ids = toolPermissionChips.edit.map(e => 
+                e.entityType === 'group' ? `group:${e.id}` : e.id
+            );
+            wizState.data.can_delete_user_ids = toolPermissionChips.delete.map(e => 
+                e.entityType === 'group' ? `group:${e.id}` : e.id
+            );
+            wizState.data.can_execute_user_ids = toolPermissionChips.execute.map(e => 
+                e.entityType === 'group' ? `group:${e.id}` : e.id
+            );
+            
+            console.log('📋 [COLLECT] Access Control Data:', {
+                allowed_user_ids: wizState.data.allowed_user_ids,
+                allowed_group_ids: wizState.data.allowed_group_ids,
+                can_edit_user_ids: wizState.data.can_edit_user_ids,
+                can_delete_user_ids: wizState.data.can_delete_user_ids,
+                can_execute_user_ids: wizState.data.can_execute_user_ids
+            });
         } else {
             wizState.data.allowed_user_ids = [];
             wizState.data.allowed_group_ids = [];

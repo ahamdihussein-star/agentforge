@@ -7718,6 +7718,25 @@ async def reindex_knowledge_base():
 
 # Tool Endpoints
 
+def get_user_group_ids(user_id: str) -> List[str]:
+    """
+    Get all group IDs that a user belongs to by checking group.member_ids.
+    This is the source of truth since user.group_ids may not be in sync.
+    """
+    if not user_id or not SECURITY_AVAILABLE:
+        return []
+    
+    try:
+        group_ids = []
+        for group in security_state.groups.values():
+            member_ids = getattr(group, 'member_ids', []) or getattr(group, 'user_ids', []) or []
+            if user_id in member_ids or str(user_id) in [str(m) for m in member_ids]:
+                group_ids.append(group.id)
+        return group_ids
+    except Exception as e:
+        print(f"⚠️ Error getting user groups: {e}")
+        return []
+
 def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: List[str] = None, permission: str = 'view', user_role_ids: List[str] = None, user_obj = None) -> bool:
     """
     Check if a user has access to a tool.
@@ -7769,10 +7788,26 @@ def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: Lis
             for group_id in user_group_ids:
                 if group_id in (tool.allowed_group_ids or []):
                     if permission == 'view':
+                        print(f"   🔐 [ACCESS] User in group '{group_id}' allowed for tool '{tool.name}' -> view=True")
                         return True
-                    # For group-based access, check group-level permissions (can be extended)
                     if permission == 'execute':
-                        return True
+                        # Check if group has execute permission or default to True for allowed groups
+                        can_execute_ids = getattr(tool, 'can_execute_user_ids', []) or []
+                        if f"group:{group_id}" in can_execute_ids or not can_execute_ids:
+                            print(f"   🔐 [ACCESS] User in group '{group_id}' -> execute=True")
+                            return True
+                    if permission == 'edit':
+                        # Check if group has edit permission
+                        can_edit_ids = getattr(tool, 'can_edit_user_ids', []) or []
+                        if f"group:{group_id}" in can_edit_ids:
+                            print(f"   🔐 [ACCESS] User in group '{group_id}' -> edit=True")
+                            return True
+                    if permission == 'delete':
+                        # Check if group has delete permission
+                        can_delete_ids = getattr(tool, 'can_delete_user_ids', []) or []
+                        if f"group:{group_id}" in can_delete_ids:
+                            print(f"   🔐 [ACCESS] User in group '{group_id}' -> delete=True")
+                            return True
     
     print(f"   🔐 [ACCESS] Tool '{tool.name}' (owner='{tool_owner}', access='{tool_access}'), user='{user_id}', permission='{permission}' -> False")
     return False
@@ -7788,7 +7823,8 @@ async def list_accessible_tools(current_user: User = Depends(get_current_user)):
         raise HTTPException(401, "Authentication required")
     
     user_id = str(current_user.id)
-    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    # Get user's groups dynamically
+    user_group_ids = get_user_group_ids(user_id)
     
     accessible_tools = []
     
@@ -7813,9 +7849,10 @@ async def list_tools(current_user: User = Depends(get_current_user_optional)):
     Users only see tools they own or have been granted view access to.
     """
     user_id = str(current_user.id) if current_user else None
-    user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
+    # Get user's groups dynamically (not from user.group_ids which may be stale)
+    user_group_ids = get_user_group_ids(user_id) if user_id else []
     
-    print(f"📋 [LIST_TOOLS] User: {user_id}, total tools in memory: {len(app_state.tools)}")
+    print(f"📋 [LIST_TOOLS] User: {user_id}, groups: {user_group_ids}, total tools in memory: {len(app_state.tools)}")
     
     viewable_tools = []
     
@@ -8204,7 +8241,8 @@ async def delete_tool(tool_id: str, current_user: User = Depends(get_current_use
     
     tool = app_state.tools[tool_id]
     user_id = str(current_user.id) if current_user else None
-    user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
+    # Get user's groups dynamically
+    user_group_ids = get_user_group_ids(user_id) if user_id else []
     
     # Check if user can delete this tool
     if not check_tool_access(tool, user_id, user_group_ids, 'delete'):
@@ -9981,7 +10019,8 @@ async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: Us
     
     tool = app_state.tools[tool_id]
     user_id = str(current_user.id) if current_user else None
-    user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
+    # Get user's groups dynamically
+    user_group_ids = get_user_group_ids(user_id) if user_id else []
     
     # Check if user can edit this tool
     if not check_tool_access(tool, user_id, user_group_ids, 'edit'):
