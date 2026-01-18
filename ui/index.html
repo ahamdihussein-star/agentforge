@@ -17001,12 +17001,20 @@ Option 3"></textarea>
                     const apiMethod = document.getElementById('api-method');
                     const apiAuth = document.getElementById('api-auth');
                     const apiAuthValue = document.getElementById('api-auth-value');
+                    const apiKeyName = document.getElementById('api-key-name');
+                    const apiKeyLoc = document.getElementById('api-key-loc');
                     
                     if (apiBase) apiBase.value = config.base_url || '';
                     if (apiPath) apiPath.value = config.endpoint_path || config.endpoint || '';
                     if (apiMethod) apiMethod.value = config.http_method || config.method || 'GET';
-                    if (apiAuth) apiAuth.value = config.auth_type || 'none';
+                    if (apiAuth) {
+                        apiAuth.value = config.auth_type || 'none';
+                        // Trigger auth fields visibility
+                        if (typeof toggleAuthFields === 'function') toggleAuthFields();
+                    }
                     if (apiAuthValue) apiAuthValue.value = config.auth_value || '';
+                    if (apiKeyName) apiKeyName.value = config.api_key_name || '';
+                    if (apiKeyLoc) apiKeyLoc.value = config.api_key_location || 'header';
                     
                     // Load parameters
                     if (config.input_parameters && Array.isArray(config.input_parameters)) {
@@ -17018,7 +17026,18 @@ Option 3"></textarea>
                             required: p.required || false,
                             location: p.location || 'query'
                         }));
+                        // Render the parameters in the UI
+                        setTimeout(() => {
+                            if (typeof renderApiParams === 'function') renderApiParams();
+                        }, 200);
                     }
+                    
+                    console.log('📝 Prefilled API config:', {
+                        base_url: config.base_url,
+                        endpoint: config.endpoint_path || config.endpoint,
+                        method: config.http_method || config.method,
+                        params_count: apiParams.length
+                    });
                     break;
                     
                 case 'website':
@@ -17028,6 +17047,40 @@ Option 3"></textarea>
                     if (webUrl) webUrl.value = config.url || config.base_url || '';
                     if (webRecursive) webRecursive.checked = config.recursive || false;
                     if (webMax) webMax.value = config.max_pages || 10;
+                    
+                    // Show existing scraped pages if any
+                    const scrapedPages = tool.scraped_pages || [];
+                    if (scrapedPages.length > 0) {
+                        // Add info about existing pages
+                        setTimeout(() => {
+                            const urlsList = document.getElementById('wiz-urls-list');
+                            if (urlsList) {
+                                urlsList.innerHTML = `
+                                    <div class="bg-green-900/20 border border-green-500/30 rounded-lg p-3 mb-3">
+                                        <div class="flex items-center gap-2 text-green-400 mb-2">
+                                            <span>✅</span>
+                                            <span class="font-medium">Existing Scraped Pages (${scrapedPages.length})</span>
+                                        </div>
+                                        <div class="space-y-1 max-h-32 overflow-y-auto">
+                                            ${scrapedPages.map(p => `
+                                                <div class="flex items-center gap-2 text-sm text-gray-300">
+                                                    <span>🔗</span>
+                                                    <span class="truncate">${escHtml(p.url || p.title || 'Page')}</span>
+                                                    <span class="text-xs text-gray-500">(${p.chunks_extracted || p.chunks?.length || 0} chunks)</span>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-2">These pages are already indexed. Add new URLs below to scrape more.</p>
+                                    </div>
+                                `;
+                            }
+                        }, 300);
+                    }
+                    
+                    console.log('📝 Prefilled Website config:', {
+                        url: config.url,
+                        scraped_pages: scrapedPages.length
+                    });
                     break;
                     
                 case 'database':
