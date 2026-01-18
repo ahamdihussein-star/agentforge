@@ -16995,6 +16995,10 @@ Option 3"></textarea>
             
             switch(tool.type) {
                 case 'api':
+                    // API configuration can be in either api_config or config
+                    // Check api_config first (proper API tools), then fall back to config
+                    const apiCfg = tool.api_config || config || {};
+                    
                     // API tool fields
                     const apiBase = document.getElementById('api-base-url');
                     const apiPath = document.getElementById('api-path');
@@ -17004,21 +17008,33 @@ Option 3"></textarea>
                     const apiKeyName = document.getElementById('api-key-name');
                     const apiKeyLoc = document.getElementById('api-key-loc');
                     
-                    if (apiBase) apiBase.value = config.base_url || '';
-                    if (apiPath) apiPath.value = config.endpoint_path || config.endpoint || '';
-                    if (apiMethod) apiMethod.value = config.http_method || config.method || 'GET';
-                    if (apiAuth) {
-                        apiAuth.value = config.auth_type || 'none';
-                        // Trigger auth fields visibility
-                        if (typeof toggleAuthFields === 'function') toggleAuthFields();
-                    }
-                    if (apiAuthValue) apiAuthValue.value = config.auth_value || '';
-                    if (apiKeyName) apiKeyName.value = config.api_key_name || '';
-                    if (apiKeyLoc) apiKeyLoc.value = config.api_key_location || 'header';
+                    // Get values from api_config first, then config
+                    const baseUrl = apiCfg.base_url || config.base_url || '';
+                    const endpointPath = apiCfg.endpoint_path || apiCfg.endpoint || config.endpoint_path || config.endpoint || '';
+                    const httpMethod = apiCfg.http_method || apiCfg.method || config.http_method || config.method || 'GET';
+                    const authType = apiCfg.auth_type || config.auth_type || 'none';
+                    const authValue = apiCfg.auth_value || config.auth_value || '';
+                    const keyName = apiCfg.api_key_name || config.api_key_name || 'X-API-Key';
+                    const keyLocation = apiCfg.api_key_location || config.api_key_location || 'header';
                     
-                    // Load parameters
-                    if (config.input_parameters && Array.isArray(config.input_parameters)) {
-                        apiParams = config.input_parameters.map(p => ({
+                    if (apiBase) apiBase.value = baseUrl;
+                    if (apiPath) apiPath.value = endpointPath;
+                    if (apiMethod) apiMethod.value = httpMethod;
+                    if (apiAuth) {
+                        apiAuth.value = authType;
+                        // Trigger auth fields visibility
+                        setTimeout(() => {
+                            if (typeof toggleAuthFields === 'function') toggleAuthFields();
+                        }, 100);
+                    }
+                    if (apiAuthValue) apiAuthValue.value = authValue;
+                    if (apiKeyName) apiKeyName.value = keyName;
+                    if (apiKeyLoc) apiKeyLoc.value = keyLocation;
+                    
+                    // Load parameters from api_config or config
+                    const inputParams = apiCfg.input_parameters || config.input_parameters || [];
+                    if (inputParams && Array.isArray(inputParams) && inputParams.length > 0) {
+                        apiParams = inputParams.map(p => ({
                             id: Date.now() + Math.random(),
                             name: p.name || '',
                             description: p.description || '',
@@ -17033,10 +17049,14 @@ Option 3"></textarea>
                     }
                     
                     console.log('📝 Prefilled API config:', {
-                        base_url: config.base_url,
-                        endpoint: config.endpoint_path || config.endpoint,
-                        method: config.http_method || config.method,
-                        params_count: apiParams.length
+                        source: tool.api_config ? 'api_config' : 'config',
+                        base_url: baseUrl,
+                        endpoint: endpointPath,
+                        method: httpMethod,
+                        auth: authType,
+                        params_count: inputParams.length,
+                        api_config: tool.api_config,
+                        config: config
                     });
                     break;
                     
