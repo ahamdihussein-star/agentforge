@@ -905,20 +905,20 @@
             color: var(--text-muted);
         }
         
-        .tool-demo-badge {
+        .tool-mock-badge {
             font-size: 0.65rem;
-            background: rgba(139, 92, 246, 0.15);
-            color: #8b5cf6;
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
             padding: 2px 8px;
             border-radius: 4px;
             margin-left: 8px;
             font-weight: 500;
         }
         
-        [data-theme="light"] .tool-demo-badge,
-        [data-theme="ocean"] .tool-demo-badge {
-            background: rgba(124, 58, 237, 0.1);
-            color: #7c3aed;
+        [data-theme="light"] .tool-mock-badge,
+        [data-theme="ocean"] .tool-mock-badge {
+            background: rgba(37, 99, 235, 0.1);
+            color: #2563eb;
         }
         
         /* Demo Lab Sidebar */
@@ -14797,8 +14797,8 @@ Option 3"></textarea>
                 return;
             }
             g.innerHTML=d.tools.map(t=>{
-                const isFromDemo = t.config?.source === 'demo_kit';
-                const sourceLabel = isFromDemo ? '<span class="tool-demo-badge">Demo</span>' : '';
+                const hasMockResponse = t.config?.mock_response;
+                const mockLabel = hasMockResponse ? '<span class="tool-mock-badge" title="Has mock response for testing">Mock</span>' : '';
                 return `
                 <div class="card tool-card rounded-xl p-4 hover:border-purple-500 transition" 
                      style="min-width:0;overflow:visible;"
@@ -14816,7 +14816,7 @@ Option 3"></textarea>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border-color);padding-top:12px;margin-top:8px;">
                         <div class="tool-stats" style="display:flex;gap:8px;font-size:0.75rem;color:var(--text-muted);">
-                            ${sourceLabel || `<span>🔧 ${t.type}</span>`}
+                            <span>🔧 ${t.type}</span>${mockLabel}
                         </div>
                         <div style="display:flex;gap:6px;">
                             <button data-permission="tools:edit" onclick="event.stopPropagation();editTool('${t.id}')" class="tool-btn edit" title="Edit">✏️</button>

@@ -3279,9 +3279,9 @@ async def process_test_agent_chat(agent: AgentData, message: str, conversation: 
             context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
             sources.append({"source": result['source'], "type": result['type'], "relevance": round(result['score'] * 100)})
     
-    # Add Demo Kit Knowledge Base content
+    # Add Knowledge Base content with inline sections
     for tool in agent_tools:
-        if tool.type == 'knowledge' and tool.config.get('source') == 'demo_kit':
+        if tool.type == 'knowledge' and tool.config.get('sections'):
             kb_sections = tool.config.get('sections', [])
             if kb_sections:
                 context += f"\n\n=== {tool.name.upper()} ===\n"
@@ -5921,10 +5921,8 @@ IMPORTANT:
                 description=api.description,
                 api_config=api_config,
                 config={
-                    "demo_mode": True,
                     "mock_response": api.sample_response,
                     "sample_request": api.sample_request,
-                    "source": "demo_kit",
                     "kit_id": kit_id
                 }
             )
@@ -5939,7 +5937,6 @@ IMPORTANT:
                 config={
                     "content": kb.content,
                     "sections": kb.sections,
-                    "source": "demo_kit",
                     "kit_id": kit_id
                 }
             )
@@ -6676,7 +6673,6 @@ Respond ONLY with valid JSON, no markdown formatting."""
                 name=tool_name,
                 description=api_spec.get("description", ""),
                 config={
-                    "demo_mode": True,
                     "mock_response": api_spec.get("mock_response", {})
                 },
                 api_config=APIEndpointConfig(
@@ -6716,7 +6712,7 @@ Respond ONLY with valid JSON, no markdown formatting."""
                 type="knowledge",
                 name=kb_name,
                 description=kb_spec.get("description", ""),
-                config={"collection_id": kb_id, "demo_mode": True}
+                config={"collection_id": kb_id}
             )
             app_state.tools[kb_id] = kb_tool
             tool_ids.append(kb_id)
@@ -7815,7 +7811,7 @@ async def get_tool(tool_id: str):
         **tool.dict(), 
         "documents": all_documents, 
         "scraped_pages": pages,
-        "is_demo_tool": tool.config.get('demo_mode', False) if tool.config else False
+        "has_mock_response": bool(tool.config.get('mock_response')) if tool.config else False
     }
 
 
@@ -9193,8 +9189,8 @@ Transform the response. If the exact data requested isn't available, explain wha
             print(f"Transform error: {e}")
             return f"Transformation error: {str(e)}"
     
-    # Check if demo mode with mock response (works for any tool type)
-    if tool.config and tool.config.get('demo_mode'):
+    # Check if tool has mock response configured (works for any API tool)
+    if tool.config and tool.config.get('mock_response'):
         # Get base mock response or generate intelligent one
         base_mock = tool.config.get('mock_response', {})
         
