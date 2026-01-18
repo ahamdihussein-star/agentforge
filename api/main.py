@@ -7727,23 +7727,32 @@ def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: Lis
     NOTE: Admins are treated as normal users for tools/agents.
     They only have access based on what the owner grants them.
     """
-    if not user_id:
-        return tool.access_type == 'public'
+    tool_owner = getattr(tool, 'owner_id', None) or ''
+    tool_access = getattr(tool, 'access_type', 'owner_only') or 'owner_only'
     
-    # Owner always has full access
-    if tool.owner_id == user_id:
+    if not user_id:
+        result = tool_access == 'public'
+        print(f"   🔐 [ACCESS] No user, tool '{tool.name}' access_type='{tool_access}' -> {result}")
+        return result
+    
+    # Owner always has full access (compare as strings)
+    is_owner = str(tool_owner) == str(user_id) if tool_owner else False
+    if is_owner:
+        print(f"   🔐 [ACCESS] User is OWNER of '{tool.name}' -> True")
         return True
     
     # Check by access_type
-    if tool.access_type == 'public':
+    if tool_access == 'public':
         if permission == 'view' or permission == 'execute':
+            print(f"   🔐 [ACCESS] Tool '{tool.name}' is PUBLIC, permission='{permission}' -> True")
             return True
     
-    if tool.access_type == 'authenticated':
+    if tool_access == 'authenticated':
         if permission == 'view' or permission == 'execute':
+            print(f"   🔐 [ACCESS] Tool '{tool.name}' is AUTHENTICATED, permission='{permission}' -> True")
             return True
     
-    if tool.access_type == 'specific_users':
+    if tool_access == 'specific_users':
         # Check if user is in allowed list
         if user_id in (tool.allowed_user_ids or []):
             if permission == 'view':
@@ -7765,6 +7774,7 @@ def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: Lis
                     if permission == 'execute':
                         return True
     
+    print(f"   🔐 [ACCESS] Tool '{tool.name}' (owner='{tool_owner}', access='{tool_access}'), user='{user_id}', permission='{permission}' -> False")
     return False
 
 

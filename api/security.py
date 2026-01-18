@@ -918,6 +918,13 @@ async def login(request: LoginRequest, req: Request):
     
     expires_in = settings.remember_me_days * 86400 if request.remember_me else settings.session_timeout_minutes * 60
     
+    # Log successful login with user info for debugging tool access
+    print(f"✅ [LOGIN SUCCESS] User '{user.email}' logged in")
+    print(f"   📋 User ID: {user.id}")
+    print(f"   📋 Org ID: {user.org_id}")
+    print(f"   📋 Roles: {user.role_ids}")
+    print(f"   📋 Groups: {user.group_ids}")
+    
     return AuthResponse(
         access_token=access_token,
         refresh_token=refresh_token,
