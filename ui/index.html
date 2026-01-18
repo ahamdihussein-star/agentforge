@@ -6754,10 +6754,10 @@ Option 3"></textarea>
                         <div id="tool-specific-access-config" class="hidden space-y-4 pt-4 border-t border-gray-700">
                             <!-- Smart Search -->
                             <div>
-                                <label class="text-sm text-gray-600 dark:text-gray-400 mb-2 block">🔍 Search Users & Groups</label>
+                                <label class="text-sm mb-2 block" style="color: #374151; font-weight: 500;">🔍 Search Users & Groups</label>
                                 <input type="text" id="tool-access-search" 
-                                       class="w-full rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500" 
-                                       style="background: #1f2937; color: #f3f4f6; border: 1px solid #374151;"
+                                       class="w-full rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                                       style="background: #f9fafb; color: #1f2937; border: 1px solid #d1d5db;"
                                        placeholder="Type to search users or groups..."
                                        oninput="filterToolAccessSearch(this.value)"
                                        onfocus="showToolAccessResults()"
@@ -6765,18 +6765,18 @@ Option 3"></textarea>
                             </div>
                             
                             <!-- Search Results Dropdown -->
-                            <div id="tool-access-search-results" class="hidden rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-lg" style="background: #1f2937; border: 1px solid #374151;">
+                            <div id="tool-access-search-results" class="hidden rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-lg" style="background: #ffffff; border: 1px solid #d1d5db;">
                                 <!-- Results will be populated dynamically -->
                             </div>
                             
                             <!-- Selected Users/Groups Chips -->
                             <div>
-                                <label class="text-sm text-gray-600 dark:text-gray-400 mb-2 block flex items-center gap-2">
+                                <label class="text-sm mb-2 block flex items-center gap-2" style="color: #374151; font-weight: 500;">
                                     <span>👥</span> Selected Users & Groups
-                                    <span id="tool-access-count" class="text-xs px-2 py-0.5 rounded-full bg-purple-600 text-white">0</span>
+                                    <span id="tool-access-count" class="text-xs px-2 py-0.5 rounded-full" style="background: #7c3aed; color: white;">0</span>
                                 </label>
-                                <div id="tool-access-selected-chips" class="flex flex-wrap gap-2 min-h-[50px] p-3 rounded-xl" style="background: #374151; border: 1px dashed #4b5563;">
-                                    <div id="tool-no-selection-msg" class="text-sm text-gray-400 italic">Click on users or groups from search to add them</div>
+                                <div id="tool-access-selected-chips" class="flex flex-wrap gap-2 min-h-[50px] p-3 rounded-xl" style="background: #f3f4f6; border: 1px dashed #d1d5db;">
+                                    <div id="tool-no-selection-msg" class="text-sm italic" style="color: #6b7280;">Click on users or groups from search to add them</div>
                                 </div>
                             </div>
                             
@@ -6785,56 +6785,56 @@ Option 3"></textarea>
                             <select id="tool-allowed-groups" class="hidden" multiple></select>
                             
                             <!-- Granular Permissions -->
-                            <div class="rounded-xl p-4" style="background: #1f2937;">
-                                <h6 class="text-sm font-medium mb-3 flex items-center gap-2 text-gray-200">
+                            <div class="rounded-xl p-4" style="background: #f3f4f6; border: 1px solid #e5e7eb;">
+                                <h6 class="text-sm font-medium mb-3 flex items-center gap-2" style="color: #1f2937;">
                                     <span>🔐</span> Granular Permissions 
-                                    <span class="text-xs text-gray-400 font-normal">(Optional)</span>
+                                    <span class="text-xs font-normal" style="color: #6b7280;">(Optional)</span>
                                 </h6>
-                                <p class="text-xs text-gray-400 mb-3 p-2 rounded" style="background: #374151;">
+                                <p class="text-xs mb-3 p-2 rounded" style="background: #e5e7eb; color: #374151;">
                                     💡 <strong>Tip:</strong> By default, selected users/groups can <strong>view + execute</strong>. 
                                     Use the options below to grant <strong>edit or delete</strong> permissions to specific users or entire groups.
                                 </p>
-                                <div id="granular-permissions-empty" class="hidden text-center py-4 text-gray-400 text-sm">
+                                <div id="granular-permissions-empty" class="hidden text-center py-4 text-sm" style="color: #6b7280;">
                                     No users or groups selected above. Add them first to set granular permissions.
                                 </div>
                                 <div id="granular-permissions-grid" class="grid md:grid-cols-3 gap-4">
                                     <!-- Can Edit -->
                                     <div>
-                                        <label class="text-xs text-gray-300 block mb-2 flex items-center gap-1">
+                                        <label class="text-xs block mb-2 flex items-center gap-1" style="color: #374151; font-weight: 600;">
                                             <span>✏️</span> Can Edit
                                         </label>
-                                        <div id="tool-can-edit-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: #374151;">
+                                        <div id="tool-can-edit-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: #e5e7eb; border: 1px solid #d1d5db;">
                                         </div>
-                                        <select id="tool-can-edit-users" class="w-full rounded px-2 py-1.5 text-sm text-gray-200" 
-                                            style="background: #374151; border: 1px solid #4b5563;"
+                                        <select id="tool-can-edit-users" class="w-full rounded px-2 py-1.5 text-sm" 
+                                            style="background: #f3f4f6; border: 1px solid #d1d5db; color: #1f2937;"
                                             onchange="addToolPermissionChip('edit', this)">
-                                            <option value="">+ Add user</option>
+                                            <option value="">+ Add user/group</option>
                                         </select>
                                     </div>
                                     <!-- Can Delete -->
                                     <div>
-                                        <label class="text-xs text-gray-300 block mb-2 flex items-center gap-1">
+                                        <label class="text-xs block mb-2 flex items-center gap-1" style="color: #374151; font-weight: 600;">
                                             <span>🗑️</span> Can Delete
                                         </label>
-                                        <div id="tool-can-delete-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: #374151;">
+                                        <div id="tool-can-delete-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: #e5e7eb; border: 1px solid #d1d5db;">
                                         </div>
-                                        <select id="tool-can-delete-users" class="w-full rounded px-2 py-1.5 text-sm text-gray-200"
-                                            style="background: #374151; border: 1px solid #4b5563;"
+                                        <select id="tool-can-delete-users" class="w-full rounded px-2 py-1.5 text-sm"
+                                            style="background: #f3f4f6; border: 1px solid #d1d5db; color: #1f2937;"
                                             onchange="addToolPermissionChip('delete', this)">
-                                            <option value="">+ Add user</option>
+                                            <option value="">+ Add user/group</option>
                                         </select>
                                     </div>
                                     <!-- Can Execute -->
                                     <div>
-                                        <label class="text-xs text-gray-300 block mb-2 flex items-center gap-1">
+                                        <label class="text-xs block mb-2 flex items-center gap-1" style="color: #374151; font-weight: 600;">
                                             <span>🚀</span> Can Use in Agents
                                         </label>
-                                        <div id="tool-can-execute-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: #374151;">
+                                        <div id="tool-can-execute-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: #e5e7eb; border: 1px solid #d1d5db;">
                                         </div>
-                                        <select id="tool-can-execute-users" class="w-full rounded px-2 py-1.5 text-sm text-gray-200"
-                                            style="background: #374151; border: 1px solid #4b5563;"
+                                        <select id="tool-can-execute-users" class="w-full rounded px-2 py-1.5 text-sm"
+                                            style="background: #f3f4f6; border: 1px solid #d1d5db; color: #1f2937;"
                                             onchange="addToolPermissionChip('execute', this)">
-                                            <option value="">+ Add user</option>
+                                            <option value="">+ Add user/group</option>
                                         </select>
                                     </div>
                                 </div>
@@ -20627,58 +20627,58 @@ function filterToolAccessSearch(query) {
     }).slice(0, 3);
     
     if (filteredUsers.length > 0) {
-        html += `<div class="px-3 py-2 text-xs text-gray-400 font-medium" style="background: #374151;">👤 Users</div>`;
+        html += `<div class="px-3 py-2 text-xs font-medium" style="background: #e5e7eb; color: #374151;">👤 Users</div>`;
         filteredUsers.forEach(u => {
             const isSelected = toolAccessSelected.users.some(s => s.id === u.id);
             const name = u.full_name || u.email || u.username;
             html += `
                 <div class="px-4 py-3 cursor-pointer flex items-center justify-between transition" 
-                     style="background: ${isSelected ? '#4c1d95' : '#1f2937'};"
-                     onmouseover="this.style.background='#6d28d9'"
-                     onmouseout="this.style.background='${isSelected ? '#4c1d95' : '#1f2937'}'"
+                     style="background: ${isSelected ? '#ede9fe' : '#ffffff'};"
+                     onmouseover="this.style.background='${isSelected ? '#ddd6fe' : '#f3f4f6'}'"
+                     onmouseout="this.style.background='${isSelected ? '#ede9fe' : '#ffffff'}'"
                      onclick="toggleToolAccessEntity('user', '${u.id}', '${name.replace(/'/g, "\\'")}', '${(u.email || '').replace(/'/g, "\\'")}')">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-sm font-bold">
                             ${name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                            <div class="text-gray-100 text-sm font-medium">${name}</div>
-                            <div class="text-xs text-gray-400">${u.email || ''}</div>
+                            <div class="text-sm font-medium" style="color: #1f2937;">${name}</div>
+                            <div class="text-xs" style="color: #6b7280;">${u.email || ''}</div>
                         </div>
                     </div>
-                    ${isSelected ? '<span class="text-green-400 text-sm">✓</span>' : '<span class="text-gray-500 text-sm">+</span>'}
+                    ${isSelected ? '<span style="color: #059669;" class="text-sm font-bold">✓</span>' : '<span style="color: #9ca3af;" class="text-sm">+</span>'}
                 </div>
             `;
         });
     }
     
     if (filteredGroups.length > 0) {
-        html += `<div class="px-3 py-2 text-xs text-gray-400 font-medium ${filteredUsers.length > 0 ? 'border-t border-gray-600' : ''}" style="background: #374151;">👥 Groups</div>`;
+        html += `<div class="px-3 py-2 text-xs font-medium ${filteredUsers.length > 0 ? 'border-t' : ''}" style="background: #e5e7eb; color: #374151; border-color: #d1d5db;">👥 Groups</div>`;
         filteredGroups.forEach(g => {
             const isSelected = toolAccessSelected.groups.some(s => s.id === g.id);
             html += `
                 <div class="px-4 py-3 cursor-pointer flex items-center justify-between transition"
-                     style="background: ${isSelected ? '#1e3a5f' : '#1f2937'};"
-                     onmouseover="this.style.background='#2563eb'"
-                     onmouseout="this.style.background='${isSelected ? '#1e3a5f' : '#1f2937'}'"
+                     style="background: ${isSelected ? '#dbeafe' : '#ffffff'};"
+                     onmouseover="this.style.background='${isSelected ? '#bfdbfe' : '#f3f4f6'}'"
+                     onmouseout="this.style.background='${isSelected ? '#dbeafe' : '#ffffff'}'"
                      onclick="toggleToolAccessEntity('group', '${g.id}', '${(g.name || '').replace(/'/g, "\\'")}', '')">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-sm">
                             👥
                         </div>
                         <div>
-                            <div class="text-gray-100 text-sm font-medium">${g.name}</div>
-                            <div class="text-xs text-gray-400">${g.members_count || 0} members</div>
+                            <div class="text-sm font-medium" style="color: #1f2937;">${g.name}</div>
+                            <div class="text-xs" style="color: #6b7280;">${g.members_count || 0} members</div>
                         </div>
                     </div>
-                    ${isSelected ? '<span class="text-green-400 text-sm">✓</span>' : '<span class="text-gray-500 text-sm">+</span>'}
+                    ${isSelected ? '<span style="color: #059669;" class="text-sm font-bold">✓</span>' : '<span style="color: #9ca3af;" class="text-sm">+</span>'}
                 </div>
             `;
         });
     }
     
     if (html === '') {
-        html = `<div class="px-4 py-6 text-center text-gray-400 text-sm">No results found</div>`;
+        html = `<div class="px-4 py-6 text-center text-sm" style="color: #6b7280;">No results found</div>`;
     }
     
     resultsDiv.innerHTML = html;
@@ -20723,16 +20723,16 @@ function updateToolAccessChips() {
     const allSelected = [...toolAccessSelected.users, ...toolAccessSelected.groups];
     
     if (allSelected.length === 0) {
-        container.innerHTML = `<div id="tool-no-selection-msg" class="text-sm text-gray-400 italic">Click on users or groups from search to add them</div>`;
+        container.innerHTML = `<div id="tool-no-selection-msg" class="text-sm italic" style="color: #6b7280;">Click on users or groups from search to add them</div>`;
     } else {
         container.innerHTML = allSelected.map(e => `
             <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all hover:scale-105"
-                 style="background: ${e.type === 'user' ? '#7c3aed' : '#2563eb'}; border: none;">
+                 style="background: ${e.type === 'user' ? '#ede9fe' : '#dbeafe'}; border: 1px solid ${e.type === 'user' ? '#c4b5fd' : '#93c5fd'};">
                 <span class="text-xs">${e.type === 'user' ? '👤' : '👥'}</span>
-                <span class="text-white font-medium">${e.name}</span>
+                <span style="color: ${e.type === 'user' ? '#5b21b6' : '#1e40af'}; font-weight: 500;">${e.name}</span>
                 <button onclick="toggleToolAccessEntity('${e.type}', '${e.id}', '', '')" 
-                        class="w-5 h-5 rounded-full flex items-center justify-center text-white hover:text-red-300 transition"
-                        style="background: rgba(0,0,0,0.2);">
+                        class="w-5 h-5 rounded-full flex items-center justify-center transition"
+                        style="background: ${e.type === 'user' ? '#c4b5fd' : '#93c5fd'}; color: ${e.type === 'user' ? '#5b21b6' : '#1e40af'};">
                     ×
                 </button>
             </div>
@@ -20847,10 +20847,10 @@ function updatePermissionChipsDisplay(permType) {
     const chipsContainer = document.getElementById(`tool-can-${permType}-chips`);
     if (chipsContainer) {
         chipsContainer.innerHTML = toolPermissionChips[permType].map(e => `
-            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs text-white" 
-                  style="background: ${e.entityType === 'group' ? '#2563eb' : '#7c3aed'};">
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs" 
+                  style="background: ${e.entityType === 'group' ? '#dbeafe' : '#ede9fe'}; color: ${e.entityType === 'group' ? '#1e40af' : '#5b21b6'}; border: 1px solid ${e.entityType === 'group' ? '#93c5fd' : '#c4b5fd'};">
                 ${e.entityType === 'group' ? '👥' : '👤'} ${e.name}
-                <button onclick="removeToolPermissionChip('${permType}', '${e.id}', '${e.entityType}')" class="hover:text-red-300 ml-1">×</button>
+                <button onclick="removeToolPermissionChip('${permType}', '${e.id}', '${e.entityType}')" class="hover:text-red-600 ml-1 font-bold">×</button>
             </span>
         `).join('');
     }
