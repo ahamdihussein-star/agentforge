@@ -10205,6 +10205,24 @@ async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: Us
     
     app_state.save_to_disk()
     
+    # Also save to database
+    try:
+        from database.services import ToolService
+        tool_dict = tool.dict()
+        # Include access control fields explicitly
+        tool_dict['access_type'] = tool.access_type
+        tool_dict['allowed_user_ids'] = tool.allowed_user_ids or []
+        tool_dict['allowed_group_ids'] = tool.allowed_group_ids or []
+        tool_dict['can_edit_user_ids'] = tool.can_edit_user_ids or []
+        tool_dict['can_delete_user_ids'] = tool.can_delete_user_ids or []
+        tool_dict['can_execute_user_ids'] = tool.can_execute_user_ids or []
+        tool_dict['owner_id'] = tool.owner_id
+        
+        ToolService.update_tool(tool_id, tool_dict, "org_default", user_id or "system")
+        print(f"✅ [DATABASE] Tool '{tool.name}' updated with access control: allowed_users={tool.allowed_user_ids}, allowed_groups={tool.allowed_group_ids}")
+    except Exception as e:
+        print(f"⚠️ [DATABASE] Failed to update tool in database: {e}")
+    
     response = {
         "status": "success", 
         "tool": tool.dict()
