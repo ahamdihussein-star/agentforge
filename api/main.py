@@ -8025,6 +8025,9 @@ async def get_tool(tool_id: str):
         raise HTTPException(404, "Tool not found")
     tool = app_state.tools[tool_id]
     
+    # Debug: Log access control data
+    print(f"📋 [GET TOOL] Tool '{tool.name}' access_type={tool.access_type}, allowed_users={tool.allowed_user_ids}, allowed_groups={tool.allowed_group_ids}")
+    
     # Get regular documents
     documents = [d.dict() for d in app_state.documents.values() if d.tool_id == tool_id]
     
