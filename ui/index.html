@@ -16971,6 +16971,14 @@ Option 3"></textarea>
                     
                     // Pre-fill type-specific config in step 2
                     prefillToolConfig(tool);
+                    
+                    // Update the Create button to say Update
+                    const createBtn = document.getElementById('btn-create');
+                    if (createBtn) {
+                        createBtn.textContent = '✓ Update Tool';
+                        createBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                        createBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    }
                 }, 100);
                 
                 showToast('Editing: ' + tool.name, 'info');
@@ -20282,6 +20290,9 @@ function resetWizard() {
         tableData: null
     };
     
+    // Reset editing state
+    editingToolId = null;
+    
     // Reset text and table entries
     wizTextEntries = [];
     wizTableEntries = [];
@@ -20292,6 +20303,14 @@ function resetWizard() {
     document.getElementById('wizard-icon').textContent = '🔧';
     document.getElementById('wizard-title').textContent = 'Create Tool';
     document.getElementById('wizard-subtitle').textContent = 'Select a tool type';
+    
+    // Reset Create button to default state
+    const createBtn = document.getElementById('btn-create');
+    if (createBtn) {
+        createBtn.textContent = '✓ Create Tool';
+        createBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        createBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+    }
     
     // Show step 0, hide others
     for (let i = 0; i <= 4; i++) {
@@ -20684,7 +20703,7 @@ async function testWizTool() {
     }
 }
 
-// Create tool
+// Create or Update tool
 async function wizCreate() {
     saveStepData();
     
@@ -20707,13 +20726,16 @@ async function wizCreate() {
         }
     }
     
+    // Check if we're editing
+    const isEditing = !!editingToolId;
+    
     // Show progress
-    showProgressModal('Creating tool...');
-    updateProgress(10, 'Creating tool...');
+    showProgressModal(isEditing ? 'Updating tool...' : 'Creating tool...');
+    updateProgress(10, isEditing ? 'Updating tool...' : 'Creating tool...');
     
     try {
-        // Create tool
-        console.log('Creating tool:', {
+        // Create or Update tool
+        console.log(isEditing ? 'Updating tool:' : 'Creating tool:', {
             type: wizState.type,
             name: wizState.data.name,
             description: wizState.data.description,
@@ -20723,8 +20745,12 @@ async function wizCreate() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
-        const response = await fetch(API + '/api/tools', {
-            method: 'POST',
+        // Use PUT for update, POST for create
+        const url = isEditing ? API + '/api/tools/' + editingToolId : API + '/api/tools';
+        const method = isEditing ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 type: wizState.type,
@@ -20739,13 +20765,13 @@ async function wizCreate() {
         
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || 'Failed to create tool');
+            throw new Error(errorData.detail || (isEditing ? 'Failed to update tool' : 'Failed to create tool'));
         }
         
         const result = await response.json();
-        const toolId = result.tool_id;
+        const toolId = isEditing ? editingToolId : result.tool_id;
         
-        updateProgress(20, 'Tool created!');
+        updateProgress(20, isEditing ? 'Tool updated!' : 'Tool created!');
         
         // Upload files if any
         if (wizState.data.files && wizState.data.files.length > 0) {
@@ -20821,25 +20847,35 @@ async function wizCreate() {
             }
         }
         
-        updateProgress(100, '✅ Done!');
+        updateProgress(100, isEditing ? '✅ Tool updated!' : '✅ Done!');
         
         // Reset wizard entries
         wizTextEntries = [];
         wizTableEntries = [];
         
+        // Show success notification
+        showToast(isEditing ? 'Tool updated successfully!' : 'Tool created successfully!', 'success');
+        
+        // Reset editing state
+        const savedToolId = toolId;
+        editingToolId = null;
+        
         setTimeout(() => {
             hideProgressModal();
             closeWizard();
             loadTools();
+            // Navigate to tool detail
+            if (savedToolId) viewTool(savedToolId);
         }, 500);
         
     } catch (e) {
         hideProgressModal();
-        console.error('Error creating tool:', e);
+        console.error(isEditing ? 'Error updating tool:' : 'Error creating tool:', e);
+        editingToolId = null; // Reset on error too
         if (e.name === 'AbortError') {
             alert('Request timed out. Please try again.');
         } else {
-            alert('Error creating tool: ' + (e.message || 'Unknown error'));
+            alert((isEditing ? 'Error updating tool: ' : 'Error creating tool: ') + (e.message || 'Unknown error'));
         }
     }
 }
