@@ -17527,6 +17527,9 @@ async function openToolEditPanel(toolId) {
         // Load sources
         loadEditSources(currentEditTool);
         
+        // Load access control data
+        await loadEditAccessControl(currentEditTool);
+        
         // Show panel with animation
         const panel = document.getElementById('tool-edit-panel');
         const slider = document.getElementById('tool-edit-slider');
@@ -17547,6 +17550,96 @@ function closeToolEditPanel() {
     slider.classList.add('translate-x-full');
     setTimeout(() => panel.classList.add('hidden'), 300);
     currentEditTool = null;
+}
+
+async function loadEditAccessControl(tool) {
+    // First load users and groups data
+    await loadToolAccessUsersAndGroups();
+    
+    // Set access type
+    const accessType = tool.access_type || 'owner_only';
+    selectedToolAccessType = accessType;
+    selectToolAccessType(accessType);
+    
+    if (accessType === 'specific_users') {
+        // Reset selections
+        toolAccessSelected = { users: [], groups: [] };
+        toolPermissionChips = { edit: [], delete: [], execute: [] };
+        
+        // Populate allowed users
+        if (tool.allowed_user_ids && tool.allowed_user_ids.length > 0) {
+            tool.allowed_user_ids.forEach(userId => {
+                const user = toolAccessData.users.find(u => u.id === userId);
+                if (user) {
+                    toolAccessSelected.users.push({
+                        id: user.id,
+                        name: user.full_name || user.email || user.username,
+                        email: user.email || '',
+                        type: 'user'
+                    });
+                }
+            });
+        }
+        
+        // Populate allowed groups
+        if (tool.allowed_group_ids && tool.allowed_group_ids.length > 0) {
+            tool.allowed_group_ids.forEach(groupId => {
+                const group = toolAccessData.groups.find(g => g.id === groupId);
+                if (group) {
+                    toolAccessSelected.groups.push({
+                        id: group.id,
+                        name: group.name,
+                        email: '',
+                        type: 'group'
+                    });
+                }
+            });
+        }
+        
+        // Populate granular permissions (can_edit, can_delete, can_execute)
+        // These can be "user_id" or "group:group_id"
+        ['edit', 'delete', 'execute'].forEach(permType => {
+            const field = `can_${permType}_user_ids`;
+            if (tool[field] && tool[field].length > 0) {
+                tool[field].forEach(id => {
+                    if (id.startsWith('group:')) {
+                        const groupId = id.replace('group:', '');
+                        const group = toolAccessData.groups.find(g => g.id === groupId);
+                        if (group) {
+                            toolPermissionChips[permType].push({
+                                id: group.id,
+                                name: group.name,
+                                entityType: 'group'
+                            });
+                        }
+                    } else {
+                        const user = toolAccessData.users.find(u => u.id === id);
+                        if (user) {
+                            toolPermissionChips[permType].push({
+                                id: user.id,
+                                name: user.full_name || user.email || user.username,
+                                entityType: 'user'
+                            });
+                        }
+                    }
+                });
+            }
+        });
+        
+        // Update UI
+        updateToolAccessChips();
+        updateToolPermissionDropdowns();
+        ['edit', 'delete', 'execute'].forEach(permType => {
+            updatePermissionChipsDisplay(permType);
+        });
+    }
+    
+    console.log('📋 [LOAD EDIT] Access Control loaded:', {
+        accessType,
+        users: toolAccessSelected.users.length,
+        groups: toolAccessSelected.groups.length,
+        editPerms: toolPermissionChips.edit.length
+    });
 }
 
 function switchEditTab(tab) {
@@ -17918,6 +18011,35 @@ async function saveToolChanges() {
     
     // Merge with existing config
     updates.config = { ...(currentEditTool?.config || {}), ...config };
+    
+    // Add access control fields if they exist (from chips)
+    if (typeof selectedToolAccessType !== 'undefined') {
+        updates.access_type = selectedToolAccessType;
+        
+        if (selectedToolAccessType === 'specific_users' && typeof toolAccessSelected !== 'undefined') {
+            updates.allowed_user_ids = toolAccessSelected.users.map(u => u.id);
+            updates.allowed_group_ids = toolAccessSelected.groups.map(g => g.id);
+            
+            if (typeof toolPermissionChips !== 'undefined') {
+                updates.can_edit_user_ids = toolPermissionChips.edit.map(e => 
+                    e.entityType === 'group' ? `group:${e.id}` : e.id
+                );
+                updates.can_delete_user_ids = toolPermissionChips.delete.map(e => 
+                    e.entityType === 'group' ? `group:${e.id}` : e.id
+                );
+                updates.can_execute_user_ids = toolPermissionChips.execute.map(e => 
+                    e.entityType === 'group' ? `group:${e.id}` : e.id
+                );
+            }
+        }
+        
+        console.log('📋 [SAVE] Access Control Updates:', {
+            access_type: updates.access_type,
+            allowed_user_ids: updates.allowed_user_ids,
+            allowed_group_ids: updates.allowed_group_ids,
+            can_edit_user_ids: updates.can_edit_user_ids
+        });
+    }
     
     // Check if critical config changed (for re-processing)
     const oldConfig = currentEditTool?.config || {};
@@ -26366,6 +26488,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button onclick="switchEditTab('basic')" class="edit-tab active flex-1 px-4 py-3 text-sm font-medium border-b-2 border-purple-500 text-purple-400" data-tab="basic">Basic Info</button>
                 <button onclick="switchEditTab('config')" class="edit-tab flex-1 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white" data-tab="config">Configuration</button>
                 <button onclick="switchEditTab('sources')" class="edit-tab flex-1 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white" data-tab="sources">Sources</button>
+                <button onclick="switchEditTab('access')" class="edit-tab flex-1 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white" data-tab="access">🔐 Access</button>
             </div>
             
             <!-- Content -->
@@ -26404,6 +26527,69 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div id="edit-sources-content">
                         <!-- Dynamic sources will be shown here -->
                     </div>
+                </div>
+                
+                <!-- Access Control Tab -->
+                <div id="edit-tab-access" class="edit-tab-content hidden space-y-4">
+                    <div class="rounded-xl p-4" style="background: #f3f4f6; border: 1px solid #e5e7eb;">
+                        <h5 class="font-semibold mb-4" style="color: #1f2937;">🔐 Who Can Access This Tool?</h5>
+                        
+                        <!-- Access Type Radio Buttons -->
+                        <div class="grid grid-cols-2 gap-3 mb-4">
+                            <label class="access-type-card cursor-pointer p-3 rounded-lg border-2 transition-all" 
+                                   style="background: #ffffff; border-color: #d1d5db;"
+                                   onclick="selectToolAccessType('owner_only')">
+                                <input type="radio" name="edit-access-type" value="owner_only" class="hidden">
+                                <div class="flex items-center gap-2">
+                                    <span>👤</span>
+                                    <span class="font-medium" style="color: #1f2937;">Only Me</span>
+                                </div>
+                            </label>
+                            <label class="access-type-card cursor-pointer p-3 rounded-lg border-2 transition-all"
+                                   style="background: #ffffff; border-color: #d1d5db;"
+                                   onclick="selectToolAccessType('authenticated')">
+                                <input type="radio" name="edit-access-type" value="authenticated" class="hidden">
+                                <div class="flex items-center gap-2">
+                                    <span>🏢</span>
+                                    <span class="font-medium" style="color: #1f2937;">All Logged In</span>
+                                </div>
+                            </label>
+                            <label class="access-type-card cursor-pointer p-3 rounded-lg border-2 transition-all"
+                                   style="background: #ffffff; border-color: #d1d5db;"
+                                   onclick="selectToolAccessType('specific_users')">
+                                <input type="radio" name="edit-access-type" value="specific_users" class="hidden">
+                                <div class="flex items-center gap-2">
+                                    <span>👥</span>
+                                    <span class="font-medium" style="color: #1f2937;">Specific Users</span>
+                                </div>
+                            </label>
+                            <label class="access-type-card cursor-pointer p-3 rounded-lg border-2 transition-all"
+                                   style="background: #ffffff; border-color: #d1d5db;"
+                                   onclick="selectToolAccessType('public')">
+                                <input type="radio" name="edit-access-type" value="public" class="hidden">
+                                <div class="flex items-center gap-2">
+                                    <span>🌍</span>
+                                    <span class="font-medium" style="color: #1f2937;">Public</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <!-- Specific Users Config (reuses the same elements from wizard) -->
+                        <div id="edit-specific-access-config" class="hidden">
+                            <p class="text-sm mb-3" style="color: #6b7280;">
+                                Use the search below to add users and groups. The same Access Control panel from tool creation is used here.
+                            </p>
+                            <button onclick="switchEditTab('basic'); document.getElementById('tool-specific-access-config')?.scrollIntoView({behavior: 'smooth'})" 
+                                    class="btn-secondary px-4 py-2 rounded-lg text-sm">
+                                Configure in Tool Wizard →
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <p class="text-xs" style="color: #6b7280;">
+                        💡 <strong>Note:</strong> For detailed user/group permissions, the search and selection UI from the tool wizard is used.
+                        Changes here will be saved when you click "Save Changes".
+                    </p>
                 </div>
             </div>
             
