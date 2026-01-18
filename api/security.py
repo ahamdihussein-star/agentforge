@@ -428,6 +428,9 @@ async def get_current_user(
     
     return user
 
+# Alias for optional authentication (same as get_current_user, returns None if not authenticated)
+get_current_user_optional = get_current_user
+
 async def require_auth(user: User = Depends(get_current_user)) -> User:
     """Require authenticated user"""
     if not user:

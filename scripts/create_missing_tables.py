@@ -264,6 +264,13 @@ def add_missing_columns():
     
     columns_to_add = [
         ("conversations", "is_test", "BOOLEAN DEFAULT FALSE"),
+        # Tool access control columns
+        ("tools", "access_type", "VARCHAR(30) DEFAULT 'owner_only'"),
+        ("tools", "allowed_user_ids", "JSONB DEFAULT '[]'::jsonb"),
+        ("tools", "allowed_group_ids", "JSONB DEFAULT '[]'::jsonb"),
+        ("tools", "can_edit_user_ids", "JSONB DEFAULT '[]'::jsonb"),
+        ("tools", "can_delete_user_ids", "JSONB DEFAULT '[]'::jsonb"),
+        ("tools", "can_execute_user_ids", "JSONB DEFAULT '[]'::jsonb"),
     ]
     
     with engine.connect() as conn:

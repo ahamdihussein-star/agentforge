@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from database.base import Base
-from database.config import DATABASE_CONFIG
+from database.config import DatabaseConfig
 
 # Import all models to register them with Base.metadata
 from database.models import *
@@ -31,7 +31,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # Get database URL from config
-config.set_main_option('sqlalchemy.url', DATABASE_CONFIG.get_url())
+config.set_main_option('sqlalchemy.url', DatabaseConfig.get_database_url())
 
 
 def run_migrations_offline() -> None:
