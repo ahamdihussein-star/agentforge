@@ -84,6 +84,16 @@ class ToolService:
                 if existing:
                     return ToolService.update_tool(tool_id, tool_data, org_id, created_by)
                 
+                # Get owner_id from tool_data or use created_by as fallback
+                owner_id_str = tool_data.get('owner_id')
+                if owner_id_str and owner_id_str not in ['system', '', None]:
+                    try:
+                        owner_uuid = uuid_lib.UUID(owner_id_str) if isinstance(owner_id_str, str) else owner_id_str
+                    except (ValueError, AttributeError):
+                        owner_uuid = created_by_uuid
+                else:
+                    owner_uuid = created_by_uuid
+                
                 # Create new tool
                 db_tool = DBTool(
                     id=tool_id,
@@ -101,7 +111,14 @@ class ToolService:
                     output_schema=tool_data.get('output_schema'),
                     is_active=tool_data.get('is_active', True),
                     is_public=tool_data.get('is_public', False),
-                    owner_id=created_by_uuid,
+                    owner_id=owner_uuid,
+                    # Access Control
+                    access_type=tool_data.get('access_type', 'owner_only'),
+                    allowed_user_ids=tool_data.get('allowed_user_ids', []),
+                    allowed_group_ids=tool_data.get('allowed_group_ids', []),
+                    can_edit_user_ids=tool_data.get('can_edit_user_ids', []),
+                    can_delete_user_ids=tool_data.get('can_delete_user_ids', []),
+                    can_execute_user_ids=tool_data.get('can_execute_user_ids', []),
                     created_by=created_by_uuid,
                     extra_metadata=tool_data.get('extra_metadata', {})
                 )
@@ -146,6 +163,19 @@ class ToolService:
                     db_tool.is_active = tool_data['is_active']
                 if 'is_public' in tool_data:
                     db_tool.is_public = tool_data['is_public']
+                # Access Control fields
+                if 'access_type' in tool_data:
+                    db_tool.access_type = tool_data['access_type']
+                if 'allowed_user_ids' in tool_data:
+                    db_tool.allowed_user_ids = tool_data['allowed_user_ids']
+                if 'allowed_group_ids' in tool_data:
+                    db_tool.allowed_group_ids = tool_data['allowed_group_ids']
+                if 'can_edit_user_ids' in tool_data:
+                    db_tool.can_edit_user_ids = tool_data['can_edit_user_ids']
+                if 'can_delete_user_ids' in tool_data:
+                    db_tool.can_delete_user_ids = tool_data['can_delete_user_ids']
+                if 'can_execute_user_ids' in tool_data:
+                    db_tool.can_execute_user_ids = tool_data['can_execute_user_ids']
                 
                 db_tool.updated_at = datetime.utcnow()
                 if updated_by:
@@ -227,6 +257,14 @@ class ToolService:
             'is_public': db_tool.is_public if db_tool.is_public is not None else False,
             'org_id': str(db_tool.org_id) if db_tool.org_id else None,
             'owner_id': str(db_tool.owner_id) if db_tool.owner_id else None,
+            # Access Control fields
+            'access_type': getattr(db_tool, 'access_type', None) or 'authenticated',
+            'allowed_user_ids': getattr(db_tool, 'allowed_user_ids', None) or [],
+            'allowed_group_ids': getattr(db_tool, 'allowed_group_ids', None) or [],
+            'can_edit_user_ids': getattr(db_tool, 'can_edit_user_ids', None) or [],
+            'can_delete_user_ids': getattr(db_tool, 'can_delete_user_ids', None) or [],
+            'can_execute_user_ids': getattr(db_tool, 'can_execute_user_ids', None) or [],
+            'created_by': str(db_tool.created_by) if db_tool.created_by else None,
             'usage_count': db_tool.usage_count or 0,
             'created_at': db_tool.created_at.isoformat() if db_tool.created_at else None,
             'updated_at': db_tool.updated_at.isoformat() if db_tool.updated_at else None,
