@@ -10520,11 +10520,10 @@ Option 3"></textarea>
             console.log('📥 Final taskPermissions state:', JSON.stringify(wizardAccessState.taskPermissions, null, 2));
             console.log('📥 ================================================');
             
-            // Set the radio button
-            const radio = document.querySelector(`input[name="wizard-access-type"][value="${wizardAccessState.accessType}"]`);
-            if (radio) radio.checked = true;
-            
-            updateWizardAccessUI();
+            // Update the visual selection on access type cards
+            // (Old code tried to set a radio button that doesn't exist)
+            console.log('📥 Setting access type visual selection to:', wizardAccessState.accessType);
+            selectWizardAccessType(wizardAccessState.accessType);
         }
         
         async function loadGuardrailsToForm() {

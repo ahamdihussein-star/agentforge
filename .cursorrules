@@ -4,13 +4,24 @@
 
 **Before starting any work, read `PROJECT_STATUS.md`** for:
 - Current project state and completion status
-- What's been completed
-- **NEXT TASK: End User Security Module** (access control for agents)
+- All completed features (Access Control, Delegated Admin, Groups, etc.)
+- Architecture overview
 - Key files and their purposes
-- Implementation checklist
+- Important implementation details
 
-The database models for the security module are **already created** in:
-`database/models/agent_access.py`
+### 📖 Documentation Structure:
+| File | Purpose | Read When |
+|------|---------|-----------|
+| `PROJECT_STATUS.md` | **Current state, quick reference** | Always (primary) |
+| `.cursorrules` | Development rules | Auto-loaded |
+| `database/COMMON_ISSUES.md` | DB patterns & issues | Before DB work |
+| `docs/MASTER_DOCUMENTATION_UPDATED.md` | Historical/Archive | Deep reference only |
+
+### 🔑 Key Concepts (Quick Reference):
+- **Owner**: Agent creator, always has full access
+- **Delegated Admin**: Admin with limited task permissions
+- **Task Permissions**: Match by **NAME** (not ID) - IDs change on wizard load
+- **Agents are PRIVATE by default**: Only owner can see
 
 ---
 

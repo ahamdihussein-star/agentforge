@@ -10,6 +10,25 @@
 
 ---
 
+> ## ⚠️ IMPORTANT: This Document is ARCHIVED
+> 
+> **For current project state, read `PROJECT_STATUS.md` first!**
+> 
+> This master documentation was last fully updated on **January 14, 2026**.
+> Many features have been added since then that are NOT reflected here.
+> 
+> **Quick Reference Files (Updated):**
+> - `PROJECT_STATUS.md` - Current state, recent changes, quick reference
+> - `.cursorrules` - Development rules (auto-loaded by AI)
+> - `database/COMMON_ISSUES.md` - Database patterns & issues
+> 
+> **This file remains as:**
+> - Historical reference for architecture decisions
+> - Deployment documentation
+> - Database schema reference
+
+---
+
 # 📑 Table of Contents
 
 ## Part 1: Platform Overview
