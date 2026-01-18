@@ -16571,12 +16571,31 @@ Option 3"></textarea>
             }
         }
         async function delPage(id){if(!confirm('Delete page?'))return;await fetch(API+'/api/scraped-pages/'+id,{method:'DELETE'});location.reload();}
-        async function delTool(id){if(!confirm('Delete this tool?'))return;await fetch(API+'/api/tools/'+id,{method:'DELETE'});navigate('tools');}
+        async function delTool(id){
+            if(!confirm('Delete this tool?')) return;
+            try {
+                const res = await fetch(API+'/api/tools/'+id, {method:'DELETE'});
+                if (!res.ok) {
+                    const error = await res.json();
+                    showToast(error.detail || 'Failed to delete tool', 'error');
+                    return;
+                }
+                showToast('Tool deleted', 'success');
+                navigate('tools');
+            } catch(e) {
+                showToast('Failed to delete: ' + e.message, 'error');
+            }
+        }
         
         async function delToolFromCard(id, name){
             if(!confirm('Delete tool "' + name + '"?')) return;
             try {
-                await fetch(API+'/api/tools/'+id, {method:'DELETE'});
+                const res = await fetch(API+'/api/tools/'+id, {method:'DELETE'});
+                if (!res.ok) {
+                    const error = await res.json();
+                    showToast(error.detail || 'Failed to delete tool', 'error');
+                    return;
+                }
                 showToast('Tool deleted', 'success');
                 loadTools();
             } catch(e) {

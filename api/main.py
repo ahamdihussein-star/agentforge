@@ -8013,6 +8013,43 @@ async def update_table_entry(tool_id: str, source: str, request: Dict[str, Any])
 async def delete_tool(tool_id: str):
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
+    
+    # Check if tool is being used by any agent
+    agents_using_tool = []
+    
+    # Check in-memory agents
+    for agent in app_state.agents.values():
+        agent_tool_ids = agent.tool_ids if isinstance(agent.tool_ids, list) else []
+        if tool_id in agent_tool_ids:
+            agents_using_tool.append({
+                "id": agent.id,
+                "name": agent.name
+            })
+    
+    # Also check database agents
+    try:
+        from database.services import AgentService
+        db_agents = AgentService.get_all_agents()
+        for agent in db_agents:
+            agent_tool_ids = agent.tool_ids if isinstance(agent.tool_ids, list) else []
+            if tool_id in agent_tool_ids:
+                # Avoid duplicates
+                if not any(a["id"] == agent.id for a in agents_using_tool):
+                    agents_using_tool.append({
+                        "id": agent.id,
+                        "name": agent.name
+                    })
+    except Exception as e:
+        print(f"⚠️  [DATABASE] Failed to check agents: {e}")
+    
+    # If tool is being used, don't allow deletion
+    if agents_using_tool:
+        agent_names = ", ".join([a["name"] for a in agents_using_tool])
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot delete tool: It is currently being used by {len(agents_using_tool)} agent(s): {agent_names}. Please remove the tool from these agents first."
+        )
+    
     del app_state.tools[tool_id]
     
     # Delete from database
@@ -8029,9 +8066,7 @@ async def delete_tool(tool_id: str):
     for page_id in page_ids:
         del app_state.scraped_pages[page_id]
     app_state.document_chunks = [c for c in app_state.document_chunks if c.get('tool_id') != tool_id]
-    for agent in app_state.agents.values():
-        if tool_id in agent.tool_ids:
-            agent.tool_ids.remove(tool_id)
+    
     app_state.save_to_disk()
     return {"status": "success"}
 
