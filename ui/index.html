@@ -16999,14 +16999,12 @@ Option 3"></textarea>
                     // Check api_config first (proper API tools), then fall back to config
                     const apiCfg = tool.api_config || config || {};
                     
-                    // API tool fields
-                    const apiBase = document.getElementById('api-base-url');
+                    // API tool fields - use CORRECT element IDs from the wizard form
+                    const apiBase = document.getElementById('api-url');  // NOT api-base-url!
                     const apiPath = document.getElementById('api-path');
                     const apiMethod = document.getElementById('api-method');
                     const apiAuth = document.getElementById('api-auth');
-                    const apiAuthValue = document.getElementById('api-auth-value');
-                    const apiKeyName = document.getElementById('api-key-name');
-                    const apiKeyLoc = document.getElementById('api-key-loc');
+                    const apiAuthValue = document.getElementById('api-auth-val');  // NOT api-auth-value!
                     
                     // Get values from api_config first, then config
                     const baseUrl = apiCfg.base_url || config.base_url || '';
@@ -17014,22 +17012,19 @@ Option 3"></textarea>
                     const httpMethod = apiCfg.http_method || apiCfg.method || config.http_method || config.method || 'GET';
                     const authType = apiCfg.auth_type || config.auth_type || 'none';
                     const authValue = apiCfg.auth_value || config.auth_value || '';
-                    const keyName = apiCfg.api_key_name || config.api_key_name || 'X-API-Key';
-                    const keyLocation = apiCfg.api_key_location || config.api_key_location || 'header';
                     
                     if (apiBase) apiBase.value = baseUrl;
                     if (apiPath) apiPath.value = endpointPath;
                     if (apiMethod) apiMethod.value = httpMethod;
                     if (apiAuth) {
                         apiAuth.value = authType;
-                        // Trigger auth fields visibility
-                        setTimeout(() => {
-                            if (typeof toggleAuthFields === 'function') toggleAuthFields();
-                        }, 100);
+                        // Show auth value field if not 'none'
+                        const authValGroup = document.getElementById('api-auth-val-group');
+                        if (authValGroup && authType !== 'none') {
+                            authValGroup.classList.remove('hidden');
+                        }
                     }
                     if (apiAuthValue) apiAuthValue.value = authValue;
-                    if (apiKeyName) apiKeyName.value = keyName;
-                    if (apiKeyLoc) apiKeyLoc.value = keyLocation;
                     
                     // Load parameters from api_config or config
                     const inputParams = apiCfg.input_parameters || config.input_parameters || [];
@@ -17055,8 +17050,12 @@ Option 3"></textarea>
                         method: httpMethod,
                         auth: authType,
                         params_count: inputParams.length,
-                        api_config: tool.api_config,
-                        config: config
+                        elements_found: {
+                            'api-url': !!apiBase,
+                            'api-path': !!apiPath,
+                            'api-method': !!apiMethod,
+                            'api-auth': !!apiAuth
+                        }
                     });
                     break;
                     
