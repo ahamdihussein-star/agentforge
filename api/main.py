@@ -5897,23 +5897,32 @@ IMPORTANT:
         app_state.demo_kits[kit_id] = demo_kit
         
         # Also create ToolConfiguration entries for APIs and KBs
+        # Get the actual server URL for the base_url
+        server_base_url = os.environ.get("PUBLIC_URL", "http://localhost:8000")
+        
         for api in apis:
-            # Create proper api_config for compatibility with Tools page
+            # Create proper api_config - same structure as user-created APIs
             api_config = APIEndpointConfig(
-                base_url="https://demo-api.agentforge.local",
+                base_url=server_base_url,
                 endpoint_path=api.endpoint,
                 http_method=api.method,
                 auth_type="none",
+                auth_value="",
+                api_key_name="",
+                api_key_location="header",
+                headers={},
                 input_parameters=[
                     APIInputParameter(
                         name=p.get("name", ""),
                         data_type=p.get("type", "string"),
                         required=p.get("required", False),
-                        description=p.get("description", "")
+                        description=p.get("description", ""),
+                        location=p.get("location", "query")
                     ) for p in (api.parameters or [])
                 ]
             )
             
+            # Create tool with same structure as user-created tools
             tool = ToolConfiguration(
                 id=api.id,
                 type="api",
@@ -5922,13 +5931,13 @@ IMPORTANT:
                 api_config=api_config,
                 config={
                     "mock_response": api.sample_response,
-                    "sample_request": api.sample_request,
-                    "kit_id": kit_id
+                    "sample_request": api.sample_request
                 }
             )
             app_state.tools[api.id] = tool
         
         for kb in knowledge_bases:
+            # Create knowledge tool - same structure as user-created KBs
             tool = ToolConfiguration(
                 id=kb.id,
                 type="knowledge",
@@ -5936,8 +5945,7 @@ IMPORTANT:
                 description=kb.description,
                 config={
                     "content": kb.content,
-                    "sections": kb.sections,
-                    "kit_id": kit_id
+                    "sections": kb.sections
                 }
             )
             app_state.tools[kb.id] = tool
@@ -6665,7 +6673,9 @@ Respond ONLY with valid JSON, no markdown formatting."""
                 counter += 1
             return f"{base_name} ({counter})"
         
-        # Create API tools
+        # Create API tools - same structure as user-created APIs
+        server_base_url = os.environ.get("PUBLIC_URL", "http://localhost:8000")
+        
         for api_spec in demo_design.get("api_tools", []):
             tool_name = get_unique_tool_name(api_spec.get("name", "Demo API"))
             api_tool = ToolConfiguration(
@@ -6676,16 +6686,21 @@ Respond ONLY with valid JSON, no markdown formatting."""
                     "mock_response": api_spec.get("mock_response", {})
                 },
                 api_config=APIEndpointConfig(
-                    base_url="https://demo-api.agentforge.local",
+                    base_url=server_base_url,
                     http_method=api_spec.get("method", "GET"),
                     endpoint_path=api_spec.get("endpoint", "/api/demo"),
-                    auth_type="api_key",
+                    auth_type="none",
+                    auth_value="",
+                    api_key_name="",
+                    api_key_location="header",
+                    headers={},
                     input_parameters=[
                         APIInputParameter(
                             name=p.get("name", "param"),
-                            type=p.get("type", "string"),
+                            data_type=p.get("type", "string"),
                             required=p.get("required", False),
-                            description=p.get("description", "")
+                            description=p.get("description", ""),
+                            location=p.get("location", "query")
                         ) for p in api_spec.get("parameters", [])
                     ]
                 )
