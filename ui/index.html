@@ -4633,6 +4633,17 @@ Example: I need an HR agent that can:
                             <input type="number" id="web-max" class="input-field w-20 rounded px-2 py-1" value="10">
                         </div>
                     </div>
+                    
+                    <!-- Existing Scraped Pages (shown when editing) -->
+                    <div id="web-scraped-pages" class="hidden">
+                        <div class="border-t border-gray-700 pt-4 mt-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h5 class="font-medium text-sm">🌐 Scraped Pages</h5>
+                                <button onclick="rescrapeWebsite()" class="btn-secondary px-3 py-1 rounded text-xs">🔄 Re-scrape All</button>
+                            </div>
+                            <div id="web-scraped-list" class="space-y-2 max-h-48 overflow-y-auto"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Database Config -->
@@ -17068,33 +17079,24 @@ Option 3"></textarea>
                     if (webRecursive) webRecursive.checked = config.recursive || false;
                     if (webMax) webMax.value = config.max_pages || 10;
                     
-                    // Show existing scraped pages if any
+                    // Show existing scraped pages in the configuration section
                     const scrapedPages = tool.scraped_pages || [];
-                    if (scrapedPages.length > 0) {
-                        // Add info about existing pages
-                        setTimeout(() => {
-                            const urlsList = document.getElementById('wiz-urls-list');
-                            if (urlsList) {
-                                urlsList.innerHTML = `
-                                    <div class="bg-green-900/20 border border-green-500/30 rounded-lg p-3 mb-3">
-                                        <div class="flex items-center gap-2 text-green-400 mb-2">
-                                            <span>✅</span>
-                                            <span class="font-medium">Existing Scraped Pages (${scrapedPages.length})</span>
-                                        </div>
-                                        <div class="space-y-1 max-h-32 overflow-y-auto">
-                                            ${scrapedPages.map(p => `
-                                                <div class="flex items-center gap-2 text-sm text-gray-300">
-                                                    <span>🔗</span>
-                                                    <span class="truncate">${escHtml(p.url || p.title || 'Page')}</span>
-                                                    <span class="text-xs text-gray-500">(${p.chunks_extracted || p.chunks?.length || 0} chunks)</span>
-                                                </div>
-                                            `).join('')}
-                                        </div>
-                                        <p class="text-xs text-gray-500 mt-2">These pages are already indexed. Add new URLs below to scrape more.</p>
-                                    </div>
-                                `;
-                            }
-                        }, 300);
+                    const scrapedContainer = document.getElementById('web-scraped-pages');
+                    const scrapedList = document.getElementById('web-scraped-list');
+                    
+                    if (scrapedPages.length > 0 && scrapedContainer && scrapedList) {
+                        scrapedContainer.classList.remove('hidden');
+                        scrapedList.innerHTML = scrapedPages.map(p => `
+                            <div class="flex items-center justify-between bg-gray-800/50 rounded-lg p-2">
+                                <div class="flex items-center gap-2 min-w-0 flex-1">
+                                    <span>🔗</span>
+                                    <a href="${escHtml(p.url)}" target="_blank" class="text-sm text-blue-400 hover:underline truncate">${escHtml(p.url || p.title || 'Page')}</a>
+                                </div>
+                                <span class="text-xs text-gray-500 ml-2">${p.chunks_extracted || 0} chunks</span>
+                            </div>
+                        `).join('');
+                    } else if (scrapedContainer) {
+                        scrapedContainer.classList.add('hidden');
                     }
                     
                     console.log('📝 Prefilled Website config:', {
@@ -20792,6 +20794,83 @@ function updateSummary() {
     document.getElementById('sum-urls').textContent = wizState.data.urls?.length || 0;
     document.getElementById('sum-text').textContent = wizTextEntries?.length || 0;
     document.getElementById('sum-tables').textContent = wizTableEntries?.length || 0;
+}
+
+// Re-scrape website for editing tool
+async function rescrapeWebsite() {
+    if (!editingToolId) {
+        showToast('No tool to rescrape', 'error');
+        return;
+    }
+    
+    const url = document.getElementById('web-url')?.value?.trim();
+    if (!url) {
+        showToast('Please enter a URL first', 'error');
+        return;
+    }
+    
+    const recursive = document.getElementById('web-recursive')?.checked || false;
+    const maxPages = parseInt(document.getElementById('web-max')?.value) || 10;
+    
+    if (!confirm(`This will re-scrape the website and replace existing content.\n\nURL: ${url}\nRecursive: ${recursive}\nMax Pages: ${maxPages}\n\nContinue?`)) {
+        return;
+    }
+    
+    showProgressModal('Re-scraping website...');
+    updateProgress(10, 'Starting scrape...');
+    
+    try {
+        const response = await fetch(API + '/api/tools/' + editingToolId + '/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: url,
+                recursive: recursive,
+                max_pages: maxPages
+            })
+        });
+        
+        updateProgress(80, 'Processing content...');
+        
+        if (response.ok) {
+            const data = await response.json();
+            updateProgress(100, 'Done!');
+            
+            setTimeout(() => {
+                hideProgressModal();
+                showToast(`Successfully scraped! Extracted ${data.chunks_extracted || 0} chunks.`, 'success');
+                
+                // Refresh the scraped pages list
+                fetch(API + '/api/tools/' + editingToolId)
+                    .then(r => r.json())
+                    .then(tool => {
+                        const scrapedPages = tool.scraped_pages || [];
+                        const scrapedContainer = document.getElementById('web-scraped-pages');
+                        const scrapedList = document.getElementById('web-scraped-list');
+                        
+                        if (scrapedPages.length > 0 && scrapedContainer && scrapedList) {
+                            scrapedContainer.classList.remove('hidden');
+                            scrapedList.innerHTML = scrapedPages.map(p => `
+                                <div class="flex items-center justify-between bg-gray-800/50 rounded-lg p-2">
+                                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                                        <span>🔗</span>
+                                        <a href="${escHtml(p.url)}" target="_blank" class="text-sm text-blue-400 hover:underline truncate">${escHtml(p.url || p.title || 'Page')}</a>
+                                    </div>
+                                    <span class="text-xs text-gray-500 ml-2">${p.chunks_extracted || 0} chunks</span>
+                                </div>
+                            `).join('');
+                        }
+                    });
+            }, 500);
+        } else {
+            const error = await response.json();
+            hideProgressModal();
+            showToast(error.detail || 'Failed to scrape', 'error');
+        }
+    } catch (e) {
+        hideProgressModal();
+        showToast('Error: ' + e.message, 'error');
+    }
 }
 
 // Test tool
