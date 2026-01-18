@@ -7805,21 +7805,32 @@ async def list_tools(current_user: User = Depends(get_current_user_optional)):
     user_id = str(current_user.id) if current_user else None
     user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
     
+    print(f"📋 [LIST_TOOLS] User: {user_id}, total tools in memory: {len(app_state.tools)}")
+    
     viewable_tools = []
     
     for tool in app_state.tools.values():
+        # Debug: log tool ownership info
+        tool_owner_id = getattr(tool, 'owner_id', None) or ''
+        is_owner = (str(tool_owner_id) == str(user_id)) if user_id and tool_owner_id else False
+        print(f"   🔧 Tool '{tool.name}' (id={tool.id[:8]}...): owner_id='{tool_owner_id}', user_id='{user_id}', is_owner={is_owner}, access_type={getattr(tool, 'access_type', 'N/A')}")
+        
         # Check if user can view this tool
         if check_tool_access(tool, user_id, user_group_ids, 'view'):
+            can_edit = check_tool_access(tool, user_id, user_group_ids, 'edit')
+            can_delete = check_tool_access(tool, user_id, user_group_ids, 'delete')
+            print(f"      ✅ Viewable: can_edit={can_edit}, can_delete={can_delete}, is_owner={is_owner}")
             viewable_tools.append({
                 **tool.dict(),
                 "documents_count": len([d for d in app_state.documents.values() if d.tool_id == tool.id]),
                 "pages_count": len([p for p in app_state.scraped_pages.values() if p.tool_id == tool.id]),
-                "can_edit": check_tool_access(tool, user_id, user_group_ids, 'edit'),
-                "can_delete": check_tool_access(tool, user_id, user_group_ids, 'delete'),
+                "can_edit": can_edit,
+                "can_delete": can_delete,
                 "can_execute": check_tool_access(tool, user_id, user_group_ids, 'execute'),
-                "is_owner": tool.owner_id == user_id if user_id else False
+                "is_owner": is_owner
             })
     
+    print(f"📋 [LIST_TOOLS] Returning {len(viewable_tools)} viewable tools")
     return {"tools": viewable_tools}
 
 
@@ -13607,6 +13618,7 @@ async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: Us
     
     # Get owner_id from current user
     owner_id = str(current_user.id) if current_user else "system"
+    print(f"🔧 [CREATE_TOOL_FROM_DEMO] Creating tool '{item.name}' with owner_id='{owner_id}', user={current_user.email if current_user else 'None'}")
     
     # Get base URL from environment or default
     base_url = os.environ.get("PUBLIC_URL", "http://localhost:8000")
@@ -13630,6 +13642,7 @@ async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: Us
         owner_id=owner_id,
         access_type="public"  # Demo tools should be accessible to everyone
     )
+    print(f"   ✅ Tool created in memory: id={tool.id}, owner_id={tool.owner_id}, access_type={tool.access_type}")
     
     app_state.tools[tool.id] = tool
     app_state.save_to_disk()
