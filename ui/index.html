@@ -7205,7 +7205,9 @@ Option 3"></textarea>
                 modelReason: '',
                 editId: null,
                 deployTarget: 'cloud',
-                cloudProvider: ''
+                cloudProvider: '',
+                accessControl: null,  // Will be set when user visits Access Control step
+                userPermissions: { is_owner: true, permissions: ['full_admin'] }  // New agent = user is owner
             };
             
             // Clear API descriptions
@@ -10236,7 +10238,8 @@ Option 3"></textarea>
                     type: e.type,
                     name: e.name
                 })),
-                taskPermissions: taskPermissions
+                taskPermissions: taskPermissions,
+                _loaded: true  // ✅ Mark as ready for save (user explicitly modified)
             };
             
             console.log('📋 Final Access Control:', JSON.stringify(wizard.accessControl, null, 2));
@@ -10270,10 +10273,12 @@ Option 3"></textarea>
                     wizard.accessControl = {
                         accessType: data.agent_access?.access_type || 'authenticated',
                         entities: mappedEntities,
-                        taskPermissions: data.task_access?.task_permissions || []
+                        taskPermissions: data.task_access?.task_permissions || [],
+                        _loaded: true  // ✅ Mark as loaded from API to prevent accidental overwrite
                     };
                     
                     console.log('🔵 [API] Final wizard.accessControl:', JSON.stringify(wizard.accessControl, null, 2));
+                    console.log('✅ Access control marked as _loaded = true');
                 }
             } catch (e) {
                 console.error('❌ Could not load access control from API:', e);
@@ -10287,37 +10292,57 @@ Option 3"></textarea>
                 const userId = currentUser?.id || 'system';
                 const ac = wizard.accessControl || {};
                 
+                // ⚠️ CRITICAL: Check if user has permission to save access control
+                const perms = wizard.userPermissions || {};
+                const canSaveAccess = perms.is_owner || perms.can_manage_access;
+                const canSaveTaskPerms = perms.is_owner || perms.can_manage_task_permissions;
+                
+                // ⚠️ Also check if access control was actually loaded and modified
+                // Prevent accidental overwrite of existing permissions
+                if (!ac._loaded) {
+                    console.log('⚠️ Access control not loaded from API - skipping save to prevent data loss');
+                    return;
+                }
+                
                 console.log('Saving access control for agent:', agentId, ac);
+                console.log('🔐 Permissions check - canSaveAccess:', canSaveAccess, 'canSaveTaskPerms:', canSaveTaskPerms);
                 
                 // Save Level 1: Agent Access (who can use the agent)
-                const accessBody = {
-                    access_type: ac.accessType || 'authenticated',
-                    entities: (ac.entities || []).map(e => ({
-                        id: e.id,           // ✅ Correct field name for AccessEntity schema
-                        type: e.type,       // ✅ Correct field name for AccessEntity schema
-                        name: e.name || 'Unknown'
-                    }))
-                };
-                console.log('📤 Saving access control:', JSON.stringify(accessBody, null, 2));
-                
-                const accessResponse = await fetch(`/api/access-control/agents/${agentId}/access?org_id=${orgId}&user_id=${userId}`, {
-                    method: 'PUT',
-                    headers: { 
-                        ...getAuthHeaders(), 
-                        'Content-Type': 'application/json' 
-                    },
-                    body: JSON.stringify(accessBody)
-                });
-                
-                if (!accessResponse.ok) {
-                    const errorText = await accessResponse.text();
-                    console.error('❌ Failed to save access control:', accessResponse.status, errorText);
+                // ⚠️ Only save if user has permission
+                if (canSaveAccess) {
+                    const accessBody = {
+                        access_type: ac.accessType || 'authenticated',
+                        entities: (ac.entities || []).map(e => ({
+                            id: e.id,           // ✅ Correct field name for AccessEntity schema
+                            type: e.type,       // ✅ Correct field name for AccessEntity schema
+                            name: e.name || 'Unknown'
+                        }))
+                    };
+                    console.log('📤 Saving access control:', JSON.stringify(accessBody, null, 2));
+                    
+                    const accessResponse = await fetch(`/api/access-control/agents/${agentId}/access?org_id=${orgId}&user_id=${userId}`, {
+                        method: 'PUT',
+                        headers: { 
+                            ...getAuthHeaders(), 
+                            'Content-Type': 'application/json' 
+                        },
+                        body: JSON.stringify(accessBody)
+                    });
+                    
+                    if (!accessResponse.ok) {
+                        const errorText = await accessResponse.text();
+                        console.error('❌ Failed to save access control:', accessResponse.status, errorText);
+                    } else {
+                        console.log('✅ Access control saved');
+                    }
                 } else {
-                    console.log('✅ Access control saved');
+                    console.log('⏭️ Skipping agent access save - no permission (can_manage_access)');
                 }
                 
                 // Save Level 2: Task Access (which tasks can be used)
-                if (ac.taskPermissions && ac.taskPermissions.length > 0) {
+                // ⚠️ Only save if user has permission AND there are actual permissions to save
+                if (canSaveTaskPerms && ac.taskPermissions && ac.taskPermissions.length > 0) {
+                    console.log('📤 Saving task permissions:', ac.taskPermissions.length, 'tasks');
                     await fetch(`/api/access-control/agents/${agentId}/tasks?org_id=${orgId}&user_id=${userId}`, {
                         method: 'PUT',
                         headers: { 
@@ -10329,9 +10354,14 @@ Option 3"></textarea>
                             task_permissions: ac.taskPermissions
                         })
                     });
+                    console.log('✅ Task permissions saved');
+                } else if (!canSaveTaskPerms) {
+                    console.log('⏭️ Skipping task permissions save - no permission (can_manage_task_permissions)');
+                } else {
+                    console.log('⏭️ Skipping task permissions save - no task permissions to save');
                 }
                 
-                console.log('✅ Access control saved successfully');
+                console.log('✅ Access control save completed');
             } catch (e) {
                 console.error('Failed to save access control:', e);
             }
