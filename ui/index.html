@@ -6790,7 +6790,14 @@ Option 3"></textarea>
                                     <span>🔐</span> Granular Permissions 
                                     <span class="text-xs text-gray-400 font-normal">(Optional)</span>
                                 </h6>
-                                <div class="grid md:grid-cols-3 gap-4">
+                                <p class="text-xs text-gray-400 mb-3 p-2 rounded" style="background: #374151;">
+                                    💡 <strong>Tip:</strong> Groups get <strong>view + execute</strong> access by default. 
+                                    To give specific users <strong>edit or delete</strong> permissions, first add them individually above, then select them here.
+                                </p>
+                                <div id="granular-permissions-empty" class="hidden text-center py-4 text-gray-400 text-sm">
+                                    No individual users selected. Add users above to set granular permissions.
+                                </div>
+                                <div id="granular-permissions-grid" class="grid md:grid-cols-3 gap-4">
                                     <!-- Can Edit -->
                                     <div>
                                         <label class="text-xs text-gray-300 block mb-2 flex items-center gap-1">
@@ -20759,6 +20766,18 @@ function updateToolAccessHiddenSelects() {
 function updateToolPermissionDropdowns() {
     const selectedUsers = toolAccessSelected.users;
     const selects = ['tool-can-edit-users', 'tool-can-delete-users', 'tool-can-execute-users'];
+    
+    // Show/hide empty message and grid based on whether users are selected
+    const emptyMsg = document.getElementById('granular-permissions-empty');
+    const grid = document.getElementById('granular-permissions-grid');
+    
+    if (selectedUsers.length === 0) {
+        if (emptyMsg) emptyMsg.classList.remove('hidden');
+        if (grid) grid.classList.add('hidden');
+    } else {
+        if (emptyMsg) emptyMsg.classList.add('hidden');
+        if (grid) grid.classList.remove('hidden');
+    }
     
     selects.forEach(id => {
         const select = document.getElementById(id);
