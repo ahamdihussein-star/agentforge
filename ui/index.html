@@ -13629,14 +13629,20 @@ Option 3"></textarea>
                 console.log('✅ Tasks: ALLOWED');
             }
             
-            // Step 3: Tools - disable entire step content
+            // Step 3: Tools - disable tool-related elements but keep navigation working
             if (!perms.can_manage_tools) {
                 console.log('🔒 Restricting: Tools (can_manage_tools=false)');
                 const toolsStep = document.getElementById('wizard-step-3');
                 console.log('🔒   wizard-step-3:', toolsStep ? 'FOUND' : 'NOT FOUND');
                 if (toolsStep) {
-                    // Disable all clickable elements in tools step
+                    // Disable tool-related elements but NOT navigation buttons
                     toolsStep.querySelectorAll('[onclick], button, .card').forEach(el => {
+                        const onclick = el.getAttribute('onclick') || '';
+                        // Skip navigation buttons (nextStep, prevStep, goStep, saveWizardProgress)
+                        if (onclick.includes('nextStep') || onclick.includes('prevStep') || 
+                            onclick.includes('goStep') || onclick.includes('saveWizardProgress')) {
+                            return; // Don't disable navigation
+                        }
                         el.style.pointerEvents = 'none';
                         el.style.opacity = '0.5';
                     });
@@ -13648,7 +13654,7 @@ Option 3"></textarea>
                         toolsStep.insertBefore(overlay, toolsStep.firstChild);
                     }
                 }
-                // Also disable tool selection buttons throughout page
+                // Disable tool selection buttons throughout page
                 document.querySelectorAll('.tool-select-btn, .demo-tool-card, [onclick*="showSelectToolModal"], [onclick*="showAddToolModal"]').forEach(el => {
                     el.style.pointerEvents = 'none';
                     el.style.opacity = '0.5';
@@ -13703,8 +13709,14 @@ Option 3"></textarea>
                 const guardrailStep = document.getElementById('wizard-step-5');
                 console.log('🔒   wizard-step-5:', guardrailStep ? 'FOUND' : 'NOT FOUND');
                 if (guardrailStep) {
-                    // Disable all inputs, toggles, buttons in guardrails step
+                    // Disable guardrail inputs but keep navigation working
                     guardrailStep.querySelectorAll('input, button, label, .card').forEach(el => {
+                        const onclick = el.getAttribute('onclick') || '';
+                        // Skip navigation buttons
+                        if (onclick.includes('nextStep') || onclick.includes('prevStep') || 
+                            onclick.includes('goStep') || onclick.includes('saveWizardProgress')) {
+                            return;
+                        }
                         if (el.tagName === 'INPUT') {
                             el.disabled = true;
                         }
@@ -13733,6 +13745,12 @@ Option 3"></textarea>
                     const accessControlSection = document.getElementById('wizard-access-control-section');
                     if (accessControlSection) {
                         accessControlSection.querySelectorAll('input, button, [onclick]').forEach(el => {
+                            const onclick = el.getAttribute('onclick') || '';
+                            // Skip navigation buttons
+                            if (onclick.includes('nextStep') || onclick.includes('prevStep') || 
+                                onclick.includes('goStep') || onclick.includes('saveWizardProgress')) {
+                                return;
+                            }
                             if (el.tagName === 'INPUT') el.disabled = true;
                             el.style.pointerEvents = 'none';
                             el.style.opacity = '0.5';
@@ -13746,7 +13764,7 @@ Option 3"></textarea>
                         }
                     }
                 }
-                // Also disable access type cards anywhere
+                // Disable access type cards anywhere
                 document.querySelectorAll('.access-type-card').forEach(card => {
                     card.style.pointerEvents = 'none';
                     card.style.opacity = '0.5';
@@ -13836,6 +13854,13 @@ Option 3"></textarea>
                 const testStep = document.getElementById('wizard-step-7');
                 if (testStep) {
                     testStep.querySelectorAll('input, button, textarea').forEach(el => {
+                        const onclick = el.getAttribute('onclick') || '';
+                        // Skip navigation buttons
+                        if (onclick.includes('nextStep') || onclick.includes('prevStep') || 
+                            onclick.includes('goStep') || onclick.includes('saveWizardProgress') ||
+                            onclick.includes('saveAgent') || onclick.includes('deployAgent')) {
+                            return;
+                        }
                         el.disabled = true;
                         el.style.pointerEvents = 'none';
                         el.style.opacity = '0.5';
