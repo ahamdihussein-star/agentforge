@@ -4426,9 +4426,6 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
     # OWNERSHIP-BASED FILTERING: Private by default
     accessible_agents = []
     
-    # Check if user is a super admin / admin (they see ALL agents)
-    user_is_admin = is_user_admin(current_user)
-    
     for agent in all_agents:
         # Check if user is the OWNER
         ownership_info = agent_ownership.get(agent.id, {})
@@ -4437,11 +4434,6 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
         
         is_owner = (str(owner_id) == user_id) if owner_id else False
         is_creator = (str(created_by) == user_id) if created_by else False
-        
-        # ADMIN BYPASS: Admins see all published agents
-        if user_is_admin:
-            accessible_agents.append(agent)
-            continue
         
         if is_owner or is_creator:
             # Owner/Creator always sees their published agents
@@ -4568,10 +4560,7 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
     # OWNERSHIP-BASED FILTERING: Only show agents user owns OR has been granted access
     visible_agents = []
     
-    # Check if user is a super admin / admin (they see ALL agents)
-    user_is_admin = is_user_admin(current_user)
-    
-    print(f"📋 [LIST_AGENTS] Filtering {len(all_agents)} agents for user {user_id[:8] if user_id else 'None'}... is_admin={user_is_admin}")
+    print(f"📋 [LIST_AGENTS] Filtering {len(all_agents)} agents for user {user_id[:8] if user_id else 'None'}...")
     
     for agent in all_agents:
         # Check if user is the OWNER
@@ -4583,11 +4572,6 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
         is_creator = (str(created_by) == user_id) if created_by else False
         
         print(f"   🔍 Agent {agent.id[:8]}... '{agent.name}': owner={owner_id}, created_by={created_by}, user_id={user_id}, is_owner={is_owner}, is_creator={is_creator}")
-        
-        # ADMIN BYPASS: Admins see all agents
-        if user_is_admin:
-            visible_agents.append((agent, str(owner_id) if owner_id else str(created_by)))
-            continue
         
         if is_owner or is_creator:
             # Owner/Creator always sees their agents
@@ -4634,8 +4618,7 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
                 "status": a.status,
                 "created_at": a.created_at,
                 "owner_id": owner_id,
-                "is_owner": str(agent_ownership.get(a.id, {}).get('owner_id')) == user_id or str(agent_ownership.get(a.id, {}).get('created_by')) == user_id,
-                "is_admin": user_is_admin
+                "is_owner": str(agent_ownership.get(a.id, {}).get('owner_id')) == user_id or str(agent_ownership.get(a.id, {}).get('created_by')) == user_id
             }
             for a, owner_id in visible_agents
         ]
@@ -7733,64 +7716,17 @@ async def reindex_knowledge_base():
 
 # Tool Endpoints
 
-def is_user_admin(user) -> bool:
-    """Check if user has admin or super admin role"""
-    if not user:
-        return False
-    
-    role_ids = getattr(user, 'role_ids', []) or []
-    
-    # Check for admin roles by ID or name pattern
-    admin_patterns = ['super_admin', 'admin', 'system_admin', 'org_admin']
-    
-    for role_id in role_ids:
-        role_lower = str(role_id).lower()
-        # Check if role ID contains admin pattern
-        for pattern in admin_patterns:
-            if pattern in role_lower:
-                return True
-    
-    # Also check if user has system:admin permission
-    if SECURITY_AVAILABLE and security_state:
-        try:
-            for role_id in role_ids:
-                role = security_state.roles.get(role_id)
-                if role:
-                    role_name = getattr(role, 'name', '').lower()
-                    for pattern in admin_patterns:
-                        if pattern in role_name:
-                            return True
-                    # Check permissions
-                    permissions = getattr(role, 'permissions', []) or []
-                    if 'system:admin' in permissions or 'tools:admin' in permissions or '*' in permissions:
-                        return True
-        except:
-            pass
-    
-    return False
-
-
 def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: List[str] = None, permission: str = 'view', user_role_ids: List[str] = None, user_obj = None) -> bool:
     """
     Check if a user has access to a tool.
     
     permission: 'view', 'edit', 'delete', 'execute'
+    
+    NOTE: Admins are treated as normal users for tools/agents.
+    They only have access based on what the owner grants them.
     """
     if not user_id:
         return tool.access_type == 'public'
-    
-    # ADMIN BYPASS: Super Admin and Admin have full access to all tools
-    if user_obj and is_user_admin(user_obj):
-        return True
-    
-    # Also check role_ids directly if user_obj not provided
-    if user_role_ids:
-        admin_patterns = ['super_admin', 'admin', 'system_admin', 'org_admin']
-        for role_id in user_role_ids:
-            role_lower = str(role_id).lower()
-            for pattern in admin_patterns:
-                if pattern in role_lower:
-                    return True
     
     # Owner always has full access
     if tool.owner_id == user_id:
@@ -7843,18 +7779,16 @@ async def list_accessible_tools(current_user: User = Depends(get_current_user)):
     user_group_ids = getattr(current_user, 'group_ids', []) or []
     
     accessible_tools = []
-    user_role_ids = getattr(current_user, 'role_ids', []) or []
     
     for tool in app_state.tools.values():
-        if check_tool_access(tool, user_id, user_group_ids, 'execute', user_role_ids, current_user):
+        if check_tool_access(tool, user_id, user_group_ids, 'execute'):
             accessible_tools.append({
                 **tool.dict(),
                 "documents_count": len([d for d in app_state.documents.values() if d.tool_id == tool.id]),
                 "pages_count": len([p for p in app_state.scraped_pages.values() if p.tool_id == tool.id]),
-                "can_edit": check_tool_access(tool, user_id, user_group_ids, 'edit', user_role_ids, current_user),
-                "can_delete": check_tool_access(tool, user_id, user_group_ids, 'delete', user_role_ids, current_user),
-                "is_owner": tool.owner_id == user_id,
-                "is_admin": is_user_admin(current_user)
+                "can_edit": check_tool_access(tool, user_id, user_group_ids, 'edit'),
+                "can_delete": check_tool_access(tool, user_id, user_group_ids, 'delete'),
+                "is_owner": tool.owner_id == user_id
             })
     
     return {"tools": accessible_tools}
@@ -7871,20 +7805,17 @@ async def list_tools(current_user: User = Depends(get_current_user_optional)):
     
     viewable_tools = []
     
-    user_role_ids = getattr(current_user, 'role_ids', []) if current_user else []
-    
     for tool in app_state.tools.values():
         # Check if user can view this tool
-        if check_tool_access(tool, user_id, user_group_ids, 'view', user_role_ids, current_user):
+        if check_tool_access(tool, user_id, user_group_ids, 'view'):
             viewable_tools.append({
                 **tool.dict(),
                 "documents_count": len([d for d in app_state.documents.values() if d.tool_id == tool.id]),
                 "pages_count": len([p for p in app_state.scraped_pages.values() if p.tool_id == tool.id]),
-                "can_edit": check_tool_access(tool, user_id, user_group_ids, 'edit', user_role_ids, current_user),
-                "can_delete": check_tool_access(tool, user_id, user_group_ids, 'delete', user_role_ids, current_user),
-                "can_execute": check_tool_access(tool, user_id, user_group_ids, 'execute', user_role_ids, current_user),
-                "is_owner": tool.owner_id == user_id if user_id else False,
-                "is_admin": is_user_admin(current_user)
+                "can_edit": check_tool_access(tool, user_id, user_group_ids, 'edit'),
+                "can_delete": check_tool_access(tool, user_id, user_group_ids, 'delete'),
+                "can_execute": check_tool_access(tool, user_id, user_group_ids, 'execute'),
+                "is_owner": tool.owner_id == user_id if user_id else False
             })
     
     return {"tools": viewable_tools}
@@ -8251,10 +8182,9 @@ async def delete_tool(tool_id: str, current_user: User = Depends(get_current_use
     tool = app_state.tools[tool_id]
     user_id = str(current_user.id) if current_user else None
     user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
-    user_role_ids = getattr(current_user, 'role_ids', []) if current_user else []
     
-    # Check if user can delete this tool (Admin bypass included)
-    if not check_tool_access(tool, user_id, user_group_ids, 'delete', user_role_ids, current_user):
+    # Check if user can delete this tool
+    if not check_tool_access(tool, user_id, user_group_ids, 'delete'):
         raise HTTPException(403, "You don't have permission to delete this tool")
     
     # Check if tool is being used by any agent
@@ -10029,10 +9959,9 @@ async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: Us
     tool = app_state.tools[tool_id]
     user_id = str(current_user.id) if current_user else None
     user_group_ids = getattr(current_user, 'group_ids', []) if current_user else []
-    user_role_ids = getattr(current_user, 'role_ids', []) if current_user else []
     
-    # Check if user can edit this tool (Admin bypass included)
-    if not check_tool_access(tool, user_id, user_group_ids, 'edit', user_role_ids, current_user):
+    # Check if user can edit this tool
+    if not check_tool_access(tool, user_id, user_group_ids, 'edit'):
         raise HTTPException(403, "You don't have permission to edit this tool")
     
     old_config = tool.config.copy() if tool.config else {}
@@ -10047,11 +9976,10 @@ async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: Us
     if request.api_config is not None:
         tool.api_config = APIConfig(**request.api_config)
     
-    # Update access control fields (owner OR admin can change these)
+    # Update access control fields (ONLY owner can change these)
     is_owner = tool.owner_id == user_id
-    is_admin = is_user_admin(current_user)
     
-    if is_owner or is_admin:
+    if is_owner:
         if request.access_type is not None:
             tool.access_type = request.access_type
         if request.allowed_user_ids is not None:
