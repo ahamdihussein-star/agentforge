@@ -455,6 +455,20 @@ class AccessControlService:
         PRIVATE BY DEFAULT: If no access policy exists, only the owner can access.
         Ownership check is done at the API level before calling this service.
         """
+        # ADMIN BYPASS: Super Admin and Admin have full access to all agents
+        admin_patterns = ['super_admin', 'admin', 'system_admin', 'org_admin']
+        for role_id in user_role_ids:
+            role_lower = str(role_id).lower()
+            for pattern in admin_patterns:
+                if pattern in role_lower:
+                    return AccessCheckResult(
+                        has_access=True,
+                        allowed_tasks=[],  # Empty means all
+                        denied_tasks=[],
+                        allowed_tools=[],
+                        reason="Administrator access"
+                    )
+        
         org_id = normalize_org_id(org_id)
         with get_session() as session:
             # Check Level 1: Agent Access
@@ -853,6 +867,21 @@ class AccessControlService:
             owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
             
             print(f"   🔍 [CHECK_PERM] agent_id={agent_id[:8]}..., user_id={user_id[:8]}..., owner_id={owner_id[:8] if owner_id else 'None'}...")
+            
+            # 0. ADMIN BYPASS: Super Admin and Admin have full access to all agents
+            admin_patterns = ['super_admin', 'admin', 'system_admin', 'org_admin']
+            for role_id in user_role_ids:
+                role_lower = str(role_id).lower()
+                for pattern in admin_patterns:
+                    if pattern in role_lower:
+                        print(f"   ✅ [CHECK_PERM] User has ADMIN ROLE: {role_id}")
+                        return {
+                            "has_permission": True,
+                            "is_owner": False,
+                            "is_admin": True,
+                            "granted_by": "admin_role",
+                            "reason": "You have administrator access"
+                        }
             
             # 1. Owner has ALL permissions
             if user_id == owner_id:
