@@ -13304,13 +13304,26 @@ Option 3"></textarea>
             
             // Fetch user's permissions for this agent
             let userPermissions = null;
+            console.log('🔐🔐🔐 FETCHING USER PERMISSIONS 🔐🔐🔐');
+            console.log('🔐 Agent ID:', id);
+            console.log('🔐 Current User:', currentUser?.id, currentUser?.email);
             try {
-                const permRes = await fetch(API+'/api/agents/'+id+'/my-permissions', {
+                const permUrl = API+'/api/agents/'+id+'/my-permissions';
+                console.log('🔐 Fetching permissions from:', permUrl);
+                const permRes = await fetch(permUrl, {
                     headers: getAuthHeaders()
                 });
+                console.log('🔐 Permissions response status:', permRes.status);
                 if (permRes.ok) {
                     userPermissions = await permRes.json();
-                    console.log('🔐 User permissions for agent:', userPermissions);
+                    console.log('🔐🔐🔐 USER PERMISSIONS RECEIVED 🔐🔐🔐');
+                    console.log('🔐 Full permissions object:', JSON.stringify(userPermissions, null, 2));
+                    console.log('🔐 is_owner:', userPermissions.is_owner);
+                    console.log('🔐 permissions array:', userPermissions.permissions);
+                    console.log('🔐 can_edit_model:', userPermissions.can_edit_model);
+                    console.log('🔐 can_edit_guardrails:', userPermissions.can_edit_guardrails);
+                    console.log('🔐 can_manage_tools:', userPermissions.can_manage_tools);
+                    console.log('🔐 can_publish:', userPermissions.can_publish);
                 } else if (permRes.status === 403) {
                     // User doesn't have any access - show read-only
                     console.warn('⚠️ No management access to this agent - read-only mode');
@@ -13475,24 +13488,25 @@ Option 3"></textarea>
         
         // Apply permission-based restrictions to UI elements
         function applyPermissionRestrictions(perms) {
-            if (!perms) return;
+            if (!perms) {
+                console.log('🔒🔒🔒 applyPermissionRestrictions called with NULL perms - SKIPPING');
+                return;
+            }
             
-            console.log('🔐 Applying permission restrictions:', perms);
-            console.log('🔐 Permissions details:', {
-                is_owner: perms.is_owner,
-                is_admin: perms.is_admin,
-                permissions: perms.permissions,
-                can_edit_basic_info: perms.can_edit_basic_info,
-                can_edit_personality: perms.can_edit_personality,
-                can_edit_model: perms.can_edit_model,
-                can_edit_guardrails: perms.can_edit_guardrails,
-                can_manage_tasks: perms.can_manage_tasks,
-                can_manage_tools: perms.can_manage_tools,
-                can_manage_knowledge: perms.can_manage_knowledge,
-                can_manage_access: perms.can_manage_access,
-                can_publish: perms.can_publish,
-                can_delete: perms.can_delete
-            });
+            console.log('🔒🔒🔒 APPLYING PERMISSION RESTRICTIONS 🔒🔒🔒');
+            console.log('🔒 is_owner:', perms.is_owner);
+            console.log('🔒 is_admin:', perms.is_admin);
+            console.log('🔒 permissions:', perms.permissions);
+            console.log('🔒 can_edit_basic_info:', perms.can_edit_basic_info);
+            console.log('🔒 can_edit_personality:', perms.can_edit_personality);
+            console.log('🔒 can_edit_model:', perms.can_edit_model);
+            console.log('🔒 can_edit_guardrails:', perms.can_edit_guardrails);
+            console.log('🔒 can_manage_tasks:', perms.can_manage_tasks);
+            console.log('🔒 can_manage_tools:', perms.can_manage_tools);
+            console.log('🔒 can_manage_knowledge:', perms.can_manage_knowledge);
+            console.log('🔒 can_manage_access:', perms.can_manage_access);
+            console.log('🔒 can_publish:', perms.can_publish);
+            console.log('🔒 can_delete:', perms.can_delete);
             
             // Helper function to disable a section
             const disableSection = (selector, message = 'You do not have permission to edit this section') => {
@@ -13537,84 +13551,107 @@ Option 3"></textarea>
             };
             
             // If owner or full_admin, no restrictions
-            if (perms.is_owner || (perms.permissions && perms.permissions.includes('full_admin'))) {
-                console.log('✅ Owner/Full Admin - no restrictions');
+            const hasFullAdmin = perms.permissions && perms.permissions.includes('full_admin');
+            console.log('🔒 Checking if should skip restrictions:');
+            console.log('🔒   perms.is_owner:', perms.is_owner);
+            console.log('🔒   hasFullAdmin:', hasFullAdmin);
+            
+            if (perms.is_owner || hasFullAdmin) {
+                console.log('✅ Owner/Full Admin - SKIPPING restrictions (no restrictions applied)');
                 return;
             }
+            
+            console.log('🔒 NOT owner/full_admin - APPLYING restrictions now...');
             
             // Apply restrictions based on specific permissions
             
             // Step 1: Basic Info (name, icon, goal)
             if (!perms.can_edit_basic_info) {
-                console.log('🔒 Restricting: Basic Info');
+                console.log('🔒 Restricting: Basic Info (can_edit_basic_info=false)');
                 const basicFields = ['w-name', 'w-icon', 'w-goal'];
-                basicFields.forEach(id => {
-                    const el = document.getElementById(id);
+                basicFields.forEach(fieldId => {
+                    const el = document.getElementById(fieldId);
+                    console.log('🔒   Field', fieldId, ':', el ? 'FOUND - disabling' : 'NOT FOUND');
                     if (el) {
                         el.disabled = true;
                         el.style.opacity = '0.6';
+                        el.style.backgroundColor = 'rgba(255,0,0,0.1)';
                         el.title = 'No permission to edit (requires: edit_basic_info)';
                     }
                 });
+            } else {
+                console.log('✅ Basic Info: ALLOWED');
             }
             
             // Step 2: Personality sliders
             if (!perms.can_edit_personality) {
-                console.log('🔒 Restricting: Personality');
+                console.log('🔒 Restricting: Personality (can_edit_personality=false)');
                 const traits = ['creativity', 'length', 'formality', 'empathy', 'proactivity', 'confidence'];
                 traits.forEach(trait => {
                     const slider = document.getElementById(`p-${trait}`);
                     const numInput = document.getElementById(`p-${trait}-num`);
+                    console.log('🔒   Slider p-'+trait+':', slider ? 'FOUND' : 'NOT FOUND');
                     if (slider) { slider.disabled = true; slider.style.opacity = '0.6'; }
                     if (numInput) { numInput.disabled = true; numInput.style.opacity = '0.6'; }
                 });
-                // Add indicator to personality section
-                const persSection = document.querySelector('.wizard-personality-section, [data-section="personality"]');
-                if (persSection) {
-                    persSection.style.opacity = '0.6';
-                    persSection.title = 'No permission to edit personality';
-                }
+            } else {
+                console.log('✅ Personality: ALLOWED');
             }
             
             // Step 3: Tasks
             if (!perms.can_manage_tasks) {
-                console.log('🔒 Restricting: Tasks');
+                console.log('🔒 Restricting: Tasks (can_manage_tasks=false)');
                 const taskContainer = document.getElementById('w-tasks');
+                console.log('🔒   w-tasks:', taskContainer ? 'FOUND' : 'NOT FOUND');
                 if (taskContainer) {
                     taskContainer.style.opacity = '0.6';
                     taskContainer.style.pointerEvents = 'none';
                 }
                 // Hide add task button
                 const addTaskBtns = document.querySelectorAll('[onclick*="addTask"], [onclick*="addNewTask"]');
+                console.log('🔒   Add task buttons found:', addTaskBtns.length);
                 addTaskBtns.forEach(btn => {
                     btn.style.display = 'none';
                 });
+            } else {
+                console.log('✅ Tasks: ALLOWED');
             }
             
             // Step 3: Tools
             if (!perms.can_manage_tools) {
-                console.log('🔒 Restricting: Tools');
+                console.log('🔒 Restricting: Tools (can_manage_tools=false)');
                 const toolsSection = document.getElementById('wizard-tools-section');
+                console.log('🔒   wizard-tools-section:', toolsSection ? 'FOUND' : 'NOT FOUND');
                 if (toolsSection) {
                     toolsSection.style.opacity = '0.6';
                     toolsSection.style.pointerEvents = 'none';
                 }
+                // Also disable tool selection buttons
+                document.querySelectorAll('.tool-select-btn, .demo-tool-card').forEach(el => {
+                    el.style.pointerEvents = 'none';
+                    el.style.opacity = '0.5';
+                });
+            } else {
+                console.log('✅ Tools: ALLOWED');
             }
             
             // Step 3: Knowledge Base
             if (!perms.can_manage_knowledge) {
-                console.log('🔒 Restricting: Knowledge Base');
+                console.log('🔒 Restricting: Knowledge Base (can_manage_knowledge=false)');
                 const kbSection = document.getElementById('wizard-kb-section');
                 if (kbSection) {
                     kbSection.style.opacity = '0.6';
                     kbSection.style.pointerEvents = 'none';
                 }
+            } else {
+                console.log('✅ Knowledge Base: ALLOWED');
             }
             
             // Step 4: LLM Model
             if (!perms.can_edit_model) {
-                console.log('🔒 Restricting: LLM Model');
+                console.log('🔒 Restricting: LLM Model (can_edit_model=false)');
                 const modelSelect = document.getElementById('w-model');
+                console.log('🔒   w-model:', modelSelect ? 'FOUND - disabling' : 'NOT FOUND');
                 if (modelSelect) {
                     modelSelect.disabled = true;
                     modelSelect.style.opacity = '0.6';
@@ -13624,17 +13661,31 @@ Option 3"></textarea>
             
             // Step 4: Guardrails
             if (!perms.can_edit_guardrails) {
-                console.log('🔒 Restricting: Guardrails');
+                console.log('🔒 Restricting: Guardrails (can_edit_guardrails=false)');
                 const guardrailSection = document.querySelector('.guardrails-section, [data-section="guardrails"]');
+                console.log('🔒   guardrails-section:', guardrailSection ? 'FOUND' : 'NOT FOUND');
                 if (guardrailSection) {
                     guardrailSection.style.opacity = '0.6';
                     guardrailSection.style.pointerEvents = 'none';
                 }
-                // Disable all guardrail inputs
-                document.querySelectorAll('[id^="g-"]').forEach(input => {
+                // Disable all guardrail inputs (any id starting with g-)
+                const guardrailInputs = document.querySelectorAll('[id^="g-"]');
+                console.log('🔒   Guardrail inputs found:', guardrailInputs.length);
+                guardrailInputs.forEach(input => {
                     input.disabled = true;
                     input.style.opacity = '0.6';
                 });
+                // Also try specific guardrail element IDs
+                const specificGuardrails = ['g-anti-hallucination', 'g-cite-sources', 'g-admit-uncertainty'];
+                specificGuardrails.forEach(gid => {
+                    const el = document.getElementById(gid);
+                    if (el) {
+                        el.disabled = true;
+                        el.style.opacity = '0.6';
+                    }
+                });
+            } else {
+                console.log('✅ Guardrails: ALLOWED');
             }
             
             // Step 5: Access Control (End-User Access)
@@ -13800,6 +13851,8 @@ Option 3"></textarea>
                     });
                 }
             }
+            
+            console.log('🔒🔒🔒 PERMISSION RESTRICTIONS APPLIED SUCCESSFULLY 🔒🔒🔒');
         }
         
         // Load agent's tools into selectedDemoTools for display
