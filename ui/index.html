@@ -20531,8 +20531,8 @@ function selectToolAccessType(accessType) {
 // Load users and groups for access control
 async function loadToolAccessUsersAndGroups() {
     try {
-        // Load users
-        const usersRes = await fetch(API + '/api/users', { headers: getAuthHeaders() });
+        // Load users from security API
+        const usersRes = await fetch(API + '/api/security/users', { headers: getAuthHeaders() });
         if (usersRes.ok) {
             const usersData = await usersRes.json();
             const users = usersData.users || usersData || [];
@@ -20546,10 +20546,12 @@ async function loadToolAccessUsersAndGroups() {
                     ).join('');
                 }
             });
+        } else {
+            console.warn('Failed to load users:', usersRes.status);
         }
         
-        // Load groups
-        const groupsRes = await fetch(API + '/api/groups', { headers: getAuthHeaders() });
+        // Load groups from security API
+        const groupsRes = await fetch(API + '/api/security/groups', { headers: getAuthHeaders() });
         if (groupsRes.ok) {
             const groupsData = await groupsRes.json();
             const groups = groupsData.groups || groupsData || [];
@@ -20560,6 +20562,8 @@ async function loadToolAccessUsersAndGroups() {
                     `<option value="${g.id}">${g.name}</option>`
                 ).join('');
             }
+        } else {
+            console.warn('Failed to load groups:', groupsRes.status);
         }
     } catch (e) {
         console.error('Failed to load users/groups for access control:', e);
