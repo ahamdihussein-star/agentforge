@@ -7724,17 +7724,35 @@ def get_user_group_ids(user_id: str) -> List[str]:
     This is the source of truth since user.group_ids may not be in sync.
     """
     if not user_id or not SECURITY_AVAILABLE:
+        print(f"   👥 [GET_GROUPS] No user_id or security not available")
         return []
     
     try:
         group_ids = []
+        total_groups = len(security_state.groups)
+        print(f"   👥 [GET_GROUPS] Checking {total_groups} groups for user {user_id[:8]}...")
+        
         for group in security_state.groups.values():
-            member_ids = getattr(group, 'member_ids', []) or getattr(group, 'user_ids', []) or []
-            if user_id in member_ids or str(user_id) in [str(m) for m in member_ids]:
+            member_ids = getattr(group, 'member_ids', []) or []
+            user_ids = getattr(group, 'user_ids', []) or []
+            all_members = list(set(member_ids + user_ids))
+            
+            # Convert all to strings for comparison
+            all_members_str = [str(m) for m in all_members]
+            user_id_str = str(user_id)
+            
+            print(f"      📁 Group '{group.name}' (id={group.id[:8]}...): members={all_members_str}")
+            
+            if user_id_str in all_members_str:
+                print(f"      ✅ User IS in group '{group.name}'!")
                 group_ids.append(group.id)
+        
+        print(f"   👥 [GET_GROUPS] Found {len(group_ids)} groups for user")
         return group_ids
     except Exception as e:
         print(f"⚠️ Error getting user groups: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: List[str] = None, permission: str = 'view', user_role_ids: List[str] = None, user_obj = None) -> bool:
@@ -7772,42 +7790,45 @@ def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: Lis
             return True
     
     if tool_access == 'specific_users':
-        # Check if user is in allowed list
+        # Get permission lists
+        can_edit_ids = getattr(tool, 'can_edit_user_ids', []) or []
+        can_delete_ids = getattr(tool, 'can_delete_user_ids', []) or []
+        
+        # Check if user is directly in allowed list
         if user_id in (tool.allowed_user_ids or []):
+            # Allowed users get view + execute by default
             if permission == 'view':
+                print(f"   🔐 [ACCESS] User '{user_id}' in allowed_user_ids -> view=True")
                 return True
-            if permission == 'edit' and user_id in (tool.can_edit_user_ids or []):
+            if permission == 'execute':
+                print(f"   🔐 [ACCESS] User '{user_id}' in allowed_user_ids -> execute=True")
                 return True
-            if permission == 'delete' and user_id in (tool.can_delete_user_ids or []):
+            # Edit and Delete require explicit permission
+            if permission == 'edit' and user_id in can_edit_ids:
+                print(f"   🔐 [ACCESS] User '{user_id}' in can_edit_user_ids -> edit=True")
                 return True
-            if permission == 'execute' and user_id in (tool.can_execute_user_ids or []):
+            if permission == 'delete' and user_id in can_delete_ids:
+                print(f"   🔐 [ACCESS] User '{user_id}' in can_delete_user_ids -> delete=True")
                 return True
         
         # Check if any of user's groups are in allowed list
         if user_group_ids:
             for group_id in user_group_ids:
                 if group_id in (tool.allowed_group_ids or []):
+                    # Groups in allowed list get view + execute by default
                     if permission == 'view':
-                        print(f"   🔐 [ACCESS] User in group '{group_id}' allowed for tool '{tool.name}' -> view=True")
+                        print(f"   🔐 [ACCESS] User in group '{group_id}' -> view=True")
                         return True
                     if permission == 'execute':
-                        # Check if group has execute permission or default to True for allowed groups
-                        can_execute_ids = getattr(tool, 'can_execute_user_ids', []) or []
-                        if f"group:{group_id}" in can_execute_ids or not can_execute_ids:
-                            print(f"   🔐 [ACCESS] User in group '{group_id}' -> execute=True")
-                            return True
-                    if permission == 'edit':
-                        # Check if group has edit permission
-                        can_edit_ids = getattr(tool, 'can_edit_user_ids', []) or []
-                        if f"group:{group_id}" in can_edit_ids:
-                            print(f"   🔐 [ACCESS] User in group '{group_id}' -> edit=True")
-                            return True
-                    if permission == 'delete':
-                        # Check if group has delete permission
-                        can_delete_ids = getattr(tool, 'can_delete_user_ids', []) or []
-                        if f"group:{group_id}" in can_delete_ids:
-                            print(f"   🔐 [ACCESS] User in group '{group_id}' -> delete=True")
-                            return True
+                        print(f"   🔐 [ACCESS] User in group '{group_id}' -> execute=True")
+                        return True
+                    # Edit and Delete require explicit group permission
+                    if permission == 'edit' and f"group:{group_id}" in can_edit_ids:
+                        print(f"   🔐 [ACCESS] Group '{group_id}' in can_edit -> edit=True")
+                        return True
+                    if permission == 'delete' and f"group:{group_id}" in can_delete_ids:
+                        print(f"   🔐 [ACCESS] Group '{group_id}' in can_delete -> delete=True")
+                        return True
     
     print(f"   🔐 [ACCESS] Tool '{tool.name}' (owner='{tool_owner}', access='{tool_access}'), user='{user_id}', permission='{permission}' -> False")
     return False
