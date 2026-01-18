@@ -6751,43 +6751,83 @@ Option 3"></textarea>
                         </div>
                         
                         <!-- Specific Users/Groups Selection (shown when specific_users selected) -->
-                        <div id="tool-specific-access-config" class="hidden space-y-3 pt-3 border-t border-gray-700">
-                            <div class="grid md:grid-cols-2 gap-4">
-                                <!-- Users -->
-                                <div>
-                                    <label class="text-sm text-gray-400 mb-2 block">Users with Access</label>
-                                    <select id="tool-allowed-users" class="input-field w-full rounded-lg px-3 py-2" multiple>
-                                        <!-- Will be populated dynamically -->
-                                    </select>
-                                    <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+                        <div id="tool-specific-access-config" class="hidden space-y-4 pt-4 border-t border-gray-700">
+                            <!-- Smart Search -->
+                            <div class="relative">
+                                <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
                                 </div>
-                                
-                                <!-- Groups -->
-                                <div>
-                                    <label class="text-sm text-gray-400 mb-2 block">Groups with Access</label>
-                                    <select id="tool-allowed-groups" class="input-field w-full rounded-lg px-3 py-2" multiple>
-                                        <!-- Will be populated dynamically -->
-                                    </select>
+                                <input type="text" id="tool-access-search" 
+                                       class="w-full rounded-xl px-12 py-3 text-white placeholder-gray-500 transition-all focus:ring-2 focus:ring-purple-500/50" 
+                                       style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);"
+                                       placeholder="Search users or groups by name or email..."
+                                       oninput="filterToolAccessSearch(this.value)"
+                                       onfocus="showToolAccessResults()">
+                            </div>
+                            
+                            <!-- Search Results Dropdown -->
+                            <div id="tool-access-search-results" class="hidden rounded-xl overflow-hidden max-h-48 overflow-y-auto" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(255,255,255,0.1);">
+                                <!-- Results will be populated dynamically -->
+                            </div>
+                            
+                            <!-- Selected Users/Groups Chips -->
+                            <div>
+                                <label class="text-sm text-gray-400 mb-2 block flex items-center gap-2">
+                                    <span>👥</span> Selected Users & Groups
+                                    <span id="tool-access-count" class="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">0</span>
+                                </label>
+                                <div id="tool-access-selected-chips" class="flex flex-wrap gap-2 min-h-[50px] p-3 rounded-xl" style="background: rgba(0,0,0,0.2); border: 1px dashed rgba(255,255,255,0.1);">
+                                    <div id="tool-no-selection-msg" class="text-sm text-gray-500 italic">Click on users or groups from search to add them</div>
                                 </div>
                             </div>
                             
+                            <!-- Hidden selects for form data compatibility -->
+                            <select id="tool-allowed-users" class="hidden" multiple></select>
+                            <select id="tool-allowed-groups" class="hidden" multiple></select>
+                            
                             <!-- Granular Permissions -->
-                            <div class="bg-gray-800/50 rounded-lg p-3">
-                                <h6 class="text-sm font-medium mb-2">Granular Permissions (Optional)</h6>
-                                <div class="grid md:grid-cols-3 gap-3">
+                            <div class="bg-gray-800/50 rounded-xl p-4">
+                                <h6 class="text-sm font-medium mb-3 flex items-center gap-2">
+                                    <span>🔐</span> Granular Permissions 
+                                    <span class="text-xs text-gray-500 font-normal">(Optional)</span>
+                                </h6>
+                                <div class="grid md:grid-cols-3 gap-4">
+                                    <!-- Can Edit -->
                                     <div>
-                                        <label class="text-xs text-gray-400 block mb-1">Can Edit</label>
-                                        <select id="tool-can-edit-users" class="input-field w-full rounded px-2 py-1 text-sm" multiple>
+                                        <label class="text-xs text-gray-400 block mb-2 flex items-center gap-1">
+                                            <span>✏️</span> Can Edit
+                                        </label>
+                                        <div id="tool-can-edit-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: rgba(0,0,0,0.2);">
+                                        </div>
+                                        <select id="tool-can-edit-users" class="input-field w-full rounded px-2 py-1.5 text-sm" 
+                                            onchange="addToolPermissionChip('edit', this)">
+                                            <option value="">+ Add user</option>
                                         </select>
                                     </div>
+                                    <!-- Can Delete -->
                                     <div>
-                                        <label class="text-xs text-gray-400 block mb-1">Can Delete</label>
-                                        <select id="tool-can-delete-users" class="input-field w-full rounded px-2 py-1 text-sm" multiple>
+                                        <label class="text-xs text-gray-400 block mb-2 flex items-center gap-1">
+                                            <span>🗑️</span> Can Delete
+                                        </label>
+                                        <div id="tool-can-delete-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: rgba(0,0,0,0.2);">
+                                        </div>
+                                        <select id="tool-can-delete-users" class="input-field w-full rounded px-2 py-1.5 text-sm"
+                                            onchange="addToolPermissionChip('delete', this)">
+                                            <option value="">+ Add user</option>
                                         </select>
                                     </div>
+                                    <!-- Can Execute -->
                                     <div>
-                                        <label class="text-xs text-gray-400 block mb-1">Can Use in Agents</label>
-                                        <select id="tool-can-execute-users" class="input-field w-full rounded px-2 py-1 text-sm" multiple>
+                                        <label class="text-xs text-gray-400 block mb-2 flex items-center gap-1">
+                                            <span>🚀</span> Can Use in Agents
+                                        </label>
+                                        <div id="tool-can-execute-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2" style="background: rgba(0,0,0,0.2);">
+                                        </div>
+                                        <select id="tool-can-execute-users" class="input-field w-full rounded px-2 py-1.5 text-sm"
+                                            onchange="addToolPermissionChip('execute', this)">
+                                            <option value="">+ Add user</option>
                                         </select>
                                     </div>
                                 </div>
@@ -20491,6 +20531,9 @@ let wizState = {
 
 // Tool Access Control State
 let selectedToolAccessType = 'owner_only';
+let toolAccessData = { users: [], groups: [] };
+let toolAccessSelected = { users: [], groups: [] };
+let toolPermissionChips = { edit: [], delete: [], execute: [] };
 
 // Select Tool Access Type
 function selectToolAccessType(accessType) {
@@ -20535,40 +20578,243 @@ async function loadToolAccessUsersAndGroups() {
         const usersRes = await fetch(API + '/api/security/users', { headers: getAuthHeaders() });
         if (usersRes.ok) {
             const usersData = await usersRes.json();
-            const users = usersData.users || usersData || [];
-            
-            const selects = ['tool-allowed-users', 'tool-can-edit-users', 'tool-can-delete-users', 'tool-can-execute-users'];
-            selects.forEach(id => {
-                const select = document.getElementById(id);
-                if (select) {
-                    select.innerHTML = users.map(u => 
-                        `<option value="${u.id}">${u.full_name || u.email || u.username}</option>`
-                    ).join('');
-                }
-            });
-        } else {
-            console.warn('Failed to load users:', usersRes.status);
+            toolAccessData.users = usersData.users || usersData || [];
         }
         
         // Load groups from security API
         const groupsRes = await fetch(API + '/api/security/groups', { headers: getAuthHeaders() });
         if (groupsRes.ok) {
             const groupsData = await groupsRes.json();
-            const groups = groupsData.groups || groupsData || [];
-            
-            const groupSelect = document.getElementById('tool-allowed-groups');
-            if (groupSelect) {
-                groupSelect.innerHTML = groups.map(g => 
-                    `<option value="${g.id}">${g.name}</option>`
-                ).join('');
-            }
-        } else {
-            console.warn('Failed to load groups:', groupsRes.status);
+            toolAccessData.groups = groupsData.groups || groupsData || [];
         }
+        
+        // Populate permission dropdowns
+        updateToolPermissionDropdowns();
+        
+        // Show initial results
+        filterToolAccessSearch('');
+        
     } catch (e) {
         console.error('Failed to load users/groups for access control:', e);
     }
 }
+
+// Filter and show search results
+function filterToolAccessSearch(query) {
+    const resultsDiv = document.getElementById('tool-access-search-results');
+    if (!resultsDiv) return;
+    
+    const q = query.toLowerCase();
+    let html = '';
+    
+    // Filter users
+    const filteredUsers = toolAccessData.users.filter(u => {
+        const name = (u.full_name || u.email || u.username || '').toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        return name.includes(q) || email.includes(q);
+    }).slice(0, 5);
+    
+    // Filter groups
+    const filteredGroups = toolAccessData.groups.filter(g => {
+        return (g.name || '').toLowerCase().includes(q);
+    }).slice(0, 3);
+    
+    if (filteredUsers.length > 0) {
+        html += `<div class="px-3 py-2 text-xs text-gray-500 font-medium bg-gray-800/50">👤 Users</div>`;
+        filteredUsers.forEach(u => {
+            const isSelected = toolAccessSelected.users.some(s => s.id === u.id);
+            const name = u.full_name || u.email || u.username;
+            html += `
+                <div class="px-4 py-3 cursor-pointer hover:bg-purple-500/20 flex items-center justify-between transition ${isSelected ? 'bg-purple-500/10' : ''}"
+                     onclick="toggleToolAccessEntity('user', '${u.id}', '${name.replace(/'/g, "\\'")}', '${(u.email || '').replace(/'/g, "\\'")}')">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-sm font-bold">
+                            ${name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <div class="text-white text-sm font-medium">${name}</div>
+                            <div class="text-xs text-gray-500">${u.email || ''}</div>
+                        </div>
+                    </div>
+                    ${isSelected ? '<span class="text-green-400 text-sm">✓</span>' : '<span class="text-gray-600 text-sm">+</span>'}
+                </div>
+            `;
+        });
+    }
+    
+    if (filteredGroups.length > 0) {
+        html += `<div class="px-3 py-2 text-xs text-gray-500 font-medium bg-gray-800/50 ${filteredUsers.length > 0 ? 'border-t border-gray-700' : ''}">👥 Groups</div>`;
+        filteredGroups.forEach(g => {
+            const isSelected = toolAccessSelected.groups.some(s => s.id === g.id);
+            html += `
+                <div class="px-4 py-3 cursor-pointer hover:bg-blue-500/20 flex items-center justify-between transition ${isSelected ? 'bg-blue-500/10' : ''}"
+                     onclick="toggleToolAccessEntity('group', '${g.id}', '${(g.name || '').replace(/'/g, "\\'")}', '')">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-sm">
+                            👥
+                        </div>
+                        <div>
+                            <div class="text-white text-sm font-medium">${g.name}</div>
+                            <div class="text-xs text-gray-500">${g.members_count || 0} members</div>
+                        </div>
+                    </div>
+                    ${isSelected ? '<span class="text-green-400 text-sm">✓</span>' : '<span class="text-gray-600 text-sm">+</span>'}
+                </div>
+            `;
+        });
+    }
+    
+    if (html === '') {
+        html = `<div class="px-4 py-6 text-center text-gray-500 text-sm">No results found</div>`;
+    }
+    
+    resultsDiv.innerHTML = html;
+}
+
+// Show search results
+function showToolAccessResults() {
+    const resultsDiv = document.getElementById('tool-access-search-results');
+    if (resultsDiv) {
+        resultsDiv.classList.remove('hidden');
+        filterToolAccessSearch(document.getElementById('tool-access-search')?.value || '');
+    }
+}
+
+// Toggle entity selection
+function toggleToolAccessEntity(type, id, name, email) {
+    const list = type === 'user' ? toolAccessSelected.users : toolAccessSelected.groups;
+    const existingIndex = list.findIndex(e => e.id === id);
+    
+    if (existingIndex >= 0) {
+        // Remove
+        list.splice(existingIndex, 1);
+    } else {
+        // Add
+        list.push({ id, name, email, type });
+    }
+    
+    // Update UI
+    updateToolAccessChips();
+    updateToolAccessHiddenSelects();
+    updateToolPermissionDropdowns();
+    filterToolAccessSearch(document.getElementById('tool-access-search')?.value || '');
+}
+
+// Update the chips display
+function updateToolAccessChips() {
+    const container = document.getElementById('tool-access-selected-chips');
+    const countBadge = document.getElementById('tool-access-count');
+    const noSelectionMsg = document.getElementById('tool-no-selection-msg');
+    if (!container) return;
+    
+    const allSelected = [...toolAccessSelected.users, ...toolAccessSelected.groups];
+    
+    if (allSelected.length === 0) {
+        container.innerHTML = `<div id="tool-no-selection-msg" class="text-sm text-gray-500 italic">Click on users or groups from search to add them</div>`;
+    } else {
+        container.innerHTML = allSelected.map(e => `
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all hover:scale-105"
+                 style="background: ${e.type === 'user' ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 100%)' : 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0.1) 100%)'}; border: 1px solid ${e.type === 'user' ? 'rgba(139, 92, 246, 0.5)' : 'rgba(59, 130, 246, 0.5)'};">
+                <span class="text-xs">${e.type === 'user' ? '👤' : '👥'}</span>
+                <span class="text-white font-medium">${e.name}</span>
+                <button onclick="toggleToolAccessEntity('${e.type}', '${e.id}', '', '')" 
+                        class="w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-500/30 text-gray-400 hover:text-red-400 transition">
+                    ×
+                </button>
+            </div>
+        `).join('');
+    }
+    
+    if (countBadge) {
+        countBadge.textContent = allSelected.length;
+    }
+}
+
+// Update hidden selects for form compatibility
+function updateToolAccessHiddenSelects() {
+    const usersSelect = document.getElementById('tool-allowed-users');
+    const groupsSelect = document.getElementById('tool-allowed-groups');
+    
+    if (usersSelect) {
+        usersSelect.innerHTML = toolAccessSelected.users.map(u => 
+            `<option value="${u.id}" selected>${u.name}</option>`
+        ).join('');
+    }
+    
+    if (groupsSelect) {
+        groupsSelect.innerHTML = toolAccessSelected.groups.map(g => 
+            `<option value="${g.id}" selected>${g.name}</option>`
+        ).join('');
+    }
+}
+
+// Update permission dropdowns with selected users only
+function updateToolPermissionDropdowns() {
+    const selectedUsers = toolAccessSelected.users;
+    const selects = ['tool-can-edit-users', 'tool-can-delete-users', 'tool-can-execute-users'];
+    
+    selects.forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+            const currentValues = Array.from(select.selectedOptions).map(o => o.value);
+            select.innerHTML = `<option value="">+ Add user</option>` + selectedUsers.map(u => 
+                `<option value="${u.id}" ${currentValues.includes(u.id) ? 'selected' : ''}>${u.name}</option>`
+            ).join('');
+        }
+    });
+}
+
+// Add permission chip
+function addToolPermissionChip(permType, selectEl) {
+    const userId = selectEl.value;
+    if (!userId) return;
+    
+    const user = toolAccessSelected.users.find(u => u.id === userId);
+    if (!user) return;
+    
+    // Add to chips if not already there
+    if (!toolPermissionChips[permType].some(u => u.id === userId)) {
+        toolPermissionChips[permType].push(user);
+    }
+    
+    // Update chip display
+    const chipsContainer = document.getElementById(`tool-can-${permType}-chips`);
+    if (chipsContainer) {
+        chipsContainer.innerHTML = toolPermissionChips[permType].map(u => `
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                ${u.name}
+                <button onclick="removeToolPermissionChip('${permType}', '${u.id}')" class="hover:text-red-400">×</button>
+            </span>
+        `).join('');
+    }
+    
+    // Reset select
+    selectEl.value = '';
+}
+
+// Remove permission chip
+function removeToolPermissionChip(permType, userId) {
+    toolPermissionChips[permType] = toolPermissionChips[permType].filter(u => u.id !== userId);
+    
+    const chipsContainer = document.getElementById(`tool-can-${permType}-chips`);
+    if (chipsContainer) {
+        chipsContainer.innerHTML = toolPermissionChips[permType].map(u => `
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                ${u.name}
+                <button onclick="removeToolPermissionChip('${permType}', '${u.id}')" class="hover:text-red-400">×</button>
+            </span>
+        `).join('');
+    }
+}
+
+// Close search results when clicking outside
+document.addEventListener('click', function(e) {
+    const searchInput = document.getElementById('tool-access-search');
+    const resultsDiv = document.getElementById('tool-access-search-results');
+    if (searchInput && resultsDiv && !searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+        resultsDiv.classList.add('hidden');
+    }
+});
 
 // Tool metadata
 const toolMeta = {
