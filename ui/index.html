@@ -18012,8 +18012,11 @@ async function saveToolChanges() {
     // Merge with existing config
     updates.config = { ...(currentEditTool?.config || {}), ...config };
     
-    // Add access control fields if they exist (from chips)
-    if (typeof selectedToolAccessType !== 'undefined') {
+    // ONLY send access control fields if user is the OWNER
+    // This prevents non-owners from accidentally overwriting permissions
+    const isOwner = currentEditTool?.is_owner === true;
+    
+    if (isOwner && typeof selectedToolAccessType !== 'undefined') {
         updates.access_type = selectedToolAccessType;
         
         if (selectedToolAccessType === 'specific_users' && typeof toolAccessSelected !== 'undefined') {
@@ -18033,12 +18036,14 @@ async function saveToolChanges() {
             }
         }
         
-        console.log('📋 [SAVE] Access Control Updates:', {
+        console.log('📋 [SAVE] Access Control Updates (OWNER):', {
             access_type: updates.access_type,
             allowed_user_ids: updates.allowed_user_ids,
             allowed_group_ids: updates.allowed_group_ids,
             can_edit_user_ids: updates.can_edit_user_ids
         });
+    } else if (!isOwner) {
+        console.log('📋 [SAVE] Skipping access control (not owner)');
     }
     
     // Check if critical config changed (for re-processing)
