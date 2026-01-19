@@ -2959,7 +2959,10 @@
                     </div>
                     
                     <div class="flex justify-between mt-4">
-                        <button onclick="goStep(0)" class="btn-secondary px-4 py-2 rounded-lg text-sm">← Start Over</button>
+                        <div class="flex gap-2">
+                            <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                            <button onclick="goStep(0)" class="btn-secondary px-4 py-2 rounded-lg text-sm">← Start Over</button>
+                        </div>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg text-sm">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-5 py-2 rounded-lg text-sm">Next: Tasks →</button>
                     </div>
@@ -3014,7 +3017,10 @@
                     </div>
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
-                        <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <div class="flex gap-2">
+                            <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                            <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        </div>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Tools →</button>
                     </div>
@@ -3074,7 +3080,10 @@
                     
                     <!-- Navigation Buttons -->
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
-                        <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <div class="flex gap-2">
+                            <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                            <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        </div>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Access Control →</button>
                     </div>
@@ -3404,7 +3413,10 @@
                     </div>
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
-                        <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <div class="flex gap-2">
+                            <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                            <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        </div>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Guardrails →</button>
                     </div>
@@ -3578,7 +3590,10 @@
                     </div>
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
-                        <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <div class="flex gap-2">
+                            <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                            <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        </div>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Preview →</button>
                     </div>
@@ -3599,7 +3614,10 @@
                     </div>
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
-                        <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <div class="flex gap-2">
+                            <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                            <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        </div>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Test →</button>
                     </div>
@@ -3641,7 +3659,10 @@
                     </div>
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
-                        <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <div class="flex gap-2">
+                            <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                            <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        </div>
                         <button onclick="saveWizardProgress()" class="btn-secondary px-4 py-2 rounded-lg">💾 Save</button>
                         <button onclick="nextStep()" class="btn-primary px-6 py-2 rounded-lg">Next: Deploy →</button>
                     </div>
@@ -4002,7 +4023,10 @@ spec:
                     </div>
                     
                     <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
-                        <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        <div class="flex gap-2">
+                            <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                            <button onclick="prevStep()" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+                        </div>
                         <div class="flex gap-3">
                             <button onclick="saveAgent('draft')" class="btn-secondary px-6 py-2 rounded-lg">💾 Save Draft</button>
                             <button onclick="deployAgent()" id="btn-deploy" class="btn-success px-8 py-2 rounded-lg flex items-center gap-2">
@@ -8034,6 +8058,45 @@ Option 3"></textarea>
                 step--;
                 updateStepsNew();
             }
+        }
+        
+        // Cancel edit and restore agent to original state
+        async function cancelEdit() {
+            // Confirm with user
+            const confirmMsg = wizard.originalStatus === 'published' 
+                ? 'Are you sure you want to cancel? The agent will remain published with its original settings.'
+                : 'Are you sure you want to cancel editing?';
+            
+            if (!confirm(confirmMsg)) return;
+            
+            // If this was a published agent being edited, restore it to published status
+            const agentId = wizard.editId || wizard.id;
+            if (agentId && wizard.originalStatus === 'published') {
+                try {
+                    // Restore to published status
+                    const response = await fetch(API + '/api/agents/' + agentId + '/publish', {
+                        method: 'POST',
+                        headers: getAuthHeaders()
+                    });
+                    
+                    if (response.ok) {
+                        showToast('Edit cancelled - agent restored to published state', 'info');
+                    } else {
+                        console.warn('Could not restore agent status');
+                    }
+                } catch (e) {
+                    console.error('Error restoring agent status:', e);
+                }
+            }
+            
+            // Clear wizard state
+            wizard.editId = null;
+            wizard.id = null;
+            wizard.originalStatus = null;
+            testAgent = null;
+            
+            // Navigate back to agents list
+            navigate('agents');
         }
         
         // Go to specific step (for clickable step indicators)
@@ -14213,6 +14276,7 @@ Option 3"></textarea>
             wizard.owner_id = agent.owner_id || null;  // For ownership check
             wizard.created_by = agent.created_by || null;  // For ownership check
             wizard.userPermissions = userPermissions;  // Store user permissions
+            wizard.originalStatus = agent.status || 'draft';  // Store original status for cancel
             wizard.name = agent.name || '';
             wizard.icon = agent.icon || '';
             wizard.goal = agent.goal || '';
