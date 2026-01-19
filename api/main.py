@@ -4396,7 +4396,7 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
     org_id = current_user.org_id or "org_default"
     user_id = str(current_user.id)
     user_role_ids = getattr(current_user, 'role_ids', []) or []
-    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    user_group_ids = get_user_group_ids(user_id) if user_id else []
     
     # Get all published agents with ownership info
     all_agents = []
@@ -4703,7 +4703,10 @@ async def get_my_agent_permissions(agent_id: str, current_user: User = Depends(g
     user_id = str(current_user.id)
     org_id = current_user.org_id if current_user else "org_default"
     user_role_ids = getattr(current_user, 'role_ids', []) or []
-    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    # IMPORTANT: Use get_user_group_ids to get groups from member_ids (source of truth)
+    user_group_ids = get_user_group_ids(user_id) if user_id else []
+    
+    print(f"🔐 [MY-PERMS] user_id={user_id[:8]}..., user_group_ids={user_group_ids}")
     
     # Check if user is owner
     is_owner = False
@@ -6978,7 +6981,7 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
     user_id = str(current_user.id)
     org_id = current_user.org_id if current_user else "org_default"
     user_role_ids = getattr(current_user, 'role_ids', []) or []
-    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    user_group_ids = get_user_group_ids(user_id) if user_id else []
     
     # Try to get agent from database first, then fallback to in-memory
     agent = None
@@ -10557,7 +10560,7 @@ async def test_chat(agent_id: str, request: ChatRequest, current_user: User = De
     
     user_id = str(current_user.id)
     org_id = current_user.org_id if current_user else "org_default"
-    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    user_group_ids = get_user_group_ids(user_id) if user_id else []
     
     # Check if user has permission to test this agent
     is_owner = False
@@ -11056,7 +11059,7 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     if not is_owner and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             user_role_ids = getattr(current_user, 'role_ids', []) or []
-            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            user_group_ids = get_user_group_ids(user_id) if user_id else []
             
             perm_result = AccessControlService.check_agent_permission(
                 user_id=user_id,
@@ -11077,7 +11080,7 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
         print(f"🔑 [START-CHAT] User {user_id[:8]}... is a DELEGATED ADMIN")
         # Check if admin has task restrictions
         try:
-            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            user_group_ids = get_user_group_ids(user_id) if user_id else []
             admin_restrictions = AccessControlService.get_admin_chat_restrictions(
                 user_id=user_id,
                 user_group_ids=user_group_ids,
@@ -11099,7 +11102,7 @@ async def start_chat_session(agent_id: str, current_user: User = Depends(get_cur
     elif ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             user_role_ids = getattr(current_user, 'role_ids', []) or []
-            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            user_group_ids = get_user_group_ids(user_id) if user_id else []
             
             access_result = AccessControlService.check_user_access(
                 user_id=user_id,
@@ -11270,7 +11273,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     if not is_owner and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             user_role_ids = getattr(current_user, 'role_ids', []) or []
-            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            user_group_ids = get_user_group_ids(user_id) if user_id else []
             
             perm_result = AccessControlService.check_agent_permission(
                 user_id=user_id,
@@ -11294,7 +11297,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
         print(f"🔑 [CHAT] User {user_id[:8]}... is a DELEGATED ADMIN")
         # Check if admin has task restrictions
         try:
-            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            user_group_ids = get_user_group_ids(user_id) if user_id else []
             admin_restrictions = AccessControlService.get_admin_chat_restrictions(
                 user_id=user_id,
                 user_group_ids=user_group_ids,
@@ -11320,7 +11323,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
         try:
             # Get user's roles and groups
             user_role_ids = getattr(current_user, 'role_ids', []) or []
-            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            user_group_ids = get_user_group_ids(user_id) if user_id else []
             print(f"   [CHAT] User roles: {user_role_ids}, groups: {user_group_ids}")
             
             # Check access
@@ -11466,7 +11469,7 @@ async def chat_with_files(
     if ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
         try:
             user_role_ids = getattr(current_user, 'role_ids', []) or []
-            user_group_ids = getattr(current_user, 'group_ids', []) or []
+            user_group_ids = get_user_group_ids(user_id) if user_id else []
             
             access_result = AccessControlService.check_user_access(
                 user_id=user_id,
