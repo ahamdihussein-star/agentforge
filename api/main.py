@@ -7798,51 +7798,80 @@ def check_tool_access(tool: ToolConfiguration, user_id: str, user_group_ids: Lis
         allowed_groups = getattr(tool, 'allowed_group_ids', []) or []
         can_edit_ids = getattr(tool, 'can_edit_user_ids', []) or []
         can_delete_ids = getattr(tool, 'can_delete_user_ids', []) or []
+        can_execute_ids = getattr(tool, 'can_execute_user_ids', []) or []
         
         print(f"   📋 [PERMS] Tool '{tool.name}': allowed_users={allowed_users}, allowed_groups={allowed_groups}")
-        print(f"   📋 [PERMS] can_edit={can_edit_ids}, can_delete={can_delete_ids}")
+        print(f"   📋 [PERMS] can_edit={can_edit_ids}, can_delete={can_delete_ids}, can_execute={can_execute_ids}")
         
-        # Check if user is directly in allowed list
-        if user_id in allowed_users:
-            # Allowed users get view + execute by default
-            if permission == 'view':
-                print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in allowed_user_ids -> view=True")
-                return True
-            if permission == 'execute':
-                print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in allowed_user_ids -> execute=True")
-                return True
-            # Edit and Delete require explicit permission
-            if permission == 'edit':
-                if user_id in can_edit_ids:
-                    print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in can_edit_user_ids -> edit=True")
-                    return True
-                else:
-                    print(f"   🔐 [ACCESS] User '{user_id[:8]}...' NOT in can_edit_user_ids -> edit=False")
-            if permission == 'delete':
-                if user_id in can_delete_ids:
-                    print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in can_delete_user_ids -> delete=True")
-                    return True
-                else:
-                    print(f"   🔐 [ACCESS] User '{user_id[:8]}...' NOT in can_delete_user_ids -> delete=False")
+        # Check if user is directly in allowed list (for view permission)
+        user_in_allowed = user_id in allowed_users
         
         # Check if any of user's groups are in allowed list
+        group_in_allowed = False
+        matched_group_id = None
         if user_group_ids:
             for group_id in user_group_ids:
-                if group_id in (tool.allowed_group_ids or []):
-                    # Groups in allowed list get view + execute by default
-                    if permission == 'view':
-                        print(f"   🔐 [ACCESS] User in group '{group_id}' -> view=True")
+                if group_id in allowed_groups:
+                    group_in_allowed = True
+                    matched_group_id = group_id
+                    break
+        
+        # User has base access if in allowed_users or in an allowed_group
+        has_base_access = user_in_allowed or group_in_allowed
+        
+        if not has_base_access:
+            print(f"   🔐 [ACCESS] User '{user_id[:8]}...' NOT in allowed lists -> False")
+            return False
+        
+        # VIEW: Anyone in allowed list can view
+        if permission == 'view':
+            print(f"   🔐 [ACCESS] User in allowed list -> view=True")
+            return True
+        
+        # EXECUTE: Requires explicit can_execute permission
+        if permission == 'execute':
+            # Check if user is directly in can_execute_user_ids
+            if user_id in can_execute_ids:
+                print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in can_execute_user_ids -> execute=True")
+                return True
+            # Check if any of user's groups are in can_execute_user_ids (format: "group:id")
+            if user_group_ids:
+                for group_id in user_group_ids:
+                    if f"group:{group_id}" in can_execute_ids:
+                        print(f"   🔐 [ACCESS] Group '{group_id}' in can_execute -> execute=True")
                         return True
-                    if permission == 'execute':
-                        print(f"   🔐 [ACCESS] User in group '{group_id}' -> execute=True")
-                        return True
-                    # Edit and Delete require explicit group permission
-                    if permission == 'edit' and f"group:{group_id}" in can_edit_ids:
+            print(f"   🔐 [ACCESS] User NOT in can_execute_user_ids -> execute=False")
+            return False
+        
+        # EDIT: Requires explicit can_edit permission
+        if permission == 'edit':
+            # Check if user is directly in can_edit_user_ids
+            if user_id in can_edit_ids:
+                print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in can_edit_user_ids -> edit=True")
+                return True
+            # Check if any of user's groups are in can_edit_user_ids (format: "group:id")
+            if user_group_ids:
+                for group_id in user_group_ids:
+                    if f"group:{group_id}" in can_edit_ids:
                         print(f"   🔐 [ACCESS] Group '{group_id}' in can_edit -> edit=True")
                         return True
-                    if permission == 'delete' and f"group:{group_id}" in can_delete_ids:
+            print(f"   🔐 [ACCESS] User NOT in can_edit_user_ids -> edit=False")
+            return False
+        
+        # DELETE: Requires explicit can_delete permission
+        if permission == 'delete':
+            # Check if user is directly in can_delete_user_ids
+            if user_id in can_delete_ids:
+                print(f"   🔐 [ACCESS] User '{user_id[:8]}...' in can_delete_user_ids -> delete=True")
+                return True
+            # Check if any of user's groups are in can_delete_user_ids (format: "group:id")
+            if user_group_ids:
+                for group_id in user_group_ids:
+                    if f"group:{group_id}" in can_delete_ids:
                         print(f"   🔐 [ACCESS] Group '{group_id}' in can_delete -> delete=True")
                         return True
+            print(f"   🔐 [ACCESS] User NOT in can_delete_user_ids -> delete=False")
+            return False
     
     print(f"   🔐 [ACCESS] Tool '{tool.name}' (owner='{tool_owner}', access='{tool_access}'), user='{user_id}', permission='{permission}' -> False")
     return False
