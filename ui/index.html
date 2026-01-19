@@ -136,6 +136,11 @@
         .input-field{background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-primary)}
         .input-field:focus{border-color:var(--accent-primary);outline:none}
         .input-field::placeholder{color:var(--text-muted)}
+        
+        /* Fix select/dropdown styling for all themes */
+        select.input-field{appearance:none;background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");background-position:right 0.5rem center;background-repeat:no-repeat;background-size:1.5em 1.5em;padding-right:2.5rem}
+        select.input-field option{background:var(--bg-card);color:var(--text-primary);padding:8px}
+        select.input-field optgroup{background:var(--bg-sidebar);color:var(--text-secondary);font-weight:600}
         .btn-primary{background:var(--accent-gradient);color:#ffffff}
         .btn-secondary{background:var(--bg-input);color:var(--text-primary)}
         .btn-success{background:var(--success);color:#ffffff}
@@ -2608,7 +2613,7 @@
                             </div>
                         </div>
                         
-                        <!-- Progress Bar - Simplified -->
+                        <!-- Progress Bar -->
                         <div class="flex items-center gap-1">
                             <div class="wizard-progress-step" data-step="1">
                                 <div class="wizard-step-dot active" onclick="goStep(1)">1</div>
@@ -2632,7 +2637,17 @@
                             <div class="wizard-progress-line"></div>
                             <div class="wizard-progress-step" data-step="5">
                                 <div class="wizard-step-dot" onclick="goStep(5)">5</div>
-                                <span class="wizard-step-label">Review</span>
+                                <span class="wizard-step-label">Safety</span>
+                            </div>
+                            <div class="wizard-progress-line"></div>
+                            <div class="wizard-progress-step" data-step="7">
+                                <div class="wizard-step-dot" onclick="goStep(7)">6</div>
+                                <span class="wizard-step-label">Test</span>
+                            </div>
+                            <div class="wizard-progress-line"></div>
+                            <div class="wizard-progress-step" data-step="8">
+                                <div class="wizard-step-dot" onclick="goStep(8)">7</div>
+                                <span class="wizard-step-label">Deploy</span>
                             </div>
                         </div>
                     </div>
@@ -8097,7 +8112,9 @@ Option 3"></textarea>
                 8: 'Deploy'
             };
             
-            const totalSteps = 8;
+            // Visual step mapping (skip step 6 Preview in visual)
+            const visualStepMap = {1:1, 2:2, 3:3, 4:4, 5:5, 6:5, 7:6, 8:7};
+            const totalVisualSteps = 7;
             const isEditing = wizard.editId || wizard.id;
             
             // Update title
@@ -8106,10 +8123,11 @@ Option 3"></textarea>
                 titleEl.textContent = isEditing ? `Edit: ${wizard.name || 'Agent'}` : 'Create Agent';
             }
             
-            // Update step info
+            // Update step info (show visual step number)
             const stepEl = document.getElementById('wizard-header-step');
             if (stepEl) {
-                stepEl.textContent = `Step ${step} of ${totalSteps}: ${stepNames[step] || ''}`;
+                const visualStep = visualStepMap[step] || step;
+                stepEl.textContent = `Step ${visualStep} of ${totalVisualSteps}: ${stepNames[step] || ''}`;
             }
             
             // Update back button state
@@ -8122,7 +8140,7 @@ Option 3"></textarea>
             const nextBtn = document.getElementById('wizard-btn-next');
             const deployBtn = document.getElementById('wizard-btn-deploy');
             if (nextBtn && deployBtn) {
-                if (step >= totalSteps) {
+                if (step >= 8) {
                     nextBtn.classList.add('hidden');
                     deployBtn.classList.remove('hidden');
                 } else {
@@ -8133,38 +8151,38 @@ Option 3"></textarea>
             
             // Update progress dots
             const progressSteps = document.querySelectorAll('.wizard-progress-step');
-            progressSteps.forEach((stepDiv, idx) => {
-                const stepNum = idx + 1;
+            progressSteps.forEach((stepDiv) => {
+                const dataStep = parseInt(stepDiv.dataset.step);
                 const dot = stepDiv.querySelector('.wizard-step-dot');
                 if (dot) {
                     dot.classList.remove('active', 'completed');
-                    // Map 8 steps to 5 visual steps
-                    const visualStep = mapToVisualStep(step);
-                    const visualIdx = mapToVisualStep(stepNum);
                     
-                    if (stepNum < step || (visualIdx < visualStep)) {
+                    if (dataStep < step) {
                         dot.classList.add('completed');
-                    } else if (stepNum === step || visualIdx === visualStep) {
+                    } else if (dataStep === step || (dataStep === 7 && step === 6) || (dataStep === 8 && step === 6)) {
+                        // Step 6 (Preview) maps to Test visually
+                        if (dataStep === step) {
+                            dot.classList.add('active');
+                        } else if (dataStep < step) {
+                            dot.classList.add('completed');
+                        }
+                    }
+                    
+                    // Handle actual step matching
+                    if (step === dataStep) {
                         dot.classList.add('active');
+                    } else if (step > dataStep) {
+                        dot.classList.add('completed');
                     }
                 }
             });
             
             // Update progress lines
             const progressLines = document.querySelectorAll('.wizard-progress-line');
+            const visualStep = visualStepMap[step] || step;
             progressLines.forEach((line, idx) => {
-                const visualStep = mapToVisualStep(step);
                 line.classList.toggle('completed', idx < visualStep - 1);
             });
-        }
-        
-        // Map 8 wizard steps to 5 visual progress steps
-        function mapToVisualStep(wizardStep) {
-            if (wizardStep <= 1) return 1; // Setup
-            if (wizardStep === 2) return 2; // Tasks
-            if (wizardStep === 3) return 3; // Tools
-            if (wizardStep >= 4 && wizardStep <= 5) return 4; // Access (4 & 5)
-            return 5; // Review/Deploy (6, 7, 8)
         }
         
         // Cancel edit and restore agent to original state
