@@ -14800,19 +14800,31 @@ Option 3"></textarea>
             if(!confirm('Are you sure you want to delete this agent?')) return;
             
             try {
+                console.log('🗑️ [DELETE] Attempting to delete agent:', id);
                 const response = await fetch(API+'/api/agents/'+id, { 
                     method: 'DELETE',
                     headers: getAuthHeaders()
                 });
                 
+                console.log('🗑️ [DELETE] Response status:', response.status);
+                
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Failed to delete agent');
+                    let errorMsg = 'Failed to delete agent';
+                    try {
+                        const error = await response.json();
+                        errorMsg = error.detail || errorMsg;
+                    } catch(jsonErr) {
+                        errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+                    }
+                    console.error('🗑️ [DELETE] Error:', errorMsg);
+                    alert('Failed to delete agent: ' + errorMsg);
+                    return;
                 }
                 
                 showToast('Agent deleted successfully', 'success');
                 loadAgents();
             } catch(e) {
+                console.error('🗑️ [DELETE] Exception:', e);
                 alert('Failed to delete agent: ' + e.message);
             }
         }
