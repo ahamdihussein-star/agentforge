@@ -11165,6 +11165,58 @@ Option 3"></textarea>
         function toggleWizardTaskPermission(taskId, entityId, allowed) {
             const key = `${taskId}:${entityId}`;
             wizardAccessState.taskPermissions[key] = allowed;
+            
+            // Save immediately like delegated admins do
+            saveUserTaskPermissions();
+        }
+        
+        // Save user task permissions immediately (same pattern as saveAgentManagement)
+        async function saveUserTaskPermissions() {
+            const agentId = wizard.id || wizard.editId;
+            if (!agentId) {
+                console.log('⏭️ No agent ID yet, skipping task permissions save');
+                return;
+            }
+            
+            const orgId = currentUser?.org_id || 'default';
+            const userId = currentUser?.id || 'system';
+            
+            // Build task permissions from current state
+            const tasks = wizard.tasks || [];
+            const entities = wizardAccessState.selectedEntities || [];
+            
+            const taskPermissions = tasks.map((task, i) => {
+                const taskId = task.id || `task-${i}`;
+                const deniedEntityIds = [];
+                
+                entities.forEach(e => {
+                    const key = `${taskId}:${e.id}`;
+                    if (wizardAccessState.taskPermissions[key] === false) {
+                        deniedEntityIds.push(e.id);
+                    }
+                });
+                
+                return {
+                    task_id: taskId,
+                    task_name: task.name,
+                    denied_entity_ids: deniedEntityIds,
+                    default_allowed: wizardAccessState.taskPermissions[`${taskId}:default`] !== false
+                };
+            });
+            
+            try {
+                await fetch(`/api/access-control/agents/${agentId}/tasks?org_id=${orgId}&user_id=${userId}`, {
+                    method: 'PUT',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        allow_all_by_default: true,
+                        task_permissions: taskPermissions
+                    })
+                });
+                console.log('✅ User task permissions saved immediately');
+            } catch (e) {
+                console.error('❌ Failed to save user task permissions:', e);
+            }
         }
         
         function toggleAllEntitiesForTask(taskId) {
@@ -11180,6 +11232,8 @@ Option 3"></textarea>
             });
             wizardAccessState.taskPermissions[`${taskId}:default`] = newState;
             
+            // Save immediately
+            saveUserTaskPermissions();
             renderWizardTaskPermissions();
         }
         
@@ -11195,6 +11249,8 @@ Option 3"></textarea>
                 wizardAccessState.taskPermissions[`${taskId}:default`] = true;
             });
             
+            // Save immediately
+            saveUserTaskPermissions();
             renderWizardTaskPermissions();
         }
         
@@ -11210,6 +11266,8 @@ Option 3"></textarea>
                 wizardAccessState.taskPermissions[`${taskId}:default`] = false;
             });
             
+            // Save immediately
+            saveUserTaskPermissions();
             renderWizardTaskPermissions();
         }
         
