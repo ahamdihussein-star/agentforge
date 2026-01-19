@@ -256,13 +256,8 @@ class AccessControlService:
         import json
         
         with get_session() as session:
-            # Delete existing action policies for this agent (clean slate)
-            session.query(AgentActionPolicy).filter(
-                AgentActionPolicy.agent_id == agent_id,
-                AgentActionPolicy.org_id == org_id
-            ).delete()
-            
-            # Build per-entity denied task mapping
+            # Build per-entity denied task mapping FIRST before deleting
+            # This prevents accidental deletion of existing permissions
             # {entity_id: {task_names: [task_name1, task_name2], task_ids: [id1, id2]}}
             entity_denied_tasks = {}
             
@@ -281,6 +276,23 @@ class AccessControlService:
                         entity_denied_tasks[entity_id] = {'task_ids': [], 'task_names': []}
                     entity_denied_tasks[entity_id]['task_ids'].append(task_id)
                     entity_denied_tasks[entity_id]['task_names'].append(task_name)
+            
+            # ⚠️ SAFEGUARD: Only delete existing policies if we actually have new ones to save
+            # This prevents accidental deletion when the frontend sends empty permissions
+            print(f"🔐 [UPDATE_TASK_ACCESS] entity_denied_tasks has {len(entity_denied_tasks)} entities")
+            print(f"🔐 [UPDATE_TASK_ACCESS] task_permissions has {len(task_permissions)} tasks")
+            
+            if entity_denied_tasks or not allow_all_by_default:
+                # We have actual permissions to save - delete old ones first
+                deleted_count = session.query(AgentActionPolicy).filter(
+                    AgentActionPolicy.agent_id == agent_id,
+                    AgentActionPolicy.org_id == org_id
+                ).delete()
+                print(f"🔐 [UPDATE_TASK_ACCESS] Deleted {deleted_count} old policies")
+            else:
+                # No permissions to save - keep existing ones
+                print(f"⚠️ [UPDATE_TASK_ACCESS] No new permissions to save - keeping existing policies")
+                return AccessControlService.get_task_access(agent_id, org_id)
             
             # Create a policy for each entity with their denied tasks
             for entity_id, denied_info in entity_denied_tasks.items():
