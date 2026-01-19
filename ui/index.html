@@ -17148,6 +17148,9 @@ Option 3"></textarea>
                     // Pre-fill type-specific config in step 2
                     prefillToolConfig(tool);
                     
+                    // Pre-fill access control data
+                    prefillAccessControl(tool);
+                    
                     // Update the Create button to say Update
                     const createBtn = document.getElementById('btn-create');
                     if (createBtn) {
@@ -17325,60 +17328,90 @@ Option 3"></textarea>
                     console.log('No specific config prefill for type:', tool.type);
             }
             
-            // Prefill Access Control (applies to all tool types)
-            const toolAccessType = tool.access_type || 'owner_only';
-            selectedToolAccessType = toolAccessType;
+            // Prefill Access Control is now handled by prefillAccessControl function
+        }
+        
+        // Prefill Access Control when editing a tool
+        async function prefillAccessControl(tool) {
+            if (!tool) return;
             
-            // Update access type UI after a short delay to ensure DOM is ready
+            const accessType = tool.access_type || 'owner_only';
+            selectedToolAccessType = accessType;
+            
+            // Reset selections
+            toolAccessSelected = { users: [], groups: [] };
+            toolPermissionChips = { edit: [], delete: [], execute: [] };
+            
+            // Load users and groups data first
+            await loadToolAccessUsersAndGroups();
+            
+            // Wait for DOM to be ready
             setTimeout(() => {
-                selectToolAccessType(toolAccessType);
+                // Select the access type in UI
+                selectToolAccessType(accessType);
                 
-                // If specific_users, populate the selects
-                if (toolAccessType === 'specific_users') {
-                    loadToolAccessUsersAndGroups().then(() => {
-                        setTimeout(() => {
-                            const allowedUsers = document.getElementById('tool-allowed-users');
-                            const allowedGroups = document.getElementById('tool-allowed-groups');
-                            const canEditUsers = document.getElementById('tool-can-edit-users');
-                            const canDeleteUsers = document.getElementById('tool-can-delete-users');
-                            const canExecuteUsers = document.getElementById('tool-can-execute-users');
-                            
-                            // Select the appropriate options
-                            if (allowedUsers && tool.allowed_user_ids) {
-                                Array.from(allowedUsers.options).forEach(opt => {
-                                    opt.selected = tool.allowed_user_ids.includes(opt.value);
-                                });
-                            }
-                            if (allowedGroups && tool.allowed_group_ids) {
-                                Array.from(allowedGroups.options).forEach(opt => {
-                                    opt.selected = tool.allowed_group_ids.includes(opt.value);
-                                });
-                            }
-                            if (canEditUsers && tool.can_edit_user_ids) {
-                                Array.from(canEditUsers.options).forEach(opt => {
-                                    opt.selected = tool.can_edit_user_ids.includes(opt.value);
-                                });
-                            }
-                            if (canDeleteUsers && tool.can_delete_user_ids) {
-                                Array.from(canDeleteUsers.options).forEach(opt => {
-                                    opt.selected = tool.can_delete_user_ids.includes(opt.value);
-                                });
-                            }
-                            if (canExecuteUsers && tool.can_execute_user_ids) {
-                                Array.from(canExecuteUsers.options).forEach(opt => {
-                                    opt.selected = tool.can_execute_user_ids.includes(opt.value);
-                                });
-                            }
-                        }, 300);
+                // Populate allowed users
+                if (tool.allowed_user_ids && tool.allowed_user_ids.length > 0) {
+                    tool.allowed_user_ids.forEach(userId => {
+                        const user = toolAccessData.users.find(u => u.id === userId);
+                        if (user) {
+                            toolAccessSelected.users.push({
+                                id: user.id,
+                                name: user.full_name || user.email || user.username,
+                                email: user.email || '',
+                                type: 'user'
+                            });
+                        }
                     });
                 }
-            }, 200);
-            
-            console.log('📝 Prefilled Access Control:', {
-                access_type: toolAccessType,
-                allowed_users: tool.allowed_user_ids?.length || 0,
-                allowed_groups: tool.allowed_group_ids?.length || 0
-            });
+                
+                // Populate allowed groups
+                if (tool.allowed_group_ids && tool.allowed_group_ids.length > 0) {
+                    tool.allowed_group_ids.forEach(groupId => {
+                        const group = toolAccessData.groups.find(g => g.id === groupId);
+                        if (group) {
+                            toolAccessSelected.groups.push({
+                                id: group.id,
+                                name: group.name,
+                                email: '',
+                                type: 'group'
+                            });
+                        }
+                    });
+                }
+                
+                // Populate granular permissions
+                ['edit', 'delete', 'execute'].forEach(permType => {
+                    const field = `can_${permType}_user_ids`;
+                    if (tool[field] && tool[field].length > 0) {
+                        tool[field].forEach(id => {
+                            if (id.startsWith('group:')) {
+                                const groupId = id.replace('group:', '');
+                                const group = toolAccessData.groups.find(g => g.id === groupId);
+                                if (group) {
+                                    toolPermissionChips[permType].push({ id: group.id, name: group.name, entityType: 'group' });
+                                }
+                            } else {
+                                const user = toolAccessData.users.find(u => u.id === id);
+                                if (user) {
+                                    toolPermissionChips[permType].push({ id: user.id, name: user.full_name || user.email || user.username, entityType: 'user' });
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                // Update the UI
+                updateToolAccessChips();
+                updateToolPermissionDropdowns();
+                
+                console.log('📝 [PREFILL] Access Control loaded:', {
+                    access_type: accessType,
+                    users: toolAccessSelected.users.length,
+                    groups: toolAccessSelected.groups.length,
+                    editPerms: toolPermissionChips.edit.length
+                });
+            }, 300);
         }
         
         function toggleToolMenu(toolId) {
