@@ -9363,39 +9363,25 @@ Option 3"></textarea>
         
         function collectTasksNew() {
             console.log('=== collectTasksNew called ===');
-            const taskElements = document.querySelectorAll('#w-tasks > div[id^="task-"]');
-            console.log('Found task elements:', taskElements.length);
             
-            if(taskElements.length === 0) {
-                // No task elements in DOM, keep existing tasks
-                console.log('No task elements, keeping existing tasks:', wizard.tasks?.length || 0);
-                return;
+            // ✨ NEW APPROACH: Tasks are saved directly to wizard.tasks via modal
+            // Just ensure tasks array exists and has valid data
+            if (!wizard.tasks) {
+                wizard.tasks = [];
             }
             
-            const tasks = [];
-            taskElements.forEach((taskEl, idx) => {
-                const name = taskEl.querySelector('.task-name')?.value || '';
-                const desc = taskEl.querySelector('.task-desc')?.value || '';
-                const insts = [];
-                taskEl.querySelectorAll('.inst-text').forEach(i => {
-                    if(i.value.trim()) insts.push(i.value.trim());
-                });
-                if(name) {
-                    // Generate stable ID based on index or use existing ID
-                    const existingId = wizard.tasks?.[idx]?.id;
-                    const taskId = existingId || `task_${Date.now()}_${idx}`;
-                    
-                    tasks.push({ 
-                        id: taskId,
-                        name, 
-                        description: desc, 
-                        instructions: insts 
-                    });
-                    console.log('Collected task:', name, 'ID:', taskId);
+            // Clean up any empty tasks
+            wizard.tasks = wizard.tasks.filter(task => task && task.name && task.name.trim());
+            
+            // Ensure all tasks have IDs
+            wizard.tasks.forEach((task, idx) => {
+                if (!task.id) {
+                    task.id = `task_${Date.now()}_${idx}`;
                 }
             });
-            wizard.tasks = tasks;
-            console.log('Total tasks collected:', tasks.length);
+            
+            console.log('Tasks from wizard.tasks:', wizard.tasks.length);
+            console.log('Task names:', wizard.tasks.map(t => t.name));
             
             // Sync task permissions - ensure all tasks have default permissions
             syncTaskPermissions();
