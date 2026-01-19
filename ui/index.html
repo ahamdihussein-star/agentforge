@@ -3710,10 +3710,31 @@
                         </div>
                     </div>
                     
-                    <!-- Navigation handled by sticky header -->
+                    <!-- Deploy Section - Direct from Test -->
+                    <div class="card rounded-xl p-6 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/30">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">
+                                    🚀
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-white">Ready to Deploy?</h4>
+                                    <p class="text-sm text-gray-400">Your agent is configured and tested</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-3">
+                                <button onclick="saveAsDraft()" class="px-5 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800 transition text-sm">
+                                    💾 Save Draft
+                                </button>
+                                <button onclick="deployAgentNow()" class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium hover:from-purple-500 hover:to-blue-500 transition text-sm shadow-lg">
+                                    🚀 Deploy Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Step 8: Deploy -->
+                <!-- Step 8: Deploy (kept for direct navigation) -->
                 <div id="wizard-step-8" class="hidden max-w-4xl mx-auto">
                     <div class="flex items-center gap-2 mb-6">
                         <span class="text-2xl">🚀</span>
@@ -8149,12 +8170,19 @@ Option 3"></textarea>
             }
             
             // Update next/deploy button visibility
+            // Show Deploy on step 7 (Test) and step 8
             const nextBtn = document.getElementById('wizard-btn-next');
             const deployBtn = document.getElementById('wizard-btn-deploy');
             if (nextBtn && deployBtn) {
-                if (step >= 8) {
-                    nextBtn.classList.add('hidden');
+                if (step >= 7) {
+                    // Show Deploy button on Test and Deploy steps
                     deployBtn.classList.remove('hidden');
+                    // Hide Next on step 8, show on step 7
+                    if (step >= 8) {
+                        nextBtn.classList.add('hidden');
+                    } else {
+                        nextBtn.classList.remove('hidden');
+                    }
                 } else {
                     nextBtn.classList.remove('hidden');
                     deployBtn.classList.add('hidden');
@@ -11777,7 +11805,7 @@ Option 3"></textarea>
             console.log('Preview rendered successfully');
         }
         
-        // Build HTML for user access permissions in preview
+        // Build HTML for user access permissions in preview - DETAILED
         function buildUserAccessPreviewHtml() {
             const accessType = wizardAccessState.accessType || 'authenticated';
             const selectedEntities = wizardAccessState.selectedEntities || [];
@@ -11801,38 +11829,40 @@ Option 3"></textarea>
                 `;
             }
             
-            // Build entity list with task permissions
+            // Build entity list with DETAILED task permissions
             let entitiesHtml = selectedEntities.map(entity => {
                 const icon = entity.type === 'user' ? '👤' : '👥';
                 
-                // Get task permissions for this entity
-                let taskAccessHtml = '';
+                // Get detailed task permissions for this entity
+                let taskDetailsHtml = '';
                 if (tasks.length > 0) {
-                    const allowedTasks = tasks.filter(task => {
+                    const taskItems = tasks.map(task => {
                         const key = `${entity.id}:${task.name}`;
-                        return taskPermissions[key] !== false;
-                    });
-                    const deniedTasks = tasks.filter(task => {
-                        const key = `${entity.id}:${task.name}`;
-                        return taskPermissions[key] === false;
-                    });
+                        const hasAccess = taskPermissions[key] !== false;
+                        return `
+                            <div class="flex items-center gap-2 text-xs ${hasAccess ? 'text-green-400' : 'text-red-400'}">
+                                <span>${hasAccess ? '✓' : '✗'}</span>
+                                <span>${task.name}</span>
+                            </div>
+                        `;
+                    }).join('');
                     
-                    if (deniedTasks.length === 0) {
-                        taskAccessHtml = '<span class="text-xs text-green-400">✓ All tasks</span>';
-                    } else if (allowedTasks.length === 0) {
-                        taskAccessHtml = '<span class="text-xs text-red-400">✗ No tasks</span>';
-                    } else {
-                        taskAccessHtml = `<span class="text-xs text-yellow-400">${allowedTasks.length}/${tasks.length} tasks</span>`;
-                    }
+                    taskDetailsHtml = `
+                        <div class="mt-2 pl-6 space-y-1 border-l-2 border-gray-700">
+                            <div class="text-xs text-gray-500 mb-1">Task Access:</div>
+                            ${taskItems}
+                        </div>
+                    `;
                 }
                 
                 return `
-                    <div class="flex items-center justify-between bg-gray-800/50 rounded-lg p-2">
+                    <div class="bg-gray-800/50 rounded-lg p-3 mb-2">
                         <div class="flex items-center gap-2">
-                            <span>${icon}</span>
-                            <span class="text-sm">${entity.name || entity.email || 'Unknown'}</span>
+                            <span class="text-lg">${icon}</span>
+                            <span class="font-medium">${entity.name || entity.email || 'Unknown'}</span>
+                            <span class="text-xs text-gray-500">(${entity.type === 'user' ? 'User' : 'Group'})</span>
                         </div>
-                        ${taskAccessHtml}
+                        ${taskDetailsHtml}
                     </div>
                 `;
             }).join('');
@@ -11843,7 +11873,7 @@ Option 3"></textarea>
             `;
         }
         
-        // Build HTML for delegated admins in preview
+        // Build HTML for delegated admins in preview - DETAILED
         function buildDelegatedAdminsPreviewHtml() {
             const delegatedAdmins = agentAdminState.delegatedAdmins || [];
             const tasks = wizard.tasks || [];
@@ -11852,41 +11882,72 @@ Option 3"></textarea>
                 return '<p class="text-sm text-gray-500">No delegated admins - you are the only admin</p>';
             }
             
+            // Permission labels for display
+            const permissionLabels = {
+                'full_admin': '⭐ Full Admin',
+                'edit_basic_info': '📝 Edit Info',
+                'edit_personality': '🎭 Edit Personality',
+                'edit_model': '🤖 Change Model',
+                'edit_guardrails': '🛡️ Edit Guardrails',
+                'manage_tasks': '📋 Manage Tasks',
+                'manage_tools': '🔧 Manage Tools',
+                'manage_knowledge': '📚 Manage Knowledge',
+                'manage_users': '👥 Manage Access',
+                'view_analytics': '📊 View Analytics',
+                'export_data': '📤 Export Data'
+            };
+            
             return delegatedAdmins.map(admin => {
                 const icon = admin.entity_type === 'user' ? '👤' : '👥';
                 const hasFullAdmin = admin.permissions?.includes('full_admin');
                 const deniedTasks = admin.denied_task_names || [];
+                const permissions = admin.permissions || [];
                 
-                // Build permissions summary
-                let permHtml = '';
+                // Build DETAILED agent permissions
+                let agentPermsHtml = '';
                 if (hasFullAdmin) {
-                    permHtml = '<span class="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs">⭐ Full Admin</span>';
+                    agentPermsHtml = '<span class="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs">⭐ Full Admin (all permissions)</span>';
+                } else if (permissions.length > 0) {
+                    agentPermsHtml = permissions.map(p => {
+                        const label = permissionLabels[p] || p;
+                        return `<span class="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">${label}</span>`;
+                    }).join(' ');
                 } else {
-                    const permCount = (admin.permissions || []).length;
-                    permHtml = `<span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">${permCount} permissions</span>`;
+                    agentPermsHtml = '<span class="text-xs text-gray-500">No agent permissions</span>';
                 }
                 
-                // Build task restrictions summary
-                let taskHtml = '';
+                // Build DETAILED task permissions (chat access)
+                let taskPermsHtml = '';
                 if (tasks.length > 0) {
-                    if (deniedTasks.length === 0) {
-                        taskHtml = '<span class="text-xs text-green-400">✓ All tasks</span>';
-                    } else if (deniedTasks.length === tasks.length) {
-                        taskHtml = '<span class="text-xs text-red-400">✗ No chat access</span>';
-                    } else {
-                        const allowedCount = tasks.length - deniedTasks.length;
-                        taskHtml = `<span class="text-xs text-yellow-400">${allowedCount}/${tasks.length} tasks</span>`;
-                    }
+                    const taskItems = tasks.map(task => {
+                        const isDenied = deniedTasks.includes(task.name);
+                        return `
+                            <div class="flex items-center gap-2 text-xs ${isDenied ? 'text-red-400' : 'text-green-400'}">
+                                <span>${isDenied ? '✗' : '✓'}</span>
+                                <span>${task.name}</span>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    taskPermsHtml = `
+                        <div class="mt-2 pt-2 border-t border-gray-700">
+                            <div class="text-xs text-gray-500 mb-1">Chat Access (Tasks):</div>
+                            <div class="pl-2 space-y-1">${taskItems}</div>
+                        </div>
+                    `;
                 }
                 
                 return `
-                    <div class="flex items-center justify-between bg-gray-800/50 rounded-lg p-3 mb-2">
-                        <div class="flex items-center gap-3">
+                    <div class="bg-gray-800/50 rounded-lg p-3 mb-2">
+                        <div class="flex items-center gap-2 mb-2">
                             <span class="text-lg">${icon}</span>
-                            <div>
-                                <div class="text-sm font-medium">${admin.entity_name || 'Unknown'}</div>
-                                <div class="flex gap-2 mt-1">${permHtml} ${taskHtml}</div>
-                            </div>
+                            <span class="font-medium">${admin.entity_name || 'Unknown'}</span>
+                            <span class="text-xs text-gray-500">(${admin.entity_type === 'user' ? 'User' : 'Group'})</span>
+                        </div>
+                        <div class="pl-6 border-l-2 border-gray-700">
+                            <div class="text-xs text-gray-500 mb-1">Agent Permissions:</div>
+                            <div class="flex flex-wrap gap-1 mb-2">${agentPermsHtml}</div>
+                            ${taskPermsHtml}
                         </div>
                     </div>
                 `;
@@ -12610,6 +12671,64 @@ Option 3"></textarea>
             a.href = url;
             a.download = 'agent-deployment.yaml';
             a.click();
+        }
+        
+        // Quick deploy from Test step
+        async function deployAgentNow() {
+            if (!confirm('Deploy this agent now? It will be published and available for use.')) {
+                return;
+            }
+            await deployAgent();
+        }
+        
+        // Save as draft from Test step
+        async function saveAsDraft() {
+            collectGuardrails();
+            
+            // Collect Access Control settings
+            if (typeof collectWizardAccessControl === 'function') {
+                collectWizardAccessControl();
+            }
+            
+            const agentData = {
+                name: wizard.name,
+                icon: wizard.icon,
+                iconType: wizard.iconType || 'emoji',
+                iconData: wizard.iconData || '',
+                goal: wizard.goal,
+                model: wizard.model,
+                personality: wizard.personality,
+                tasks: wizard.tasks,
+                tool_ids: wizard.tool_ids,
+                guardrails: wizard.guardrails,
+                status: 'draft',
+                access_control: wizard.accessControl
+            };
+            
+            try {
+                const url = wizard.editId || wizard.id 
+                    ? `${API}/api/agents/${wizard.editId || wizard.id}`
+                    : `${API}/api/agents`;
+                const method = wizard.editId || wizard.id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+                    body: JSON.stringify(agentData)
+                });
+                
+                if (response.ok) {
+                    showToast('Agent saved as draft!', 'success');
+                    navigate('agents');
+                    loadAgents();
+                } else {
+                    const error = await response.json();
+                    showToast('Failed to save: ' + (error.detail || 'Unknown error'), 'error');
+                }
+            } catch(e) {
+                console.error('Save draft error:', e);
+                showToast('Failed to save draft', 'error');
+            }
         }
         
         async function deployAgent() {
