@@ -155,6 +155,8 @@
         .wizard-step-dot:hover{background:#4b5563}
         .wizard-step-dot.active{background:#3b82f6;color:white;border-color:#3b82f6}
         .wizard-step-dot.completed{background:#10b981;color:white;border-color:#10b981}
+        .wizard-step-dot.clickable{background:#4b5563;color:#e5e7eb;cursor:pointer}
+        .wizard-step-dot.clickable:hover{background:#6b7280;border-color:#9ca3af}
         .wizard-step-label{font-size:10px;color:#9ca3af;white-space:nowrap}
         .wizard-progress-line{flex:1;height:2px;background:#374151;min-width:20px;max-width:60px}
         .wizard-progress-line.completed{background:#10b981}
@@ -2611,7 +2613,7 @@
                             </div>
                         </div>
                         
-                        <!-- Progress Bar -->
+                        <!-- Progress Bar - All 8 Steps -->
                         <div class="flex items-center gap-1">
                             <div class="wizard-progress-step" data-step="1">
                                 <div class="wizard-step-dot active" onclick="goStep(1)">1</div>
@@ -2638,13 +2640,18 @@
                                 <span class="wizard-step-label">Safety</span>
                             </div>
                             <div class="wizard-progress-line"></div>
+                            <div class="wizard-progress-step" data-step="6">
+                                <div class="wizard-step-dot" onclick="goStep(6)">6</div>
+                                <span class="wizard-step-label">Preview</span>
+                            </div>
+                            <div class="wizard-progress-line"></div>
                             <div class="wizard-progress-step" data-step="7">
-                                <div class="wizard-step-dot" onclick="goStep(7)">6</div>
+                                <div class="wizard-step-dot" onclick="goStep(7)">7</div>
                                 <span class="wizard-step-label">Test</span>
                             </div>
                             <div class="wizard-progress-line"></div>
                             <div class="wizard-progress-step" data-step="8">
-                                <div class="wizard-step-dot" onclick="goStep(8)">7</div>
+                                <div class="wizard-step-dot" onclick="goStep(8)">8</div>
                                 <span class="wizard-step-label">Deploy</span>
                             </div>
                         </div>
@@ -7808,7 +7815,8 @@ Option 3"></textarea>
             // Show progress bar and sticky header for steps 1+
             document.getElementById('wizard-step-0')?.classList.add('hidden');
             document.getElementById('wizard-generating')?.classList.add('hidden');
-            document.getElementById('wizard-progress')?.classList.remove('hidden');
+            // Keep old progress bar hidden - we use sticky header now
+            document.getElementById('wizard-progress')?.classList.add('hidden');
             document.getElementById('wizard-sticky-header')?.classList.remove('hidden');
             
             // Update NEW sticky header
@@ -7935,9 +7943,15 @@ Option 3"></textarea>
         }
         
         function goStep(s) {
-            if(s <= step && s >= 1) {
-                step = s;
-                updateStepsNew();
+            // In edit mode, allow jumping to any step
+            // In create mode, only allow going back to previous steps
+            const isEditing = wizard.editId || wizard.id;
+            
+            if (s >= 1 && s <= 8) {
+                if (isEditing || s <= step) {
+                    step = s;
+                    updateStepsNew();
+                }
             }
         }
         
@@ -8153,20 +8167,14 @@ Option 3"></textarea>
                 const dataStep = parseInt(stepDiv.dataset.step);
                 const dot = stepDiv.querySelector('.wizard-step-dot');
                 if (dot) {
-                    dot.classList.remove('active', 'completed');
+                    dot.classList.remove('active', 'completed', 'clickable');
                     
-                    if (dataStep < step) {
-                        dot.classList.add('completed');
-                    } else if (dataStep === step || (dataStep === 7 && step === 6) || (dataStep === 8 && step === 6)) {
-                        // Step 6 (Preview) maps to Test visually
-                        if (dataStep === step) {
-                            dot.classList.add('active');
-                        } else if (dataStep < step) {
-                            dot.classList.add('completed');
-                        }
+                    // In edit mode, make all steps clickable
+                    if (isEditing && dataStep !== step) {
+                        dot.classList.add('clickable');
                     }
                     
-                    // Handle actual step matching
+                    // Handle step states
                     if (step === dataStep) {
                         dot.classList.add('active');
                     } else if (step > dataStep) {
@@ -11748,9 +11756,141 @@ Option 3"></textarea>
                     </h4>
                     <div class="flex flex-wrap gap-2 text-sm">${guardrailsHtml}</div>
                 </div>
+                
+                <!-- User Access Control -->
+                <div class="card rounded-xl p-4">
+                    <h4 class="font-medium mb-3 flex items-center gap-2">
+                        <span>🔐</span> User Access
+                    </h4>
+                    ${buildUserAccessPreviewHtml()}
+                </div>
+                
+                <!-- Delegated Admins -->
+                <div class="card rounded-xl p-4">
+                    <h4 class="font-medium mb-3 flex items-center gap-2">
+                        <span>👥</span> Delegated Admins
+                    </h4>
+                    ${buildDelegatedAdminsPreviewHtml()}
+                </div>
             `;
             
             console.log('Preview rendered successfully');
+        }
+        
+        // Build HTML for user access permissions in preview
+        function buildUserAccessPreviewHtml() {
+            const accessType = wizardAccessState.accessType || 'authenticated';
+            const selectedEntities = wizardAccessState.selectedEntities || [];
+            const taskPermissions = wizardAccessState.taskPermissions || {};
+            const tasks = wizard.tasks || [];
+            
+            // Access type description
+            let accessTypeHtml = '';
+            if (accessType === 'public') {
+                accessTypeHtml = '<span class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-sm">🌍 Public Access</span>';
+            } else if (accessType === 'specific') {
+                accessTypeHtml = '<span class="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-sm">🔒 Specific Users/Groups</span>';
+            } else {
+                accessTypeHtml = '<span class="px-2 py-1 bg-gray-500/20 text-gray-400 rounded text-sm">🔐 Authenticated Users</span>';
+            }
+            
+            if (accessType !== 'specific' || selectedEntities.length === 0) {
+                return `
+                    <div class="mb-3">${accessTypeHtml}</div>
+                    <p class="text-sm text-gray-500">${accessType === 'public' ? 'Anyone can access this agent' : accessType === 'authenticated' ? 'All logged-in users can access' : 'No specific users selected'}</p>
+                `;
+            }
+            
+            // Build entity list with task permissions
+            let entitiesHtml = selectedEntities.map(entity => {
+                const icon = entity.type === 'user' ? '👤' : '👥';
+                
+                // Get task permissions for this entity
+                let taskAccessHtml = '';
+                if (tasks.length > 0) {
+                    const allowedTasks = tasks.filter(task => {
+                        const key = `${entity.id}:${task.name}`;
+                        return taskPermissions[key] !== false;
+                    });
+                    const deniedTasks = tasks.filter(task => {
+                        const key = `${entity.id}:${task.name}`;
+                        return taskPermissions[key] === false;
+                    });
+                    
+                    if (deniedTasks.length === 0) {
+                        taskAccessHtml = '<span class="text-xs text-green-400">✓ All tasks</span>';
+                    } else if (allowedTasks.length === 0) {
+                        taskAccessHtml = '<span class="text-xs text-red-400">✗ No tasks</span>';
+                    } else {
+                        taskAccessHtml = `<span class="text-xs text-yellow-400">${allowedTasks.length}/${tasks.length} tasks</span>`;
+                    }
+                }
+                
+                return `
+                    <div class="flex items-center justify-between bg-gray-800/50 rounded-lg p-2">
+                        <div class="flex items-center gap-2">
+                            <span>${icon}</span>
+                            <span class="text-sm">${entity.name || entity.email || 'Unknown'}</span>
+                        </div>
+                        ${taskAccessHtml}
+                    </div>
+                `;
+            }).join('');
+            
+            return `
+                <div class="mb-3">${accessTypeHtml}</div>
+                <div class="space-y-2">${entitiesHtml}</div>
+            `;
+        }
+        
+        // Build HTML for delegated admins in preview
+        function buildDelegatedAdminsPreviewHtml() {
+            const delegatedAdmins = agentAdminState.delegatedAdmins || [];
+            const tasks = wizard.tasks || [];
+            
+            if (delegatedAdmins.length === 0) {
+                return '<p class="text-sm text-gray-500">No delegated admins - you are the only admin</p>';
+            }
+            
+            return delegatedAdmins.map(admin => {
+                const icon = admin.entity_type === 'user' ? '👤' : '👥';
+                const hasFullAdmin = admin.permissions?.includes('full_admin');
+                const deniedTasks = admin.denied_task_names || [];
+                
+                // Build permissions summary
+                let permHtml = '';
+                if (hasFullAdmin) {
+                    permHtml = '<span class="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs">⭐ Full Admin</span>';
+                } else {
+                    const permCount = (admin.permissions || []).length;
+                    permHtml = `<span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">${permCount} permissions</span>`;
+                }
+                
+                // Build task restrictions summary
+                let taskHtml = '';
+                if (tasks.length > 0) {
+                    if (deniedTasks.length === 0) {
+                        taskHtml = '<span class="text-xs text-green-400">✓ All tasks</span>';
+                    } else if (deniedTasks.length === tasks.length) {
+                        taskHtml = '<span class="text-xs text-red-400">✗ No chat access</span>';
+                    } else {
+                        const allowedCount = tasks.length - deniedTasks.length;
+                        taskHtml = `<span class="text-xs text-yellow-400">${allowedCount}/${tasks.length} tasks</span>`;
+                    }
+                }
+                
+                return `
+                    <div class="flex items-center justify-between bg-gray-800/50 rounded-lg p-3 mb-2">
+                        <div class="flex items-center gap-3">
+                            <span class="text-lg">${icon}</span>
+                            <div>
+                                <div class="text-sm font-medium">${admin.entity_name || 'Unknown'}</div>
+                                <div class="flex gap-2 mt-1">${permHtml} ${taskHtml}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
         
         function prepareTestSuggestions() {
