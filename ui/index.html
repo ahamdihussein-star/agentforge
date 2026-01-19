@@ -17565,9 +17565,14 @@ async function loadEditAccessControl(tool) {
     toolPermissionChips = { edit: [], delete: [], execute: [] };
     
     // Populate allowed users
+    console.log('🔍 [DEBUG] tool.allowed_user_ids:', tool.allowed_user_ids);
+    console.log('🔍 [DEBUG] toolAccessData.users:', toolAccessData.users.map(u => ({id: u.id, email: u.email})));
+    
     if (tool.allowed_user_ids && tool.allowed_user_ids.length > 0) {
         tool.allowed_user_ids.forEach(userId => {
+            console.log('🔍 [DEBUG] Looking for userId:', userId);
             const user = toolAccessData.users.find(u => u.id === userId);
+            console.log('🔍 [DEBUG] Found user:', user);
             if (user) {
                 toolAccessSelected.users.push({
                     id: user.id,
