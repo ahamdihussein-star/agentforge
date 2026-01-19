@@ -2613,7 +2613,7 @@
                             </div>
                         </div>
                         
-                        <!-- Progress Bar - All 8 Steps -->
+                        <!-- Progress Bar - 7 Steps (Test is final with Deploy) -->
                         <div class="flex items-center gap-1">
                             <div class="wizard-progress-step" data-step="1">
                                 <div class="wizard-step-dot active" onclick="goStep(1)">1</div>
@@ -2647,12 +2647,7 @@
                             <div class="wizard-progress-line"></div>
                             <div class="wizard-progress-step" data-step="7">
                                 <div class="wizard-step-dot" onclick="goStep(7)">7</div>
-                                <span class="wizard-step-label">Test</span>
-                            </div>
-                            <div class="wizard-progress-line"></div>
-                            <div class="wizard-progress-step" data-step="8">
-                                <div class="wizard-step-dot" onclick="goStep(8)">8</div>
-                                <span class="wizard-step-label">Deploy</span>
+                                <span class="wizard-step-label">Test & Deploy</span>
                             </div>
                         </div>
                     </div>
@@ -7968,7 +7963,7 @@ Option 3"></textarea>
             // In create mode, only allow going back to previous steps
             const isEditing = wizard.editId || wizard.id;
             
-            if (s >= 1 && s <= 8) {
+            if (s >= 1 && s <= 7) {
                 if (isEditing || s <= step) {
                     step = s;
                     updateStepsNew();
@@ -8024,7 +8019,7 @@ Option 3"></textarea>
             }
             
             step++;
-            if(step > 8) step = 8;  // Updated for 8 steps (including Access Control)
+            if(step > 7) step = 7;  // 7 steps total - Test & Deploy is final
             console.log('➡️ Moving to step:', step);
             updateStepsNew();
         }
@@ -8141,13 +8136,11 @@ Option 3"></textarea>
                 4: 'Access Control',
                 5: 'Safety',
                 6: 'Preview',
-                7: 'Test',
-                8: 'Deploy'
+                7: 'Test & Deploy'
             };
             
-            // Visual step mapping (skip step 6 Preview in visual)
-            const visualStepMap = {1:1, 2:2, 3:3, 4:4, 5:5, 6:5, 7:6, 8:7};
-            const totalVisualSteps = 7;
+            // 7 steps total
+            const totalSteps = 7;
             const isEditing = wizard.editId || wizard.id;
             
             // Update title
@@ -8156,11 +8149,10 @@ Option 3"></textarea>
                 titleEl.textContent = isEditing ? `Edit: ${wizard.name || 'Agent'}` : 'Create Agent';
             }
             
-            // Update step info (show visual step number)
+            // Update step info
             const stepEl = document.getElementById('wizard-header-step');
             if (stepEl) {
-                const visualStep = visualStepMap[step] || step;
-                stepEl.textContent = `Step ${visualStep} of ${totalVisualSteps}: ${stepNames[step] || ''}`;
+                stepEl.textContent = `Step ${step} of ${totalSteps}: ${stepNames[step] || ''}`;
             }
             
             // Update back button state
@@ -8170,19 +8162,14 @@ Option 3"></textarea>
             }
             
             // Update next/deploy button visibility
-            // Show Deploy on step 7 (Test) and step 8
+            // Step 7 (Test & Deploy) is the final step - show Deploy, hide Next
             const nextBtn = document.getElementById('wizard-btn-next');
             const deployBtn = document.getElementById('wizard-btn-deploy');
             if (nextBtn && deployBtn) {
                 if (step >= 7) {
-                    // Show Deploy button on Test and Deploy steps
+                    // Final step - hide Next, show Deploy
+                    nextBtn.classList.add('hidden');
                     deployBtn.classList.remove('hidden');
-                    // Hide Next on step 8, show on step 7
-                    if (step >= 8) {
-                        nextBtn.classList.add('hidden');
-                    } else {
-                        nextBtn.classList.remove('hidden');
-                    }
                 } else {
                     nextBtn.classList.remove('hidden');
                     deployBtn.classList.add('hidden');
@@ -11673,14 +11660,20 @@ Option 3"></textarea>
                     console.log('Tool IDs to match:', toolIds);
                     
                     toolsHtml = toolIds.map(toolId => {
-                        // Remove prefix (api: or kb:) for matching
+                        // Try multiple matching strategies
                         const searchId = toolId.includes(':') ? toolId.split(':')[1] : toolId;
-                        const tool = allToolsFromApi.find(t => t.id === searchId);
-                        console.log('Matching:', toolId, '→ searchId:', searchId, '→', tool?.name || 'NOT FOUND');
                         
-                        const icon = (tool?.type === 'api' || toolId.includes('api')) ? '🔌' : '📚';
-                        const name = tool?.name || 'Tool';
-                        const colorClass = (tool?.type === 'api' || toolId.includes('api'))
+                        // Try matching by: exact id, searchId, or name
+                        let tool = allToolsFromApi.find(t => t.id === toolId);
+                        if (!tool) tool = allToolsFromApi.find(t => t.id === searchId);
+                        if (!tool) tool = allToolsFromApi.find(t => t.name === searchId);
+                        if (!tool) tool = allToolsFromApi.find(t => t.id?.includes(searchId) || searchId?.includes(t.id));
+                        
+                        console.log('Matching:', toolId, '→', tool?.name || 'NOT FOUND');
+                        
+                        const icon = (tool?.type === 'api' || tool?.type === 'website' || toolId.includes('api')) ? '🔌' : '📚';
+                        const name = tool?.name || toolId.split(':').pop() || 'Tool';
+                        const colorClass = (tool?.type === 'api' || tool?.type === 'website' || toolId.includes('api'))
                             ? 'bg-blue-900/30 border border-blue-500/30' 
                             : 'bg-purple-900/30 border border-purple-500/30';
                         
@@ -11836,8 +11829,10 @@ Option 3"></textarea>
                 // Get detailed task permissions for this entity
                 let taskDetailsHtml = '';
                 if (tasks.length > 0) {
-                    const taskItems = tasks.map(task => {
-                        const key = `${entity.id}:${task.name}`;
+                    const taskItems = tasks.map((task, i) => {
+                        // Key format: taskId:entityId (same as storage format)
+                        const taskId = task.id || `task-${i}`;
+                        const key = `${taskId}:${entity.id}`;
                         const hasAccess = taskPermissions[key] !== false;
                         return `
                             <div class="flex items-center gap-2 text-xs ${hasAccess ? 'text-green-400' : 'text-red-400'}">
@@ -11903,6 +11898,18 @@ Option 3"></textarea>
                 const deniedTasks = admin.denied_task_names || [];
                 const permissions = admin.permissions || [];
                 
+                // Resolve actual name from loaded users/groups
+                let displayName = admin.entity_name;
+                if (!displayName || displayName.includes('...')) {
+                    if (admin.entity_type === 'user') {
+                        const user = wizardAccessState.allUsers.find(u => u.id === admin.entity_id);
+                        displayName = user?.name || user?.email || admin.entity_name || 'Unknown User';
+                    } else {
+                        const group = wizardAccessState.allGroups.find(g => g.id === admin.entity_id);
+                        displayName = group?.name || admin.entity_name || 'Unknown Group';
+                    }
+                }
+                
                 // Build DETAILED agent permissions
                 let agentPermsHtml = '';
                 if (hasFullAdmin) {
@@ -11941,7 +11948,7 @@ Option 3"></textarea>
                     <div class="bg-gray-800/50 rounded-lg p-3 mb-2">
                         <div class="flex items-center gap-2 mb-2">
                             <span class="text-lg">${icon}</span>
-                            <span class="font-medium">${admin.entity_name || 'Unknown'}</span>
+                            <span class="font-medium">${displayName}</span>
                             <span class="text-xs text-gray-500">(${admin.entity_type === 'user' ? 'User' : 'Group'})</span>
                         </div>
                         <div class="pl-6 border-l-2 border-gray-700">
