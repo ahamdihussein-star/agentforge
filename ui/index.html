@@ -11658,21 +11658,40 @@ Option 3"></textarea>
                     console.log('Fetched tools:', allToolsFromApi.length);
                     console.log('Tool IDs to match:', toolIds);
                     
+                    // Also check selectedDemoTools for tool names
+                    const allSelectedTools = [
+                        ...(selectedDemoTools?.apis || []),
+                        ...(selectedDemoTools?.knowledge_bases || []),
+                        ...(selectedDemoTools?.websites || []),
+                        ...(selectedDemoTools?.databases || []),
+                        ...(selectedDemoTools?.emails || []),
+                        ...(selectedDemoTools?.webhooks || []),
+                        ...(selectedDemoTools?.slacks || []),
+                        ...(selectedDemoTools?.calendars || []),
+                        ...(selectedDemoTools?.websearches || [])
+                    ];
+                    
                     toolsHtml = toolIds.map(toolId => {
-                        // Try multiple matching strategies
                         const searchId = toolId.includes(':') ? toolId.split(':')[1] : toolId;
                         
-                        // Try matching by: exact id, searchId, or name
+                        // Try matching from API tools
                         let tool = allToolsFromApi.find(t => t.id === toolId);
                         if (!tool) tool = allToolsFromApi.find(t => t.id === searchId);
-                        if (!tool) tool = allToolsFromApi.find(t => t.name === searchId);
+                        
+                        // Try matching from selectedDemoTools (has names!)
+                        if (!tool) tool = allSelectedTools.find(t => t.id === toolId);
+                        if (!tool) tool = allSelectedTools.find(t => t.id === searchId);
+                        
+                        // More flexible matching
                         if (!tool) tool = allToolsFromApi.find(t => t.id?.includes(searchId) || searchId?.includes(t.id));
+                        if (!tool) tool = allSelectedTools.find(t => t.id?.includes(searchId) || searchId?.includes(t.id));
                         
-                        console.log('Matching:', toolId, '→', tool?.name || 'NOT FOUND');
+                        console.log('Tool matching:', toolId, '→', tool?.name || 'NOT FOUND');
                         
-                        const icon = (tool?.type === 'api' || tool?.type === 'website' || toolId.includes('api')) ? '🔌' : '📚';
-                        const name = tool?.name || toolId.split(':').pop() || 'Tool';
-                        const colorClass = (tool?.type === 'api' || tool?.type === 'website' || toolId.includes('api'))
+                        const isApi = tool?.type === 'api' || tool?.type === 'website' || toolId.startsWith('api:');
+                        const icon = isApi ? '🔌' : '📚';
+                        const name = tool?.name || 'Unknown Tool';
+                        const colorClass = isApi
                             ? 'bg-blue-900/30 border border-blue-500/30' 
                             : 'bg-purple-900/30 border border-purple-500/30';
                         
