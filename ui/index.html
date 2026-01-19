@@ -143,6 +143,16 @@
         .step-active{background:var(--accent-primary);color:white}
         .step-done{background:var(--success);color:white}
         .step-pending{background:var(--bg-input);color:var(--text-muted)}
+        
+        /* New Wizard Progress Styles */
+        .wizard-progress-step{display:flex;flex-direction:column;align-items:center;gap:4px}
+        .wizard-step-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;background:#374151;color:#9ca3af;border:2px solid transparent}
+        .wizard-step-dot:hover{background:#4b5563}
+        .wizard-step-dot.active{background:#3b82f6;color:white;border-color:#3b82f6}
+        .wizard-step-dot.completed{background:#10b981;color:white;border-color:#10b981}
+        .wizard-step-label{font-size:10px;color:#9ca3af;white-space:nowrap}
+        .wizard-progress-line{flex:1;height:2px;background:#374151;min-width:20px;max-width:60px}
+        .wizard-progress-line.completed{background:#10b981}
         .drop-zone{border:2px dashed var(--border-color);transition:all 0.3s}
         .drop-zone.dragover{border-color:var(--accent-primary);background:rgba(139,92,246,0.1)}
         .modal-backdrop{background:rgba(0,0,0,0.8);backdrop-filter:blur(4px)}
@@ -2564,9 +2574,74 @@
             </section>
 
             <!-- Create Agent Wizard - AI-Powered -->
-            <section id="page-create" class="hidden flex-1 p-4 md:p-6" style="overflow-y:auto !important; -webkit-overflow-scrolling:touch;">
+            <section id="page-create" class="hidden flex-1 flex flex-col" style="overflow:hidden;">
                 
-                <!-- Steps Progress Bar -->
+                <!-- STICKY HEADER: Progress + Navigation -->
+                <div id="wizard-sticky-header" class="hidden sticky top-0 z-40 bg-[#1a1a2e] border-b border-gray-800 px-4 py-3 shadow-lg">
+                    <div class="max-w-5xl mx-auto">
+                        <!-- Top Row: Title + Actions -->
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-3">
+                                <button onclick="cancelEdit()" class="text-gray-400 hover:text-white transition p-1" title="Cancel">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                                <div>
+                                    <h2 id="wizard-header-title" class="text-sm font-semibold text-white">Create Agent</h2>
+                                    <p id="wizard-header-step" class="text-xs text-gray-400">Step 1 of 5</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="saveWizardProgress()" class="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded border border-gray-700 hover:border-gray-600 transition">
+                                    Save Draft
+                                </button>
+                                <button onclick="prevStep()" id="wizard-btn-back" class="text-sm px-4 py-1.5 rounded border border-gray-700 text-gray-300 hover:bg-gray-800 transition disabled:opacity-50" disabled>
+                                    Back
+                                </button>
+                                <button onclick="nextStep()" id="wizard-btn-next" class="text-sm px-4 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition">
+                                    Next
+                                </button>
+                                <button onclick="deployAgent()" id="wizard-btn-deploy" class="hidden text-sm px-4 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 transition">
+                                    Deploy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Bar - Simplified -->
+                        <div class="flex items-center gap-1">
+                            <div class="wizard-progress-step" data-step="1">
+                                <div class="wizard-step-dot active" onclick="goStep(1)">1</div>
+                                <span class="wizard-step-label">Setup</span>
+                            </div>
+                            <div class="wizard-progress-line"></div>
+                            <div class="wizard-progress-step" data-step="2">
+                                <div class="wizard-step-dot" onclick="goStep(2)">2</div>
+                                <span class="wizard-step-label">Tasks</span>
+                            </div>
+                            <div class="wizard-progress-line"></div>
+                            <div class="wizard-progress-step" data-step="3">
+                                <div class="wizard-step-dot" onclick="goStep(3)">3</div>
+                                <span class="wizard-step-label">Tools</span>
+                            </div>
+                            <div class="wizard-progress-line"></div>
+                            <div class="wizard-progress-step" data-step="4">
+                                <div class="wizard-step-dot" onclick="goStep(4)">4</div>
+                                <span class="wizard-step-label">Access</span>
+                            </div>
+                            <div class="wizard-progress-line"></div>
+                            <div class="wizard-progress-step" data-step="5">
+                                <div class="wizard-step-dot" onclick="goStep(5)">5</div>
+                                <span class="wizard-step-label">Review</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Scrollable Content Area -->
+                <div id="wizard-content-area" class="flex-1 overflow-y-auto p-4 md:p-6" style="-webkit-overflow-scrolling:touch;">
+                
+                <!-- OLD Steps Progress Bar (hidden, kept for backward compatibility) -->
                 <div id="wizard-progress" class="hidden mb-8">
                     <div class="flex items-center justify-start md:justify-center gap-1 md:gap-2 overflow-x-auto pb-2">
                         <div class="flex items-center gap-1 flex-shrink-0">
@@ -4035,6 +4110,8 @@ spec:
                         </div>
                     </div>
                 </div>
+                
+                </div><!-- End wizard-content-area -->
             </section>
 
             <!-- Demo Lab Page - NEW DESIGN -->
@@ -7769,18 +7846,23 @@ Option 3"></textarea>
                 document.getElementById('wizard-step-0')?.classList.remove('hidden');
                 document.getElementById('wizard-generating')?.classList.add('hidden');
                 document.getElementById('wizard-progress')?.classList.add('hidden');
-                for(let i=1; i<=7; i++) {
+                document.getElementById('wizard-sticky-header')?.classList.add('hidden');
+                for(let i=1; i<=8; i++) {
                     document.getElementById('wizard-step-'+i)?.classList.add('hidden');
                 }
                 return;
             }
             
-            // Show progress bar for steps 1-7
+            // Show progress bar and sticky header for steps 1+
             document.getElementById('wizard-step-0')?.classList.add('hidden');
             document.getElementById('wizard-generating')?.classList.add('hidden');
             document.getElementById('wizard-progress')?.classList.remove('hidden');
+            document.getElementById('wizard-sticky-header')?.classList.remove('hidden');
             
-            // Update step indicators
+            // Update NEW sticky header
+            updateWizardStickyHeader();
+            
+            // Update step indicators (old system)
             for(let i=1; i<=8; i++) {
                 const el = document.getElementById('step-'+i);
                 const content = document.getElementById('wizard-step-'+i);
@@ -8061,6 +8143,89 @@ Option 3"></textarea>
                 step--;
                 updateStepsNew();
             }
+        }
+        
+        // Update the sticky header with current step info
+        function updateWizardStickyHeader() {
+            const stepNames = {
+                1: 'Setup',
+                2: 'Tasks',
+                3: 'Tools',
+                4: 'Access Control',
+                5: 'Safety',
+                6: 'Preview',
+                7: 'Test',
+                8: 'Deploy'
+            };
+            
+            const totalSteps = 8;
+            const isEditing = wizard.editId || wizard.id;
+            
+            // Update title
+            const titleEl = document.getElementById('wizard-header-title');
+            if (titleEl) {
+                titleEl.textContent = isEditing ? `Edit: ${wizard.name || 'Agent'}` : 'Create Agent';
+            }
+            
+            // Update step info
+            const stepEl = document.getElementById('wizard-header-step');
+            if (stepEl) {
+                stepEl.textContent = `Step ${step} of ${totalSteps}: ${stepNames[step] || ''}`;
+            }
+            
+            // Update back button state
+            const backBtn = document.getElementById('wizard-btn-back');
+            if (backBtn) {
+                backBtn.disabled = step <= 1;
+            }
+            
+            // Update next/deploy button visibility
+            const nextBtn = document.getElementById('wizard-btn-next');
+            const deployBtn = document.getElementById('wizard-btn-deploy');
+            if (nextBtn && deployBtn) {
+                if (step >= totalSteps) {
+                    nextBtn.classList.add('hidden');
+                    deployBtn.classList.remove('hidden');
+                } else {
+                    nextBtn.classList.remove('hidden');
+                    deployBtn.classList.add('hidden');
+                }
+            }
+            
+            // Update progress dots
+            const progressSteps = document.querySelectorAll('.wizard-progress-step');
+            progressSteps.forEach((stepDiv, idx) => {
+                const stepNum = idx + 1;
+                const dot = stepDiv.querySelector('.wizard-step-dot');
+                if (dot) {
+                    dot.classList.remove('active', 'completed');
+                    // Map 8 steps to 5 visual steps
+                    const visualStep = mapToVisualStep(step);
+                    const visualIdx = mapToVisualStep(stepNum);
+                    
+                    if (stepNum < step || (visualIdx < visualStep)) {
+                        dot.classList.add('completed');
+                    } else if (stepNum === step || visualIdx === visualStep) {
+                        dot.classList.add('active');
+                    }
+                }
+            });
+            
+            // Update progress lines
+            const progressLines = document.querySelectorAll('.wizard-progress-line');
+            progressLines.forEach((line, idx) => {
+                const visualStep = mapToVisualStep(step);
+                line.classList.toggle('completed', idx < visualStep - 1);
+            });
+        }
+        
+        // Map 8 wizard steps to 5 visual progress steps
+        function mapToVisualStep(wizardStep) {
+            if (wizardStep <= 1) return 1; // Setup
+            if (wizardStep === 2) return 2; // Tasks
+            if (wizardStep === 3) return 3; // Tools
+            if (wizardStep >= 4 && wizardStep <= 5) return 4; // Access (4 & 5)
+            return 5; // Review/Deploy (6, 7, 8)
         }
         
         // Cancel edit and restore agent to original state
