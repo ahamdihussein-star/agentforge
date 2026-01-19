@@ -3125,16 +3125,7 @@
                             </div>
                         </div>
                         
-                        <!-- Option 2: Configure New Tool -->
-                        <div onclick="goToConfigureNewTool()" class="card rounded-xl p-6 cursor-pointer hover:border-green-500 transition-all border-2 border-transparent hover:bg-green-500/5">
-                            <div class="text-center">
-                                <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-green-500/20 flex items-center justify-center">
-                                    <span class="text-3xl">➕</span>
-                                </div>
-                                <h4 class="font-bold text-lg mb-2">Configure New Tool</h4>
-                                <p class="text-sm text-gray-400">Create and setup a new tool for your agent</p>
-                            </div>
-                        </div>
+                        <!-- Configure New Tool option removed for cleaner UX -->
                     </div>
                     
                     <!-- Selected Tools -->
@@ -3328,16 +3319,16 @@
                                             </svg>
                                         </div>
                                         <input type="text" id="wizard-access-search" 
-                                               class="w-full rounded-xl px-12 py-4 text-white placeholder-gray-500 transition-all focus:ring-2 focus:ring-purple-500/50" 
-                                               style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);"
+                                               class="w-full rounded-xl px-12 py-4 placeholder-gray-400 transition-all focus:ring-2 focus:ring-blue-500/50" 
+                                               style="background: #1f2937; border: 2px solid #374151; color: #f3f4f6;"
                                                placeholder="Search by name, email, or group...">
-                                        <div class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500 hidden md:block">
-                                            Press <kbd class="px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">Enter</kbd> to add
+                                        <div class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400 hidden md:block">
+                                            Press <kbd class="px-1.5 py-0.5 rounded bg-gray-600 text-gray-200">Enter</kbd> to add
                                         </div>
                                     </div>
                                     
                                     <!-- Search Results Dropdown -->
-                                    <div id="wizard-access-search-results" class="hidden mt-2 rounded-xl overflow-hidden" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);">
+                                    <div id="wizard-access-search-results" class="hidden mt-2 rounded-xl overflow-hidden shadow-xl" style="background: #1f2937; border: 2px solid #374151;">
                                         <!-- Results will be populated dynamically -->
                                     </div>
                                     
@@ -3403,11 +3394,11 @@
                                                     </svg>
                                                 </div>
                                                 <input type="text" id="wizard-admin-search" 
-                                                       class="w-full rounded-xl px-12 py-3 text-white placeholder-gray-500 transition-all focus:ring-2 focus:ring-amber-500/50" 
-                                                       style="background: rgba(0,0,0,0.3); border: 1px solid rgba(245, 158, 11, 0.2);"
+                                                       class="w-full rounded-xl px-12 py-3 placeholder-gray-400 transition-all focus:ring-2 focus:ring-amber-500/50" 
+                                                       style="background: #1f2937; border: 2px solid #374151; color: #f3f4f6;"
                                                        placeholder="Search users or groups to add as admin...">
                                             </div>
-                                            <div id="wizard-admin-search-results" class="hidden mt-2 rounded-xl overflow-hidden max-h-48 overflow-y-auto" style="background: rgba(30,30,40,0.95); border: 1px solid rgba(245, 158, 11, 0.2);">
+                                            <div id="wizard-admin-search-results" class="hidden mt-2 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-xl" style="background: #1f2937; border: 2px solid #374151;">
                                             </div>
                                         </div>
                                         
@@ -3506,7 +3497,7 @@
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="guard-anti-hallucination" class="sr-only peer" checked>
-                                    <div class="w-11 h-6 bg-gray-700 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 peer-checked:after:bg-white"></div>
                                 </label>
                             </div>
                             <div id="anti-hallucination-options" class="space-y-3 pl-10">
@@ -3634,7 +3625,7 @@
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="guard-pii-protection" class="sr-only peer" checked>
-                                    <div class="w-11 h-6 bg-gray-700 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 peer-checked:after:bg-white"></div>
                                 </label>
                             </div>
                             <div class="space-y-3 pl-10">
@@ -3705,28 +3696,7 @@
                         </div>
                     </div>
                     
-                    <!-- Deploy Section - Direct from Test -->
-                    <div class="card rounded-xl p-6 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/30">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-4">
-                                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">
-                                    🚀
-                                </div>
-                                <div>
-                                    <h4 class="font-semibold text-white">Ready to Deploy?</h4>
-                                    <p class="text-sm text-gray-400">Your agent is configured and tested</p>
-                                </div>
-                            </div>
-                            <div class="flex gap-3">
-                                <button onclick="saveAsDraft()" class="px-5 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800 transition text-sm">
-                                    💾 Save Draft
-                                </button>
-                                <button onclick="deployAgentNow()" class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium hover:from-purple-500 hover:to-blue-500 transition text-sm shadow-lg">
-                                    🚀 Deploy Now
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Deploy buttons are in sticky header - removed duplicate section -->
                 </div>
 
                 <!-- Step 8: Deploy (kept for direct navigation) -->
@@ -4405,6 +4375,74 @@ Example: I need an HR agent that can:
         <button onclick="navigate('tools')" id="mob-tools" data-permission="tools:view" class=""><span>🧩</span><span>Tools</span></button>
         <button onclick="navigate('settings')" id="mob-settings" data-permission="system:settings" class=""><span>⚙️</span><span>Settings</span></button>
     </nav>
+
+    <!-- Task Modal - Clean popup for adding/editing tasks -->
+    <div id="modal-task" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border border-gray-700">
+            <!-- Header -->
+            <div class="p-5 flex items-center justify-between border-b border-gray-700">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">📋</span>
+                    <div>
+                        <h3 class="text-lg font-bold text-white" id="task-modal-title">Add New Task</h3>
+                        <p class="text-xs text-gray-400">Define what this agent can do</p>
+                    </div>
+                </div>
+                <button onclick="closeTaskModal()" class="text-gray-400 hover:text-white text-2xl p-2 hover:bg-gray-700 rounded-lg transition">×</button>
+            </div>
+
+            <!-- Content -->
+            <div class="p-5 overflow-y-auto flex-1 space-y-5">
+                <!-- Task Name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Task Name <span class="text-red-400">*</span></label>
+                    <input type="text" id="task-modal-name" 
+                           class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                           placeholder="e.g., Answer HR Questions, Process Leave Requests">
+                </div>
+
+                <!-- Task Description -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Description <span class="text-gray-500">(optional)</span></label>
+                    <textarea id="task-modal-desc" rows="2"
+                              class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition resize-none"
+                              placeholder="Brief description of what this task does..."></textarea>
+                </div>
+
+                <!-- Instructions -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300">Instructions</label>
+                            <p class="text-xs text-gray-500">Step-by-step guide for the AI to follow</p>
+                        </div>
+                        <button onclick="addTaskModalInstruction()" 
+                                class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition flex items-center gap-1">
+                            <span>+</span> Add Step
+                        </button>
+                    </div>
+                    <div id="task-modal-instructions" class="space-y-2">
+                        <!-- Instructions will be added here -->
+                    </div>
+                    <p id="task-modal-no-instructions" class="text-sm text-gray-500 italic text-center py-4">
+                        No instructions yet. Click "+ Add Step" to add instructions.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-5 border-t border-gray-700 flex justify-end gap-3">
+                <button onclick="closeTaskModal()" 
+                        class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-medium transition">
+                    Cancel
+                </button>
+                <button onclick="saveTaskModal()" 
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
+                    Save Task
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Tool Creation Modal -->
 <!-- Tool Wizard Modal -->
@@ -9019,49 +9057,50 @@ Option 3"></textarea>
             
             if(tasks.length === 0) {
                 container.innerHTML = `
-                    <div class="text-center py-8 text-gray-500">
-                        <span class="text-4xl block mb-2">📝</span>
-                        <p>No tasks defined. Click "+ Add Task" to create one.</p>
+                    <div class="text-center py-12 text-gray-500">
+                        <span class="text-5xl block mb-3">📋</span>
+                        <p class="text-lg font-medium mb-1">No tasks defined yet</p>
+                        <p class="text-sm">Click "+ Add Task" to create your first task</p>
                     </div>
                 `;
                 return;
             }
             
+            // Clean card view - click to edit via modal
             container.innerHTML = tasks.map((task, idx) => `
-                <div class="card rounded-lg p-4" id="task-${idx}" data-task-idx="${idx}">
-                    <div class="flex gap-3">
-                        <div class="flex-1 space-y-4">
-                            <div class="flex items-start justify-between">
-                                <div class="flex-1">
-                                    <label class="text-xs text-gray-400 mb-1 block">Task Name *</label>
-                                    <input type="text" class="task-name input-field w-full rounded px-3 py-2" value="${escHtml(task.name || '')}" oninput="autoSaveTask(${idx}, 'name', this.value)">
-                                </div>
-                                <button onclick="removeTask(${idx})" class="text-gray-500 hover:text-red-400 text-xl ml-2">✕</button>
+                <div class="card rounded-lg p-4 hover:bg-gray-800/80 transition cursor-pointer group" id="task-${idx}" data-task-idx="${idx}" onclick="editTask(${idx})">
+                    <div class="flex items-start gap-4">
+                        <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-xl shrink-0">
+                            📋
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <h4 class="font-semibold text-white truncate">${escHtml(task.name || 'Untitled Task')}</h4>
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">
+                                    ${(task.instructions || []).length} steps
+                                </span>
                             </div>
-                            <div>
-                                <label class="text-xs text-gray-400 mb-1 block">Description</label>
-                                <textarea class="task-desc input-field w-full rounded px-3 py-2 text-sm" rows="2" oninput="autoSaveTask(${idx}, 'description', this.value)">${escHtml(task.description || '')}</textarea>
-                            </div>
-                            <div class="bg-gray-800/50 rounded-lg p-3">
-                                <div class="flex items-center justify-between mb-3">
-                                    <div>
-                                        <span class="text-sm font-medium text-purple-400">📋 Instructions</span>
-                                        <p class="text-xs text-gray-500">Step-by-step guide for the LLM</p>
-                                    </div>
-                                    <button onclick="addInstruction(${idx})" class="btn-secondary px-3 py-1 rounded text-xs">+ Add Step</button>
+                            <p class="text-sm text-gray-400 line-clamp-2">${escHtml(task.description || 'No description')}</p>
+                            ${(task.instructions || []).length > 0 ? `
+                                <div class="mt-2 text-xs text-gray-500">
+                                    <span class="text-blue-400">1.</span> ${escHtml((task.instructions[0] || '').slice(0, 60))}${(task.instructions[0] || '').length > 60 ? '...' : ''}
                                 </div>
-                                <div class="insts space-y-2" id="instructions-${idx}" ondragover="handleDragOver(event)" ondrop="handleInstructionDrop(event, ${idx})">
-                                    ${(task.instructions || []).map((inst, instIdx) => `
-                                        <div class="flex gap-2 items-start bg-gray-900/50 rounded p-2 instruction-item" draggable="true" data-task-idx="${idx}" data-inst-idx="${instIdx}" ondragstart="handleInstructionDragStart(event)" ondragend="handleDragEnd(event)">
-                                            <span class="cursor-move text-gray-500 hover:text-gray-300 mr-1" title="Drag to reorder">⋮⋮</span>
-                                            <span class="text-purple-400 text-xs font-bold mt-1">${instIdx + 1}.</span>
-                                            <input type="text" class="inst-text input-field flex-1 rounded px-2 py-1 text-sm" value="${escHtml(inst)}" oninput="autoSaveInstruction(${idx}, ${instIdx}, this.value)">
-                                            <button onclick="removeInstruction(${idx}, ${instIdx})" class="text-gray-500 hover:text-red-400 text-sm">✕</button>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                                ${(task.instructions || []).length === 0 ? '<p class="text-xs text-gray-500 mt-2">No instructions. Click "+ Add Step".</p>' : ''}
-                            </div>
+                            ` : ''}
+                        </div>
+                        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                            <button onclick="event.stopPropagation(); editTask(${idx})" class="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/20 rounded-lg transition" title="Edit">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
+                            <button onclick="event.stopPropagation(); removeTask(${idx})" class="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition" title="Delete">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
                         </div>
                     </div>
                 </div>
@@ -10617,14 +10656,14 @@ Option 3"></textarea>
             ];
             
             if (results.length === 0) {
-                container.innerHTML = '<p class="p-3 text-sm text-gray-500">No results found</p>';
+                container.innerHTML = '<p class="p-3 text-sm text-gray-400">No results found</p>';
             } else {
                 container.innerHTML = results.map(r => `
-                    <div class="p-3 hover:bg-gray-700 cursor-pointer flex items-center gap-3" onclick="addAgentAdmin('${r.id}', '${r.type}', '${r.name.replace(/'/g, "\\'")}')">
-                        <span class="text-lg">${r.icon}</span>
-                        <div>
-                            <div class="font-medium text-sm">${r.name}</div>
-                            <span class="text-xs px-2 py-0.5 rounded bg-gray-700">${r.type}</span>
+                    <div class="p-3 hover:bg-gray-600 cursor-pointer flex items-center gap-3 border-b border-gray-600 last:border-0" onclick="addAgentAdmin('${r.id}', '${r.type}', '${r.name.replace(/'/g, "\\'")}')">
+                        <span class="text-xl">${r.icon}</span>
+                        <div class="flex-1">
+                            <div class="font-medium text-sm text-white">${r.name}</div>
+                            <span class="text-xs px-2 py-0.5 rounded bg-gray-600 text-gray-300">${r.type}</span>
                         </div>
                     </div>
                 `).join('');
@@ -10923,13 +10962,13 @@ Option 3"></textarea>
             }
             
             container.innerHTML = results.slice(0, 10).map(r => `
-                <div class="p-3 hover:bg-gray-700 cursor-pointer flex items-center gap-3 border-b border-gray-700 last:border-0"
+                <div class="p-3 hover:bg-gray-600 cursor-pointer flex items-center gap-3 border-b border-gray-600 last:border-0"
                      onclick="selectWizardAccessEntity('${r.id}', '${r.name.replace(/'/g, "\\'")}', '${r.type}', '${r.icon}')">
-                    <span class="text-lg">${r.icon}</span>
-                    <div>
-                        <div class="font-medium text-sm">${r.name}</div>
-                        ${r.email ? `<div class="text-xs text-gray-500">${r.email}</div>` : ''}
-                        <span class="text-xs px-2 py-0.5 rounded bg-gray-700">${r.type}</span>
+                    <span class="text-xl">${r.icon}</span>
+                    <div class="flex-1">
+                        <div class="font-medium text-sm text-white">${r.name}</div>
+                        ${r.email ? `<div class="text-xs text-gray-400">${r.email}</div>` : ''}
+                        <span class="text-xs px-2 py-0.5 rounded bg-gray-600 text-gray-300">${r.type}</span>
                     </div>
                 </div>
             `).join('');
@@ -15370,41 +15409,147 @@ Option 3"></textarea>
         // Old wizard functions removed - using new 7-step wizard functions instead
         // updateStepsNew, nextStep, prevStep, collectTasksNew, loadWizardToolsNew, collectToolsNew, showPreviewNew
 
+        // Task Modal State
+        let taskModalEditIndex = null; // null = new task, number = editing existing task
+        
         function addTask(){
-            const c=document.getElementById('w-tasks');
-            // Clear empty state message
-            const emptyState = c.querySelector('.text-center.py-8');
-            if(emptyState) emptyState.remove();
+            // Open modal for new task
+            openTaskModal();
+        }
+        
+        function openTaskModal(editIndex = null) {
+            taskModalEditIndex = editIndex;
+            const modal = document.getElementById('modal-task');
+            const titleEl = document.getElementById('task-modal-title');
+            const nameEl = document.getElementById('task-modal-name');
+            const descEl = document.getElementById('task-modal-desc');
+            const instructionsEl = document.getElementById('task-modal-instructions');
+            const noInstructionsEl = document.getElementById('task-modal-no-instructions');
             
-            const id=Date.now();
-            c.insertAdjacentHTML('beforeend',`
-                <div class="card rounded-lg p-4" id="task-${id}">
-                    <div class="flex gap-3">
-                        <div class="flex-1 space-y-4">
-                            <div>
-                                <label class="text-xs text-gray-400 mb-1 block">Task Name *</label>
-                                <input type="text" class="task-name input-field w-full rounded px-3 py-2" placeholder="e.g., Answer HR Questions">
-                            </div>
-                            <div>
-                                <label class="text-xs text-gray-400 mb-1 block">Task Description</label>
-                                <textarea class="task-desc input-field w-full rounded px-3 py-2 text-sm" rows="2" placeholder="What does this task do?"></textarea>
-                            </div>
-                            <div class="bg-gray-800/50 rounded-lg p-3">
-                                <div class="flex items-center justify-between mb-3">
-                                    <div>
-                                        <span class="text-sm font-medium text-purple-400">📋 Instructions</span>
-                                        <p class="text-xs text-gray-500">Step-by-step guide for the LLM to follow</p>
-                                    </div>
-                                    <button onclick="addInst(${id})" class="btn-secondary px-3 py-1 rounded text-xs">+ Add Step</button>
-                                </div>
-                                <div class="insts space-y-2"></div>
-                                <p class="text-xs text-gray-500 mt-2 inst-empty">No instructions yet. Click "+ Add Step" to add instructions.</p>
-                            </div>
-                        </div>
-                        <button onclick="document.getElementById('task-${id}').remove()" class="text-gray-500 hover:text-red-400 text-xl h-fit">✕</button>
-                    </div>
+            // Reset modal
+            instructionsEl.innerHTML = '';
+            
+            if (editIndex !== null && wizard.tasks && wizard.tasks[editIndex]) {
+                // Edit mode
+                const task = wizard.tasks[editIndex];
+                titleEl.textContent = 'Edit Task';
+                nameEl.value = task.name || '';
+                descEl.value = task.description || '';
+                
+                // Load instructions
+                if (task.instructions && task.instructions.length > 0) {
+                    noInstructionsEl.classList.add('hidden');
+                    task.instructions.forEach((inst, i) => {
+                        addTaskModalInstructionWithValue(inst, i + 1);
+                    });
+                } else {
+                    noInstructionsEl.classList.remove('hidden');
+                }
+            } else {
+                // New task mode
+                titleEl.textContent = 'Add New Task';
+                nameEl.value = '';
+                descEl.value = '';
+                noInstructionsEl.classList.remove('hidden');
+            }
+            
+            modal.classList.remove('hidden');
+            nameEl.focus();
+        }
+        
+        function closeTaskModal() {
+            document.getElementById('modal-task').classList.add('hidden');
+            taskModalEditIndex = null;
+        }
+        
+        function addTaskModalInstruction() {
+            const container = document.getElementById('task-modal-instructions');
+            const noInstructionsEl = document.getElementById('task-modal-no-instructions');
+            noInstructionsEl.classList.add('hidden');
+            
+            const stepNum = container.children.length + 1;
+            addTaskModalInstructionWithValue('', stepNum);
+        }
+        
+        function addTaskModalInstructionWithValue(value, stepNum) {
+            const container = document.getElementById('task-modal-instructions');
+            const instId = Date.now() + Math.random();
+            container.insertAdjacentHTML('beforeend', `
+                <div class="flex gap-2 items-center bg-gray-900 rounded-lg p-3 group" data-inst-id="${instId}">
+                    <span class="text-blue-400 text-sm font-bold w-6">${stepNum}.</span>
+                    <input type="text" 
+                           class="task-modal-inst-text flex-1 bg-transparent border-none text-white placeholder-gray-500 focus:outline-none"
+                           value="${escHtml(value)}"
+                           placeholder="e.g., Greet the user and ask how you can help">
+                    <button onclick="removeTaskModalInstruction(this)" 
+                            class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
                 </div>
             `);
+        }
+        
+        function removeTaskModalInstruction(btn) {
+            const instDiv = btn.closest('[data-inst-id]');
+            const container = document.getElementById('task-modal-instructions');
+            instDiv.remove();
+            
+            // Renumber remaining instructions
+            const remaining = container.querySelectorAll('[data-inst-id]');
+            remaining.forEach((el, i) => {
+                el.querySelector('.text-blue-400').textContent = (i + 1) + '.';
+            });
+            
+            // Show empty message if no instructions
+            if (remaining.length === 0) {
+                document.getElementById('task-modal-no-instructions').classList.remove('hidden');
+            }
+        }
+        
+        function saveTaskModal() {
+            const name = document.getElementById('task-modal-name').value.trim();
+            const desc = document.getElementById('task-modal-desc').value.trim();
+            const instructionInputs = document.querySelectorAll('#task-modal-instructions .task-modal-inst-text');
+            
+            if (!name) {
+                document.getElementById('task-modal-name').focus();
+                document.getElementById('task-modal-name').classList.add('border-red-500');
+                setTimeout(() => document.getElementById('task-modal-name').classList.remove('border-red-500'), 2000);
+                return;
+            }
+            
+            const instructions = [];
+            instructionInputs.forEach(input => {
+                const val = input.value.trim();
+                if (val) instructions.push(val);
+            });
+            
+            const taskData = {
+                id: taskModalEditIndex !== null ? wizard.tasks[taskModalEditIndex].id : `task-${Date.now()}`,
+                name: name,
+                description: desc,
+                instructions: instructions
+            };
+            
+            if (!wizard.tasks) wizard.tasks = [];
+            
+            if (taskModalEditIndex !== null) {
+                // Update existing task
+                wizard.tasks[taskModalEditIndex] = taskData;
+            } else {
+                // Add new task
+                wizard.tasks.push(taskData);
+            }
+            
+            closeTaskModal();
+            renderTasks();
+            showToast(taskModalEditIndex !== null ? 'Task updated' : 'Task added', 'success');
+        }
+        
+        function editTask(idx) {
+            openTaskModal(idx);
         }
 
         function addInst(tid){
@@ -15515,7 +15660,7 @@ Option 3"></textarea>
             const c=document.getElementById('test-messages');
             const d=document.createElement('div');
             d.className='animate-fade-in';
-            if(role==='user')d.innerHTML=`<div class="flex justify-end"><div class="bg-purple-600 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[85%] text-sm">${esc(content)}</div></div>`;
+            if(role==='user')d.innerHTML=`<div class="flex justify-end"><div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] text-sm shadow-md">${esc(content)}</div></div>`;
             else if(role==='assistant')d.innerHTML=`<div class="flex"><div class="bg-gray-700 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[85%] chat-content text-sm">${fmt(content)}</div></div>`;
             else if(role==='system')d.innerHTML=`<div class="text-center text-xs py-1 text-gray-500">${content}</div>`;
             else d.innerHTML=`<div class="text-center text-red-400 text-sm">${content}</div>`;
