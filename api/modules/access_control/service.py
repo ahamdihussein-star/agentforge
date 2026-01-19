@@ -770,6 +770,10 @@ class AccessControlService:
         """
         org_id = normalize_org_id(org_id)
         
+        print(f"🔐 [UPDATE_MANAGEMENT] Updating management for agent {agent_id[:8]}...")
+        print(f"🔐 [UPDATE_MANAGEMENT] delegated_admins count: {len(delegated_admins)}")
+        print(f"🔐 [UPDATE_MANAGEMENT] delegated_admins: {delegated_admins}")
+        
         with get_session() as session:
             # Find or create the agent_admin policy
             policy = session.query(AgentAccessPolicy).filter(
