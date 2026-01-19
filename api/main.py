@@ -4522,7 +4522,9 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
     
     print(f"📋 [LIST_AGENTS] Request from user: {current_user.email if current_user else 'None'}, user_id: {user_id}, org_id: {org_id}, status: {status}")
     user_role_ids = getattr(current_user, 'role_ids', []) or []
-    user_group_ids = getattr(current_user, 'group_ids', []) or []
+    # IMPORTANT: Use get_user_group_ids to get groups from member_ids (source of truth)
+    user_group_ids = get_user_group_ids(user_id) if user_id else []
+    print(f"📋 [LIST_AGENTS] User groups (from member_ids): {user_group_ids}")
     
     # Try to load from database first, then fallback to in-memory
     all_agents = []
