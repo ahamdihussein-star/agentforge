@@ -8067,7 +8067,7 @@ Option 3"></textarea>
         async function cancelEdit() {
             // Confirm with user
             const confirmMsg = wizard.originalStatus === 'published' 
-                ? 'Are you sure you want to cancel? The agent will remain published with its original settings.'
+                ? 'Are you sure you want to cancel? The agent will be restored to published state.'
                 : 'Are you sure you want to cancel editing?';
             
             if (!confirm(confirmMsg)) return;
@@ -8076,20 +8076,26 @@ Option 3"></textarea>
             const agentId = wizard.editId || wizard.id;
             if (agentId && wizard.originalStatus === 'published') {
                 try {
-                    // Restore to published status
-                    const response = await fetch(API + '/api/agents/' + agentId + '/publish', {
-                        method: 'POST',
-                        headers: getAuthHeaders()
+                    // Restore to published status using PUT
+                    const response = await fetch(API + '/api/agents/' + agentId, {
+                        method: 'PUT',
+                        headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+                        body: JSON.stringify({ status: 'published' })
                     });
                     
                     if (response.ok) {
                         showToast('Edit cancelled - agent restored to published state', 'info');
                     } else {
-                        console.warn('Could not restore agent status');
+                        const error = await response.json();
+                        console.warn('Could not restore agent status:', error);
+                        showToast('Edit cancelled but could not restore status', 'warning');
                     }
                 } catch (e) {
                     console.error('Error restoring agent status:', e);
+                    showToast('Edit cancelled', 'info');
                 }
+            } else {
+                showToast('Edit cancelled', 'info');
             }
             
             // Clear wizard state
@@ -8100,6 +8106,7 @@ Option 3"></textarea>
             
             // Navigate back to agents list
             navigate('agents');
+            loadAgents();
         }
         
         // Go to specific step (for clickable step indicators)
@@ -14898,15 +14905,23 @@ Option 3"></textarea>
         
         async function publishAgent(id){
             try {
-                await fetch(API+'/api/agents/'+id, {
+                const response = await fetch(API+'/api/agents/'+id, {
                     method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
                     body: JSON.stringify({ status: 'published' })
                 });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to publish');
+                }
+                
+                showToast('Agent published successfully!', 'success');
                 loadAgents();
                 setAgentTab('published');
             } catch(e) {
-                alert('Failed to publish agent: ' + e.message);
+                console.error('Publish error:', e);
+                showToast('Failed to publish agent: ' + e.message, 'error');
             }
         }
 
