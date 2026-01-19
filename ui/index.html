@@ -8200,9 +8200,8 @@ Option 3"></textarea>
             
             // Update progress lines
             const progressLines = document.querySelectorAll('.wizard-progress-line');
-            const visualStep = visualStepMap[step] || step;
             progressLines.forEach((line, idx) => {
-                line.classList.toggle('completed', idx < visualStep - 1);
+                line.classList.toggle('completed', idx < step - 1);
             });
         }
         
