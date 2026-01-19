@@ -17405,6 +17405,13 @@ Option 3"></textarea>
                 updateToolAccessChips();
                 updateToolPermissionDropdowns();
                 
+                // Render permission chips
+                ['edit', 'delete', 'execute'].forEach(permType => {
+                    if (typeof updatePermissionChipsDisplay === 'function') {
+                        updatePermissionChipsDisplay(permType);
+                    }
+                });
+                
                 console.log('📝 [PREFILL] Access Control loaded:', {
                     access_type: accessType,
                     users: toolAccessSelected.users.length,
