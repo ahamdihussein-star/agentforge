@@ -62,6 +62,8 @@ class AccessControlService:
     def get_agent_access(agent_id: str, org_id: str) -> AgentAccessResponse:
         """Get agent access configuration (NOT admin policies)"""
         org_id = normalize_org_id(org_id)
+        import json
+        
         with get_session() as session:
             # IMPORTANT: Exclude 'agent_admin' type - those are for delegation, not chat access
             policy = session.query(AgentAccessPolicy).filter(
@@ -79,31 +81,45 @@ class AccessControlService:
                     entities=[]
                 )
             
+            # ✨ Load per-entity config from description (same as delegated admins)
+            entity_config = {}
+            if policy.description:
+                try:
+                    entity_config = json.loads(policy.description)
+                except:
+                    pass
+            
             # Build entities list from policy
             entities = []
             
             # Add users
             for user_id in (policy.user_ids or []):
+                denied_tasks = entity_config.get(user_id, {}).get('denied_task_names', [])
                 entities.append(AccessEntity(
                     id=str(user_id),
                     type=EntityType.USER,
-                    name=f"User {user_id[:8]}..."  # TODO: Fetch actual name
+                    name=f"User {user_id[:8]}...",  # TODO: Fetch actual name
+                    denied_task_names=denied_tasks if denied_tasks else None
                 ))
             
             # Add groups
             for group_id in (policy.group_ids or []):
+                denied_tasks = entity_config.get(group_id, {}).get('denied_task_names', [])
                 entities.append(AccessEntity(
                     id=str(group_id),
                     type=EntityType.GROUP,
-                    name=f"Group {group_id[:8]}..."  # TODO: Fetch actual name
+                    name=f"Group {group_id[:8]}...",  # TODO: Fetch actual name
+                    denied_task_names=denied_tasks if denied_tasks else None
                 ))
             
             # Add roles
             for role_id in (policy.role_ids or []):
+                denied_tasks = entity_config.get(role_id, {}).get('denied_task_names', [])
                 entities.append(AccessEntity(
                     id=str(role_id),
                     type=EntityType.ROLE,
-                    name=f"Role {role_id[:8]}..."  # TODO: Fetch actual name
+                    name=f"Role {role_id[:8]}...",  # TODO: Fetch actual name
+                    denied_task_names=denied_tasks if denied_tasks else None
                 ))
             
             return AgentAccessResponse(
@@ -123,6 +139,8 @@ class AccessControlService:
     ) -> AgentAccessResponse:
         """Update agent access configuration (NOT admin policies)"""
         org_id = normalize_org_id(org_id)
+        import json
+        
         with get_session() as session:
             # Find or create policy - EXCLUDE agent_admin policies!
             policy = session.query(AgentAccessPolicy).filter(
@@ -148,6 +166,18 @@ class AccessControlService:
             policy.updated_by = updated_by
             policy.updated_at = datetime.utcnow()
             policy.is_active = True
+            
+            # ✨ Store per-entity denied_task_names in description (same as delegated admins)
+            entity_config = {}
+            for e in entities:
+                if e.denied_task_names:
+                    entity_config[e.id] = {
+                        'denied_task_names': e.denied_task_names
+                    }
+            
+            if entity_config:
+                policy.description = json.dumps(entity_config)
+                print(f"✅ [ACCESS CONTROL] Saved entity task permissions: {entity_config}")
             
             session.commit()
             

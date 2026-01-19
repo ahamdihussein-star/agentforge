@@ -11179,41 +11179,43 @@ Option 3"></textarea>
             }
             
             const orgId = currentUser?.org_id || 'default';
-            const userId = currentUser?.id || 'system';
             
-            // Build task permissions from current state
+            // ✨ NEW APPROACH: Same as delegated admins
+            // Save denied_task_names with each entity via /access endpoint
             const tasks = wizard.tasks || [];
             const entities = wizardAccessState.selectedEntities || [];
             
-            const taskPermissions = tasks.map((task, i) => {
-                const taskId = task.id || `task-${i}`;
-                const deniedEntityIds = [];
+            // Build entities with denied_task_names (same as delegated admin approach)
+            const entitiesWithPermissions = entities.map(e => {
+                const deniedTaskNames = [];
                 
-                entities.forEach(e => {
+                tasks.forEach((task, i) => {
+                    const taskId = task.id || `task-${i}`;
                     const key = `${taskId}:${e.id}`;
                     if (wizardAccessState.taskPermissions[key] === false) {
-                        deniedEntityIds.push(e.id);
+                        deniedTaskNames.push(task.name);
                     }
                 });
                 
                 return {
-                    task_id: taskId,
-                    task_name: task.name,
-                    denied_entity_ids: deniedEntityIds,
-                    default_allowed: wizardAccessState.taskPermissions[`${taskId}:default`] !== false
+                    id: e.id,
+                    type: e.type,
+                    name: e.name,
+                    denied_task_names: deniedTaskNames.length > 0 ? deniedTaskNames : null
                 };
             });
             
             try {
-                await fetch(`/api/access-control/agents/${agentId}/tasks?org_id=${orgId}&user_id=${userId}`, {
+                // Save via /access endpoint (same as delegated admins use /management)
+                await fetch(`/api/access-control/agents/${agentId}/access?org_id=${orgId}`, {
                     method: 'PUT',
                     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        allow_all_by_default: true,
-                        task_permissions: taskPermissions
+                        access_type: wizardAccessState.accessType || 'specific',
+                        entities: entitiesWithPermissions
                     })
                 });
-                console.log('✅ User task permissions saved immediately');
+                console.log('✅ User task permissions saved via /access (same as delegated admins)');
             } catch (e) {
                 console.error('❌ Failed to save user task permissions:', e);
             }
@@ -11272,8 +11274,7 @@ Option 3"></textarea>
         }
         
         function collectWizardAccessControl() {
-            // Convert task permissions to per-entity format
-            const taskPermissions = [];
+            // ✨ NEW APPROACH: Store denied_task_names with each entity (same as delegated admins)
             const tasks = wizard.tasks || [];
             const entities = wizardAccessState.selectedEntities || [];
             
@@ -11282,42 +11283,34 @@ Option 3"></textarea>
             console.log('📋 Entities:', entities.map(e => ({id: e.id, name: e.name, type: e.type})));
             console.log('📋 Task Permissions State:', JSON.stringify(wizardAccessState.taskPermissions, null, 2));
             
-            tasks.forEach((task, i) => {
-                const taskId = task.id || `task-${i}`;
-                const deniedEntityIds = [];
+            // Build entities with their denied_task_names
+            const entitiesWithPermissions = entities.map(e => {
+                const deniedTaskNames = [];
                 
-                entities.forEach(e => {
+                tasks.forEach((task, i) => {
+                    const taskId = task.id || `task-${i}`;
                     const key = `${taskId}:${e.id}`;
                     const isAllowed = wizardAccessState.taskPermissions[key];
-                    console.log(`   🔍 Task "${task.name}" for ${e.name}: key=${key}, value=${isAllowed}`);
+                    
                     if (isAllowed === false) {
-                        deniedEntityIds.push(e.id);
+                        deniedTaskNames.push(task.name);
                         console.log(`   ❌ DENIED: ${e.name} for task "${task.name}"`);
                     }
                 });
                 
-                // Check default permission
-                const defaultKey = `${taskId}:default`;
-                const defaultDenied = wizardAccessState.taskPermissions[defaultKey] === false;
+                console.log(`📋 Entity "${e.name}": denied_task_names=[${deniedTaskNames.join(', ')}]`);
                 
-                taskPermissions.push({
-                    task_id: taskId,
-                    task_name: task.name,
-                    denied_entity_ids: deniedEntityIds,
-                    default_allowed: !defaultDenied
-                });
-                
-                console.log(`📋 Task "${task.name}": denied_entity_ids=[${deniedEntityIds.join(', ')}]`);
+                return {
+                    id: e.id,
+                    type: e.type,
+                    name: e.name,
+                    denied_task_names: deniedTaskNames.length > 0 ? deniedTaskNames : null
+                };
             });
             
             wizard.accessControl = {
                 accessType: wizardAccessState.accessType,
-                entities: wizardAccessState.selectedEntities.map(e => ({
-                    id: e.id,
-                    type: e.type,
-                    name: e.name
-                })),
-                taskPermissions: taskPermissions,
+                entities: entitiesWithPermissions,
                 _loaded: true  // ✅ Mark as ready for save (user explicitly modified)
             };
             
@@ -11338,21 +11331,19 @@ Option 3"></textarea>
                     console.log('🔵 [API] Full access control response:', JSON.stringify(data, null, 2));
                     console.log('🔵 [API] agent_access:', JSON.stringify(data.agent_access, null, 2));
                     console.log('🔵 [API] agent_access.entities:', JSON.stringify(data.agent_access?.entities, null, 2));
-                    console.log('🔵 [API] task_access:', JSON.stringify(data.task_access, null, 2));
-                    console.log('🔵 [API] task_access.task_permissions:', JSON.stringify(data.task_access?.task_permissions, null, 2));
                     
-                    // Convert API format to wizard format
+                    // ✨ NEW APPROACH: Read denied_task_names from each entity (same as delegated admins)
                     const mappedEntities = (data.agent_access?.entities || []).map(e => ({
                         id: e.entity_id || e.id,
                         type: e.entity_type || e.type,
-                        name: e.name || ''
+                        name: e.name || '',
+                        denied_task_names: e.denied_task_names || null  // ✅ Include denied tasks
                     }));
-                    console.log('🔵 [API] Mapped entities:', JSON.stringify(mappedEntities, null, 2));
+                    console.log('🔵 [API] Mapped entities with denied_task_names:', JSON.stringify(mappedEntities, null, 2));
                     
                     wizard.accessControl = {
                         accessType: data.agent_access?.access_type || 'authenticated',
                         entities: mappedEntities,
-                        taskPermissions: data.task_access?.task_permissions || [],
                         _loaded: true  // ✅ Mark as loaded from API to prevent accidental overwrite
                     };
                     
@@ -11386,18 +11377,19 @@ Option 3"></textarea>
                 console.log('Saving access control for agent:', agentId, ac);
                 console.log('🔐 Permissions check - canSaveAccess:', canSaveAccess, 'canSaveTaskPerms:', canSaveTaskPerms);
                 
-                // Save Level 1: Agent Access (who can use the agent)
-                // ⚠️ Only save if user has permission
-                if (canSaveAccess) {
+                // ✨ NEW APPROACH: Save everything via /access endpoint (same as delegated admins)
+                // Include denied_task_names with each entity
+                if (canSaveAccess || canSaveTaskPerms) {
                     const accessBody = {
                         access_type: ac.accessType || 'authenticated',
                         entities: (ac.entities || []).map(e => ({
-                            id: e.id,           // ✅ Correct field name for AccessEntity schema
-                            type: e.type,       // ✅ Correct field name for AccessEntity schema
-                            name: e.name || 'Unknown'
+                            id: e.id,
+                            type: e.type,
+                            name: e.name || 'Unknown',
+                            denied_task_names: e.denied_task_names || null  // ✅ Include denied tasks
                         }))
                     };
-                    console.log('📤 Saving access control:', JSON.stringify(accessBody, null, 2));
+                    console.log('📤 Saving access control with denied_task_names:', JSON.stringify(accessBody, null, 2));
                     
                     const accessResponse = await fetch(`/api/access-control/agents/${agentId}/access?org_id=${orgId}&user_id=${userId}`, {
                         method: 'PUT',
@@ -11412,32 +11404,10 @@ Option 3"></textarea>
                         const errorText = await accessResponse.text();
                         console.error('❌ Failed to save access control:', accessResponse.status, errorText);
                     } else {
-                        console.log('✅ Access control saved');
+                        console.log('✅ Access control saved (including task permissions)');
                     }
                 } else {
-                    console.log('⏭️ Skipping agent access save - no permission (can_manage_access)');
-                }
-                
-                // Save Level 2: Task Access (which tasks can be used)
-                // ⚠️ Only save if user has permission AND there are actual permissions to save
-                if (canSaveTaskPerms && ac.taskPermissions && ac.taskPermissions.length > 0) {
-                    console.log('📤 Saving task permissions:', ac.taskPermissions.length, 'tasks');
-                    await fetch(`/api/access-control/agents/${agentId}/tasks?org_id=${orgId}&user_id=${userId}`, {
-                        method: 'PUT',
-                        headers: { 
-                            ...getAuthHeaders(), 
-                            'Content-Type': 'application/json' 
-                        },
-                        body: JSON.stringify({
-                            allow_all_by_default: true,
-                            task_permissions: ac.taskPermissions
-                        })
-                    });
-                    console.log('✅ Task permissions saved');
-                } else if (!canSaveTaskPerms) {
-                    console.log('⏭️ Skipping task permissions save - no permission (can_manage_task_permissions)');
-                } else {
-                    console.log('⏭️ Skipping task permissions save - no task permissions to save');
+                    console.log('⏭️ Skipping access save - no permission');
                 }
                 
                 console.log('✅ Access control save completed');
@@ -11459,10 +11429,20 @@ Option 3"></textarea>
                 await loadWizardAccessEntities();
             }
             
+            // ✨ NEW APPROACH: Read denied_task_names from each entity (same as delegated admins)
+            // Build a map of entityId -> denied_task_names
+            const entityDeniedTasks = {};
+            
             // Map entities and enrich with actual names
             wizardAccessState.selectedEntities = (ac.entities || []).map(e => {
                 let name = e.name;
                 let icon = '👤';
+                
+                // Store denied_task_names for this entity
+                if (e.denied_task_names && e.denied_task_names.length > 0) {
+                    entityDeniedTasks[e.id] = e.denied_task_names;
+                    console.log(`📥 Entity ${e.id.slice(0, 8)}... has denied_task_names:`, e.denied_task_names);
+                }
                 
                 // Try to find actual name from loaded data
                 if (e.type === 'user') {
@@ -11489,96 +11469,34 @@ Option 3"></textarea>
             });
             
             console.log('📥 Selected Entities:', wizardAccessState.selectedEntities.map(e => ({id: e.id, name: e.name, type: e.type})));
+            console.log('📥 Entity denied tasks map:', entityDeniedTasks);
             
-            // Convert task permissions to internal format
+            // Convert to internal format: taskId:entityId -> true/false
             wizardAccessState.taskPermissions = {};
-            const taskPerms = ac.taskPermissions || [];
+            const currentTasks = wizard.tasks || [];
             
-            console.log('📥 Task Permissions from API:', JSON.stringify(taskPerms, null, 2));
-            
-            if (Array.isArray(taskPerms)) {
-                // Build a lookup by task NAME (since IDs change!)
-                const deniedByTaskName = {};
+            currentTasks.forEach((task, i) => {
+                const taskId = task.id || `task-${i}`;
+                const taskName = task.name;
                 
-                // Also collect ALL entity IDs that have any task restrictions
-                const allDeniedEntityIds = new Set();
+                // Set default permission
+                wizardAccessState.taskPermissions[`${taskId}:default`] = true;
                 
-                taskPerms.forEach(tp => {
-                    const taskName = tp.task_name;
-                    const deniedIds = tp.denied_entity_ids || [];
-                    if (taskName && deniedIds.length > 0) {
-                        deniedByTaskName[taskName] = deniedIds;
-                        deniedIds.forEach(id => allDeniedEntityIds.add(id));
-                        console.log(`📥 Task "${taskName}": denied_entity_ids=[${deniedIds.join(', ')}]`);
+                // Set per-entity permissions based on denied_task_names
+                wizardAccessState.selectedEntities.forEach(e => {
+                    const deniedTaskNames = entityDeniedTasks[e.id] || [];
+                    const isDenied = deniedTaskNames.includes(taskName);
+                    wizardAccessState.taskPermissions[`${taskId}:${e.id}`] = !isDenied;
+                    if (isDenied) {
+                        console.log(`   ❌ DENIED: ${e.name} for task "${taskName}" (${taskId})`);
                     }
                 });
-                
-                console.log('📥 Denied tasks by name:', JSON.stringify(deniedByTaskName, null, 2));
-                console.log('📥 All entity IDs with restrictions:', [...allDeniedEntityIds]);
-                
-                // Ensure selectedEntities includes ALL entities that have task restrictions
-                // This fixes the issue where denied entities weren't showing in the UI
-                allDeniedEntityIds.forEach(entityId => {
-                    const alreadySelected = wizardAccessState.selectedEntities.some(e => e.id === entityId);
-                    if (!alreadySelected) {
-                        // Try to find entity details from allUsers/allGroups
-                        let entityName = `Entity ${entityId.slice(0, 8)}...`;
-                        let entityType = 'user';
-                        let icon = '👤';
-                        
-                        const user = wizardAccessState.allUsers.find(u => u.id === entityId);
-                        if (user) {
-                            entityName = user.name || user.email || entityName;
-                            entityType = 'user';
-                            icon = '👤';
-                        } else {
-                            const group = wizardAccessState.allGroups.find(g => g.id === entityId);
-                            if (group) {
-                                entityName = group.name || entityName;
-                                entityType = 'group';
-                                icon = '👥';
-                            }
-                        }
-                        
-                        console.log(`📥 Adding missing entity to selection: ${entityName} (${entityId})`);
-                        wizardAccessState.selectedEntities.push({
-                            id: entityId,
-                            type: entityType,
-                            name: entityName,
-                            icon: icon
-                        });
-                    }
-                });
-                
-                // Now apply to CURRENT wizard tasks (which have new IDs)
-                const currentTasks = wizard.tasks || [];
-                currentTasks.forEach((task, i) => {
-                    const taskId = task.id || `task-${i}`;
-                    const taskName = task.name;
-                    const deniedIds = deniedByTaskName[taskName] || [];
-                    
-                    // Set default permission
-                    wizardAccessState.taskPermissions[`${taskId}:default`] = true;
-                    
-                    // Set per-entity permissions
-                    wizardAccessState.selectedEntities.forEach(e => {
-                        const isDenied = deniedIds.includes(e.id);
-                        wizardAccessState.taskPermissions[`${taskId}:${e.id}`] = !isDenied;
-                        if (isDenied) {
-                            console.log(`   ❌ DENIED: ${e.name} for task "${taskName}" (${taskId})`);
-                        }
-                    });
-                });
-            } else {
-                // Old format: object
-                wizardAccessState.taskPermissions = taskPerms;
-            }
+            });
             
             console.log('📥 Final taskPermissions state:', JSON.stringify(wizardAccessState.taskPermissions, null, 2));
             console.log('📥 ================================================');
             
             // Update the visual selection on access type cards
-            // (Old code tried to set a radio button that doesn't exist)
             console.log('📥 Setting access type visual selection to:', wizardAccessState.accessType);
             selectWizardAccessType(wizardAccessState.accessType);
         }

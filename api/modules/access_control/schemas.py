@@ -33,6 +33,7 @@ class AccessEntity(BaseModel):
     type: EntityType
     name: str
     member_count: Optional[int] = None  # For groups
+    denied_task_names: Optional[List[str]] = None  # Tasks this entity cannot access
 
 
 # ============================================================================
