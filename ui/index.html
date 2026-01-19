@@ -6975,6 +6975,224 @@ Option 3"></textarea>
                 </div>
             </div>
 
+            <!-- Step 5: Access Control (Standalone Step) -->
+            <div id="wiz-step-5" class="hidden space-y-4">
+                <div class="flex items-center gap-3 p-3 rounded-lg step-header-box">
+                    <span class="text-2xl">🔐</span>
+                    <div>
+                        <h4 class="font-semibold">Access Control</h4>
+                        <p class="text-xs text-gray-400">Who can view and use this tool</p>
+                    </div>
+                </div>
+                
+                <!-- Access Type Selection -->
+                <div class="card rounded-lg p-4">
+                    <h5 class="font-medium mb-3">🔓 Access Level</h5>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <!-- Owner Only -->
+                        <div class="access-step-card cursor-pointer rounded-lg p-3 border-2 border-purple-500 bg-purple-500/10" 
+                             data-access="owner_only" onclick="selectToolAccessType('owner_only')">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span>👤</span>
+                                <span class="font-medium text-sm">Owner Only</span>
+                            </div>
+                            <p class="text-xs text-gray-400">Only you can access</p>
+                            <div class="access-step-check mt-2 text-purple-400 text-xs">✓ Selected</div>
+                        </div>
+                        
+                        <!-- Authenticated -->
+                        <div class="access-step-card cursor-pointer rounded-lg p-3 border-2 border-gray-600 hover:border-blue-500 transition" 
+                             data-access="authenticated" onclick="selectToolAccessType('authenticated')">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span>🔑</span>
+                                <span class="font-medium text-sm">Logged In</span>
+                            </div>
+                            <p class="text-xs text-gray-400">Any logged-in user</p>
+                            <div class="access-step-check hidden mt-2 text-blue-400 text-xs">✓ Selected</div>
+                        </div>
+                        
+                        <!-- Specific Users -->
+                        <div class="access-step-card cursor-pointer rounded-lg p-3 border-2 border-gray-600 hover:border-yellow-500 transition" 
+                             data-access="specific_users" onclick="selectToolAccessType('specific_users')">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span>👥</span>
+                                <span class="font-medium text-sm">Specific Users</span>
+                            </div>
+                            <p class="text-xs text-gray-400">Choose who can access</p>
+                            <div class="access-step-check hidden mt-2 text-yellow-400 text-xs">✓ Selected</div>
+                        </div>
+                        
+                        <!-- Public -->
+                        <div class="access-step-card cursor-pointer rounded-lg p-3 border-2 border-gray-600 hover:border-green-500 transition" 
+                             data-access="public" onclick="selectToolAccessType('public')">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span>🌐</span>
+                                <span class="font-medium text-sm">Public</span>
+                            </div>
+                            <p class="text-xs text-gray-400">Everyone can access</p>
+                            <div class="access-step-check hidden mt-2 text-green-400 text-xs">✓ Selected</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Specific Users/Groups Selection (shown when specific_users selected) -->
+                <div id="access-step-specific-config" class="hidden card rounded-lg p-4 space-y-4">
+                    <h5 class="font-medium mb-3">👥 Select Users & Groups</h5>
+                    <!-- Smart Search -->
+                    <div>
+                        <label class="text-sm mb-2 block text-gray-400">🔍 Search Users & Groups</label>
+                        <input type="text" id="access-step-search" 
+                               class="input-field w-full rounded-lg px-4 py-3" 
+                               placeholder="Type to search users or groups..."
+                               oninput="filterAccessStepSearch(this.value)"
+                               onfocus="showAccessStepResults()"
+                               autocomplete="off">
+                    </div>
+                    
+                    <!-- Search Results Dropdown -->
+                    <div id="access-step-search-results" class="hidden rounded-lg overflow-hidden max-h-48 overflow-y-auto border border-gray-600">
+                        <!-- Results will be populated dynamically -->
+                    </div>
+                    
+                    <!-- Selected Users/Groups Chips -->
+                    <div>
+                        <label class="text-sm mb-2 block flex items-center gap-2 text-gray-400">
+                            <span>👥</span> Selected Users & Groups
+                            <span id="access-step-count" class="text-xs px-2 py-0.5 rounded-full bg-purple-600 text-white">0</span>
+                        </label>
+                        <div id="access-step-selected-chips" class="flex flex-wrap gap-2 min-h-[50px] p-3 rounded-lg border border-dashed border-gray-600 bg-gray-800/50">
+                            <div id="access-step-no-selection" class="text-sm italic text-gray-500">Click on users or groups from search to add them</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Granular Permissions -->
+                    <div class="rounded-lg p-4 bg-gray-800/50 border border-gray-700">
+                        <h6 class="text-sm font-medium mb-3 flex items-center gap-2 text-white">
+                            <span>🔐</span> Granular Permissions 
+                            <span class="text-xs font-normal text-gray-400">(Optional)</span>
+                        </h6>
+                        <p class="text-xs mb-3 p-2 rounded bg-blue-900/30 text-blue-300 border border-blue-700/50">
+                            💡 By default, selected users/groups can <strong>view + execute</strong>. 
+                            Use the options below to grant <strong>edit or delete</strong> permissions.
+                        </p>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <!-- Can Edit -->
+                            <div>
+                                <label class="text-xs block mb-2 flex items-center gap-1 text-gray-300 font-medium">
+                                    <span>✏️</span> Can Edit
+                                </label>
+                                <div id="access-step-edit-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2 bg-gray-700 border border-gray-600">
+                                </div>
+                                <select id="access-step-edit-select" class="input-field w-full rounded px-2 py-1.5 text-sm"
+                                    onchange="addAccessStepPermChip('edit', this)">
+                                    <option value="">+ Add user/group</option>
+                                </select>
+                            </div>
+                            <!-- Can Delete -->
+                            <div>
+                                <label class="text-xs block mb-2 flex items-center gap-1 text-gray-300 font-medium">
+                                    <span>🗑️</span> Can Delete
+                                </label>
+                                <div id="access-step-delete-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2 bg-gray-700 border border-gray-600">
+                                </div>
+                                <select id="access-step-delete-select" class="input-field w-full rounded px-2 py-1.5 text-sm"
+                                    onchange="addAccessStepPermChip('delete', this)">
+                                    <option value="">+ Add user/group</option>
+                                </select>
+                            </div>
+                            <!-- Can Execute -->
+                            <div>
+                                <label class="text-xs block mb-2 flex items-center gap-1 text-gray-300 font-medium">
+                                    <span>🚀</span> Can Use in Agents
+                                </label>
+                                <div id="access-step-execute-chips" class="flex flex-wrap gap-1 min-h-[36px] p-2 rounded-lg mb-2 bg-gray-700 border border-gray-600">
+                                </div>
+                                <select id="access-step-execute-select" class="input-field w-full rounded px-2 py-1.5 text-sm"
+                                    onchange="addAccessStepPermChip('execute', this)">
+                                    <option value="">+ Add user/group</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-blue-900/30 border border-blue-600/50 rounded-lg p-3 text-sm">
+                    <p class="text-blue-300">💡 You can change access control settings anytime from the tool settings.</p>
+                </div>
+            </div>
+
+            <!-- Step 6: Review & Create -->
+            <div id="wiz-step-6" class="hidden space-y-4">
+                <div class="flex items-center gap-3 p-3 rounded-lg border border-green-700 bg-green-900/20">
+                    <span class="text-2xl">📋</span>
+                    <div>
+                        <h4 class="font-semibold" id="step6-title">Review & Create</h4>
+                        <p class="text-xs text-gray-400" id="step6-subtitle">Review your configuration before creating</p>
+                    </div>
+                </div>
+
+                <!-- Configuration Summary -->
+                <div class="card rounded-lg p-4">
+                    <h5 class="font-medium mb-3">⚙️ Configuration Summary</h5>
+                    <div class="grid md:grid-cols-2 gap-4 text-sm">
+                        <div class="space-y-2">
+                            <div class="flex justify-between"><span class="text-gray-400">Type:</span> <span id="review-type" class="font-medium">-</span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Name:</span> <span id="review-name" class="font-medium">-</span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">Description:</span> <span id="review-desc" class="text-gray-300 truncate max-w-[200px]">-</span></div>
+                        </div>
+                        <div id="review-config-details" class="space-y-2">
+                            <!-- Dynamic config details based on tool type -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Access Control Summary -->
+                <div class="card rounded-lg p-4">
+                    <h5 class="font-medium mb-3">🔐 Access Control Summary</h5>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-400">Access Level:</span>
+                            <span id="review-access-type" class="px-2 py-1 rounded bg-purple-500/20 text-purple-300">Owner Only</span>
+                        </div>
+                        <div id="review-access-users" class="hidden">
+                            <span class="text-gray-400">Allowed Users:</span>
+                            <div id="review-users-list" class="flex flex-wrap gap-1 mt-1"></div>
+                        </div>
+                        <div id="review-access-groups" class="hidden">
+                            <span class="text-gray-400">Allowed Groups:</span>
+                            <div id="review-groups-list" class="flex flex-wrap gap-1 mt-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sources Summary (for data tools) -->
+                <div id="review-sources-section" class="hidden card rounded-lg p-4">
+                    <h5 class="font-medium mb-3">📁 Sources Summary</h5>
+                    <div class="grid md:grid-cols-4 gap-3 text-sm">
+                        <div class="p-2 rounded bg-gray-800 text-center">
+                            <div class="text-lg font-bold" id="review-files">0</div>
+                            <div class="text-xs text-gray-400">📄 Files</div>
+                        </div>
+                        <div class="p-2 rounded bg-gray-800 text-center">
+                            <div class="text-lg font-bold" id="review-urls">0</div>
+                            <div class="text-xs text-gray-400">🌐 URLs</div>
+                        </div>
+                        <div class="p-2 rounded bg-gray-800 text-center">
+                            <div class="text-lg font-bold" id="review-text">0</div>
+                            <div class="text-xs text-gray-400">✍️ Text</div>
+                        </div>
+                        <div class="p-2 rounded bg-gray-800 text-center">
+                            <div class="text-lg font-bold" id="review-tables">0</div>
+                            <div class="text-xs text-gray-400">📊 Tables</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-green-900/30 border border-green-600/50 rounded-lg p-3 text-sm">
+                    <p class="text-green-300">✅ Review complete! Click the button below to finish.</p>
+                </div>
+            </div>
+
         </div>
 
         <!-- Footer with Navigation -->
@@ -20970,10 +21188,10 @@ let toolPermissionChips = { edit: [], delete: [], execute: [] };
 function selectToolAccessType(accessType) {
     selectedToolAccessType = accessType;
     
-    // Update UI
-    document.querySelectorAll('.tool-access-card').forEach(card => {
+    // Update UI for both old (wiz-step-2) and new (wiz-step-5) access cards
+    document.querySelectorAll('.tool-access-card, .access-step-card').forEach(card => {
         const cardType = card.dataset.access;
-        const checkmark = card.querySelector('.tool-access-check');
+        const checkmark = card.querySelector('.tool-access-check, .access-step-check');
         
         if (cardType === accessType) {
             card.classList.remove('border-gray-600');
@@ -20990,14 +21208,25 @@ function selectToolAccessType(accessType) {
         }
     });
     
-    // Show/hide specific users config
+    // Show/hide specific users config (both old and new)
     const specificConfig = document.getElementById('tool-specific-access-config');
+    const accessStepConfig = document.getElementById('access-step-specific-config');
+    
     if (specificConfig) {
         if (accessType === 'specific_users') {
             specificConfig.classList.remove('hidden');
             loadToolAccessUsersAndGroups();
         } else {
             specificConfig.classList.add('hidden');
+        }
+    }
+    
+    if (accessStepConfig) {
+        if (accessType === 'specific_users') {
+            accessStepConfig.classList.remove('hidden');
+            loadToolAccessUsersAndGroups();
+        } else {
+            accessStepConfig.classList.add('hidden');
         }
     }
 }
@@ -21306,30 +21535,30 @@ document.addEventListener('click', function(e) {
 // Tool metadata
 const toolMeta = {
     // Knowledge & Data
-    knowledge: { icon: '🧠', name: 'Knowledge Base', hasConfig: true, hasSources: true, steps: ['Basics', 'RAG Config', 'Sources', 'Test'] },
-    document: { icon: '📄', name: 'Documents', hasConfig: false, hasSources: true, steps: ['Basics', 'Upload', 'Test'] },
-    website: { icon: '🌐', name: 'Website', hasConfig: true, hasSources: false, steps: ['Basics', 'Configuration'], noTestStep: true },
-    database: { icon: '🗄️', name: 'Database', hasConfig: true, hasSources: false, steps: ['Basics', 'Connection', 'Test'] },
-    spreadsheet: { icon: '📊', name: 'Spreadsheet', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    storage: { icon: '☁️', name: 'Cloud Storage', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
+    knowledge: { icon: '🧠', name: 'Knowledge Base', hasConfig: true, hasSources: true, steps: ['Basics', 'RAG Config', 'Sources', 'Access', 'Review'] },
+    document: { icon: '📄', name: 'Documents', hasConfig: false, hasSources: true, steps: ['Basics', 'Upload', 'Access', 'Review'] },
+    website: { icon: '🌐', name: 'Website', hasConfig: true, hasSources: false, steps: ['Basics', 'Configuration', 'Access', 'Review'] },
+    database: { icon: '🗄️', name: 'Database', hasConfig: true, hasSources: false, steps: ['Basics', 'Connection', 'Access', 'Review'] },
+    spreadsheet: { icon: '📊', name: 'Spreadsheet', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    storage: { icon: '☁️', name: 'Cloud Storage', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
     // Integrations
-    api: { icon: '🔗', name: 'REST API', hasConfig: true, hasSources: false, steps: ['Basics', 'Configuration'], noTestStep: true },
-    email: { icon: '📧', name: 'Email', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    slack: { icon: '💬', name: 'Messaging', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    calendar: { icon: '📅', name: 'Calendar', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    crm: { icon: '🎯', name: 'CRM', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    webhook: { icon: '🪝', name: 'Webhook', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    erp: { icon: '🏢', name: 'ERP', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
+    api: { icon: '🔗', name: 'REST API', hasConfig: true, hasSources: false, steps: ['Basics', 'Configuration', 'Access', 'Review'] },
+    email: { icon: '📧', name: 'Email', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    slack: { icon: '💬', name: 'Messaging', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    calendar: { icon: '📅', name: 'Calendar', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    crm: { icon: '🎯', name: 'CRM', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    webhook: { icon: '🪝', name: 'Webhook', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    erp: { icon: '🏢', name: 'ERP', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
     // AI Services
-    websearch: { icon: '🔍', name: 'Web Search', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    imagegen: { icon: '🎨', name: 'Image Gen', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    stt: { icon: '🎤', name: 'Speech to Text', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    tts: { icon: '🔊', name: 'Text to Speech', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    translate: { icon: '🌍', name: 'Translation', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    ocr: { icon: '📷', name: 'OCR / Vision', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    code: { icon: '💻', name: 'Code Exec', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] },
-    calculator: { icon: '🧮', name: 'Calculator', hasConfig: false, hasSources: false, steps: ['Basics', 'Test'] },
-    hitl: { icon: '👤', name: 'Human in Loop', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Test'] }
+    websearch: { icon: '🔍', name: 'Web Search', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    imagegen: { icon: '🎨', name: 'Image Gen', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    stt: { icon: '🎤', name: 'Speech to Text', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    tts: { icon: '🔊', name: 'Text to Speech', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    translate: { icon: '🌍', name: 'Translation', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    ocr: { icon: '📷', name: 'OCR / Vision', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    code: { icon: '💻', name: 'Code Exec', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    calculator: { icon: '🧮', name: 'Calculator', hasConfig: false, hasSources: false, steps: ['Basics', 'Access', 'Review'] },
+    hitl: { icon: '👤', name: 'Human in Loop', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] }
 };
 
 // Show tool modal - defined earlier in the file (search for "function showToolModal")
@@ -21373,8 +21602,8 @@ function resetWizard() {
         createBtn.classList.add('bg-green-600', 'hover:bg-green-700');
     }
     
-    // Show step 0, hide others
-    for (let i = 0; i <= 4; i++) {
+    // Show step 0, hide others (including new steps 5 and 6)
+    for (let i = 0; i <= 6; i++) {
         const el = document.getElementById('wiz-step-' + i);
         if (el) el.classList.toggle('hidden', i !== 0);
     }
@@ -21498,8 +21727,8 @@ function showStep(step) {
     document.getElementById('wizard-subtitle').textContent = 
         'Step ' + step + ' of ' + wizState.maxSteps + ': ' + (meta.steps?.[step-1] || '');
     
-    // Hide all step contents
-    for (let i = 0; i <= 4; i++) {
+    // Hide all step contents (including new steps 5 and 6)
+    for (let i = 0; i <= 6; i++) {
         const el = document.getElementById('wiz-step-' + i);
         if (el) el.classList.add('hidden');
     }
@@ -21530,23 +21759,33 @@ function showStep(step) {
         document.getElementById('source-tabs').style.display = hasSources ? 'flex' : 'none';
     }
     
+    // Load access control data when entering Access step
+    if (actualStep === 5) {
+        loadAccessStepData();
+    }
+    
     // Update buttons
     updateButtons();
     updateStepsBar();
     
-    // Update summary if on last step
+    // Update Review step if on last step (Review)
+    if (actualStep === 6) {
+        updateReviewStep();
+        
+        // Update step 6 title based on editing state
+        const step6Title = document.getElementById('step6-title');
+        const step6Subtitle = document.getElementById('step6-subtitle');
+        if (step6Title) {
+            step6Title.textContent = editingToolId ? 'Review & Update' : 'Review & Create';
+        }
+        if (step6Subtitle) {
+            step6Subtitle.textContent = editingToolId ? 'Review your changes before updating' : 'Review your configuration before creating';
+        }
+    }
+    
+    // Also update old summary for compatibility
     if (step === wizState.maxSteps) {
         updateSummary();
-        
-        // Update step 4 title based on editing state
-        const step4Title = document.getElementById('step4-title');
-        const step4Subtitle = document.getElementById('step4-subtitle');
-        if (step4Title) {
-            step4Title.textContent = editingToolId ? 'Test & Update' : 'Test & Create';
-        }
-        if (step4Subtitle) {
-            step4Subtitle.textContent = editingToolId ? 'Verify changes and update' : 'Verify and finish';
-        }
     }
 }
 
@@ -21556,27 +21795,43 @@ function getActualStep(logicalStep) {
     if (!meta) return logicalStep;
     
     // Map based on tool capabilities
-    if (logicalStep === 1) return 1; // Always basics
+    // Step 1: Always Basics -> wiz-step-1
+    if (logicalStep === 1) return 1;
     
-    // Tools with noTestStep: Basics -> Config only (no test step in wizard)
-    if (meta.noTestStep) {
-        if (logicalStep === 2) return 2;
-        return 2; // Cap at step 2
-    }
+    // New flow with Access Control and Review steps
+    // wiz-step-1: Basics
+    // wiz-step-2: Configuration
+    // wiz-step-3: Sources (for data tools)
+    // wiz-step-4: Old Test step (kept for compatibility but rarely used)
+    // wiz-step-5: Access Control (new)
+    // wiz-step-6: Review (new)
     
-    if (!meta.hasConfig && meta.hasSources) {
-        // document: Basics -> Sources -> Test
-        if (logicalStep === 2) return 3;
-        if (logicalStep === 3) return 4;
+    if (meta.hasConfig && meta.hasSources) {
+        // knowledge: Basics -> Config -> Sources -> Access -> Review
+        // steps: ['Basics', 'RAG Config', 'Sources', 'Access', 'Review']
+        if (logicalStep === 2) return 2; // Config
+        if (logicalStep === 3) return 3; // Sources
+        if (logicalStep === 4) return 5; // Access
+        if (logicalStep === 5) return 6; // Review
+    } else if (!meta.hasConfig && meta.hasSources) {
+        // document: Basics -> Upload -> Access -> Review
+        // steps: ['Basics', 'Upload', 'Access', 'Review']
+        if (logicalStep === 2) return 3; // Sources/Upload
+        if (logicalStep === 3) return 5; // Access
+        if (logicalStep === 4) return 6; // Review
     } else if (meta.hasConfig && !meta.hasSources) {
-        // database, etc: Basics -> Config -> Test
-        if (logicalStep === 2) return 2;
-        if (logicalStep === 3) return 4;
-    } else if (!meta.hasConfig && !meta.hasSources) {
-        // calculator: Basics -> Test
-        if (logicalStep === 2) return 4;
+        // api, website, database, etc: Basics -> Config -> Access -> Review
+        // steps: ['Basics', 'Configuration', 'Access', 'Review']
+        if (logicalStep === 2) return 2; // Config
+        if (logicalStep === 3) return 5; // Access
+        if (logicalStep === 4) return 6; // Review
+    } else {
+        // calculator (no config, no sources): Basics -> Access -> Review
+        // steps: ['Basics', 'Access', 'Review']
+        if (logicalStep === 2) return 5; // Access
+        if (logicalStep === 3) return 6; // Review
     }
-    // knowledge: Basics -> Config -> Sources -> Test (default)
+    
     return logicalStep;
 }
 
@@ -21591,6 +21846,12 @@ function showConfigSection() {
         cfgEl.classList.remove('hidden');
     } else {
         document.getElementById('cfg-simple').classList.remove('hidden');
+    }
+    
+    // Hide the old Access Control section in step 2 (now moved to step 5)
+    const oldAccessControl = document.getElementById('tool-access-control');
+    if (oldAccessControl) {
+        oldAccessControl.classList.add('hidden');
     }
 }
 
@@ -21787,8 +22048,10 @@ function saveStepData() {
         }
         
         wizState.data.config = config;
-        
-        // Save Access Control data
+    }
+    
+    // Save Access Control data (from either old step 2 or new step 5)
+    if (getActualStep(wizState.step) === 2 || getActualStep(wizState.step) === 5) {
         wizState.data.access_type = selectedToolAccessType || 'owner_only';
         
         if (wizState.data.access_type === 'specific_users') {
@@ -21834,6 +22097,350 @@ function updateSummary() {
     document.getElementById('sum-urls').textContent = wizState.data.urls?.length || 0;
     document.getElementById('sum-text').textContent = wizTextEntries?.length || 0;
     document.getElementById('sum-tables').textContent = wizTableEntries?.length || 0;
+}
+
+// ========== ACCESS STEP (Step 5) FUNCTIONS ==========
+
+// Load data for access step
+async function loadAccessStepData() {
+    // Load users and groups if not already loaded
+    if (!toolAccessData.users.length || !toolAccessData.groups.length) {
+        await loadToolAccessUsersAndGroups();
+    }
+    
+    // Update the chips display based on current selections
+    updateAccessStepChips();
+    updateAccessStepPermDropdowns();
+    
+    // Update access type card selection
+    document.querySelectorAll('#wiz-step-5 .access-step-card').forEach(card => {
+        const accessType = card.dataset.access;
+        const isSelected = accessType === selectedToolAccessType;
+        card.classList.toggle('border-purple-500', isSelected && accessType === 'owner_only');
+        card.classList.toggle('border-blue-500', isSelected && accessType === 'authenticated');
+        card.classList.toggle('border-yellow-500', isSelected && accessType === 'specific_users');
+        card.classList.toggle('border-green-500', isSelected && accessType === 'public');
+        card.classList.toggle('border-gray-600', !isSelected);
+        card.classList.toggle('bg-purple-500/10', isSelected && accessType === 'owner_only');
+        card.classList.toggle('bg-blue-500/10', isSelected && accessType === 'authenticated');
+        card.classList.toggle('bg-yellow-500/10', isSelected && accessType === 'specific_users');
+        card.classList.toggle('bg-green-500/10', isSelected && accessType === 'public');
+        card.querySelector('.access-step-check')?.classList.toggle('hidden', !isSelected);
+    });
+    
+    // Show/hide specific users config
+    const specificConfig = document.getElementById('access-step-specific-config');
+    if (specificConfig) {
+        specificConfig.classList.toggle('hidden', selectedToolAccessType !== 'specific_users');
+    }
+}
+
+// Filter access step search results
+function filterAccessStepSearch(query) {
+    const resultsEl = document.getElementById('access-step-search-results');
+    if (!resultsEl) return;
+    
+    if (!query || query.length < 1) {
+        resultsEl.classList.add('hidden');
+        return;
+    }
+    
+    const q = query.toLowerCase();
+    let html = '';
+    
+    // Filter users
+    const matchingUsers = toolAccessData.users.filter(u => 
+        (u.full_name?.toLowerCase().includes(q) || 
+         u.email?.toLowerCase().includes(q) ||
+         u.username?.toLowerCase().includes(q)) &&
+        !toolAccessSelected.users.some(su => su.id === u.id)
+    ).slice(0, 5);
+    
+    // Filter groups
+    const matchingGroups = toolAccessData.groups.filter(g => 
+        g.name?.toLowerCase().includes(q) &&
+        !toolAccessSelected.groups.some(sg => sg.id === g.id)
+    ).slice(0, 5);
+    
+    if (matchingUsers.length) {
+        html += '<div class="px-3 py-1 text-xs text-gray-400 bg-gray-700">Users</div>';
+        matchingUsers.forEach(u => {
+            html += `<div class="px-3 py-2 cursor-pointer hover:bg-gray-700 flex items-center gap-2" 
+                         onclick="addAccessStepUser('${u.id}', '${escHtml(u.full_name || u.email)}', '${escHtml(u.email || '')}')">
+                <span class="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs">👤</span>
+                <div>
+                    <div class="text-sm">${escHtml(u.full_name || u.username || 'User')}</div>
+                    <div class="text-xs text-gray-400">${escHtml(u.email || '')}</div>
+                </div>
+            </div>`;
+        });
+    }
+    
+    if (matchingGroups.length) {
+        html += '<div class="px-3 py-1 text-xs text-gray-400 bg-gray-700">Groups</div>';
+        matchingGroups.forEach(g => {
+            html += `<div class="px-3 py-2 cursor-pointer hover:bg-gray-700 flex items-center gap-2" 
+                         onclick="addAccessStepGroup('${g.id}', '${escHtml(g.name)}')">
+                <span class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs">👥</span>
+                <div class="text-sm">${escHtml(g.name)}</div>
+            </div>`;
+        });
+    }
+    
+    if (!html) {
+        html = '<div class="px-3 py-2 text-sm text-gray-400">No results found</div>';
+    }
+    
+    resultsEl.innerHTML = html;
+    resultsEl.classList.remove('hidden');
+}
+
+function showAccessStepResults() {
+    const searchInput = document.getElementById('access-step-search');
+    if (searchInput && searchInput.value) {
+        filterAccessStepSearch(searchInput.value);
+    }
+}
+
+function addAccessStepUser(id, name, email) {
+    if (!toolAccessSelected.users.some(u => u.id === id)) {
+        toolAccessSelected.users.push({ id, name, email, type: 'user' });
+        updateAccessStepChips();
+        updateAccessStepPermDropdowns();
+    }
+    document.getElementById('access-step-search').value = '';
+    document.getElementById('access-step-search-results').classList.add('hidden');
+}
+
+function addAccessStepGroup(id, name) {
+    if (!toolAccessSelected.groups.some(g => g.id === id)) {
+        toolAccessSelected.groups.push({ id, name, type: 'group' });
+        updateAccessStepChips();
+        updateAccessStepPermDropdowns();
+    }
+    document.getElementById('access-step-search').value = '';
+    document.getElementById('access-step-search-results').classList.add('hidden');
+}
+
+function removeAccessStepUser(id) {
+    toolAccessSelected.users = toolAccessSelected.users.filter(u => u.id !== id);
+    updateAccessStepChips();
+    updateAccessStepPermDropdowns();
+}
+
+function removeAccessStepGroup(id) {
+    toolAccessSelected.groups = toolAccessSelected.groups.filter(g => g.id !== id);
+    updateAccessStepChips();
+    updateAccessStepPermDropdowns();
+}
+
+function updateAccessStepChips() {
+    const chipsEl = document.getElementById('access-step-selected-chips');
+    const countEl = document.getElementById('access-step-count');
+    const noSelectionEl = document.getElementById('access-step-no-selection');
+    
+    if (!chipsEl) return;
+    
+    const totalCount = toolAccessSelected.users.length + toolAccessSelected.groups.length;
+    
+    if (countEl) countEl.textContent = totalCount;
+    
+    if (totalCount === 0) {
+        chipsEl.innerHTML = '<div id="access-step-no-selection" class="text-sm italic text-gray-500">Click on users or groups from search to add them</div>';
+        return;
+    }
+    
+    let html = '';
+    
+    // User chips
+    toolAccessSelected.users.forEach(u => {
+        html += `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
+            👤 ${escHtml(u.name)}
+            <button onclick="removeAccessStepUser('${u.id}')" class="ml-1 hover:text-red-400">&times;</button>
+        </span>`;
+    });
+    
+    // Group chips
+    toolAccessSelected.groups.forEach(g => {
+        html += `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            👥 ${escHtml(g.name)}
+            <button onclick="removeAccessStepGroup('${g.id}')" class="ml-1 hover:text-red-400">&times;</button>
+        </span>`;
+    });
+    
+    chipsEl.innerHTML = html;
+}
+
+function updateAccessStepPermDropdowns() {
+    ['edit', 'delete', 'execute'].forEach(permType => {
+        const selectEl = document.getElementById('access-step-' + permType + '-select');
+        if (!selectEl) return;
+        
+        let html = '<option value="">+ Add user/group</option>';
+        
+        // Add users
+        toolAccessSelected.users.forEach(u => {
+            if (!toolPermissionChips[permType]?.some(c => c.id === u.id && c.entityType === 'user')) {
+                html += `<option value="user:${u.id}">${escHtml(u.name)}</option>`;
+            }
+        });
+        
+        // Add groups
+        toolAccessSelected.groups.forEach(g => {
+            if (!toolPermissionChips[permType]?.some(c => c.id === g.id && c.entityType === 'group')) {
+                html += `<option value="group:${g.id}">${escHtml(g.name)}</option>`;
+            }
+        });
+        
+        selectEl.innerHTML = html;
+        
+        // Update chips display
+        updateAccessStepPermChips(permType);
+    });
+}
+
+function addAccessStepPermChip(permType, selectEl) {
+    const value = selectEl.value;
+    if (!value) return;
+    
+    const [type, id] = value.split(':');
+    
+    let entity;
+    if (type === 'user') {
+        entity = toolAccessSelected.users.find(u => u.id === id);
+    } else if (type === 'group') {
+        entity = toolAccessSelected.groups.find(g => g.id === id);
+    }
+    
+    if (!entity) return;
+    
+    const chipData = { id: entity.id, name: entity.name, entityType: type };
+    
+    if (!toolPermissionChips[permType]) {
+        toolPermissionChips[permType] = [];
+    }
+    
+    if (!toolPermissionChips[permType].some(c => c.id === id && c.entityType === type)) {
+        toolPermissionChips[permType].push(chipData);
+    }
+    
+    updateAccessStepPermChips(permType);
+    selectEl.value = '';
+    updateAccessStepPermDropdowns();
+}
+
+function updateAccessStepPermChips(permType) {
+    const chipsEl = document.getElementById('access-step-' + permType + '-chips');
+    if (!chipsEl) return;
+    
+    const chips = toolPermissionChips[permType] || [];
+    
+    if (chips.length === 0) {
+        chipsEl.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    chips.forEach(chip => {
+        const icon = chip.entityType === 'user' ? '👤' : '👥';
+        const bgColor = chip.entityType === 'user' ? 'bg-purple-500/20' : 'bg-blue-500/20';
+        const textColor = chip.entityType === 'user' ? 'text-purple-300' : 'text-blue-300';
+        html += `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${bgColor} ${textColor}">
+            ${icon} ${escHtml(chip.name)}
+            <button onclick="removeAccessStepPermChip('${permType}', '${chip.id}', '${chip.entityType}')" class="hover:text-red-400">&times;</button>
+        </span>`;
+    });
+    
+    chipsEl.innerHTML = html;
+}
+
+function removeAccessStepPermChip(permType, id, entityType) {
+    if (toolPermissionChips[permType]) {
+        toolPermissionChips[permType] = toolPermissionChips[permType].filter(c => !(c.id === id && c.entityType === entityType));
+    }
+    updateAccessStepPermChips(permType);
+    updateAccessStepPermDropdowns();
+}
+
+// ========== REVIEW STEP (Step 6) FUNCTIONS ==========
+
+function updateReviewStep() {
+    const meta = toolMeta[wizState.type] || {};
+    
+    // Basic info
+    document.getElementById('review-type').textContent = meta.icon + ' ' + meta.name;
+    document.getElementById('review-name').textContent = wizState.data.name || document.getElementById('wiz-name')?.value || '-';
+    document.getElementById('review-desc').textContent = wizState.data.description || document.getElementById('wiz-desc')?.value || '-';
+    
+    // Config details based on tool type
+    const configDetailsEl = document.getElementById('review-config-details');
+    if (configDetailsEl) {
+        let configHtml = '';
+        
+        if (wizState.type === 'api' || wizState.type === 'website') {
+            const baseUrl = document.getElementById('api-url')?.value || document.getElementById('web-url')?.value || '';
+            const method = document.getElementById('api-method')?.value || 'GET';
+            configHtml = `
+                <div class="flex justify-between"><span class="text-gray-400">URL:</span> <span class="truncate max-w-[200px]">${escHtml(baseUrl)}</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Method:</span> <span>${escHtml(method)}</span></div>
+            `;
+        } else if (wizState.type === 'database') {
+            const dbType = document.getElementById('db-type')?.value || 'postgresql';
+            configHtml = `<div class="flex justify-between"><span class="text-gray-400">Database:</span> <span>${escHtml(dbType)}</span></div>`;
+        }
+        
+        configDetailsEl.innerHTML = configHtml;
+    }
+    
+    // Access control summary
+    const accessTypeLabels = {
+        'owner_only': { icon: '👤', label: 'Owner Only' },
+        'authenticated': { icon: '🔑', label: 'All Logged In' },
+        'specific_users': { icon: '👥', label: 'Specific Users' },
+        'public': { icon: '🌐', label: 'Public' }
+    };
+    
+    const accessLabel = accessTypeLabels[selectedToolAccessType] || accessTypeLabels['owner_only'];
+    document.getElementById('review-access-type').innerHTML = accessLabel.icon + ' ' + accessLabel.label;
+    
+    // Show users/groups if specific_users
+    const usersSection = document.getElementById('review-access-users');
+    const groupsSection = document.getElementById('review-access-groups');
+    
+    if (selectedToolAccessType === 'specific_users') {
+        if (toolAccessSelected.users.length > 0) {
+            usersSection.classList.remove('hidden');
+            document.getElementById('review-users-list').innerHTML = toolAccessSelected.users.map(u => 
+                `<span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs">👤 ${escHtml(u.name)}</span>`
+            ).join(' ');
+        } else {
+            usersSection.classList.add('hidden');
+        }
+        
+        if (toolAccessSelected.groups.length > 0) {
+            groupsSection.classList.remove('hidden');
+            document.getElementById('review-groups-list').innerHTML = toolAccessSelected.groups.map(g => 
+                `<span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 text-xs">👥 ${escHtml(g.name)}</span>`
+            ).join(' ');
+        } else {
+            groupsSection.classList.add('hidden');
+        }
+    } else {
+        usersSection.classList.add('hidden');
+        groupsSection.classList.add('hidden');
+    }
+    
+    // Sources summary (show only for data tools)
+    const sourcesSection = document.getElementById('review-sources-section');
+    if (sourcesSection && meta.hasSources) {
+        sourcesSection.classList.remove('hidden');
+        document.getElementById('review-files').textContent = wizState.data.files?.length || 0;
+        document.getElementById('review-urls').textContent = wizState.data.urls?.length || 0;
+        document.getElementById('review-text').textContent = wizTextEntries?.length || 0;
+        document.getElementById('review-tables').textContent = wizTableEntries?.length || 0;
+    } else if (sourcesSection) {
+        sourcesSection.classList.add('hidden');
+    }
 }
 
 // Re-scrape website for editing tool
