@@ -7254,7 +7254,10 @@ Option 3"></textarea>
 
         <!-- Footer with Navigation -->
         <div id="wizard-footer" class="hidden p-4 md:p-6 border-t border-gray-800 flex justify-between shrink-0 bg-[#1e1e2e]">
-            <button onclick="wizBack()" id="btn-back" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+            <div class="flex gap-2">
+                <button onclick="cancelToolWizard()" class="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors">✕ Cancel</button>
+                <button onclick="wizBack()" id="btn-back" class="btn-secondary px-6 py-2 rounded-lg">← Back</button>
+            </div>
             <div class="flex gap-2">
                 <button onclick="wizSkip()" id="btn-skip" class="hidden text-gray-400 hover:text-white px-4 py-2">Skip</button>
                 <button onclick="wizNext()" id="btn-next" class="btn-primary px-6 py-2 rounded-lg">Next →</button>
@@ -22018,6 +22021,25 @@ function wizBack() {
         resetWizard();
         document.getElementById('wiz-step-0').classList.remove('hidden');
     }
+}
+
+// Cancel tool edit/create
+function cancelToolWizard() {
+    const isEditing = !!editingToolId;
+    const confirmMsg = isEditing 
+        ? 'Are you sure you want to cancel editing? Changes will not be saved.'
+        : 'Are you sure you want to cancel? This tool will not be created.';
+    
+    if (!confirm(confirmMsg)) return;
+    
+    // Close the modal
+    hideModal('modal-tool');
+    
+    // Reset state
+    editingToolId = null;
+    resetWizard();
+    
+    showToast('Cancelled', 'info');
 }
 
 // Navigate next
