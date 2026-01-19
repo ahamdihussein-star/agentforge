@@ -7891,6 +7891,8 @@ Option 3"></textarea>
                 console.log('Calling showPreviewNew');
                 // Ensure tools are collected before preview
                 collectToolsNew();
+                // Reload access control to ensure task IDs match current tasks
+                await loadWizardAccessControl();
                 showPreviewNew();
             }
             if(step === 7) {
