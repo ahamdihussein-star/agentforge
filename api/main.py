@@ -7167,38 +7167,84 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
 
 
 @app.delete("/api/agents/{agent_id}")
-async def delete_agent(agent_id: str):
-    # Check if agent exists in database or in-memory
-    agent_exists = False
+async def delete_agent(agent_id: str, current_user: User = Depends(get_current_user)):
+    """
+    Delete an agent. Only the owner can delete.
+    NOTE: Admins are treated as normal users - they cannot delete unless they own the agent.
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    user_id = str(current_user.id)
+    
+    # Check if agent exists and get ownership info
+    agent_dict = None
+    owner_id = None
+    created_by = None
+    
     try:
         from database.services import AgentService
         agent_dict = AgentService.get_agent_by_id(agent_id, "org_default")
         if agent_dict:
-            agent_exists = True
-    except Exception:
-        pass
+            owner_id = str(agent_dict.get('owner_id')) if agent_dict.get('owner_id') else None
+            created_by = str(agent_dict.get('created_by')) if agent_dict.get('created_by') else None
+    except Exception as e:
+        print(f"⚠️  Error loading agent from database: {e}")
     
     # Also check in-memory
-    if not agent_exists and agent_id in app_state.agents:
-        agent_exists = True
+    if not agent_dict and agent_id in app_state.agents:
+        agent = app_state.agents[agent_id]
+        owner_id = getattr(agent, 'owner_id', None)
+        created_by = getattr(agent, 'created_by', None)
+        agent_dict = agent.dict()
     
-    if not agent_exists:
+    if not agent_dict:
         raise HTTPException(404, "Agent not found")
+    
+    # PERMISSION CHECK: Only owner can delete
+    # NOTE: Admins/SuperAdmins are treated as normal users - no special privileges
+    is_owner = (user_id == owner_id) or (user_id == created_by)
+    
+    print(f"🗑️ [DELETE AGENT] User '{user_id[:8]}...' attempting to delete agent '{agent_id[:8]}...': owner='{owner_id}', created_by='{created_by}', is_owner={is_owner}")
+    
+    if not is_owner:
+        # Check if user has been granted delete permission via agent access policy
+        has_delete_permission = False
+        try:
+            from database.models.agent_access import AgentAccessPolicy
+            from database.config import get_db_session
+            
+            with get_db_session() as session:
+                # Check for delete permission in access policies
+                policy = session.query(AgentAccessPolicy).filter(
+                    AgentAccessPolicy.agent_id == agent_id,
+                    AgentAccessPolicy.is_active == True
+                ).first()
+                
+                if policy:
+                    # Check if user is in user_ids with delete permission
+                    if user_id in (policy.user_ids or []):
+                        # Check if delete is in their permissions
+                        if policy.description:
+                            try:
+                                config = json.loads(policy.description)
+                                permissions = config.get('permissions', [])
+                                if 'delete_agent' in permissions or 'full_admin' in permissions:
+                                    has_delete_permission = True
+                            except:
+                                pass
+        except Exception as e:
+            print(f"⚠️  Error checking delete permission: {e}")
+        
+        if not has_delete_permission:
+            print(f"🚫 [DELETE AGENT] DENIED - User '{user_id[:8]}...' is not owner and has no delete permission")
+            raise HTTPException(403, "You don't have permission to delete this agent. Only the owner can delete.")
     
     # Delete from database
     try:
         from database.services import AgentService
-        org_id = "org_default"
-        deleted_by = None
-        try:
-            if SECURITY_AVAILABLE and security_state.users:
-                first_user = next(iter(security_state.users.values()), None)
-                if first_user:
-                    deleted_by = first_user.id
-        except Exception:
-            pass
-        
-        AgentService.delete_agent(agent_id, org_id=org_id, deleted_by=deleted_by)
+        AgentService.delete_agent(agent_id, org_id="org_default", deleted_by=user_id)
+        print(f"✅ [DELETE AGENT] Deleted from database by '{user_id[:8]}...'")
     except Exception as e:
         print(f"⚠️  [DATABASE ERROR] Failed to delete agent from database: {e}, deleting from in-memory only")
         import traceback
@@ -7208,7 +7254,7 @@ async def delete_agent(agent_id: str):
     if agent_id in app_state.agents:
         del app_state.agents[agent_id]
     app_state.conversations = {k: v for k, v in app_state.conversations.items() if v.agent_id != agent_id}
-    app_state.save_to_disk()  # Will try to sync with database in save_to_disk()
+    app_state.save_to_disk()
     
     return {"status": "success"}
 
