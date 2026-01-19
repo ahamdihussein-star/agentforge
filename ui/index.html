@@ -880,6 +880,113 @@
             background: rgba(0,0,0,0.5);
         }
         
+        /* ========== LIGHT THEME TEXT CONTRAST FIXES ========== */
+        
+        /* Task Modal - ensure dark text on light backgrounds */
+        [data-theme="light"] #modal-task,
+        [data-theme="ocean"] #modal-task {
+            color: #1f2937 !important;
+        }
+        [data-theme="light"] #modal-task .bg-gray-800,
+        [data-theme="ocean"] #modal-task .bg-gray-800 {
+            background: #ffffff !important;
+            color: #1f2937 !important;
+        }
+        [data-theme="light"] #modal-task .bg-gray-900,
+        [data-theme="ocean"] #modal-task .bg-gray-900 {
+            background: #e5e7eb !important;
+            color: #1f2937 !important;
+        }
+        [data-theme="light"] #modal-task .text-white,
+        [data-theme="ocean"] #modal-task .text-white {
+            color: #1f2937 !important;
+        }
+        [data-theme="light"] #modal-task .text-gray-300,
+        [data-theme="light"] #modal-task .text-gray-400,
+        [data-theme="ocean"] #modal-task .text-gray-300,
+        [data-theme="ocean"] #modal-task .text-gray-400 {
+            color: #4b5563 !important;
+        }
+        [data-theme="light"] #modal-task input,
+        [data-theme="light"] #modal-task textarea,
+        [data-theme="ocean"] #modal-task input,
+        [data-theme="ocean"] #modal-task textarea {
+            background: #e5e7eb !important;
+            color: #1f2937 !important;
+            border-color: #d1d5db !important;
+        }
+        [data-theme="light"] #modal-task .task-modal-inst-text,
+        [data-theme="ocean"] #modal-task .task-modal-inst-text {
+            color: #1f2937 !important;
+        }
+        
+        /* Tools Modal - Add Selected button white text */
+        [data-theme="light"] .btn-primary,
+        [data-theme="ocean"] .btn-primary {
+            color: #ffffff !important;
+        }
+        
+        /* Access Search Box - dark gray background with visible text */
+        [data-theme="light"] #wizard-access-search,
+        [data-theme="ocean"] #wizard-access-search {
+            background: #6b7280 !important;
+            color: #000000 !important;
+            border-color: #4b5563 !important;
+        }
+        [data-theme="light"] #wizard-access-search::placeholder,
+        [data-theme="ocean"] #wizard-access-search::placeholder {
+            color: #d1d5db !important;
+        }
+        
+        /* Access Search Results - lighter gray with black text */
+        [data-theme="light"] #wizard-access-search-results,
+        [data-theme="ocean"] #wizard-access-search-results {
+            background: #d1d5db !important;
+            border-color: #9ca3af !important;
+        }
+        [data-theme="light"] #wizard-access-search-results > div,
+        [data-theme="ocean"] #wizard-access-search-results > div {
+            color: #000000 !important;
+        }
+        [data-theme="light"] #wizard-access-search-results .text-white,
+        [data-theme="ocean"] #wizard-access-search-results .text-white {
+            color: #000000 !important;
+        }
+        [data-theme="light"] #wizard-access-search-results .text-gray-400,
+        [data-theme="ocean"] #wizard-access-search-results .text-gray-400 {
+            color: #4b5563 !important;
+        }
+        [data-theme="light"] #wizard-access-search-results .bg-gray-600,
+        [data-theme="ocean"] #wizard-access-search-results .bg-gray-600 {
+            background: #9ca3af !important;
+            color: #1f2937 !important;
+        }
+        [data-theme="light"] #wizard-access-search-results > div:hover,
+        [data-theme="ocean"] #wizard-access-search-results > div:hover {
+            background: #c0c4cc !important;
+        }
+        
+        /* Admin Search - same fixes */
+        [data-theme="light"] #wizard-admin-search,
+        [data-theme="ocean"] #wizard-admin-search {
+            background: #6b7280 !important;
+            color: #000000 !important;
+            border-color: #4b5563 !important;
+        }
+        [data-theme="light"] #wizard-admin-search-results,
+        [data-theme="ocean"] #wizard-admin-search-results {
+            background: #d1d5db !important;
+            border-color: #9ca3af !important;
+        }
+        [data-theme="light"] #wizard-admin-search-results > div,
+        [data-theme="ocean"] #wizard-admin-search-results > div {
+            color: #000000 !important;
+        }
+        [data-theme="light"] #wizard-admin-search-results .text-white,
+        [data-theme="ocean"] #wizard-admin-search-results .text-white {
+            color: #000000 !important;
+        }
+        
         /* Info/Alert boxes */
         [data-theme="light"] .bg-blue-500\/10,
         [data-theme="ocean"] .bg-blue-500\/10 {
@@ -3497,7 +3604,7 @@
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="guard-anti-hallucination" class="sr-only peer" checked>
-                                    <div class="w-11 h-6 bg-gray-600 peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 peer-checked:after:bg-white"></div>
+                                    <div class="w-11 h-6 bg-red-400 peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                                 </label>
                             </div>
                             <div id="anti-hallucination-options" class="space-y-3 pl-10">
@@ -3625,7 +3732,7 @@
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" id="guard-pii-protection" class="sr-only peer" checked>
-                                    <div class="w-11 h-6 bg-gray-600 peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 peer-checked:after:bg-white"></div>
+                                    <div class="w-11 h-6 bg-red-400 peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                                 </label>
                             </div>
                             <div class="space-y-3 pl-10">
