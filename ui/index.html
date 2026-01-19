@@ -11823,6 +11823,14 @@ Option 3"></textarea>
             const taskPermissions = wizardAccessState.taskPermissions || {};
             const tasks = wizard.tasks || [];
             
+            // Debug logging
+            console.log('🔍 [PREVIEW] buildUserAccessPreviewHtml called');
+            console.log('🔍 [PREVIEW] accessType:', accessType);
+            console.log('🔍 [PREVIEW] selectedEntities:', selectedEntities.length, selectedEntities.map(e => ({id: e.id?.slice(0,8), name: e.name})));
+            console.log('🔍 [PREVIEW] tasks:', tasks.map(t => ({id: t.id?.slice(0,8), name: t.name})));
+            console.log('🔍 [PREVIEW] taskPermissions keys:', Object.keys(taskPermissions));
+            console.log('🔍 [PREVIEW] taskPermissions full:', JSON.stringify(taskPermissions, null, 2));
+            
             // Access type description
             let accessTypeHtml = '';
             if (accessType === 'public') {
@@ -11851,7 +11859,9 @@ Option 3"></textarea>
                         // Key format: taskId:entityId (same as storage format)
                         const taskId = task.id || `task-${i}`;
                         const key = `${taskId}:${entity.id}`;
-                        const hasAccess = taskPermissions[key] !== false;
+                        const value = taskPermissions[key];
+                        const hasAccess = value !== false;
+                        console.log(`🔍 [PREVIEW] Task "${task.name}" for ${entity.name}: key=${key}, value=${value}, hasAccess=${hasAccess}`);
                         return `
                             <div class="flex items-center gap-2 text-xs ${hasAccess ? 'text-green-400' : 'text-red-400'}">
                                 <span>${hasAccess ? '✓' : '✗'}</span>
