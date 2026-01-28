@@ -11696,13 +11696,6 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 role = msg.role if msg.role in ['user', 'assistant'] else 'user'
                 messages.append({"role": role, "content": msg.content})
             
-            # Get provider
-            provider_data = get_agent_provider(agent)
-            if not provider_data or not provider_data.api_key:
-                yield f"data: {json.dumps({'type': 'error', 'content': 'AI provider not configured'})}\n\n"
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                return
-            
             # Execute tools if needed (agentic loop)
             max_iterations = 5
             final_content = ""
@@ -11712,12 +11705,11 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 if iteration > 0:
                     yield f"data: {json.dumps({'type': 'thinking', 'content': f'Processing tool results (step {iteration + 1})...'})}\n\n"
                 
-                # Call LLM
+                # Call LLM using the existing function (messages, tools, model_id)
                 llm_result = await call_llm_with_tools(
-                    provider_data, 
                     messages, 
-                    tool_definitions if action_tools else None,
-                    temperature=0.7
+                    tool_definitions if action_tools else [],
+                    agent.model_id
                 )
                 
                 content = llm_result.get("content", "")
@@ -11726,33 +11718,56 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 if tool_calls:
                     # Process tool calls
                     for tc in tool_calls:
-                        tool_name = tc.get("function", {}).get("name", "unknown")
-                        tool_args = tc.get("function", {}).get("arguments", "{}")
+                        tool_name = tc.get("name", tc.get("function", {}).get("name", "unknown"))
+                        tool_args_str = tc.get("arguments", tc.get("function", {}).get("arguments", "{}"))
                         
-                        yield f"data: {json.dumps({'type': 'tool_call', 'content': f'Using tool: {tool_name}', 'tool': tool_name, 'args': tool_args})}\n\n"
-                        
-                        # Execute the tool
+                        # Parse arguments
                         try:
-                            tool_result = await execute_agent_tool(tool_name, tool_args, action_tools, agent)
+                            tool_args = json.loads(tool_args_str) if isinstance(tool_args_str, str) else tool_args_str
+                        except:
+                            tool_args = {}
+                        
+                        yield f"data: {json.dumps({'type': 'tool_call', 'content': f'Using tool: {tool_name}', 'tool': tool_name})}\n\n"
+                        
+                        # Find tool info from tool_definitions
+                        tool_id = None
+                        tool_type = None
+                        for td in tool_definitions:
+                            if td.get('function', {}).get('name') == tool_name:
+                                tool_id = td.get('_tool_id')
+                                tool_type = td.get('_tool_type')
+                                break
+                        
+                        # Execute the tool using existing execute_tool function
+                        try:
+                            if tool_id and tool_type:
+                                tool_result = await execute_tool(tool_id, tool_type, tool_args)
+                            else:
+                                tool_result = {"success": False, "error": f"Tool {tool_name} not found"}
+                            
+                            success = tool_result.get("success", False)
+                            result_str = json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result)
+                            
                             tool_calls_made.append({
                                 "tool": tool_name,
                                 "arguments": tool_args,
-                                "result": tool_result[:500] if isinstance(tool_result, str) else str(tool_result)[:500],
-                                "success": True
+                                "result": result_str[:500],
+                                "success": success
                             })
                             
-                            yield f"data: {json.dumps({'type': 'tool_result', 'content': f'Tool {tool_name} completed successfully', 'tool': tool_name, 'success': True})}\n\n"
+                            status_msg = f'Tool {tool_name} completed' if success else f'Tool {tool_name} failed'
+                            yield f"data: {json.dumps({'type': 'tool_result', 'content': status_msg, 'tool': tool_name, 'success': success})}\n\n"
                             
                             # Add to messages for next iteration
                             messages.append({
                                 "role": "assistant",
                                 "content": content or "",
-                                "tool_calls": tool_calls
+                                "tool_calls": [tc]
                             })
                             messages.append({
                                 "role": "tool",
                                 "tool_call_id": tc.get("id", ""),
-                                "content": str(tool_result)
+                                "content": result_str
                             })
                         except Exception as e:
                             tool_calls_made.append({
@@ -11831,203 +11846,6 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             "X-Accel-Buffering": "no"  # Disable nginx buffering
         }
     )
-
-
-async def execute_agent_tool(tool_name: str, tool_args: str, action_tools: list, agent) -> str:
-    """Execute a tool and return the result"""
-    import json as json_module
-    
-    try:
-        args = json_module.loads(tool_args) if isinstance(tool_args, str) else tool_args
-    except:
-        args = {}
-    
-    # Find the matching tool
-    tool = None
-    for t in action_tools:
-        if t.name == tool_name or t.id == tool_name:
-            tool = t
-            break
-    
-    if not tool:
-        return f"Tool '{tool_name}' not found"
-    
-    # Execute based on tool type
-    if tool.type == 'api':
-        # Execute API call
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                method = (tool.config.get('method', 'GET') if hasattr(tool, 'config') else 'GET').upper()
-                url = tool.config.get('url', '') if hasattr(tool, 'config') else ''
-                headers = tool.config.get('headers', {}) if hasattr(tool, 'config') else {}
-                
-                if method == 'GET':
-                    response = await client.get(url, headers=headers, params=args)
-                elif method == 'POST':
-                    response = await client.post(url, headers=headers, json=args)
-                else:
-                    response = await client.request(method, url, headers=headers, json=args)
-                
-                return response.text[:2000]
-        except Exception as e:
-            return f"API call failed: {str(e)}"
-    
-    elif tool.type == 'websearch':
-        # Web search
-        query = args.get('query', args.get('q', str(args)))
-        return f"Web search results for: {query} (web search integration pending)"
-    
-    elif tool.type == 'database':
-        # Database query
-        query = args.get('query', args.get('sql', ''))
-        return f"Database query: {query} (database integration pending)"
-    
-    else:
-        return f"Tool type '{tool.type}' execution not implemented"
-
-
-async def call_llm_with_tools(provider_data, messages: list, tools: list = None, temperature: float = 0.7) -> dict:
-    """Call LLM with optional tools and return response"""
-    provider = provider_data.provider.lower() if hasattr(provider_data, 'provider') else 'openai'
-    
-    try:
-        if provider in ['openai', 'custom']:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                payload = {
-                    "model": provider_data.model,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": 4000
-                }
-                
-                if tools:
-                    payload["tools"] = tools
-                    payload["tool_choice"] = "auto"
-                
-                base_url = getattr(provider_data, 'base_url', None) or "https://api.openai.com/v1"
-                response = await client.post(
-                    f"{base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {provider_data.api_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json=payload
-                )
-                
-                data = response.json()
-                choice = data.get("choices", [{}])[0]
-                message = choice.get("message", {})
-                
-                return {
-                    "content": message.get("content", ""),
-                    "tool_calls": message.get("tool_calls", [])
-                }
-        
-        elif provider == 'anthropic':
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                # Convert messages for Anthropic format
-                system_msg = ""
-                anthropic_messages = []
-                for msg in messages:
-                    if msg["role"] == "system":
-                        system_msg = msg["content"]
-                    else:
-                        anthropic_messages.append({
-                            "role": msg["role"],
-                            "content": msg["content"]
-                        })
-                
-                payload = {
-                    "model": provider_data.model,
-                    "max_tokens": 4000,
-                    "messages": anthropic_messages
-                }
-                if system_msg:
-                    payload["system"] = system_msg
-                
-                if tools:
-                    # Convert OpenAI tool format to Anthropic
-                    anthropic_tools = []
-                    for tool in tools:
-                        anthropic_tools.append({
-                            "name": tool["function"]["name"],
-                            "description": tool["function"].get("description", ""),
-                            "input_schema": tool["function"].get("parameters", {})
-                        })
-                    payload["tools"] = anthropic_tools
-                
-                response = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": provider_data.api_key,
-                        "anthropic-version": "2023-06-01",
-                        "Content-Type": "application/json"
-                    },
-                    json=payload
-                )
-                
-                data = response.json()
-                content_blocks = data.get("content", [])
-                
-                text_content = ""
-                tool_calls = []
-                for block in content_blocks:
-                    if block.get("type") == "text":
-                        text_content += block.get("text", "")
-                    elif block.get("type") == "tool_use":
-                        tool_calls.append({
-                            "id": block.get("id"),
-                            "type": "function",
-                            "function": {
-                                "name": block.get("name"),
-                                "arguments": json.dumps(block.get("input", {}))
-                            }
-                        })
-                
-                return {
-                    "content": text_content,
-                    "tool_calls": tool_calls
-                }
-        
-        elif provider == 'google':
-            # Google Gemini
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                gemini_messages = []
-                for msg in messages:
-                    role = "user" if msg["role"] in ["user", "system"] else "model"
-                    gemini_messages.append({
-                        "role": role,
-                        "parts": [{"text": msg["content"]}]
-                    })
-                
-                response = await client.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{provider_data.model}:generateContent?key={provider_data.api_key}",
-                    json={
-                        "contents": gemini_messages,
-                        "generationConfig": {
-                            "temperature": temperature,
-                            "maxOutputTokens": 4000
-                        }
-                    }
-                )
-                
-                data = response.json()
-                candidates = data.get("candidates", [])
-                if candidates:
-                    content = candidates[0].get("content", {})
-                    parts = content.get("parts", [])
-                    text = "".join([p.get("text", "") for p in parts])
-                    return {"content": text, "tool_calls": []}
-                
-                return {"content": "", "tool_calls": []}
-        
-        else:
-            # Default fallback - try OpenAI-compatible
-            return await call_llm_with_tools(provider_data, messages, tools, temperature)
-    
-    except Exception as e:
-        print(f"❌ LLM call error: {e}")
-        return {"content": f"Error calling AI: {str(e)}", "tool_calls": []}
 
 
 @app.post("/api/agents/{agent_id}/chat-with-files")
