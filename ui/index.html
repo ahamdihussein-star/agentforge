@@ -186,6 +186,12 @@
         .chat-content th{background:var(--bg-input);padding:0.5rem;text-align:left;border:1px solid var(--border-color)}
         .chat-content td{padding:0.5rem;border:1px solid var(--border-color)}
         .chat-content tr:nth-child(even){background:rgba(45,45,61,0.3)}
+        
+        /* Ensure white text on dark backgrounds */
+        .bg-gray-700, .bg-gray-800, .bg-gray-900 {
+            color: white;
+        }
+        
         .source-badge{background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.4)}
         .animate-fade-in, .animate-fadeIn{animation:fadeIn 0.3s ease-out}
         @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -313,6 +319,16 @@
         [data-theme="light"] .bg-gray-700,
         [data-theme="ocean"] .bg-gray-700 {
             background: var(--border-color) !important;
+        }
+        
+        /* Override text color for light themes - dark text on light backgrounds */
+        [data-theme="light"] .bg-gray-700,
+        [data-theme="light"] .bg-gray-800,
+        [data-theme="light"] .bg-gray-900,
+        [data-theme="ocean"] .bg-gray-700,
+        [data-theme="ocean"] .bg-gray-800,
+        [data-theme="ocean"] .bg-gray-900 {
+            color: var(--text-primary) !important;
         }
         
         /* Border colors */
@@ -2978,7 +2994,7 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <input type="number" id="p-creativity-num" min="1" max="10" value="5" 
-                                                       class="w-12 text-center text-xs bg-gray-800 border border-gray-700 rounded px-1 py-0.5"
+                                                       class="w-12 text-center text-xs bg-gray-800 text-white border border-gray-700 rounded px-1 py-0.5"
                                                        onchange="syncSlider('creativity', this.value)">
                                                 <span class="text-[10px] text-gray-500">/10</span>
                                             </div>
@@ -3004,7 +3020,7 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <input type="number" id="p-length-num" min="1" max="10" value="5" 
-                                                       class="w-12 text-center text-xs bg-gray-800 border border-gray-700 rounded px-1 py-0.5"
+                                                       class="w-12 text-center text-xs bg-gray-800 text-white border border-gray-700 rounded px-1 py-0.5"
                                                        onchange="syncSlider('length', this.value)">
                                                 <span class="text-[10px] text-gray-500">/10</span>
                                             </div>
@@ -3030,7 +3046,7 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <input type="number" id="p-formality-num" min="1" max="10" value="7" 
-                                                       class="w-12 text-center text-xs bg-gray-800 border border-gray-700 rounded px-1 py-0.5"
+                                                       class="w-12 text-center text-xs bg-gray-800 text-white border border-gray-700 rounded px-1 py-0.5"
                                                        onchange="syncSlider('formality', this.value)">
                                                 <span class="text-[10px] text-gray-500">/10</span>
                                             </div>
@@ -3056,7 +3072,7 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <input type="number" id="p-empathy-num" min="1" max="10" value="6" 
-                                                       class="w-12 text-center text-xs bg-gray-800 border border-gray-700 rounded px-1 py-0.5"
+                                                       class="w-12 text-center text-xs bg-gray-800 text-white border border-gray-700 rounded px-1 py-0.5"
                                                        onchange="syncSlider('empathy', this.value)">
                                                 <span class="text-[10px] text-gray-500">/10</span>
                                             </div>
@@ -3082,7 +3098,7 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <input type="number" id="p-proactivity-num" min="1" max="10" value="5" 
-                                                       class="w-12 text-center text-xs bg-gray-800 border border-gray-700 rounded px-1 py-0.5"
+                                                       class="w-12 text-center text-xs bg-gray-800 text-white border border-gray-700 rounded px-1 py-0.5"
                                                        onchange="syncSlider('proactivity', this.value)">
                                                 <span class="text-[10px] text-gray-500">/10</span>
                                             </div>
@@ -3108,7 +3124,7 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 <input type="number" id="p-confidence-num" min="1" max="10" value="7" 
-                                                       class="w-12 text-center text-xs bg-gray-800 border border-gray-700 rounded px-1 py-0.5"
+                                                       class="w-12 text-center text-xs bg-gray-800 text-white border border-gray-700 rounded px-1 py-0.5"
                                                        onchange="syncSlider('confidence', this.value)">
                                                 <span class="text-[10px] text-gray-500">/10</span>
                                             </div>
@@ -15766,7 +15782,7 @@ Option 3"></textarea>
             const d=document.createElement('div');
             d.className='animate-fade-in';
             if(role==='user')d.innerHTML=`<div class="flex justify-end"><div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] text-sm shadow-md">${esc(content)}</div></div>`;
-            else if(role==='assistant')d.innerHTML=`<div class="flex"><div class="bg-gray-700 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[85%] chat-content text-sm">${fmt(content)}</div></div>`;
+            else if(role==='assistant')d.innerHTML=`<div class="flex"><div class="bg-gray-700 text-white rounded-2xl rounded-tl-sm px-3 py-2 max-w-[85%] chat-content text-sm">${fmt(content)}</div></div>`;
             else if(role==='system')d.innerHTML=`<div class="text-center text-xs py-1 text-gray-500">${content}</div>`;
             else d.innerHTML=`<div class="text-center text-red-400 text-sm">${content}</div>`;
             c.appendChild(d);
@@ -20582,7 +20598,7 @@ async function saveToolEdit() {
             }
             container.classList.remove('hidden');
             container.innerHTML = chatAttachments.map((f, i) => `
-                <div class="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 text-sm">
+                <div class="flex items-center gap-2 bg-gray-700 text-white rounded-lg px-3 py-1 text-sm">
                     <span>${getFileIcon(f.name)} ${f.name.substring(0, 20)}${f.name.length > 20 ? '...' : ''}</span>
                     <button onclick="removeChatAttachment(${i})" class="text-red-400 hover:text-red-300">✕</button>
                 </div>
@@ -20597,7 +20613,7 @@ async function saveToolEdit() {
             }
             container.classList.remove('hidden');
             container.innerHTML = testAttachments.map((f, i) => `
-                <div class="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 text-sm">
+                <div class="flex items-center gap-2 bg-gray-700 text-white rounded-lg px-3 py-1 text-sm">
                     <span>${getFileIcon(f.name)} ${f.name.substring(0, 20)}${f.name.length > 20 ? '...' : ''}</span>
                     <button onclick="removeTestAttachment(${i})" class="text-red-400 hover:text-red-300">✕</button>
                 </div>
@@ -20695,7 +20711,7 @@ async function saveToolEdit() {
             d.className='animate-fade-in';
             if(role==='user')d.innerHTML=`<div class="flex justify-end"><div class="bg-purple-600 rounded-2xl rounded-tr-sm px-3 md:px-4 py-2 md:py-3 max-w-[85%] md:max-w-[70%] text-sm md:text-base">${esc(content)}</div></div>`;
             else if(role==='assistant'){
-                d.innerHTML=`<div class="flex"><div class="bg-gray-700 rounded-2xl rounded-tl-sm px-3 md:px-4 py-2 md:py-3 max-w-[85%] md:max-w-[70%] chat-content text-sm md:text-base">${fmt(content)}</div></div>`;
+                d.innerHTML=`<div class="flex"><div class="bg-gray-700 text-white rounded-2xl rounded-tl-sm px-3 md:px-4 py-2 md:py-3 max-w-[85%] md:max-w-[70%] chat-content text-sm md:text-base">${fmt(content)}</div></div>`;
                 if(sources?.length)d.innerHTML+=`<div class="mt-1 ml-2 flex flex-wrap gap-1">${sources.map(s=>`<span class="source-badge px-2 py-1 rounded text-xs">${s.source}</span>`).join('')}</div>`;
             }else d.innerHTML=`<div class="text-center text-red-400 text-sm py-2">${content}</div>`;
             c.appendChild(d);
@@ -20707,7 +20723,7 @@ async function saveToolEdit() {
             const c=document.getElementById('chat-messages');
             const d=document.createElement('div');
             d.id='typing';
-            d.innerHTML=`<div class="flex"><div class="bg-gray-700 rounded-2xl px-4 py-3"><div class="flex gap-1"><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.1s"></span><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.2s"></span></div></div></div>`;
+            d.innerHTML=`<div class="flex"><div class="bg-gray-700 text-white rounded-2xl px-4 py-3"><div class="flex gap-1"><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.1s"></span><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.2s"></span></div></div></div>`;
             c.appendChild(d);
             c.scrollTop=c.scrollHeight;
         }
