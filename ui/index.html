@@ -7613,6 +7613,9 @@ Option 3"></textarea>
         }
         
         let step=0,wizard={name:'',icon:'',goal:'',originalGoal:'',personality:null,tasks:[],tool_ids:[],suggestedTools:[],guardrails:{},model:'',modelReason:'',editId:null,deployTarget:'cloud',cloudProvider:''},allTools=[],toolType=null,uploadedFiles=[],agentTab='published',conv=null,testAgent=null,apiStep=1,apiParams=[],configMode='manual',chatAttachments=[],testAttachments=[];
+        
+        // Track current page to prevent duplicate navigation from hashchange
+        let _currentPage = '';
 
         function navigate(p, updateHash = true){
             // Track current page to prevent duplicate navigation
@@ -7654,7 +7657,6 @@ Option 3"></textarea>
         }
         
         // Handle browser back/forward buttons
-        let _currentPage = '';
         window.addEventListener('hashchange', function() {
             const hash = window.location.hash.slice(1); // Remove the '#'
             // Only navigate if hash changed and page exists
