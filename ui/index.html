@@ -20533,12 +20533,23 @@ async function saveToolEdit() {
                 `;
                 
                 if(tasks.length > 0) {
+                    const visibleTasks = tasks.slice(0, 5);
+                    const hiddenTasks = tasks.slice(5);
+                    const hasMore = hiddenTasks.length > 0;
+                    
                     welcomeHtml += `
                         <div class="mt-4 text-left max-w-md mx-auto bg-gray-800/50 rounded-lg p-4">
                             <p class="text-sm text-gray-400 mb-2">✅ Available for you:</p>
                             <ul class="text-sm text-gray-300 space-y-1">
-                                ${tasks.slice(0,5).map(t => `<li>• ${esc(t)}</li>`).join('')}
-                                ${tasks.length > 5 ? `<li class="text-gray-500">... and ${tasks.length - 5} more</li>` : ''}
+                                ${visibleTasks.map(t => `<li>• ${esc(t)}</li>`).join('')}
+                                ${hasMore ? `
+                                    <li id="welcome-tasks-hidden" class="hidden">
+                                        ${hiddenTasks.map(t => `<span class="block">• ${esc(t)}</span>`).join('')}
+                                    </li>
+                                    <li id="welcome-tasks-toggle" class="text-purple-400 cursor-pointer hover:text-purple-300 transition" onclick="toggleWelcomeTasks()">
+                                        ... and ${hiddenTasks.length} more
+                                    </li>
+                                ` : ''}
                             </ul>
                         </div>
                     `;
@@ -20746,6 +20757,21 @@ async function saveToolEdit() {
             conv=null;document.getElementById('chat-conv').value='';clearMsgs();
         }
         function clearMsgs(){document.getElementById('chat-messages').innerHTML=`<div class="text-center text-gray-500 py-10 md:py-20"><span class="text-4xl md:text-6xl mb-4 block">💬</span><p>Start a conversation!</p></div>`;}
+        
+        function toggleWelcomeTasks() {
+            const hidden = document.getElementById('welcome-tasks-hidden');
+            const toggle = document.getElementById('welcome-tasks-toggle');
+            if (hidden && toggle) {
+                if (hidden.classList.contains('hidden')) {
+                    hidden.classList.remove('hidden');
+                    toggle.textContent = '▲ Show less';
+                } else {
+                    hidden.classList.add('hidden');
+                    const count = hidden.querySelectorAll('span').length;
+                    toggle.textContent = `... and ${count} more`;
+                }
+            }
+        }
         function showModal(id){document.getElementById(id).classList.remove('hidden');}
         function hideModal(id){document.getElementById(id).classList.add('hidden');}
         function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
