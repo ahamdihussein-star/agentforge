@@ -1231,6 +1231,9 @@ class CreateAgentRequest(BaseModel):
     model_id: str = "gpt-4o"
     status: str = "draft"
 
+    class Config:
+        protected_namespaces = ()
+
 
 class UpdateAgentRequest(BaseModel):
     name: Optional[str] = None
@@ -1244,6 +1247,9 @@ class UpdateAgentRequest(BaseModel):
     status: Optional[str] = None
     is_active: Optional[bool] = None  # For publishing/unpublishing agents
     is_published: Optional[bool] = None  # Alternative field for publishing
+
+    class Config:
+        protected_namespaces = ()
 
 
 class CreateToolRequest(BaseModel):

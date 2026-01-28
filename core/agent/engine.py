@@ -32,6 +32,9 @@ class AgentResponse(BaseModel):
     latency_ms: float = 0
     model_used: str = ""
 
+    class Config:
+        protected_namespaces = ()
+
 
 class ModelSelectionMode(str, Enum):
     """How the agent selects which model to use"""

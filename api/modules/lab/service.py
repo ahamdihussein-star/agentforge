@@ -161,13 +161,13 @@ Example format:
         # Infer schema from data
         schema = cls._infer_schema(data)
         
-        # Save to storage
+        # Save to storage (response_schema for APIGenerateResponse compatibility)
         result = {
             "id": item_id,
             "name": name,
             "endpoint": f"/api/lab/mock/{item_id}",
             "data": data,
-            "schema": schema,
+            "response_schema": schema,
             "record_count": len(data),
             "created_at": datetime.utcnow().isoformat(),
             "org_id": org_id
