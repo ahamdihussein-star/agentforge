@@ -21039,6 +21039,8 @@ async function saveToolEdit() {
         }
 
         // Streaming chat with real-time thinking display (inline like ChatGPT)
+        let thinkingTypeTimer = null; // Track typing animation
+        
         async function sendMsgStreaming(aid, message, timezone){
             const c=document.getElementById('chat-messages');
             
@@ -21051,7 +21053,7 @@ async function saveToolEdit() {
                     <div class="bg-gray-700 text-gray-300 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] md:max-w-[70%] text-sm italic">
                         <span id="thinking-text" class="flex items-center gap-2">
                             <span class="inline-block w-2 h-2 bg-purple-400 rounded-full animate-pulse"></span>
-                            <span id="thinking-content"></span>
+                            <span id="thinking-content">...</span>
                         </span>
                     </div>
                 </div>
@@ -21061,6 +21063,7 @@ async function saveToolEdit() {
             
             let fullContent = '';
             let sources = [];
+            let buffer = ''; // Buffer for incomplete SSE data
             
             try {
                 const response = await fetch(API+'/api/agents/'+aid+'/chat/stream', {
@@ -21087,23 +21090,29 @@ async function saveToolEdit() {
                     const { done, value } = await reader.read();
                     if (done) break;
                     
-                    const text = decoder.decode(value);
-                    const lines = text.split('\n');
+                    // Add to buffer and process complete lines
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    
+                    // Keep incomplete line in buffer
+                    buffer = lines.pop() || '';
                     
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             try {
-                                const data = JSON.parse(line.slice(6));
+                                const jsonStr = line.slice(6).trim();
+                                if (!jsonStr) continue;
+                                const data = JSON.parse(jsonStr);
                                 
                                 switch (data.type) {
                                     case 'thinking':
-                                        addThinkingStep('💭', data.content);
+                                        setThinkingText(data.content);
                                         break;
                                     case 'tool_call':
-                                        addThinkingStep('🔧', data.content);
+                                        setThinkingText(data.content);
                                         break;
                                     case 'tool_result':
-                                        addThinkingStep(data.success ? '✅' : '❌', data.content);
+                                        setThinkingText(data.content);
                                         break;
                                     case 'conversation_id':
                                         conv = data.content;
@@ -21118,11 +21127,13 @@ async function saveToolEdit() {
                                         finishThinkingUI(true);
                                         break;
                                     case 'error':
-                                        addThinkingStep('⚠️', data.content);
+                                        setThinkingText(data.content);
                                         finishThinkingUI(false);
                                         break;
                                 }
-                            } catch (e) { /* skip invalid JSON */ }
+                            } catch (e) { 
+                                // Invalid JSON, skip
+                            }
                         }
                     }
                 }
@@ -21135,28 +21146,30 @@ async function saveToolEdit() {
                 
             } catch (e) {
                 console.error('Streaming error:', e);
-                addThinkingStep('⚠️', 'Connection error. Please try again.');
+                setThinkingText('Connection error. Please try again.');
                 finishThinkingUI(false);
             }
         }
         
-        function addThinkingStep(icon, content) {
+        // Simple text update without complex typing animation (avoids race conditions)
+        function setThinkingText(content) {
             const textEl = document.getElementById('thinking-content');
-            if (!textEl) return;
+            if (!textEl || !content) return;
             
-            // Clear and type new content
-            textEl.textContent = '';
-            let i = 0;
-            const typeSpeed = 20; // ms per character
-            
-            function typeChar() {
-                if (i < content.length) {
-                    textEl.textContent += content.charAt(i);
-                    i++;
-                    setTimeout(typeChar, typeSpeed);
-                }
+            // Cancel any previous typing animation
+            if (thinkingTypeTimer) {
+                clearTimeout(thinkingTypeTimer);
+                thinkingTypeTimer = null;
             }
-            typeChar();
+            
+            // Simple fade-in effect by updating text directly
+            textEl.style.opacity = '0.5';
+            textEl.textContent = content;
+            
+            // Fade in
+            setTimeout(() => {
+                textEl.style.opacity = '1';
+            }, 50);
             
             document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
         }
