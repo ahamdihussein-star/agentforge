@@ -14752,7 +14752,7 @@ Option 3"></textarea>
                     // Flag is cleared by navigate() after checking
                     
                     // Wait for agents to load before selecting
-                    await loadChatAgents();
+                    const agents = await loadChatAgents();
                     
                     // Set the agent value
                     const agentSelect = document.getElementById('chat-agent');
@@ -14760,15 +14760,20 @@ Option 3"></textarea>
                         agentSelect.value = id;
                         // Verify the value was set
                         if (agentSelect.value !== id) {
-                            // Agent not in list, might need to reload
-                            console.error('Agent not found in dropdown:', id);
-                            showToast('Agent not found. Please try again.', 'error');
-                            return;
+                            // Agent not in accessible list - this can happen if user doesn't have chat access
+                            // Try to add it manually or show error
+                            const agentInList = agents && agents.find(a => a.id === id);
+                            if (!agentInList) {
+                                showToast('You do not have access to chat with this agent', 'error');
+                                return;
+                            }
+                            // If agent is in list but value didn't set, try again
+                            agentSelect.value = id;
                         }
                         // Trigger change and start chat
                         await onAgentChange();
                     } else {
-                        console.error('Chat agent select not found');
+                        showToast('Chat interface not ready. Please try again.', 'error');
                     }
                 } else {
                     // Open edit for draft agents
@@ -20546,13 +20551,23 @@ async function saveToolEdit() {
                 }
                 
                 const d=await r.json();
-                const agents = d.agents || d || [];
+                // Handle different response formats
+                let agents = [];
+                if (Array.isArray(d)) {
+                    agents = d;
+                } else if (d && Array.isArray(d.agents)) {
+                    agents = d.agents;
+                }
+                
                 const agentSelect = document.getElementById('chat-agent');
                 if (agentSelect) {
                     agentSelect.innerHTML='<option value="">Select Agent...</option>'+agents.map(a=>`<option value="${a.id}">${a.icon || '🤖'} ${a.name}</option>`).join('');
                 }
+                
+                return agents; // Return agents for verification
             } catch (err) {
                 console.error('loadChatAgents error:', err);
+                return [];
             }
         }
 
