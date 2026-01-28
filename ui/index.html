@@ -7617,12 +7617,66 @@ Option 3"></textarea>
         // Track current page to prevent duplicate navigation from hashchange
         let _currentPage = '';
 
+        // Ensure modal is direct child of body so it's visible when opened from any page (sections use hidden)
+        function ensureModalInBody(modalId) {
+            console.log(`🔍 [ensureModalInBody] Checking modal: ${modalId}`);
+            const modal = document.getElementById(modalId);
+            if (!modal) {
+                console.error(`❌ [ensureModalInBody] Modal not found: ${modalId}`);
+                return false;
+            }
+            const currentParent = modal.parentElement;
+            const isInBody = currentParent === document.body;
+            console.log(`📋 [ensureModalInBody] Modal ${modalId}:`, {
+                found: !!modal,
+                currentParent: currentParent?.tagName || 'null',
+                currentParentId: currentParent?.id || 'none',
+                isInBody: isInBody,
+                modalDisplay: window.getComputedStyle(modal).display,
+                modalVisibility: window.getComputedStyle(modal).visibility,
+                modalClasses: modal.className
+            });
+            
+            if (!isInBody) {
+                console.log(`🔄 [ensureModalInBody] Moving ${modalId} from ${currentParent?.tagName || 'unknown'} to body`);
+                document.body.appendChild(modal);
+                console.log(`✅ [ensureModalInBody] Modal ${modalId} moved to body. New parent:`, modal.parentElement?.tagName);
+            } else {
+                console.log(`✅ [ensureModalInBody] Modal ${modalId} already in body`);
+            }
+            return true;
+        }
+
         function navigate(p, updateHash = true){
+            console.log(`🧭 [navigate] Navigating to page: ${p} (previous: ${_currentPage})`);
+            
             // Track current page to prevent duplicate navigation
             _currentPage = p;
             
-            document.querySelectorAll('main>section').forEach(s=>s.classList.add('hidden'));
-            document.getElementById('page-'+p).classList.remove('hidden');
+            // Hide all sections
+            const allSections = document.querySelectorAll('main>section');
+            console.log(`📦 [navigate] Found ${allSections.length} sections, hiding all...`);
+            allSections.forEach(s => {
+                const wasHidden = s.classList.contains('hidden');
+                s.classList.add('hidden');
+                if (!wasHidden) {
+                    console.log(`  🔒 Hidden section: ${s.id || 'unnamed'}`);
+                }
+            });
+            
+            // Show target page
+            const targetPage = document.getElementById('page-'+p);
+            if (targetPage) {
+                targetPage.classList.remove('hidden');
+                console.log(`  ✅ Showing page: page-${p}`, {
+                    display: window.getComputedStyle(targetPage).display,
+                    visibility: window.getComputedStyle(targetPage).visibility,
+                    parent: targetPage.parentElement?.tagName
+                });
+            } else {
+                console.error(`❌ [navigate] Target page not found: page-${p}`);
+            }
+            
             // Desktop nav
             document.querySelectorAll('.sidebar-item').forEach(b=>b.classList.remove('active'));
             document.getElementById('nav-'+p)?.classList.add('active');
@@ -7634,6 +7688,8 @@ Option 3"></textarea>
             if (updateHash) {
                 window.location.hash = p;
             }
+            
+            console.log(`✅ [navigate] Navigation complete to: ${p}`);
             
             if(p==='agents')loadAgents();
             if(p==='tools')loadTools();
@@ -9032,7 +9088,19 @@ Option 3"></textarea>
                     `<button onclick="selectEmoji('${e}')" class="w-8 h-8 text-lg hover:bg-gray-700 rounded transition">${e}</button>`
                 ).join('');
             }
-            document.getElementById('icon-picker-modal').classList.remove('hidden');
+            console.log('🎯 [openIconPicker] Opening icon-picker-modal');
+            const modal = document.getElementById('icon-picker-modal');
+            if (!modal) {
+                console.error('❌ [openIconPicker] Modal not found!');
+                return;
+            }
+            ensureModalInBody('icon-picker-modal');
+            modal.classList.remove('hidden');
+            console.log('✅ [openIconPicker] Modal opened:', {
+                classes: modal.className,
+                display: window.getComputedStyle(modal).display,
+                isVisible: modal.offsetParent !== null
+            });
         }
         
         function closeIconPicker() {
@@ -9754,8 +9822,25 @@ Option 3"></textarea>
         
         // Show select tool modal
         async function showSelectToolModal() {
-            document.getElementById('select-tool-modal').classList.remove('hidden');
-            document.getElementById('select-tool-modal').classList.add('flex');
+            console.log('🎯 [showSelectToolModal] Opening select-tool-modal');
+            const modal = document.getElementById('select-tool-modal');
+            if (!modal) {
+                console.error('❌ [showSelectToolModal] Modal not found!');
+                return;
+            }
+            console.log('📋 [showSelectToolModal] Before ensureModalInBody:', {
+                parent: modal.parentElement?.tagName,
+                parentId: modal.parentElement?.id,
+                classes: modal.className
+            });
+            ensureModalInBody('select-tool-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            console.log('✅ [showSelectToolModal] Modal opened:', {
+                classes: modal.className,
+                display: window.getComputedStyle(modal).display,
+                isVisible: modal.offsetParent !== null
+            });
             
             // Reset temp selection to current selection
             tempToolSelection = {
@@ -13272,8 +13357,33 @@ Option 3"></textarea>
 
         // Show create kit modal
         function showCreateKitModal() {
-            document.getElementById('create-kit-modal').classList.remove('hidden');
-            document.getElementById('create-kit-modal').classList.add('flex');
+            console.log('🎯 [showCreateKitModal] Opening create-kit-modal');
+            const modal = document.getElementById('create-kit-modal');
+            if (!modal) {
+                console.error('❌ [showCreateKitModal] Modal not found!');
+                return;
+            }
+            console.log('📋 [showCreateKitModal] Before ensureModalInBody:', {
+                parent: modal.parentElement?.tagName,
+                parentId: modal.parentElement?.id,
+                classes: modal.className,
+                display: window.getComputedStyle(modal).display
+            });
+            ensureModalInBody('create-kit-modal');
+            console.log('📋 [showCreateKitModal] After ensureModalInBody:', {
+                parent: modal.parentElement?.tagName,
+                parentId: modal.parentElement?.id
+            });
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            console.log('✅ [showCreateKitModal] Modal classes updated:', modal.className);
+            console.log('📊 [showCreateKitModal] Final state:', {
+                display: window.getComputedStyle(modal).display,
+                visibility: window.getComputedStyle(modal).visibility,
+                opacity: window.getComputedStyle(modal).opacity,
+                zIndex: window.getComputedStyle(modal).zIndex,
+                isVisible: modal.offsetParent !== null
+            });
             document.getElementById('new-kit-description').focus();
         }
 
@@ -13393,7 +13503,7 @@ Option 3"></textarea>
                     
                     // Reset response
                     document.getElementById('api-test-response').textContent = '// Click "Send Request" to test';
-                    
+                    ensureModalInBody('api-test-modal');
                     document.getElementById('api-test-modal').classList.remove('hidden');
                     document.getElementById('api-test-modal').classList.add('flex');
                 });
@@ -13470,7 +13580,7 @@ Option 3"></textarea>
                     }
                     
                     document.getElementById('kb-view-content').innerHTML = html;
-                    
+                    ensureModalInBody('kb-view-modal');
                     document.getElementById('kb-view-modal').classList.remove('hidden');
                     document.getElementById('kb-view-modal').classList.add('flex');
                 });
@@ -13517,12 +13627,7 @@ Option 3"></textarea>
                 showToast('Access Control modal not found', 'error');
                 return;
             }
-            
-            // Move modal to body to escape any overflow:hidden containers
-            if (modal.parentElement !== document.body) {
-                document.body.appendChild(modal);
-            }
-            
+            ensureModalInBody('access-control-modal');
             modal.style.display = 'flex';
             
             console.log('✅ Modal opened and moved to body. Display:', modal.style.display);
@@ -14237,7 +14342,7 @@ Option 3"></textarea>
                     document.getElementById('edit-asset-name').value = asset.name || '';
                     document.getElementById('edit-asset-description').value = asset.description || '';
                     document.getElementById('edit-asset-type').value = asset.asset_type || 'document';
-                    
+                    ensureModalInBody('edit-asset-modal');
                     document.getElementById('edit-asset-modal').classList.remove('hidden');
                     document.getElementById('edit-asset-modal').classList.add('flex');
                 });
@@ -14388,7 +14493,7 @@ Option 3"></textarea>
             if (!item) return;
             
             demoEditingItem = { id, type, item };
-            
+            ensureModalInBody('demo-edit-modal');
             const modal = document.getElementById('demo-edit-modal');
             const title = document.getElementById('edit-modal-title');
             const content = document.getElementById('edit-modal-content');
@@ -15615,8 +15720,24 @@ Option 3"></textarea>
         }
         
         function openTaskModal(editIndex = null) {
-            taskModalEditIndex = editIndex;
+            console.log(`🎯 [openTaskModal] Opening modal-task (editIndex: ${editIndex})`);
             const modal = document.getElementById('modal-task');
+            if (!modal) {
+                console.error('❌ [openTaskModal] Modal not found!');
+                return;
+            }
+            console.log('📋 [openTaskModal] Before ensureModalInBody:', {
+                parent: modal.parentElement?.tagName,
+                parentId: modal.parentElement?.id,
+                classes: modal.className,
+                display: window.getComputedStyle(modal).display
+            });
+            ensureModalInBody('modal-task');
+            console.log('📋 [openTaskModal] After ensureModalInBody:', {
+                parent: modal.parentElement?.tagName,
+                parentId: modal.parentElement?.id
+            });
+            taskModalEditIndex = editIndex;
             const titleEl = document.getElementById('task-modal-title');
             const nameEl = document.getElementById('task-modal-name');
             const descEl = document.getElementById('task-modal-desc');
@@ -15651,6 +15772,14 @@ Option 3"></textarea>
             }
             
             modal.classList.remove('hidden');
+            console.log('✅ [openTaskModal] Modal classes updated:', modal.className);
+            console.log('📊 [openTaskModal] Final state:', {
+                display: window.getComputedStyle(modal).display,
+                visibility: window.getComputedStyle(modal).visibility,
+                opacity: window.getComputedStyle(modal).opacity,
+                zIndex: window.getComputedStyle(modal).zIndex,
+                isVisible: modal.offsetParent !== null
+            });
             nameEl.focus();
         }
         
@@ -16631,6 +16760,7 @@ Option 3"></textarea>
                 
                 document.getElementById('kb-view-title').textContent = t.name;
                 document.getElementById('kb-view-content').innerHTML = html;
+                ensureModalInBody('kb-view-modal');
                 document.getElementById('kb-view-modal').classList.remove('hidden');
                 document.getElementById('kb-view-modal').classList.add('flex');
             } catch (e) {
@@ -19600,6 +19730,7 @@ async function saveToolEdit() {
         let dataSearchQuery = '';
         
         async function viewToolData(toolId) {
+            ensureModalInBody('data-viewer-modal');
             document.getElementById('data-viewer-modal').classList.remove('hidden');
             document.getElementById('data-viewer-content').innerHTML = '<div class="text-center text-gray-500 py-10"><div class="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent mx-auto mb-3"></div>Loading all tool data...</div>';
             
@@ -19744,6 +19875,7 @@ async function saveToolEdit() {
         }
         
         async function viewPageData(pageId) {
+            ensureModalInBody('data-viewer-modal');
             document.getElementById('data-viewer-modal').classList.remove('hidden');
             document.getElementById('data-search-box').classList.add('hidden'); // Hide search for page data
             document.getElementById('data-viewer-content').innerHTML = '<div class="text-center text-gray-500 py-10"><div class="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent mx-auto mb-3"></div>Loading data...</div>';
@@ -20498,6 +20630,7 @@ async function saveToolEdit() {
         }
         
         function showProgressModal(title){
+            ensureModalInBody('progress-modal');
             document.getElementById('progress-modal').classList.remove('hidden');
             document.getElementById('progress-title').textContent = title;
             document.getElementById('progress-bar').style.width = '0%';
@@ -26284,6 +26417,7 @@ function renderGroups() {
 }
 
 function showAddGroupModal() {
+    ensureModalInBody('add-group-modal');
     groupSelectedMembers = [];
     document.getElementById('group-name').value = '';
     document.getElementById('group-description').value = '';
@@ -28449,6 +28583,7 @@ function togglePasswordVisibility(inputId) {
 function showChangePasswordModal() {
     const modal = document.getElementById('change-password-modal');
     if (modal) {
+        ensureModalInBody('change-password-modal');
         modal.classList.remove('hidden');
         document.getElementById('current-password').value = '';
         document.getElementById('new-password').value = '';
@@ -28469,6 +28604,7 @@ function showMFASetupModal() {
 }
 
 function showDisableMFAModal() {
+    ensureModalInBody('disable-mfa-modal');
     const modal = document.getElementById('disable-mfa-modal');
     const input = document.getElementById('disable-mfa-password');
     const errorDiv = document.getElementById('disable-mfa-error');
