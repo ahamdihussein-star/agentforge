@@ -20574,7 +20574,20 @@ async function saveToolEdit() {
         async function onAgentChange(){
             try {
                 const id=document.getElementById('chat-agent').value;
-                if(!id) return;
+                if(!id) {
+                    // Show default message when no agent selected
+                    const msgContainer = document.getElementById('chat-messages');
+                    if (msgContainer) {
+                        msgContainer.innerHTML = '<div class="text-center text-gray-500 py-10 md:py-20"><span class="text-4xl md:text-6xl mb-4 block">💬</span><p>Select an agent to start</p></div>';
+                    }
+                    return;
+                }
+                
+                // Show loading state
+                const msgContainer = document.getElementById('chat-messages');
+                if (msgContainer) {
+                    msgContainer.innerHTML = '<div class="text-center text-gray-400 py-10">Loading chat...</div>';
+                }
                 
                 // Load conversations for this agent
                 const r=await fetch(API+'/api/agents/'+id+'/conversations', {
@@ -20583,6 +20596,10 @@ async function saveToolEdit() {
                 
                 if (!r.ok) {
                     console.error('Failed to load conversations:', r.status);
+                    if (r.status === 401) {
+                        showToast('Please login to access this agent', 'error');
+                        return;
+                    }
                 }
                 
                 const d=await r.json();
@@ -20597,6 +20614,10 @@ async function saveToolEdit() {
             } catch (err) {
                 console.error('onAgentChange error:', err);
                 showToast('Failed to load chat: ' + err.message, 'error');
+                const msgContainer = document.getElementById('chat-messages');
+                if (msgContainer) {
+                    msgContainer.innerHTML = '<div class="text-center text-red-400 py-10"><span class="text-4xl mb-4 block">❌</span><p>Failed to load chat</p><p class="text-sm mt-2">' + err.message + '</p></div>';
+                }
             }
         }
         
