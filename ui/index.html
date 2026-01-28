@@ -366,6 +366,43 @@
             background: rgba(99, 102, 241, 0.1) !important;
         }
         
+        /* Light theme - Profile page and cards */
+        [data-theme="light"] .card,
+        [data-theme="ocean"] .card {
+            background: #ffffff !important;
+            border-color: #e5e7eb !important;
+        }
+        [data-theme="light"] .card label,
+        [data-theme="ocean"] .card label {
+            color: #4b5563 !important;
+        }
+        [data-theme="light"] .card p,
+        [data-theme="light"] .card h3,
+        [data-theme="ocean"] .card p,
+        [data-theme="ocean"] .card h3 {
+            color: #1f2937 !important;
+        }
+        [data-theme="light"] .card .text-gray-400,
+        [data-theme="light"] .card .text-gray-500,
+        [data-theme="ocean"] .card .text-gray-400,
+        [data-theme="ocean"] .card .text-gray-500 {
+            color: #6b7280 !important;
+        }
+        [data-theme="light"] .input-field,
+        [data-theme="ocean"] .input-field {
+            background: #f3f4f6 !important;
+            border-color: #d1d5db !important;
+            color: #1f2937 !important;
+        }
+        [data-theme="light"] .input-field::placeholder,
+        [data-theme="ocean"] .input-field::placeholder {
+            color: #9ca3af !important;
+        }
+        [data-theme="light"] .bg-gray-700\/30,
+        [data-theme="ocean"] .bg-gray-700\/30 {
+            background: #f3f4f6 !important;
+        }
+        
         /* Border colors */
         [data-theme="light"] .border-gray-700,
         [data-theme="light"] .border-gray-800,
@@ -2128,159 +2165,124 @@
 
             <!-- Profile Page -->
             <section id="page-profile" class="hidden flex-1 overflow-y-auto p-4 md:p-6">
-                <div class="max-w-4xl mx-auto">
+                <div class="max-w-2xl mx-auto">
                     <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
                         <span>👤</span><span>My Profile</span>
                     </h2>
 
-                    <!-- Profile Info Card -->
-                    <div class="bg-gray-800/50 backdrop-blur rounded-lg p-6 mb-6 border border-gray-700">
-                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <span>ℹ️</span><span>Profile Information</span>
-                        </h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Combined Profile Card -->
+                    <div class="card rounded-xl p-6 mb-6">
+                        <form id="update-profile-form" class="space-y-5">
+                            <!-- Email (Read-only) -->
                             <div>
-                                <label class="text-sm text-gray-400">Name</label>
-                                <p id="profile-name" class="text-white font-medium">Loading...</p>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Email</label>
+                                <div class="flex items-center gap-3">
+                                    <input type="email" id="profile-email" class="flex-1 input-field rounded-lg px-4 py-2.5" readonly disabled>
+                                    <span id="profile-role" class="px-3 py-1 text-xs font-medium rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">-</span>
+                                </div>
                             </div>
-                            <div>
-                                <label class="text-sm text-gray-400">Email</label>
-                                <p id="profile-email" class="text-white font-medium">Loading...</p>
-                            </div>
-                            <div>
-                                <label class="text-sm text-gray-400">Role</label>
-                                <p id="profile-role" class="text-white font-medium">Loading...</p>
-                            </div>
-                            <div>
-                                <label class="text-sm text-gray-400">Member Since</label>
-                                <p id="profile-created" class="text-white font-medium">Loading...</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Edit Profile Form -->
-                    <div class="bg-gray-800/50 backdrop-blur rounded-lg p-6 mb-6 border border-gray-700">
-                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <span>✏️</span><span>Update Profile</span>
-                        </h3>
-                        <form id="update-profile-form" class="space-y-4">
+                            
+                            <!-- Name Fields -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-300 mb-2">First Name</label>
-                                    <input type="text" id="update-first-name" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="First name">
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">First Name</label>
+                                    <input type="text" id="update-first-name" class="w-full input-field rounded-lg px-4 py-2.5" placeholder="Enter first name">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-300 mb-2">Last Name</label>
-                                    <input type="text" id="update-last-name" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="Last name">
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">Last Name</label>
+                                    <input type="text" id="update-last-name" class="w-full input-field rounded-lg px-4 py-2.5" placeholder="Enter last name">
                                 </div>
                             </div>
+                            
+                            <!-- Display Name -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-300 mb-2">Display Name</label>
-                                <input type="text" id="update-display-name" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="Display name">
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Display Name</label>
+                                <input type="text" id="update-display-name" class="w-full input-field rounded-lg px-4 py-2.5" placeholder="How you want to be called">
+                                <p class="text-xs text-gray-500 mt-1">This is the name shown in the app</p>
                             </div>
-                            <div class="flex justify-end gap-3">
-                                <button type="button" onclick="loadProfileInfo()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
-                                <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Save Changes</button>
+                            
+                            <!-- Member Since -->
+                            <div class="pt-2 border-t border-gray-700">
+                                <p class="text-sm text-gray-500">Member since: <span id="profile-created" class="text-gray-400">-</span></p>
+                            </div>
+                            
+                            <!-- Save Button -->
+                            <div class="flex justify-end pt-2">
+                                <button type="submit" class="btn-primary px-6 py-2.5 rounded-lg font-medium">Save Profile</button>
                             </div>
                         </form>
                     </div>
 
-                    <!-- Change Password Section -->
-                    <div class="bg-gray-800/50 backdrop-blur rounded-lg p-6 mb-6 border border-gray-700">
+                    <!-- Security Section -->
+                    <div class="card rounded-xl p-6 mb-6">
                         <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <span>🔒</span><span>Change Password</span>
-                        </h3>
-                        <form id="change-password-form" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
-                                <div class="relative">
-                                    <input type="password" id="current-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-12 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" required>
-                                    <button type="button" onclick="togglePasswordVisibility('current-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition" title="Show/Hide password">
-                                        <span id="current-password-icon">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
-                                            </svg>
-                                        </span>
-                                    </button>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300 mb-2">New Password</label>
-                                <div class="relative">
-                                    <input type="password" id="new-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-12 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" required>
-                                    <button type="button" onclick="togglePasswordVisibility('new-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition" title="Show/Hide password">
-                                        <span id="new-password-icon">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
-                                            </svg>
-                                        </span>
-                                    </button>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
-                                <div class="relative">
-                                    <input type="password" id="confirm-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-12 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent" required>
-                                    <button type="button" onclick="togglePasswordVisibility('confirm-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition" title="Show/Hide password">
-                                        <span id="confirm-password-icon">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
-                                            </svg>
-                                        </span>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="flex justify-end">
-                                <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Change Password</button>
-                            </div>
-                        </form>
-                    </div>
-
-                    <!-- MFA Settings Section -->
-                    <div class="bg-gray-800/50 backdrop-blur rounded-lg p-6 border border-gray-700">
-                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <span>🔑</span><span>Multi-Factor Authentication (MFA)</span>
+                            <span>🔐</span><span>Security</span>
                         </h3>
                         
-                        <!-- Current MFA Status -->
-                        <div id="mfa-status-container" class="mb-4 p-4 rounded-lg bg-gray-700/50 border border-gray-600">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="font-medium">MFA Status</p>
-                                    <p id="mfa-status-text" class="text-sm text-gray-400">Loading...</p>
-                                </div>
+                        <!-- Change Password Button -->
+                        <div class="flex items-center justify-between p-4 rounded-lg bg-gray-700/30 border border-gray-600 mb-4">
+                            <div>
+                                <p class="font-medium">Password</p>
+                                <p class="text-sm text-gray-400">Last changed: Never</p>
+                            </div>
+                            <button onclick="showChangePasswordModal()" class="btn-secondary px-4 py-2 rounded-lg">Change Password</button>
+                        </div>
+
+                        <!-- MFA Status -->
+                        <div id="mfa-status-container" class="flex items-center justify-between p-4 rounded-lg bg-gray-700/30 border border-gray-600">
+                            <div>
+                                <p class="font-medium">Two-Factor Authentication</p>
+                                <p id="mfa-status-text" class="text-sm text-gray-400">Loading...</p>
+                            </div>
+                            <div class="flex items-center gap-3">
                                 <div id="mfa-status-badge"></div>
+                                <div id="mfa-disabled-section" class="hidden">
+                                    <button onclick="showMFASetupModal()" class="btn-secondary px-4 py-2 rounded-lg">Enable</button>
+                                </div>
+                                <div id="mfa-enabled-section" class="hidden">
+                                    <button onclick="showDisableMFAModal()" class="btn-danger px-4 py-2 rounded-lg">Disable</button>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- MFA Setup/Disable Forms -->
-                        <div id="mfa-disabled-section" class="hidden">
-                            <p class="text-gray-300 mb-4">Enable MFA to add an extra layer of security to your account.</p>
-                            <div class="space-y-3 mb-4">
-                                <label class="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg cursor-pointer hover:bg-gray-700/50 transition">
-                                    <input type="radio" name="mfa-type" value="totp" class="form-radio text-purple-600" checked>
-                                    <div>
-                                        <p class="font-medium">Authenticator App (TOTP)</p>
-                                        <p class="text-sm text-gray-400">Use Google Authenticator, Authy, or similar apps</p>
-                                    </div>
-                                </label>
-                                <label class="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg cursor-pointer hover:bg-gray-700/50 transition">
-                                    <input type="radio" name="mfa-type" value="email" class="form-radio text-purple-600">
-                                    <div>
-                                        <p class="font-medium">Email Code</p>
-                                        <p class="text-sm text-gray-400">Receive verification codes via email</p>
-                                    </div>
-                                </label>
+                    </div>
+                        
+<!-- Change Password Modal -->
+                    <div id="change-password-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
+                        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
+                            <div class="flex items-center justify-between mb-6">
+                                <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                                    <span>🔒</span> Change Password
+                                </h3>
+                                <button onclick="hideChangePasswordModal()" class="text-gray-400 hover:text-white transition">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
                             </div>
-                            <button onclick="startMFASetup()" class="btn-primary px-4 py-2 rounded-lg">Enable MFA</button>
+                            
+                            <form id="change-password-form" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
+                                    <input type="password" id="current-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Enter current password">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">New Password</label>
+                                    <input type="password" id="new-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Enter new password">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
+                                    <input type="password" id="confirm-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Confirm new password">
+                                </div>
+                                
+                                <div id="password-error" class="hidden p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm"></div>
+                                
+                                <div class="flex gap-3 pt-2">
+                                    <button type="button" onclick="hideChangePasswordModal()" class="flex-1 btn-secondary px-4 py-2.5 rounded-lg">Cancel</button>
+                                    <button type="submit" class="flex-1 btn-primary px-4 py-2.5 rounded-lg">Change Password</button>
+                                </div>
+                            </form>
                         </div>
-
-                        <div id="mfa-enabled-section" class="hidden">
-                            <div class="flex items-center justify-between">
-                                <p class="text-gray-300">MFA is currently enabled for your account.</p>
-                                <button onclick="showDisableMFAModal()" class="btn-danger px-4 py-2 rounded-lg">Disable MFA</button>
-                            </div>
-                        </div>
+                    </div>
                         
                         <!-- Disable MFA Confirmation Modal -->
                         <div id="disable-mfa-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -27918,16 +27920,21 @@ async function loadProfileInfo() {
         currentUserProfile = data;
         
         // Update profile info display
-        document.getElementById('profile-name').textContent = data.name || 'N/A';
-        document.getElementById('profile-email').textContent = data.email || 'N/A';
-        document.getElementById('profile-role').textContent = data.roles?.map(r => r.name).join(', ') || 'N/A';
+        const emailEl = document.getElementById('profile-email');
+        if (emailEl) emailEl.value = data.email || '';
+        
+        const roleEl = document.getElementById('profile-role');
+        if (roleEl) roleEl.textContent = data.roles?.map(r => r.name).join(', ') || 'User';
         
         // Format created date
-        if (data.profile?.created_at) {
-            const date = new Date(data.profile.created_at);
-            document.getElementById('profile-created').textContent = date.toLocaleDateString();
-        } else {
-            document.getElementById('profile-created').textContent = 'N/A';
+        const createdEl = document.getElementById('profile-created');
+        if (createdEl) {
+            if (data.profile?.created_at) {
+                const date = new Date(data.profile.created_at);
+                createdEl.textContent = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            } else {
+                createdEl.textContent = 'N/A';
+            }
         }
         
         // Populate edit form
@@ -28053,15 +28060,23 @@ document.getElementById('change-password-form')?.addEventListener('submit', asyn
     const newPassword = document.getElementById('new-password').value;
     const confirmPassword = document.getElementById('confirm-password').value;
     
+    const errorDiv = document.getElementById('password-error');
+    
     // Validate passwords match
     if (newPassword !== confirmPassword) {
-        showToast('New passwords do not match', 'error');
+        if (errorDiv) {
+            errorDiv.textContent = 'New passwords do not match';
+            errorDiv.classList.remove('hidden');
+        }
         return;
     }
     
     // Validate password strength
     if (newPassword.length < 8) {
-        showToast('Password must be at least 8 characters long', 'error');
+        if (errorDiv) {
+            errorDiv.textContent = 'Password must be at least 8 characters long';
+            errorDiv.classList.remove('hidden');
+        }
         return;
     }
     
@@ -28085,12 +28100,16 @@ document.getElementById('change-password-form')?.addEventListener('submit', asyn
         
         showToast('Password changed successfully', 'success');
         
-        // Clear form
+        // Clear form and close modal
         document.getElementById('change-password-form').reset();
+        hideChangePasswordModal();
         
     } catch (error) {
         console.error('Error changing password:', error);
-        showToast(error.message || 'Failed to change password', 'error');
+        if (errorDiv) {
+            errorDiv.textContent = error.message || 'Failed to change password';
+            errorDiv.classList.remove('hidden');
+        }
     }
 });
 
@@ -28282,6 +28301,28 @@ function togglePasswordVisibility(inputId) {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
         </svg>`;
     }
+}
+
+function showChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.getElementById('current-password').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+        document.getElementById('password-error')?.classList.add('hidden');
+        document.getElementById('current-password').focus();
+    }
+}
+
+function hideChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function showMFASetupModal() {
+    // Show the MFA setup options in a modal-like way
+    startMFASetup();
 }
 
 function showDisableMFAModal() {
