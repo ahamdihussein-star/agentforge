@@ -20667,19 +20667,42 @@ async function saveToolEdit() {
         }
 
         async function loadChatAgents(){
+            console.log('🔍 [loadChatAgents] Starting...');
+            const headers = getAuthHeaders();
+            console.log('🔍 [loadChatAgents] Auth headers:', {
+                hasAuth: !!headers.Authorization,
+                tokenLength: headers.Authorization ? headers.Authorization.length : 0,
+                tokenPreview: headers.Authorization ? headers.Authorization.substring(0, 20) + '...' : 'none',
+                currentUser: currentUser ? { id: currentUser.id, email: currentUser.email } : null,
+                authTokenExists: !!authToken
+            });
+            
             try {
                 // Use /api/agents/accessible for chat - shows agents user can CHAT with
                 // (different from /api/agents which shows agents user can MANAGE)
                 const r=await fetch(API+'/api/agents/accessible', {
-                    headers: getAuthHeaders()
+                    headers: headers
                 });
                 
+                console.log('🔍 [loadChatAgents] Response status:', r.status, r.statusText);
+                
                 if (!r.ok) {
-                    console.error('loadChatAgents failed:', r.status);
+                    console.error('❌ [loadChatAgents] Request failed:', r.status, r.statusText);
+                    const errorText = await r.text().catch(() => '');
+                    console.error('❌ [loadChatAgents] Error response:', errorText);
+                    
                     // If unauthorized, the user might not be logged in
                     if (r.status === 401) {
+                        console.error('❌ [loadChatAgents] 401 Unauthorized - checking auth state:', {
+                            authToken: authToken ? 'exists' : 'missing',
+                            tokenFromStorage: localStorage.getItem('agentforge_token') ? 'exists' : 'missing',
+                            currentUser: currentUser ? 'exists' : 'missing'
+                        });
                         showToast('Please login to access agents', 'error');
-                        navigate('dashboard');
+                        // Don't navigate to dashboard if we're already on chat page
+                        if (_currentPage !== 'chat') {
+                            navigate('dashboard');
+                        }
                         return;
                     }
                     return;
@@ -26192,7 +26215,19 @@ async function fetchCurrentUser() {
 
 // Get auth headers
 function getAuthHeaders() {
-    return authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
+    const headers = authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
+    if (!authToken) {
+        console.warn('⚠️ [getAuthHeaders] No authToken available. Checking localStorage...');
+        const storedToken = localStorage.getItem('agentforge_token');
+        if (storedToken) {
+            console.log('✅ [getAuthHeaders] Found token in localStorage, updating authToken');
+            authToken = storedToken;
+            return { 'Authorization': 'Bearer ' + authToken };
+        } else {
+            console.warn('⚠️ [getAuthHeaders] No token found in localStorage either');
+        }
+    }
+    return headers;
 }
 
 // ============================================================================
