@@ -15703,7 +15703,11 @@ Option 3"></textarea>
             if(!existingAgentId){
                 // Create new agent only if we don't have one
                 console.log('🔧 Creating new test agent...');
-                const r=await fetch(API+'/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:wizard.name || 'Untitled Agent',goal:wizard.goal,personality:wizard.personality || {},tasks:wizard.tasks || [],tool_ids:wizard.tool_ids || [],model_id:wizard.model || 'gpt-4o',status:'draft'})});
+                const r=await fetch(API+'/api/agents',{
+                    method:'POST',
+                    headers: {...getAuthHeaders(), 'Content-Type':'application/json'},
+                    body:JSON.stringify({name:wizard.name || 'Untitled Agent',goal:wizard.goal,personality:wizard.personality || {},tasks:wizard.tasks || [],tool_ids:wizard.tool_ids || [],model_id:wizard.model || 'gpt-4o',status:'draft'})
+                });
                 const d=await r.json();
                 const newAgentId = d.agent_id || d.agent?.id;
                 testAgent={id: newAgentId};
@@ -15724,9 +15728,17 @@ Option 3"></textarea>
                     if(testAgent.convId) formData.append('conversation_id', testAgent.convId);
                     testAttachments.forEach(f => formData.append('files', f));
                     
-                    response = await fetch(API+'/api/agents/'+testAgent.id+'/test-chat-with-files', {method:'POST', body: formData});
+                    response = await fetch(API+'/api/agents/'+testAgent.id+'/test-chat-with-files', {
+                        method:'POST', 
+                        headers: {...getAuthHeaders()},
+                        body: formData
+                    });
                 } else {
-                    response = await fetch(API+'/api/agents/'+testAgent.id+'/test-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m,conversation_id:testAgent.convId,timezone:userTimezone})});
+                    response = await fetch(API+'/api/agents/'+testAgent.id+'/test-chat',{
+                        method:'POST',
+                        headers: {...getAuthHeaders(), 'Content-Type':'application/json'},
+                        body:JSON.stringify({message:m,conversation_id:testAgent.convId,timezone:userTimezone})
+                    });
                 }
                 const d=await response.json();
                 testAgent.convId=d.conversation_id;
