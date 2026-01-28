@@ -7594,15 +7594,18 @@ Option 3"></textarea>
     <script>
         const API='';
         
-        // Production mode - disable debug logging for performance
-        const DEBUG_MODE = false;
+        // Debug logging: ON so you can see navigate/modal logs. Set to false to silence.
+        const DEBUG_MODE = true;
         const _originalLog = console.log;
         const _originalWarn = console.warn;
         if (!DEBUG_MODE) {
-            console.log = function() {}; // Silence logs in production
-            console.warn = function() {}; // Silence warnings in production
-            // Keep console.error for real errors
+            console.log = function() {};
+            console.warn = function() {};
+        } else {
+            _originalLog('🔧 [AgentForge] Debug logs ON');
         }
+        // This always shows (never silenced) so you know the app script loaded
+        console.info('[AgentForge] App script loaded. DEBUG_MODE=' + DEBUG_MODE);
         
         // Utility function - define early
         function escHtml(text) {
