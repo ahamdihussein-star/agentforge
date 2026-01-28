@@ -14729,14 +14729,14 @@ Option 3"></textarea>
             `).join('');
         }
 
-        function openAgent(id, status){
+        async function openAgent(id, status){
             if(status === 'published'){
                 // Open chat for published agents
-                navigate('chat');
-                setTimeout(()=>{
-                    document.getElementById('chat-agent').value=id;
-                    onAgentChange();
-                },100);
+                navigate('chat', true);
+                // Wait for agents to load before selecting
+                await loadChatAgents();
+                document.getElementById('chat-agent').value = id;
+                await onAgentChange();
             } else {
                 // Open edit for draft agents
                 editAgent(id);
