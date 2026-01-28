@@ -516,6 +516,196 @@
             30% { transform: translateY(-8px); opacity: 1; }
         }
 
+        /* Thinking/Reasoning Display - Like ChatGPT/Cursor */
+        .thinking-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .thinking-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .thinking-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            animation: pulse 2s infinite;
+        }
+
+        .thinking-icon.done {
+            background: var(--success);
+            animation: none;
+        }
+
+        .thinking-icon.error {
+            background: var(--error);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.95); }
+        }
+
+        .thinking-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-light);
+            flex: 1;
+        }
+
+        .thinking-title.done {
+            color: var(--success);
+        }
+
+        .thinking-toggle {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+
+        .thinking-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .thinking-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .thinking-steps.collapsed {
+            display: none;
+        }
+
+        .thinking-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--bg-hover);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            animation: slideInStep 0.3s ease;
+        }
+
+        @keyframes slideInStep {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .step-icon {
+            font-size: 1rem;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .step-icon.thinking { color: var(--primary-light); }
+        .step-icon.tool { color: var(--warning); }
+        .step-icon.success { color: var(--success); }
+        .step-icon.error { color: var(--error); }
+        .step-icon.source { color: #06b6d4; }
+
+        .step-content {
+            flex: 1;
+            line-height: 1.5;
+        }
+
+        .step-content code {
+            background: var(--bg-dark);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.8rem;
+        }
+
+        .thinking-steps::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .thinking-steps::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .thinking-steps::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        /* Tool call badge */
+        .tool-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--warning);
+            margin-left: 8px;
+        }
+
+        /* Sources section */
+        .sources-section {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .sources-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .sources-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .source-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: #06b6d4;
+        }
+
+        .source-chip .relevance {
+            background: rgba(6, 182, 212, 0.2);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+        }
+
         /* Welcome Screen */
         .welcome-screen {
             flex: 1;
@@ -2644,6 +2834,232 @@
             showSelectedFiles();
         }
         
+        // ============================================================================
+        // STREAMING CHAT - Real-time thinking/reasoning display (like ChatGPT/Cursor)
+        // ============================================================================
+        
+        function createThinkingContainer() {
+            return `
+                <div class="thinking-container" id="thinking-container">
+                    <div class="thinking-header" onclick="toggleThinkingSteps()">
+                        <div class="thinking-icon" id="thinking-icon">🧠</div>
+                        <span class="thinking-title" id="thinking-title">Thinking...</span>
+                        <span class="thinking-toggle" id="thinking-toggle">▼</span>
+                    </div>
+                    <div class="thinking-steps" id="thinking-steps"></div>
+                </div>
+            `;
+        }
+        
+        function addThinkingStep(type, content, extra = {}) {
+            const stepsContainer = document.getElementById('thinking-steps');
+            if (!stepsContainer) return;
+            
+            let icon = '💭';
+            let iconClass = 'thinking';
+            
+            switch(type) {
+                case 'thinking':
+                    icon = '💭';
+                    iconClass = 'thinking';
+                    break;
+                case 'tool_call':
+                    icon = '🔧';
+                    iconClass = 'tool';
+                    break;
+                case 'tool_result':
+                    icon = extra.success ? '✅' : '❌';
+                    iconClass = extra.success ? 'success' : 'error';
+                    break;
+                case 'source':
+                    icon = '📚';
+                    iconClass = 'source';
+                    break;
+                case 'error':
+                    icon = '⚠️';
+                    iconClass = 'error';
+                    break;
+            }
+            
+            const stepHTML = `
+                <div class="thinking-step">
+                    <span class="step-icon ${iconClass}">${icon}</span>
+                    <span class="step-content">${content}${extra.tool ? `<span class="tool-badge">🔧 ${extra.tool}</span>` : ''}</span>
+                </div>
+            `;
+            
+            stepsContainer.innerHTML += stepHTML;
+            stepsContainer.scrollTop = stepsContainer.scrollHeight;
+            
+            // Scroll main container too
+            const container = document.getElementById('messages-container');
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function toggleThinkingSteps() {
+            const steps = document.getElementById('thinking-steps');
+            const toggle = document.getElementById('thinking-toggle');
+            if (steps && toggle) {
+                steps.classList.toggle('collapsed');
+                toggle.classList.toggle('collapsed');
+            }
+        }
+        
+        function finishThinking(success = true) {
+            const icon = document.getElementById('thinking-icon');
+            const title = document.getElementById('thinking-title');
+            
+            if (icon) {
+                icon.textContent = success ? '✓' : '⚠️';
+                icon.classList.add(success ? 'done' : 'error');
+            }
+            if (title) {
+                title.textContent = success ? 'Completed' : 'Error';
+                title.classList.add(success ? 'done' : 'error');
+            }
+        }
+        
+        async function sendMessageStreaming(message) {
+            const container = document.getElementById('messages-container');
+            
+            // Add thinking container
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'message assistant';
+            thinkingDiv.id = 'streaming-msg';
+            thinkingDiv.innerHTML = `
+                <div class="message-avatar">${currentAgent.icon || '🤖'}</div>
+                <div style="flex: 1;">
+                    ${createThinkingContainer()}
+                    <div class="message-content" id="streaming-content" style="display: none;"></div>
+                </div>
+            `;
+            container.appendChild(thinkingDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            let fullContent = '';
+            let sources = [];
+            
+            try {
+                const response = await fetch(`${API}/api/agents/${currentAgent.id}/chat/stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
+                    },
+                    body: JSON.stringify({
+                        message,
+                        conversation_id: currentConversation?.id
+                    })
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 403) {
+                        const data = await response.json();
+                        const errorMessage = data.detail?.message || 'Access denied';
+                        addThinkingStep('error', errorMessage);
+                        finishThinking(false);
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                
+                                switch (data.type) {
+                                    case 'thinking':
+                                        addThinkingStep('thinking', data.content);
+                                        break;
+                                        
+                                    case 'tool_call':
+                                        addThinkingStep('tool_call', data.content, { tool: data.tool });
+                                        break;
+                                        
+                                    case 'tool_result':
+                                        addThinkingStep('tool_result', data.content, { 
+                                            tool: data.tool, 
+                                            success: data.success 
+                                        });
+                                        break;
+                                        
+                                    case 'conversation_id':
+                                        currentConversation = { id: data.content };
+                                        break;
+                                        
+                                    case 'content':
+                                        fullContent += data.content;
+                                        const contentDiv = document.getElementById('streaming-content');
+                                        if (contentDiv) {
+                                            contentDiv.style.display = 'block';
+                                            contentDiv.innerHTML = formatMessage(fullContent);
+                                        }
+                                        container.scrollTop = container.scrollHeight;
+                                        break;
+                                        
+                                    case 'sources':
+                                        sources = data.content;
+                                        break;
+                                        
+                                    case 'done':
+                                        finishThinking(true);
+                                        
+                                        // Add sources if any
+                                        if (sources && sources.length > 0) {
+                                            const contentDiv = document.getElementById('streaming-content');
+                                            if (contentDiv) {
+                                                let sourcesHTML = `
+                                                    <div class="sources-section">
+                                                        <div class="sources-title">📚 Sources</div>
+                                                        <div class="sources-list">
+                                                `;
+                                                sources.forEach(s => {
+                                                    sourcesHTML += `
+                                                        <span class="source-chip">
+                                                            ${s.source}
+                                                            <span class="relevance">${s.relevance}%</span>
+                                                        </span>
+                                                    `;
+                                                });
+                                                sourcesHTML += '</div></div>';
+                                                contentDiv.innerHTML += sourcesHTML;
+                                            }
+                                        }
+                                        
+                                        // Reload conversations
+                                        loadConversations();
+                                        break;
+                                        
+                                    case 'error':
+                                        addThinkingStep('error', data.content);
+                                        finishThinking(false);
+                                        break;
+                                }
+                            } catch (e) {
+                                // Skip invalid JSON
+                            }
+                        }
+                    }
+                }
+                
+            } catch (e) {
+                console.error('Streaming error:', e);
+                addThinkingStep('error', 'Connection error. Please try again.');
+                finishThinking(false);
+            }
+        }
+        
         async function sendMessageWithFiles() {
             const input = document.getElementById('message-input');
             const message = input.value.trim();
@@ -2661,26 +3077,24 @@
             let fileIndicators = selectedFiles.map(f => `📎 ${f.name}`).join(', ');
             container.innerHTML += createMessageHTML('user', message + (fileIndicators ? `\n\n${fileIndicators}` : ''));
             
-            // Add typing indicator
-            container.innerHTML += `
-                <div class="message assistant" id="typing-msg">
-                    <div class="message-avatar">${currentAgent.icon || '🤖'}</div>
-                    <div class="message-content">
-                        <div class="typing-indicator">
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
+            // If files are attached, use the non-streaming endpoint
+            if (selectedFiles.length > 0) {
+                // Add typing indicator for file uploads
+                container.innerHTML += `
+                    <div class="message assistant" id="typing-msg">
+                        <div class="message-avatar">${currentAgent.icon || '🤖'}</div>
+                        <div class="message-content">
+                            <div class="typing-indicator">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
-            container.scrollTop = container.scrollHeight;
-            
-            try {
-                let response;
+                `;
+                container.scrollTop = container.scrollHeight;
                 
-                if (selectedFiles.length > 0) {
-                    // Send with files
+                try {
                     const formData = new FormData();
                     formData.append('message', message);
                     if (currentConversation?.id) {
@@ -2688,7 +3102,7 @@
                     }
                     selectedFiles.forEach(file => formData.append('files', file));
                     
-                    response = await fetch(`${API}/api/agents/${currentAgent.id}/chat-with-files`, {
+                    const response = await fetch(`${API}/api/agents/${currentAgent.id}/chat-with-files`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${getToken()}`
@@ -2699,58 +3113,42 @@
                     // Clear selected files
                     selectedFiles = [];
                     showSelectedFiles();
-                } else {
-                    // Send without files
-                    response = await fetch(`${API}/api/agents/${currentAgent.id}/chat`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${getToken()}`
-                        },
-                        body: JSON.stringify({
-                            message,
-                            conversation_id: currentConversation?.id
-                        })
-                    });
-                }
-                
-                const data = await response.json();
-                
-                // Remove typing indicator
-                document.getElementById('typing-msg')?.remove();
-                
-                // Handle access control errors (403)
-                if (response.status === 403) {
-                    const errorMessage = data.detail?.message || data.message || 
-                        'This assistant is not available for your account. Please contact your administrator if you need access.';
-                    container.innerHTML += createMessageHTML('assistant', `⚠️ ${errorMessage}`);
+                    
+                    const data = await response.json();
+                    document.getElementById('typing-msg')?.remove();
+                    
+                    if (response.status === 403) {
+                        const errorMessage = data.detail?.message || data.message || 
+                            'This assistant is not available for your account.';
+                        container.innerHTML += createMessageHTML('assistant', `⚠️ ${errorMessage}`);
+                        container.scrollTop = container.scrollHeight;
+                        return;
+                    }
+                    
+                    if (!response.ok) {
+                        const errorMessage = data.detail?.message || data.message || 
+                            'Sorry, I could not process that request.';
+                        container.innerHTML += createMessageHTML('assistant', `Sorry, ${errorMessage}`);
+                        container.scrollTop = container.scrollHeight;
+                        return;
+                    }
+                    
+                    if (data.conversation_id) {
+                        currentConversation = { id: data.conversation_id };
+                    }
+                    
+                    container.innerHTML += createMessageHTML('assistant', data.response || data.content || 'Sorry, I could not process that request.');
                     container.scrollTop = container.scrollHeight;
-                    return;
-                }
-                
-                // Handle other errors
-                if (!response.ok) {
-                    const errorMessage = data.detail?.message || data.message || 
-                        'Sorry, I could not process that request. Please try again later.';
-                    container.innerHTML += createMessageHTML('assistant', `Sorry, ${errorMessage}`);
+                    
+                } catch (e) {
+                    console.error('Failed to send message with files:', e);
+                    document.getElementById('typing-msg')?.remove();
+                    container.innerHTML += createMessageHTML('assistant', 'Sorry, we encountered an unexpected issue.');
                     container.scrollTop = container.scrollHeight;
-                    return;
                 }
-                
-                // Update conversation ID
-                if (data.conversation_id) {
-                    currentConversation = { id: data.conversation_id };
-                }
-                
-                // Add assistant response
-                container.innerHTML += createMessageHTML('assistant', data.response || data.content || 'Sorry, I could not process that request.');
-                container.scrollTop = container.scrollHeight;
-                
-            } catch (e) {
-                console.error('Failed to send message:', e);
-                document.getElementById('typing-msg')?.remove();
-                container.innerHTML += createMessageHTML('assistant', 'Sorry, we encountered an unexpected issue. Please try again in a moment.');
-                container.scrollTop = container.scrollHeight;
+            } else {
+                // Use streaming for regular messages (no files)
+                await sendMessageStreaming(message);
             }
         }
 

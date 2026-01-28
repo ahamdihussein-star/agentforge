@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -11448,6 +11448,586 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
         asyncio.create_task(update_agent_memory(agent, conversation))
     
     return ChatResponse(response=result["content"], conversation_id=conversation.id, sources=result["sources"], formatted=True)
+
+
+# ============================================================================
+# STREAMING CHAT - Real-time thinking & reasoning display (like ChatGPT/Cursor)
+# ============================================================================
+
+class StreamingChatRequest(BaseModel):
+    message: str
+    conversation_id: Optional[str] = None
+    timezone: Optional[str] = None
+
+
+@app.post("/api/agents/{agent_id}/chat/stream")
+async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user: User = Depends(get_current_user)):
+    """
+    Streaming chat endpoint with real-time thinking/reasoning display.
+    
+    Uses Server-Sent Events (SSE) to stream:
+    - thinking: Agent is processing/analyzing
+    - tool_call: Agent is calling a tool
+    - tool_result: Tool returned a result
+    - content: Response text chunks
+    - sources: Knowledge base sources used
+    - done: Streaming complete
+    - error: An error occurred
+    """
+    if agent_id not in app_state.agents:
+        raise HTTPException(404, "Agent not found")
+    
+    agent = app_state.agents[agent_id]
+    org_id = current_user.org_id if current_user else "org_default"
+    user_id = str(current_user.id) if current_user else "system"
+    
+    async def event_generator():
+        """Generate SSE events for streaming response"""
+        try:
+            # Send initial thinking event
+            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Analyzing your message...'})}\n\n"
+            await asyncio.sleep(0.1)  # Small delay for UI update
+            
+            # ========================================================================
+            # ACCESS CONTROL CHECK
+            # ========================================================================
+            access_result = None
+            is_owner = False
+            agent_owner_id = None
+            
+            # Check ownership
+            if hasattr(agent, 'owner_id') and agent.owner_id:
+                agent_owner_id = str(agent.owner_id)
+            elif hasattr(agent, 'created_by') and agent.created_by:
+                agent_owner_id = str(agent.created_by)
+            
+            if not agent_owner_id:
+                try:
+                    from database.services import AgentService
+                    db_agent = AgentService.get_agent_by_id(agent_id, org_id)
+                    if db_agent:
+                        agent_owner_id = str(db_agent.get('owner_id') or db_agent.get('created_by') or '')
+                except Exception:
+                    pass
+            
+            if agent_owner_id:
+                is_owner = agent_owner_id == user_id
+            
+            # Check permissions if not owner
+            if not is_owner and ACCESS_CONTROL_AVAILABLE and AccessControlService and current_user:
+                try:
+                    user_role_ids = getattr(current_user, 'role_ids', []) or []
+                    user_group_ids = get_user_group_ids(user_id) if user_id else []
+                    
+                    access_result = AccessControlService.check_user_access(
+                        user_id=user_id,
+                        user_role_ids=user_role_ids,
+                        user_group_ids=user_group_ids,
+                        agent_id=agent_id,
+                        org_id=org_id
+                    )
+                    
+                    if not access_result.has_access:
+                        yield f"data: {json.dumps({'type': 'error', 'content': 'Access denied to this agent'})}\n\n"
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        return
+                except Exception as e:
+                    print(f"⚠️ Access control check failed: {e}")
+            
+            # ========================================================================
+            # CONVERSATION HANDLING
+            # ========================================================================
+            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Preparing conversation context...'})}\n\n"
+            
+            if request.conversation_id and request.conversation_id in app_state.conversations:
+                conversation = app_state.conversations[request.conversation_id]
+            else:
+                title = request.message[:50] + "..." if len(request.message) > 50 else request.message
+                conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
+                app_state.conversations[conversation.id] = conversation
+                
+                # Save to database
+                try:
+                    from database.services import ConversationService
+                    ConversationService.create_conversation({
+                        'id': conversation.id,
+                        'agent_id': agent_id,
+                        'user_id': user_id,
+                        'title': title
+                    }, org_id, user_id)
+                except Exception as e:
+                    print(f"⚠️ Failed to save conversation to DB: {e}")
+            
+            # Send conversation ID
+            yield f"data: {json.dumps({'type': 'conversation_id', 'content': conversation.id})}\n\n"
+            
+            # Add user message
+            user_msg = ConversationMessage(role="user", content=request.message)
+            conversation.messages.append(user_msg)
+            
+            # Save user message
+            try:
+                from database.services import ConversationService
+                ConversationService.add_message(conversation.id, {
+                    'id': user_msg.id,
+                    'role': 'user',
+                    'content': request.message
+                }, org_id, user_id)
+            except Exception:
+                pass
+            
+            # ========================================================================
+            # KNOWLEDGE BASE SEARCH
+            # ========================================================================
+            agent_tools = get_agent_tools(agent)
+            
+            # Filter tools if access control is active
+            if access_result and hasattr(access_result, 'denied_tools') and access_result.denied_tools:
+                agent_tools = [t for t in agent_tools if t.id not in access_result.denied_tools]
+            
+            tool_ids = [t.id for t in agent_tools]
+            
+            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Searching knowledge base for relevant information...'})}\n\n"
+            
+            search_results = search_documents(request.message, tool_ids, top_k=5)
+            context = ""
+            sources = []
+            if search_results:
+                yield f"data: {json.dumps({'type': 'thinking', 'content': f'Found {len(search_results)} relevant sources'})}\n\n"
+                context = "\n\nRELEVANT INFORMATION FROM KNOWLEDGE BASE:\n"
+                for i, result in enumerate(search_results):
+                    context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
+                    sources.append({
+                        "source": result['source'], 
+                        "type": result['type'], 
+                        "relevance": round(result['score'] * 100)
+                    })
+            
+            # ========================================================================
+            # BUILD SYSTEM PROMPT
+            # ========================================================================
+            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Processing with AI model...'})}\n\n"
+            
+            # Get denied tasks
+            denied_task_names = []
+            if access_result and hasattr(access_result, 'denied_tasks') and access_result.denied_tasks:
+                denied_task_names = access_result.denied_tasks
+            
+            g = agent.guardrails
+            p = agent.personality
+            date_info = get_current_datetime_for_user(request.timezone)
+            
+            # Build action tools
+            action_tools = [t for t in agent_tools if t.type in ['email', 'api', 'webhook', 'slack', 'websearch', 'database']]
+            
+            # Filter tools based on denied tasks
+            if denied_task_names:
+                denied_keywords = []
+                for task_name in denied_task_names:
+                    words = task_name.lower().replace('-', ' ').replace('_', ' ').split()
+                    denied_keywords.extend([w for w in words if len(w) > 3])
+                
+                filtered_tools = []
+                for tool in action_tools:
+                    tool_name_lower = (tool.name or '').lower()
+                    tool_desc_lower = (tool.description or '').lower()
+                    is_denied = any(kw in tool_name_lower or kw in tool_desc_lower for kw in denied_keywords)
+                    if not is_denied:
+                        filtered_tools.append(tool)
+                action_tools = filtered_tools
+            
+            tool_definitions = build_tool_definitions(action_tools) if action_tools else []
+            
+            # Notify about tools being used
+            if action_tools:
+                tool_names = [t.name for t in action_tools]
+                tools_preview = ", ".join(tool_names[:3]) + ("..." if len(tool_names) > 3 else "")
+                yield f"data: {json.dumps({'type': 'thinking', 'content': 'Available tools: ' + tools_preview})}\n\n"
+            
+            # Build accessible tasks
+            accessible_tasks = [task for task in agent.tasks if task.name not in denied_task_names]
+            
+            # User context
+            user_name = ""
+            if current_user:
+                if hasattr(current_user, 'first_name') and current_user.first_name:
+                    user_name = current_user.first_name
+                elif hasattr(current_user, 'email'):
+                    user_name = current_user.email.split('@')[0].replace('.', ' ').title()
+            
+            # Build system prompt (simplified version for streaming)
+            creativity_desc = "(Factual only)" if p.creativity <= 3 else "(Creative)" if p.creativity >= 7 else "(Balanced)"
+            length_desc = "(Brief)" if p.length <= 3 else "(Detailed)" if p.length >= 7 else "(Moderate)"
+            
+            system_prompt = f"""You are {agent.name}.
+{f'The current user is {user_name}.' if user_name else ''}
+
+{date_info}
+=== GOAL ===
+{agent.goal}
+
+=== PERSONALITY ===
+• Tone: {p.tone}
+• Voice: {p.voice}
+• Creativity: {p.creativity}/10 {creativity_desc}
+• Response Length: {p.length}/10 {length_desc}
+
+=== LANGUAGE ===
+{get_language_instruction(g.language)}
+
+=== TASKS ==="""
+            
+            for task in accessible_tasks:
+                system_prompt += f"\n\n### {task.name}\n{task.description}"
+                if task.instructions:
+                    system_prompt += "\n**Steps:**"
+                    for i, inst in enumerate(task.instructions, 1):
+                        system_prompt += f"\n{i}. {inst.text}"
+            
+            system_prompt += context
+            
+            # ========================================================================
+            # LLM CALL WITH TOOL EXECUTION
+            # ========================================================================
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add conversation history
+            for msg in conversation.messages[-10:]:  # Last 10 messages
+                role = msg.role if msg.role in ['user', 'assistant'] else 'user'
+                messages.append({"role": role, "content": msg.content})
+            
+            # Get provider
+            provider_data = get_agent_provider(agent)
+            if not provider_data or not provider_data.api_key:
+                yield f"data: {json.dumps({'type': 'error', 'content': 'AI provider not configured'})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                return
+            
+            # Execute tools if needed (agentic loop)
+            max_iterations = 5
+            final_content = ""
+            tool_calls_made = []
+            
+            for iteration in range(max_iterations):
+                if iteration > 0:
+                    yield f"data: {json.dumps({'type': 'thinking', 'content': f'Processing tool results (step {iteration + 1})...'})}\n\n"
+                
+                # Call LLM
+                llm_result = await call_llm_with_tools(
+                    provider_data, 
+                    messages, 
+                    tool_definitions if action_tools else None,
+                    temperature=0.7
+                )
+                
+                content = llm_result.get("content", "")
+                tool_calls = llm_result.get("tool_calls", [])
+                
+                if tool_calls:
+                    # Process tool calls
+                    for tc in tool_calls:
+                        tool_name = tc.get("function", {}).get("name", "unknown")
+                        tool_args = tc.get("function", {}).get("arguments", "{}")
+                        
+                        yield f"data: {json.dumps({'type': 'tool_call', 'content': f'Using tool: {tool_name}', 'tool': tool_name, 'args': tool_args})}\n\n"
+                        
+                        # Execute the tool
+                        try:
+                            tool_result = await execute_agent_tool(tool_name, tool_args, action_tools, agent)
+                            tool_calls_made.append({
+                                "tool": tool_name,
+                                "arguments": tool_args,
+                                "result": tool_result[:500] if isinstance(tool_result, str) else str(tool_result)[:500],
+                                "success": True
+                            })
+                            
+                            yield f"data: {json.dumps({'type': 'tool_result', 'content': f'Tool {tool_name} completed successfully', 'tool': tool_name, 'success': True})}\n\n"
+                            
+                            # Add to messages for next iteration
+                            messages.append({
+                                "role": "assistant",
+                                "content": content or "",
+                                "tool_calls": tool_calls
+                            })
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc.get("id", ""),
+                                "content": str(tool_result)
+                            })
+                        except Exception as e:
+                            tool_calls_made.append({
+                                "tool": tool_name,
+                                "arguments": tool_args,
+                                "error": str(e),
+                                "success": False
+                            })
+                            yield f"data: {json.dumps({'type': 'tool_result', 'content': f'Tool {tool_name} failed: {str(e)[:100]}', 'tool': tool_name, 'success': False})}\n\n"
+                            
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc.get("id", ""),
+                                "content": f"Error: {str(e)}"
+                            })
+                else:
+                    # No tool calls, we have the final response
+                    final_content = content
+                    break
+            
+            if not final_content:
+                final_content = "I apologize, but I couldn't complete the task within the allowed iterations."
+            
+            # ========================================================================
+            # STREAM RESPONSE CONTENT
+            # ========================================================================
+            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Generating response...'})}\n\n"
+            
+            # Stream content in chunks for better UX
+            chunk_size = 50
+            for i in range(0, len(final_content), chunk_size):
+                chunk = final_content[i:i+chunk_size]
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+                await asyncio.sleep(0.02)  # Small delay for streaming effect
+            
+            # Send sources if any
+            if sources:
+                yield f"data: {json.dumps({'type': 'sources', 'content': sources})}\n\n"
+            
+            # ========================================================================
+            # SAVE ASSISTANT MESSAGE
+            # ========================================================================
+            assistant_msg = ConversationMessage(role="assistant", content=final_content, sources=sources)
+            conversation.messages.append(assistant_msg)
+            conversation.updated_at = datetime.utcnow().isoformat()
+            
+            try:
+                from database.services import ConversationService
+                ConversationService.add_message(conversation.id, {
+                    'id': assistant_msg.id,
+                    'role': 'assistant',
+                    'content': final_content,
+                    'sources': sources
+                }, org_id, user_id)
+            except Exception:
+                pass
+            
+            app_state.save_to_disk()
+            
+            # Send completion
+            yield f"data: {json.dumps({'type': 'done', 'tool_calls': tool_calls_made})}\n\n"
+            
+        except Exception as e:
+            print(f"❌ Streaming error: {e}")
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
+
+
+async def execute_agent_tool(tool_name: str, tool_args: str, action_tools: list, agent) -> str:
+    """Execute a tool and return the result"""
+    import json as json_module
+    
+    try:
+        args = json_module.loads(tool_args) if isinstance(tool_args, str) else tool_args
+    except:
+        args = {}
+    
+    # Find the matching tool
+    tool = None
+    for t in action_tools:
+        if t.name == tool_name or t.id == tool_name:
+            tool = t
+            break
+    
+    if not tool:
+        return f"Tool '{tool_name}' not found"
+    
+    # Execute based on tool type
+    if tool.type == 'api':
+        # Execute API call
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                method = (tool.config.get('method', 'GET') if hasattr(tool, 'config') else 'GET').upper()
+                url = tool.config.get('url', '') if hasattr(tool, 'config') else ''
+                headers = tool.config.get('headers', {}) if hasattr(tool, 'config') else {}
+                
+                if method == 'GET':
+                    response = await client.get(url, headers=headers, params=args)
+                elif method == 'POST':
+                    response = await client.post(url, headers=headers, json=args)
+                else:
+                    response = await client.request(method, url, headers=headers, json=args)
+                
+                return response.text[:2000]
+        except Exception as e:
+            return f"API call failed: {str(e)}"
+    
+    elif tool.type == 'websearch':
+        # Web search
+        query = args.get('query', args.get('q', str(args)))
+        return f"Web search results for: {query} (web search integration pending)"
+    
+    elif tool.type == 'database':
+        # Database query
+        query = args.get('query', args.get('sql', ''))
+        return f"Database query: {query} (database integration pending)"
+    
+    else:
+        return f"Tool type '{tool.type}' execution not implemented"
+
+
+async def call_llm_with_tools(provider_data, messages: list, tools: list = None, temperature: float = 0.7) -> dict:
+    """Call LLM with optional tools and return response"""
+    provider = provider_data.provider.lower() if hasattr(provider_data, 'provider') else 'openai'
+    
+    try:
+        if provider in ['openai', 'custom']:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                payload = {
+                    "model": provider_data.model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": 4000
+                }
+                
+                if tools:
+                    payload["tools"] = tools
+                    payload["tool_choice"] = "auto"
+                
+                base_url = getattr(provider_data, 'base_url', None) or "https://api.openai.com/v1"
+                response = await client.post(
+                    f"{base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {provider_data.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload
+                )
+                
+                data = response.json()
+                choice = data.get("choices", [{}])[0]
+                message = choice.get("message", {})
+                
+                return {
+                    "content": message.get("content", ""),
+                    "tool_calls": message.get("tool_calls", [])
+                }
+        
+        elif provider == 'anthropic':
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                # Convert messages for Anthropic format
+                system_msg = ""
+                anthropic_messages = []
+                for msg in messages:
+                    if msg["role"] == "system":
+                        system_msg = msg["content"]
+                    else:
+                        anthropic_messages.append({
+                            "role": msg["role"],
+                            "content": msg["content"]
+                        })
+                
+                payload = {
+                    "model": provider_data.model,
+                    "max_tokens": 4000,
+                    "messages": anthropic_messages
+                }
+                if system_msg:
+                    payload["system"] = system_msg
+                
+                if tools:
+                    # Convert OpenAI tool format to Anthropic
+                    anthropic_tools = []
+                    for tool in tools:
+                        anthropic_tools.append({
+                            "name": tool["function"]["name"],
+                            "description": tool["function"].get("description", ""),
+                            "input_schema": tool["function"].get("parameters", {})
+                        })
+                    payload["tools"] = anthropic_tools
+                
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": provider_data.api_key,
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload
+                )
+                
+                data = response.json()
+                content_blocks = data.get("content", [])
+                
+                text_content = ""
+                tool_calls = []
+                for block in content_blocks:
+                    if block.get("type") == "text":
+                        text_content += block.get("text", "")
+                    elif block.get("type") == "tool_use":
+                        tool_calls.append({
+                            "id": block.get("id"),
+                            "type": "function",
+                            "function": {
+                                "name": block.get("name"),
+                                "arguments": json.dumps(block.get("input", {}))
+                            }
+                        })
+                
+                return {
+                    "content": text_content,
+                    "tool_calls": tool_calls
+                }
+        
+        elif provider == 'google':
+            # Google Gemini
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                gemini_messages = []
+                for msg in messages:
+                    role = "user" if msg["role"] in ["user", "system"] else "model"
+                    gemini_messages.append({
+                        "role": role,
+                        "parts": [{"text": msg["content"]}]
+                    })
+                
+                response = await client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{provider_data.model}:generateContent?key={provider_data.api_key}",
+                    json={
+                        "contents": gemini_messages,
+                        "generationConfig": {
+                            "temperature": temperature,
+                            "maxOutputTokens": 4000
+                        }
+                    }
+                )
+                
+                data = response.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    content = candidates[0].get("content", {})
+                    parts = content.get("parts", [])
+                    text = "".join([p.get("text", "") for p in parts])
+                    return {"content": text, "tool_calls": []}
+                
+                return {"content": "", "tool_calls": []}
+        
+        else:
+            # Default fallback - try OpenAI-compatible
+            return await call_llm_with_tools(provider_data, messages, tools, temperature)
+    
+    except Exception as e:
+        print(f"❌ LLM call error: {e}")
+        return {"content": f"Error calling AI: {str(e)}", "tool_calls": []}
 
 
 @app.post("/api/agents/{agent_id}/chat-with-files")
