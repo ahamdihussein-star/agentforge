@@ -24926,9 +24926,22 @@ let securityRoles = [];
 // ============================================================================
 
 function hasPermission(permission) {
-    if (!currentUser || !currentUser.permissions) return false;
-    if (currentUser.permissions.includes('system:admin')) return true;
-    return currentUser.permissions.includes(permission);
+    const hasPerm = !currentUser || !currentUser.permissions 
+        ? false 
+        : currentUser.permissions.includes('system:admin') 
+            ? true 
+            : currentUser.permissions.includes(permission);
+    
+    // Log only for navigation-related permissions to avoid spam
+    if (['chat:use', 'agents:create', 'agents:view'].includes(permission)) {
+        console.log(`🔐 [hasPermission] ${permission}:`, {
+            hasPermission: hasPerm,
+            userPermissions: currentUser?.permissions || [],
+            isAdmin: currentUser?.permissions?.includes('system:admin')
+        });
+    }
+    
+    return hasPerm;
 }
 
 function hasAnyPermission(permissions) {
@@ -24950,40 +24963,76 @@ const MENU_PERMISSIONS = {
 };
 
 function updateUIByPermissions() {
-    if (!currentUser) return;
+    console.log('🔐 [updateUIByPermissions] Starting...', {
+        hasCurrentUser: !!currentUser,
+        userEmail: currentUser?.email,
+        userPermissions: currentUser?.permissions || []
+    });
+    
+    if (!currentUser) {
+        console.warn('⚠️ [updateUIByPermissions] No currentUser, skipping');
+        return;
+    }
     
     Object.entries(MENU_PERMISSIONS).forEach(([menu, permission]) => {
         const navItem = document.getElementById('nav-' + menu);
         const mobItem = document.getElementById('mob-' + menu);
+        const hasPerm = hasPermission(permission);
         
-        if (hasPermission(permission)) {
-            if (navItem) navItem.classList.remove('hidden');
-            if (mobItem) mobItem.classList.remove('hidden');
+        console.log(`🔐 [updateUIByPermissions] ${menu}:`, {
+            permission: permission,
+            hasPermission: hasPerm,
+            navItemFound: !!navItem,
+            mobItemFound: !!mobItem,
+            navItemHidden: navItem?.classList.contains('hidden'),
+            mobItemHidden: mobItem?.classList.contains('hidden')
+        });
+        
+        if (hasPerm) {
+            if (navItem) {
+                navItem.classList.remove('hidden');
+                navItem.style.display = '';
+            }
+            if (mobItem) {
+                mobItem.classList.remove('hidden');
+                mobItem.style.display = '';
+            }
         } else {
-            if (navItem) navItem.classList.add('hidden');
-            if (mobItem) mobItem.classList.add('hidden');
+            if (navItem) {
+                navItem.classList.add('hidden');
+                navItem.style.display = 'none';
+            }
+            if (mobItem) {
+                mobItem.classList.add('hidden');
+                mobItem.style.display = 'none';
+            }
         }
     });
     
     const secNav = document.getElementById('nav-security');
     if (secNav) {
-        if (hasAnyPermission(['users:view', 'roles:view', 'system:admin'])) {
+        const hasSecPerm = hasAnyPermission(['users:view', 'roles:view', 'system:admin']);
+        console.log('🔐 [updateUIByPermissions] Security nav:', { hasPermission: hasSecPerm });
+        if (hasSecPerm) {
             secNav.classList.remove('hidden');
+            secNav.style.display = '';
         } else {
             secNav.classList.add('hidden');
+            secNav.style.display = 'none';
         }
     }
     
     document.querySelectorAll('[data-permission]').forEach(el => {
         const perms = el.dataset.permission.split(',').map(p => p.trim());
-        if (hasAnyPermission(perms)) {
+        const hasPerm = hasAnyPermission(perms);
+        if (hasPerm) {
             el.style.display = '';
         } else {
             el.style.display = 'none';
         }
     });
     
-    console.log('Permissions updated:', currentUser.email);
+    console.log('✅ [updateUIByPermissions] Complete:', currentUser.email);
 }
 
 
@@ -27833,8 +27882,14 @@ async function saveSecuritySettings() {
 // Update navigate function to include security
 const originalNavigate = navigate;
 navigate = function(p, updateHash = true) {
+    console.log(`🔐 [navigate override] Called with page: ${p}`, {
+        hasAuthToken: !!authToken,
+        updateHash: updateHash
+    });
+    
     // Check auth for protected pages
     if (!authToken && p !== 'login') {
+        console.warn('⚠️ [navigate override] No authToken, showing login page');
         showLoginPage();
         return;
     }
@@ -27845,6 +27900,18 @@ navigate = function(p, updateHash = true) {
         document.getElementById('app')?.classList.remove('hidden');
     }
     
+    // Check permissions for protected pages
+    const requiredPerm = MENU_PERMISSIONS[p];
+    if (requiredPerm && !hasPermission(requiredPerm)) {
+        console.error(`❌ [navigate override] Permission denied for ${p}. Required: ${requiredPerm}`, {
+            userPermissions: currentUser?.permissions || [],
+            hasPermission: hasPermission(requiredPerm)
+        });
+        showToast(`You don't have permission to access ${p}`, 'error');
+        return;
+    }
+    
+    console.log(`✅ [navigate override] Calling originalNavigate for: ${p}`);
     // Call original navigate
     originalNavigate(p, updateHash);
     
@@ -27852,6 +27919,8 @@ navigate = function(p, updateHash = true) {
     if (p === 'security') {
         initSecurityPage();
     }
+    
+    console.log(`✅ [navigate override] Complete for: ${p}`);
 };
 
 // Handle reset password page
