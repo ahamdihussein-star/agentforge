@@ -7631,7 +7631,8 @@ Option 3"></textarea>
             
             if(p==='agents')loadAgents();
             if(p==='tools')loadTools();
-            if(p==='chat')loadChatAgents();
+            // Note: loadChatAgents() is called by openAgent or when user manually navigates
+            if(p==='chat' && !window._skipChatAgentLoad) loadChatAgents();
             if(p==='create'){resetWizardNew();step=0;updateStepsNew();}
             if(p==='settings'){
                 loadSettings();
@@ -14732,11 +14733,21 @@ Option 3"></textarea>
         async function openAgent(id, status){
             if(status === 'published'){
                 // Open chat for published agents
+                // Skip auto-load in navigate, we'll load manually
+                window._skipChatAgentLoad = true;
                 navigate('chat', true);
+                window._skipChatAgentLoad = false;
+                
                 // Wait for agents to load before selecting
                 await loadChatAgents();
-                document.getElementById('chat-agent').value = id;
-                await onAgentChange();
+                
+                // Set the agent value
+                const agentSelect = document.getElementById('chat-agent');
+                if (agentSelect) {
+                    agentSelect.value = id;
+                    // Trigger change and start chat
+                    await onAgentChange();
+                }
             } else {
                 // Open edit for draft agents
                 editAgent(id);
