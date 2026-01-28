@@ -188,7 +188,8 @@
         .chat-content tr:nth-child(even){background:rgba(45,45,61,0.3)}
         
         /* Ensure white text on dark backgrounds */
-        .bg-gray-700, .bg-gray-800, .bg-gray-900 {
+        .bg-gray-700, .bg-gray-800, .bg-gray-900,
+        .bg-purple-600, .bg-purple-700, .bg-blue-600, .bg-blue-700 {
             color: white;
         }
         
@@ -20709,7 +20710,7 @@ async function saveToolEdit() {
             const c=document.getElementById('chat-messages');
             const d=document.createElement('div');
             d.className='animate-fade-in';
-            if(role==='user')d.innerHTML=`<div class="flex justify-end"><div class="bg-purple-600 rounded-2xl rounded-tr-sm px-3 md:px-4 py-2 md:py-3 max-w-[85%] md:max-w-[70%] text-sm md:text-base">${esc(content)}</div></div>`;
+            if(role==='user')d.innerHTML=`<div class="flex justify-end"><div class="bg-purple-600 text-white rounded-2xl rounded-tr-sm px-3 md:px-4 py-2 md:py-3 max-w-[85%] md:max-w-[70%] text-sm md:text-base">${esc(content)}</div></div>`;
             else if(role==='assistant'){
                 d.innerHTML=`<div class="flex"><div class="bg-gray-700 text-white rounded-2xl rounded-tl-sm px-3 md:px-4 py-2 md:py-3 max-w-[85%] md:max-w-[70%] chat-content text-sm md:text-base">${fmt(content)}</div></div>`;
                 if(sources?.length)d.innerHTML+=`<div class="mt-1 ml-2 flex flex-wrap gap-1">${sources.map(s=>`<span class="source-badge px-2 py-1 rounded text-xs">${s.source}</span>`).join('')}</div>`;
