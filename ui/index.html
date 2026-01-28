@@ -21038,31 +21038,23 @@ async function saveToolEdit() {
             }catch(e){rmTyping();addMsg('error','Error: '+e.message);}
         }
 
-        // Streaming chat with real-time thinking display
+        // Streaming chat with real-time thinking display (inline like ChatGPT)
         async function sendMsgStreaming(aid, message, timezone){
             const c=document.getElementById('chat-messages');
             
-            // Add thinking container with animated brain
+            // Add thinking message (looks like a regular chat message being typed)
             const thinkingDiv = document.createElement('div');
             thinkingDiv.id = 'thinking-container';
             thinkingDiv.className = 'animate-fade-in';
             thinkingDiv.innerHTML = `
                 <div class="flex">
-                    <div class="bg-gradient-to-br from-gray-800 to-gray-900 border border-purple-500/30 text-white rounded-2xl px-4 py-3 max-w-[85%] md:max-w-[70%] shadow-lg shadow-purple-500/10">
-                        <div class="flex items-center gap-2 mb-3 cursor-pointer" onclick="toggleThinking()">
-                            <span id="thinking-icon" class="text-xl" style="animation: pulse-glow 1.5s ease-in-out infinite;">🧠</span>
-                            <span id="thinking-title" class="text-purple-400 font-semibold text-sm">Thinking...</span>
-                            <span id="thinking-toggle" class="text-gray-500 text-xs ml-auto transition-transform">▼</span>
-                        </div>
-                        <div id="thinking-steps" class="space-y-2 text-sm border-l-2 border-purple-500/30 pl-3 ml-2"></div>
+                    <div class="bg-gray-700 text-gray-300 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] md:max-w-[70%] text-sm italic">
+                        <span id="thinking-text" class="flex items-center gap-2">
+                            <span class="inline-block w-2 h-2 bg-purple-400 rounded-full animate-pulse"></span>
+                            <span id="thinking-content"></span>
+                        </span>
                     </div>
                 </div>
-                <style>
-                    @keyframes pulse-glow {
-                        0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(168, 85, 247, 0.5)); }
-                        50% { transform: scale(1.1); filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.8)); }
-                    }
-                </style>
             `;
             c.appendChild(thinkingDiv);
             c.scrollTop = c.scrollHeight;
@@ -21149,24 +21141,14 @@ async function saveToolEdit() {
         }
         
         function addThinkingStep(icon, content) {
-            const steps = document.getElementById('thinking-steps');
-            if (!steps) return;
-            const step = document.createElement('div');
-            step.className = 'flex items-start gap-2 text-gray-300 py-1 opacity-0';
-            step.style.transition = 'opacity 0.3s ease-in';
-            step.innerHTML = '<span class="flex-shrink-0">' + icon + '</span><span class="typing-text"></span>';
-            steps.appendChild(step);
+            const textEl = document.getElementById('thinking-content');
+            if (!textEl) return;
             
-            // Fade in the step
-            requestAnimationFrame(() => {
-                step.classList.remove('opacity-0');
-                step.classList.add('opacity-100');
-            });
-            
-            // Typewriter effect for content
-            const textEl = step.querySelector('.typing-text');
+            // Clear and type new content
+            textEl.textContent = '';
             let i = 0;
-            const typeSpeed = 15; // ms per character
+            const typeSpeed = 20; // ms per character
+            
             function typeChar() {
                 if (i < content.length) {
                     textEl.textContent += content.charAt(i);
@@ -21179,35 +21161,11 @@ async function saveToolEdit() {
             document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
         }
         
-        function toggleThinking() {
-            const steps = document.getElementById('thinking-steps');
-            const toggle = document.getElementById('thinking-toggle');
-            if (steps && toggle) {
-                steps.classList.toggle('hidden');
-                toggle.textContent = steps.classList.contains('hidden') ? '▶' : '▼';
-            }
-        }
-        
         function finishThinkingUI(success) {
-            const icon = document.getElementById('thinking-icon');
-            const title = document.getElementById('thinking-title');
             const container = document.getElementById('thinking-container');
-            if (icon) {
-                icon.textContent = success ? '✅' : '⚠️';
-                icon.style.animation = 'none';
-            }
-            if (title) {
-                title.textContent = success ? 'Completed' : 'Error';
-                title.className = success ? 'text-green-400 font-semibold text-sm' : 'text-red-400 font-semibold text-sm';
-            }
-            // Collapse thinking after a short delay
-            if (success && container) {
-                setTimeout(() => {
-                    const steps = document.getElementById('thinking-steps');
-                    const toggle = document.getElementById('thinking-toggle');
-                    if (steps) steps.classList.add('hidden');
-                    if (toggle) toggle.textContent = '▶';
-                }, 1500);
+            if (container) {
+                // Remove thinking message when done
+                container.remove();
             }
         }
         
