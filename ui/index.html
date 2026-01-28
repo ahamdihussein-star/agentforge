@@ -20504,7 +20504,9 @@ async function saveToolEdit() {
             if(!id)return;
             
             // Load conversations for this agent
-            const r=await fetch(API+'/api/agents/'+id+'/conversations');
+            const r=await fetch(API+'/api/agents/'+id+'/conversations', {
+                headers: getAuthHeaders()
+            });
             const d=await r.json();
             document.getElementById('chat-conv').innerHTML='<option value="">New Chat</option>'+d.conversations.map(c=>`<option value="${c.id}">${c.title}</option>`).join('');
             
