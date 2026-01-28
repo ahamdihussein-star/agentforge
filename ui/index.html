@@ -2367,7 +2367,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
             </section>
 
             <!-- Security Center Page -->
@@ -7671,10 +7670,25 @@ Option 3"></textarea>
             const targetPage = document.getElementById('page-'+p);
             if (targetPage) {
                 targetPage.classList.remove('hidden');
+                const computedStyle = window.getComputedStyle(targetPage);
                 console.log(`  ✅ Showing page: page-${p}`, {
-                    display: window.getComputedStyle(targetPage).display,
-                    visibility: window.getComputedStyle(targetPage).visibility,
-                    parent: targetPage.parentElement?.tagName
+                    display: computedStyle.display,
+                    visibility: computedStyle.visibility,
+                    parent: targetPage.parentElement?.tagName,
+                    parentId: targetPage.parentElement?.id,
+                    grandparent: targetPage.parentElement?.parentElement?.tagName,
+                    grandparentId: targetPage.parentElement?.parentElement?.id,
+                    offsetWidth: targetPage.offsetWidth,
+                    offsetHeight: targetPage.offsetHeight,
+                    isConnected: targetPage.isConnected
+                });
+                // Check if inside main
+                const mainEl = document.querySelector('main');
+                const isInsideMain = mainEl?.contains(targetPage);
+                console.log(`  📍 [navigate] Position check:`, {
+                    mainExists: !!mainEl,
+                    isInsideMain: isInsideMain,
+                    mainChildren: mainEl ? Array.from(mainEl.children).map(c => c.id || c.tagName) : []
                 });
             } else {
                 console.error(`❌ [navigate] Target page not found: page-${p}`);
