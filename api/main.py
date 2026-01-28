@@ -11525,40 +11525,10 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 'action_done': 'تم' if is_ar else 'Done',
             }
             
-            # Generate smart thinking using LLM - understand what user wants and plan
-            thinking_prompt = f"""Based on this user message, generate a SHORT thinking status (max 15 words) that shows:
-1. What you understood from their question
-2. How you'll help them
-
-User message: "{request.message}"
-
-Rules:
-- Respond in {'Arabic' if user_lang == 'ar' else 'English'}
-- Be conversational and friendly, not technical
-- Don't use words like "API", "database", "query", "endpoint"
-- Examples: "Looking for Fady's manager in the employee records..." or "سأبحث عن مدير فادي في سجلات الموظفين..."
-- Just output the thinking text, nothing else"""
-
-            try:
-                thinking_response = await asyncio.to_thread(
-                    call_llm_with_tools,
-                    [{"role": "user", "content": thinking_prompt}],
-                    [],  # no tools
-                    agent.model_id
-                )
-                smart_thinking = thinking_response.get('content', '').strip()
-                if smart_thinking and len(smart_thinking) < 100:
-                    yield f"data: {json.dumps({'type': 'thinking', 'content': smart_thinking})}\n\n"
-                else:
-                    # Fallback
-                    fallback = 'جاري فهم طلبك...' if user_lang == 'ar' else 'Understanding your request...'
-                    yield f"data: {json.dumps({'type': 'thinking', 'content': fallback})}\n\n"
-            except Exception as e:
-                print(f"Smart thinking failed: {e}")
-                fallback = 'جاري فهم طلبك...' if user_lang == 'ar' else 'Understanding your request...'
-                yield f"data: {json.dumps({'type': 'thinking', 'content': fallback})}\n\n"
-            
-            await asyncio.sleep(0.1)  # Small delay for UI update
+            # Show user's question directly as thinking (what they asked)
+            user_msg_display = request.message[:80] + '...' if len(request.message) > 80 else request.message
+            yield f"data: {json.dumps({'type': 'thinking', 'content': user_msg_display})}\n\n"
+            await asyncio.sleep(0.05)  # Small delay for UI update
             
             # ========================================================================
             # ACCESS CONTROL CHECK
