@@ -11525,10 +11525,8 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 'action_done': 'تم' if is_ar else 'Done',
             }
             
-            # Show user's question directly as thinking (what they asked)
-            user_msg_display = request.message[:80] + '...' if len(request.message) > 80 else request.message
-            yield f"data: {json.dumps({'type': 'thinking', 'content': user_msg_display})}\n\n"
-            await asyncio.sleep(0.05)  # Small delay for UI update
+            # Will send thinking after LLM generates it
+            await asyncio.sleep(0.01)
             
             # ========================================================================
             # ACCESS CONTROL CHECK
@@ -11692,10 +11690,50 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             creativity_desc = "(Factual only)" if p.creativity <= 3 else "(Creative)" if p.creativity >= 7 else "(Balanced)"
             length_desc = "(Brief)" if p.length <= 3 else "(Detailed)" if p.length >= 7 else "(Moderate)"
             
+            # Thinking instruction based on language
+            thinking_instruction = """=== RESPONSE FORMAT ===
+Start your response with a thinking section wrapped in <think></think> tags, then provide your answer.
+
+The thinking section should have 2-3 SHORT lines (max 10 words each):
+1. What you understood from the question
+2. How you'll find/provide the answer  
+3. Brief summary of what you found (after you have the answer)
+
+Example format:
+<think>
+User asking about Fady's manager
+Looking in employee records
+Found: Samira Abdullah is the manager
+</think>
+
+[Your actual response here]
+
+IMPORTANT: Keep thinking lines very short and in the same language as the user's question.""" if not is_ar else """=== طريقة الرد ===
+ابدأ ردك بقسم تفكير داخل وسوم <think></think>، ثم قدم إجابتك.
+
+قسم التفكير يحتوي على 2-3 سطور قصيرة (أقصى 10 كلمات لكل سطر):
+1. ما فهمته من السؤال
+2. كيف ستجد/تقدم الإجابة
+3. ملخص قصير لما وجدته
+
+مثال:
+<think>
+المستخدم يسأل عن مدير فادي
+أبحث في سجلات الموظفين
+وجدت: سميرة عبدالله هي المديرة
+</think>
+
+[ردك الفعلي هنا]
+
+مهم: اجعل سطور التفكير قصيرة جداً وبنفس لغة سؤال المستخدم."""
+
             system_prompt = f"""You are {agent.name}.
 {f'The current user is {user_name}.' if user_name else ''}
 
 {date_info}
+
+{thinking_instruction}
+
 === GOAL ===
 {agent.goal}
 
@@ -11878,8 +11916,24 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 final_content = "I apologize, but I couldn't complete the task within the allowed iterations."
             
             # ========================================================================
-            # STREAM RESPONSE CONTENT
+            # EXTRACT AND STREAM THINKING, THEN RESPONSE
             # ========================================================================
+            import re
+            
+            # Extract thinking from <think></think> tags
+            think_match = re.search(r'<think>(.*?)</think>', final_content, re.DOTALL | re.IGNORECASE)
+            
+            if think_match:
+                thinking_text = think_match.group(1).strip()
+                # Remove thinking from final content
+                final_content = re.sub(r'<think>.*?</think>\s*', '', final_content, flags=re.DOTALL | re.IGNORECASE).strip()
+                
+                # Stream each thinking line
+                thinking_lines = [line.strip() for line in thinking_text.split('\n') if line.strip()]
+                for line in thinking_lines:
+                    yield f"data: {json.dumps({'type': 'thinking', 'content': line})}\n\n"
+                    await asyncio.sleep(0.3)  # Delay between thinking steps
+            
             # Stream content in chunks for better UX
             chunk_size = 50
             for i in range(0, len(final_content), chunk_size):
