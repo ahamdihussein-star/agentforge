@@ -7632,7 +7632,13 @@ Option 3"></textarea>
             if(p==='agents')loadAgents();
             if(p==='tools')loadTools();
             // Note: loadChatAgents() is called by openAgent or when user manually navigates
-            if(p==='chat' && !window._skipChatAgentLoad) loadChatAgents();
+            if(p==='chat') {
+                if (!window._skipChatAgentLoad) {
+                    loadChatAgents();
+                }
+                // Always clear the skip flag after checking
+                window._skipChatAgentLoad = false;
+            }
             if(p==='create'){resetWizardNew();step=0;updateStepsNew();}
             if(p==='settings'){
                 loadSettings();
@@ -14731,26 +14737,40 @@ Option 3"></textarea>
         }
 
         async function openAgent(id, status){
-            if(status === 'published'){
-                // Open chat for published agents
-                // Skip auto-load in navigate, we'll load manually
-                window._skipChatAgentLoad = true;
-                navigate('chat', true);
-                window._skipChatAgentLoad = false;
-                
-                // Wait for agents to load before selecting
-                await loadChatAgents();
-                
-                // Set the agent value
-                const agentSelect = document.getElementById('chat-agent');
-                if (agentSelect) {
-                    agentSelect.value = id;
-                    // Trigger change and start chat
-                    await onAgentChange();
+            try {
+                if(status === 'published'){
+                    // Open chat for published agents
+                    // Skip auto-load in navigate, we'll load manually
+                    window._skipChatAgentLoad = true;
+                    navigate('chat', true);
+                    // Flag is cleared by navigate() after checking
+                    
+                    // Wait for agents to load before selecting
+                    await loadChatAgents();
+                    
+                    // Set the agent value
+                    const agentSelect = document.getElementById('chat-agent');
+                    if (agentSelect) {
+                        agentSelect.value = id;
+                        // Verify the value was set
+                        if (agentSelect.value !== id) {
+                            // Agent not in list, might need to reload
+                            console.error('Agent not found in dropdown:', id);
+                            showToast('Agent not found. Please try again.', 'error');
+                            return;
+                        }
+                        // Trigger change and start chat
+                        await onAgentChange();
+                    } else {
+                        console.error('Chat agent select not found');
+                    }
+                } else {
+                    // Open edit for draft agents
+                    editAgent(id);
                 }
-            } else {
-                // Open edit for draft agents
-                editAgent(id);
+            } catch (err) {
+                console.error('openAgent error:', err);
+                showToast('Failed to open agent: ' + err.message, 'error');
             }
         }
         
@@ -20511,19 +20531,32 @@ async function saveToolEdit() {
         }
 
         async function onAgentChange(){
-            const id=document.getElementById('chat-agent').value;
-            if(!id)return;
-            
-            // Load conversations for this agent
-            const r=await fetch(API+'/api/agents/'+id+'/conversations', {
-                headers: getAuthHeaders()
-            });
-            const d=await r.json();
-            document.getElementById('chat-conv').innerHTML='<option value="">New Chat</option>'+d.conversations.map(c=>`<option value="${c.id}">${c.title}</option>`).join('');
-            
-            // Start a new chat session with welcome message
-            conv=null;
-            await startChatWithWelcome(id);
+            try {
+                const id=document.getElementById('chat-agent').value;
+                if(!id) return;
+                
+                // Load conversations for this agent
+                const r=await fetch(API+'/api/agents/'+id+'/conversations', {
+                    headers: getAuthHeaders()
+                });
+                
+                if (!r.ok) {
+                    console.error('Failed to load conversations:', r.status);
+                }
+                
+                const d=await r.json();
+                const convSelect = document.getElementById('chat-conv');
+                if (convSelect) {
+                    convSelect.innerHTML='<option value="">New Chat</option>'+(d.conversations||[]).map(c=>`<option value="${c.id}">${c.title}</option>`).join('');
+                }
+                
+                // Start a new chat session with welcome message
+                conv=null;
+                await startChatWithWelcome(id);
+            } catch (err) {
+                console.error('onAgentChange error:', err);
+                showToast('Failed to load chat: ' + err.message, 'error');
+            }
         }
         
         async function startChatWithWelcome(agentId){
