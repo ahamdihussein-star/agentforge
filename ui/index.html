@@ -19596,7 +19596,8 @@ async function saveToolEdit() {
                 html += '<div class="space-y-4">';
                 
                 chunks.slice(0, 50).forEach((chunk, i) => {
-                    const text = chunk.text || '';
+                    const text = (chunk.text && typeof chunk.text === 'string') ? chunk.text : '';
+                    if (!text) return; // Skip empty chunks
                     html += `
                         <div class="bg-gray-800 rounded-lg p-4">
                             <div class="flex justify-between items-center mb-2">
@@ -19621,9 +19622,9 @@ async function saveToolEdit() {
         }
         
         function highlightSearch(text) {
-            if (!dataSearchQuery) return text;
+            if (!dataSearchQuery || !text) return text || '';
             const regex = new RegExp('(' + dataSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-            return text.replace(regex, '<mark class="bg-yellow-500/30 text-yellow-200 px-0.5 rounded">$1</mark>');
+            return String(text).replace(regex, '<mark class="bg-yellow-500/30 text-yellow-200 px-0.5 rounded">$1</mark>');
         }
         
         async function viewPageData(pageId) {
@@ -19711,7 +19712,8 @@ async function saveToolEdit() {
                 
                 let html = '<div class="space-y-4">';
                 chunks.forEach((chunk, i) => {
-                    const text = typeof chunk === 'string' ? chunk : (chunk.text || chunk.content || JSON.stringify(chunk));
+                    let text = typeof chunk === 'string' ? chunk : (chunk.text || chunk.content || JSON.stringify(chunk));
+                    if (!text || typeof text !== 'string') text = '';
                     html += `
                         <div class="bg-gray-800 rounded-lg p-4">
                             <div class="flex justify-between items-center mb-2">
@@ -20717,7 +20719,8 @@ async function saveToolEdit() {
         function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
         function fmt(t){
             // Clean LaTeX notation for better display
-            let text = t;
+            if (!t || typeof t !== 'string') return '';
+            let text = String(t);
             // Convert LaTeX math symbols to readable format
             text = text.replace(/\\times/g, '×');
             text = text.replace(/\\div/g, '÷');
