@@ -182,10 +182,15 @@
         .chat-content pre{background:var(--bg-secondary);padding:1rem;border-radius:0.5rem;overflow-x:auto;margin:0.5rem 0}
         .chat-content pre code{background:none;padding:0}
         .chat-content blockquote{border-left:3px solid var(--accent-primary);padding-left:1rem;margin:0.5rem 0;color:var(--text-secondary)}
-        .chat-content table{width:100%;border-collapse:collapse;margin:0.5rem 0;font-size:0.875rem}
-        .chat-content th{background:var(--bg-input);padding:0.5rem;text-align:left;border:1px solid var(--border-color)}
-        .chat-content td{padding:0.5rem;border:1px solid var(--border-color)}
-        .chat-content tr:nth-child(even){background:rgba(45,45,61,0.3)}
+        /* Professional table styling */
+        .chat-content .table-container{overflow-x:auto;margin:0.75rem 0;border-radius:0.5rem;border:1px solid var(--border-color)}
+        .chat-content table{width:100%;border-collapse:collapse;font-size:0.8rem;min-width:max-content;background:var(--bg-card)}
+        .chat-content th{background:linear-gradient(135deg,var(--accent-primary),var(--accent-secondary,#6366f1));color:white;padding:0.625rem 0.75rem;text-align:left;font-weight:600;white-space:nowrap;border:none;text-transform:uppercase;font-size:0.7rem;letter-spacing:0.025em}
+        .chat-content td{padding:0.5rem 0.75rem;border-bottom:1px solid var(--border-color);color:var(--text-primary);vertical-align:top;word-break:break-word}
+        .chat-content tr:last-child td{border-bottom:none}
+        .chat-content tbody tr{transition:background 0.15s ease}
+        .chat-content tbody tr:nth-child(even){background:rgba(139,92,246,0.05)}
+        .chat-content tbody tr:hover{background:rgba(139,92,246,0.1)}
         
         /* Ensure white text on dark backgrounds */
         .bg-gray-700, .bg-gray-800, .bg-gray-900,
@@ -333,6 +338,25 @@
         [data-theme="ocean"] .bg-gray-800,
         [data-theme="ocean"] .bg-gray-900 {
             color: var(--text-primary) !important;
+        }
+        
+        /* Light theme table styling */
+        [data-theme="light"] .chat-content table,
+        [data-theme="ocean"] .chat-content table {
+            background: #ffffff !important;
+        }
+        [data-theme="light"] .chat-content td,
+        [data-theme="ocean"] .chat-content td {
+            color: #1f2937 !important;
+            border-color: #e5e7eb !important;
+        }
+        [data-theme="light"] .chat-content tbody tr:nth-child(even),
+        [data-theme="ocean"] .chat-content tbody tr:nth-child(even) {
+            background: rgba(99, 102, 241, 0.05) !important;
+        }
+        [data-theme="light"] .chat-content tbody tr:hover,
+        [data-theme="ocean"] .chat-content tbody tr:hover {
+            background: rgba(99, 102, 241, 0.1) !important;
         }
         
         /* Border colors */
@@ -20805,7 +20829,11 @@ async function saveToolEdit() {
             
             if(typeof marked!=='undefined'){
                 marked.setOptions({breaks:true,gfm:true});
-                return marked.parse(text);
+                let html = marked.parse(text);
+                // Wrap tables in responsive container
+                html = html.replace(/<table>/g, '<div class="table-container"><table>');
+                html = html.replace(/<\/table>/g, '</table></div>');
+                return html;
             }
             return esc(text).replace(/\n/g,'<br>');
         }
