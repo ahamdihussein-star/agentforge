@@ -21162,11 +21162,13 @@ async function saveToolEdit() {
         }
         
         function finishThinkingUI(success) {
+            // Remove thinking message
             const container = document.getElementById('thinking-container');
             if (container) {
-                // Remove thinking message when done
                 container.remove();
             }
+            // Also remove typing indicator if still there
+            rmTyping();
         }
         
         function updateConvDropdown(convId, message) {

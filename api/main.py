@@ -11484,8 +11484,79 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
     async def event_generator():
         """Generate SSE events for streaming response"""
         try:
-            # Send initial thinking event - Business friendly message
-            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Reading your request...'})}\n\n"
+            # Detect user's language from message or agent settings
+            user_lang = 'en'  # default
+            g = agent.guardrails
+            if hasattr(g, 'language'):
+                lang_setting = g.language
+                if lang_setting == 'ar':
+                    user_lang = 'ar'
+                elif lang_setting == 'user':
+                    # Detect from message - simple Arabic detection
+                    if any('\u0600' <= c <= '\u06FF' for c in request.message):
+                        user_lang = 'ar'
+            else:
+                # Auto-detect from message
+                if any('\u0600' <= c <= '\u06FF' for c in request.message):
+                    user_lang = 'ar'
+            
+            # Thinking messages in user's language
+            thinking_msgs = {
+                'en': {
+                    'reading': 'Reading your request...',
+                    'understanding': 'Understanding your question...',
+                    'searching': 'Looking up relevant information...',
+                    'found_sources': 'Found {} helpful resources',
+                    'preparing': 'Preparing your answer...',
+                    'capabilities': 'I can help you {}',
+                    'processing': 'Processing the results...',
+                    'writing': 'Writing your answer...',
+                    'access_denied': 'Sorry, you do not have access to this assistant.',
+                    'sending_email': 'Sending email...',
+                    'connecting': 'Connecting to external service...',
+                    'triggering': 'Triggering automation...',
+                    'slack': 'Sending Slack message...',
+                    'websearch': 'Searching the web...',
+                    'database': 'Looking up data...',
+                    'action': 'Taking action...',
+                    'email_sent': 'Email sent successfully',
+                    'slack_sent': 'Message sent to Slack',
+                    'search_done': 'Found search results',
+                    'data_done': 'Data retrieved',
+                    'service_done': 'Service responded',
+                    'action_done': 'Action completed',
+                    'action_failed': 'Could not complete action',
+                },
+                'ar': {
+                    'reading': 'جاري قراءة طلبك...',
+                    'understanding': 'جاري فهم سؤالك...',
+                    'searching': 'جاري البحث عن المعلومات...',
+                    'found_sources': 'تم العثور على {} مصادر',
+                    'preparing': 'جاري تحضير الإجابة...',
+                    'capabilities': 'يمكنني مساعدتك في {}',
+                    'processing': 'جاري معالجة النتائج...',
+                    'writing': 'جاري كتابة الإجابة...',
+                    'access_denied': 'عذراً، ليس لديك صلاحية للوصول لهذا المساعد.',
+                    'sending_email': 'جاري إرسال البريد...',
+                    'connecting': 'جاري الاتصال بالخدمة...',
+                    'triggering': 'جاري تنفيذ الأتمتة...',
+                    'slack': 'جاري إرسال رسالة Slack...',
+                    'websearch': 'جاري البحث في الويب...',
+                    'database': 'جاري البحث في البيانات...',
+                    'action': 'جاري تنفيذ الإجراء...',
+                    'email_sent': 'تم إرسال البريد بنجاح',
+                    'slack_sent': 'تم إرسال الرسالة',
+                    'search_done': 'تم العثور على النتائج',
+                    'data_done': 'تم استرجاع البيانات',
+                    'service_done': 'تم الاتصال بالخدمة',
+                    'action_done': 'تم تنفيذ الإجراء',
+                    'action_failed': 'تعذر إكمال الإجراء',
+                }
+            }
+            msgs = thinking_msgs.get(user_lang, thinking_msgs['en'])
+            
+            # Send initial thinking event
+            yield f"data: {json.dumps({'type': 'thinking', 'content': msgs['reading']})}\n\n"
             await asyncio.sleep(0.1)  # Small delay for UI update
             
             # ========================================================================
@@ -11528,7 +11599,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                     )
                     
                     if not access_result.has_access:
-                        yield f"data: {json.dumps({'type': 'error', 'content': 'Sorry, you do not have access to this assistant. Please contact your administrator.'})}\n\n"
+                        yield f"data: {json.dumps({'type': 'error', 'content': msgs['access_denied']})}\n\n"
                         yield f"data: {json.dumps({'type': 'done'})}\n\n"
                         return
                 except Exception as e:
@@ -11537,7 +11608,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             # ========================================================================
             # CONVERSATION HANDLING
             # ========================================================================
-            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Understanding your question...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'thinking', 'content': msgs['understanding']})}\n\n"
             
             if request.conversation_id and request.conversation_id in app_state.conversations:
                 conversation = app_state.conversations[request.conversation_id]
@@ -11587,13 +11658,13 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             
             tool_ids = [t.id for t in agent_tools]
             
-            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Looking up relevant information...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'thinking', 'content': msgs['searching']})}\n\n"
             
             search_results = search_documents(request.message, tool_ids, top_k=5)
             context = ""
             sources = []
             if search_results:
-                yield f"data: {json.dumps({'type': 'thinking', 'content': f'Found {len(search_results)} helpful resources'})}\n\n"
+                yield f"data: {json.dumps({'type': 'thinking', 'content': msgs['found_sources'].format(len(search_results))})}\n\n"
                 context = "\n\nRELEVANT INFORMATION FROM KNOWLEDGE BASE:\n"
                 for i, result in enumerate(search_results):
                     context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
@@ -11606,7 +11677,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             # ========================================================================
             # BUILD SYSTEM PROMPT
             # ========================================================================
-            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Preparing your answer...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'thinking', 'content': msgs['preparing']})}\n\n"
             
             # Get denied tasks
             denied_task_names = []
@@ -11638,27 +11709,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             
             tool_definitions = build_tool_definitions(action_tools) if action_tools else []
             
-            # Notify about capabilities - Business friendly
-            if action_tools:
-                # Map tool types to business-friendly descriptions
-                tool_type_names = set()
-                for t in action_tools:
-                    if t.type == 'email':
-                        tool_type_names.add('send emails')
-                    elif t.type == 'api':
-                        tool_type_names.add('connect to external services')
-                    elif t.type == 'webhook':
-                        tool_type_names.add('trigger automations')
-                    elif t.type == 'slack':
-                        tool_type_names.add('send Slack messages')
-                    elif t.type == 'websearch':
-                        tool_type_names.add('search the web')
-                    elif t.type == 'database':
-                        tool_type_names.add('query databases')
-                
-                if tool_type_names:
-                    capabilities = ", ".join(list(tool_type_names)[:3])
-                    yield f"data: {json.dumps({'type': 'thinking', 'content': f'I can help you {capabilities}'})}\n\n"
+            # Notify about capabilities - Business friendly (skip to reduce messages)
             
             # Build accessible tasks
             accessible_tasks = [task for task in agent.tasks if task.name not in denied_task_names]
@@ -11719,7 +11770,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             
             for iteration in range(max_iterations):
                 if iteration > 0:
-                    yield f"data: {json.dumps({'type': 'thinking', 'content': 'Processing the results...'})}\n\n"
+                    yield f"data: {json.dumps({'type': 'thinking', 'content': msgs['processing']})}\n\n"
                 
                 # Call LLM using the existing function (messages, tools, model_id)
                 llm_result = await call_llm_with_tools(
@@ -11752,20 +11803,20 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                                 tool_type = td.get('_tool_type')
                                 break
                         
-                        # Business-friendly action message based on tool type
-                        action_msg = 'Taking action...'
+                        # Business-friendly action message based on tool type (in user's language)
+                        action_msg = msgs['action']
                         if tool_type == 'email':
-                            action_msg = 'Sending email...'
+                            action_msg = msgs['sending_email']
                         elif tool_type == 'api':
-                            action_msg = 'Connecting to external service...'
+                            action_msg = msgs['connecting']
                         elif tool_type == 'webhook':
-                            action_msg = 'Triggering automation...'
+                            action_msg = msgs['triggering']
                         elif tool_type == 'slack':
-                            action_msg = 'Sending Slack message...'
+                            action_msg = msgs['slack']
                         elif tool_type == 'websearch':
-                            action_msg = 'Searching the web...'
+                            action_msg = msgs['websearch']
                         elif tool_type == 'database':
-                            action_msg = 'Looking up data...'
+                            action_msg = msgs['database']
                         
                         yield f"data: {json.dumps({'type': 'tool_call', 'content': action_msg, 'tool': tool_name})}\n\n"
                         
@@ -11786,22 +11837,22 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                                 "success": success
                             })
                             
-                            # Business-friendly result message
+                            # Business-friendly result message (in user's language)
                             if success:
                                 if tool_type == 'email':
-                                    status_msg = 'Email sent successfully'
+                                    status_msg = msgs['email_sent']
                                 elif tool_type == 'slack':
-                                    status_msg = 'Message sent to Slack'
+                                    status_msg = msgs['slack_sent']
                                 elif tool_type == 'websearch':
-                                    status_msg = 'Found search results'
+                                    status_msg = msgs['search_done']
                                 elif tool_type == 'database':
-                                    status_msg = 'Data retrieved'
+                                    status_msg = msgs['data_done']
                                 elif tool_type == 'api':
-                                    status_msg = 'Service responded'
+                                    status_msg = msgs['service_done']
                                 else:
-                                    status_msg = 'Action completed'
+                                    status_msg = msgs['action_done']
                             else:
-                                status_msg = 'Could not complete action'
+                                status_msg = msgs['action_failed']
                             
                             yield f"data: {json.dumps({'type': 'tool_result', 'content': status_msg, 'tool': tool_name, 'success': success})}\n\n"
                             
@@ -11831,7 +11882,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                                 "error": str(e),
                                 "success": False
                             })
-                            yield f"data: {json.dumps({'type': 'tool_result', 'content': 'Could not complete action, trying another approach...', 'tool': tool_name, 'success': False})}\n\n"
+                            yield f"data: {json.dumps({'type': 'tool_result', 'content': msgs['action_failed'], 'tool': tool_name, 'success': False})}\n\n"
                             
                             # Add error to messages with proper format
                             tool_call_formatted = {
@@ -11863,7 +11914,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             # ========================================================================
             # STREAM RESPONSE CONTENT
             # ========================================================================
-            yield f"data: {json.dumps({'type': 'thinking', 'content': 'Writing your answer...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'thinking', 'content': msgs['writing']})}\n\n"
             
             # Stream content in chunks for better UX
             chunk_size = 50
