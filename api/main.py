@@ -11805,15 +11805,23 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                             
                             yield f"data: {json.dumps({'type': 'tool_result', 'content': status_msg, 'tool': tool_name, 'success': success})}\n\n"
                             
-                            # Add to messages for next iteration
+                            # Add to messages for next iteration - ensure proper format
+                            tool_call_formatted = {
+                                "id": tc.get("id", f"call_{tool_name}"),
+                                "type": "function",
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": json.dumps(tool_args) if isinstance(tool_args, dict) else tool_args
+                                }
+                            }
                             messages.append({
                                 "role": "assistant",
                                 "content": content or "",
-                                "tool_calls": [tc]
+                                "tool_calls": [tool_call_formatted]
                             })
                             messages.append({
                                 "role": "tool",
-                                "tool_call_id": tc.get("id", ""),
+                                "tool_call_id": tool_call_formatted["id"],
                                 "content": result_str
                             })
                         except Exception as e:
@@ -11825,9 +11833,23 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                             })
                             yield f"data: {json.dumps({'type': 'tool_result', 'content': 'Could not complete action, trying another approach...', 'tool': tool_name, 'success': False})}\n\n"
                             
+                            # Add error to messages with proper format
+                            tool_call_formatted = {
+                                "id": tc.get("id", f"call_{tool_name}"),
+                                "type": "function",
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": json.dumps(tool_args) if isinstance(tool_args, dict) else tool_args
+                                }
+                            }
+                            messages.append({
+                                "role": "assistant",
+                                "content": content or "",
+                                "tool_calls": [tool_call_formatted]
+                            })
                             messages.append({
                                 "role": "tool",
-                                "tool_call_id": tc.get("id", ""),
+                                "tool_call_id": tool_call_formatted["id"],
                                 "content": f"Error: {str(e)}"
                             })
                 else:
