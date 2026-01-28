@@ -2432,16 +2432,12 @@
         }
 
         async function loadAgents() {
-            console.log('🤖 Loading agents...');
-            console.log('🔑 Token:', getToken() ? 'Present' : 'MISSING!');
             
             try {
                 // Use the accessible agents endpoint - returns only agents the user has access to
                 const response = await fetch(`${API}/api/agents/accessible`, {
                     headers: { 'Authorization': `Bearer ${getToken()}` }
                 });
-                
-                console.log('📥 Agents API response status:', response.status);
                 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -2454,13 +2450,9 @@
                 
                 // Handle both array response and object with agents key
                 agents = Array.isArray(data) ? data : (data.agents || data.items || []);
-                
-                console.log('✅ Parsed agents:', agents.length, 'agents found');
-                agents.forEach(a => console.log('   Agent:', a.id, a.name));
-                
                 renderAgents();
             } catch (e) {
-                console.error('❌ Failed to load agents:', e);
+                console.error('Failed to load agents:', e);
                 agents = [];
                 renderAgents();
             }
@@ -2560,8 +2552,6 @@
             `;
             
             // Call start-chat to get personalized session
-            console.log('🚀 Calling start-chat for agent:', currentAgent.id);
-            console.log('🔑 Auth headers:', getAuthHeaders());
             
             try {
                 const response = await fetch(`/api/agents/${currentAgent.id}/start-chat`, {
@@ -2569,14 +2559,8 @@
                     headers: getAuthHeaders()
                 });
                 
-                console.log('📥 start-chat response status:', response.status);
-                
                 if (response.ok) {
                     const session = await response.json();
-                    console.log('📦 Chat session loaded:', session);
-                    console.log('👤 User name from session:', session.user_name);
-                    console.log('🔐 Denied tasks:', session.denied_tasks);
-                    console.log('✅ Accessible tasks:', session.accessible_tasks);
                     
                     // Store conversation ID for later use
                     currentConversation = { id: session.conversation_id, messages: [] };
@@ -2585,7 +2569,6 @@
                     const userName = session.user_name || 'there';
                     const hasRestrictions = session.denied_tasks && session.denied_tasks.length > 0;
                     
-                    console.log('👋 Welcome message will say: Hi', userName);
                     
                     let welcomeTitle = `Hi ${userName}! 👋`;
                     let welcomeSubtitle = session.message || `I'm ${currentAgent.name}. How can I help you today?`;
@@ -2618,7 +2601,6 @@
                 } else {
                     // Fallback to generic welcome
                     const errorText = await response.text();
-                    console.error('⚠️ start-chat failed with status:', response.status, errorText);
                     container.innerHTML = `
                         <div class="welcome-screen" id="welcome-screen">
                             <div class="welcome-icon">${currentAgent?.icon || '👋'}</div>
@@ -2632,8 +2614,6 @@
                     `;
                 }
             } catch (e) {
-                console.error('❌ Failed to start chat session:', e);
-                console.error('Error details:', e.message, e.stack);
                 // Fallback to generic welcome
                 container.innerHTML = `
                     <div class="welcome-screen" id="welcome-screen">
@@ -2920,7 +2900,6 @@
         }
         
         async function sendMessageStreaming(message) {
-            console.log('🚀 Starting streaming chat...');
             const container = document.getElementById('messages-container');
             
             // Add thinking container
@@ -2941,7 +2920,6 @@
             let sources = [];
             
             try {
-                console.log('📡 Calling streaming endpoint:', `${API}/api/agents/${currentAgent.id}/chat/stream`);
                 const response = await fetch(`${API}/api/agents/${currentAgent.id}/chat/stream`, {
                     method: 'POST',
                     headers: {
@@ -2954,10 +2932,7 @@
                     })
                 });
                 
-                console.log('📥 Response status:', response.status);
-                
                 if (!response.ok) {
-                    console.error('❌ Response not OK:', response.status);
                     if (response.status === 403) {
                         const data = await response.json();
                         const errorMessage = data.detail?.message || 'Access denied';
@@ -2982,7 +2957,6 @@
                         if (line.startsWith('data: ')) {
                             try {
                                 const data = JSON.parse(line.slice(6));
-                                console.log('📨 SSE Event:', data.type, data.content?.substring(0, 50));
                                 
                                 switch (data.type) {
                                     case 'thinking':
@@ -3060,12 +3034,10 @@
                 }
                 
             } catch (e) {
-                console.error('❌ Streaming error:', e);
+                console.error('Streaming error:', e);
                 addThinkingStep('error', 'Connection error. Please try again.');
                 finishThinking(false);
             }
-            
-            console.log('✅ Streaming completed');
         }
         
         async function sendMessageWithFiles() {
