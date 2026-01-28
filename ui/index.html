@@ -20527,13 +20527,33 @@ async function saveToolEdit() {
         }
 
         async function loadChatAgents(){
-            // Use /api/agents/accessible for chat - shows agents user can CHAT with
-            // (different from /api/agents which shows agents user can MANAGE)
-            const r=await fetch(API+'/api/agents/accessible', {
-                headers: getAuthHeaders()
-            });
-            const d=await r.json();
-            document.getElementById('chat-agent').innerHTML='<option value="">Select Agent...</option>'+d.agents.map(a=>`<option value="${a.id}">${a.icon} ${a.name}</option>`).join('');
+            try {
+                // Use /api/agents/accessible for chat - shows agents user can CHAT with
+                // (different from /api/agents which shows agents user can MANAGE)
+                const r=await fetch(API+'/api/agents/accessible', {
+                    headers: getAuthHeaders()
+                });
+                
+                if (!r.ok) {
+                    console.error('loadChatAgents failed:', r.status);
+                    // If unauthorized, the user might not be logged in
+                    if (r.status === 401) {
+                        showToast('Please login to access agents', 'error');
+                        navigate('dashboard');
+                        return;
+                    }
+                    return;
+                }
+                
+                const d=await r.json();
+                const agents = d.agents || d || [];
+                const agentSelect = document.getElementById('chat-agent');
+                if (agentSelect) {
+                    agentSelect.innerHTML='<option value="">Select Agent...</option>'+agents.map(a=>`<option value="${a.id}">${a.icon || '🤖'} ${a.name}</option>`).join('');
+                }
+            } catch (err) {
+                console.error('loadChatAgents error:', err);
+            }
         }
 
         async function onAgentChange(){

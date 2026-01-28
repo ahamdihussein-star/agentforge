@@ -40,7 +40,7 @@ venv/
 *.log
 
 # === Broken folders ===
-{core/
+core_backup/
 
 # === ChromaDB ===
 chroma_data/
