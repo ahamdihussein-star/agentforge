@@ -4309,6 +4309,14 @@ try:
 except ImportError as e:
     print(f"⚠️ Lab module not available: {e}")
 
+# Conversation Management Module
+try:
+    from api.modules.conversations import conversations_router
+    app.include_router(conversations_router)
+    print("✅ Conversation Management module registered")
+except ImportError as e:
+    print(f"⚠️ Conversation Management module not available: {e}")
+
 
 @app.get("/")
 async def root():

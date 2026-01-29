@@ -200,6 +200,88 @@
         .history-item.active {
             background: var(--bg-hover);
         }
+        
+        .history-item.selected {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .history-checkbox {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 2px solid var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        
+        .history-checkbox:hover {
+            border-color: var(--primary);
+        }
+        
+        .history-checkbox.checked {
+            background: var(--error);
+            border-color: var(--error);
+        }
+        
+        .history-checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .history-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .history-actions.hidden {
+            display: none;
+        }
+        
+        .select-all-btn {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+        
+        .select-all-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .delete-selected-btn {
+            font-size: 0.8rem;
+            color: var(--error);
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            transition: all 0.15s;
+        }
+        
+        .delete-selected-btn:hover {
+            background: var(--error);
+            color: white;
+        }
+        
+        .delete-selected-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         .history-icon {
             color: var(--text-muted);
@@ -1855,7 +1937,18 @@
 
             <!-- Conversation History -->
             <div class="history-section">
-                <div class="section-label">Recent Chats</div>
+                <div class="section-label" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Recent Chats</span>
+                    <span id="edit-chats-btn" onclick="toggleSelectionMode()" style="font-size: 0.75rem; color: var(--primary); cursor: pointer;">Edit</span>
+                </div>
+                <div id="history-actions" class="history-actions hidden">
+                    <span class="select-all-btn" onclick="toggleSelectAll()">
+                        <span id="select-all-text">Select All</span>
+                    </span>
+                    <button id="delete-selected-btn" class="delete-selected-btn" onclick="deleteSelectedChats()" disabled>
+                        Delete (0)
+                    </button>
+                </div>
                 <div id="history-list">
                     <!-- History loaded dynamically -->
                 </div>
@@ -2570,19 +2663,140 @@
             }
         }
 
+        let selectionMode = false;
+        let selectedChats = new Set();
+        
         function renderHistory() {
             const container = document.getElementById('history-list');
             if (conversations.length === 0) {
                 container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No recent chats</p>';
+                document.getElementById('history-actions').classList.add('hidden');
+                document.getElementById('edit-chats-btn').style.display = 'none';
                 return;
             }
             
-            container.innerHTML = conversations.slice(0, 10).map(conv => `
-                <div class="history-item ${currentConversation?.id === conv.id ? 'active' : ''}" onclick="loadConversation('${conv.id}')">
+            document.getElementById('edit-chats-btn').style.display = 'inline';
+            
+            container.innerHTML = conversations.slice(0, 20).map(conv => `
+                <div class="history-item ${currentConversation?.id === conv.id ? 'active' : ''} ${selectedChats.has(conv.id) ? 'selected' : ''}" 
+                     onclick="${selectionMode ? `toggleChatSelection('${conv.id}')` : `loadConversation('${conv.id}')`}">
+                    ${selectionMode ? `<div class="history-checkbox ${selectedChats.has(conv.id) ? 'checked' : ''}" onclick="event.stopPropagation(); toggleChatSelection('${conv.id}')"></div>` : ''}
                     <span class="history-icon">💬</span>
                     <span class="history-title">${conv.title || 'Untitled'}</span>
                 </div>
             `).join('');
+            
+            updateDeleteButton();
+        }
+        
+        function toggleSelectionMode() {
+            selectionMode = !selectionMode;
+            selectedChats.clear();
+            
+            const editBtn = document.getElementById('edit-chats-btn');
+            const actionsBar = document.getElementById('history-actions');
+            
+            if (selectionMode) {
+                editBtn.textContent = 'Done';
+                editBtn.style.color = 'var(--success)';
+                actionsBar.classList.remove('hidden');
+            } else {
+                editBtn.textContent = 'Edit';
+                editBtn.style.color = 'var(--primary)';
+                actionsBar.classList.add('hidden');
+            }
+            
+            renderHistory();
+        }
+        
+        function toggleChatSelection(convId) {
+            if (selectedChats.has(convId)) {
+                selectedChats.delete(convId);
+            } else {
+                selectedChats.add(convId);
+            }
+            renderHistory();
+        }
+        
+        function toggleSelectAll() {
+            const allIds = conversations.slice(0, 20).map(c => c.id);
+            
+            if (selectedChats.size === allIds.length) {
+                // Deselect all
+                selectedChats.clear();
+                document.getElementById('select-all-text').textContent = 'Select All';
+            } else {
+                // Select all
+                allIds.forEach(id => selectedChats.add(id));
+                document.getElementById('select-all-text').textContent = 'Deselect All';
+            }
+            
+            renderHistory();
+        }
+        
+        function updateDeleteButton() {
+            const btn = document.getElementById('delete-selected-btn');
+            const count = selectedChats.size;
+            btn.textContent = `Delete (${count})`;
+            btn.disabled = count === 0;
+        }
+        
+        async function deleteSelectedChats() {
+            if (selectedChats.size === 0) return;
+            
+            const count = selectedChats.size;
+            if (!confirm(`Are you sure you want to delete ${count} conversation${count > 1 ? 's' : ''}? This cannot be undone.`)) {
+                return;
+            }
+            
+            const btn = document.getElementById('delete-selected-btn');
+            btn.textContent = 'Deleting...';
+            btn.disabled = true;
+            
+            try {
+                // Use bulk delete API
+                const response = await fetch(`${API}/api/conversations/bulk`, {
+                    method: 'DELETE',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}` 
+                    },
+                    body: JSON.stringify({
+                        conversation_ids: Array.from(selectedChats)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Check if current conversation was deleted
+                if (currentConversation && selectedChats.has(currentConversation.id)) {
+                    currentConversation = null;
+                    document.getElementById('messages-container').innerHTML = '';
+                    document.getElementById('welcome-screen').style.display = 'flex';
+                }
+                
+                // Clear selection
+                selectedChats.clear();
+                
+                // Reload conversations
+                await loadConversations();
+                
+                // Exit selection mode
+                toggleSelectionMode();
+                
+                // Show result
+                if (result.deleted > 0) {
+                    console.log(`✅ Deleted ${result.deleted} conversation(s)`);
+                }
+                if (result.failed > 0) {
+                    alert(`Failed to delete ${result.failed} conversation(s)`);
+                }
+                
+            } catch (e) {
+                console.error('Failed to delete conversations:', e);
+                alert('Failed to delete conversations. Please try again.');
+                updateDeleteButton();
+            }
         }
 
         async function loadConversation(convId) {

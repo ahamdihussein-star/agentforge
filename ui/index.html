@@ -185,6 +185,17 @@
         /* Professional table styling */
         .chat-content .table-container{overflow-x:auto;margin:0.75rem 0;border-radius:0.5rem;border:1px solid var(--border-color)}
         .chat-content table{width:100%;border-collapse:collapse;font-size:0.8rem;min-width:max-content;background:var(--bg-card)}
+        
+        /* Chat Conversation List */
+        .conv-item{padding:10px 12px;border-radius:8px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:10px;color:var(--text-secondary)}
+        .conv-item:hover{background:var(--bg-tertiary)}
+        .conv-item.active{background:var(--accent-primary);color:white}
+        .conv-item.selected{background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3)}
+        .conv-checkbox{width:18px;height:18px;border-radius:4px;border:2px solid var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s}
+        .conv-checkbox:hover{border-color:var(--accent-primary)}
+        .conv-checkbox.checked{background:var(--error-color,#ef4444);border-color:var(--error-color,#ef4444)}
+        .conv-checkbox.checked::after{content:'✓';color:white;font-size:12px;font-weight:bold}
+        .conv-title{flex:1;font-size:0.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .chat-content th{background:linear-gradient(135deg,var(--accent-primary),var(--accent-secondary,#6366f1));color:white;padding:0.625rem 0.75rem;text-align:left;font-weight:600;white-space:nowrap;border:none;text-transform:uppercase;font-size:0.7rem;letter-spacing:0.025em}
         .chat-content td{padding:0.5rem 0.75rem;border-bottom:1px solid var(--border-color);color:var(--text-primary);vertical-align:top;word-break:break-word}
         .chat-content tr:last-child td{border-bottom:none}
@@ -4497,36 +4508,67 @@ Example: I need an HR agent that can:
             </section>
 
             <!-- Chat Page -->
-            <section id="page-chat" class="hidden flex flex-col" style="height:100%;max-height:100%;min-height:0;overflow:hidden;">
-                <div class="p-3 md:p-4 border-b border-gray-800 flex flex-col sm:flex-row gap-3" style="flex-shrink:0;">
-                    <select id="chat-agent" onchange="onAgentChange()" class="input-field rounded-lg px-3 py-2 flex-1 sm:flex-none sm:min-w-[200px]">
-                        <option value="">Select Agent...</option>
-                    </select>
-                            
-                    <div class="flex gap-2 flex-1">
-                        <select id="chat-conv" onchange="onConvChange()" class="input-field rounded-lg px-3 py-2 flex-1">
-                            <option value="">New Chat</option>
+            <section id="page-chat" class="hidden flex" style="height:100%;max-height:100%;min-height:0;overflow:hidden;">
+                <!-- Conversation Sidebar -->
+                <div id="chat-sidebar" class="hidden md:flex flex-col bg-gray-900 border-r border-gray-800" style="width: 280px; flex-shrink: 0;">
+                    <!-- Agent Selector -->
+                    <div class="p-3 border-b border-gray-800">
+                        <select id="chat-agent" onchange="onAgentChange()" class="input-field rounded-lg px-3 py-2 w-full text-sm">
+                            <option value="">Select Agent...</option>
                         </select>
-                            
-                        <button onclick="clearChat()" class="text-gray-400 hover:text-white px-3">🗑️</button>
                     </div>
-                </div>
-                <div id="chat-messages" class="p-3 md:p-4 space-y-4" style="flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;">
-                    <div class="text-center text-gray-500 py-10 md:py-20">
-                        <span class="text-4xl md:text-6xl mb-4 block">💬</span>
-                        <p>Select an agent to start</p>
+                    
+                    <!-- Conversations Header -->
+                    <div class="p-3 border-b border-gray-800 flex justify-between items-center">
+                        <span class="text-sm font-medium text-gray-400">Conversations</span>
+                        <div class="flex gap-2">
+                            <button onclick="startNewChatConversation()" class="text-xs px-2 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white">+ New</button>
+                            <button id="chat-edit-btn" onclick="toggleChatSelectionMode()" class="text-xs px-2 py-1 rounded text-purple-400 hover:bg-gray-800">Edit</button>
+                        </div>
                     </div>
-                </div>
-                <div class="p-3 md:p-4 border-t border-gray-800" style="flex-shrink:0;">
-                    <!-- Attached files preview -->
-                    <div id="chat-attachments" class="hidden flex flex-wrap gap-2 mb-2"></div>
-                    <div class="flex gap-2 md:gap-3 items-end">
-                        <button onclick="document.getElementById('chat-file-input').click()" class="btn-secondary p-2 md:p-3 rounded-lg flex-shrink-0" title="Attach file">
-                            📎
+                    
+                    <!-- Selection Actions Bar -->
+                    <div id="chat-selection-bar" class="hidden p-2 border-b border-gray-800 bg-gray-850 flex justify-between items-center">
+                        <button onclick="toggleChatSelectAll()" class="text-xs text-gray-400 hover:text-white">
+                            <span id="chat-select-all-text">Select All</span>
                         </button>
-                        <input type="file" id="chat-file-input" class="hidden" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.pptx,.ppt,.md,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg" onchange="handleChatFile(event)" multiple>
-                        <input type="text" id="chat-input" class="input-field flex-1 rounded-lg px-3 md:px-4 py-2 md:py-3" placeholder="Message..." onkeypress="if(event.key==='Enter')sendMsg()">
-                        <button onclick="sendMsg()" class="btn-primary px-4 md:px-6 py-2 md:py-3 rounded-lg">Send</button>
+                        <button id="chat-delete-selected-btn" onclick="deleteChatSelectedConvs()" disabled class="text-xs px-3 py-1 rounded bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                            Delete (0)
+                        </button>
+                    </div>
+                    
+                    <!-- Conversations List -->
+                    <div id="chat-conv-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+                        <p class="text-gray-500 text-sm text-center py-4">Select an agent</p>
+                    </div>
+                </div>
+                
+                <!-- Main Chat Area -->
+                <div class="flex flex-col flex-1" style="min-width: 0;">
+                    <!-- Mobile Header -->
+                    <div class="p-3 md:hidden border-b border-gray-800 flex gap-2" style="flex-shrink:0;">
+                        <select id="chat-agent-mobile" onchange="document.getElementById('chat-agent').value=this.value;onAgentChange()" class="input-field rounded-lg px-3 py-2 flex-1">
+                            <option value="">Select Agent...</option>
+                        </select>
+                        <button onclick="toggleChatSidebar()" class="px-3 py-2 rounded-lg bg-gray-800 text-gray-400">☰</button>
+                    </div>
+                    <div id="chat-messages" class="p-3 md:p-4 space-y-4" style="flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;">
+                        <div class="text-center text-gray-500 py-10 md:py-20">
+                            <span class="text-4xl md:text-6xl mb-4 block">💬</span>
+                            <p>Select an agent to start</p>
+                        </div>
+                    </div>
+                    <div class="p-3 md:p-4 border-t border-gray-800" style="flex-shrink:0;">
+                        <!-- Attached files preview -->
+                        <div id="chat-attachments" class="hidden flex flex-wrap gap-2 mb-2"></div>
+                        <div class="flex gap-2 md:gap-3 items-end">
+                            <button onclick="document.getElementById('chat-file-input').click()" class="btn-secondary p-2 md:p-3 rounded-lg flex-shrink-0" title="Attach file">
+                                📎
+                            </button>
+                            <input type="file" id="chat-file-input" class="hidden" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.pptx,.ppt,.md,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg" onchange="handleChatFile(event)" multiple>
+                            <input type="text" id="chat-input" class="input-field flex-1 rounded-lg px-3 md:px-4 py-2 md:py-3" placeholder="Message..." onkeypress="if(event.key==='Enter')sendMsg()">
+                            <button onclick="sendMsg()" class="btn-primary px-4 md:px-6 py-2 md:py-3 rounded-lg">Send</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -20868,10 +20910,14 @@ async function saveToolEdit() {
                 }
                 
                 const d=await r.json();
-                const convSelect = document.getElementById('chat-conv');
-                if (convSelect) {
-                    convSelect.innerHTML='<option value="">New Chat</option>'+(d.conversations||[]).map(c=>`<option value="${c.id}">${c.title}</option>`).join('');
-                }
+                
+                // Update conversation list sidebar
+                chatConversations = d.conversations || [];
+                renderChatConvList();
+                
+                // Sync mobile selector
+                const mobileAgent = document.getElementById('chat-agent-mobile');
+                if (mobileAgent) mobileAgent.value = id;
                 
                 // Start a new chat session with welcome message
                 conv=null;
@@ -21275,14 +21321,15 @@ async function saveToolEdit() {
         }
         
         function updateConvDropdown(convId, message) {
-            const sel = document.getElementById('chat-conv');
-            if (!sel.querySelector('option[value="' + convId + '"]')) {
-                const o = document.createElement('option');
-                o.value = convId;
-                o.textContent = message.substring(0, 30) + '...';
-                sel.insertBefore(o, sel.firstChild.nextSibling);
-                sel.value = convId;
+            // Update sidebar list
+            if (!chatConversations.find(c => c.id === convId)) {
+                chatConversations.unshift({
+                    id: convId,
+                    title: message.substring(0, 30) + '...'
+                });
+                renderChatConvList();
             }
+            conv = convId;
         }
 
         function addMsg(role,content,sources=[]){
@@ -21309,17 +21356,212 @@ async function saveToolEdit() {
         }
 
         function rmTyping(){document.getElementById('typing')?.remove();}
+        
+        // ============================================================================
+        // CHAT CONVERSATION MANAGEMENT (with selection/bulk delete)
+        // ============================================================================
+        let chatConversations = [];
+        let chatSelectionMode = false;
+        let chatSelectedConvs = new Set();
+        
+        function renderChatConvList() {
+            const container = document.getElementById('chat-conv-list');
+            const agentId = document.getElementById('chat-agent').value;
+            
+            if (!agentId) {
+                container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">Select an agent</p>';
+                return;
+            }
+            
+            if (chatConversations.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No conversations yet</p>';
+                return;
+            }
+            
+            container.innerHTML = chatConversations.map(c => `
+                <div class="conv-item ${conv === c.id ? 'active' : ''} ${chatSelectedConvs.has(c.id) ? 'selected' : ''}"
+                     onclick="${chatSelectionMode ? `toggleChatConvSelection('${c.id}')` : `loadChatConversation('${c.id}')`}">
+                    ${chatSelectionMode ? `<div class="conv-checkbox ${chatSelectedConvs.has(c.id) ? 'checked' : ''}" onclick="event.stopPropagation(); toggleChatConvSelection('${c.id}')"></div>` : ''}
+                    <span class="text-lg">💬</span>
+                    <span class="conv-title">${c.title || 'Untitled'}</span>
+                </div>
+            `).join('');
+            
+            updateChatDeleteButton();
+        }
+        
+        async function loadChatConversations(agentId) {
+            try {
+                const r = await fetch(API+'/api/agents/'+agentId+'/conversations', {
+                    headers: getAuthHeaders()
+                });
+                const d = await r.json();
+                chatConversations = d.conversations || [];
+                renderChatConvList();
+            } catch(e) {
+                console.error('Failed to load conversations:', e);
+                chatConversations = [];
+                renderChatConvList();
+            }
+        }
+        
+        async function loadChatConversation(convId) {
+            conv = convId;
+            try {
+                const r = await fetch(API+'/api/conversations/'+convId, {
+                    headers: getAuthHeaders()
+                });
+                const c = await r.json();
+                
+                // Render messages
+                const container = document.getElementById('chat-messages');
+                container.innerHTML = (c.messages || []).map(m => {
+                    if (m.role === 'user') {
+                        return `<div class="flex justify-end animate-fade-in"><div class="bg-purple-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] md:max-w-[70%] text-sm shadow-md">${esc(m.content)}</div></div>`;
+                    } else {
+                        return `<div class="flex animate-fade-in"><div class="bg-gray-700 text-white rounded-2xl rounded-tl-sm px-3 py-2 max-w-[85%] md:max-w-[70%] chat-content text-sm">${fmt(m.content)}</div></div>`;
+                    }
+                }).join('');
+                container.scrollTop = container.scrollHeight;
+                
+                renderChatConvList();
+            } catch(e) {
+                console.error('Failed to load conversation:', e);
+            }
+        }
+        
+        function startNewChatConversation() {
+            conv = null;
+            chatSelectedConvs.clear();
+            if (chatSelectionMode) toggleChatSelectionMode();
+            
+            const agentId = document.getElementById('chat-agent').value;
+            if (agentId) {
+                startChatWithWelcome(agentId);
+            } else {
+                clearMsgs();
+            }
+            renderChatConvList();
+        }
+        
+        function toggleChatSelectionMode() {
+            chatSelectionMode = !chatSelectionMode;
+            chatSelectedConvs.clear();
+            
+            const editBtn = document.getElementById('chat-edit-btn');
+            const selectionBar = document.getElementById('chat-selection-bar');
+            
+            if (chatSelectionMode) {
+                editBtn.textContent = 'Done';
+                editBtn.classList.add('text-green-400');
+                editBtn.classList.remove('text-purple-400');
+                selectionBar.classList.remove('hidden');
+            } else {
+                editBtn.textContent = 'Edit';
+                editBtn.classList.remove('text-green-400');
+                editBtn.classList.add('text-purple-400');
+                selectionBar.classList.add('hidden');
+            }
+            
+            renderChatConvList();
+        }
+        
+        function toggleChatConvSelection(convId) {
+            if (chatSelectedConvs.has(convId)) {
+                chatSelectedConvs.delete(convId);
+            } else {
+                chatSelectedConvs.add(convId);
+            }
+            renderChatConvList();
+        }
+        
+        function toggleChatSelectAll() {
+            const allIds = chatConversations.map(c => c.id);
+            const allSelected = allIds.every(id => chatSelectedConvs.has(id));
+            
+            if (allSelected) {
+                chatSelectedConvs.clear();
+                document.getElementById('chat-select-all-text').textContent = 'Select All';
+            } else {
+                allIds.forEach(id => chatSelectedConvs.add(id));
+                document.getElementById('chat-select-all-text').textContent = 'Deselect All';
+            }
+            
+            renderChatConvList();
+        }
+        
+        function updateChatDeleteButton() {
+            const btn = document.getElementById('chat-delete-selected-btn');
+            const count = chatSelectedConvs.size;
+            btn.textContent = `Delete (${count})`;
+            btn.disabled = count === 0;
+        }
+        
+        async function deleteChatSelectedConvs() {
+            if (chatSelectedConvs.size === 0) return;
+            
+            const count = chatSelectedConvs.size;
+            if (!confirm(`Delete ${count} conversation${count > 1 ? 's' : ''}? This cannot be undone.`)) {
+                return;
+            }
+            
+            const btn = document.getElementById('chat-delete-selected-btn');
+            btn.textContent = 'Deleting...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(API+'/api/conversations/bulk', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        conversation_ids: Array.from(chatSelectedConvs)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Clear current if deleted
+                if (conv && chatSelectedConvs.has(conv)) {
+                    conv = null;
+                    clearMsgs();
+                }
+                
+                // Reload
+                chatSelectedConvs.clear();
+                const agentId = document.getElementById('chat-agent').value;
+                if (agentId) await loadChatConversations(agentId);
+                
+                toggleChatSelectionMode();
+                
+                if (result.failed > 0) {
+                    alert(`Failed to delete ${result.failed} conversation(s)`);
+                }
+                
+            } catch(e) {
+                console.error('Delete error:', e);
+                alert('Failed to delete: ' + e.message);
+                updateChatDeleteButton();
+            }
+        }
+        
+        function toggleChatSidebar() {
+            const sidebar = document.getElementById('chat-sidebar');
+            sidebar.classList.toggle('hidden');
+        }
+        
         async function clearChat(){
             if(conv){
                 try{
-                    await fetch(`/api/conversations/${conv}`,{method:'DELETE',headers:{'Authorization':'Bearer '+localStorage.getItem('token')}});
-                    // Remove from dropdown
-                    const sel=document.getElementById('chat-conv');
-                    const opt=sel.querySelector(`option[value="${conv}"]`);
-                    if(opt)opt.remove();
+                    await fetch(API+'/api/conversations/'+conv,{method:'DELETE',headers:getAuthHeaders()});
+                    // Remove from list
+                    chatConversations = chatConversations.filter(c => c.id !== conv);
+                    renderChatConvList();
                 }catch(e){console.error('Delete conversation error:',e);}
             }
-            conv=null;document.getElementById('chat-conv').value='';clearMsgs();
+            conv=null;clearMsgs();
         }
         function clearMsgs(){document.getElementById('chat-messages').innerHTML=`<div class="text-center text-gray-500 py-10 md:py-20"><span class="text-4xl md:text-6xl mb-4 block">💬</span><p>Start a conversation!</p></div>`;}
         
