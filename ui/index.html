@@ -21591,6 +21591,7 @@ async function saveToolEdit() {
         }
         
         async function loadChatConversation(convId) {
+            console.log('📥 [loadChatConversation] Loading conversation:', convId);
             conv = convId;
             try {
                 const r = await fetch(API+'/api/conversations/'+convId, {
@@ -21598,23 +21599,39 @@ async function saveToolEdit() {
                 });
                 const c = await r.json();
                 
+                console.log('📥 [loadChatConversation] Loaded conversation:', {
+                    id: c.id,
+                    title: c.title,
+                    messageCount: (c.messages || []).length,
+                    messages: (c.messages || []).map(m => ({role: m.role, contentPreview: m.content?.substring(0, 50)}))
+                });
+                
                 // Render messages - Modern UI
                 const container = document.getElementById('chat-messages');
-                container.innerHTML = (c.messages || []).map(m => {
+                if (!container) {
+                    console.error('❌ [loadChatConversation] chat-messages container not found!');
+                    return;
+                }
+                
+                const messagesHtml = (c.messages || []).map(m => {
                     if (m.role === 'user') {
                         return `<div class="msg-row user"><div class="msg-bubble user">${esc(m.content)}</div></div>`;
                     } else {
                         return `<div class="msg-row assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble assistant chat-content">${fmt(m.content)}</div></div>`;
                     }
                 }).join('');
+                
+                console.log('📥 [loadChatConversation] Rendering', (c.messages || []).length, 'messages to container');
+                container.innerHTML = messagesHtml;
                 container.scrollTop = container.scrollHeight;
                 
                 // Highlight code blocks
                 container.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));
                 
                 renderChatConvList();
+                console.log('✅ [loadChatConversation] Done! Messages displayed.');
             } catch(e) {
-                console.error('Failed to load conversation:', e);
+                console.error('❌ [loadChatConversation] Failed to load conversation:', e);
             }
         }
         
