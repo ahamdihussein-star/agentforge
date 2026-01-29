@@ -4330,12 +4330,30 @@ except ImportError as e:
     print(f"⚠️ Conversation Management module not available: {e}")
 
 # Process Execution Module (Workflow/Integration Agents)
+PROCESS_MODULE_AVAILABLE = False
 try:
     from api.modules.process import router as process_router
     app.include_router(process_router)
+    PROCESS_MODULE_AVAILABLE = True
     print("✅ Process Execution module registered")
 except ImportError as e:
     print(f"⚠️ Process Execution module not available: {e}")
+    import traceback
+    traceback.print_exc()
+
+# Fallback endpoints if process module not available
+if not PROCESS_MODULE_AVAILABLE:
+    @app.post("/process/execute")
+    async def process_execute_fallback():
+        raise HTTPException(503, "Process execution module is not available. Please check server logs.")
+    
+    @app.get("/process/executions")
+    async def process_executions_fallback():
+        return {"executions": [], "total": 0}
+    
+    @app.get("/process/approvals")
+    async def process_approvals_fallback():
+        return {"approvals": [], "total": 0}
 
 
 @app.get("/")

@@ -9679,7 +9679,14 @@ Option 3"></textarea>
                 
             } catch(e) {
                 console.error('Execution error:', e);
-                updateExecutionStatus('failed', 'Execution Failed', e.message);
+                // Show more helpful error message
+                let errorMsg = e.message || 'Something went wrong';
+                if (errorMsg.includes('not found') || errorMsg.includes('404')) {
+                    errorMsg = 'Workflow execution service is starting up. Please try again in a moment.';
+                } else if (errorMsg.includes('Failed to fetch')) {
+                    errorMsg = 'Could not connect to server. Please check your connection.';
+                }
+                updateExecutionStatus('failed', 'Execution Failed', errorMsg);
             }
         }
         
