@@ -1238,12 +1238,17 @@ class ChatResponse(BaseModel):
 class CreateAgentRequest(BaseModel):
     name: str
     goal: str
+    agent_type: str = "conversational"  # "conversational" or "process"
     personality: Optional[Dict[str, Any]] = None
     guardrails: Optional[Dict[str, Any]] = None
     tasks: List[Dict[str, Any]] = []
     tool_ids: List[str] = []
     model_id: str = "gpt-4o"
     status: str = "draft"
+    # Process/Workflow specific fields
+    process_definition: Optional[Dict[str, Any]] = None
+    process_settings: Optional[Dict[str, Any]] = None
+    is_published: Optional[bool] = None  # Quick publish flag
 
     class Config:
         protected_namespaces = ()
@@ -1261,6 +1266,9 @@ class UpdateAgentRequest(BaseModel):
     status: Optional[str] = None
     is_active: Optional[bool] = None  # For publishing/unpublishing agents
     is_published: Optional[bool] = None  # Alternative field for publishing
+    # Process/Workflow specific fields
+    process_definition: Optional[Dict[str, Any]] = None
+    process_settings: Optional[Dict[str, Any]] = None
 
     class Config:
         protected_namespaces = ()
@@ -5276,16 +5284,26 @@ async def create_agent(request: CreateAgentRequest, current_user: User = Depends
             no_store_pii=g.get('noStorePii', True)
         )
     
+    # Determine status - allow is_published to override
+    status = request.status
+    if request.is_published:
+        status = "published"
+    
     agent = AgentData(
         name=request.name, 
-        goal=request.goal, 
+        goal=request.goal,
+        agent_type=request.agent_type,  # Include agent type
         personality=AgentPersonality(**request.personality) if request.personality else AgentPersonality(),
         guardrails=guardrails,
         tasks=tasks, 
         tool_ids=request.tool_ids, 
         model_id=request.model_id, 
-        status=request.status
+        status=status,
+        process_definition=request.process_definition,  # Include process definition
+        process_settings=request.process_settings  # Include process settings
     )
+    
+    print(f"📝 Creating agent: name={request.name}, type={request.agent_type}, status={status}")
     
     # Get org_id and owner_id from the AUTHENTICATED USER
     org_id = current_user.org_id if current_user else "org_default"
@@ -7217,6 +7235,13 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
         agent.is_active = request.is_published
         if request.is_published:
             agent.status = "published"
+    
+    # Process/Workflow specific fields
+    if request.process_definition is not None:
+        agent.process_definition = request.process_definition
+    if request.process_settings is not None:
+        agent.process_settings = request.process_settings
+    
     agent.updated_at = datetime.utcnow().isoformat()
     
     # Save to database using AgentService

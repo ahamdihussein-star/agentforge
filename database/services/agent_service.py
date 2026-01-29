@@ -369,6 +369,19 @@ class AgentService:
                 else:
                     status_str = 'draft'
                 
+                # Parse process-specific fields
+                process_definition = agent_data.get('process_definition')
+                if isinstance(process_definition, str):
+                    process_definition = json.loads(process_definition)
+                elif process_definition is not None and not isinstance(process_definition, dict):
+                    process_definition = None
+                
+                process_settings = agent_data.get('process_settings')
+                if isinstance(process_settings, str):
+                    process_settings = json.loads(process_settings)
+                elif process_settings is not None and not isinstance(process_settings, dict):
+                    process_settings = None
+                
                 # Create database agent
                 # Note: personality, guardrails, tasks, memory, extra_metadata use JSON type (dict/list)
                 # tool_ids, shared_with_user_ids, shared_with_role_ids use JSONArray type (list of strings)
@@ -379,6 +392,7 @@ class AgentService:
                     icon=agent_data.get('icon', '🤖'),
                     goal=agent_data.get('goal', ''),
                     description=agent_data.get('description', ''),
+                    agent_type=agent_data.get('agent_type', 'conversational'),  # Agent type
                     model_id=agent_data.get('model_id', 'gpt-4o'),
                     personality=personality,  # JSON type - dict
                     guardrails=guardrails,  # JSON type - dict
@@ -396,7 +410,9 @@ class AgentService:
                     usage_count=agent_data.get('usage_count', 0),
                     version=agent_data.get('version', 1),
                     created_by=created_by_uuid,
-                    extra_metadata=agent_data.get('extra_metadata', {})  # JSON type - dict
+                    extra_metadata=agent_data.get('extra_metadata', {}),  # JSON type - dict
+                    process_definition=process_definition,  # Process workflow definition
+                    process_settings=process_settings  # Process settings
                 )
                 
                 db.add(db_agent)
@@ -593,6 +609,27 @@ class AgentService:
                     elif not isinstance(extra_metadata, dict):
                         extra_metadata = {}
                     db_agent.extra_metadata = extra_metadata
+                
+                # Agent type (conversational or process)
+                if 'agent_type' in agent_data:
+                    db_agent.agent_type = agent_data['agent_type']
+                
+                # Process/Workflow specific fields
+                if 'process_definition' in agent_data:
+                    process_def = agent_data['process_definition']
+                    if isinstance(process_def, str):
+                        process_def = json.loads(process_def)
+                    elif process_def is not None and not isinstance(process_def, dict):
+                        process_def = {}
+                    db_agent.process_definition = process_def
+                
+                if 'process_settings' in agent_data:
+                    process_settings = agent_data['process_settings']
+                    if isinstance(process_settings, str):
+                        process_settings = json.loads(process_settings)
+                    elif process_settings is not None and not isinstance(process_settings, dict):
+                        process_settings = {}
+                    db_agent.process_settings = process_settings
                 
                 # Update timestamps
                 db_agent.updated_at = datetime.utcnow()
