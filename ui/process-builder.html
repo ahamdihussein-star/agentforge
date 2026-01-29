@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentForge - Process Builder</title>
+    <link rel="icon" type="image/png" href="/AgentForge_Logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f0f17;
+            --bg-secondary: #16161e;
+            --bg-card: #1e1e2e;
+            --bg-input: #2d2d3d;
+            --border-color: #2d2d3d;
+            --border-hover: #3d3d4d;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #6b7280;
+            --accent-primary: #8b5cf6;
+            --accent-secondary: #667eea;
+            --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+        }
+        
+        * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: var(--bg-primary); color: var(--text-primary); }
+        
+        /* Main Layout */
+        .builder-container { display: flex; height: 100vh; }
+        
+        /* Left Panel - Node Palette */
+        .node-palette {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .palette-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .palette-section {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .palette-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        
+        .palette-nodes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        
+        .palette-node {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: grab;
+            font-size: 12px;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        
+        .palette-node:hover {
+            border-color: var(--accent-primary);
+            background: rgba(139, 92, 246, 0.1);
+        }
+        
+        .palette-node:active {
+            cursor: grabbing;
+        }
+        
+        .palette-node-icon {
+            font-size: 16px;
+        }
+        
+        /* Center - Canvas */
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .canvas-toolbar {
+            height: 48px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 12px;
+        }
+        
+        .toolbar-btn {
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        
+        .toolbar-btn:hover {
+            border-color: var(--accent-primary);
+        }
+        
+        .toolbar-btn.primary {
+            background: var(--accent-gradient);
+            border: none;
+        }
+        
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: 
+                linear-gradient(rgba(45, 45, 61, 0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(45, 45, 61, 0.3) 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: center center;
+        }
+        
+        .canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform-origin: center center;
+        }
+        
+        /* Nodes on Canvas */
+        .flow-node {
+            position: absolute;
+            min-width: 180px;
+            background: var(--bg-card);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            cursor: move;
+            user-select: none;
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        
+        .flow-node:hover {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        .flow-node.selected {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+        }
+        
+        .flow-node-header {
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .flow-node-icon {
+            font-size: 18px;
+        }
+        
+        .flow-node-title {
+            font-size: 13px;
+            font-weight: 600;
+            flex: 1;
+        }
+        
+        .flow-node-type {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .flow-node-body {
+            padding: 10px 14px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .flow-node-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+        
+        /* Node type colors */
+        .flow-node.start .flow-node-header { background: rgba(34, 197, 94, 0.2); }
+        .flow-node.end .flow-node-header { background: rgba(239, 68, 68, 0.2); }
+        .flow-node.ai-task .flow-node-header { background: rgba(139, 92, 246, 0.2); }
+        .flow-node.http-request .flow-node-header { background: rgba(59, 130, 246, 0.2); }
+        .flow-node.condition .flow-node-header { background: rgba(234, 179, 8, 0.2); }
+        .flow-node.approval .flow-node-header { background: rgba(236, 72, 153, 0.2); }
+        .flow-node.transform .flow-node-header { background: rgba(20, 184, 166, 0.2); }
+        .flow-node.loop .flow-node-header { background: rgba(249, 115, 22, 0.2); }
+        
+        /* Connection points */
+        .connection-point {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--bg-input);
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            cursor: crosshair;
+            transition: all 0.2s;
+        }
+        
+        .connection-point:hover {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            transform: scale(1.3);
+        }
+        
+        .connection-point.input { top: -6px; left: 50%; transform: translateX(-50%); }
+        .connection-point.output { bottom: -6px; left: 50%; transform: translateX(-50%); }
+        
+        /* Edges/Connections */
+        .edge-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: visible;
+        }
+        
+        .edge-path {
+            fill: none;
+            stroke: var(--border-hover);
+            stroke-width: 2;
+            transition: stroke 0.2s;
+        }
+        
+        .edge-path:hover {
+            stroke: var(--accent-primary);
+        }
+        
+        .edge-path.active {
+            stroke: var(--accent-primary);
+            stroke-dasharray: 5, 5;
+            animation: dash 0.5s linear infinite;
+        }
+        
+        @keyframes dash {
+            to { stroke-dashoffset: -10; }
+        }
+        
+        /* Right Panel - Properties */
+        .properties-panel {
+            width: 320px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .properties-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .properties-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .properties-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        
+        .property-group {
+            margin-bottom: 20px;
+        }
+        
+        .property-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+        
+        .property-input {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+        
+        .property-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+        
+        .property-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        /* Minimap */
+        .minimap {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            width: 180px;
+            height: 120px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .minimap-content {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        .minimap-node {
+            position: absolute;
+            background: var(--accent-primary);
+            border-radius: 2px;
+        }
+        
+        .minimap-viewport {
+            position: absolute;
+            border: 2px solid var(--accent-primary);
+            background: rgba(139, 92, 246, 0.1);
+        }
+        
+        /* Empty State */
+        .empty-canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-muted);
+        }
+        
+        .empty-canvas-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .empty-canvas-text {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        
+        .empty-canvas-hint {
+            font-size: 13px;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+    </style>
+</head>
+<body>
+    <div class="builder-container">
+        <!-- Node Palette -->
+        <div class="node-palette">
+            <div class="palette-header">
+                <span style="font-size: 24px;">🔄</span>
+                <div>
+                    <div style="font-weight: 600; font-size: 14px;">Process Builder</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Drag nodes to canvas</div>
+                </div>
+            </div>
+            
+            <!-- Flow Control -->
+            <div class="palette-section" style="overflow-y: auto; flex: 1;">
+                <div class="palette-section-title">Flow Control</div>
+                <div class="palette-nodes">
+                    <div class="palette-node" draggable="true" data-type="start">
+                        <span class="palette-node-icon">▶️</span>
+                        <span>Start</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="end">
+                        <span class="palette-node-icon">⏹️</span>
+                        <span>Finish</span>
+                    </div>
+                </div>
+                
+                <div class="palette-section-title" style="margin-top: 16px;">Decisions</div>
+                <div class="palette-nodes">
+                    <div class="palette-node" draggable="true" data-type="condition">
+                        <span class="palette-node-icon">⚡</span>
+                        <span>Yes/No Decision</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="switch">
+                        <span class="palette-node-icon">🔀</span>
+                        <span>Multiple Choice</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="loop">
+                        <span class="palette-node-icon">🔁</span>
+                        <span>Repeat for Each</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="parallel">
+                        <span class="palette-node-icon">⚙️</span>
+                        <span>Run Together</span>
+                    </div>
+                </div>
+                
+                <div class="palette-section-title" style="margin-top: 16px;">AI & Automation</div>
+                <div class="palette-nodes">
+                    <div class="palette-node" draggable="true" data-type="ai_task">
+                        <span class="palette-node-icon">🤖</span>
+                        <span>Ask AI</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="tool_call">
+                        <span class="palette-node-icon">🔧</span>
+                        <span>Use a Tool</span>
+                    </div>
+                </div>
+                
+                <div class="palette-section-title" style="margin-top: 16px;">Connect to Services</div>
+                <div class="palette-nodes">
+                    <div class="palette-node" draggable="true" data-type="http_request">
+                        <span class="palette-node-icon">🌐</span>
+                        <span>HTTP Request</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="database_query">
+                        <span class="palette-node-icon">🗄️</span>
+                        <span>Database</span>
+                    </div>
+                </div>
+                
+                <div class="palette-section-title" style="margin-top: 16px;">People</div>
+                <div class="palette-nodes">
+                    <div class="palette-node" draggable="true" data-type="approval">
+                        <span class="palette-node-icon">✅</span>
+                        <span>Get Approval</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="human_task">
+                        <span class="palette-node-icon">👤</span>
+                        <span>Assign Task</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="notification">
+                        <span class="palette-node-icon">🔔</span>
+                        <span>Send Notification</span>
+                    </div>
+                </div>
+                
+                <div class="palette-section-title" style="margin-top: 16px;">Data</div>
+                <div class="palette-nodes">
+                    <div class="palette-node" draggable="true" data-type="transform">
+                        <span class="palette-node-icon">🔄</span>
+                        <span>Change Data</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="validate">
+                        <span class="palette-node-icon">✔️</span>
+                        <span>Check Data</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="filter">
+                        <span class="palette-node-icon">🔍</span>
+                        <span>Filter</span>
+                    </div>
+                </div>
+                
+                <div class="palette-section-title" style="margin-top: 16px;">Timing</div>
+                <div class="palette-nodes">
+                    <div class="palette-node" draggable="true" data-type="delay">
+                        <span class="palette-node-icon">⏳</span>
+                        <span>Wait</span>
+                    </div>
+                    <div class="palette-node" draggable="true" data-type="schedule">
+                        <span class="palette-node-icon">📅</span>
+                        <span>Run at Time</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Canvas Area -->
+        <div class="canvas-area">
+            <div class="canvas-toolbar">
+                <button class="toolbar-btn" onclick="zoomIn()">
+                    <span>🔍+</span>
+                </button>
+                <button class="toolbar-btn" onclick="zoomOut()">
+                    <span>🔍-</span>
+                </button>
+                <button class="toolbar-btn" onclick="fitView()">
+                    <span>⬚</span> Fit
+                </button>
+                <div style="flex: 1;"></div>
+                <button class="toolbar-btn" onclick="validateProcess()">
+                    <span>✓</span> Check
+                </button>
+                <button class="toolbar-btn" onclick="testRun()">
+                    <span>▶️</span> Test
+                </button>
+                <button class="toolbar-btn primary" onclick="saveProcess()">
+                    <span>💾</span> Save
+                </button>
+            </div>
+            
+            <div class="canvas-wrapper" id="canvasWrapper">
+                <svg class="edge-svg" id="edgeSvg"></svg>
+                <div class="canvas" id="canvas">
+                    <!-- Empty state -->
+                    <div class="empty-canvas" id="emptyState">
+                        <div class="empty-canvas-icon">🔄</div>
+                        <div class="empty-canvas-text">Start building your workflow</div>
+                        <div class="empty-canvas-hint">Drag steps from the left panel to this canvas, or describe what you want below</div>
+                        <div style="margin-top: 20px; display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="wizardGoalInput" placeholder="Example: Create an approval workflow for expenses over $500" 
+                                style="padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-color); 
+                                background: var(--bg-input); color: var(--text-primary); width: 400px; font-size: 14px;">
+                            <button onclick="generateFromGoal()" style="padding: 12px 20px; border-radius: 8px; 
+                                background: var(--accent-gradient); border: none; color: white; cursor: pointer; font-weight: 500;">
+                                ✨ Create for me
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Minimap -->
+                <div class="minimap">
+                    <div class="minimap-content" id="minimap"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Properties Panel -->
+        <div class="properties-panel" id="propertiesPanel">
+            <div class="properties-header">
+                <span class="properties-title">Step Settings</span>
+                <button onclick="deleteSelectedNode()" style="background: none; border: none; cursor: pointer; font-size: 18px;" title="Delete Step">🗑️</button>
+            </div>
+            <div class="properties-content" id="propertiesContent">
+                <div style="color: var(--text-muted); text-align: center; padding: 40px 20px;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">👆</div>
+                    <div>Click on a step to edit its settings</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // =========================================================================
+        // STATE
+        // =========================================================================
+        
+        const state = {
+            nodes: [],
+            edges: [],
+            selectedNode: null,
+            draggingNode: null,
+            connecting: null,
+            zoom: 1,
+            pan: { x: 0, y: 0 },
+            nodeIdCounter: 0
+        };
+        
+        const NODE_CONFIGS = {
+            start: { icon: '▶️', name: 'Start', color: 'start', hasInput: false, hasOutput: true },
+            end: { icon: '⏹️', name: 'End', color: 'end', hasInput: true, hasOutput: false },
+            condition: { icon: '⚡', name: 'Condition', color: 'condition', hasInput: true, hasOutput: true, multiOutput: true },
+            switch: { icon: '🔀', name: 'Switch', color: 'condition', hasInput: true, hasOutput: true, multiOutput: true },
+            loop: { icon: '🔁', name: 'Loop', color: 'loop', hasInput: true, hasOutput: true },
+            parallel: { icon: '⚙️', name: 'Parallel', color: 'loop', hasInput: true, hasOutput: true },
+            ai_task: { icon: '🤖', name: 'AI Task', color: 'ai-task', hasInput: true, hasOutput: true },
+            tool_call: { icon: '🔧', name: 'Tool Call', color: 'ai-task', hasInput: true, hasOutput: true },
+            script: { icon: '📜', name: 'Script', color: 'ai-task', hasInput: true, hasOutput: true },
+            http_request: { icon: '🌐', name: 'HTTP Request', color: 'http-request', hasInput: true, hasOutput: true },
+            database_query: { icon: '🗄️', name: 'Database Query', color: 'http-request', hasInput: true, hasOutput: true },
+            approval: { icon: '✅', name: 'Approval', color: 'approval', hasInput: true, hasOutput: true },
+            human_task: { icon: '👤', name: 'Human Task', color: 'approval', hasInput: true, hasOutput: true },
+            notification: { icon: '🔔', name: 'Notification', color: 'approval', hasInput: true, hasOutput: true },
+            transform: { icon: '🔄', name: 'Transform', color: 'transform', hasInput: true, hasOutput: true },
+            validate: { icon: '✔️', name: 'Validate', color: 'transform', hasInput: true, hasOutput: true },
+            filter: { icon: '🔍', name: 'Filter', color: 'transform', hasInput: true, hasOutput: true },
+            delay: { icon: '⏳', name: 'Delay', color: 'transform', hasInput: true, hasOutput: true },
+            schedule: { icon: '📅', name: 'Schedule', color: 'transform', hasInput: true, hasOutput: true }
+        };
+        
+        // =========================================================================
+        // INITIALIZATION
+        // =========================================================================
+        
+        function init() {
+            setupDragAndDrop();
+            setupCanvasEvents();
+            render();
+        }
+        
+        function setupDragAndDrop() {
+            const paletteNodes = document.querySelectorAll('.palette-node');
+            const canvas = document.getElementById('canvas');
+            const wrapper = document.getElementById('canvasWrapper');
+            
+            paletteNodes.forEach(node => {
+                node.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('nodeType', node.dataset.type);
+                });
+            });
+            
+            wrapper.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+            
+            wrapper.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const nodeType = e.dataTransfer.getData('nodeType');
+                if (nodeType) {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) / state.zoom - state.pan.x;
+                    const y = (e.clientY - rect.top) / state.zoom - state.pan.y;
+                    addNode(nodeType, x, y);
+                }
+            });
+        }
+        
+        function setupCanvasEvents() {
+            const canvas = document.getElementById('canvas');
+            
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.target === canvas || e.target.id === 'emptyState') {
+                    selectNode(null);
+                }
+            });
+        }
+        
+        // =========================================================================
+        // NODE OPERATIONS
+        // =========================================================================
+        
+        function addNode(type, x, y) {
+            const config = NODE_CONFIGS[type];
+            if (!config) return;
+            
+            const node = {
+                id: `node_${++state.nodeIdCounter}`,
+                type: type,
+                name: config.name,
+                x: x,
+                y: y,
+                config: {}
+            };
+            
+            state.nodes.push(node);
+            document.getElementById('emptyState').style.display = 'none';
+            render();
+            selectNode(node.id);
+        }
+        
+        function selectNode(nodeId) {
+            state.selectedNode = nodeId;
+            render();
+            renderProperties();
+        }
+        
+        function deleteSelectedNode() {
+            if (!state.selectedNode) return;
+            
+            state.nodes = state.nodes.filter(n => n.id !== state.selectedNode);
+            state.edges = state.edges.filter(e => 
+                e.source !== state.selectedNode && e.target !== state.selectedNode
+            );
+            state.selectedNode = null;
+            
+            if (state.nodes.length === 0) {
+                document.getElementById('emptyState').style.display = 'block';
+            }
+            
+            render();
+            renderProperties();
+        }
+        
+        function updateNodePosition(nodeId, x, y) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) {
+                node.x = x;
+                node.y = y;
+                render();
+            }
+        }
+        
+        // =========================================================================
+        // EDGE OPERATIONS
+        // =========================================================================
+        
+        function addEdge(sourceId, targetId) {
+            // Validate
+            if (sourceId === targetId) return;
+            if (state.edges.some(e => e.source === sourceId && e.target === targetId)) return;
+            
+            state.edges.push({
+                id: `edge_${sourceId}_${targetId}`,
+                source: sourceId,
+                target: targetId
+            });
+            
+            render();
+        }
+        
+        // =========================================================================
+        // RENDERING
+        // =========================================================================
+        
+        function render() {
+            renderNodes();
+            renderEdges();
+            renderMinimap();
+        }
+        
+        function renderNodes() {
+            const canvas = document.getElementById('canvas');
+            
+            // Remove old nodes
+            canvas.querySelectorAll('.flow-node').forEach(el => el.remove());
+            
+            // Add nodes
+            state.nodes.forEach(node => {
+                const config = NODE_CONFIGS[node.type];
+                if (!config) return;
+                
+                const el = document.createElement('div');
+                el.className = `flow-node ${config.color} ${node.id === state.selectedNode ? 'selected' : ''}`;
+                el.id = node.id;
+                el.style.left = `${node.x}px`;
+                el.style.top = `${node.y}px`;
+                
+                el.innerHTML = `
+                    ${config.hasInput ? '<div class="connection-point input" data-point="input"></div>' : ''}
+                    <div class="flow-node-header">
+                        <span class="flow-node-icon">${config.icon}</span>
+                        <span class="flow-node-title">${node.name}</span>
+                    </div>
+                    <div class="flow-node-body">
+                        <span class="flow-node-type">${node.type}</span>
+                    </div>
+                    ${config.hasOutput ? '<div class="connection-point output" data-point="output"></div>' : ''}
+                `;
+                
+                // Node drag
+                el.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('connection-point')) return;
+                    
+                    selectNode(node.id);
+                    
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startNodeX = node.x;
+                    const startNodeY = node.y;
+                    
+                    const onMove = (e) => {
+                        const dx = (e.clientX - startX) / state.zoom;
+                        const dy = (e.clientY - startY) / state.zoom;
+                        updateNodePosition(node.id, startNodeX + dx, startNodeY + dy);
+                    };
+                    
+                    const onUp = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                    };
+                    
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+                
+                // Connection point interactions
+                el.querySelectorAll('.connection-point').forEach(point => {
+                    point.addEventListener('mousedown', (e) => {
+                        e.stopPropagation();
+                        if (point.dataset.point === 'output') {
+                            state.connecting = { source: node.id };
+                        }
+                    });
+                    
+                    point.addEventListener('mouseup', (e) => {
+                        e.stopPropagation();
+                        if (state.connecting && point.dataset.point === 'input') {
+                            addEdge(state.connecting.source, node.id);
+                        }
+                        state.connecting = null;
+                    });
+                });
+                
+                canvas.appendChild(el);
+            });
+        }
+        
+        function renderEdges() {
+            const svg = document.getElementById('edgeSvg');
+            svg.innerHTML = '';
+            
+            state.edges.forEach(edge => {
+                const sourceNode = state.nodes.find(n => n.id === edge.source);
+                const targetNode = state.nodes.find(n => n.id === edge.target);
+                if (!sourceNode || !targetNode) return;
+                
+                // Calculate positions (center bottom of source, center top of target)
+                const x1 = sourceNode.x + 90; // Half node width
+                const y1 = sourceNode.y + 80; // Node height
+                const x2 = targetNode.x + 90;
+                const y2 = targetNode.y;
+                
+                // Create curved path
+                const midY = (y1 + y2) / 2;
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('class', 'edge-path');
+                path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
+                
+                svg.appendChild(path);
+            });
+        }
+        
+        function renderMinimap() {
+            const minimap = document.getElementById('minimap');
+            minimap.innerHTML = '';
+            
+            if (state.nodes.length === 0) return;
+            
+            // Calculate bounds
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            state.nodes.forEach(n => {
+                minX = Math.min(minX, n.x);
+                minY = Math.min(minY, n.y);
+                maxX = Math.max(maxX, n.x + 180);
+                maxY = Math.max(maxY, n.y + 80);
+            });
+            
+            const width = maxX - minX + 40;
+            const height = maxY - minY + 40;
+            const scale = Math.min(180 / width, 120 / height);
+            
+            // Render mini nodes
+            state.nodes.forEach(n => {
+                const div = document.createElement('div');
+                div.className = 'minimap-node';
+                div.style.left = `${(n.x - minX + 20) * scale}px`;
+                div.style.top = `${(n.y - minY + 20) * scale}px`;
+                div.style.width = `${180 * scale}px`;
+                div.style.height = `${80 * scale}px`;
+                minimap.appendChild(div);
+            });
+        }
+        
+        function renderProperties() {
+            const content = document.getElementById('propertiesContent');
+            
+            if (!state.selectedNode) {
+                content.innerHTML = `
+                    <div style="color: var(--text-muted); text-align: center; padding: 40px 20px;">
+                        <div style="font-size: 32px; margin-bottom: 12px;">👆</div>
+                        <div>Click on a step to edit its settings</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const node = state.nodes.find(n => n.id === state.selectedNode);
+            if (!node) return;
+            
+            const config = NODE_CONFIGS[node.type];
+            
+            let html = `
+                <div class="property-group">
+                    <div class="property-label">Step Name</div>
+                    <input type="text" class="property-input" value="${node.name}" 
+                           onchange="updateNodeName('${node.id}', this.value)"
+                           placeholder="Give this step a name">
+                </div>
+                
+                <div class="property-group">
+                    <div class="property-label">Step Type</div>
+                    <div style="padding: 10px 12px; background: var(--bg-input); border-radius: 8px; font-size: 13px;">
+                        ${config.icon} ${config.name}
+                    </div>
+                </div>
+            `;
+            
+            // Type-specific properties with business-friendly labels
+            if (node.type === 'ai_task') {
+                html += `
+                    <div class="property-group">
+                        <div class="property-label">Instructions for AI</div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">
+                            Tell the AI what to do. Use {data_name} to include data from previous steps.
+                        </div>
+                        <textarea class="property-input property-textarea" 
+                                  placeholder="Example: Summarize the customer feedback and identify key issues"
+                                  onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${node.config.prompt || ''}</textarea>
+                    </div>
+                    <div class="property-group">
+                        <div class="property-label">Save result as</div>
+                        <input type="text" class="property-input" 
+                               placeholder="ai_response"
+                               value="${node.config.output_variable || ''}"
+                               onchange="updateNodeConfig('${node.id}', 'output_variable', this.value)">
+                    </div>
+                    <button onclick="suggestAISettings('${node.id}')" 
+                            style="width: 100%; padding: 10px; margin-top: 10px; background: var(--accent-gradient); 
+                                   border: none; border-radius: 8px; color: white; cursor: pointer;">
+                        ✨ Suggest settings
+                    </button>
+                `;
+            } else if (node.type === 'http_request') {
+                html += `
+                    <div class="property-group">
+                        <div class="property-label">Request Type</div>
+                        <select class="property-input" onchange="updateNodeConfig('${node.id}', 'method', this.value)">
+                            <option value="GET" ${node.config.method === 'GET' ? 'selected' : ''}>Get data (GET)</option>
+                            <option value="POST" ${node.config.method === 'POST' ? 'selected' : ''}>Send data (POST)</option>
+                            <option value="PUT" ${node.config.method === 'PUT' ? 'selected' : ''}>Update data (PUT)</option>
+                            <option value="DELETE" ${node.config.method === 'DELETE' ? 'selected' : ''}>Delete data (DELETE)</option>
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <div class="property-label">Web Address (URL)</div>
+                        <input type="text" class="property-input" 
+                               placeholder="https://api.example.com/data"
+                               value="${node.config.url || ''}"
+                               onchange="updateNodeConfig('${node.id}', 'url', this.value)">
+                    </div>
+                `;
+            } else if (node.type === 'condition') {
+                // Build condition visually
+                const condition = node.config.condition || { field: '', operator: '>', value: '' };
+                html += `
+                    <div class="property-group">
+                        <div class="property-label">When should we take the "Yes" path?</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">If this value...</div>
+                                <input type="text" class="property-input" 
+                                       placeholder="e.g., amount, status, user.role"
+                                       value="${condition.field}"
+                                       onchange="updateCondition('${node.id}', 'field', this.value)">
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">...is...</div>
+                                <select class="property-input" onchange="updateCondition('${node.id}', 'operator', this.value)">
+                                    <option value=">" ${condition.operator === '>' ? 'selected' : ''}>Greater than</option>
+                                    <option value=">=" ${condition.operator === '>=' ? 'selected' : ''}>Greater than or equal to</option>
+                                    <option value="<" ${condition.operator === '<' ? 'selected' : ''}>Less than</option>
+                                    <option value="<=" ${condition.operator === '<=' ? 'selected' : ''}>Less than or equal to</option>
+                                    <option value="==" ${condition.operator === '==' ? 'selected' : ''}>Equal to</option>
+                                    <option value="!=" ${condition.operator === '!=' ? 'selected' : ''}>Not equal to</option>
+                                    <option value="contains" ${condition.operator === 'contains' ? 'selected' : ''}>Contains</option>
+                                    <option value="starts_with" ${condition.operator === 'starts_with' ? 'selected' : ''}>Starts with</option>
+                                    <option value="is_empty" ${condition.operator === 'is_empty' ? 'selected' : ''}>Is empty</option>
+                                    <option value="is_not_empty" ${condition.operator === 'is_not_empty' ? 'selected' : ''}>Is not empty</option>
+                                </select>
+                            </div>
+                            <div id="conditionValueGroup_${node.id}" ${['is_empty', 'is_not_empty'].includes(condition.operator) ? 'style="display: none;"' : ''}>
+                                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">...this value</div>
+                                <input type="text" class="property-input" 
+                                       placeholder="e.g., 1000, approved, true"
+                                       value="${condition.value}"
+                                       onchange="updateCondition('${node.id}', 'value', this.value)">
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px; padding: 10px; background: var(--bg-input); border-radius: 8px; font-size: 12px;">
+                            <span style="color: var(--text-muted);">Preview:</span>
+                            <span id="conditionPreview_${node.id}" style="color: var(--accent-primary);">
+                                ${buildConditionPreview(condition)}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            } else if (node.type === 'approval') {
+                html += `
+                    <div class="property-group">
+                        <div class="property-label">What needs to be approved?</div>
+                        <input type="text" class="property-input" 
+                               placeholder="Expense reimbursement request"
+                               value="${node.config.title || ''}"
+                               onchange="updateNodeConfig('${node.id}', 'title', this.value)">
+                    </div>
+                    <div class="property-group">
+                        <div class="property-label">Who should approve?</div>
+                        <select class="property-input" onchange="updateNodeConfig('${node.id}', 'assignee_type', this.value)">
+                            <option value="user" ${node.config.assignee_type === 'user' ? 'selected' : ''}>Specific person</option>
+                            <option value="role" ${node.config.assignee_type === 'role' ? 'selected' : ''}>Anyone with a role (e.g., Manager)</option>
+                            <option value="group" ${node.config.assignee_type === 'group' ? 'selected' : ''}>Anyone in a group</option>
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <div class="property-label">How long to wait?</div>
+                        <select class="property-input" onchange="updateNodeConfig('${node.id}', 'timeout_hours', parseInt(this.value))">
+                            <option value="4" ${node.config.timeout_hours === 4 ? 'selected' : ''}>4 hours</option>
+                            <option value="24" ${node.config.timeout_hours === 24 || !node.config.timeout_hours ? 'selected' : ''}>1 day</option>
+                            <option value="48" ${node.config.timeout_hours === 48 ? 'selected' : ''}>2 days</option>
+                            <option value="168" ${node.config.timeout_hours === 168 ? 'selected' : ''}>1 week</option>
+                        </select>
+                    </div>
+                `;
+            } else if (node.type === 'delay') {
+                html += `
+                    <div class="property-group">
+                        <div class="property-label">How long to wait?</div>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="number" class="property-input" 
+                                   placeholder="5"
+                                   value="${node.config.duration_value || ''}"
+                                   onchange="updateDelayDuration('${node.id}', this.value)"
+                                   style="flex: 1;">
+                            <select class="property-input" style="flex: 1;" onchange="updateDelayUnit('${node.id}', this.value)">
+                                <option value="seconds" ${node.config.duration_unit === 'seconds' ? 'selected' : ''}>Seconds</option>
+                                <option value="minutes" ${node.config.duration_unit === 'minutes' || !node.config.duration_unit ? 'selected' : ''}>Minutes</option>
+                                <option value="hours" ${node.config.duration_unit === 'hours' ? 'selected' : ''}>Hours</option>
+                                <option value="days" ${node.config.duration_unit === 'days' ? 'selected' : ''}>Days</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+            } else if (node.type === 'notification') {
+                html += `
+                    <div class="property-group">
+                        <div class="property-label">How to notify?</div>
+                        <select class="property-input" onchange="updateNodeConfig('${node.id}', 'channel', this.value)">
+                            <option value="email" ${node.config.channel === 'email' || !node.config.channel ? 'selected' : ''}>📧 Email</option>
+                            <option value="slack" ${node.config.channel === 'slack' ? 'selected' : ''}>💬 Slack</option>
+                            <option value="in_app" ${node.config.channel === 'in_app' ? 'selected' : ''}>🔔 In-app notification</option>
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <div class="property-label">Subject/Title</div>
+                        <input type="text" class="property-input" 
+                               placeholder="Your request has been processed"
+                               value="${node.config.title || ''}"
+                               onchange="updateNodeConfig('${node.id}', 'title', this.value)">
+                    </div>
+                    <div class="property-group">
+                        <div class="property-label">Message</div>
+                        <textarea class="property-input property-textarea" 
+                                  placeholder="The details of what happened..."
+                                  onchange="updateNodeConfig('${node.id}', 'message', this.value)">${node.config.message || ''}</textarea>
+                    </div>
+                `;
+            }
+            
+            content.innerHTML = html;
+        }
+        
+        function updateNodeName(nodeId, name) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) {
+                node.name = name;
+                render();
+            }
+        }
+        
+        function updateNodeConfig(nodeId, key, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) {
+                node.config[key] = value;
+            }
+        }
+        
+        // =========================================================================
+        // TOOLBAR ACTIONS
+        // =========================================================================
+        
+        function zoomIn() {
+            state.zoom = Math.min(state.zoom * 1.2, 3);
+            applyTransform();
+        }
+        
+        function zoomOut() {
+            state.zoom = Math.max(state.zoom / 1.2, 0.3);
+            applyTransform();
+        }
+        
+        function fitView() {
+            state.zoom = 1;
+            state.pan = { x: 0, y: 0 };
+            applyTransform();
+        }
+        
+        function applyTransform() {
+            const canvas = document.getElementById('canvas');
+            canvas.style.transform = `scale(${state.zoom}) translate(${state.pan.x}px, ${state.pan.y}px)`;
+        }
+        
+        function validateProcess() {
+            const issues = [];
+            
+            // Check for start step
+            if (!state.nodes.some(n => n.type === 'start')) {
+                issues.push('Your workflow needs a Start step. Drag one from the left panel.');
+            }
+            
+            // Check for end step
+            if (!state.nodes.some(n => n.type === 'end')) {
+                issues.push('Your workflow needs a Finish step. Drag one from the left panel.');
+            }
+            
+            // Check for disconnected steps
+            const connectedNodes = new Set();
+            state.edges.forEach(e => {
+                connectedNodes.add(e.source);
+                connectedNodes.add(e.target);
+            });
+            
+            const orphans = state.nodes.filter(n => 
+                n.type !== 'start' && !connectedNodes.has(n.id)
+            );
+            
+            if (orphans.length > 0) {
+                const names = orphans.map(n => n.name || 'Unnamed step').join(', ');
+                issues.push(`These steps are not connected: ${names}`);
+            }
+            
+            if (issues.length === 0) {
+                showNotification('✅ Your workflow looks good!', 'success');
+            } else {
+                showNotification('Please fix these issues:\n\n• ' + issues.join('\n• '), 'warning');
+            }
+            
+            return issues.length === 0;
+        }
+        
+        function testRun() {
+            if (!validateProcess()) return;
+            showNotification('🚀 Starting test run...\n\nYour workflow will run in test mode.', 'info');
+            // TODO: Call API to run in sandbox mode
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Create a nice notification instead of alert
+            const colors = {
+                success: '#22c55e',
+                warning: '#eab308',
+                error: '#ef4444',
+                info: '#3b82f6'
+            };
+            
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                max-width: 400px;
+                padding: 16px 20px;
+                background: ${colors[type]};
+                color: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+                white-space: pre-line;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+        
+        function saveProcess() {
+            if (!validateProcess()) return;
+            
+            const workflowName = prompt('Give your workflow a name:', 'My Workflow');
+            if (!workflowName) return;
+            
+            const processDefinition = {
+                version: '1.0',
+                name: workflowName,
+                nodes: state.nodes.map(n => ({
+                    id: n.id,
+                    type: n.type,
+                    name: n.name,
+                    position: { x: n.x, y: n.y },
+                    config: n.config
+                })),
+                edges: state.edges.map(e => ({
+                    id: e.id,
+                    source: e.source,
+                    target: e.target
+                }))
+            };
+            
+            // Save to server
+            fetch('/process/config/templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: workflowName,
+                    process_definition: processDefinition,
+                    category: 'custom'
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                showNotification('✅ Workflow saved successfully!', 'success');
+            })
+            .catch(err => {
+                showNotification('Could not save workflow. Please try again.', 'error');
+            });
+        }
+        
+        // =========================================================================
+        // CONDITION BUILDER FUNCTIONS
+        // =========================================================================
+        
+        function updateCondition(nodeId, field, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            
+            if (!node.config.condition) {
+                node.config.condition = { field: '', operator: '>', value: '' };
+            }
+            
+            node.config.condition[field] = value;
+            
+            // Update expression for engine compatibility
+            node.config.expression = buildConditionExpression(node.config.condition);
+            
+            // Update preview
+            const preview = document.getElementById(`conditionPreview_${nodeId}`);
+            if (preview) {
+                preview.textContent = buildConditionPreview(node.config.condition);
+            }
+            
+            // Show/hide value field based on operator
+            const valueGroup = document.getElementById(`conditionValueGroup_${nodeId}`);
+            if (valueGroup && ['is_empty', 'is_not_empty'].includes(node.config.condition.operator)) {
+                valueGroup.style.display = 'none';
+            } else if (valueGroup) {
+                valueGroup.style.display = 'block';
+            }
+        }
+        
+        function buildConditionExpression(condition) {
+            if (!condition.field) return '';
+            
+            const field = condition.field;
+            const op = condition.operator;
+            const val = condition.value;
+            
+            switch (op) {
+                case 'contains': return `"${val}" in ${field}`;
+                case 'starts_with': return `${field}.startswith("${val}")`;
+                case 'is_empty': return `not ${field}`;
+                case 'is_not_empty': return `${field}`;
+                default:
+                    // Handle string vs number
+                    const isNumber = !isNaN(val) && val !== '';
+                    const formattedVal = isNumber ? val : `"${val}"`;
+                    return `${field} ${op} ${formattedVal}`;
+            }
+        }
+        
+        function buildConditionPreview(condition) {
+            if (!condition.field) return 'Set up the condition above';
+            
+            const field = condition.field;
+            const op = condition.operator;
+            const val = condition.value;
+            
+            const opLabels = {
+                '>': 'is greater than',
+                '>=': 'is at least',
+                '<': 'is less than',
+                '<=': 'is at most',
+                '==': 'equals',
+                '!=': 'is not',
+                'contains': 'contains',
+                'starts_with': 'starts with',
+                'is_empty': 'is empty',
+                'is_not_empty': 'has a value'
+            };
+            
+            if (['is_empty', 'is_not_empty'].includes(op)) {
+                return `${field} ${opLabels[op]}`;
+            }
+            
+            return `${field} ${opLabels[op] || op} ${val}`;
+        }
+        
+        // =========================================================================
+        // WIZARD FUNCTIONS
+        // =========================================================================
+        
+        async function generateFromGoal() {
+            const input = document.getElementById('wizardGoalInput');
+            const goal = input.value.trim();
+            
+            if (!goal) {
+                showNotification('Please describe what you want the workflow to do.', 'warning');
+                return;
+            }
+            
+            showNotification('✨ Creating your workflow...', 'info');
+            
+            try {
+                const response = await fetch('/process/wizard/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ goal: goal })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.workflow) {
+                    loadWorkflowDefinition(data.workflow);
+                    showNotification('🎉 ' + data.message, 'success');
+                    input.value = '';
+                } else {
+                    showNotification(data.detail || 'Could not create workflow. Please try again.', 'error');
+                }
+            } catch (err) {
+                showNotification('Could not connect to server. Please check your connection.', 'error');
+            }
+        }
+        
+        function loadWorkflowDefinition(def) {
+            // Clear current state
+            state.nodes = [];
+            state.edges = [];
+            state.nodeIdCounter = 0;
+            
+            // Load nodes
+            if (def.nodes) {
+                def.nodes.forEach(n => {
+                    state.nodes.push({
+                        id: n.id,
+                        type: n.type,
+                        name: n.name || NODE_CONFIGS[n.type]?.name || n.type,
+                        x: n.position?.x || 100,
+                        y: n.position?.y || 100,
+                        config: n.config || {}
+                    });
+                    state.nodeIdCounter = Math.max(state.nodeIdCounter, parseInt(n.id.replace('node_', '')) || 0);
+                });
+            }
+            
+            // Load edges
+            if (def.edges) {
+                state.edges = def.edges.map(e => ({
+                    id: e.id,
+                    source: e.source,
+                    target: e.target
+                }));
+            }
+            
+            document.getElementById('emptyState').style.display = 'none';
+            render();
+        }
+        
+        async function suggestAISettings(nodeId) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            
+            showNotification('✨ Getting suggestions...', 'info');
+            
+            try {
+                const response = await fetch('/process/wizard/suggest-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        step_type: node.type,
+                        step_name: node.name,
+                        purpose: '',
+                        workflow_goal: ''
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.suggested_settings) {
+                    node.config = { ...node.config, ...data.suggested_settings };
+                    renderProperties();
+                    showNotification('✅ ' + data.message, 'success');
+                }
+            } catch (err) {
+                showNotification('Could not get suggestions. Please configure manually.', 'warning');
+            }
+        }
+        
+        function updateDelayDuration(nodeId, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) {
+                node.config.duration_value = parseInt(value);
+                calculateDelaySeconds(node);
+            }
+        }
+        
+        function updateDelayUnit(nodeId, unit) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) {
+                node.config.duration_unit = unit;
+                calculateDelaySeconds(node);
+            }
+        }
+        
+        function calculateDelaySeconds(node) {
+            const value = node.config.duration_value || 0;
+            const unit = node.config.duration_unit || 'minutes';
+            const multipliers = { seconds: 1, minutes: 60, hours: 3600, days: 86400 };
+            node.config.duration_seconds = value * (multipliers[unit] || 60);
+        }
+        
+        // =========================================================================
+        // INIT
+        // =========================================================================
+        
+        init();
+    </script>
+</body>
+</html>

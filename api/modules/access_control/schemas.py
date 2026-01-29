@@ -198,6 +198,13 @@ class AgentPermissionType(str, Enum):
     PUBLISH_AGENT = "publish_agent"            # Publish/unpublish
     DELETE_AGENT = "delete_agent"              # Delete the agent (rarely delegated)
     
+    # Process Agent Permissions (for process-type agents)
+    EXECUTE_PROCESS = "execute_process"        # Execute process agents
+    VIEW_EXECUTIONS = "view_executions"        # View execution history & logs
+    CANCEL_EXECUTIONS = "cancel_executions"    # Cancel running executions
+    MANAGE_PROCESS = "manage_process"          # Edit process definition/flow
+    APPROVE_REQUESTS = "approve_requests"      # Approve approval requests
+    
     # Full Access (shorthand for all permissions except delete)
     FULL_ADMIN = "full_admin"
 

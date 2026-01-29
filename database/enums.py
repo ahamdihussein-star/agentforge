@@ -6,6 +6,175 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 
+# =============================================================================
+# AGENT TYPE ENUMS
+# =============================================================================
+
+class AgentType(str, Enum):
+    """
+    Agent Type Enumeration
+    
+    Defines the fundamental operating mode of an agent.
+    - CONVERSATIONAL: Free-form chat with tasks (current default behavior)
+    - PROCESS: Workflow/Integration process with defined steps and flow
+    """
+    CONVERSATIONAL = "conversational"  # Free-form conversation with tasks
+    PROCESS = "process"                # Workflow/Integration process agent
+    
+    @classmethod
+    def values(cls) -> List[str]:
+        return [e.value for e in cls]
+    
+    @classmethod
+    def from_legacy(cls, value: str) -> 'AgentType':
+        """Convert legacy values - default to conversational"""
+        if not value:
+            return cls.CONVERSATIONAL
+        normalized = value.lower().strip()
+        try:
+            return cls(normalized)
+        except ValueError:
+            return cls.CONVERSATIONAL
+
+
+# =============================================================================
+# PROCESS/WORKFLOW ENUMS
+# =============================================================================
+
+class ProcessStatus(str, Enum):
+    """Process definition lifecycle status"""
+    DRAFT = "draft"              # Being designed
+    ACTIVE = "active"            # Published and available
+    PAUSED = "paused"            # Temporarily disabled
+    ARCHIVED = "archived"        # No longer in use
+    DEPRECATED = "deprecated"    # Marked for removal
+    
+    @classmethod
+    def values(cls) -> List[str]:
+        return [e.value for e in cls]
+
+
+class ProcessExecutionStatus(str, Enum):
+    """Status of a process execution instance"""
+    PENDING = "pending"          # Queued, not started
+    RUNNING = "running"          # Currently executing
+    WAITING = "waiting"          # Waiting for external input (approval, webhook, etc.)
+    PAUSED = "paused"            # Manually paused
+    COMPLETED = "completed"      # Successfully finished
+    FAILED = "failed"            # Execution failed
+    CANCELLED = "cancelled"      # Manually cancelled
+    TIMED_OUT = "timed_out"      # Exceeded time limit
+    
+    @classmethod
+    def values(cls) -> List[str]:
+        return [e.value for e in cls]
+    
+    @classmethod
+    def terminal_states(cls) -> List['ProcessExecutionStatus']:
+        """States that indicate the execution has ended"""
+        return [cls.COMPLETED, cls.FAILED, cls.CANCELLED, cls.TIMED_OUT]
+    
+    @classmethod
+    def active_states(cls) -> List['ProcessExecutionStatus']:
+        """States that indicate the execution is still active"""
+        return [cls.PENDING, cls.RUNNING, cls.WAITING, cls.PAUSED]
+
+
+class ProcessNodeType(str, Enum):
+    """Types of nodes in a process flow"""
+    # Flow Control
+    START = "start"              # Entry point
+    END = "end"                  # Exit point
+    
+    # Logic Nodes
+    CONDITION = "condition"      # If/Else branching
+    SWITCH = "switch"            # Multi-way branching
+    LOOP = "loop"                # For each iteration
+    WHILE = "while"              # While loop
+    PARALLEL = "parallel"        # Parallel execution
+    MERGE = "merge"              # Merge parallel branches
+    
+    # Task Nodes
+    AI_TASK = "ai_task"          # LLM-powered task
+    TOOL_CALL = "tool_call"      # Execute a platform tool
+    SCRIPT = "script"            # Custom script execution
+    
+    # Integration Nodes
+    HTTP_REQUEST = "http_request"    # REST API call
+    DATABASE_QUERY = "database_query" # Database operation
+    FILE_OPERATION = "file_operation" # File read/write
+    MESSAGE_QUEUE = "message_queue"   # Pub/sub messaging
+    
+    # Human Nodes
+    HUMAN_TASK = "human_task"        # Requires human input
+    APPROVAL = "approval"            # Approval gate
+    NOTIFICATION = "notification"    # Send notification
+    
+    # Data Nodes
+    TRANSFORM = "transform"      # Data transformation
+    VALIDATE = "validate"        # Data validation
+    AGGREGATE = "aggregate"      # Aggregate data
+    FILTER = "filter"            # Filter data
+    MAP = "map"                  # Map/project data
+    
+    # Timing Nodes
+    DELAY = "delay"              # Wait for duration
+    SCHEDULE = "schedule"        # Wait until time
+    EVENT_WAIT = "event_wait"    # Wait for event
+    
+    # Error Handling
+    TRY_CATCH = "try_catch"      # Error handling block
+    RETRY = "retry"              # Retry logic
+    
+    @classmethod
+    def values(cls) -> List[str]:
+        return [e.value for e in cls]
+    
+    @classmethod
+    def integration_nodes(cls) -> List['ProcessNodeType']:
+        """Nodes that integrate with external systems"""
+        return [cls.HTTP_REQUEST, cls.DATABASE_QUERY, cls.FILE_OPERATION, cls.MESSAGE_QUEUE]
+    
+    @classmethod
+    def logic_nodes(cls) -> List['ProcessNodeType']:
+        """Nodes that control flow logic"""
+        return [cls.CONDITION, cls.SWITCH, cls.LOOP, cls.WHILE, cls.PARALLEL, cls.MERGE]
+    
+    @classmethod
+    def human_nodes(cls) -> List['ProcessNodeType']:
+        """Nodes that require human interaction"""
+        return [cls.HUMAN_TASK, cls.APPROVAL, cls.NOTIFICATION]
+
+
+class ProcessTriggerType(str, Enum):
+    """Types of triggers that can start a process"""
+    MANUAL = "manual"            # User-initiated
+    HTTP_WEBHOOK = "http_webhook" # External HTTP call
+    SCHEDULE = "schedule"        # Cron-based schedule
+    EVENT = "event"              # Internal event
+    CONVERSATION = "conversation" # Started from conversation
+    SUBPROCESS = "subprocess"    # Called by another process
+    
+    @classmethod
+    def values(cls) -> List[str]:
+        return [e.value for e in cls]
+
+
+class ProcessNodeStatus(str, Enum):
+    """Status of an individual node execution"""
+    PENDING = "pending"          # Not yet executed
+    RUNNING = "running"          # Currently executing
+    WAITING = "waiting"          # Waiting for input/approval
+    COMPLETED = "completed"      # Successfully finished
+    FAILED = "failed"            # Execution failed
+    SKIPPED = "skipped"          # Skipped (condition not met)
+    RETRYING = "retrying"        # Retrying after failure
+    
+    @classmethod
+    def values(cls) -> List[str]:
+        return [e.value for e in cls]
+
+
 class ToolType(str, Enum):
     """
     Tool Type Enumeration
@@ -205,6 +374,17 @@ def get_all_enum_values(enum_class: type) -> List[str]:
 # =============================================================================
 
 __all__ = [
+    # Agent Types
+    'AgentType',
+    
+    # Process/Workflow
+    'ProcessStatus',
+    'ProcessExecutionStatus',
+    'ProcessNodeType',
+    'ProcessTriggerType',
+    'ProcessNodeStatus',
+    
+    # Existing
     'ToolType',
     'AgentStatus',
     'ConversationStatus',

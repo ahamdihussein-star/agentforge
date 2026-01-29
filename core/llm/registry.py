@@ -312,6 +312,48 @@ class LLMRegistry:
         
         return defaults
     
+    def load_from_env(self) -> None:
+        """
+        Load default models based on available environment variables.
+        
+        Checks for API keys and registers appropriate models:
+        - OPENAI_API_KEY -> GPT-4o, GPT-4o-mini
+        - ANTHROPIC_API_KEY -> Claude 3.5 Sonnet, Claude 3 Opus
+        - OLLAMA_HOST -> Llama models (if Ollama is running)
+        """
+        import os
+        
+        # Check for OpenAI
+        if os.getenv('OPENAI_API_KEY'):
+            if 'gpt-4o' not in self._models:
+                self._models['gpt-4o'] = DEFAULT_MODEL_PRESETS['gpt-4o']
+            if 'gpt-4o-mini' not in self._models:
+                self._models['gpt-4o-mini'] = DEFAULT_MODEL_PRESETS['gpt-4o-mini']
+        
+        # Check for Anthropic
+        if os.getenv('ANTHROPIC_API_KEY'):
+            if 'claude-3-5-sonnet' not in self._models:
+                self._models['claude-3-5-sonnet'] = DEFAULT_MODEL_PRESETS['claude-3-5-sonnet']
+            if 'claude-3-opus' not in self._models:
+                self._models['claude-3-opus'] = DEFAULT_MODEL_PRESETS['claude-3-opus']
+        
+        # Check for Ollama
+        if os.getenv('OLLAMA_HOST') or os.getenv('OLLAMA_URL'):
+            if 'llama3-70b' not in self._models:
+                self._models['llama3-70b'] = DEFAULT_MODEL_PRESETS['llama3-70b']
+    
+    def load_default_presets(self, providers: Optional[List[str]] = None) -> None:
+        """
+        Load default model presets.
+        
+        Args:
+            providers: List of providers to load (None = all)
+        """
+        for model_id, config in DEFAULT_MODEL_PRESETS.items():
+            if providers is None or config.provider in providers:
+                if model_id not in self._models:
+                    self._models[model_id] = config
+    
     def __len__(self) -> int:
         return len(self._models)
     

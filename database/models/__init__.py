@@ -31,6 +31,11 @@ from .knowledge_base import (
     DocumentStatus, DocumentType
 )
 
+# Process/Workflow Execution
+from .process_execution import (
+    ProcessExecution, ProcessNodeExecution, ProcessApprovalRequest
+)
+
 # Configuration
 from .settings import (
     SystemSetting, OrganizationSetting,
@@ -62,6 +67,9 @@ __all__ = [
     'DocumentStatus', 'DocumentType',
     'AgentAccessPolicy', 'AgentDataPolicy', 'AgentActionPolicy',
     'AgentDeployment', 'EndUserSession',
+    
+    # Process/Workflow Execution
+    'ProcessExecution', 'ProcessNodeExecution', 'ProcessApprovalRequest',
     
     # Configuration
     'SystemSetting', 'OrganizationSetting',

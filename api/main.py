@@ -4317,6 +4317,14 @@ try:
 except ImportError as e:
     print(f"⚠️ Conversation Management module not available: {e}")
 
+# Process Execution Module (Workflow/Integration Agents)
+try:
+    from api.modules.process import router as process_router
+    app.include_router(process_router)
+    print("✅ Process Execution module registered")
+except ImportError as e:
+    print(f"⚠️ Process Execution module not available: {e}")
+
 
 @app.get("/")
 async def root():
