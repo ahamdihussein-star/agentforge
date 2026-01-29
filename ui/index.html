@@ -20968,16 +20968,6 @@ async function saveToolEdit() {
                 // Store the conversation ID
                 conv = session.conversation_id;
                 
-                // Add to dropdown if not exists
-                const sel = document.getElementById('chat-conv');
-                if(conv && !sel.querySelector(`option[value="${conv}"]`)) {
-                    const opt = document.createElement('option');
-                    opt.value = conv;
-                    opt.textContent = 'New conversation';
-                    sel.insertBefore(opt, sel.firstChild.nextSibling);
-                    sel.value = conv;
-                }
-                
                 // Build personalized welcome message
                 const fullName = session.user_name || 'User';
                 const firstName = fullName.split(' ')[0]; // Get first name only
@@ -21029,25 +21019,7 @@ async function saveToolEdit() {
             }
         }
 
-        async function onConvChange(){
-            const cid=document.getElementById('chat-conv').value;
-            if(!cid){
-                // New Chat selected - show personalized welcome
-                const agentId = document.getElementById('chat-agent').value;
-                if(agentId) {
-                    conv=null;
-                    await startChatWithWelcome(agentId);
-                } else {
-                    clearMsgs();conv=null;
-                }
-                return;
-            }
-            const r=await fetch(API+'/api/conversations/'+cid);
-            const c=await r.json();
-            conv=cid;
-            document.getElementById('chat-messages').innerHTML='';
-            c.messages.forEach(m=>{if(m.role==='user'||m.role==='assistant')addMsg(m.role,m.content,m.sources);});
-        }
+        // onConvChange removed - now using sidebar list instead of dropdown
 
         // File handling for chat
         function handleChatFile(event){
@@ -21160,14 +21132,8 @@ async function saveToolEdit() {
                 rmTyping();
                 conv=d.conversation_id;
                 addMsg('assistant',d.response,d.sources);
-                const sel=document.getElementById('chat-conv');
-                if(!sel.querySelector(`option[value="${d.conversation_id}"]`)){
-                    const o=document.createElement('option');
-                    o.value=d.conversation_id;
-                    o.textContent=m.substring(0,30)+'...';
-                    sel.insertBefore(o,sel.firstChild.nextSibling);
-                    sel.value=d.conversation_id;
-                }
+                // Update conversation list
+                updateConvDropdown(d.conversation_id, m);
                 // Clear attachments after send
                 chatAttachments = [];
                 renderChatAttachments();
