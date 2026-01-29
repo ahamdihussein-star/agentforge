@@ -57,6 +57,7 @@ class ConversationTitleService:
             try:
                 from core.llm.base import call_llm_simple
                 
+                print(f"🏷️ [TITLE] Calling LLM for title generation, model_id={model_id}")
                 title = await call_llm_simple(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
@@ -64,6 +65,7 @@ class ConversationTitleService:
                     max_tokens=30,
                     temperature=0.3
                 )
+                print(f"🏷️ [TITLE] LLM returned: {title}")
                 
                 if title:
                     # Clean up the title
@@ -74,10 +76,13 @@ class ConversationTitleService:
                         title = title[:47] + "..."
                     
                     if len(title) >= 3:
+                        print(f"✅ [TITLE] Generated title: {title}")
                         return title
                     
             except Exception as llm_error:
                 print(f"⚠️ LLM title generation failed: {llm_error}")
+                import traceback
+                traceback.print_exc()
             
             # Fallback: temporary title (will be updated)
             return f"New chat" if not agent_name else f"Chat with {agent_name}"

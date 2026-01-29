@@ -252,12 +252,15 @@ async def call_llm_simple(
     try:
         from .router import get_llm_for_task
         
+        print(f"🔧 [call_llm_simple] Getting LLM for model_id={model_id}")
         # Get appropriate LLM
         llm = await get_llm_for_task(model_id=model_id)
         
         if not llm:
             print("⚠️ No LLM available for simple call")
             return None
+        
+        print(f"🔧 [call_llm_simple] Got LLM: {llm}")
         
         # Build messages
         messages = [
@@ -266,14 +269,18 @@ async def call_llm_simple(
         ]
         
         # Call LLM
+        print(f"🔧 [call_llm_simple] Calling LLM.chat()...")
         response = await llm.chat(
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature
         )
         
+        print(f"🔧 [call_llm_simple] Response: {response.content[:100] if response.content else 'None'}...")
         return response.content
         
     except Exception as e:
         print(f"⚠️ call_llm_simple failed: {e}")
+        import traceback
+        traceback.print_exc()
         return None
