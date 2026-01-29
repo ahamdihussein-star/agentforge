@@ -21072,11 +21072,14 @@ async function saveToolEdit() {
                 
                 // If there are existing conversations, load the most recent one
                 // Otherwise, show welcome message (don't create new conversation until user sends message)
+                console.log('🔍 [CHAT] Conversations loaded:', chatConversations.length, chatConversations.map(c => ({id: c.id?.substring(0,8), title: c.title})));
                 if (chatConversations.length > 0) {
                     // Load the most recent conversation (first in list - already sorted by updated_at desc)
+                    console.log('📂 [CHAT] Loading last conversation:', chatConversations[0].id, chatConversations[0].title);
                     await loadChatConversation(chatConversations[0].id);
                 } else {
                     // No conversations - show welcome message
+                    console.log('✨ [CHAT] No conversations, showing welcome');
                     conv = null;
                     await startChatWithWelcome(id);
                 }

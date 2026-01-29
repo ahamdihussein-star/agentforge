@@ -2645,7 +2645,14 @@
             
             renderAgents();
             await loadConversations();
-            startNewChat();
+            
+            // If there are existing conversations, load the most recent one
+            // Otherwise, start a new chat
+            if (conversations.length > 0) {
+                await loadConversation(conversations[0].id);
+            } else {
+                startNewChat();
+            }
         }
 
         async function loadConversations() {
