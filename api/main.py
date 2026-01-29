@@ -11649,12 +11649,18 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             # ========================================================================
             
             is_new_conversation = False
+            is_first_message = False
             print(f"🔍 [STREAM] Checking conversation: request.conversation_id={request.conversation_id}")
             if request.conversation_id and request.conversation_id in app_state.conversations:
                 conversation = app_state.conversations[request.conversation_id]
                 print(f"🔍 [STREAM] Found existing conversation in memory: {conversation.id[:8]}")
+                # Check if this is the first message (no messages yet)
+                if len(conversation.messages) == 0:
+                    is_first_message = True
+                    print(f"🔍 [STREAM] This is the FIRST MESSAGE in conversation - will generate title")
             else:
                 is_new_conversation = True
+                is_first_message = True
                 print(f"🔍 [STREAM] Creating NEW conversation (is_new={is_new_conversation})")
                 # Start with temporary title - LLM will update it
                 title = "New conversation"
@@ -11674,7 +11680,9 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 except Exception as e:
                     print(f"⚠️ Failed to save conversation to DB: {e}")
                 
-                # Schedule LLM to generate smart title in background
+            # Schedule LLM to generate smart title for FIRST message
+            # (whether new conversation or existing conversation with no messages yet)
+            if is_first_message:
                 from api.modules.conversations import ConversationTitleService
                 print(f"🏷️ [STREAM] Scheduling title generation for conversation {conversation.id[:8]}...")
                 try:
