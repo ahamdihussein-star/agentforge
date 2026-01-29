@@ -1478,20 +1478,24 @@
         /* Page sections height */
         main > section { flex:1; display:flex; flex-direction:column; min-height:0; overflow-y:auto; overflow-x:hidden; }
         main > section.hidden { display:none !important; }
-        #page-chat { height:100%; max-height:100%; overflow:hidden; }
         #page-create { overflow-y:auto !important; }
+        
+        /* Chat page - MUST be flex row for sidebar + main layout */
+        #page-chat { 
+            display: flex !important;
+            flex-direction: row !important;
+            height: 100% !important; 
+            max-height: 100% !important; 
+            min-height: 0 !important;
+            overflow: hidden !important;
+            padding-bottom: 0 !important;
+        }
         #chat-messages { 
             flex:1; 
             overflow-y:auto !important; 
             min-height:0; 
             max-height:100%;
             -webkit-overflow-scrolling: touch;
-        }
-        /* Fix for webkit browsers */
-        #page-chat {
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
         }
         main {
             display: flex;
@@ -1501,6 +1505,7 @@
         @media (max-width: 767px) {
             #main-content { padding-top: 3.5rem; height: calc(100% - 4rem); }
             main > section { padding-bottom: 70px; }
+            #page-chat { padding-bottom: 0 !important; }
         }
         @media (min-width: 768px) {
             #main-content { padding-top: 0; height: 100%; }
