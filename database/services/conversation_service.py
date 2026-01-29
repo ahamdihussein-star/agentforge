@@ -206,7 +206,11 @@ class ConversationService:
                 db_conv.title = title
                 db_conv.updated_at = datetime.utcnow()
                 db.commit()
-                print(f"✅ [TITLE UPDATE] '{old_title}' → '{title}' for conversation {conv_id[:8]}...")
+                print(f"💾 [DB INSERT TITLE] Successfully saved title to database!")
+                print(f"   📝 Old title: '{old_title}'")
+                print(f"   📝 New title: '{title}'")
+                print(f"   📝 Conversation ID: {conv_id[:8]}...")
+                print(f"   📝 Updated at: {db_conv.updated_at}")
                 return True
                 
         except Exception as e:

@@ -10497,7 +10497,16 @@ async def list_conversations(agent_id: str, current_user: User = Depends(get_cur
             c for c in convs 
             if c.get('agent_id') == agent_id and c.get('user_id') == user_id
         ]
-        return {"conversations": sorted(agent_convs, key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True)}
+        sorted_convs = sorted(agent_convs, key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True)
+        
+        # Log all conversation titles from database
+        print(f"📋 [LIST CONVERSATIONS] Agent: {agent_id[:8]}..., User: {user_id[:8]}...")
+        print(f"   📊 Total conversations found: {len(sorted_convs)}")
+        print(f"   📚 All titles in database:")
+        for i, conv in enumerate(sorted_convs):
+            print(f"      {i+1}. '{conv.get('title', 'No title')}' (id: {conv.get('id', 'N/A')[:8]}...)")
+        
+        return {"conversations": sorted_convs}
     except Exception as e:
         print(f"⚠️  Database error, falling back to memory: {e}")
     
