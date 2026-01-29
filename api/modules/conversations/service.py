@@ -128,23 +128,28 @@ class ConversationTitleService:
         Returns:
             The generated title
         """
+        print(f"🏷️ [TITLE-TASK] Started for conversation {conversation_id[:8]}...")
+        print(f"🏷️ [TITLE-TASK] First message preview: {first_message[:50]}...")
         try:
             # Generate smart title with LLM
             title = await cls.generate_title(first_message, agent_name, model_id)
+            print(f"🏷️ [TITLE-TASK] Generated title: {title}")
             
             # Update in database
             from database.services import ConversationService
             success = ConversationService.update_title(conversation_id, title)
             
             if success:
-                print(f"✅ Updated conversation title: {title}")
+                print(f"✅ [TITLE-TASK] Updated conversation title: {title}")
             else:
-                print(f"⚠️ Failed to update conversation title in database")
+                print(f"⚠️ [TITLE-TASK] Failed to update conversation title in database")
             
             return title
             
         except Exception as e:
-            print(f"Error in generate_and_update_title: {e}")
+            print(f"❌ [TITLE-TASK] Error in generate_and_update_title: {e}")
+            import traceback
+            traceback.print_exc()
             return "New conversation"
     
     @classmethod

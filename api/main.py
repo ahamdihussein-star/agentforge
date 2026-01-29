@@ -11673,14 +11673,19 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 
                 # Schedule LLM to generate smart title in background
                 from api.modules.conversations import ConversationTitleService
-                asyncio.create_task(
-                    ConversationTitleService.generate_and_update_title(
-                        conversation_id=conversation.id,
-                        first_message=request.message,
-                        agent_name=agent.name,
-                        model_id=agent.model_id
+                print(f"🏷️ [STREAM] Scheduling title generation for conversation {conversation.id[:8]}...")
+                try:
+                    task = asyncio.create_task(
+                        ConversationTitleService.generate_and_update_title(
+                            conversation_id=conversation.id,
+                            first_message=request.message,
+                            agent_name=agent.name,
+                            model_id=agent.model_id
+                        )
                     )
-                )
+                    print(f"🏷️ [STREAM] Task created: {task}")
+                except Exception as title_err:
+                    print(f"❌ [STREAM] Failed to create title task: {title_err}")
             
             # Send conversation ID
             yield f"data: {json.dumps({'type': 'conversation_id', 'content': conversation.id})}\n\n"
