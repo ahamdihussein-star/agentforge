@@ -250,11 +250,40 @@ async def call_llm_simple(
         The LLM response content, or None if failed
     """
     try:
-        from .router import get_llm_for_task
+        from .factory import LLMFactory
+        from .registry import LLMRegistry, DEFAULT_MODEL_PRESETS
+        import os
         
         print(f"🔧 [call_llm_simple] Getting LLM for model_id={model_id}")
-        # Get appropriate LLM
-        llm = await get_llm_for_task(model_id=model_id)
+        
+        # Get model config
+        # First, try to use a simple approach - create LLM directly from model_id
+        config = None
+        
+        # Check if model_id matches a preset (e.g., "gpt-4o", "gpt-4o-mini")
+        if model_id:
+            # Try exact match first
+            if model_id in DEFAULT_MODEL_PRESETS:
+                config = DEFAULT_MODEL_PRESETS[model_id]
+            # Try partial match (e.g., "gpt-4o" in "gpt-4o-2024-05-13")
+            else:
+                for preset_id, preset_config in DEFAULT_MODEL_PRESETS.items():
+                    if preset_id in model_id or model_id in preset_id:
+                        config = preset_config
+                        break
+        
+        # Default to gpt-4o-mini (fast and cheap for title generation)
+        if not config:
+            config = DEFAULT_MODEL_PRESETS.get("gpt-4o-mini") or DEFAULT_MODEL_PRESETS.get("gpt-4o")
+        
+        if not config:
+            print("⚠️ No LLM config found")
+            return None
+        
+        print(f"🔧 [call_llm_simple] Using model: {config.display_name}")
+        
+        # Create LLM instance
+        llm = LLMFactory.create(config)
         
         if not llm:
             print("⚠️ No LLM available for simple call")
