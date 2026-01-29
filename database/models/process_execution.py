@@ -169,9 +169,18 @@ class ProcessExecution(Base):
     # Child executions (sub-processes)
     child_executions = relationship(
         "ProcessExecution",
-        backref="parent_execution",
-        remote_side="ProcessExecution.id",
-        lazy="dynamic"
+        back_populates="parent_execution",
+        foreign_keys=[parent_execution_id],
+        lazy="select"
+    )
+    
+    # Parent execution (for sub-processes)
+    parent_execution = relationship(
+        "ProcessExecution",
+        back_populates="child_executions",
+        remote_side=[id],
+        foreign_keys=[parent_execution_id],
+        lazy="select"
     )
     
     def __repr__(self):
