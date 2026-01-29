@@ -10866,31 +10866,44 @@ async def test_chat_with_files(
     org_id = current_user.org_id if current_user else "org_default"
     user_id = str(current_user.id) if current_user else "system"
     
+    is_new_conversation = False
     if conversation_id and conversation_id in app_state.conversations:
         conversation = app_state.conversations[conversation_id]
     else:
-        # Generate smart title from user message
-        from api.modules.conversations import ConversationTitleService
-        if message:
-            title = "[TEST] " + ConversationTitleService.generate_title_sync(message, agent.name if agent else None)
-        elif files:
-            title = f"[TEST] Chat with {len(files)} file(s)"
-        else:
-            title = "[TEST] New conversation"
+        is_new_conversation = True
+        # Start with temporary title - LLM will update it
+        title = "[TEST] New conversation"
         conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         app_state.conversations[conversation.id] = conversation
         
-        # Save to database
+        # Save to database with temporary title
         try:
             from database.services import ConversationService
             ConversationService.create_conversation({
                 'id': conversation.id,
                 'agent_id': agent_id,
                 'user_id': user_id,
-                'title': title
+                'title': title,
+                'is_test': True
             }, org_id, user_id)
         except Exception as e:
             print(f"⚠️  Failed to save conversation to DB: {e}")
+        
+        # Schedule LLM to generate smart title in background
+        if message:
+            import asyncio
+            from api.modules.conversations import ConversationTitleService
+            
+            async def update_test_title():
+                new_title = await ConversationTitleService.generate_title(
+                    first_message=message,
+                    agent_name=agent.name if agent else None,
+                    model_id=agent.model_id if agent else None
+                )
+                from database.services import ConversationService
+                ConversationService.update_title(conversation.id, f"[TEST] {new_title}")
+            
+            asyncio.create_task(update_test_title())
     
     # Save uploaded files and prepare attachments info
     attachments = []
@@ -11408,10 +11421,11 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
             access_result = None
     
     # Create new conversation if needed
+    is_new_conversation = False
     if not conversation:
-        # Generate smart title from user message
-        from api.modules.conversations import ConversationTitleService
-        title = ConversationTitleService.generate_title_sync(request.message, agent.name)
+        is_new_conversation = True
+        # Start with temporary title - LLM will update it
+        title = "New conversation"
         conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         
         # Cache permissions in new conversation
@@ -11433,7 +11447,7 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
         
         app_state.conversations[conversation.id] = conversation
         
-        # Save to database
+        # Save to database with temporary title
         try:
             from database.services import ConversationService
             ConversationService.create_conversation({
@@ -11444,6 +11458,18 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
             }, org_id, user_id)
         except Exception as e:
             print(f"⚠️  Failed to save conversation to DB: {e}")
+        
+        # Schedule LLM to generate smart title in background
+        import asyncio
+        from api.modules.conversations import ConversationTitleService
+        asyncio.create_task(
+            ConversationTitleService.generate_and_update_title(
+                conversation_id=conversation.id,
+                first_message=request.message,
+                agent_name=agent.name,
+                model_id=agent.model_id
+            )
+        )
     
     user_msg = ConversationMessage(role="user", content=request.message)
     conversation.messages.append(user_msg)
@@ -11625,17 +11651,18 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             # CONVERSATION HANDLING
             # ========================================================================
             
+            is_new_conversation = False
             if request.conversation_id and request.conversation_id in app_state.conversations:
                 conversation = app_state.conversations[request.conversation_id]
             else:
-                # Generate smart title from user message
-                from api.modules.conversations import ConversationTitleService
-                title = ConversationTitleService.generate_title_sync(request.message, agent.name)
+                is_new_conversation = True
+                # Start with temporary title - LLM will update it
+                title = "New conversation"
                 
                 conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
                 app_state.conversations[conversation.id] = conversation
                 
-                # Save to database
+                # Save to database with temporary title
                 try:
                     from database.services import ConversationService
                     ConversationService.create_conversation({
@@ -11646,6 +11673,18 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                     }, org_id, user_id)
                 except Exception as e:
                     print(f"⚠️ Failed to save conversation to DB: {e}")
+                
+                # Schedule LLM to generate smart title in background
+                import asyncio
+                from api.modules.conversations import ConversationTitleService
+                asyncio.create_task(
+                    ConversationTitleService.generate_and_update_title(
+                        conversation_id=conversation.id,
+                        first_message=request.message,
+                        agent_name=agent.name,
+                        model_id=agent.model_id
+                    )
+                )
             
             # Send conversation ID
             yield f"data: {json.dumps({'type': 'conversation_id', 'content': conversation.id})}\n\n"
@@ -12111,21 +12150,17 @@ async def chat_with_files(
             access_result = None
     
     # Get or create conversation
+    is_new_conversation = False
     if conversation_id and conversation_id in app_state.conversations:
         conversation = app_state.conversations[conversation_id]
     else:
-        # Generate smart title from user message
-        from api.modules.conversations import ConversationTitleService
-        if message:
-            title = ConversationTitleService.generate_title_sync(message, agent.name if agent else None)
-        elif files:
-            title = f"Chat with {len(files)} file(s)"
-        else:
-            title = "New conversation"
+        is_new_conversation = True
+        # Start with temporary title - LLM will update it
+        title = "New conversation"
         conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         app_state.conversations[conversation.id] = conversation
         
-        # Save to database
+        # Save to database with temporary title
         try:
             from database.services import ConversationService
             ConversationService.create_conversation({
@@ -12136,6 +12171,19 @@ async def chat_with_files(
             }, org_id, user_id)
         except Exception as e:
             print(f"⚠️  Failed to save conversation to DB: {e}")
+        
+        # Schedule LLM to generate smart title in background
+        if message:
+            import asyncio
+            from api.modules.conversations import ConversationTitleService
+            asyncio.create_task(
+                ConversationTitleService.generate_and_update_title(
+                    conversation_id=conversation.id,
+                    first_message=message,
+                    agent_name=agent.name if agent else None,
+                    model_id=agent.model_id if agent else None
+                )
+            )
     
     # Process uploaded files and extract text
     file_contents = []

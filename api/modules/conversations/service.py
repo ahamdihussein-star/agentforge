@@ -26,124 +26,121 @@ class ConversationTitleService:
     """
     
     @classmethod
-    async def generate_title(cls, first_message: str, agent_name: str = None, language: str = "auto") -> str:
+    async def generate_title(cls, first_message: str, agent_name: str = None, model_id: str = None) -> str:
         """
-        Generate a descriptive title for a conversation based on the first message.
+        Generate a descriptive title for a conversation using LLM.
         
         Args:
             first_message: The first user message in the conversation
             agent_name: Optional agent name for context
-            language: Language for the title ("en", "ar", or "auto" to detect)
+            model_id: Optional model ID to use (defaults to system default)
             
         Returns:
             A short, descriptive title (max 50 chars)
         """
         try:
-            # Auto-detect language if needed
-            if language == "auto":
-                # Check for Arabic characters
-                is_arabic = any('\u0600' <= c <= '\u06FF' for c in first_message)
-                language = "ar" if is_arabic else "en"
+            # Auto-detect language
+            is_arabic = any('\u0600' <= c <= '\u06FF' for c in first_message)
             
             # Truncate message if too long
-            msg_preview = first_message[:200] if len(first_message) > 200 else first_message
+            msg_preview = first_message[:300] if len(first_message) > 300 else first_message
             
-            # Build prompt for title generation
-            if language == "ar":
-                prompt = f"""اكتب عنوان قصير (أقل من 6 كلمات) يصف هذه المحادثة:
-"{msg_preview}"
-
-اكتب العنوان فقط بدون علامات ترقيم أو تفسير."""
+            # Build prompt - works for ANY agent type
+            if is_arabic:
+                system_prompt = "أنت مساعد يكتب عناوين قصيرة ووصفية للمحادثات. اكتب العنوان فقط بدون أي شرح."
+                user_prompt = f"اكتب عنوان قصير (3-6 كلمات) يصف طلب المستخدم التالي:\n\n{msg_preview}"
             else:
-                prompt = f"""Write a short title (under 6 words) describing this conversation:
-"{msg_preview}"
-
-Write only the title, no punctuation or explanation."""
+                system_prompt = "You generate short, descriptive conversation titles. Write only the title, nothing else."
+                user_prompt = f"Write a short title (3-6 words) describing this user request:\n\n{msg_preview}"
             
-            # Try to use LLM for smart title generation
+            # Use LLM for smart title generation
             try:
-                from core.llm.factory import create_llm_client
+                from core.llm.base import call_llm_simple
                 
-                client = create_llm_client("openai")  # Use default provider
-                response = await client.generate(
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant that generates short, descriptive conversation titles."},
-                        {"role": "user", "content": prompt}
-                    ],
+                title = await call_llm_simple(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    model_id=model_id,
                     max_tokens=30,
                     temperature=0.3
                 )
                 
-                title = response.get("content", "").strip()
-                
-                # Clean up the title
-                title = title.strip('"\'.')
-                
-                # Limit length
-                if len(title) > 50:
-                    title = title[:47] + "..."
-                
                 if title:
-                    return title
+                    # Clean up the title
+                    title = title.strip().strip('"\'.:').strip()
+                    
+                    # Limit length
+                    if len(title) > 50:
+                        title = title[:47] + "..."
+                    
+                    if len(title) >= 3:
+                        return title
                     
             except Exception as llm_error:
-                print(f"LLM title generation failed, using fallback: {llm_error}")
+                print(f"⚠️ LLM title generation failed: {llm_error}")
             
-            # Fallback: Use first words of the message
-            return cls._fallback_title(first_message, agent_name)
+            # Fallback: temporary title (will be updated)
+            return f"New chat" if not agent_name else f"Chat with {agent_name}"
             
         except Exception as e:
             print(f"Error generating conversation title: {e}")
-            return cls._fallback_title(first_message, agent_name)
+            return "New conversation"
     
     @classmethod
     def generate_title_sync(cls, first_message: str, agent_name: str = None) -> str:
         """
-        Synchronous version - generates a simple title without LLM.
-        Uses first words of the message.
+        Synchronous placeholder - returns temporary title.
+        The real title will be generated async by LLM after first message.
         
         Args:
             first_message: The first user message
             agent_name: Optional agent name
             
         Returns:
-            A short title
+            A temporary title (to be updated by LLM)
         """
-        return cls._fallback_title(first_message, agent_name)
+        # Return a temporary title - the async LLM call will update it
+        return "New conversation"
     
     @classmethod
-    def _fallback_title(cls, message: str, agent_name: str = None) -> str:
+    async def generate_and_update_title(
+        cls, 
+        conversation_id: str, 
+        first_message: str, 
+        agent_name: str = None,
+        model_id: str = None
+    ) -> str:
         """
-        Generate a simple title from the message content.
-        Works for ANY type of agent - no domain-specific logic.
+        Generate a smart title using LLM and update the conversation in database.
+        Call this as a background task after creating a conversation.
+        
+        Args:
+            conversation_id: The conversation ID to update
+            first_message: The first user message
+            agent_name: Optional agent name
+            model_id: Optional model ID
+            
+        Returns:
+            The generated title
         """
-        # Clean the message
-        clean_msg = message.strip()
-        
-        # Take first meaningful words (up to 6 words or 50 chars)
-        words = clean_msg.split()
-        
-        # Build title from first words
-        title_words = []
-        char_count = 0
-        for word in words[:8]:  # Max 8 words to check
-            if char_count + len(word) > 50:
-                break
-            title_words.append(word)
-            char_count += len(word) + 1  # +1 for space
-            if len(title_words) >= 6:
-                break
-        
-        title = " ".join(title_words)
-        
-        # Add ellipsis if we truncated
-        if len(title_words) < len(words):
-            title += "..."
-        
-        # Fallback if empty or too short
-        if not title or len(title) < 2:
-            if agent_name:
-                return f"Chat with {agent_name}"
+        try:
+            # Generate smart title with LLM
+            title = await cls.generate_title(first_message, agent_name, model_id)
+            
+            # Update in database
+            from database.services import ConversationService
+            success = ConversationService.update_title(conversation_id, title)
+            
+            if success:
+                print(f"✅ Updated conversation title: {title}")
+            else:
+                print(f"⚠️ Failed to update conversation title in database")
+            
+            return title
+            
+        except Exception as e:
+            print(f"Error in generate_and_update_title: {e}")
+            return "New conversation"
             return "New conversation"
         
         return title

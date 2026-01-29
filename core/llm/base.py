@@ -226,3 +226,54 @@ class BaseLLM(ABC):
     
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(id={self.config.id}, model={self.config.model_id})"
+
+
+async def call_llm_simple(
+    system_prompt: str,
+    user_prompt: str,
+    model_id: str = None,
+    max_tokens: int = 100,
+    temperature: float = 0.7
+) -> Optional[str]:
+    """
+    Simple helper to call LLM with just system and user prompts.
+    Uses the system's default model if model_id not specified.
+    
+    Args:
+        system_prompt: The system prompt
+        user_prompt: The user prompt
+        model_id: Optional specific model to use
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        
+    Returns:
+        The LLM response content, or None if failed
+    """
+    try:
+        from .router import get_llm_for_task
+        
+        # Get appropriate LLM
+        llm = await get_llm_for_task(model_id=model_id)
+        
+        if not llm:
+            print("⚠️ No LLM available for simple call")
+            return None
+        
+        # Build messages
+        messages = [
+            Message(role=MessageRole.SYSTEM, content=system_prompt),
+            Message(role=MessageRole.USER, content=user_prompt)
+        ]
+        
+        # Call LLM
+        response = await llm.chat(
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+        
+        return response.content
+        
+    except Exception as e:
+        print(f"⚠️ call_llm_simple failed: {e}")
+        return None
