@@ -15969,42 +15969,26 @@ Option 3"></textarea>
                 console.log('📌 Using existing agent for test:', existingAgentId);
             }
             try{
-                let response;
                 if(testAttachments.length > 0){
-                    // Send with FormData for file upload
+                    // Send with FormData for file upload (non-streaming)
                     const formData = new FormData();
                     formData.append('message', m);
                     formData.append('timezone', userTimezone);
                     if(testAgent.convId) formData.append('conversation_id', testAgent.convId);
                     testAttachments.forEach(f => formData.append('files', f));
                     
-                    response = await fetch(API+'/api/agents/'+testAgent.id+'/test-chat-with-files', {
+                    const response = await fetch(API+'/api/agents/'+testAgent.id+'/test-chat-with-files', {
                         method:'POST', 
                         headers: {...getAuthHeaders()},
                         body: formData
                     });
+                    const d=await response.json();
+                    testAgent.convId=d.conversation_id;
+                    addTestMsg('assistant',d.response,d.sources);
                 } else {
-                    response = await fetch(API+'/api/agents/'+testAgent.id+'/test-chat',{
-                        method:'POST',
-                        headers: {...getAuthHeaders(), 'Content-Type':'application/json'},
-                        body:JSON.stringify({message:m,conversation_id:testAgent.convId,timezone:userTimezone})
-                    });
+                    // Use streaming for better UX
+                    await sendTestMsgStreaming(testAgent.id, m, userTimezone);
                 }
-                const d=await response.json();
-                testAgent.convId=d.conversation_id;
-                
-                // Show real extractions info if any
-                if(d.real_extractions && d.real_extractions > 0) {
-                    addTestMsg('system', `✓ Real OCR/extraction performed on ${d.real_extractions} file(s)`);
-                }
-                
-                // Show tool calls if any (demo mode)
-                if(d.tool_calls && d.tool_calls.length > 0) {
-                    const toolsUsed = d.tool_calls.join(', ');
-                    addTestMsg('system', `🔧 Tools used: ${toolsUsed}`);
-                }
-                
-                addTestMsg('assistant',d.response,d.sources);
                 // Clear attachments after send
                 testAttachments = [];
                 renderTestAttachments();
@@ -16018,9 +16002,115 @@ Option 3"></textarea>
             if(role==='user')d.innerHTML=`<div class="flex justify-end"><div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] text-sm shadow-md">${esc(content)}</div></div>`;
             else if(role==='assistant')d.innerHTML=`<div class="flex"><div class="bg-gray-700 text-white rounded-2xl rounded-tl-sm px-3 py-2 max-w-[85%] chat-content text-sm">${fmt(content)}</div></div>`;
             else if(role==='system')d.innerHTML=`<div class="text-center text-xs py-1 text-gray-500">${content}</div>`;
+            else if(role==='thinking')d.innerHTML=`<div class="flex"><div class="bg-gray-600 text-gray-300 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[85%] text-sm italic"><span class="inline-block w-2 h-2 bg-purple-400 rounded-full animate-pulse mr-2"></span>${esc(content)}</div></div>`;
             else d.innerHTML=`<div class="text-center text-red-400 text-sm">${content}</div>`;
             c.appendChild(d);
             c.scrollTop=c.scrollHeight;
+            return d;
+        }
+        
+        // Streaming test chat with real-time thinking
+        async function sendTestMsgStreaming(agentId, message, timezone) {
+            const c = document.getElementById('test-messages');
+            
+            // Add thinking placeholder
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.id = 'test-thinking-container';
+            thinkingDiv.className = 'animate-fade-in';
+            thinkingDiv.innerHTML = `
+                <div class="flex">
+                    <div class="bg-gray-600 text-gray-300 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[85%] text-sm italic">
+                        <span class="inline-block w-2 h-2 bg-purple-400 rounded-full animate-pulse mr-2"></span>
+                        <span id="test-thinking-text">...</span>
+                    </div>
+                </div>
+            `;
+            c.appendChild(thinkingDiv);
+            c.scrollTop = c.scrollHeight;
+            
+            let fullContent = '';
+            let sources = [];
+            let buffer = '';
+            
+            try {
+                const response = await fetch(API + '/api/agents/' + agentId + '/chat/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        conversation_id: testAgent.convId,
+                        timezone: timezone
+                    })
+                });
+                
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6).trim());
+                                
+                                switch (data.type) {
+                                    case 'thinking':
+                                    case 'tool_call':
+                                    case 'tool_result':
+                                        const textEl = document.getElementById('test-thinking-text');
+                                        if (textEl) textEl.textContent = data.content;
+                                        break;
+                                    case 'conversation_id':
+                                        testAgent.convId = data.content;
+                                        break;
+                                    case 'content':
+                                        fullContent += data.content;
+                                        break;
+                                    case 'sources':
+                                        sources = data.content || [];
+                                        break;
+                                    case 'done':
+                                        // Remove thinking and show response
+                                        const container = document.getElementById('test-thinking-container');
+                                        if (container) container.remove();
+                                        break;
+                                    case 'error':
+                                        const errContainer = document.getElementById('test-thinking-container');
+                                        if (errContainer) errContainer.remove();
+                                        addTestMsg('error', data.content);
+                                        return;
+                                }
+                            } catch (e) { /* skip */ }
+                        }
+                    }
+                }
+                
+                // Remove thinking container
+                const container = document.getElementById('test-thinking-container');
+                if (container) container.remove();
+                
+                // Add final response
+                if (fullContent) {
+                    addTestMsg('assistant', fullContent, sources);
+                }
+                
+            } catch (e) {
+                console.error('Test streaming error:', e);
+                const container = document.getElementById('test-thinking-container');
+                if (container) container.remove();
+                addTestMsg('error', 'Error: ' + e.message);
+            }
         }
 
         async function saveAgent(status){
