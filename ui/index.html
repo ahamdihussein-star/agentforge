@@ -3117,23 +3117,74 @@
                     </div>
                     
                     <!-- Workflow Automation Section (Hidden by default) -->
-                    <div id="section-process" class="hidden card rounded-xl p-6 md:p-8">
-                        <label class="text-sm text-gray-400 mb-2 block">What should your workflow do? *</label>
-                        <textarea id="w-process-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4 text-lg" placeholder="Example: When an expense report over $500 is submitted, send it to the manager for approval, then notify finance..."></textarea>
-                        
-                        <div class="mt-6 flex flex-col sm:flex-row gap-3">
-                            <button onclick="generateProcessConfig()" class="px-8 py-3 rounded-lg flex-1 flex items-center justify-center gap-2 text-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
-                                <span>✨</span> Create My Workflow
-                            </button>
+                    <div id="section-process" class="hidden card rounded-xl p-6 md:p-8" style="background: linear-gradient(135deg, rgba(34,197,94,0.05), rgba(20,184,166,0.05)); border: 1px solid rgba(34,197,94,0.2);">
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-3xl mb-4">🔄</div>
+                            <h3 class="text-xl font-bold mb-2">Visual Workflow Builder</h3>
+                            <p class="text-gray-400">Design powerful automations with drag & drop</p>
                         </div>
                         
-                        <div class="mt-6 pt-6 border-t border-gray-700">
-                            <p class="text-sm text-gray-500 mb-3">Or start with a template:</p>
-                            <div class="flex flex-wrap gap-2">
-                                <button onclick="useProcessTemplate('approval')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">✅ Approval Workflow</button>
-                                <button onclick="useProcessTemplate('onboarding')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">👋 Employee Onboarding</button>
-                                <button onclick="useProcessTemplate('notification')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔔 Alerts & Notifications</button>
-                                <button onclick="useProcessTemplate('data_sync')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔄 Data Integration</button>
+                        <div class="grid md:grid-cols-2 gap-4 mb-6">
+                            <!-- Option 1: Visual Builder -->
+                            <div onclick="openVisualBuilder()" class="p-5 rounded-xl bg-gradient-to-br from-green-500/10 to-teal-500/10 border border-green-500/30 cursor-pointer hover:border-green-400 transition-all group">
+                                <div class="flex items-center gap-3 mb-3">
+                                    <div class="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-xl">🎨</div>
+                                    <div class="font-semibold">Visual Builder</div>
+                                    <span class="ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">Recommended</span>
+                                </div>
+                                <p class="text-sm text-gray-400 mb-3">Drag & drop nodes, connect steps visually, configure with forms - no coding required.</p>
+                                <div class="flex items-center gap-2 text-green-400 text-sm group-hover:translate-x-1 transition-transform">
+                                    <span>Open Builder</span>
+                                    <span>→</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Option 2: AI Generate -->
+                            <div onclick="showAIWorkflowInput()" class="p-5 rounded-xl bg-gray-800/50 border border-gray-700 cursor-pointer hover:border-purple-500 transition-all group">
+                                <div class="flex items-center gap-3 mb-3">
+                                    <div class="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-xl">🤖</div>
+                                    <div class="font-semibold">AI Generate</div>
+                                </div>
+                                <p class="text-sm text-gray-400 mb-3">Describe what you need in plain English, AI creates the workflow for you.</p>
+                                <div class="flex items-center gap-2 text-purple-400 text-sm group-hover:translate-x-1 transition-transform">
+                                    <span>Generate with AI</span>
+                                    <span>→</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- AI Input (Hidden by default) -->
+                        <div id="ai-workflow-input" class="hidden">
+                            <label class="text-sm text-gray-400 mb-2 block">Describe your workflow *</label>
+                            <textarea id="w-process-goal" rows="3" class="input-field w-full rounded-lg px-4 py-3" placeholder="When an expense over $500 is submitted, send to manager for approval..."></textarea>
+                            <div class="mt-4 flex gap-3">
+                                <button onclick="generateProcessConfig()" class="flex-1 px-6 py-3 rounded-lg text-white font-medium flex items-center justify-center gap-2" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">
+                                    <span>✨</span> Generate Workflow
+                                </button>
+                                <button onclick="hideAIWorkflowInput()" class="px-4 py-3 rounded-lg bg-gray-700 text-gray-300">Cancel</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Quick Templates -->
+                        <div id="workflow-templates" class="mt-4 pt-4 border-t border-gray-700/50">
+                            <p class="text-sm text-gray-500 mb-3">Quick start templates:</p>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button onclick="openBuilderWithTemplate('approval')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                    <span class="text-lg">✅</span>
+                                    <div class="text-sm font-medium mt-1">Approval</div>
+                                </button>
+                                <button onclick="openBuilderWithTemplate('onboarding')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                    <span class="text-lg">👋</span>
+                                    <div class="text-sm font-medium mt-1">Onboarding</div>
+                                </button>
+                                <button onclick="openBuilderWithTemplate('notification')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                    <span class="text-lg">🔔</span>
+                                    <div class="text-sm font-medium mt-1">Notifications</div>
+                                </button>
+                                <button onclick="openBuilderWithTemplate('integration')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                    <span class="text-lg">🔗</span>
+                                    <div class="text-sm font-medium mt-1">Integration</div>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -9449,9 +9500,10 @@ Option 3"></textarea>
         }
         
         // Open Visual Editor
-        function openVisualEditor() {
-            // Open process builder in new tab or modal
-            window.open('/ui/process-builder.html', '_blank');
+        function openVisualEditor(agentId = null) {
+            // Open process builder with agent ID if editing
+            const url = agentId ? `/ui/process-builder.html?agent=${agentId}` : '/ui/process-builder.html';
+            window.open(url, '_blank');
         }
         
         // Save Process
@@ -10001,26 +10053,8 @@ Option 3"></textarea>
         
         // Open Process Editor for existing workflow agent
         function openProcessEditor(agent) {
-            editingProcessAgent = agent;
-            const workflow = agent.process_definition || { nodes: [], edges: [] };
-            
-            // Show the process editor modal
-            const modal = document.getElementById('process-editor-modal');
-            if (!modal) {
-                // Create modal if not exists
-                createProcessEditorModal();
-            }
-            
-            // Update modal content
-            document.getElementById('process-editor-title').textContent = agent.name || 'Edit Workflow';
-            document.getElementById('process-editor-name').value = agent.name || '';
-            document.getElementById('process-editor-goal').value = agent.goal || '';
-            
-            // Render workflow nodes
-            renderWorkflowNodes(workflow);
-            
-            // Show modal
-            document.getElementById('process-editor-modal').classList.remove('hidden');
+            // Open the full visual workflow builder
+            window.open(`/ui/process-builder.html?agent=${agent.id}`, '_blank');
         }
         
         // Create Process Editor Modal
@@ -10338,7 +10372,29 @@ Option 3"></textarea>
             editingProcessAgent = null;
         }
         
-        // Process Templates
+        // Open Visual Workflow Builder
+        function openVisualBuilder() {
+            window.open('/ui/process-builder.html', '_blank');
+        }
+        
+        // Show AI Workflow Input
+        function showAIWorkflowInput() {
+            document.getElementById('ai-workflow-input').classList.remove('hidden');
+            document.getElementById('workflow-templates').classList.add('hidden');
+        }
+        
+        // Hide AI Workflow Input
+        function hideAIWorkflowInput() {
+            document.getElementById('ai-workflow-input').classList.add('hidden');
+            document.getElementById('workflow-templates').classList.remove('hidden');
+        }
+        
+        // Open Builder with Template
+        function openBuilderWithTemplate(template) {
+            window.open(`/ui/process-builder.html?template=${template}`, '_blank');
+        }
+        
+        // Process Templates (Legacy)
         function useProcessTemplate(template) {
             const templates = {
                 approval: "When a request is submitted, check if the amount is over $500. If yes, send to manager for approval. Notify the requester of the decision and update the system.",
