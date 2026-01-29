@@ -6,6 +6,7 @@
     <title>AgentForge - AI Assistant</title>
     <link rel="icon" type="image/png" href="/AgentForge_Logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -468,6 +469,72 @@
             border-radius: 16px;
             line-height: 1.6;
             font-size: 0.95rem;
+        }
+        
+        /* Table styling (same as main app) */
+        .message-content .table-container {
+            overflow-x: auto;
+            margin: 0.75rem 0;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+        }
+        .message-content table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            min-width: max-content;
+            background: var(--bg-card);
+        }
+        .message-content th {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            padding: 0.625rem 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            white-space: nowrap;
+            border: none;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            letter-spacing: 0.025em;
+        }
+        .message-content td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-primary);
+            vertical-align: top;
+            word-break: break-word;
+        }
+        .message-content tr:last-child td {
+            border-bottom: none;
+        }
+        .message-content tbody tr {
+            transition: background 0.15s ease;
+        }
+        .message-content tbody tr:nth-child(even) {
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .message-content tbody tr:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+        
+        /* Code styling */
+        .message-content code {
+            background: rgba(99, 102, 241, 0.15);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85em;
+        }
+        .message-content pre {
+            background: var(--bg-dark);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+        .message-content pre code {
+            background: none;
+            padding: 0;
         }
 
         .message.assistant .message-content {
@@ -2648,7 +2715,35 @@
         }
 
         function formatMessage(content) {
-            // Basic markdown-like formatting
+            // Full markdown formatting with table support (same as index.html)
+            if (!content || typeof content !== 'string') return '';
+            let text = String(content);
+            
+            // Convert LaTeX math symbols to readable format
+            text = text.replace(/\\times/g, '×');
+            text = text.replace(/\\div/g, '÷');
+            text = text.replace(/\\pm/g, '±');
+            text = text.replace(/\\leq/g, '≤');
+            text = text.replace(/\\geq/g, '≥');
+            text = text.replace(/\\neq/g, '≠');
+            text = text.replace(/\\approx/g, '≈');
+            text = text.replace(/\\cdot/g, '·');
+            text = text.replace(/\\text\{([^}]+)\}/g, '$1');
+            text = text.replace(/\\\[/g, '');
+            text = text.replace(/\\\]/g, '');
+            text = text.replace(/\\\(/g, '');
+            text = text.replace(/\\\)/g, '');
+            
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({ breaks: true, gfm: true });
+                let html = marked.parse(text);
+                // Wrap tables in responsive container
+                html = html.replace(/<table>/g, '<div class="table-container"><table>');
+                html = html.replace(/<\/table>/g, '</table></div>');
+                return html;
+            }
+            
+            // Fallback
             return content
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
