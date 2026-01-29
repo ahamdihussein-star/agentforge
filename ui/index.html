@@ -3018,28 +3018,91 @@
                         <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-4">
                             <img src="data:image/png;base64,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" alt="" class="w-12 h-12">
                         </div>
-                        <h2 class="text-2xl md:text-3xl font-bold mb-2">AgentForge Studio</h2>
-                        <p class="text-gray-400">Tell us what you want your agent to do, and we'll configure everything for you</p>
+                        <h2 class="text-2xl md:text-3xl font-bold mb-2">What would you like to create?</h2>
+                        <p class="text-gray-400">Choose the type of AI solution for your needs</p>
                     </div>
                     
-                    <div class="card rounded-xl p-6 md:p-8">
-                        <label class="text-sm text-gray-400 mb-2 block">What should your agent do? *</label>
+                    <!-- Agent Type Selection Cards -->
+                    <div class="grid md:grid-cols-2 gap-4 mb-6">
+                        <!-- Conversational AI Card -->
+                        <div id="type-card-conversational" onclick="selectAgentType('conversational')" 
+                             class="card rounded-xl p-5 cursor-pointer border-2 border-purple-500 hover:border-purple-400 transition-all">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">💬</div>
+                                <div>
+                                    <h3 class="font-bold">Conversational AI</h3>
+                                    <p class="text-xs text-gray-400">Chat & assist users</p>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-300 mb-3">An AI assistant that chats with users and helps with tasks through conversation.</p>
+                            <div class="flex flex-wrap gap-1 mb-2">
+                                <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Chat</span>
+                                <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Q&A</span>
+                                <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Support</span>
+                            </div>
+                            <div class="text-sm text-purple-400 font-medium">✓ Selected</div>
+                        </div>
+                        
+                        <!-- Workflow Automation Card -->
+                        <div id="type-card-process" onclick="selectAgentType('process')" 
+                             class="card rounded-xl p-5 cursor-pointer border-2 border-transparent hover:border-green-500 transition-all">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
+                                <div>
+                                    <h3 class="font-bold">Workflow Automation</h3>
+                                    <p class="text-xs text-gray-400">Automate processes</p>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-300 mb-3">Automated workflows with approvals, integrations, and step-by-step processes.</p>
+                            <div class="flex flex-wrap gap-1 mb-2">
+                                <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Approvals</span>
+                                <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Integrations</span>
+                                <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Automation</span>
+                            </div>
+                            <div class="text-sm text-gray-500">Click to select</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Conversational AI Section -->
+                    <div id="section-conversational" class="card rounded-xl p-6 md:p-8">
+                        <label class="text-sm text-gray-400 mb-2 block">What should your assistant do? *</label>
                         <textarea id="w-initial-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4 text-lg" placeholder="Example: Help customers track their orders, answer product questions, and process returns..."></textarea>
                         
                         <div class="mt-6 flex flex-col sm:flex-row gap-3">
                             <button onclick="generateAgentConfig()" id="btn-generate-config" class="btn-primary px-8 py-3 rounded-lg flex-1 flex items-center justify-center gap-2 text-lg">
-                                <span>✨</span> Configure My Agent
+                                <span>✨</span> Create My Assistant
                             </button>
                         </div>
                         
                         <div class="mt-6 pt-6 border-t border-gray-700">
-                            <p class="text-sm text-gray-500 mb-3">Or try one of these templates:</p>
+                            <p class="text-sm text-gray-500 mb-3">Or start with a template:</p>
                             <div class="flex flex-wrap gap-2">
                                 <button onclick="useAgentTemplate('customer_support')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🎧 Customer Support</button>
                                 <button onclick="useAgentTemplate('sales')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">💼 Sales Assistant</button>
                                 <button onclick="useAgentTemplate('hr')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">👥 HR Helper</button>
                                 <button onclick="useAgentTemplate('research')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔬 Research Analyst</button>
-                                <button onclick="useAgentTemplate('coding')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">💻 Coding Assistant</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Workflow Automation Section (Hidden by default) -->
+                    <div id="section-process" class="hidden card rounded-xl p-6 md:p-8">
+                        <label class="text-sm text-gray-400 mb-2 block">What should your workflow do? *</label>
+                        <textarea id="w-process-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4 text-lg" placeholder="Example: When an expense report over $500 is submitted, send it to the manager for approval, then notify finance..."></textarea>
+                        
+                        <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                            <button onclick="generateProcessConfig()" class="px-8 py-3 rounded-lg flex-1 flex items-center justify-center gap-2 text-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
+                                <span>✨</span> Create My Workflow
+                            </button>
+                        </div>
+                        
+                        <div class="mt-6 pt-6 border-t border-gray-700">
+                            <p class="text-sm text-gray-500 mb-3">Or start with a template:</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="useProcessTemplate('approval')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">✅ Approval Workflow</button>
+                                <button onclick="useProcessTemplate('onboarding')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">👋 Employee Onboarding</button>
+                                <button onclick="useProcessTemplate('notification')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔔 Alerts & Notifications</button>
+                                <button onclick="useProcessTemplate('data_sync')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔄 Data Integration</button>
                             </div>
                         </div>
                     </div>
@@ -9077,6 +9140,214 @@ Option 3"></textarea>
             };
             
             document.getElementById('w-initial-goal').value = templates[template] || '';
+        }
+        
+        // =========================================================================
+        // AGENT TYPE SELECTION (Conversational vs Workflow)
+        // =========================================================================
+        
+        let selectedAgentType = 'conversational'; // Default
+        
+        function selectAgentType(type) {
+            selectedAgentType = type;
+            
+            // Update card styles
+            const convCard = document.getElementById('type-card-conversational');
+            const procCard = document.getElementById('type-card-process');
+            const convSection = document.getElementById('section-conversational');
+            const procSection = document.getElementById('section-process');
+            
+            if (type === 'conversational') {
+                convCard?.classList.add('border-purple-500');
+                convCard?.classList.remove('border-transparent');
+                procCard?.classList.remove('border-green-500');
+                procCard?.classList.add('border-transparent');
+                convSection?.classList.remove('hidden');
+                procSection?.classList.add('hidden');
+                // Update selection text
+                if (convCard) convCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
+                if (procCard) procCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
+                if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-purple-400 font-medium';
+                if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
+            } else {
+                procCard?.classList.add('border-green-500');
+                procCard?.classList.remove('border-transparent');
+                convCard?.classList.remove('border-purple-500');
+                convCard?.classList.add('border-transparent');
+                procSection?.classList.remove('hidden');
+                convSection?.classList.add('hidden');
+                // Update selection text
+                if (procCard) procCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
+                if (convCard) convCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
+                if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-green-400 font-medium';
+                if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
+            }
+        }
+        
+        // Generate Process/Workflow Configuration using AI
+        async function generateProcessConfig() {
+            const goal = document.getElementById('w-process-goal')?.value.trim();
+            if(!goal) {
+                alert('Please describe what your workflow should do');
+                return;
+            }
+            
+            wizard.originalGoal = goal;
+            wizard.agentType = 'process';
+            
+            // Show generating animation
+            document.getElementById('wizard-step-0').classList.add('hidden');
+            document.getElementById('wizard-generating').classList.remove('hidden');
+            document.getElementById('generating-status').textContent = 'Creating your workflow...';
+            
+            try {
+                const response = await fetch('/process/wizard/generate', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
+                    },
+                    body: JSON.stringify({ goal: goal })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.workflow) {
+                    // Store the workflow definition
+                    wizard.processDefinition = data.workflow;
+                    
+                    // Navigate to process builder/editor
+                    // For now, show success and navigate to step 1 with process mode
+                    wizard.config = {
+                        name: data.workflow.name || 'My Workflow',
+                        goal: goal,
+                        agent_type: 'process',
+                        process_definition: data.workflow
+                    };
+                    
+                    document.getElementById('wizard-generating').classList.add('hidden');
+                    
+                    // Show a simplified workflow preview/editor
+                    showProcessEditor(data.workflow);
+                } else {
+                    alert(data.detail || 'Could not create workflow. Please try again.');
+                    document.getElementById('wizard-generating').classList.add('hidden');
+                    document.getElementById('wizard-step-0').classList.remove('hidden');
+                }
+            } catch(e) {
+                console.error('Process generation error:', e);
+                alert('Could not connect to the server. Please try again.');
+                document.getElementById('wizard-generating').classList.add('hidden');
+                document.getElementById('wizard-step-0').classList.remove('hidden');
+            }
+        }
+        
+        // Show Process Editor (simplified in-page version)
+        function showProcessEditor(workflow) {
+            // Create a modal or navigate to process builder
+            // For now, we'll show a success message and allow saving
+            
+            const content = `
+                <div class="max-w-4xl mx-auto">
+                    <div class="text-center mb-8">
+                        <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center mb-4 text-4xl">
+                            ✅
+                        </div>
+                        <h2 class="text-2xl font-bold mb-2">Your Workflow is Ready!</h2>
+                        <p class="text-gray-400">${workflow.name || 'Workflow'} has been created with ${workflow.nodes?.length || 0} steps</p>
+                    </div>
+                    
+                    <div class="card rounded-xl p-6 mb-6">
+                        <h3 class="font-semibold mb-4">Workflow Steps:</h3>
+                        <div class="space-y-3">
+                            ${(workflow.nodes || []).map((node, i) => `
+                                <div class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg">
+                                    <div class="w-8 h-8 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">${i+1}</div>
+                                    <div>
+                                        <div class="font-medium">${node.name || node.type}</div>
+                                        <div class="text-xs text-gray-400">${node.type}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="card rounded-xl p-6 mb-6">
+                        <label class="text-sm text-gray-400 mb-2 block">Workflow Name</label>
+                        <input type="text" id="process-name" class="input-field w-full rounded-lg px-4 py-3" value="${workflow.name || 'My Workflow'}">
+                    </div>
+                    
+                    <div class="flex gap-4">
+                        <button onclick="openVisualEditor()" class="flex-1 px-6 py-3 rounded-lg border border-gray-600 hover:bg-gray-700 transition">
+                            ✏️ Edit Visually
+                        </button>
+                        <button onclick="saveProcess()" class="flex-1 px-6 py-3 rounded-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
+                            💾 Save & Activate
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Replace step 0 content temporarily
+            const step0 = document.getElementById('wizard-step-0');
+            step0.innerHTML = content;
+            step0.classList.remove('hidden');
+        }
+        
+        // Open Visual Editor
+        function openVisualEditor() {
+            // Open process builder in new tab or modal
+            window.open('/ui/process-builder.html', '_blank');
+        }
+        
+        // Save Process
+        async function saveProcess() {
+            const name = document.getElementById('process-name')?.value || 'My Workflow';
+            const workflow = wizard.processDefinition;
+            workflow.name = name;
+            
+            try {
+                const response = await fetch('/api/agents', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        goal: wizard.originalGoal,
+                        agent_type: 'process',
+                        process_definition: workflow,
+                        is_published: true
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert('✅ Workflow saved successfully!');
+                    navigate('agents'); // Go to agents list
+                } else {
+                    const error = await response.json();
+                    alert('Could not save: ' + (error.detail || 'Unknown error'));
+                }
+            } catch(e) {
+                alert('Could not save workflow. Please try again.');
+            }
+        }
+        
+        // Process Templates
+        function useProcessTemplate(template) {
+            const templates = {
+                approval: "When a request is submitted, check if the amount is over $500. If yes, send to manager for approval. Notify the requester of the decision and update the system.",
+                onboarding: "When a new employee joins, create their accounts, send welcome email, schedule orientation, assign a buddy, and notify IT and HR.",
+                notification: "Monitor for important events. When triggered, send notifications via email and Slack to the relevant team members.",
+                data_sync: "Every hour, fetch data from the external API, validate and transform it, then update our database and log the results."
+            };
+            
+            const goalField = document.getElementById('w-process-goal');
+            if (goalField) {
+                goalField.value = templates[template] || '';
+            }
         }
         
         // Generate Agent Configuration using AI
