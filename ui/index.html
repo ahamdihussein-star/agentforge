@@ -1836,6 +1836,10 @@
                     <span>🧪</span><span>Lab</span>
                     <span class="ml-auto text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">New</span>
                 </button>
+                <button onclick="openApprovalDashboard()" id="nav-approvals" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
+                    <span>📋</span><span>Approvals</span>
+                    <span id="approval-badge" class="ml-auto text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded hidden">0</span>
+                </button>
                 <button onclick="navigate('settings')" id="nav-settings" data-permission="system:settings" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <span>⚙️</span><span>Settings</span>
                 </button>
@@ -7844,6 +7848,129 @@ Option 3"></textarea>
         </div>
     </div>
 
+    <!-- Process Execution Modal -->
+    <div id="process-execution-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-[60]" onclick="if(event.target===this)closeProcessModal()">
+        <div class="card rounded-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between flex-shrink-0" style="background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(20,184,166,0.1));">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
+                    <div>
+                        <h3 id="process-modal-title" class="text-lg font-bold">Workflow Execution</h3>
+                        <p id="process-modal-subtitle" class="text-sm text-gray-400">Submit data to run this workflow</p>
+                    </div>
+                </div>
+                <button onclick="closeProcessModal()" class="text-gray-400 hover:text-white text-2xl px-2">✕</button>
+            </div>
+            
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <!-- Trigger Form Section -->
+                <div id="process-trigger-form">
+                    <h4 class="font-semibold mb-4 flex items-center gap-2">📝 Input Data</h4>
+                    <p class="text-sm text-gray-400 mb-4">Enter the data to trigger this workflow:</p>
+                    
+                    <!-- Dynamic Form Fields (populated by JS) -->
+                    <div id="process-form-fields" class="space-y-4">
+                        <!-- Example field - will be replaced dynamically -->
+                        <div>
+                            <label class="text-sm text-gray-400 mb-1 block">Amount ($)</label>
+                            <input type="number" id="pf-amount" class="input-field w-full rounded-lg px-4 py-3" placeholder="Enter amount...">
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-400 mb-1 block">Description</label>
+                            <input type="text" id="pf-description" class="input-field w-full rounded-lg px-4 py-3" placeholder="Enter description...">
+                        </div>
+                        <div>
+                            <label class="text-sm text-gray-400 mb-1 block">Additional Notes (Optional)</label>
+                            <textarea id="pf-notes" class="input-field w-full rounded-lg px-4 py-3" rows="3" placeholder="Any additional information..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div class="mt-6">
+                        <button onclick="executeProcess()" class="w-full py-3 rounded-lg flex items-center justify-center gap-2 text-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
+                            <span>▶️</span> Run Workflow
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Execution Status Section (hidden initially) -->
+                <div id="process-execution-status" class="hidden">
+                    <h4 class="font-semibold mb-4 flex items-center gap-2">📊 Execution Status</h4>
+                    
+                    <!-- Status Badge -->
+                    <div id="process-status-badge" class="mb-4 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                        <div class="flex items-center gap-3">
+                            <div class="animate-spin w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
+                            <div>
+                                <p class="font-medium text-yellow-400">Processing...</p>
+                                <p class="text-sm text-gray-400">Your workflow is running</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Steps Progress -->
+                    <div id="process-steps-list" class="space-y-3">
+                        <!-- Steps will be populated here -->
+                    </div>
+                    
+                    <!-- Output (when complete) -->
+                    <div id="process-output" class="hidden mt-4 p-4 rounded-lg bg-gray-800">
+                        <h5 class="font-medium mb-2">📋 Output</h5>
+                        <pre id="process-output-content" class="text-sm text-gray-300 whitespace-pre-wrap"></pre>
+                    </div>
+                </div>
+                
+                <!-- Pending Approval Section (hidden initially) -->
+                <div id="process-pending-approval" class="hidden">
+                    <div class="text-center py-6">
+                        <div class="w-16 h-16 mx-auto rounded-full bg-yellow-500/20 flex items-center justify-center mb-4">
+                            <span class="text-3xl">⏳</span>
+                        </div>
+                        <h4 class="font-semibold text-lg mb-2">Waiting for Approval</h4>
+                        <p class="text-gray-400 mb-4">This workflow requires manager approval to proceed.</p>
+                        <p class="text-sm text-gray-500">You'll be notified when a decision is made.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="p-4 border-t border-gray-700 flex justify-between items-center flex-shrink-0">
+                <button onclick="viewExecutionHistory()" class="text-sm text-gray-400 hover:text-white">📜 View History</button>
+                <button onclick="closeProcessModal()" class="btn-secondary px-4 py-2 rounded-lg">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Approval Dashboard Modal -->
+    <div id="approval-dashboard-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-[60]" onclick="if(event.target===this)closeApprovalDashboard()">
+        <div class="card rounded-xl w-full max-w-5xl mx-4 max-h-[90vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between flex-shrink-0" style="background: linear-gradient(135deg, rgba(234,179,8,0.1), rgba(249,115,22,0.1));">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center text-2xl">📋</div>
+                    <div>
+                        <h3 class="text-lg font-bold">Pending Approvals</h3>
+                        <p id="approval-count-subtitle" class="text-sm text-gray-400">0 items waiting for your decision</p>
+                    </div>
+                </div>
+                <button onclick="closeApprovalDashboard()" class="text-gray-400 hover:text-white text-2xl px-2">✕</button>
+            </div>
+            
+            <!-- Approval List -->
+            <div class="flex-1 overflow-y-auto p-4">
+                <div id="approval-list" class="space-y-4">
+                    <!-- Approval items will be populated here -->
+                    <div class="text-center py-10 text-gray-500">
+                        <span class="text-4xl mb-4 block">✅</span>
+                        <p>No pending approvals</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API='';
         
@@ -9333,6 +9460,503 @@ Option 3"></textarea>
             } catch(e) {
                 alert('Could not save workflow. Please try again.');
             }
+        }
+        
+        // ============================================================================
+        // PROCESS EXECUTION FUNCTIONS
+        // ============================================================================
+        
+        let currentProcessAgent = null;
+        let currentExecutionId = null;
+        let executionPollInterval = null;
+        
+        // Open Process Execution Modal
+        async function openProcessExecution(agentId) {
+            try {
+                // Fetch agent details
+                const response = await fetch(API + '/api/agents/' + agentId, {
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    showToast('Could not load workflow', 'error');
+                    return;
+                }
+                
+                currentProcessAgent = await response.json();
+                
+                // Update modal header
+                document.getElementById('process-modal-title').textContent = currentProcessAgent.name || 'Workflow';
+                document.getElementById('process-modal-subtitle').textContent = currentProcessAgent.goal || 'Submit data to run this workflow';
+                
+                // Build dynamic form based on process definition
+                buildProcessForm(currentProcessAgent);
+                
+                // Show trigger form, hide status
+                document.getElementById('process-trigger-form').classList.remove('hidden');
+                document.getElementById('process-execution-status').classList.add('hidden');
+                document.getElementById('process-pending-approval').classList.add('hidden');
+                
+                // Show modal
+                document.getElementById('process-execution-modal').classList.remove('hidden');
+                
+            } catch(e) {
+                console.error('Error opening process execution:', e);
+                showToast('Could not load workflow: ' + e.message, 'error');
+            }
+        }
+        
+        // Build Dynamic Form from Process Definition
+        function buildProcessForm(agent) {
+            const formContainer = document.getElementById('process-form-fields');
+            const processDef = agent.process_definition;
+            
+            // Try to extract trigger inputs from process definition
+            let triggerInputs = [];
+            
+            if (processDef && processDef.trigger && processDef.trigger.inputs) {
+                triggerInputs = processDef.trigger.inputs;
+            } else if (processDef && processDef.nodes) {
+                // Try to find trigger node
+                const triggerNode = processDef.nodes.find(n => n.type === 'trigger' || n.id === 'trigger');
+                if (triggerNode && triggerNode.config && triggerNode.config.inputs) {
+                    triggerInputs = triggerNode.config.inputs;
+                }
+            }
+            
+            // If no inputs defined, create generic form based on goal
+            if (!triggerInputs.length) {
+                const goal = agent.goal || '';
+                // Parse common patterns from goal
+                if (goal.toLowerCase().includes('expense')) {
+                    triggerInputs = [
+                        { id: 'amount', label: 'Amount ($)', type: 'number', required: true },
+                        { id: 'description', label: 'Description', type: 'text', required: true },
+                        { id: 'category', label: 'Category', type: 'select', options: ['Travel', 'Meals', 'Office Supplies', 'Equipment', 'Other'] },
+                        { id: 'notes', label: 'Additional Notes', type: 'textarea', required: false }
+                    ];
+                } else if (goal.toLowerCase().includes('leave') || goal.toLowerCase().includes('vacation')) {
+                    triggerInputs = [
+                        { id: 'start_date', label: 'Start Date', type: 'date', required: true },
+                        { id: 'end_date', label: 'End Date', type: 'date', required: true },
+                        { id: 'leave_type', label: 'Leave Type', type: 'select', options: ['Annual', 'Sick', 'Personal', 'Unpaid'] },
+                        { id: 'reason', label: 'Reason', type: 'textarea', required: false }
+                    ];
+                } else {
+                    // Generic input form
+                    triggerInputs = [
+                        { id: 'input_data', label: 'Input Data', type: 'textarea', required: true, placeholder: 'Enter your data here...' }
+                    ];
+                }
+            }
+            
+            // Build form HTML
+            formContainer.innerHTML = triggerInputs.map(input => {
+                const required = input.required ? '<span class="text-red-400">*</span>' : '';
+                const fieldId = `pf-${input.id}`;
+                
+                let fieldHtml = '';
+                switch(input.type) {
+                    case 'textarea':
+                        fieldHtml = `<textarea id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" rows="3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}></textarea>`;
+                        break;
+                    case 'select':
+                        fieldHtml = `<select id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''}>
+                            <option value="">Select...</option>
+                            ${(input.options || []).map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                        </select>`;
+                        break;
+                    case 'number':
+                        fieldHtml = `<input type="number" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}>`;
+                        break;
+                    case 'date':
+                        fieldHtml = `<input type="date" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''}>`;
+                        break;
+                    default:
+                        fieldHtml = `<input type="text" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}>`;
+                }
+                
+                return `
+                    <div>
+                        <label class="text-sm text-gray-400 mb-1 block">${input.label} ${required}</label>
+                        ${fieldHtml}
+                    </div>
+                `;
+            }).join('');
+            
+            // Store input config for later
+            window._processInputs = triggerInputs;
+        }
+        
+        // Execute the Process
+        async function executeProcess() {
+            if (!currentProcessAgent) {
+                showToast('No workflow selected', 'error');
+                return;
+            }
+            
+            // Collect form data
+            const triggerData = {};
+            const inputs = window._processInputs || [];
+            
+            for (const input of inputs) {
+                const field = document.getElementById(`pf-${input.id}`);
+                if (field) {
+                    const value = field.value.trim();
+                    if (input.required && !value) {
+                        showToast(`Please fill in: ${input.label}`, 'error');
+                        field.focus();
+                        return;
+                    }
+                    triggerData[input.id] = input.type === 'number' ? parseFloat(value) || 0 : value;
+                }
+            }
+            
+            // Switch to execution status view
+            document.getElementById('process-trigger-form').classList.add('hidden');
+            document.getElementById('process-execution-status').classList.remove('hidden');
+            
+            // Update status badge
+            updateExecutionStatus('running', 'Processing...', 'Your workflow is running');
+            
+            try {
+                // Call execution API
+                const response = await fetch(API + '/process/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        agent_id: currentProcessAgent.id,
+                        trigger_input: triggerData,
+                        trigger_type: 'manual'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Execution failed');
+                }
+                
+                const execution = await response.json();
+                currentExecutionId = execution.execution_id;
+                
+                // Start polling for status
+                startExecutionPolling(currentExecutionId);
+                
+                // Show initial steps
+                if (execution.nodes) {
+                    updateExecutionSteps(execution.nodes);
+                }
+                
+            } catch(e) {
+                console.error('Execution error:', e);
+                updateExecutionStatus('failed', 'Execution Failed', e.message);
+            }
+        }
+        
+        // Update Execution Status Badge
+        function updateExecutionStatus(status, title, subtitle) {
+            const badge = document.getElementById('process-status-badge');
+            
+            const statusStyles = {
+                running: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', color: 'text-yellow-400', icon: '<div class="animate-spin w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full"></div>' },
+                completed: { bg: 'bg-green-500/10', border: 'border-green-500/30', color: 'text-green-400', icon: '✅' },
+                failed: { bg: 'bg-red-500/10', border: 'border-red-500/30', color: 'text-red-400', icon: '❌' },
+                pending_approval: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', color: 'text-orange-400', icon: '⏳' },
+                paused: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', color: 'text-blue-400', icon: '⏸️' }
+            };
+            
+            const style = statusStyles[status] || statusStyles.running;
+            
+            badge.className = `mb-4 p-4 rounded-lg ${style.bg} border ${style.border}`;
+            badge.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="text-2xl">${style.icon}</div>
+                    <div>
+                        <p class="font-medium ${style.color}">${title}</p>
+                        <p class="text-sm text-gray-400">${subtitle}</p>
+                    </div>
+                </div>
+            `;
+            
+            // Show pending approval section if needed
+            if (status === 'pending_approval') {
+                document.getElementById('process-pending-approval').classList.remove('hidden');
+            } else {
+                document.getElementById('process-pending-approval').classList.add('hidden');
+            }
+        }
+        
+        // Update Execution Steps List
+        function updateExecutionSteps(nodes) {
+            const container = document.getElementById('process-steps-list');
+            
+            container.innerHTML = nodes.map((node, i) => {
+                const statusIcon = {
+                    completed: '✅',
+                    running: '🔄',
+                    pending: '⏳',
+                    failed: '❌',
+                    skipped: '⏭️'
+                }[node.status] || '⏳';
+                
+                const statusClass = {
+                    completed: 'border-green-500/30 bg-green-500/5',
+                    running: 'border-yellow-500/30 bg-yellow-500/5',
+                    pending: 'border-gray-600 bg-gray-800/50',
+                    failed: 'border-red-500/30 bg-red-500/5',
+                    skipped: 'border-gray-600 bg-gray-800/30'
+                }[node.status] || 'border-gray-600';
+                
+                return `
+                    <div class="p-3 rounded-lg border ${statusClass} transition-all">
+                        <div class="flex items-center gap-3">
+                            <span class="text-lg">${statusIcon}</span>
+                            <div class="flex-1">
+                                <p class="font-medium">${node.name || node.type}</p>
+                                <p class="text-xs text-gray-500">${node.type}</p>
+                            </div>
+                            ${node.duration_ms ? `<span class="text-xs text-gray-500">${node.duration_ms}ms</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Poll for Execution Status
+        function startExecutionPolling(executionId) {
+            // Clear any existing polling
+            if (executionPollInterval) {
+                clearInterval(executionPollInterval);
+            }
+            
+            executionPollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(API + `/process/executions/${executionId}`, {
+                        headers: getAuthHeaders()
+                    });
+                    
+                    if (!response.ok) return;
+                    
+                    const execution = await response.json();
+                    
+                    // Update status
+                    const statusTitles = {
+                        running: 'Processing...',
+                        completed: 'Completed',
+                        failed: 'Failed',
+                        pending_approval: 'Waiting for Approval',
+                        paused: 'Paused'
+                    };
+                    
+                    updateExecutionStatus(
+                        execution.status,
+                        statusTitles[execution.status] || execution.status,
+                        execution.current_node_name || ''
+                    );
+                    
+                    // Update steps if available
+                    if (execution.node_executions) {
+                        updateExecutionSteps(execution.node_executions);
+                    }
+                    
+                    // Show output if completed
+                    if (execution.status === 'completed') {
+                        clearInterval(executionPollInterval);
+                        if (execution.output) {
+                            document.getElementById('process-output').classList.remove('hidden');
+                            document.getElementById('process-output-content').textContent = 
+                                typeof execution.output === 'string' ? execution.output : JSON.stringify(execution.output, null, 2);
+                        }
+                    }
+                    
+                    // Stop polling on terminal states
+                    if (['completed', 'failed', 'cancelled'].includes(execution.status)) {
+                        clearInterval(executionPollInterval);
+                    }
+                    
+                } catch(e) {
+                    console.error('Polling error:', e);
+                }
+            }, 2000); // Poll every 2 seconds
+        }
+        
+        // Close Process Modal
+        function closeProcessModal() {
+            document.getElementById('process-execution-modal').classList.add('hidden');
+            if (executionPollInterval) {
+                clearInterval(executionPollInterval);
+            }
+            currentProcessAgent = null;
+            currentExecutionId = null;
+        }
+        
+        // View Execution History
+        async function viewExecutionHistory() {
+            if (!currentProcessAgent) return;
+            
+            try {
+                const response = await fetch(API + `/process/executions?agent_id=${currentProcessAgent.id}&limit=10`, {
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    showToast('Could not load history', 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                const executions = data.executions || [];
+                
+                // Show in a simple alert for now (can be enhanced later)
+                if (executions.length === 0) {
+                    showToast('No execution history yet', 'info');
+                } else {
+                    const historyHtml = executions.map(e => 
+                        `${e.status === 'completed' ? '✅' : e.status === 'failed' ? '❌' : '🔄'} ${new Date(e.created_at).toLocaleString()} - ${e.status}`
+                    ).join('\n');
+                    alert('Execution History:\n\n' + historyHtml);
+                }
+            } catch(e) {
+                showToast('Could not load history', 'error');
+            }
+        }
+        
+        // ============================================================================
+        // APPROVAL DASHBOARD FUNCTIONS
+        // ============================================================================
+        
+        // Open Approval Dashboard
+        async function openApprovalDashboard() {
+            try {
+                const response = await fetch(API + '/process/approvals?status=pending', {
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    showToast('Could not load approvals', 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                const approvals = data.approvals || [];
+                
+                // Update count
+                document.getElementById('approval-count-subtitle').textContent = 
+                    `${approvals.length} item${approvals.length !== 1 ? 's' : ''} waiting for your decision`;
+                
+                // Build approval list
+                const container = document.getElementById('approval-list');
+                
+                if (approvals.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-10 text-gray-500">
+                            <span class="text-4xl mb-4 block">✅</span>
+                            <p>No pending approvals</p>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = approvals.map(approval => `
+                        <div class="card rounded-xl p-4 border-l-4 border-l-yellow-500">
+                            <div class="flex items-start justify-between mb-3">
+                                <div>
+                                    <h4 class="font-semibold">${approval.title}</h4>
+                                    <p class="text-sm text-gray-400">${approval.description || ''}</p>
+                                </div>
+                                <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">${approval.priority || 'normal'}</span>
+                            </div>
+                            
+                            ${approval.review_data ? `
+                                <div class="bg-gray-800 rounded-lg p-3 mb-3 text-sm">
+                                    <pre class="whitespace-pre-wrap text-gray-300">${typeof approval.review_data === 'string' ? approval.review_data : JSON.stringify(approval.review_data, null, 2)}</pre>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="flex gap-3">
+                                <button onclick="approveRequest('${approval.id}')" class="flex-1 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition">
+                                    ✅ Approve
+                                </button>
+                                <button onclick="rejectRequest('${approval.id}')" class="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition">
+                                    ❌ Reject
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                
+                // Show modal
+                document.getElementById('approval-dashboard-modal').classList.remove('hidden');
+                
+            } catch(e) {
+                console.error('Error loading approvals:', e);
+                showToast('Could not load approvals', 'error');
+            }
+        }
+        
+        // Approve Request
+        async function approveRequest(approvalId) {
+            const comments = prompt('Add comments (optional):');
+            
+            try {
+                const response = await fetch(API + `/process/approvals/${approvalId}/decide`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        decision: 'approved',
+                        comments: comments || ''
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast('Request approved', 'success');
+                    openApprovalDashboard(); // Refresh list
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Could not approve', 'error');
+                }
+            } catch(e) {
+                showToast('Could not approve request', 'error');
+            }
+        }
+        
+        // Reject Request
+        async function rejectRequest(approvalId) {
+            const comments = prompt('Reason for rejection:');
+            if (comments === null) return; // User cancelled
+            
+            try {
+                const response = await fetch(API + `/process/approvals/${approvalId}/decide`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        decision: 'rejected',
+                        comments: comments || 'Rejected'
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast('Request rejected', 'success');
+                    openApprovalDashboard(); // Refresh list
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Could not reject', 'error');
+                }
+            } catch(e) {
+                showToast('Could not reject request', 'error');
+            }
+        }
+        
+        // Close Approval Dashboard
+        function closeApprovalDashboard() {
+            document.getElementById('approval-dashboard-modal').classList.add('hidden');
         }
         
         // Process Templates
@@ -15302,12 +15926,13 @@ Option 3"></textarea>
                 return;
             }
             g.innerHTML=d.agents.map(a=>`
-                <div class="card agent-card rounded-xl p-4 hover:border-purple-500 transition" style="min-width:0;overflow:visible;">
-                    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;" class="cursor-pointer" onclick="openAgent('${a.id}', '${a.status}')">
-                        <span style="font-size:1.75rem;flex-shrink:0;">${a.icon}</span>
+                <div class="card agent-card rounded-xl p-4 hover:border-purple-500 transition ${a.agent_type === 'process' ? 'border-l-4 border-l-green-500' : ''}" style="min-width:0;overflow:visible;">
+                    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;" class="cursor-pointer" onclick="openAgent('${a.id}', '${a.status}', '${a.agent_type || 'conversational'}')">
+                        <span style="font-size:1.75rem;flex-shrink:0;">${a.agent_type === 'process' ? '🔄' : a.icon}</span>
                         <div style="flex:1;min-width:0;overflow:hidden;width:100%;">
-                            <div style="display:flex;align-items:center;gap:8px;">
+                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                                 <h3 class="agent-title" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">${a.name}</h3>
+                                ${a.agent_type === 'process' ? '<span style="font-size:0.65rem;padding:2px 6px;border-radius:4px;background:linear-gradient(135deg,#22c55e,#14b8a6);color:white;">WORKFLOW</span>' : ''}
                                 <span class="agent-status-badge ${a.status === 'published' ? 'published' : 'draft'}">${a.status}</span>
                             </div>
                             <p class="agent-desc" style="font-size:0.875rem;margin-top:4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;">${a.goal}</p>
@@ -15315,10 +15940,11 @@ Option 3"></textarea>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border-color);padding-top:12px;margin-top:8px;">
                         <div class="agent-stats" style="display:flex;gap:16px;font-size:0.75rem;">
-                            <span>📋 ${a.tasks_count} tasks</span>
+                            ${a.agent_type === 'process' ? '<span>🔄 Workflow</span>' : `<span>📋 ${a.tasks_count} tasks</span>`}
                             <span>🔧 ${a.tools_count} tools</span>
                         </div>
                         <div style="display:flex;gap:6px;">
+                            ${a.agent_type === 'process' && a.status === 'published' ? `<button onclick="event.stopPropagation();openProcessExecution('${a.id}')" class="agent-btn" style="background:linear-gradient(135deg,#22c55e,#14b8a6);color:white;" title="Run Workflow">▶️</button>` : ''}
                             ${a.status === 'draft' ? `<button data-permission="agents:publish" onclick="event.stopPropagation();publishAgent('${a.id}')" class="agent-btn publish" title="Publish">🚀</button>` : ''}
                             <button data-permission="agents:edit" onclick="event.stopPropagation();editAgent('${a.id}')" class="agent-btn edit" title="Edit">✏️</button>
                             ${a.is_owner ? `<button data-permission="agents:delete" onclick="event.stopPropagation();deleteAgent('${a.id}')" class="agent-btn delete" title="Delete">🗑️</button>` : ''}
@@ -15328,10 +15954,16 @@ Option 3"></textarea>
             `).join('');
         }
 
-        async function openAgent(id, status){
+        async function openAgent(id, status, agentType = 'conversational'){
             try {
+                // For process/workflow agents, open the process execution UI
+                if (agentType === 'process' && status === 'published') {
+                    openProcessExecution(id);
+                    return;
+                }
+                
                 if(status === 'published'){
-                    // Open chat for published agents
+                    // Open chat for published conversational agents
                     // Skip auto-load in navigate, we'll load manually
                     window._skipChatAgentLoad = true;
                     navigate('chat', true);
@@ -23266,6 +23898,7 @@ async function saveToolEdit() {
             loadAgents();
             loadTools();
             loadSettings();
+            loadPendingApprovalsCount(); // Load approval badge count
             
             // Navigate to hash page or default to agents
             const hash = window.location.hash.slice(1);
@@ -23273,6 +23906,31 @@ async function saveToolEdit() {
                 navigate(hash, false);
             } else {
                 navigate('agents', true);
+            }
+        }
+        
+        // Load pending approvals count for badge
+        async function loadPendingApprovalsCount() {
+            try {
+                const response = await fetch(API + '/process/approvals?status=pending&limit=1', {
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const count = data.total || (data.approvals ? data.approvals.length : 0);
+                    const badge = document.getElementById('approval-badge');
+                    if (badge) {
+                        if (count > 0) {
+                            badge.textContent = count > 99 ? '99+' : count;
+                            badge.classList.remove('hidden');
+                        } else {
+                            badge.classList.add('hidden');
+                        }
+                    }
+                }
+            } catch(e) {
+                console.log('Could not load approval count:', e);
             }
         }
 // ============================================================================
