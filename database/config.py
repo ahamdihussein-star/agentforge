@@ -4,6 +4,9 @@ Supports: PostgreSQL, MySQL, SQLite, SQL Server, Oracle
 """
 import os
 from enum import Enum
+from typing import Generator
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 
 
 class DatabaseType(str, Enum):
@@ -97,4 +100,62 @@ class DatabaseConfig:
             })
         
         return config
+
+
+# =============================================================================
+# DATABASE SESSION MANAGEMENT
+# =============================================================================
+
+# Lazy-initialized engine and session factory
+_engine = None
+_SessionLocal = None
+
+
+def get_engine():
+    """Get or create database engine (singleton)"""
+    global _engine
+    if _engine is None:
+        _engine = create_engine(
+            DatabaseConfig.get_database_url(),
+            **DatabaseConfig.get_engine_config()
+        )
+    return _engine
+
+
+def get_session_factory():
+    """Get or create session factory (singleton)"""
+    global _SessionLocal
+    if _SessionLocal is None:
+        _SessionLocal = sessionmaker(
+            autocommit=False,
+            autoflush=False,
+            bind=get_engine()
+        )
+    return _SessionLocal
+
+
+def get_db() -> Generator[Session, None, None]:
+    """
+    Dependency that provides a database session.
+    Use with FastAPI's Depends():
+    
+    @app.get("/items")
+    def get_items(db: Session = Depends(get_db)):
+        ...
+    """
+    SessionLocal = get_session_factory()
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_db_session() -> Session:
+    """
+    Get a new database session (must be closed manually).
+    Use for non-FastAPI contexts.
+    """
+    SessionLocal = get_session_factory()
+    return SessionLocal()
 
