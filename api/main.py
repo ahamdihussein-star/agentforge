@@ -11649,10 +11649,13 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             # ========================================================================
             
             is_new_conversation = False
+            print(f"🔍 [STREAM] Checking conversation: request.conversation_id={request.conversation_id}")
             if request.conversation_id and request.conversation_id in app_state.conversations:
                 conversation = app_state.conversations[request.conversation_id]
+                print(f"🔍 [STREAM] Found existing conversation in memory: {conversation.id[:8]}")
             else:
                 is_new_conversation = True
+                print(f"🔍 [STREAM] Creating NEW conversation (is_new={is_new_conversation})")
                 # Start with temporary title - LLM will update it
                 title = "New conversation"
                 
