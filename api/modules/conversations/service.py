@@ -99,8 +99,8 @@ class ConversationManagementService:
         try:
             from database.services import ConversationService
             
-            # Get conversation to verify ownership
-            conv = ConversationService.get_conversation(conversation_id, org_id)
+            # Get conversation to verify ownership (use correct method name)
+            conv = ConversationService.get_conversation_by_id(conversation_id)
             if not conv:
                 return False, "Conversation not found"
             
@@ -108,10 +108,13 @@ class ConversationManagementService:
             if conv.get('user_id') != user_id:
                 return False, "Not authorized to delete this conversation"
             
-            # Delete the conversation
-            ConversationService.delete_conversation(conversation_id, org_id)
+            # Delete the conversation (pass user_id as deleted_by)
+            success = ConversationService.delete_conversation(conversation_id, user_id)
             
-            return True, "Conversation deleted"
+            if success:
+                return True, "Conversation deleted"
+            else:
+                return False, "Failed to delete conversation"
             
         except Exception as e:
             print(f"Error deleting conversation: {e}")
