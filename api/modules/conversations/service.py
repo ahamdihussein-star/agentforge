@@ -113,32 +113,35 @@ Write only the title, no punctuation or explanation."""
     
     @classmethod
     def _fallback_title(cls, message: str, agent_name: str = None) -> str:
-        """Generate a simple title from the message content."""
-        # Clean and truncate
+        """
+        Generate a simple title from the message content.
+        Works for ANY type of agent - no domain-specific logic.
+        """
+        # Clean the message
         clean_msg = message.strip()
         
-        # Remove common prefixes
-        prefixes = ["hi", "hello", "hey", "please", "can you", "i want", "i need", "مرحبا", "السلام عليكم", "اريد", "عايز"]
-        lower_msg = clean_msg.lower()
-        for prefix in prefixes:
-            if lower_msg.startswith(prefix):
-                clean_msg = clean_msg[len(prefix):].strip()
+        # Take first meaningful words (up to 6 words or 50 chars)
+        words = clean_msg.split()
+        
+        # Build title from first words
+        title_words = []
+        char_count = 0
+        for word in words[:8]:  # Max 8 words to check
+            if char_count + len(word) > 50:
+                break
+            title_words.append(word)
+            char_count += len(word) + 1  # +1 for space
+            if len(title_words) >= 6:
                 break
         
-        # Take first few words
-        words = clean_msg.split()[:6]
-        title = " ".join(words)
+        title = " ".join(title_words)
         
-        # Add ellipsis if truncated
-        if len(words) < len(clean_msg.split()):
+        # Add ellipsis if we truncated
+        if len(title_words) < len(words):
             title += "..."
         
-        # Limit length
-        if len(title) > 50:
-            title = title[:47] + "..."
-        
-        # Fallback if empty
-        if not title or len(title) < 3:
+        # Fallback if empty or too short
+        if not title or len(title) < 2:
             if agent_name:
                 return f"Chat with {agent_name}"
             return "New conversation"
