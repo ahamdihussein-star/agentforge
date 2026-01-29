@@ -16453,13 +16453,18 @@ Option 3"></textarea>
             });
             const agent = await r.json();
             
-            console.log('📝 Editing agent:', id, 'owner_id:', agent.owner_id, 'created_by:', agent.created_by);
+            console.log('📝 Editing agent:', id);
+            console.log('📝 Agent type:', agent.agent_type);
+            console.log('📝 Full agent:', agent);
             
             // For process/workflow agents, open the visual process editor
             if (agent.agent_type === 'process') {
+                console.log('📝 Opening Process Editor for workflow agent');
                 openProcessEditor(agent);
                 return;
             }
+            
+            console.log('📝 Opening Conversational Wizard for agent');
             
             // Fetch user's permissions for this agent
             let userPermissions = null;

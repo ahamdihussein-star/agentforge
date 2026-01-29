@@ -4736,12 +4736,26 @@ async def get_agent(agent_id: str, current_user: User = Depends(get_current_user
     
     # Include ownership info in response
     response = {**agent.dict(), "tools": tools}
+    
+    # Ensure agent_type is included (might come from database but not in AgentData)
+    if 'agent_type' not in response or not response.get('agent_type'):
+        response['agent_type'] = getattr(agent, 'agent_type', 'conversational')
+    
+    # Include process-specific fields if it's a process agent
+    if response.get('agent_type') == 'process':
+        if 'process_definition' not in response:
+            response['process_definition'] = getattr(agent, 'process_definition', None)
+        if 'process_settings' not in response:
+            response['process_settings'] = getattr(agent, 'process_settings', None)
+    
     if owner_id:
         response["owner_id"] = owner_id
     if created_by:
         response["created_by"] = created_by
     if admin_ids:
         response["admin_ids"] = admin_ids
+    
+    print(f"📋 [GET_AGENT] Returning agent {agent_id[:8]}... type={response.get('agent_type')}")
     
     return response
 
