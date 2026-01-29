@@ -10891,7 +10891,6 @@ async def test_chat_with_files(
         
         # Schedule LLM to generate smart title in background
         if message:
-            import asyncio
             from api.modules.conversations import ConversationTitleService
             
             async def update_test_title():
@@ -11460,7 +11459,6 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
             print(f"⚠️  Failed to save conversation to DB: {e}")
         
         # Schedule LLM to generate smart title in background
-        import asyncio
         from api.modules.conversations import ConversationTitleService
         asyncio.create_task(
             ConversationTitleService.generate_and_update_title(
@@ -11517,7 +11515,6 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     
     # Update agent memory in background (every 5 messages)
     if len(conversation.messages) % 5 == 0:
-        import asyncio
         asyncio.create_task(update_agent_memory(agent, conversation))
     
     return ChatResponse(response=result["content"], conversation_id=conversation.id, sources=result["sources"], formatted=True)
@@ -11675,7 +11672,6 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                     print(f"⚠️ Failed to save conversation to DB: {e}")
                 
                 # Schedule LLM to generate smart title in background
-                import asyncio
                 from api.modules.conversations import ConversationTitleService
                 asyncio.create_task(
                     ConversationTitleService.generate_and_update_title(
@@ -12174,7 +12170,6 @@ async def chat_with_files(
         
         # Schedule LLM to generate smart title in background
         if message:
-            import asyncio
             from api.modules.conversations import ConversationTitleService
             asyncio.create_task(
                 ConversationTitleService.generate_and_update_title(
