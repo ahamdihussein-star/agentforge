@@ -21070,9 +21070,16 @@ async function saveToolEdit() {
                 const mobileAgent = document.getElementById('chat-agent-mobile');
                 if (mobileAgent) mobileAgent.value = id;
                 
-                // Start a new chat session with welcome message
-                conv=null;
-                await startChatWithWelcome(id);
+                // If there are existing conversations, load the most recent one
+                // Otherwise, show welcome message (don't create new conversation until user sends message)
+                if (chatConversations.length > 0) {
+                    // Load the most recent conversation (first in list - already sorted by updated_at desc)
+                    await loadChatConversation(chatConversations[0].id);
+                } else {
+                    // No conversations - show welcome message
+                    conv = null;
+                    await startChatWithWelcome(id);
+                }
             } catch (err) {
                 console.error('onAgentChange error:', err);
                 showToast('Failed to load chat: ' + err.message, 'error');
