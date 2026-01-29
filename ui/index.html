@@ -9959,6 +9959,351 @@ Option 3"></textarea>
             document.getElementById('approval-dashboard-modal').classList.add('hidden');
         }
         
+        // ============================================================================
+        // PROCESS VISUAL EDITOR
+        // ============================================================================
+        
+        let editingProcessAgent = null;
+        
+        // Open Process Editor for existing workflow agent
+        function openProcessEditor(agent) {
+            editingProcessAgent = agent;
+            const workflow = agent.process_definition || { nodes: [], edges: [] };
+            
+            // Show the process editor modal
+            const modal = document.getElementById('process-editor-modal');
+            if (!modal) {
+                // Create modal if not exists
+                createProcessEditorModal();
+            }
+            
+            // Update modal content
+            document.getElementById('process-editor-title').textContent = agent.name || 'Edit Workflow';
+            document.getElementById('process-editor-name').value = agent.name || '';
+            document.getElementById('process-editor-goal').value = agent.goal || '';
+            
+            // Render workflow nodes
+            renderWorkflowNodes(workflow);
+            
+            // Show modal
+            document.getElementById('process-editor-modal').classList.remove('hidden');
+        }
+        
+        // Create Process Editor Modal
+        function createProcessEditorModal() {
+            const modalHtml = `
+                <div id="process-editor-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-[60]" onclick="if(event.target===this)closeProcessEditor()">
+                    <div class="card rounded-xl w-full max-w-5xl mx-4 max-h-[90vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+                        <!-- Header -->
+                        <div class="p-4 border-b border-gray-700 flex items-center justify-between flex-shrink-0" style="background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(20,184,166,0.1));">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">✏️</div>
+                                <div>
+                                    <h3 id="process-editor-title" class="text-lg font-bold">Edit Workflow</h3>
+                                    <p class="text-sm text-gray-400">Modify workflow steps and configuration</p>
+                                </div>
+                            </div>
+                            <button onclick="closeProcessEditor()" class="text-gray-400 hover:text-white text-2xl px-2">✕</button>
+                        </div>
+                        
+                        <!-- Content -->
+                        <div class="flex-1 overflow-y-auto p-6">
+                            <!-- Basic Info -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label class="text-sm text-gray-400 mb-1 block">Workflow Name</label>
+                                    <input type="text" id="process-editor-name" class="input-field w-full rounded-lg px-4 py-3" placeholder="My Workflow">
+                                </div>
+                                <div>
+                                    <label class="text-sm text-gray-400 mb-1 block">Goal / Description</label>
+                                    <input type="text" id="process-editor-goal" class="input-field w-full rounded-lg px-4 py-3" placeholder="What does this workflow do?">
+                                </div>
+                            </div>
+                            
+                            <!-- Workflow Steps -->
+                            <div class="mb-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="font-semibold flex items-center gap-2">🔄 Workflow Steps</h4>
+                                    <button onclick="addWorkflowNode()" class="text-sm px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition">
+                                        + Add Step
+                                    </button>
+                                </div>
+                                <div id="workflow-nodes-container" class="space-y-3">
+                                    <!-- Nodes will be rendered here -->
+                                </div>
+                            </div>
+                            
+                            <!-- Add Node Panel (hidden by default) -->
+                            <div id="add-node-panel" class="hidden mb-6 p-4 rounded-lg border border-dashed border-gray-600">
+                                <h5 class="font-medium mb-3">Select Step Type</h5>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    <button onclick="insertNode('action')" class="p-3 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-center transition">
+                                        <span class="text-2xl block mb-1">⚡</span>
+                                        <span class="text-sm">Action</span>
+                                    </button>
+                                    <button onclick="insertNode('condition')" class="p-3 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-center transition">
+                                        <span class="text-2xl block mb-1">🔀</span>
+                                        <span class="text-sm">Condition</span>
+                                    </button>
+                                    <button onclick="insertNode('approval')" class="p-3 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-center transition">
+                                        <span class="text-2xl block mb-1">✅</span>
+                                        <span class="text-sm">Approval</span>
+                                    </button>
+                                    <button onclick="insertNode('notification')" class="p-3 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-center transition">
+                                        <span class="text-2xl block mb-1">📧</span>
+                                        <span class="text-sm">Notify</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Footer -->
+                        <div class="p-4 border-t border-gray-700 flex justify-between items-center flex-shrink-0">
+                            <button onclick="closeProcessEditor()" class="btn-secondary px-4 py-2 rounded-lg">Cancel</button>
+                            <div class="flex gap-3">
+                                <button onclick="testWorkflow()" class="px-4 py-2 rounded-lg border border-gray-600 hover:bg-gray-700 transition">
+                                    🧪 Test
+                                </button>
+                                <button onclick="saveProcessChanges()" class="px-6 py-2 rounded-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
+                                    💾 Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        // Render workflow nodes in editor
+        function renderWorkflowNodes(workflow) {
+            const container = document.getElementById('workflow-nodes-container');
+            const nodes = workflow.nodes || [];
+            
+            if (nodes.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-500 border border-dashed border-gray-700 rounded-lg">
+                        <span class="text-3xl block mb-2">📭</span>
+                        <p>No steps yet. Click "Add Step" to begin.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = nodes.map((node, index) => {
+                const typeIcons = {
+                    trigger: '🎯',
+                    action: '⚡',
+                    condition: '🔀',
+                    approval: '✅',
+                    notification: '📧',
+                    end: '🏁'
+                };
+                
+                const typeColors = {
+                    trigger: 'border-green-500/30 bg-green-500/5',
+                    action: 'border-blue-500/30 bg-blue-500/5',
+                    condition: 'border-yellow-500/30 bg-yellow-500/5',
+                    approval: 'border-orange-500/30 bg-orange-500/5',
+                    notification: 'border-purple-500/30 bg-purple-500/5',
+                    end: 'border-gray-500/30 bg-gray-500/5'
+                };
+                
+                const icon = typeIcons[node.type] || '📦';
+                const colorClass = typeColors[node.type] || 'border-gray-600';
+                
+                return `
+                    <div class="p-4 rounded-lg border ${colorClass} group" data-node-index="${index}">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center text-xl flex-shrink-0">
+                                ${icon}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <input type="text" 
+                                           class="input-field flex-1 rounded px-2 py-1 text-sm font-medium" 
+                                           value="${node.name || node.type}" 
+                                           onchange="updateNodeName(${index}, this.value)"
+                                           placeholder="Step name">
+                                    <span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400">${node.type}</span>
+                                </div>
+                                ${node.config ? `
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        ${Object.entries(node.config).slice(0, 2).map(([k, v]) => 
+                                            `<span class="mr-2">${k}: ${typeof v === 'string' ? v.substring(0, 20) : JSON.stringify(v).substring(0, 20)}...</span>`
+                                        ).join('')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                                <button onclick="editNodeConfig(${index})" class="p-1.5 rounded hover:bg-gray-700" title="Configure">⚙️</button>
+                                <button onclick="moveNodeUp(${index})" class="p-1.5 rounded hover:bg-gray-700 ${index === 0 ? 'opacity-30' : ''}" title="Move Up">⬆️</button>
+                                <button onclick="moveNodeDown(${index})" class="p-1.5 rounded hover:bg-gray-700 ${index === nodes.length - 1 ? 'opacity-30' : ''}" title="Move Down">⬇️</button>
+                                <button onclick="deleteNode(${index})" class="p-1.5 rounded hover:bg-red-500/20 text-red-400" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Add new workflow node
+        function addWorkflowNode() {
+            const panel = document.getElementById('add-node-panel');
+            panel.classList.toggle('hidden');
+        }
+        
+        // Insert a new node of specific type
+        function insertNode(type) {
+            if (!editingProcessAgent) return;
+            
+            const workflow = editingProcessAgent.process_definition || { nodes: [], edges: [] };
+            
+            const newNode = {
+                id: 'node_' + Date.now(),
+                type: type,
+                name: type.charAt(0).toUpperCase() + type.slice(1) + ' ' + (workflow.nodes.length + 1),
+                config: {}
+            };
+            
+            // Set default config based on type
+            switch(type) {
+                case 'action':
+                    newNode.config = { action_type: 'api_call', description: '' };
+                    break;
+                case 'condition':
+                    newNode.config = { condition: '', true_next: '', false_next: '' };
+                    break;
+                case 'approval':
+                    newNode.config = { approvers: [], timeout_hours: 24 };
+                    break;
+                case 'notification':
+                    newNode.config = { channel: 'email', template: '' };
+                    break;
+            }
+            
+            workflow.nodes.push(newNode);
+            editingProcessAgent.process_definition = workflow;
+            
+            // Re-render and hide panel
+            renderWorkflowNodes(workflow);
+            document.getElementById('add-node-panel').classList.add('hidden');
+            
+            showToast('Step added', 'success');
+        }
+        
+        // Update node name
+        function updateNodeName(index, newName) {
+            if (!editingProcessAgent) return;
+            const workflow = editingProcessAgent.process_definition;
+            if (workflow.nodes[index]) {
+                workflow.nodes[index].name = newName;
+            }
+        }
+        
+        // Move node up
+        function moveNodeUp(index) {
+            if (!editingProcessAgent || index === 0) return;
+            const workflow = editingProcessAgent.process_definition;
+            const nodes = workflow.nodes;
+            [nodes[index], nodes[index - 1]] = [nodes[index - 1], nodes[index]];
+            renderWorkflowNodes(workflow);
+        }
+        
+        // Move node down
+        function moveNodeDown(index) {
+            if (!editingProcessAgent) return;
+            const workflow = editingProcessAgent.process_definition;
+            const nodes = workflow.nodes;
+            if (index >= nodes.length - 1) return;
+            [nodes[index], nodes[index + 1]] = [nodes[index + 1], nodes[index]];
+            renderWorkflowNodes(workflow);
+        }
+        
+        // Delete node
+        function deleteNode(index) {
+            if (!editingProcessAgent) return;
+            if (!confirm('Delete this step?')) return;
+            
+            const workflow = editingProcessAgent.process_definition;
+            workflow.nodes.splice(index, 1);
+            renderWorkflowNodes(workflow);
+            showToast('Step deleted', 'info');
+        }
+        
+        // Edit node configuration (opens a sub-modal)
+        function editNodeConfig(index) {
+            if (!editingProcessAgent) return;
+            const workflow = editingProcessAgent.process_definition;
+            const node = workflow.nodes[index];
+            
+            // Simple prompt-based config for now (can be enhanced with modal)
+            const configStr = prompt('Edit configuration (JSON):', JSON.stringify(node.config || {}, null, 2));
+            if (configStr !== null) {
+                try {
+                    node.config = JSON.parse(configStr);
+                    renderWorkflowNodes(workflow);
+                    showToast('Configuration updated', 'success');
+                } catch(e) {
+                    showToast('Invalid JSON', 'error');
+                }
+            }
+        }
+        
+        // Test the workflow
+        function testWorkflow() {
+            if (!editingProcessAgent) return;
+            closeProcessEditor();
+            openProcessExecution(editingProcessAgent.id);
+        }
+        
+        // Save process changes
+        async function saveProcessChanges() {
+            if (!editingProcessAgent) return;
+            
+            const name = document.getElementById('process-editor-name').value.trim();
+            const goal = document.getElementById('process-editor-goal').value.trim();
+            
+            if (!name) {
+                showToast('Please enter a workflow name', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(API + '/api/agents/' + editingProcessAgent.id, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        goal: goal,
+                        process_definition: editingProcessAgent.process_definition
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast('Workflow saved!', 'success');
+                    closeProcessEditor();
+                    loadAgents();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Could not save', 'error');
+                }
+            } catch(e) {
+                showToast('Could not save workflow', 'error');
+            }
+        }
+        
+        // Close process editor
+        function closeProcessEditor() {
+            const modal = document.getElementById('process-editor-modal');
+            if (modal) modal.classList.add('hidden');
+            editingProcessAgent = null;
+        }
+        
         // Process Templates
         function useProcessTemplate(template) {
             const templates = {
@@ -16011,6 +16356,12 @@ Option 3"></textarea>
             const agent = await r.json();
             
             console.log('📝 Editing agent:', id, 'owner_id:', agent.owner_id, 'created_by:', agent.created_by);
+            
+            // For process/workflow agents, open the visual process editor
+            if (agent.agent_type === 'process') {
+                openProcessEditor(agent);
+                return;
+            }
             
             // Fetch user's permissions for this agent
             let userPermissions = null;
