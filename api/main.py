@@ -1136,6 +1136,7 @@ class AgentData(BaseModel):
     name: str
     icon: str = "🤖"
     goal: str = ""
+    agent_type: str = "conversational"  # "conversational" or "process"
     personality: AgentPersonality = Field(default_factory=AgentPersonality)
     guardrails: AgentGuardrails = Field(default_factory=AgentGuardrails)
     tasks: List[TaskDefinition] = []
@@ -1151,6 +1152,9 @@ class AgentData(BaseModel):
     # Ownership - who owns this agent
     owner_id: Optional[str] = None
     created_by: Optional[str] = None
+    # Process/Workflow specific
+    process_definition: Optional[Dict[str, Any]] = None  # Workflow definition for process agents
+    process_settings: Optional[Dict[str, Any]] = None  # Process settings
 
     class Config:
         protected_namespaces = ()
@@ -4674,8 +4678,9 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
                 "name": a.name,
                 "icon": a.icon,
                 "goal": a.goal[:100] + "..." if len(a.goal) > 100 else a.goal,
-                "tasks_count": len(a.tasks),
-                "tools_count": len(a.tool_ids),
+                "agent_type": getattr(a, 'agent_type', 'conversational'),  # Include agent type for UI
+                "tasks_count": len(a.tasks) if hasattr(a, 'tasks') else 0,
+                "tools_count": len(a.tool_ids) if hasattr(a, 'tool_ids') else 0,
                 "status": a.status,
                 "created_at": a.created_at,
                 "owner_id": owner_id,

@@ -166,12 +166,21 @@ class AgentService:
             shared_user_ids_str = [str(uid) if isinstance(uid, uuid_lib.UUID) else str(uid) for uid in shared_with_user_ids]
             shared_role_ids_str = [str(rid) if isinstance(rid, uuid_lib.UUID) else str(rid) for rid in shared_with_role_ids]
             
+            # Parse process-specific fields
+            process_definition = db_agent.process_definition if hasattr(db_agent, 'process_definition') and isinstance(db_agent.process_definition, dict) else (
+                json.loads(db_agent.process_definition) if hasattr(db_agent, 'process_definition') and isinstance(db_agent.process_definition, str) and db_agent.process_definition else None
+            )
+            process_settings = db_agent.process_settings if hasattr(db_agent, 'process_settings') and isinstance(db_agent.process_settings, dict) else (
+                json.loads(db_agent.process_settings) if hasattr(db_agent, 'process_settings') and isinstance(db_agent.process_settings, str) and db_agent.process_settings else None
+            )
+            
             return {
                 'id': agent_id,
                 'name': db_agent.name,
                 'icon': db_agent.icon or "🤖",
                 'goal': db_agent.goal or "",
                 'description': db_agent.description or "",
+                'agent_type': db_agent.agent_type if hasattr(db_agent, 'agent_type') else "conversational",
                 'model_id': db_agent.model_id or "gpt-4o",
                 'personality': personality,
                 'guardrails': guardrails,
@@ -195,7 +204,11 @@ class AgentService:
                 'version': db_agent.version if db_agent.version is not None else 1,
                 'parent_version_id': parent_version_id,
                 'published_at': db_agent.published_at.isoformat() if db_agent.published_at else None,
-                'extra_metadata': extra_metadata
+                'extra_metadata': extra_metadata,
+                # Process/Workflow specific
+                'process_definition': process_definition,
+                'process_settings': process_settings,
+                'created_by': created_by
             }
         except Exception as e:
             print(f"❌ Error in _db_to_agent_dict: {type(e).__name__}: {e}")
