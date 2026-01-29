@@ -1480,8 +1480,13 @@
         main > section.hidden { display:none !important; }
         #page-create { overflow-y:auto !important; }
         
-        /* Chat page - MUST be flex row for sidebar + main layout */
-        #page-chat { 
+        /* Chat page - MUST be hidden when .hidden class is present */
+        #page-chat.hidden { 
+            display: none !important;
+            visibility: hidden !important;
+        }
+        /* Chat page - flex row for sidebar + main layout (only when visible) */
+        #page-chat:not(.hidden) { 
             display: flex !important;
             flex-direction: row !important;
             height: 100% !important; 
