@@ -314,8 +314,10 @@ class ProcessSettingsService:
         
         Returns merged settings: System Defaults + Org Overrides
         """
+        # Use string comparison since org_id column is VARCHAR in database
+        org_id_str = str(org_id) if hasattr(org_id, 'hex') else org_id
         settings = self.db.query(ProcessOrgSettings).filter(
-            ProcessOrgSettings.org_id == uuid.UUID(org_id)
+            ProcessOrgSettings.org_id == org_id_str
         ).first()
         
         if settings:
@@ -331,13 +333,14 @@ class ProcessSettingsService:
         updated_by: str
     ) -> Dict[str, Any]:
         """Update organization settings"""
+        org_id_str = str(org_id) if hasattr(org_id, 'hex') else org_id
         settings = self.db.query(ProcessOrgSettings).filter(
-            ProcessOrgSettings.org_id == uuid.UUID(org_id)
+            ProcessOrgSettings.org_id == org_id_str
         ).first()
         
         if not settings:
             settings = ProcessOrgSettings(
-                org_id=uuid.UUID(org_id),
+                org_id=org_id_str,
                 created_at=datetime.utcnow().isoformat()
             )
             self.db.add(settings)
@@ -396,7 +399,7 @@ class ProcessSettingsService:
             settings.notification_priority = notif.get('priority', settings.notification_priority)
         
         settings.updated_at = datetime.utcnow().isoformat()
-        settings.updated_by = uuid.UUID(updated_by)
+        settings.updated_by = str(updated_by) if updated_by else None
         
         self.db.commit()
         self.db.refresh(settings)
@@ -539,7 +542,9 @@ class ProcessSettingsService:
             conditions.append(ProcessTemplate.is_public == True)
         
         if org_id:
-            conditions.append(ProcessTemplate.org_id == uuid.UUID(org_id))
+            # Use string comparison for database-agnostic compatibility
+            org_id_str = str(org_id) if hasattr(org_id, 'hex') else org_id
+            conditions.append(ProcessTemplate.org_id == org_id_str)
         
         if conditions:
             from sqlalchemy import or_
@@ -563,14 +568,15 @@ class ProcessSettingsService:
         created_by: str = None
     ) -> Dict[str, Any]:
         """Create a new process template"""
+        # Use strings for database-agnostic compatibility
         template = ProcessTemplate(
             name=name,
             description=description,
             category=category,
             process_definition=json.dumps(process_definition),
             is_public=is_public,
-            org_id=uuid.UUID(org_id) if org_id else None,
-            created_by=uuid.UUID(created_by) if created_by else None
+            org_id=str(org_id) if org_id else None,
+            created_by=str(created_by) if created_by else None
         )
         
         self.db.add(template)
@@ -581,8 +587,10 @@ class ProcessSettingsService:
     
     def use_template(self, template_id: str) -> Dict[str, Any]:
         """Get template and increment use count"""
+        # Use string comparison for database-agnostic compatibility
+        template_id_str = str(template_id) if hasattr(template_id, 'hex') else template_id
         template = self.db.query(ProcessTemplate).filter(
-            ProcessTemplate.id == uuid.UUID(template_id)
+            ProcessTemplate.id == template_id_str
         ).first()
         
         if not template:

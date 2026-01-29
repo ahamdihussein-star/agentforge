@@ -16,7 +16,8 @@ import uuid
 import json
 
 from ..base import Base
-from ..column_types import UUID, JSON
+# Note: Using String(36) instead of UUID for database-agnostic compatibility
+# The migration creates VARCHAR(36) columns, so we match that here
 
 
 class ProcessOrgSettings(Base):
@@ -28,8 +29,9 @@ class ProcessOrgSettings(Base):
     """
     __tablename__ = 'process_org_settings'
     
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
-    org_id = Column(UUID, nullable=False, unique=True, index=True)
+    # Use String(36) for database-agnostic UUID storage
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    org_id = Column(String(36), nullable=False, unique=True, index=True)
     
     # =========================================================================
     # EXECUTION LIMITS
@@ -117,7 +119,7 @@ class ProcessOrgSettings(Base):
     # =========================================================================
     created_at = Column(String(50), default=lambda: datetime.utcnow().isoformat())
     updated_at = Column(String(50), default=lambda: datetime.utcnow().isoformat(), onupdate=lambda: datetime.utcnow().isoformat())
-    updated_by = Column(UUID, nullable=True)
+    updated_by = Column(String(36), nullable=True)  # String for database-agnostic compatibility
     
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses"""
@@ -272,7 +274,8 @@ class ProcessTemplate(Base):
     """
     __tablename__ = 'process_templates'
     
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    # Use String(36) for database-agnostic UUID storage
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     
     # Template info
     name = Column(String(200), nullable=False)
@@ -288,13 +291,13 @@ class ProcessTemplate(Base):
     
     # Availability
     is_public = Column(Boolean, default=False)  # Available to all orgs
-    org_id = Column(UUID, nullable=True)  # If private to an org
+    org_id = Column(String(36), nullable=True)  # If private to an org (String for db-agnostic)
     
     # Usage stats
     use_count = Column(Integer, default=0)
     
     # Metadata
-    created_by = Column(UUID, nullable=True)
+    created_by = Column(String(36), nullable=True)  # String for db-agnostic
     created_at = Column(String(50), default=lambda: datetime.utcnow().isoformat())
     updated_at = Column(String(50), default=lambda: datetime.utcnow().isoformat())
     
