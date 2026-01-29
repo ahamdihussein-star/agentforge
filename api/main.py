@@ -10869,9 +10869,14 @@ async def test_chat_with_files(
     if conversation_id and conversation_id in app_state.conversations:
         conversation = app_state.conversations[conversation_id]
     else:
-        title = f"[TEST] {message[:40]}..." if len(message) > 40 else f"[TEST] {message}"
-        if not message and files:
+        # Generate smart title from user message
+        from api.modules.conversations import ConversationTitleService
+        if message:
+            title = "[TEST] " + ConversationTitleService.generate_title_sync(message, agent.name if agent else None)
+        elif files:
             title = f"[TEST] Chat with {len(files)} file(s)"
+        else:
+            title = "[TEST] New conversation"
         conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         app_state.conversations[conversation.id] = conversation
         
@@ -11404,7 +11409,9 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     
     # Create new conversation if needed
     if not conversation:
-        title = request.message[:50] + "..." if len(request.message) > 50 else request.message
+        # Generate smart title from user message
+        from api.modules.conversations import ConversationTitleService
+        title = ConversationTitleService.generate_title_sync(request.message, agent.name)
         conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         
         # Cache permissions in new conversation
@@ -11621,7 +11628,10 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             if request.conversation_id and request.conversation_id in app_state.conversations:
                 conversation = app_state.conversations[request.conversation_id]
             else:
-                title = request.message[:50] + "..." if len(request.message) > 50 else request.message
+                # Generate smart title from user message
+                from api.modules.conversations import ConversationTitleService
+                title = ConversationTitleService.generate_title_sync(request.message, agent.name)
+                
                 conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
                 app_state.conversations[conversation.id] = conversation
                 
@@ -12104,9 +12114,14 @@ async def chat_with_files(
     if conversation_id and conversation_id in app_state.conversations:
         conversation = app_state.conversations[conversation_id]
     else:
-        title = message[:50] + "..." if len(message) > 50 else message
-        if not title and files:
+        # Generate smart title from user message
+        from api.modules.conversations import ConversationTitleService
+        if message:
+            title = ConversationTitleService.generate_title_sync(message, agent.name if agent else None)
+        elif files:
             title = f"Chat with {len(files)} file(s)"
+        else:
+            title = "New conversation"
         conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
         app_state.conversations[conversation.id] = conversation
         

@@ -5,6 +5,7 @@ Provides reusable operations for managing conversations:
 - List conversations with filtering
 - Bulk delete conversations
 - Select all / deselect all
+- Auto-generate conversation titles
 - Export conversations
 
 Used by:
@@ -16,6 +17,159 @@ Used by:
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 import json
+
+
+class ConversationTitleService:
+    """
+    Service for generating smart conversation titles based on context.
+    Uses LLM to create descriptive, concise titles.
+    """
+    
+    @classmethod
+    async def generate_title(cls, first_message: str, agent_name: str = None, language: str = "auto") -> str:
+        """
+        Generate a descriptive title for a conversation based on the first message.
+        
+        Args:
+            first_message: The first user message in the conversation
+            agent_name: Optional agent name for context
+            language: Language for the title ("en", "ar", or "auto" to detect)
+            
+        Returns:
+            A short, descriptive title (max 50 chars)
+        """
+        try:
+            # Auto-detect language if needed
+            if language == "auto":
+                # Check for Arabic characters
+                is_arabic = any('\u0600' <= c <= '\u06FF' for c in first_message)
+                language = "ar" if is_arabic else "en"
+            
+            # Truncate message if too long
+            msg_preview = first_message[:200] if len(first_message) > 200 else first_message
+            
+            # Build prompt for title generation
+            if language == "ar":
+                prompt = f"""اكتب عنوان قصير (أقل من 6 كلمات) يصف هذه المحادثة:
+"{msg_preview}"
+
+اكتب العنوان فقط بدون علامات ترقيم أو تفسير."""
+            else:
+                prompt = f"""Write a short title (under 6 words) describing this conversation:
+"{msg_preview}"
+
+Write only the title, no punctuation or explanation."""
+            
+            # Try to use LLM for smart title generation
+            try:
+                from core.llm.factory import create_llm_client
+                
+                client = create_llm_client("openai")  # Use default provider
+                response = await client.generate(
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that generates short, descriptive conversation titles."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=30,
+                    temperature=0.3
+                )
+                
+                title = response.get("content", "").strip()
+                
+                # Clean up the title
+                title = title.strip('"\'.')
+                
+                # Limit length
+                if len(title) > 50:
+                    title = title[:47] + "..."
+                
+                if title:
+                    return title
+                    
+            except Exception as llm_error:
+                print(f"LLM title generation failed, using fallback: {llm_error}")
+            
+            # Fallback: Use first words of the message
+            return cls._fallback_title(first_message, agent_name)
+            
+        except Exception as e:
+            print(f"Error generating conversation title: {e}")
+            return cls._fallback_title(first_message, agent_name)
+    
+    @classmethod
+    def generate_title_sync(cls, first_message: str, agent_name: str = None) -> str:
+        """
+        Synchronous version - generates a simple title without LLM.
+        Uses first words of the message.
+        
+        Args:
+            first_message: The first user message
+            agent_name: Optional agent name
+            
+        Returns:
+            A short title
+        """
+        return cls._fallback_title(first_message, agent_name)
+    
+    @classmethod
+    def _fallback_title(cls, message: str, agent_name: str = None) -> str:
+        """Generate a simple title from the message content."""
+        # Clean and truncate
+        clean_msg = message.strip()
+        
+        # Remove common prefixes
+        prefixes = ["hi", "hello", "hey", "please", "can you", "i want", "i need", "مرحبا", "السلام عليكم", "اريد", "عايز"]
+        lower_msg = clean_msg.lower()
+        for prefix in prefixes:
+            if lower_msg.startswith(prefix):
+                clean_msg = clean_msg[len(prefix):].strip()
+                break
+        
+        # Take first few words
+        words = clean_msg.split()[:6]
+        title = " ".join(words)
+        
+        # Add ellipsis if truncated
+        if len(words) < len(clean_msg.split()):
+            title += "..."
+        
+        # Limit length
+        if len(title) > 50:
+            title = title[:47] + "..."
+        
+        # Fallback if empty
+        if not title or len(title) < 3:
+            if agent_name:
+                return f"Chat with {agent_name}"
+            return "New conversation"
+        
+        return title
+    
+    @classmethod
+    async def update_conversation_title(cls, conversation_id: str, first_message: str, agent_name: str = None) -> bool:
+        """
+        Update a conversation's title based on its first message.
+        
+        Args:
+            conversation_id: The conversation ID
+            first_message: The first user message
+            agent_name: Optional agent name
+            
+        Returns:
+            True if successful
+        """
+        try:
+            from database.services import ConversationService
+            
+            # Generate title
+            title = await cls.generate_title(first_message, agent_name)
+            
+            # Update in database
+            return ConversationService.update_title(conversation_id, title)
+            
+        except Exception as e:
+            print(f"Error updating conversation title: {e}")
+            return False
 
 
 class ConversationManagementService:

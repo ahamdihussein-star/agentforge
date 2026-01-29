@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from typing import List, Optional
 
-from .service import ConversationManagementService
+from .service import ConversationManagementService, ConversationTitleService
 
 # Try to import security
 try:
@@ -204,3 +204,57 @@ async def delete_conversation(
         raise HTTPException(400, message)
     
     return {"success": True, "message": message}
+
+
+class UpdateTitleRequest(BaseModel):
+    """Request to update conversation title"""
+    title: Optional[str] = None
+    first_message: Optional[str] = None
+    agent_name: Optional[str] = None
+    auto_generate: bool = False
+
+
+@router.patch("/{conversation_id}/title")
+async def update_conversation_title(
+    conversation_id: str,
+    request: UpdateTitleRequest,
+    current_user = Depends(get_current_user) if SECURITY_AVAILABLE else None
+):
+    """
+    Update a conversation's title.
+    
+    - **conversation_id**: Conversation ID
+    - **title**: New title (optional, if not auto-generating)
+    - **first_message**: First message content (for auto-generation)
+    - **agent_name**: Agent name (for fallback title)
+    - **auto_generate**: If true, generate title from first_message using AI
+    """
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    from database.services import ConversationService
+    
+    if request.auto_generate and request.first_message:
+        # Generate title using AI
+        title = await ConversationTitleService.generate_title(
+            first_message=request.first_message,
+            agent_name=request.agent_name
+        )
+    elif request.title:
+        title = request.title
+    elif request.first_message:
+        # Use sync fallback
+        title = ConversationTitleService.generate_title_sync(
+            first_message=request.first_message,
+            agent_name=request.agent_name
+        )
+    else:
+        raise HTTPException(400, "Either title or first_message is required")
+    
+    # Update in database
+    success = ConversationService.update_title(conversation_id, title)
+    
+    if not success:
+        raise HTTPException(400, "Failed to update conversation title")
+    
+    return {"success": True, "title": title}

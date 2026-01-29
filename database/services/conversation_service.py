@@ -184,6 +184,32 @@ class ConversationService:
             return None
     
     @staticmethod
+    def update_title(conv_id: str, title: str) -> bool:
+        """Update the title of a conversation"""
+        try:
+            with get_db_session() as db:
+                conv_uuid = ConversationService._parse_uuid(conv_id, None)
+                if not conv_uuid:
+                    return False
+                
+                db_conv = db.query(DBConversation).filter(
+                    DBConversation.id == conv_uuid,
+                    DBConversation.deleted_at.is_(None)
+                ).first()
+                
+                if not db_conv:
+                    return False
+                
+                db_conv.title = title
+                db_conv.updated_at = datetime.utcnow()
+                db.commit()
+                return True
+                
+        except Exception as e:
+            print(f"❌ [DATABASE ERROR] Failed to update conversation title: {e}")
+            return False
+    
+    @staticmethod
     def delete_conversation(conv_id: str, deleted_by: str = None) -> bool:
         """Soft delete a conversation"""
         try:
