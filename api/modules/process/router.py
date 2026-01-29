@@ -74,12 +74,20 @@ def get_service(db: Session = Depends(get_db)) -> ProcessAPIService:
 
 def _user_to_dict(user: User) -> Dict[str, Any]:
     """Convert User object to dict for service layer"""
+    # Handle different User model variations
+    org_id = getattr(user, 'org_id', None) or getattr(user, 'organization_id', None) or ''
+    name = getattr(user, 'name', None) or getattr(user, 'email', 'Unknown')
+    email = getattr(user, 'email', '') 
+    
+    # Get role_ids (the User model uses role_ids, not roles)
+    role_ids = getattr(user, 'role_ids', []) or []
+    
     return {
         "id": str(user.id),
-        "org_id": str(user.org_id) if hasattr(user, 'org_id') else user.organization_id,
-        "name": user.name if hasattr(user, 'name') else user.email,
-        "email": user.email,
-        "roles": [r.name if hasattr(r, 'name') else str(r) for r in (user.roles or [])]
+        "org_id": str(org_id),
+        "name": name,
+        "email": email,
+        "role_ids": role_ids
     }
 
 
