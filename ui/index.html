@@ -21151,7 +21151,7 @@ async function saveToolEdit() {
                     <div class="chat-welcome">
                         <div class="chat-welcome-icon">👋</div>
                         <h2>Hi ${esc(firstName)}!</h2>
-                        <p>I'm <strong style="color:#a78bfa">${esc(agentName)}</strong>. How can I help you today?</p>
+                        <p>I'm <strong style="color:var(--accent-primary)">${esc(agentName)}</strong>. How can I help you today?</p>
                 `;
                 
                 if(tasks.length > 0) {
@@ -21160,15 +21160,15 @@ async function saveToolEdit() {
                     const hasMore = hiddenTasks.length > 0;
                     
                     welcomeHtml += `
-                        <div style="margin-top:24px;text-align:left;max-width:400px;margin-left:auto;margin-right:auto;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);border-radius:16px;padding:20px">
-                            <p style="font-size:0.75rem;color:rgba(255,255,255,0.5);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.05em">✨ What I can do for you</p>
-                            <ul style="font-size:0.875rem;color:rgba(255,255,255,0.8);list-style:none;padding:0;margin:0">
-                                ${visibleTasks.map(t => `<li style="padding:6px 0;display:flex;align-items:center;gap:8px"><span style="color:#8b5cf6">→</span> ${esc(t)}</li>`).join('')}
+                        <div style="margin-top:24px;text-align:left;max-width:400px;margin-left:auto;margin-right:auto;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:16px;padding:20px">
+                            <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.05em">✨ What I can do for you</p>
+                            <ul style="font-size:0.875rem;color:var(--text-primary);list-style:none;padding:0;margin:0">
+                                ${visibleTasks.map(t => `<li style="padding:6px 0;display:flex;align-items:center;gap:8px"><span style="color:var(--accent-primary)">→</span> ${esc(t)}</li>`).join('')}
                                 ${hasMore ? `
                                     <li id="welcome-tasks-hidden" class="hidden">
-                                        ${hiddenTasks.map(t => `<span style="display:block;padding:6px 0"><span style="color:#8b5cf6">→</span> ${esc(t)}</span>`).join('')}
+                                        ${hiddenTasks.map(t => `<span style="display:block;padding:6px 0"><span style="color:var(--accent-primary)">→</span> ${esc(t)}</span>`).join('')}
                                     </li>
-                                    <li id="welcome-tasks-toggle" style="padding:8px 0;color:#a78bfa;cursor:pointer;font-size:0.75rem" onclick="toggleWelcomeTasks()">
+                                    <li id="welcome-tasks-toggle" style="padding:8px 0;color:var(--accent-primary);cursor:pointer;font-size:0.75rem" onclick="toggleWelcomeTasks()">
                                         ↓ Show ${hiddenTasks.length} more capabilities
                                     </li>
                                 ` : ''}
