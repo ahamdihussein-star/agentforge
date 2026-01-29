@@ -9205,7 +9205,7 @@ Option 3"></textarea>
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
+                        'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token'))
                     },
                     body: JSON.stringify({ goal: goal })
                 });
@@ -9311,7 +9311,7 @@ Option 3"></textarea>
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
+                        'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token'))
                     },
                     body: JSON.stringify({
                         name: name,
