@@ -74,6 +74,16 @@ try:
 except ImportError as e:
     print(f"⚠️ Access Control Service not available: {e}")
 
+# Instruction Enforcer Service
+INSTRUCTION_ENFORCER_AVAILABLE = False
+InstructionEnforcer = None
+try:
+    from core.llm.instruction_enforcer import InstructionEnforcer
+    INSTRUCTION_ENFORCER_AVAILABLE = True
+    print("✅ Instruction Enforcer Service available")
+except ImportError as e:
+    print(f"⚠️ Instruction Enforcer Service not available: {e}")
+
 # Check for Playwright availability
 PLAYWRIGHT_AVAILABLE = False
 try:
@@ -3963,13 +3973,35 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
 
 === TASKS ==="""
     
-    # Only include tasks the user has access to
+    # Add instruction enforcement if available
+    if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+        # Detect language for enforcement
+        enforce_lang = 'ar' if any('\u0600' <= c <= '\u06FF' for c in (request.message if hasattr(request, 'message') else '')) else 'en'
+        phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
+        
+        system_prompt += f"""
+
+=== ⚠️ INSTRUCTION ENFORCEMENT ===
+{phrases['critical']}
+{phrases['mandatory']}
+{phrases['no_skip']}
+"""
+    
+    # Only include tasks the user has access to - with enforced instructions
     for task in accessible_tasks:
-        system_prompt += f"\n\n### {task.name}\n{task.description}"
+        system_prompt += f"\n\n### TASK: {task.name}\n{task.description}"
         if task.instructions:
-            system_prompt += "\n**Steps:**"
-            for i, inst in enumerate(task.instructions, 1):
-                system_prompt += f"\n{i}. {inst.text}"
+            if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                enforce_lang = 'ar' if g.language == 'ar' else 'en'
+                system_prompt += InstructionEnforcer.format_instructions_for_prompt(
+                    [inst.text for inst in task.instructions],
+                    task.name,
+                    enforce_lang
+                )
+            else:
+                system_prompt += "\n**⚠️ MANDATORY STEPS (Execute ALL in order):**"
+                for i, inst in enumerate(task.instructions, 1):
+                    system_prompt += f"\n  [{i}] ✓ {inst.text}"
     
     # Add information about restricted tasks if any
     if denied_task_names and len(denied_task_names) > 0:
@@ -11686,10 +11718,14 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 elif hasattr(current_user, 'email'):
                     user_name = current_user.email.split('@')[0].replace('.', ' ').title()
             
-            # Build system prompt (simplified version for streaming)
+            # Build system prompt with instruction enforcement
             creativity_desc = "(Factual only)" if p.creativity <= 3 else "(Creative)" if p.creativity >= 7 else "(Balanced)"
             length_desc = "(Brief)" if p.length <= 3 else "(Detailed)" if p.length >= 7 else "(Moderate)"
             
+            # Determine language for enforcement
+            enforce_lang = 'ar' if user_lang == 'ar' else 'en'
+            
+            # Build base system prompt
             system_prompt = f"""You are {agent.name}.
 {f'The current user is {user_name}.' if user_name else ''}
 
@@ -11707,14 +11743,48 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
 === LANGUAGE ===
 {get_language_instruction(g.language)}
 
-=== TASKS ==="""
+"""
+            # Add instruction enforcement section
+            if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                # Get enforcement phrases
+                phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
+                
+                system_prompt += f"""
+=== ⚠️ INSTRUCTION ENFORCEMENT ===
+{phrases['critical']}
+{phrases['mandatory']}
+{phrases['no_skip']}
+
+"""
             
+            system_prompt += "=== TASKS ==="
+            
+            # Build tasks with enforced instructions
             for task in accessible_tasks:
-                system_prompt += f"\n\n### {task.name}\n{task.description}"
+                system_prompt += f"\n\n### TASK: {task.name}\n{task.description}"
                 if task.instructions:
-                    system_prompt += "\n**Steps:**"
-                    for i, inst in enumerate(task.instructions, 1):
-                        system_prompt += f"\n{i}. {inst.text}"
+                    if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                        # Use enforcer formatting
+                        system_prompt += InstructionEnforcer.format_instructions_for_prompt(
+                            [inst.text for inst in task.instructions],
+                            task.name,
+                            enforce_lang
+                        )
+                    else:
+                        # Fallback formatting with emphasis
+                        system_prompt += "\n**⚠️ MANDATORY STEPS (Execute ALL in order):**"
+                        for i, inst in enumerate(task.instructions, 1):
+                            system_prompt += f"\n  [{i}] ✓ {inst.text}"
+            
+            # Add verification reminder
+            if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
+                system_prompt += f"""
+
+=== BEFORE YOU RESPOND ===
+{phrases['verify']}
+{phrases['confirm']}
+"""
             
             system_prompt += context
             
@@ -12219,12 +12289,29 @@ async def chat_with_files(
 • Empathy: {p.empathy}/10 {empathy_desc}
 
 === TASKS ==="""
+                # Add instruction enforcement
+                if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                    enforce_lang = 'ar' if g.language == 'ar' else 'en'
+                    phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
+                    system_prompt += f"""
+
+=== ⚠️ INSTRUCTION ENFORCEMENT ===
+{phrases['critical']}
+{phrases['mandatory']}
+"""
+                
                 for task in agent.tasks:
-                    system_prompt += f"\n### {task.name}\n{task.description}"
+                    system_prompt += f"\n### TASK: {task.name}\n{task.description}"
                     if task.instructions:
-                        for inst in task.instructions:
-                            inst_text = inst.text if hasattr(inst, 'text') else str(inst)
-                            system_prompt += f"\n- {inst_text}"
+                        if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                            enforce_lang = 'ar' if g.language == 'ar' else 'en'
+                            inst_texts = [inst.text if hasattr(inst, 'text') else str(inst) for inst in task.instructions]
+                            system_prompt += InstructionEnforcer.format_instructions_for_prompt(inst_texts, task.name, enforce_lang)
+                        else:
+                            system_prompt += "\n**⚠️ MANDATORY STEPS:**"
+                            for inst in task.instructions:
+                                inst_text = inst.text if hasattr(inst, 'text') else str(inst)
+                                system_prompt += f"\n  ✓ {inst_text}"
                 
                 # Add guardrails
                 if g.anti_hallucination:
