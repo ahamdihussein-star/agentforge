@@ -141,9 +141,6 @@ class ConversationTitleService:
         except Exception as e:
             print(f"Error in generate_and_update_title: {e}")
             return "New conversation"
-            return "New conversation"
-        
-        return title
     
     @classmethod
     async def update_conversation_title(cls, conversation_id: str, first_message: str, agent_name: str = None) -> bool:

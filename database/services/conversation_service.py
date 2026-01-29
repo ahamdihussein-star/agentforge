@@ -190,6 +190,7 @@ class ConversationService:
             with get_db_session() as db:
                 conv_uuid = ConversationService._parse_uuid(conv_id, None)
                 if not conv_uuid:
+                    print(f"⚠️ [TITLE UPDATE] Invalid conversation ID: {conv_id}")
                     return False
                 
                 db_conv = db.query(DBConversation).filter(
@@ -198,11 +199,14 @@ class ConversationService:
                 ).first()
                 
                 if not db_conv:
+                    print(f"⚠️ [TITLE UPDATE] Conversation not found: {conv_id}")
                     return False
                 
+                old_title = db_conv.title
                 db_conv.title = title
                 db_conv.updated_at = datetime.utcnow()
                 db.commit()
+                print(f"✅ [TITLE UPDATE] '{old_title}' → '{title}' for conversation {conv_id[:8]}...")
                 return True
                 
         except Exception as e:
