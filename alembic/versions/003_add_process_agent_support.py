@@ -1,7 +1,7 @@
 """Add process agent support
 
 Revision ID: 003_add_process_agent_support
-Revises: 002_add_tool_access_control
+Revises: 002_tool_access
 Create Date: 2026-01-29
 
 This migration adds:
@@ -14,260 +14,287 @@ This migration adds:
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '003_add_process_agent_support'
-down_revision = '002_add_tool_access_control'
+down_revision = '002_tool_access'
 branch_labels = None
 depends_on = None
 
 
+def column_exists(table_name, column_name):
+    """Check if a column exists in a table"""
+    connection = op.get_bind()
+    result = connection.execute(sa.text(f"""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = '{table_name}' AND column_name = '{column_name}'
+        );
+    """))
+    return result.scalar()
+
+
+def table_exists(table_name):
+    """Check if a table exists"""
+    connection = op.get_bind()
+    result = connection.execute(sa.text(f"""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_name = '{table_name}'
+        );
+    """))
+    return result.scalar()
+
+
+def index_exists(index_name):
+    """Check if an index exists"""
+    connection = op.get_bind()
+    result = connection.execute(sa.text(f"""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_indexes 
+            WHERE indexname = '{index_name}'
+        );
+    """))
+    return result.scalar()
+
+
 def upgrade() -> None:
+    connection = op.get_bind()
+    
     # ==========================================================================
     # 1. ADD COLUMNS TO AGENTS TABLE
     # ==========================================================================
+    print("📦 Adding columns to agents table...")
     
     # Add agent_type column with default 'conversational'
-    op.add_column(
-        'agents',
-        sa.Column('agent_type', sa.String(20), nullable=False, server_default='conversational')
-    )
+    if not column_exists('agents', 'agent_type'):
+        connection.execute(sa.text("""
+            ALTER TABLE agents 
+            ADD COLUMN agent_type VARCHAR(20) NOT NULL DEFAULT 'conversational'
+        """))
+        print("  ✅ Added agent_type column")
+    else:
+        print("  ⏭️  agent_type column already exists")
     
-    # Add process_definition column (JSON)
-    op.add_column(
-        'agents',
-        sa.Column('process_definition', sa.Text(), nullable=True)
-    )
+    # Add process_definition column (JSON stored as TEXT)
+    if not column_exists('agents', 'process_definition'):
+        connection.execute(sa.text("""
+            ALTER TABLE agents 
+            ADD COLUMN process_definition TEXT DEFAULT NULL
+        """))
+        print("  ✅ Added process_definition column")
+    else:
+        print("  ⏭️  process_definition column already exists")
     
-    # Add process_settings column (JSON)
-    op.add_column(
-        'agents',
-        sa.Column('process_settings', sa.Text(), nullable=True)
-    )
+    # Add process_settings column (JSON stored as TEXT)
+    if not column_exists('agents', 'process_settings'):
+        connection.execute(sa.text("""
+            ALTER TABLE agents 
+            ADD COLUMN process_settings TEXT DEFAULT '{}'
+        """))
+        print("  ✅ Added process_settings column")
+    else:
+        print("  ⏭️  process_settings column already exists")
     
     # Create index on agent_type
-    op.create_index(
-        'idx_agent_org_type',
-        'agents',
-        ['org_id', 'agent_type']
-    )
+    if not index_exists('idx_agent_org_type'):
+        connection.execute(sa.text("""
+            CREATE INDEX idx_agent_org_type ON agents (org_id, agent_type)
+        """))
+        print("  ✅ Created idx_agent_org_type index")
+    else:
+        print("  ⏭️  idx_agent_org_type index already exists")
     
     # ==========================================================================
     # 2. CREATE PROCESS_EXECUTIONS TABLE
     # ==========================================================================
     
-    op.create_table(
-        'process_executions',
-        # Primary Key
-        sa.Column('id', sa.String(36), primary_key=True),
+    if not table_exists('process_executions'):
+        print("📦 Creating process_executions table...")
+        connection.execute(sa.text("""
+            CREATE TABLE process_executions (
+                id VARCHAR(36) PRIMARY KEY,
+                org_id VARCHAR(36) NOT NULL,
+                agent_id VARCHAR(36) NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+                conversation_id VARCHAR(36),
+                execution_number INTEGER DEFAULT 1,
+                correlation_id VARCHAR(100),
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                current_node_id VARCHAR(100),
+                completed_nodes TEXT,
+                skipped_nodes TEXT,
+                variables TEXT,
+                trigger_input TEXT,
+                trigger_type VARCHAR(30) DEFAULT 'manual',
+                output TEXT,
+                checkpoint_data TEXT,
+                can_resume BOOLEAN DEFAULT TRUE,
+                checkpoint_at TIMESTAMP,
+                error_message TEXT,
+                error_node_id VARCHAR(100),
+                error_details TEXT,
+                retry_count INTEGER DEFAULT 0,
+                max_retries INTEGER DEFAULT 3,
+                last_retry_at TIMESTAMP,
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                total_duration_ms FLOAT,
+                node_count_executed INTEGER DEFAULT 0,
+                tool_calls_count INTEGER DEFAULT 0,
+                ai_calls_count INTEGER DEFAULT 0,
+                tokens_used INTEGER DEFAULT 0,
+                parent_execution_id VARCHAR(36) REFERENCES process_executions(id),
+                parent_node_id VARCHAR(100),
+                execution_depth INTEGER DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_by VARCHAR(36) NOT NULL,
+                updated_at TIMESTAMP,
+                process_version INTEGER DEFAULT 1,
+                process_definition_snapshot TEXT,
+                extra_metadata TEXT
+            )
+        """))
+        print("  ✅ Created process_executions table")
         
-        # Multi-tenancy
-        sa.Column('org_id', sa.String(36), nullable=False, index=True),
-        
-        # References
-        sa.Column('agent_id', sa.String(36), sa.ForeignKey('agents.id', ondelete='CASCADE'), nullable=False, index=True),
-        sa.Column('conversation_id', sa.String(36), nullable=True, index=True),
-        
-        # Execution Identity
-        sa.Column('execution_number', sa.Integer(), default=1),
-        sa.Column('correlation_id', sa.String(100), nullable=True, index=True),
-        
-        # Status
-        sa.Column('status', sa.String(20), nullable=False, default='pending', index=True),
-        sa.Column('current_node_id', sa.String(100), nullable=True),
-        
-        # State (JSON stored as TEXT for database-agnostic)
-        sa.Column('completed_nodes', sa.Text(), nullable=True),  # JSON array
-        sa.Column('skipped_nodes', sa.Text(), nullable=True),  # JSON array
-        sa.Column('variables', sa.Text(), nullable=True),  # JSON object
-        sa.Column('trigger_input', sa.Text(), nullable=True),  # JSON object
-        sa.Column('trigger_type', sa.String(30), default='manual'),
-        sa.Column('output', sa.Text(), nullable=True),  # JSON
-        
-        # Checkpoint
-        sa.Column('checkpoint_data', sa.Text(), nullable=True),  # JSON
-        sa.Column('can_resume', sa.Boolean(), default=True),
-        sa.Column('checkpoint_at', sa.DateTime(), nullable=True),
-        
-        # Error handling
-        sa.Column('error_message', sa.Text(), nullable=True),
-        sa.Column('error_node_id', sa.String(100), nullable=True),
-        sa.Column('error_details', sa.Text(), nullable=True),  # JSON
-        sa.Column('retry_count', sa.Integer(), default=0),
-        sa.Column('max_retries', sa.Integer(), default=3),
-        sa.Column('last_retry_at', sa.DateTime(), nullable=True),
-        
-        # Timing
-        sa.Column('started_at', sa.DateTime(), nullable=True),
-        sa.Column('completed_at', sa.DateTime(), nullable=True),
-        sa.Column('total_duration_ms', sa.Float(), nullable=True),
-        
-        # Metrics
-        sa.Column('node_count_executed', sa.Integer(), default=0),
-        sa.Column('tool_calls_count', sa.Integer(), default=0),
-        sa.Column('ai_calls_count', sa.Integer(), default=0),
-        sa.Column('tokens_used', sa.Integer(), default=0),
-        
-        # Parent/Child
-        sa.Column('parent_execution_id', sa.String(36), sa.ForeignKey('process_executions.id'), nullable=True, index=True),
-        sa.Column('parent_node_id', sa.String(100), nullable=True),
-        sa.Column('execution_depth', sa.Integer(), default=0),
-        
-        # Audit
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('created_by', sa.String(36), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), nullable=True),
-        
-        # Snapshot
-        sa.Column('process_version', sa.Integer(), default=1),
-        sa.Column('process_definition_snapshot', sa.Text(), nullable=True),  # JSON
-        
-        # Metadata
-        sa.Column('extra_metadata', sa.Text(), nullable=True),  # JSON
-    )
-    
-    # Create composite indexes
-    op.create_index('idx_proc_exec_org_status', 'process_executions', ['org_id', 'status'])
-    op.create_index('idx_proc_exec_agent_status', 'process_executions', ['agent_id', 'status'])
+        # Create indexes
+        connection.execute(sa.text("CREATE INDEX idx_proc_exec_org_id ON process_executions (org_id)"))
+        connection.execute(sa.text("CREATE INDEX idx_proc_exec_agent_id ON process_executions (agent_id)"))
+        connection.execute(sa.text("CREATE INDEX idx_proc_exec_status ON process_executions (status)"))
+        connection.execute(sa.text("CREATE INDEX idx_proc_exec_org_status ON process_executions (org_id, status)"))
+        connection.execute(sa.text("CREATE INDEX idx_proc_exec_agent_status ON process_executions (agent_id, status)"))
+        print("  ✅ Created process_executions indexes")
+    else:
+        print("  ⏭️  process_executions table already exists")
     
     # ==========================================================================
     # 3. CREATE PROCESS_NODE_EXECUTIONS TABLE
     # ==========================================================================
     
-    op.create_table(
-        'process_node_executions',
-        # Primary Key
-        sa.Column('id', sa.String(36), primary_key=True),
+    if not table_exists('process_node_executions'):
+        print("📦 Creating process_node_executions table...")
+        connection.execute(sa.text("""
+            CREATE TABLE process_node_executions (
+                id VARCHAR(36) PRIMARY KEY,
+                process_execution_id VARCHAR(36) NOT NULL REFERENCES process_executions(id) ON DELETE CASCADE,
+                node_id VARCHAR(100) NOT NULL,
+                node_type VARCHAR(50) NOT NULL,
+                node_name VARCHAR(255),
+                execution_order INTEGER DEFAULT 0,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                input_data TEXT,
+                output_data TEXT,
+                variables_before TEXT,
+                variables_after TEXT,
+                branch_taken VARCHAR(100),
+                loop_index INTEGER,
+                loop_total INTEGER,
+                tool_name VARCHAR(100),
+                tool_arguments TEXT,
+                tool_result TEXT,
+                llm_model VARCHAR(100),
+                llm_prompt TEXT,
+                llm_response TEXT,
+                llm_tokens_used INTEGER DEFAULT 0,
+                http_method VARCHAR(10),
+                http_url TEXT,
+                http_status_code INTEGER,
+                http_response_body TEXT,
+                error_message TEXT,
+                error_type VARCHAR(100),
+                error_stack TEXT,
+                retry_count INTEGER DEFAULT 0,
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                duration_ms FLOAT,
+                wait_duration_ms FLOAT
+            )
+        """))
+        print("  ✅ Created process_node_executions table")
         
-        # Reference
-        sa.Column('process_execution_id', sa.String(36), sa.ForeignKey('process_executions.id', ondelete='CASCADE'), nullable=False, index=True),
-        
-        # Node identification
-        sa.Column('node_id', sa.String(100), nullable=False, index=True),
-        sa.Column('node_type', sa.String(50), nullable=False),
-        sa.Column('node_name', sa.String(255), nullable=True),
-        
-        # Execution
-        sa.Column('execution_order', sa.Integer(), default=0),
-        sa.Column('status', sa.String(20), nullable=False, default='pending', index=True),
-        
-        # Input/Output (JSON as TEXT)
-        sa.Column('input_data', sa.Text(), nullable=True),
-        sa.Column('output_data', sa.Text(), nullable=True),
-        sa.Column('variables_before', sa.Text(), nullable=True),
-        sa.Column('variables_after', sa.Text(), nullable=True),
-        
-        # Execution details
-        sa.Column('branch_taken', sa.String(100), nullable=True),
-        sa.Column('loop_index', sa.Integer(), nullable=True),
-        sa.Column('loop_total', sa.Integer(), nullable=True),
-        
-        # Tool execution
-        sa.Column('tool_name', sa.String(100), nullable=True),
-        sa.Column('tool_arguments', sa.Text(), nullable=True),
-        sa.Column('tool_result', sa.Text(), nullable=True),
-        
-        # AI execution
-        sa.Column('llm_model', sa.String(100), nullable=True),
-        sa.Column('llm_prompt', sa.Text(), nullable=True),
-        sa.Column('llm_response', sa.Text(), nullable=True),
-        sa.Column('llm_tokens_used', sa.Integer(), default=0),
-        
-        # HTTP execution
-        sa.Column('http_method', sa.String(10), nullable=True),
-        sa.Column('http_url', sa.Text(), nullable=True),
-        sa.Column('http_status_code', sa.Integer(), nullable=True),
-        sa.Column('http_response_body', sa.Text(), nullable=True),
-        
-        # Error handling
-        sa.Column('error_message', sa.Text(), nullable=True),
-        sa.Column('error_type', sa.String(100), nullable=True),
-        sa.Column('error_stack', sa.Text(), nullable=True),
-        sa.Column('retry_count', sa.Integer(), default=0),
-        
-        # Timing
-        sa.Column('started_at', sa.DateTime(), nullable=True),
-        sa.Column('completed_at', sa.DateTime(), nullable=True),
-        sa.Column('duration_ms', sa.Float(), nullable=True),
-        sa.Column('wait_duration_ms', sa.Float(), nullable=True),
-    )
-    
-    # Create indexes
-    op.create_index('idx_node_exec_process_order', 'process_node_executions', ['process_execution_id', 'execution_order'])
-    op.create_index('idx_node_exec_process_status', 'process_node_executions', ['process_execution_id', 'status'])
+        # Create indexes
+        connection.execute(sa.text("CREATE INDEX idx_node_exec_process_id ON process_node_executions (process_execution_id)"))
+        connection.execute(sa.text("CREATE INDEX idx_node_exec_node_id ON process_node_executions (node_id)"))
+        connection.execute(sa.text("CREATE INDEX idx_node_exec_status ON process_node_executions (status)"))
+        connection.execute(sa.text("CREATE INDEX idx_node_exec_process_order ON process_node_executions (process_execution_id, execution_order)"))
+        print("  ✅ Created process_node_executions indexes")
+    else:
+        print("  ⏭️  process_node_executions table already exists")
     
     # ==========================================================================
     # 4. CREATE PROCESS_APPROVAL_REQUESTS TABLE
     # ==========================================================================
     
-    op.create_table(
-        'process_approval_requests',
-        # Primary Key
-        sa.Column('id', sa.String(36), primary_key=True),
+    if not table_exists('process_approval_requests'):
+        print("📦 Creating process_approval_requests table...")
+        connection.execute(sa.text("""
+            CREATE TABLE process_approval_requests (
+                id VARCHAR(36) PRIMARY KEY,
+                org_id VARCHAR(36) NOT NULL,
+                process_execution_id VARCHAR(36) NOT NULL REFERENCES process_executions(id) ON DELETE CASCADE,
+                node_id VARCHAR(100) NOT NULL,
+                node_name VARCHAR(255),
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                review_data TEXT,
+                priority VARCHAR(20) DEFAULT 'normal',
+                assignee_type VARCHAR(20) DEFAULT 'user',
+                assigned_user_ids TEXT,
+                assigned_role_ids TEXT,
+                min_approvals INTEGER DEFAULT 1,
+                approval_count INTEGER DEFAULT 0,
+                decided_by VARCHAR(36),
+                decided_at TIMESTAMP,
+                decision VARCHAR(20),
+                decision_comments TEXT,
+                decision_data TEXT,
+                deadline_at TIMESTAMP,
+                escalate_after_hours INTEGER,
+                escalation_user_ids TEXT,
+                escalated BOOLEAN DEFAULT FALSE,
+                escalated_at TIMESTAMP,
+                reminder_sent BOOLEAN DEFAULT FALSE,
+                reminder_sent_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP
+            )
+        """))
+        print("  ✅ Created process_approval_requests table")
         
-        # Multi-tenancy
-        sa.Column('org_id', sa.String(36), nullable=False, index=True),
-        
-        # Reference
-        sa.Column('process_execution_id', sa.String(36), sa.ForeignKey('process_executions.id', ondelete='CASCADE'), nullable=False, index=True),
-        
-        # Node
-        sa.Column('node_id', sa.String(100), nullable=False),
-        sa.Column('node_name', sa.String(255), nullable=True),
-        
-        # Status
-        sa.Column('status', sa.String(20), nullable=False, default='pending', index=True),
-        
-        # Approval details
-        sa.Column('title', sa.String(255), nullable=False),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('review_data', sa.Text(), nullable=True),  # JSON
-        sa.Column('priority', sa.String(20), default='normal'),
-        
-        # Assignees (JSON arrays as TEXT)
-        sa.Column('assignee_type', sa.String(20), default='user'),
-        sa.Column('assigned_user_ids', sa.Text(), nullable=True),
-        sa.Column('assigned_role_ids', sa.Text(), nullable=True),
-        sa.Column('min_approvals', sa.Integer(), default=1),
-        sa.Column('approval_count', sa.Integer(), default=0),
-        
-        # Decision
-        sa.Column('decided_by', sa.String(36), nullable=True),
-        sa.Column('decided_at', sa.DateTime(), nullable=True),
-        sa.Column('decision', sa.String(20), nullable=True),
-        sa.Column('decision_comments', sa.Text(), nullable=True),
-        sa.Column('decision_data', sa.Text(), nullable=True),  # JSON
-        
-        # Timeout & Escalation
-        sa.Column('deadline_at', sa.DateTime(), nullable=True),
-        sa.Column('escalate_after_hours', sa.Integer(), nullable=True),
-        sa.Column('escalation_user_ids', sa.Text(), nullable=True),  # JSON array
-        sa.Column('escalated', sa.Boolean(), default=False),
-        sa.Column('escalated_at', sa.DateTime(), nullable=True),
-        
-        # Reminder
-        sa.Column('reminder_sent', sa.Boolean(), default=False),
-        sa.Column('reminder_sent_at', sa.DateTime(), nullable=True),
-        
-        # Audit
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), nullable=True),
-    )
+        # Create indexes
+        connection.execute(sa.text("CREATE INDEX idx_approval_org_id ON process_approval_requests (org_id)"))
+        connection.execute(sa.text("CREATE INDEX idx_approval_process_id ON process_approval_requests (process_execution_id)"))
+        connection.execute(sa.text("CREATE INDEX idx_approval_status ON process_approval_requests (status)"))
+        connection.execute(sa.text("CREATE INDEX idx_approval_org_status ON process_approval_requests (org_id, status)"))
+        print("  ✅ Created process_approval_requests indexes")
+    else:
+        print("  ⏭️  process_approval_requests table already exists")
     
-    # Create indexes
-    op.create_index('idx_approval_org_status', 'process_approval_requests', ['org_id', 'status'])
-    op.create_index('idx_approval_pending_deadline', 'process_approval_requests', ['status', 'deadline_at'])
+    print("✅ Migration 003 complete!")
 
 
 def downgrade() -> None:
+    connection = op.get_bind()
+    
     # Drop tables in reverse order
-    op.drop_table('process_approval_requests')
-    op.drop_table('process_node_executions')
-    op.drop_table('process_executions')
+    if table_exists('process_approval_requests'):
+        connection.execute(sa.text("DROP TABLE process_approval_requests CASCADE"))
+    
+    if table_exists('process_node_executions'):
+        connection.execute(sa.text("DROP TABLE process_node_executions CASCADE"))
+    
+    if table_exists('process_executions'):
+        connection.execute(sa.text("DROP TABLE process_executions CASCADE"))
     
     # Drop agent columns
-    op.drop_index('idx_agent_org_type', 'agents')
-    op.drop_column('agents', 'process_settings')
-    op.drop_column('agents', 'process_definition')
-    op.drop_column('agents', 'agent_type')
+    if index_exists('idx_agent_org_type'):
+        connection.execute(sa.text("DROP INDEX idx_agent_org_type"))
+    
+    if column_exists('agents', 'process_settings'):
+        connection.execute(sa.text("ALTER TABLE agents DROP COLUMN process_settings"))
+    
+    if column_exists('agents', 'process_definition'):
+        connection.execute(sa.text("ALTER TABLE agents DROP COLUMN process_definition"))
+    
+    if column_exists('agents', 'agent_type'):
+        connection.execute(sa.text("ALTER TABLE agents DROP COLUMN agent_type"))
