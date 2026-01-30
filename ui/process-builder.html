@@ -451,6 +451,10 @@
         
         #properties-panel.active { display: block; }
         
+        #approval-config-modal { display: none; align-items: center; justify-content: center; }
+        #approval-config-modal.show { display: flex !important; }
+        #approval-config-modal .hidden { display: none !important; }
+        
         .properties-header {
             padding: 16px;
             border-bottom: 1px solid #1f2937;
@@ -910,6 +914,46 @@
         </div>
     </div>
     
+    <!-- Approval step config modal (Approvers from Platform User / Role / Group / Tool) -->
+    <div id="approval-config-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100;" onclick="if(event.target===this)closeApprovalConfigModal()">
+        <div class="card rounded-xl w-full max-w-lg mx-4 p-6" style="background:#1f2937;border-radius:12px;" onclick="event.stopPropagation()">
+            <h3 class="text-lg font-bold mb-4">✅ Approval Step – Approvers</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Approvers from</label>
+                    <select id="approval-config-source" onchange="onApprovalConfigSourceChange()" class="property-select w-full rounded-lg px-4 py-2" style="width:100%;background:#111827;color:#fff;border:1px solid #374151;">
+                        <option value="platform_user">Platform User</option>
+                        <option value="platform_role">Platform Role</option>
+                        <option value="platform_group">Platform Group</option>
+                        <option value="tool">Tool</option>
+                    </select>
+                </div>
+                <div id="approval-config-platform-user-wrap" class="hidden">
+                    <label class="block text-sm text-gray-400 mb-1">Select users</label>
+                    <select id="approval-config-user-list" multiple class="property-input w-full rounded-lg px-4 py-2" style="height:120px;width:100%;background:#111827;color:#fff;"></select>
+                </div>
+                <div id="approval-config-platform-role-wrap" class="hidden">
+                    <label class="block text-sm text-gray-400 mb-1">Select roles</label>
+                    <select id="approval-config-role-list" multiple class="property-input w-full rounded-lg px-4 py-2" style="height:120px;width:100%;background:#111827;color:#fff;"></select>
+                </div>
+                <div id="approval-config-platform-group-wrap" class="hidden">
+                    <label class="block text-sm text-gray-400 mb-1">Select groups</label>
+                    <select id="approval-config-group-list" multiple class="property-input w-full rounded-lg px-4 py-2" style="height:120px;width:100%;background:#111827;color:#fff;"></select>
+                </div>
+                <div id="approval-config-tool-wrap" class="hidden">
+                    <label class="block text-sm text-gray-400 mb-1">Select tool</label>
+                    <select id="approval-config-tool" class="property-select w-full rounded-lg px-4 py-2" style="width:100%;background:#111827;color:#fff;">
+                        <option value="">— None —</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button type="button" onclick="closeApprovalConfigModal()" class="flex-1 py-2 rounded-lg" style="background:#374151;color:#fff;">Cancel</button>
+                <button type="button" onclick="saveApprovalConfig()" class="flex-1 py-2 rounded-lg" style="background:#6366f1;color:#fff;">Save</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Zoom Controls -->
     <div id="zoom-controls">
         <button class="zoom-btn" onclick="zoomOut()">−</button>
@@ -1074,7 +1118,7 @@
                 condition: { name: 'Condition', config: { field: '', operator: 'equals', value: '' } },
                 loop: { name: 'For Each', config: { collection: '', itemVar: 'item' } },
                 delay: { name: 'Wait', config: { duration: 5, unit: 'minutes' } },
-                approval: { name: 'Approval', config: { approvers: [], message: '' } },
+                approval: { name: 'Approval', config: { assignee_source: 'platform_user', assignee_type: 'user', assignee_ids: [], timeout_hours: 24, message: '' } },
                 form: { name: 'Form', config: { fields: [] } },
                 notification: { name: 'Send Notification', config: { channel: 'email', template: '' } },
                 tool: { name: 'Use Tool', config: { toolId: toolId || '', params: {} } },
@@ -1204,7 +1248,11 @@
                     html = `<div class="node-config-item"><span class="config-label">Wait</span><span class="config-value">${cfg.duration || 5} ${cfg.unit || 'minutes'}</span></div>`;
                     break;
                 case 'approval':
-                    html = `<div class="node-config-item"><span class="config-label">Approvers</span><span class="config-value">${(cfg.approvers || []).length || 'Not set'}</span></div>`;
+                    const src = cfg.assignee_source || (cfg.approvers && cfg.approvers.length ? 'platform_user' : '');
+                    const cnt = (cfg.assignee_ids || cfg.approvers || []).length;
+                    const toolName = (cfg.assignee_source === 'tool' && cfg.assignee_tool_id && state.tools) ? (state.tools.find(t => t.id === cfg.assignee_tool_id) || {}).name : '';
+                    const approverSummary = src === 'tool' ? (toolName ? 'Tool: ' + toolName : 'Tool') : (src ? (cnt + ' selected') : 'Not set');
+                    html = `<div class="node-config-item"><span class="config-label">Approvers</span><span class="config-value">${src ? (src.replace('platform_','') + ': ' + approverSummary) : approverSummary}</span></div>`;
                     break;
                 case 'tool':
                     const tool = state.tools.find(t => t.id === cfg.toolId);
@@ -1533,11 +1581,17 @@
                     break;
                     
                 case 'approval':
+                    const aCfg = node.config || {};
+                    const aSrc = aCfg.assignee_source || (aCfg.approvers && aCfg.approvers.length ? 'platform_user' : 'platform_user');
+                    const aIds = aCfg.assignee_ids || aCfg.approvers || [];
+                    const aToolId = aCfg.assignee_tool_id || '';
+                    const timeoutVal = aCfg.timeout_hours != null ? aCfg.timeout_hours : (aCfg.timeout != null ? aCfg.timeout : 24);
+                    const approverLabel = aSrc === 'tool' ? (state.tools.find(t => t.id === aToolId) || {}).name || 'Tool' : (aSrc.replace('platform_','') + ': ' + aIds.length + ' selected');
                     html += `
                         <div class="property-group">
                             <label class="property-label">Approval Message</label>
                             <textarea class="property-textarea" placeholder="Message to show approvers..."
-                                      onchange="updateNodeConfig('${node.id}', 'message', this.value)">${node.config.message || ''}</textarea>
+                                      onchange="updateNodeConfig('${node.id}', 'message', this.value)">${aCfg.message || ''}</textarea>
                             ${availableFields.length > 0 ? `
                                 <div style="margin-top:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
                                     <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">📋 Available Fields (click to insert):</div>
@@ -1554,17 +1608,15 @@
                         </div>
                         <div class="property-group">
                             <label class="property-label">Approvers</label>
-                            <input type="text" class="property-input" placeholder="email1@example.com, email2@example.com"
-                                   value="${(node.config.approvers || []).join(', ')}"
-                                   onchange="updateNodeConfig('${node.id}', 'approvers', this.value.split(',').map(s => s.trim()).filter(s => s))">
-                            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-                                Comma-separated list of approver emails
-                            </div>
+                            <div style="font-size:12px;color:#9ca3af;margin-bottom:6px;">From: ${approverLabel}</div>
+                            <button type="button" onclick="openApprovalConfigModal('${node.id}')" class="property-input" style="cursor:pointer;text-align:left;">
+                                Configure approvers (Platform User / Role / Group / Tool)
+                            </button>
                         </div>
                         <div class="property-group">
                             <label class="property-label">Timeout (hours)</label>
-                            <input type="number" class="property-input" value="${node.config.timeout || 24}"
-                                   onchange="updateNodeConfig('${node.id}', 'timeout', parseInt(this.value))">
+                            <input type="number" class="property-input" value="${timeoutVal}" min="1"
+                                   onchange="updateNodeConfig('${node.id}', 'timeout_hours', parseInt(this.value) || 24)">
                         </div>
                     `;
                     break;
@@ -1905,6 +1957,84 @@
                 showProperties(node); // Refresh panel
                 saveToUndo();
             }
+        }
+        
+        // Approval config modal (Approvers from Platform User / Role / Group / Tool)
+        let approvalConfigNodeId = null;
+        async function openApprovalConfigModal(nodeId) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            approvalConfigNodeId = nodeId;
+            const modal = document.getElementById('approval-config-modal');
+            const cfg = node.config || {};
+            let source = cfg.assignee_source || '';
+            if (!source && (cfg.approvers || []).length) source = 'platform_user';
+            if (!source) source = 'platform_user';
+            const assigneeIds = cfg.assignee_ids || cfg.approvers || [];
+            const assigneeToolId = cfg.assignee_tool_id || '';
+            const token = getAuthToken();
+            const headers = { 'Authorization': 'Bearer ' + token };
+            let users = [], roles = [], groups = [], tools = [];
+            try {
+                const [uRes, rRes, gRes, tRes] = await Promise.all([
+                    fetch('/api/security/users', { headers }),
+                    fetch('/api/security/roles', { headers }),
+                    fetch('/api/security/groups', { headers }),
+                    fetch('/api/tools/accessible', { headers })
+                ]);
+                if (uRes.ok) { const d = await uRes.json(); users = Array.isArray(d) ? d : (d.users || []); }
+                if (rRes.ok) { const d = await rRes.json(); roles = Array.isArray(d) ? d : (d.roles || []); }
+                if (gRes.ok) { const d = await gRes.json(); groups = Array.isArray(d) ? d : (d.groups || []); }
+                if (tRes.ok) { const d = await tRes.json(); tools = d.tools || []; }
+            } catch (e) { console.error('Load approval options:', e); }
+            const userOpts = users.map(u => '<option value="' + u.id + '"' + (assigneeIds.includes(u.id) ? ' selected' : '') + '>' + (u.name || u.email || u.id).substring(0, 40) + '</option>').join('');
+            const roleOpts = roles.map(r => '<option value="' + r.id + '"' + (assigneeIds.includes(r.id) ? ' selected' : '') + '>' + (r.name || r.id).substring(0, 40) + '</option>').join('');
+            const groupOpts = groups.map(g => '<option value="' + g.id + '"' + (assigneeIds.includes(g.id) ? ' selected' : '') + '>' + (g.name || g.id).substring(0, 40) + '</option>').join('');
+            const toolOpts = tools.map(t => '<option value="' + t.id + '"' + (assigneeToolId === t.id ? ' selected' : '') + '>' + (t.name || t.id).substring(0, 40) + '</option>').join('');
+            document.getElementById('approval-config-source').value = source;
+            document.getElementById('approval-config-user-list').innerHTML = userOpts;
+            document.getElementById('approval-config-role-list').innerHTML = roleOpts;
+            document.getElementById('approval-config-group-list').innerHTML = groupOpts;
+            document.getElementById('approval-config-tool').innerHTML = '<option value="">— None —</option>' + toolOpts;
+            document.getElementById('approval-config-tool').value = assigneeToolId;
+            onApprovalConfigSourceChange();
+            modal.classList.add('show');
+        }
+        function onApprovalConfigSourceChange() {
+            const v = document.getElementById('approval-config-source').value;
+            document.getElementById('approval-config-platform-user-wrap').classList.toggle('hidden', v !== 'platform_user');
+            document.getElementById('approval-config-platform-role-wrap').classList.toggle('hidden', v !== 'platform_role');
+            document.getElementById('approval-config-platform-group-wrap').classList.toggle('hidden', v !== 'platform_group');
+            document.getElementById('approval-config-tool-wrap').classList.toggle('hidden', v !== 'tool');
+        }
+        function saveApprovalConfig() {
+            if (!approvalConfigNodeId) return;
+            const node = state.nodes.find(n => n.id === approvalConfigNodeId);
+            if (!node) { approvalConfigNodeId = null; return; }
+            const source = document.getElementById('approval-config-source').value;
+            const userList = document.getElementById('approval-config-user-list');
+            const roleList = document.getElementById('approval-config-role-list');
+            const groupList = document.getElementById('approval-config-group-list');
+            const toolSelect = document.getElementById('approval-config-tool');
+            const assigneeIds = [];
+            if (source === 'platform_user') { for (let i = 0; i < userList.options.length; i++) if (userList.options[i].selected) assigneeIds.push(userList.options[i].value); }
+            else if (source === 'platform_role') { for (let i = 0; i < roleList.options.length; i++) if (roleList.options[i].selected) assigneeIds.push(roleList.options[i].value); }
+            else if (source === 'platform_group') { for (let i = 0; i < groupList.options.length; i++) if (groupList.options[i].selected) assigneeIds.push(groupList.options[i].value); }
+            const assigneeType = source === 'platform_user' ? 'user' : source === 'platform_role' ? 'role' : source === 'platform_group' ? 'group' : 'user';
+            node.config.assignee_source = source;
+            node.config.assignee_type = assigneeType;
+            node.config.assignee_ids = assigneeIds;
+            node.config.assignee_tool_id = source === 'tool' ? (toolSelect.value || '') : undefined;
+            if (node.config.approvers !== undefined) delete node.config.approvers;
+            document.getElementById('approval-config-modal').classList.remove('show');
+            approvalConfigNodeId = null;
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+        function closeApprovalConfigModal() {
+            document.getElementById('approval-config-modal').classList.remove('show');
+            approvalConfigNodeId = null;
         }
         
         // Form field management functions
@@ -2414,7 +2544,10 @@
                     let message = '';
                     switch (currentNode.type) {
                         case 'approval':
-                            message = `Approval requested from: ${(currentNode.config.approvers || []).join(', ') || 'Not set'}`;
+                            const ac = currentNode.config || {};
+                            const aSrc = ac.assignee_source || (ac.approvers && ac.approvers.length ? 'platform_user' : '');
+                            const aIds = ac.assignee_ids || ac.approvers || [];
+                            message = aSrc ? `Approval requested from: ${aSrc.replace('platform_','')} (${aIds.length} selected)` : 'Approval requested (not configured)';
                             break;
                         case 'notification':
                             let template = currentNode.config.template || '';
