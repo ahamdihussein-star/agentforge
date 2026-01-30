@@ -10120,7 +10120,12 @@ Option 3"></textarea>
                         headers: getAuthHeaders()
                     });
                     
-                    if (!response.ok) return;
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            if (executionPollInterval) { clearInterval(executionPollInterval); executionPollInterval = null; }
+                        }
+                        return;
+                    }
                     
                     const execution = await response.json();
                     

@@ -467,6 +467,11 @@ class ProcessExecutionService:
                 ProcessExecution.status == "waiting"
             )
         ).all()
+        logger.info(
+            "[ApprovalDB] ensure_approvals: org_id=%s waiting_executions_count=%s ids=%s",
+            resolved_org_id, len(waiting_executions), [str(e.id) for e in waiting_executions],
+        )
+        backfill_count = 0
         for execution in waiting_executions:
             existing = self.get_pending_approvals_for_execution(str(execution.id))
             if existing:
@@ -491,6 +496,7 @@ class ProcessExecutionService:
                     escalation_after_hours=None,
                     escalation_user_ids=[],
                 )
+                backfill_count += 1
                 logger.info(
                     "[ApprovalDB] backfill: created approval for waiting execution_id=%s node_id=%s",
                     str(execution.id), node_id,
@@ -500,6 +506,8 @@ class ProcessExecutionService:
                     "[ApprovalDB] backfill failed for execution_id=%s: %s",
                     str(execution.id), e,
                 )
+        if backfill_count:
+            logger.info("[ApprovalDB] ensure_approvals: backfilled %s approval(s)", backfill_count)
 
     def get_pending_approvals_for_user(
         self,
