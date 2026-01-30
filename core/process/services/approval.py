@@ -77,12 +77,16 @@ class ApprovalService:
         # Calculate deadline
         deadline = datetime.utcnow() + timedelta(hours=timeout_hours)
         
-        # Determine role IDs if assignee_type is role
-        role_ids = []
+        # Map assignee_ids to user_ids, role_ids, or group_ids per assignee_type
         user_ids = assignee_ids or []
+        role_ids = []
+        group_ids = []
         
         if assignee_type == 'role':
             role_ids = user_ids
+            user_ids = []
+        elif assignee_type == 'group':
+            group_ids = user_ids
             user_ids = []
         
         # Create approval via service
@@ -98,6 +102,7 @@ class ApprovalService:
                 assignee_type=assignee_type,
                 assigned_user_ids=user_ids,
                 assigned_role_ids=role_ids,
+                assigned_group_ids=group_ids,
                 min_approvals=min_approvals,
                 priority=priority,
                 deadline_at=deadline,

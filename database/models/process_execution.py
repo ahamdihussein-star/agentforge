@@ -424,6 +424,9 @@ class ProcessApprovalRequest(Base):
     # Assigned role IDs
     assigned_role_ids = Column(JSONArray, default=[])
     
+    # Assigned group IDs (for assignee_type == 'group')
+    assigned_group_ids = Column(JSONArray, default=[])
+    
     # Minimum approvals required
     min_approvals = Column(Integer, default=1)
     
@@ -505,6 +508,8 @@ class ProcessApprovalRequest(Base):
             'priority': self.priority,
             'assignee_type': self.assignee_type,
             'assigned_user_ids': self.assigned_user_ids,
+            'assigned_role_ids': getattr(self, 'assigned_role_ids', None) or [],
+            'assigned_group_ids': getattr(self, 'assigned_group_ids', None) or [],
             'min_approvals': self.min_approvals,
             'approval_count': self.approval_count,
             'decided_by': str(self.decided_by) if self.decided_by else None,

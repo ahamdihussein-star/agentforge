@@ -10292,26 +10292,49 @@ Option 3"></textarea>
         // APPROVAL DASHBOARD FUNCTIONS
         // ============================================================================
         
-        // Open Approval Dashboard
+        // Open Approval Dashboard – show approvals with "Assigned to" per process builder config (user/role/group)
         async function openApprovalDashboard() {
             try {
-                const response = await fetch(API + '/process/approvals?status=pending', {
-                    headers: getAuthHeaders()
-                });
+                const headers = getAuthHeaders();
+                const [approvalRes, usersRes, rolesRes, groupsRes] = await Promise.all([
+                    fetch(API + '/process/approvals?status=pending', { headers }),
+                    fetch(API + '/api/security/users', { headers }).catch(() => ({ ok: false })),
+                    fetch(API + '/api/security/roles', { headers }).catch(() => ({ ok: false })),
+                    fetch(API + '/api/security/groups', { headers }).catch(() => ({ ok: false }))
+                ]);
                 
-                if (!response.ok) {
+                if (!approvalRes.ok) {
                     showToast('Could not load approvals', 'error');
                     return;
                 }
                 
-                const data = await response.json();
-                const approvals = data.approvals || [];
+                const data = await approvalRes.json();
+                const approvals = data.items || data.approvals || [];
                 
-                // Update count
+                let usersList = [], rolesList = [], groupsList = [];
+                if (usersRes.ok) { const d = await usersRes.json(); usersList = Array.isArray(d) ? d : (d.users || []); }
+                if (rolesRes.ok) { const d = await rolesRes.json(); rolesList = Array.isArray(d) ? d : (d.roles || []); }
+                if (groupsRes.ok) { const d = await groupsRes.json(); groupsList = Array.isArray(d) ? d : (d.groups || []); }
+                
+                const userMap = Object.fromEntries(usersList.map(u => [String(u.id), u.name || u.email || u.id]));
+                const roleMap = Object.fromEntries(rolesList.map(r => [String(r.id), r.name || r.id]));
+                const groupMap = Object.fromEntries(groupsList.map(g => [String(g.id), g.name || g.id]));
+                
+                function assigneeDisplay(a) {
+                    const t = (a.assignee_type || 'user');
+                    const u = (a.assigned_user_ids || []).map(id => userMap[id] || id);
+                    const r = (a.assigned_role_ids || []).map(id => roleMap[id] || id);
+                    const g = (a.assigned_group_ids || []).map(id => groupMap[id] || id);
+                    if (t === 'user' && u.length) return 'Assigned to: ' + (u.join(', ') || '—');
+                    if (t === 'role' && r.length) return 'Assigned to role(s): ' + (r.join(', ') || '—');
+                    if (t === 'group' && g.length) return 'Assigned to group(s): ' + (g.join(', ') || '—');
+                    if (t === 'any' || (!u.length && !r.length && !g.length)) return 'Assigned to: Anyone';
+                    return 'Assigned to: ' + (u.length ? u.join(', ') : r.length ? 'Role(s) ' + r.join(', ') : g.length ? 'Group(s) ' + g.join(', ') : '—');
+                }
+                
                 document.getElementById('approval-count-subtitle').textContent = 
                     `${approvals.length} item${approvals.length !== 1 ? 's' : ''} waiting for your decision`;
                 
-                // Build approval list
                 const container = document.getElementById('approval-list');
                 
                 if (approvals.length === 0) {
@@ -10326,15 +10349,16 @@ Option 3"></textarea>
                         <div class="card rounded-xl p-4 border-l-4 border-l-yellow-500">
                             <div class="flex items-start justify-between mb-3">
                                 <div>
-                                    <h4 class="font-semibold">${approval.title}</h4>
+                                    <h4 class="font-semibold">${approval.title || 'Approval'}</h4>
                                     <p class="text-sm text-gray-400">${approval.description || ''}</p>
+                                    <p class="text-xs text-gray-500 mt-1">${assigneeDisplay(approval)}</p>
                                 </div>
                                 <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">${approval.priority || 'normal'}</span>
                             </div>
                             
-                            ${approval.review_data ? `
+                            ${(approval.review_data || approval.details_to_review) && Object.keys(approval.review_data || approval.details_to_review || {}).length ? `
                                 <div class="bg-gray-800 rounded-lg p-3 mb-3 text-sm">
-                                    <pre class="whitespace-pre-wrap text-gray-300">${typeof approval.review_data === 'string' ? approval.review_data : JSON.stringify(approval.review_data, null, 2)}</pre>
+                                    <pre class="whitespace-pre-wrap text-gray-300">${(() => { const rd = approval.review_data || approval.details_to_review; return typeof rd === 'string' ? rd : JSON.stringify(rd, null, 2); })()}</pre>
                                 </div>
                             ` : ''}
                             
@@ -10350,7 +10374,6 @@ Option 3"></textarea>
                     `).join('');
                 }
                 
-                // Show modal
                 document.getElementById('approval-dashboard-modal').classList.remove('hidden');
                 
             } catch(e) {
@@ -24887,7 +24910,7 @@ async function saveToolEdit() {
                 
                 if (response.ok) {
                     const data = await response.json();
-                    const count = data.total || (data.approvals ? data.approvals.length : 0);
+                    const count = data.total ?? (data.items ? data.items.length : 0);
                     const badge = document.getElementById('approval-badge');
                     if (badge) {
                         if (count > 0) {

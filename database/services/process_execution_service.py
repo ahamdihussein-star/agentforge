@@ -388,6 +388,7 @@ class ProcessExecutionService:
         assignee_type: str = "user",
         assigned_user_ids: List[str] = None,
         assigned_role_ids: List[str] = None,
+        assigned_group_ids: List[str] = None,
         min_approvals: int = 1,
         priority: str = "normal",
         deadline_at: datetime = None,
@@ -400,11 +401,12 @@ class ProcessExecutionService:
         resolved_org_id = self._resolve_org_id(org_id)
         assigned_user_ids_str = [str(uid) for uid in (assigned_user_ids or [])]
         assigned_role_ids_str = [str(rid) for rid in (assigned_role_ids or [])]
+        assigned_group_ids_str = [str(gid) for gid in (assigned_group_ids or [])]
         logger.info(
             "[ApprovalDB] INSERT approval: id=%s execution_id=%s org_id=%s node_id=%s node_name=%s "
-            "assignee_type=%s assigned_user_ids=%s assigned_role_ids=%s",
+            "assignee_type=%s assigned_user_ids=%s assigned_role_ids=%s assigned_group_ids=%s",
             approval_id, process_execution_id, resolved_org_id, node_id, node_name,
-            assignee_type, assigned_user_ids_str, assigned_role_ids_str,
+            assignee_type, assigned_user_ids_str, assigned_role_ids_str, assigned_group_ids_str,
         )
         approval = ProcessApprovalRequest(
             id=approval_id,
@@ -420,6 +422,7 @@ class ProcessExecutionService:
             assignee_type=assignee_type,
             assigned_user_ids=assigned_user_ids_str,
             assigned_role_ids=assigned_role_ids_str,
+            assigned_group_ids=assigned_group_ids_str,
             min_approvals=min_approvals,
             deadline_at=deadline_at,
             escalate_after_hours=escalation_after_hours if escalation_enabled else None,
@@ -514,6 +517,7 @@ class ProcessExecutionService:
         user_id: str,
         org_id: str,
         user_role_ids: List[str] = None,
+        user_group_ids: List[str] = None,
         include_all_for_org_admin: bool = False
     ) -> List[ProcessApprovalRequest]:
         """
@@ -522,14 +526,15 @@ class ProcessExecutionService:
         Filters approvals where:
         - User ID is in assigned_user_ids, OR
         - Any of user's role IDs is in assigned_role_ids, OR
+        - Any of user's group IDs is in assigned_group_ids, OR
         - assignee_type is 'any' / no assignees
         
         If include_all_for_org_admin is True (platform admin/superadmin), return all
         pending approvals for the org so they can test processes run from the platform.
         """
         logger.info(
-            "[ApprovalDB] RETRIEVE pending: user_id=%s org_id=%s user_role_ids_count=%s include_all_for_admin=%s",
-            user_id, org_id, len(user_role_ids or []), include_all_for_org_admin,
+            "[ApprovalDB] RETRIEVE pending: user_id=%s org_id=%s user_role_ids_count=%s user_group_ids_count=%s include_all_for_admin=%s",
+            user_id, org_id, len(user_role_ids or []), len(user_group_ids or []), include_all_for_org_admin,
         )
         resolved_org_id = self._resolve_org_id(org_id) if org_id else self._resolve_org_id("org_default")
         self.ensure_approvals_for_waiting_executions(resolved_org_id)
@@ -557,12 +562,15 @@ class ProcessExecutionService:
         # Filter by user assignment (normalize IDs to strings for comparison)
         result = []
         user_role_set = set(str(r) for r in (user_role_ids or []))
+        user_group_set = set(str(g) for g in (user_group_ids or []))
         
         for approval in pending:
             assigned_users = approval.assigned_user_ids or []
             assigned_roles = approval.assigned_role_ids or []
+            assigned_groups = getattr(approval, 'assigned_group_ids', None) or []
             assigned_users_str = [str(u) for u in assigned_users]
             assigned_roles_str = [str(r) for r in assigned_roles]
+            assigned_groups_str = [str(g) for g in assigned_groups]
 
             # Check if user is directly assigned (compare as strings; DB may store UUID strings)
             if assigned_users and str(user_id) in assigned_users_str:
@@ -576,18 +584,24 @@ class ProcessExecutionService:
                 logger.info("[ApprovalDB] include approval_id=%s reason=role_assigned", str(approval.id))
                 continue
 
+            # Check if user's group is assigned
+            if assigned_groups and user_group_set.intersection(set(assigned_groups_str)):
+                result.append(approval)
+                logger.info("[ApprovalDB] include approval_id=%s reason=group_assigned", str(approval.id))
+                continue
+
             # Anyone can approve: assignee_type is 'any' OR no assignees configured (workflow creator often approves their own run)
             if (approval.assignee_type == 'any' or
-                    (not assigned_users and not assigned_roles)):
+                    (not assigned_users and not assigned_roles and not assigned_groups)):
                 result.append(approval)
                 logger.info(
-                    "[ApprovalDB] include approval_id=%s reason=any_or_empty (assignee_type=%s assigned_users=%s assigned_roles=%s)",
-                    str(approval.id), approval.assignee_type, len(assigned_users), len(assigned_roles),
+                    "[ApprovalDB] include approval_id=%s reason=any_or_empty (assignee_type=%s assigned_users=%s assigned_roles=%s assigned_groups=%s)",
+                    str(approval.id), approval.assignee_type, len(assigned_users), len(assigned_roles), len(assigned_groups),
                 )
                 continue
             logger.info(
-                "[ApprovalDB] exclude approval_id=%s (user_id not in %s, roles %s not in %s, assignee_type=%s)",
-                str(approval.id), assigned_users_str, list(user_role_set), assigned_roles_str, approval.assignee_type,
+                "[ApprovalDB] exclude approval_id=%s (user_id not in %s, roles %s not in %s, groups %s not in %s, assignee_type=%s)",
+                str(approval.id), assigned_users_str, list(user_role_set), assigned_roles_str, list(user_group_set), assigned_groups_str, approval.assignee_type,
             )
 
         logger.info("[ApprovalDB] RETRIEVE result: returning count=%s", len(result))

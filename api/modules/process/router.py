@@ -84,15 +84,17 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
     name = getattr(user, 'name', None) or getattr(user, 'email', 'Unknown')
     email = getattr(user, 'email', '') 
     
-    # Get role_ids (the User model uses role_ids, not roles)
+    # Get role_ids and group_ids (the User model uses role_ids, not roles)
     role_ids = getattr(user, 'role_ids', []) or []
+    group_ids = getattr(user, 'group_ids', []) or []
     
     return {
         "id": str(user.id),
         "org_id": str(org_id),
         "name": name,
         "email": email,
-        "role_ids": role_ids
+        "role_ids": role_ids,
+        "group_ids": group_ids
     }
 
 
@@ -389,6 +391,7 @@ async def list_pending_approvals(
         user_id=user_dict["id"],
         org_id=user_dict["org_id"],
         user_role_ids=user_dict.get("role_ids", []),
+        user_group_ids=user_dict.get("group_ids", []),
         include_all_for_org_admin=is_platform_admin
     )
     return ApprovalListResponse(items=approvals, total=len(approvals))

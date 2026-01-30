@@ -133,9 +133,13 @@ class ApprovalRequestResponse(BaseModel):
     details_to_review: Dict[str, Any] = Field(default_factory=dict, alias="review_data")
     urgency: str = Field(default="normal", alias="priority")
     
-    # Who should approve (simplified)
+    # Who should approve (from process builder config: platform user / role / group)
     approvers_needed: int = Field(default=1, alias="min_approvals")
     approvals_received: int = Field(default=0, alias="approval_count")
+    assignee_type: Optional[str] = Field(default=None, description="user, role, group")
+    assigned_user_ids: List[str] = Field(default_factory=list)
+    assigned_role_ids: List[str] = Field(default_factory=list)
+    assigned_group_ids: List[str] = Field(default_factory=list)
     
     # Decision info
     decided_by: Optional[str] = None
