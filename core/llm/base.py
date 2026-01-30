@@ -5,7 +5,7 @@ All LLM providers must implement this interface.
 
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, AsyncIterator, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 from datetime import datetime
 
@@ -77,7 +77,9 @@ class LLMStrength(str, Enum):
 
 class LLMConfig(BaseModel):
     """Configuration for a registered LLM"""
-    
+
+    model_config = ConfigDict(protected_namespaces=())
+
     # Identity
     id: str = Field(..., description="Unique identifier for this model config")
     display_name: str = Field(..., description="Human-readable name")
