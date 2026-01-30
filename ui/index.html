@@ -8007,8 +8007,9 @@ Option 3"></textarea>
                             <span class="text-3xl">⏳</span>
                         </div>
                         <h4 class="font-semibold text-lg mb-2">Waiting for Approval</h4>
-                        <p class="text-gray-400 mb-4">This workflow requires manager approval to proceed.</p>
-                        <p class="text-sm text-gray-500">You'll be notified when a decision is made.</p>
+                        <p class="text-gray-400 mb-4">This workflow requires approval to proceed.</p>
+                        <button type="button" onclick="openApprovalDashboard()" class="btn-primary px-4 py-2 rounded-lg">Review & Approve</button>
+                        <p class="text-sm text-gray-500 mt-3">After you approve, the workflow will continue and this page will update.</p>
                     </div>
                 </div>
             </div>
@@ -9944,6 +9945,9 @@ Option 3"></textarea>
                     updateExecutionStatus('failed', 'Execution Failed', 'No execution ID returned from server.');
                     return;
                 }
+                // Hide output until completed
+                const outEl = document.getElementById('process-output');
+                if (outEl) outEl.classList.add('hidden');
                 // Start polling for status
                 startExecutionPolling(currentExecutionId);
                 
@@ -10053,13 +10057,16 @@ Option 3"></textarea>
                     const execution = await response.json();
                     
                     // Update status (show actual error message when failed)
+                    // Backend sends "waiting" when at approval; treat as "Waiting for Approval"
                     const statusTitles = {
                         running: 'Processing...',
                         completed: 'Completed',
                         failed: 'Failed',
                         pending_approval: 'Waiting for Approval',
+                        waiting: 'Waiting for Approval',
                         paused: 'Paused'
                     };
+                    const displayStatus = execution.status === 'waiting' ? 'pending_approval' : execution.status;
                     let subtitle = execution.current_step || execution.current_node_name || '';
                     if (execution.status === 'failed' && (execution.error && execution.error.message)) {
                         subtitle = execution.error.message;
@@ -10067,29 +10074,37 @@ Option 3"></textarea>
                         subtitle = execution.error_message;
                     }
                     updateExecutionStatus(
-                        execution.status,
-                        statusTitles[execution.status] || execution.status,
+                        displayStatus,
+                        statusTitles[execution.status] || statusTitles[displayStatus] || execution.status,
                         subtitle
                     );
                     
-                    // Update steps if available
-                    if (execution.node_executions) {
+                    // Update steps: use node_executions if present, else build from completed_steps + current_step
+                    if (execution.node_executions && execution.node_executions.length) {
                         updateExecutionSteps(execution.node_executions);
+                    } else if (execution.completed_steps || execution.current_step) {
+                        const completed = (execution.completed_steps || []).map(id => ({ name: id, type: 'step', status: 'completed' }));
+                        const current = execution.current_step ? [{ name: execution.current_step, type: 'step', status: 'running' }] : [];
+                        updateExecutionSteps(completed.concat(current));
                     }
                     
-                    // Show output if completed
+                    // Show output and stop polling when completed
                     if (execution.status === 'completed') {
-                        clearInterval(executionPollInterval);
-                        if (execution.output) {
-                            document.getElementById('process-output').classList.remove('hidden');
-                            document.getElementById('process-output-content').textContent = 
-                                typeof execution.output === 'string' ? execution.output : JSON.stringify(execution.output, null, 2);
+                        if (executionPollInterval) clearInterval(executionPollInterval);
+                        executionPollInterval = null;
+                        const outEl = document.getElementById('process-output');
+                        const contentEl = document.getElementById('process-output-content');
+                        if (outEl && contentEl) {
+                            outEl.classList.remove('hidden');
+                            const out = execution.output ?? execution.result;
+                            contentEl.textContent = out == null ? '' : (typeof out === 'string' ? out : JSON.stringify(out, null, 2));
                         }
                     }
                     
                     // Stop polling on terminal states
                     if (['completed', 'failed', 'cancelled'].includes(execution.status)) {
-                        clearInterval(executionPollInterval);
+                        if (executionPollInterval) clearInterval(executionPollInterval);
+                        executionPollInterval = null;
                     }
                     
                 } catch(e) {
