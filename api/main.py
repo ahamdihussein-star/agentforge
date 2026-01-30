@@ -12520,13 +12520,64 @@ async def chat_with_files(
 
 @app.get("/ui", response_class=HTMLResponse)
 @app.get("/ui/", response_class=HTMLResponse)
-@app.get("/ui/{path:path}", response_class=HTMLResponse)
-async def serve_ui(path: str = ""):
+async def serve_ui_root():
+    """Serve main UI index page"""
     ui_file = "ui/index.html"
     if os.path.exists(ui_file):
         with open(ui_file) as f:
             return f.read()
     return "<html><body><h1>UI not found</h1></body></html>"
+
+@app.get("/ui/{path:path}")
+async def serve_ui_files(path: str):
+    """Serve UI files - HTML, CSS, JS, images, etc."""
+    from fastapi.responses import FileResponse
+    
+    # Security: prevent directory traversal
+    if ".." in path or path.startswith("/"):
+        raise HTTPException(400, "Invalid path")
+    
+    # Build full file path
+    file_path = f"ui/{path}"
+    
+    # Check if file exists
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        # Determine content type based on extension
+        ext = path.split('.')[-1].lower() if '.' in path else ''
+        content_types = {
+            'html': 'text/html',
+            'css': 'text/css',
+            'js': 'application/javascript',
+            'json': 'application/json',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'gif': 'image/gif',
+            'svg': 'image/svg+xml',
+            'ico': 'image/x-icon',
+            'woff': 'font/woff',
+            'woff2': 'font/woff2',
+            'ttf': 'font/ttf',
+        }
+        media_type = content_types.get(ext, 'application/octet-stream')
+        
+        # For HTML files, read and return content
+        if ext == 'html':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return HTMLResponse(content=f.read())
+        
+        # For other files, use FileResponse
+        return FileResponse(file_path, media_type=media_type)
+    
+    # File not found - for non-HTML paths, return 404
+    # For paths without extension (SPA routes), serve index.html
+    if '.' not in path:
+        ui_file = "ui/index.html"
+        if os.path.exists(ui_file):
+            with open(ui_file) as f:
+                return HTMLResponse(content=f.read())
+    
+    raise HTTPException(404, f"File not found: {path}")
 
 
 # ============================================================================
