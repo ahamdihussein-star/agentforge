@@ -144,8 +144,8 @@ class ProcessAPIService:
         
         # Validate and parse process definition with merged settings
         try:
-            # Inject merged settings into the definition
-            definition_data = agent.process_definition.copy()
+            # Inject merged settings into the definition (support JSON string from DB)
+            definition_data = self._ensure_dict(agent.process_definition).copy()
             if 'settings' not in definition_data:
                 definition_data['settings'] = {}
             
@@ -343,10 +343,9 @@ class ProcessAPIService:
             if not perm_result.get("has_permission"):
                 raise PermissionError("You don't have permission to resume this execution")
         
-        # Parse process definition from snapshot
-        process_def = ProcessDefinition.from_dict(
-            execution.process_definition_snapshot or agent.process_definition
-        )
+        # Parse process definition from snapshot (support JSON string from DB)
+        raw_def = execution.process_definition_snapshot or agent.process_definition
+        process_def = ProcessDefinition.from_dict(self._ensure_dict(raw_def))
         
         # Build context
         context = ProcessContext(
