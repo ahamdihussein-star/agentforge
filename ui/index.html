@@ -9726,8 +9726,22 @@ Option 3"></textarea>
                 document.getElementById('process-modal-title').textContent = currentProcessAgent.name || 'Workflow';
                 document.getElementById('process-modal-subtitle').textContent = currentProcessAgent.goal || 'Submit data to run this workflow';
                 
-                // Build dynamic form based on process definition
-                buildProcessForm(currentProcessAgent);
+                // Try LLM-enriched form fields (professional labels from process context)
+                let enrichedFields = null;
+                try {
+                    const enrichRes = await fetch(API + '/process/enrich-form-fields', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                        body: JSON.stringify({ agent_id: agentId })
+                    });
+                    if (enrichRes.ok) {
+                        const data = await enrichRes.json();
+                        if (data.fields && data.fields.length) enrichedFields = data.fields;
+                    }
+                } catch (_) { /* use fallback */ }
+                
+                // Build dynamic form (use enriched labels if available)
+                buildProcessForm(currentProcessAgent, enrichedFields);
                 
                 // Show trigger form, hide status
                 document.getElementById('process-trigger-form').classList.remove('hidden');
@@ -9743,24 +9757,37 @@ Option 3"></textarea>
             }
         }
         
-        // Build Dynamic Form from Process Definition
-        function buildProcessForm(agent) {
+        // Build Dynamic Form from Process Definition (optionally with LLM-enriched labels)
+        function buildProcessForm(agent, enrichedFields) {
             const formContainer = document.getElementById('process-form-fields');
-            // Normalize: API may return process_definition as JSON string (e.g. from DB)
-            let processDef = agent.process_definition;
-            if (typeof processDef === 'string') {
-                try {
-                    processDef = processDef ? JSON.parse(processDef) : null;
-                } catch (_) {
-                    processDef = null;
-                }
-            }
-            if (!processDef || typeof processDef !== 'object') processDef = {};
-            
-            // Extract trigger/form inputs from process definition (dynamic from Process Builder)
             let triggerInputs = [];
             
-            if (processDef.nodes && Array.isArray(processDef.nodes)) {
+            // Use LLM-enriched fields when available (professional, business-friendly labels)
+            if (enrichedFields && enrichedFields.length) {
+                triggerInputs = enrichedFields.map(f => ({
+                    id: f.id,
+                    label: f.label || f.id,
+                    type: f.type || 'text',
+                    required: !!f.required,
+                    placeholder: f.placeholder || '',
+                    options: f.options,
+                    description: f.description
+                }));
+            }
+            
+            if (!triggerInputs.length) {
+                // Normalize: API may return process_definition as JSON string (e.g. from DB)
+                let processDef = agent.process_definition;
+                if (typeof processDef === 'string') {
+                    try {
+                        processDef = processDef ? JSON.parse(processDef) : null;
+                    } catch (_) {
+                        processDef = null;
+                    }
+                }
+                if (!processDef || typeof processDef !== 'object') processDef = {};
+                
+                if (processDef.nodes && Array.isArray(processDef.nodes)) {
                 // Process Builder: trigger or form node with config.fields (or config.type_config.fields)
                 const triggerNode = processDef.nodes.find(n => 
                     (n.type === 'trigger' || n.type === 'form' || n.type === 'start')
@@ -9782,9 +9809,10 @@ Option 3"></textarea>
                 }
             }
             
-            // Legacy: processDef.trigger.inputs
-            if (!triggerInputs.length && processDef && processDef.trigger && processDef.trigger.inputs) {
-                triggerInputs = processDef.trigger.inputs;
+                // Legacy: processDef.trigger.inputs
+                if (!triggerInputs.length && processDef && processDef.trigger && processDef.trigger.inputs) {
+                    triggerInputs = processDef.trigger.inputs;
+                }
             }
             
             // If no inputs defined, create generic form based on goal
@@ -9813,10 +9841,11 @@ Option 3"></textarea>
                 }
             }
             
-            // Build form HTML
+            // Build form HTML (with optional description from LLM)
             formContainer.innerHTML = triggerInputs.map(input => {
                 const required = input.required ? '<span class="text-red-400">*</span>' : '';
                 const fieldId = `pf-${input.id}`;
+                const descHtml = input.description ? `<p class="text-xs text-gray-500 mt-0.5 mb-1">${input.description}</p>` : '';
                 
                 let fieldHtml = '';
                 switch(input.type) {
@@ -9845,6 +9874,7 @@ Option 3"></textarea>
                 return `
                     <div>
                         <label class="text-sm text-gray-400 mb-1 block">${input.label} ${required}</label>
+                        ${descHtml}
                         ${fieldHtml}
                     </div>
                 `;

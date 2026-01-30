@@ -32,6 +32,9 @@ from .schemas import (
     ProcessCancelRequest,
     ProcessStatsResponse,
     NodeExecutionResponse,
+    EnrichFormFieldsRequest,
+    EnrichFormFieldsResponse,
+    EnrichedFormField,
 )
 from .service import ProcessAPIService
 
@@ -146,6 +149,40 @@ async def start_execution(
             status_code=500,
             detail=problem_details_rfc9457(500, ErrorCode.EXECUTION_FAILED),
         )
+
+
+@router.post("/enrich-form-fields", response_model=EnrichFormFieldsResponse)
+async def enrich_form_fields(
+    request: EnrichFormFieldsRequest,
+    service: ProcessAPIService = Depends(get_service),
+    user: User = Depends(require_auth),
+):
+    """
+    Get LLM-enriched form field labels for the process run form.
+    Uses process context (name, goal) and raw fields to generate professional,
+    business-friendly labels and placeholders.
+    """
+    process_definition = request.process_definition
+    goal = request.goal or ''
+    name = request.name or 'Workflow'
+    if request.agent_id:
+        from database.services import AgentService
+        org_id = getattr(user, 'org_id', None) or 'org_default'
+        agent_dict = AgentService.get_agent_by_id(request.agent_id, org_id)
+        if agent_dict:
+            process_definition = agent_dict.get('process_definition')
+            goal = agent_dict.get('goal') or goal
+            name = agent_dict.get('name') or name
+    if process_definition is None and not request.agent_id:
+        return EnrichFormFieldsResponse(fields=[])
+    process_definition = service._ensure_dict(process_definition)
+    raw_fields = service._extract_form_fields_from_definition(process_definition)
+    if not raw_fields:
+        return EnrichFormFieldsResponse(fields=[])
+    enriched = await service.enrich_form_fields(name, goal, raw_fields)
+    return EnrichFormFieldsResponse(
+        fields=[EnrichedFormField(**f) for f in enriched]
+    )
 
 
 @router.get("/executions", response_model=ProcessExecutionListResponse)

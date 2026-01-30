@@ -211,3 +211,31 @@ class ProcessEventResponse(BaseModel):
     data: Dict[str, Any] = {}
     node_id: Optional[str] = None
     timestamp: datetime
+
+
+# =============================================================================
+# ENRICH FORM FIELDS (LLM-generated labels for run form)
+# =============================================================================
+
+class EnrichFormFieldsRequest(BaseModel):
+    """Request to get LLM-enriched form field labels for a process run form"""
+    agent_id: Optional[str] = Field(default=None, description="Agent ID to load process context from")
+    process_definition: Optional[Dict[str, Any]] = Field(default=None, description="Process definition (if not using agent_id)")
+    goal: Optional[str] = Field(default=None, description="Process/workflow goal for context")
+    name: Optional[str] = Field(default=None, description="Process/workflow name for context")
+
+
+class EnrichedFormField(BaseModel):
+    """Single form field with LLM-generated professional label and placeholder"""
+    id: str = Field(..., description="Field key (from process definition)")
+    label: str = Field(..., description="Professional, business-friendly label")
+    placeholder: Optional[str] = Field(default=None, description="Placeholder text")
+    type: str = Field(default="text", description="Field type: text, textarea, number, date, email, select")
+    required: bool = Field(default=False, description="Whether the field is required")
+    options: Optional[List[str]] = Field(default=None, description="Options for select type")
+    description: Optional[str] = Field(default=None, description="Optional short help text")
+
+
+class EnrichFormFieldsResponse(BaseModel):
+    """Enriched form fields for the process run form"""
+    fields: List[EnrichedFormField] = Field(default_factory=list, description="Fields with professional labels")

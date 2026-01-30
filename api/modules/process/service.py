@@ -24,6 +24,7 @@ from core.process import (
 from core.process.nodes.base import ExecutorDependencies
 from core.llm.registry import LLMRegistry
 from core.llm.factory import LLMFactory
+from core.llm.base import Message, MessageRole
 from core.tools.base import ToolRegistry, ToolConfig
 
 from .schemas import (
@@ -195,13 +196,13 @@ class ProcessAPIService:
             # Log count only; do not log user_id or trigger_input (may contain PII)
             logger.info("Filtered %s denied tools for execution %s", len(denied_tool_ids), str(execution.id))
         
-        # Build context with filtered tools
+        # Build context with filtered tools (ensure dicts; DB may return JSON strings)
         context = ProcessContext(
             execution_id=str(execution.id),
             agent_id=agent_id,
             org_id=org_id,
             trigger_type=trigger_type,
-            trigger_input=trigger_input or {},
+            trigger_input=self._ensure_dict(trigger_input or {}),
             conversation_id=conversation_id,
             user_id=user_id,
             user_name=user_info.get('name') if user_info else None,
@@ -210,7 +211,7 @@ class ProcessAPIService:
             user_groups=user_info.get('groups', []) if user_info else [],
             available_tool_ids=filtered_tool_ids,  # Filtered based on access control
             denied_tool_ids=denied_tool_ids,  # Track what's denied for error messages
-            settings=agent.process_settings or {}
+            settings=self._ensure_dict(agent.process_settings or {}),
         )
         
         # Build dependencies (only with allowed tools)
@@ -347,15 +348,16 @@ class ProcessAPIService:
         raw_def = execution.process_definition_snapshot or agent.process_definition
         process_def = ProcessDefinition.from_dict(self._ensure_dict(raw_def))
         
-        # Build context
+        # Build context (ensure dicts; DB may return JSON strings)
         context = ProcessContext(
             execution_id=str(execution.id),
             agent_id=str(execution.agent_id),
             org_id=str(execution.org_id),
-            trigger_type=execution.trigger_type,
-            trigger_input=execution.trigger_input,
+            trigger_type=execution.trigger_type or "manual",
+            trigger_input=self._ensure_dict(execution.trigger_input or {}),
             user_id=user_id,
-            available_tool_ids=agent.tool_ids or []
+            available_tool_ids=agent.tool_ids or [],
+            settings=self._ensure_dict(getattr(execution, "settings", None) or {}),
         )
         
         # Build dependencies
@@ -903,4 +905,125 @@ class ProcessAPIService:
                 # Override value
                 result[key] = value
         
+        return result
+    
+    def _extract_form_fields_from_definition(self, process_definition: Any) -> List[Dict[str, Any]]:
+        """
+        Extract raw form/trigger input fields from process definition (same structure as UI).
+        Returns list of dicts with id (name), type, required, options, placeholder, label.
+        """
+        pd = self._ensure_dict(process_definition)
+        nodes = pd.get('nodes') or []
+        trigger_node = next(
+            (n for n in nodes if (n.get('type') or '').lower() in ('trigger', 'form', 'start')),
+            None
+        )
+        if not trigger_node:
+            return []
+        config = trigger_node.get('config') or {}
+        type_config = config.get('type_config') or config
+        fields = type_config.get('fields') or config.get('fields') or []
+        return [
+            {
+                'id': f.get('name') or f.get('id') or ('field_' + str(i)),
+                'type': f.get('type') or 'text',
+                'required': bool(f.get('required')),
+                'options': f.get('options'),
+                'placeholder': f.get('placeholder'),
+                'label': f.get('label'),
+            }
+            for i, f in enumerate(fields)
+            if f and (f.get('name') or f.get('id'))
+        ]
+    
+    async def enrich_form_fields(
+        self,
+        process_name: str,
+        process_goal: str,
+        raw_fields: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """
+        Use LLM to generate professional, business-friendly labels and placeholders
+        for process run form fields based on process context.
+        Returns list of dicts compatible with EnrichedFormField (id, label, placeholder, type, required, options).
+        """
+        if not raw_fields:
+            return []
+        if not self.llm_registry:
+            return self._fallback_enrich_form_fields(raw_fields)
+        models = self.llm_registry.list_all(active_only=True)
+        if not models:
+            return self._fallback_enrich_form_fields(raw_fields)
+        config = models[0]
+        try:
+            llm = LLMFactory.create(config)
+        except Exception as e:
+            logger.warning("LLM not available for form enrichment: %s", e)
+            return self._fallback_enrich_form_fields(raw_fields)
+        process_context = f"Workflow name: {process_name or 'Workflow'}. Goal: {process_goal or 'Collect input and run workflow'}."
+        fields_json = json.dumps([
+            {'id': f['id'], 'type': f['type'], 'required': f.get('required'), 'options': f.get('options')}
+            for f in raw_fields
+        ], ensure_ascii=False)
+        system_prompt = """You are an expert UX copywriter. Given a workflow's context and a list of form field IDs and types, output a JSON array of objects with the same order and ids. For each field provide:
+- label: professional, clear, business-friendly label (e.g. "Amount (USD)" not "amount", "Start Date" not "start_date")
+- placeholder: short hint for the input (e.g. "Enter the amount" or "Select category"); null if not needed
+- description: one short sentence of help text if useful; null otherwise
+Use the same language as the workflow goal if it's not English. Output only valid JSON, no markdown or explanation."""
+        user_prompt = f"""Process context: {process_context}
+
+Raw fields (keep id and type exactly, add label, placeholder, description):
+{fields_json}
+
+Respond with a JSON array only, one object per field, with keys: id, label, placeholder, type, required, options (if select), description."""
+        try:
+            messages = [
+                Message(role=MessageRole.SYSTEM, content=system_prompt),
+                Message(role=MessageRole.USER, content=user_prompt),
+            ]
+            response = await llm.chat(messages, temperature=0.3, max_tokens=1024)
+            content = (response.content or '').strip()
+            if not content:
+                return self._fallback_enrich_form_fields(raw_fields)
+            if content.startswith('```'):
+                content = content.split('```')[1]
+                if content.startswith('json'):
+                    content = content[4:]
+                content = content.strip()
+            data = json.loads(content)
+            if not isinstance(data, list) or len(data) != len(raw_fields):
+                return self._fallback_enrich_form_fields(raw_fields)
+            result = []
+            for i, raw in enumerate(raw_fields):
+                enriched = data[i] if i < len(data) else {}
+                result.append({
+                    'id': raw['id'],
+                    'label': enriched.get('label') or (raw.get('label') or raw['id'].replace('_', ' ').title()),
+                    'placeholder': enriched.get('placeholder') or raw.get('placeholder'),
+                    'type': raw['type'],
+                    'required': raw.get('required', False),
+                    'options': raw.get('options'),
+                    'description': enriched.get('description'),
+                })
+            return result
+        except Exception as e:
+            logger.warning("LLM form enrichment failed: %s", e)
+            return self._fallback_enrich_form_fields(raw_fields)
+    
+    def _fallback_enrich_form_fields(self, raw_fields: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Non-LLM fallback: humanize labels and placeholders from field ids."""
+        result = []
+        for f in raw_fields:
+            name = f.get('id') or f.get('name') or 'field'
+            raw_label = (f.get('label') or name).replace('_', ' ').strip()
+            label = ' '.join(w.capitalize() for w in raw_label.split()) if raw_label else name
+            result.append({
+                'id': name,
+                'label': label,
+                'placeholder': f.get('placeholder') or f"Enter {label.lower()}...",
+                'type': f.get('type') or 'text',
+                'required': f.get('required', False),
+                'options': f.get('options'),
+                'description': f.get('description'),
+            })
         return result
