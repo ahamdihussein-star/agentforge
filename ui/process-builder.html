@@ -2149,10 +2149,33 @@
                 edges: state.connections
             };
             
+            const token = localStorage.getItem('agentforge_token');
+            if (!token) {
+                alert('❌ Please sign in first. Save and Publish require authentication.');
+                return;
+            }
+            
             try {
-                const token = localStorage.getItem('agentforge_token');
                 const method = state.agentId ? 'PUT' : 'POST';
                 const url = state.agentId ? '/api/agents/' + state.agentId : '/api/agents';
+                
+                const body = state.agentId ? {
+                    name,
+                    goal: 'Workflow automation',
+                    process_definition: def,
+                    status: 'draft'
+                } : {
+                    name,
+                    goal: 'Workflow automation',
+                    agent_type: 'process',
+                    personality: {},
+                    tasks: [],
+                    tool_ids: [],
+                    model_id: 'gpt-4o',
+                    process_definition: def,
+                    process_settings: {},
+                    status: 'draft'
+                };
                 
                 const response = await fetch(url, {
                     method,
@@ -2160,16 +2183,20 @@
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + token
                     },
-                    body: JSON.stringify({
-                        name,
-                        goal: 'Workflow automation',
-                        agent_type: 'process',
-                        process_definition: def,
-                        status: 'draft'
-                    })
+                    body: JSON.stringify(body)
                 });
                 
-                if (!response.ok) throw new Error('Save failed');
+                let errMsg = 'Could not save workflow';
+                if (!response.ok) {
+                    try {
+                        const errBody = await response.json();
+                        errMsg = errBody.detail || errBody.message || errMsg;
+                        if (Array.isArray(errMsg)) errMsg = errMsg.map(d => d.msg || JSON.stringify(d)).join('; ');
+                    } catch (_) {
+                        errMsg = await response.text() || response.statusText || errMsg;
+                    }
+                    throw new Error(errMsg);
+                }
                 
                 const data = await response.json();
                 if (!state.agentId) {
@@ -2180,30 +2207,50 @@
                 alert('✅ Workflow saved!');
             } catch (e) {
                 console.error('Save error:', e);
-                alert('❌ Could not save workflow');
+                alert('❌ ' + (e.message || 'Could not save workflow'));
             }
         }
         
         async function publishWorkflow() {
-            await saveWorkflow();
+            if (!state.agentId) {
+                await saveWorkflow();
+                if (!state.agentId) return;
+            } else {
+                await saveWorkflow();
+            }
+            
+            const token = localStorage.getItem('agentforge_token');
+            if (!token) {
+                alert('❌ Please sign in first.');
+                return;
+            }
             
             try {
-                const token = localStorage.getItem('agentforge_token');
                 const response = await fetch('/api/agents/' + state.agentId, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + token
                     },
-                    body: JSON.stringify({ status: 'published' })
+                    body: JSON.stringify({ status: 'published', is_published: true })
                 });
                 
-                if (!response.ok) throw new Error('Publish failed');
+                let errMsg = 'Could not publish workflow';
+                if (!response.ok) {
+                    try {
+                        const errBody = await response.json();
+                        errMsg = errBody.detail || errBody.message || errMsg;
+                        if (Array.isArray(errMsg)) errMsg = errMsg.map(d => d.msg || JSON.stringify(d)).join('; ');
+                    } catch (_) {
+                        errMsg = await response.text() || response.statusText || errMsg;
+                    }
+                    throw new Error(errMsg);
+                }
                 
                 alert('🚀 Workflow published!');
             } catch (e) {
                 console.error('Publish error:', e);
-                alert('❌ Could not publish workflow');
+                alert('❌ ' + (e.message || 'Could not publish workflow'));
             }
         }
         
