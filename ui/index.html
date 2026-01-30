@@ -10331,6 +10331,31 @@ Option 3"></textarea>
                     if (t === 'any' || (!u.length && !r.length && !g.length)) return 'Assigned to: Anyone';
                     return 'Assigned to: ' + (u.length ? u.join(', ') : r.length ? 'Role(s) ' + r.join(', ') : g.length ? 'Group(s) ' + g.join(', ') : '—');
                 }
+                function escapeHtml(s) {
+                    if (s == null) return '';
+                    const div = document.createElement('div');
+                    div.textContent = String(s);
+                    return div.innerHTML;
+                }
+                function friendlyLabel(key) {
+                    return String(key)
+                        .replace(/_/g, ' ')
+                        .replace(/\b\w/g, c => c.toUpperCase());
+                }
+                function renderReviewData(rd) {
+                    if (!rd) return '';
+                    if (typeof rd === 'string') {
+                        try { rd = JSON.parse(rd); } catch (_) { return `<div class="text-gray-300 text-sm">${escapeHtml(rd)}</div>`; }
+                    }
+                    if (typeof rd !== 'object' || rd === null) return '';
+                    const entries = Object.entries(rd).filter(([k, v]) => v !== undefined && v !== null && v !== '');
+                    if (entries.length === 0) return '';
+                    const rows = entries.map(([k, v]) => {
+                        const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+                        return `<tr class="border-b border-gray-700/50"><td class="py-2 pr-4 text-gray-400 font-medium whitespace-nowrap">${escapeHtml(friendlyLabel(k))}</td><td class="py-2 text-gray-200">${escapeHtml(val)}</td></tr>`;
+                    }).join('');
+                    return `<div class="overflow-x-auto"><table class="w-full text-sm"><tbody>${rows}</tbody></table></div>`;
+                }
                 
                 document.getElementById('approval-count-subtitle').textContent = 
                     `${approvals.length} item${approvals.length !== 1 ? 's' : ''} waiting for your decision`;
@@ -10356,11 +10381,12 @@ Option 3"></textarea>
                                 <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">${approval.priority || 'normal'}</span>
                             </div>
                             
-                            ${(approval.review_data || approval.details_to_review) && Object.keys(approval.review_data || approval.details_to_review || {}).length ? `
-                                <div class="bg-gray-800 rounded-lg p-3 mb-3 text-sm">
-                                    <pre class="whitespace-pre-wrap text-gray-300">${(() => { const rd = approval.review_data || approval.details_to_review; return typeof rd === 'string' ? rd : JSON.stringify(rd, null, 2); })()}</pre>
+                            ${(() => { const html = renderReviewData(approval.review_data || approval.details_to_review); return html ? `
+                                <div class="bg-gray-800/80 rounded-lg p-4 mb-3 text-sm border border-gray-700/50">
+                                    <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Details to review</div>
+                                    ${html}
                                 </div>
-                            ` : ''}
+                            ` : ''; })()}
                             
                             <div class="flex gap-3">
                                 <button onclick="approveRequest('${approval.id}')" class="flex-1 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition">

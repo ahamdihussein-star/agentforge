@@ -518,6 +518,7 @@ class ProcessExecutionService:
         org_id: str,
         user_role_ids: List[str] = None,
         user_group_ids: List[str] = None,
+        user_email: str = None,
         include_all_for_org_admin: bool = False
     ) -> List[ProcessApprovalRequest]:
         """
@@ -525,6 +526,7 @@ class ProcessExecutionService:
         
         Filters approvals where:
         - User ID is in assigned_user_ids, OR
+        - User email is in assigned_user_ids (backward compat: old config used emails only), OR
         - Any of user's role IDs is in assigned_role_ids, OR
         - Any of user's group IDs is in assigned_group_ids, OR
         - assignee_type is 'any' / no assignees
@@ -577,6 +579,15 @@ class ProcessExecutionService:
                 result.append(approval)
                 logger.info("[ApprovalDB] include approval_id=%s reason=user_assigned", str(approval.id))
                 continue
+
+            # Backward compat: old config had approvers as emails only (no platform users/roles/groups)
+            # If any assignee looks like an email, match current user by email
+            if assigned_users and user_email:
+                assignee_emails = [str(x).strip().lower() for x in assigned_users_str if "@" in str(x)]
+                if assignee_emails and user_email.strip().lower() in assignee_emails:
+                    result.append(approval)
+                    logger.info("[ApprovalDB] include approval_id=%s reason=email_assigned (legacy)", str(approval.id))
+                    continue
 
             # Check if user's role is assigned
             if assigned_roles and user_role_set.intersection(set(assigned_roles_str)):

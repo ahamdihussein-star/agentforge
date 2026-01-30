@@ -392,6 +392,7 @@ async def list_pending_approvals(
         org_id=user_dict["org_id"],
         user_role_ids=user_dict.get("role_ids", []),
         user_group_ids=user_dict.get("group_ids", []),
+        user_email=user_dict.get("email"),
         include_all_for_org_admin=is_platform_admin
     )
     return ApprovalListResponse(items=approvals, total=len(approvals))

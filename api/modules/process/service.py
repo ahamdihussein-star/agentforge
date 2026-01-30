@@ -743,6 +743,7 @@ class ProcessAPIService:
         org_id: str,
         user_role_ids: List[str] = None,
         user_group_ids: List[str] = None,
+        user_email: str = None,
         include_all_for_org_admin: bool = False
     ) -> List[ApprovalRequestResponse]:
         """Get pending approvals for user. If include_all_for_org_admin, return all pending in org (for admin/superadmin testing)."""
@@ -755,6 +756,7 @@ class ProcessAPIService:
             org_id=org_id,
             user_role_ids=user_role_ids,
             user_group_ids=user_group_ids,
+            user_email=user_email,
             include_all_for_org_admin=include_all_for_org_admin
         )
         out = [self._approval_to_response(a) for a in approvals]
