@@ -6,7 +6,8 @@
     <title>AgentForge - Workflow Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
+        /* Platform theme (same as main app – from Settings) */
+        :root, [data-theme="dark"] {
             --canvas-bg: #0f1419;
             --grid-color: rgba(255,255,255,0.03);
             --node-bg: #1a1f2e;
@@ -18,6 +19,66 @@
             --approval-color: #ef4444;
             --loop-color: #8b5cf6;
             --end-color: #6b7280;
+            --pb-bg: #0a0d12;
+            --pb-toolbar: #111827;
+            --pb-panel: #111827;
+            --pb-text: #fff;
+            --pb-muted: #9ca3af;
+        }
+        [data-theme="light"] {
+            --canvas-bg: #f1f5f9;
+            --grid-color: rgba(0,0,0,0.06);
+            --node-bg: #ffffff;
+            --node-border: #cbd5e1;
+            --pb-bg: #f8fafc;
+            --pb-toolbar: #ffffff;
+            --pb-panel: #ffffff;
+            --pb-text: #1e293b;
+            --pb-muted: #64748b;
+        }
+        [data-theme="ocean"] {
+            --canvas-bg: #dbeafe;
+            --grid-color: rgba(14,165,233,0.1);
+            --node-bg: #ffffff;
+            --node-border: #bae6fd;
+            --pb-bg: #e8f4f8;
+            --pb-toolbar: #ffffff;
+            --pb-panel: #ffffff;
+            --pb-text: #0c4a6e;
+            --pb-muted: #0284c7;
+        }
+        [data-theme="sunset"] {
+            --canvas-bg: #16213e;
+            --grid-color: rgba(251,191,36,0.08);
+            --node-bg: #1f2937;
+            --node-border: #4b5563;
+            --pb-bg: #1a1a2e;
+            --pb-toolbar: #16213e;
+            --pb-panel: #1f2937;
+            --pb-text: #fef3c7;
+            --pb-muted: #f59e0b;
+        }
+        [data-theme="forest"] {
+            --canvas-bg: #14291a;
+            --grid-color: rgba(74,222,128,0.1);
+            --node-bg: #1a3320;
+            --node-border: #2d5a35;
+            --pb-bg: #0f1f13;
+            --pb-toolbar: #14291a;
+            --pb-panel: #1a3320;
+            --pb-text: #dcfce7;
+            --pb-muted: #4ade80;
+        }
+        [data-theme="midnight"] {
+            --canvas-bg: #0f172a;
+            --grid-color: rgba(59,130,246,0.08);
+            --node-bg: #1e293b;
+            --node-border: #475569;
+            --pb-bg: #020617;
+            --pb-toolbar: #0f172a;
+            --pb-panel: #1e293b;
+            --pb-text: #f8fafc;
+            --pb-muted: #94a3b8;
         }
         
         * { box-sizing: border-box; }
@@ -25,8 +86,8 @@
         body {
             margin: 0;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0a0d12;
-            color: white;
+            background: var(--pb-bg);
+            color: var(--pb-text);
             overflow: hidden;
         }
         
@@ -38,7 +99,7 @@
             overflow: hidden;
             background: var(--canvas-bg);
             background-image: 
-                radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+                radial-gradient(circle, var(--grid-color) 1px, transparent 1px);
             background-size: 20px 20px;
         }
         
@@ -49,10 +110,11 @@
             min-height: 2000px;
         }
         
-        /* Nodes */
+        /* Nodes – BPMN-style shapes */
         .workflow-node {
             position: absolute;
-            width: 280px;
+            width: 200px;
+            min-height: 56px;
             background: var(--node-bg);
             border: 2px solid var(--node-border);
             border-radius: 12px;
@@ -60,6 +122,47 @@
             user-select: none;
             transition: box-shadow 0.2s, border-color 0.2s;
             z-index: 10;
+        }
+        /* BPMN Start Event: circle */
+        .workflow-node.shape-start {
+            width: 72px;
+            min-height: 72px;
+            border-radius: 50%;
+            padding: 0;
+        }
+        .workflow-node.shape-start .node-header { border-radius: 50%; min-height: 72px; justify-content: center; padding: 12px; }
+        .workflow-node.shape-start .node-body { display: none; }
+        .workflow-node.shape-start .node-title { display: none; }
+        .workflow-node.shape-start .node-menu-btn { display: none; }
+        .workflow-node.shape-start .node-icon { margin: 0; }
+        /* BPMN End Event: bold circle */
+        .workflow-node.shape-end {
+            width: 72px;
+            min-height: 72px;
+            border-radius: 50%;
+            border-width: 4px;
+            padding: 0;
+        }
+        .workflow-node.shape-end .node-header { border-radius: 50%; min-height: 72px; justify-content: center; padding: 12px; }
+        .workflow-node.shape-end .node-body { display: none; }
+        .workflow-node.shape-end .node-title { display: none; }
+        .workflow-node.shape-end .node-menu-btn { display: none; }
+        .workflow-node.shape-end .node-icon { margin: 0; }
+        /* BPMN Gateway (Condition): diamond */
+        .workflow-node.shape-gateway {
+            width: 120px;
+            min-height: 120px;
+            border-radius: 0;
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+        .workflow-node.shape-gateway .node-header { border-radius: 0; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+        .workflow-node.shape-gateway .node-body { padding: 8px; }
+        .workflow-node.shape-gateway .node-title { font-size: 12px; text-align: center; }
+        /* Task (default): rounded rectangle */
+        .workflow-node.shape-task {
+            width: 200px;
+            border-radius: 12px;
         }
         
         .workflow-node:hover {
@@ -221,7 +324,7 @@
         .port.output-yes + .port-label { bottom: -22px; left: 30%; transform: translateX(-50%); color: #22c55e; }
         .port.output-no ~ .port-label.no { bottom: -22px; left: 70%; transform: translateX(-50%); color: #ef4444; }
         
-        /* Connections SVG */
+        /* Connections SVG – same layer as canvas, same transform so lines stay aligned on zoom/pan */
         #connections-svg {
             position: absolute;
             top: 0;
@@ -230,13 +333,17 @@
             height: 100%;
             pointer-events: none;
             z-index: 5;
+            transform-origin: 0 0;
         }
         
         .connection-path {
             fill: none;
-            stroke: #6366f1;
+            stroke: var(--connection-color, #6366f1);
             stroke-width: 2;
             stroke-linecap: round;
+            vector-effect: non-scaling-stroke;
+            pointer-events: stroke;
+            cursor: pointer;
         }
         
         .connection-path.yes { stroke: #22c55e; }
@@ -247,11 +354,44 @@
             cursor: pointer;
         }
         
+        .connection-path.selected {
+            stroke-width: 3;
+            filter: drop-shadow(0 0 4px currentColor);
+        }
+        
+        /* Edge context menu (BPMN-style: delete / reconnect) */
+        #edge-context-menu {
+            position: fixed;
+            z-index: 200;
+            background: var(--pb-panel);
+            border: 1px solid var(--node-border);
+            border-radius: 8px;
+            padding: 4px 0;
+            min-width: 140px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            display: none;
+        }
+        #edge-context-menu.show { display: block; }
+        #edge-context-menu button {
+            width: 100%;
+            text-align: left;
+            padding: 8px 14px;
+            border: none;
+            background: none;
+            color: var(--pb-text);
+            cursor: pointer;
+            font-size: 13px;
+        }
+        #edge-context-menu button:hover {
+            background: rgba(99, 102, 241, 0.2);
+        }
+        #edge-context-menu button.delete:hover { color: #ef4444; }
+        
         /* Toolbar */
         #top-toolbar {
             height: 60px;
-            background: #111827;
-            border-bottom: 1px solid #1f2937;
+            background: var(--pb-toolbar);
+            border-bottom: 1px solid var(--node-border);
             display: flex;
             align-items: center;
             padding: 0 20px;
@@ -263,7 +403,7 @@
             align-items: center;
             gap: 10px;
             padding-right: 20px;
-            border-right: 1px solid #374151;
+            border-right: 1px solid var(--node-border);
         }
         
         .toolbar-logo img {
@@ -273,6 +413,7 @@
         .toolbar-title {
             font-weight: 600;
             font-size: 16px;
+            color: var(--pb-text);
         }
         
         .workflow-name-input {
@@ -282,17 +423,17 @@
             padding: 8px 12px;
             font-size: 16px;
             font-weight: 600;
-            color: white;
+            color: var(--pb-text);
             min-width: 200px;
         }
         
         .workflow-name-input:hover {
-            border-color: #374151;
+            border-color: var(--node-border);
         }
         
         .workflow-name-input:focus {
             outline: none;
-            border-color: #6366f1;
+            border-color: var(--connection-color);
             background: rgba(99, 102, 241, 0.1);
         }
         
@@ -352,8 +493,8 @@
             left: 20px;
             top: 80px;
             width: 260px;
-            background: #111827;
-            border: 1px solid #1f2937;
+            background: var(--pb-panel);
+            border: 1px solid var(--node-border);
             border-radius: 12px;
             max-height: calc(100vh - 160px);
             overflow-y: auto;
@@ -362,7 +503,7 @@
         
         .palette-section {
             padding: 16px;
-            border-bottom: 1px solid #1f2937;
+            border-bottom: 1px solid var(--node-border);
         }
         
         .palette-section:last-child { border-bottom: none; }
@@ -370,7 +511,7 @@
         .palette-title {
             font-size: 11px;
             font-weight: 600;
-            color: #6b7280;
+            color: var(--pb-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 12px;
@@ -381,8 +522,8 @@
             align-items: center;
             gap: 12px;
             padding: 10px 12px;
-            background: #1a1f2e;
-            border: 1px solid #2d3748;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
             border-radius: 8px;
             margin-bottom: 8px;
             cursor: grab;
@@ -390,8 +531,8 @@
         }
         
         .palette-item:hover {
-            border-color: #4f46e5;
-            background: rgba(79, 70, 229, 0.1);
+            border-color: var(--connection-color);
+            background: rgba(99, 102, 241, 0.1);
             transform: translateX(4px);
         }
         
@@ -425,12 +566,12 @@
         .palette-name {
             font-size: 13px;
             font-weight: 500;
-            color: #e5e7eb;
+            color: var(--pb-text);
         }
         
         .palette-desc {
             font-size: 11px;
-            color: #6b7280;
+            color: var(--pb-muted);
             margin-top: 2px;
         }
         
@@ -440,8 +581,8 @@
             right: 20px;
             top: 80px;
             width: 320px;
-            background: #111827;
-            border: 1px solid #1f2937;
+            background: var(--pb-panel);
+            border: 1px solid var(--node-border);
             border-radius: 12px;
             max-height: calc(100vh - 160px);
             overflow-y: auto;
@@ -611,8 +752,8 @@
             right: 20px;
             display: flex;
             gap: 4px;
-            background: #111827;
-            border: 1px solid #1f2937;
+            background: var(--pb-panel);
+            border: 1px solid var(--node-border);
             border-radius: 8px;
             padding: 4px;
             z-index: 50;
@@ -623,7 +764,7 @@
             height: 36px;
             background: none;
             border: none;
-            color: #9ca3af;
+            color: var(--pb-muted);
             border-radius: 6px;
             cursor: pointer;
             font-size: 16px;
@@ -633,14 +774,14 @@
         }
         
         .zoom-btn:hover {
-            background: #1f2937;
-            color: white;
+            background: var(--node-bg);
+            color: var(--pb-text);
         }
         
         .zoom-level {
             padding: 0 12px;
             font-size: 12px;
-            color: #6b7280;
+            color: var(--pb-muted);
             display: flex;
             align-items: center;
         }
@@ -652,8 +793,8 @@
             left: 20px;
             width: 160px;
             height: 100px;
-            background: #111827;
-            border: 1px solid #1f2937;
+            background: var(--pb-panel);
+            border: 1px solid var(--node-border);
             border-radius: 8px;
             overflow: hidden;
             z-index: 50;
@@ -959,12 +1100,19 @@
         <button class="zoom-btn" onclick="zoomOut()">−</button>
         <span class="zoom-level" id="zoom-level">100%</span>
         <button class="zoom-btn" onclick="zoomIn()">+</button>
-        <button class="zoom-btn" onclick="zoomReset()">⊙</button>
+        <button class="zoom-btn" onclick="zoomReset()" title="Reset zoom">⊙</button>
+        <button class="zoom-btn" onclick="zoomFit()" title="Fit all steps in view">⊡</button>
     </div>
     
     <!-- Minimap -->
     <div id="minimap">
         <canvas id="minimap-canvas"></canvas>
+    </div>
+    
+    <!-- Edge context menu (BPMN-style: delete / reconnect) -->
+    <div id="edge-context-menu">
+        <button type="button" onclick="onEdgeMenuReconnect()">↷ Reconnect to another step</button>
+        <button type="button" class="delete" onclick="onEdgeMenuDelete()">✕ Delete connection</button>
     </div>
 
     <script>
@@ -990,11 +1138,21 @@
         
         // ===== INITIALIZATION =====
         document.addEventListener('DOMContentLoaded', () => {
+            loadPlatformTheme();
             initCanvas();
             initPalette();
             loadTools();
             loadWorkflowFromUrl();
         });
+        
+        function loadPlatformTheme() {
+            const theme = localStorage.getItem('agentforge-theme') || 'dark';
+            if (theme !== 'dark') {
+                document.documentElement.setAttribute('data-theme', theme);
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        }
         
         function initCanvas() {
             const container = document.getElementById('canvas-container');
@@ -1040,7 +1198,13 @@
             container.addEventListener('click', (e) => {
                 if (e.target === container || e.target.id === 'canvas') {
                     deselectAll();
+                    deselectConnection();
                 }
+            });
+            document.addEventListener('click', (e) => {
+                const menu = document.getElementById('edge-context-menu');
+                if (menu && menu.classList.contains('show') && !menu.contains(e.target) && !e.target.closest('.connection-path'))
+                    hideEdgeContextMenu();
             });
         }
         
@@ -1049,6 +1213,7 @@
             const svg = document.getElementById('connections-svg');
             canvas.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
             svg.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+            renderConnections();
         }
         
         function initPalette() {
@@ -1137,11 +1302,19 @@
             return configs[type] || { name: type, config: {} };
         }
         
+        function getShapeClass(type) {
+            if (['trigger', 'schedule', 'webhook'].includes(type)) return 'shape-start';
+            if (type === 'end') return 'shape-end';
+            if (type === 'condition') return 'shape-gateway';
+            return 'shape-task';
+        }
+        
         function renderNode(node) {
             const canvas = document.getElementById('canvas');
             
             const nodeEl = document.createElement('div');
-            nodeEl.className = 'workflow-node';
+            const shapeClass = getShapeClass(node.type);
+            nodeEl.className = 'workflow-node ' + shapeClass;
             nodeEl.id = node.id;
             nodeEl.style.left = node.x + 'px';
             nodeEl.style.top = node.y + 'px';
@@ -1352,17 +1525,25 @@
             const inputPort = nodeEl.querySelector('.port.input');
             if (inputPort) {
                 inputPort.addEventListener('mouseup', (e) => {
+                    if (state.reconnectEdge) {
+                        const from = state.reconnectEdge.from;
+                        const type = state.reconnectEdge.type;
+                        if (from !== node.id) {
+                            state.connections.push({ from, to: node.id, type });
+                            saveToUndo();
+                            renderConnections();
+                        }
+                        state.reconnectEdge = null;
+                        document.body.classList.remove('connecting');
+                        return;
+                    }
                     if (state.isConnecting && state.connectionStart) {
-                        // Create connection
                         const conn = {
                             from: state.connectionStart.nodeId,
                             to: node.id,
                             type: state.connectionStart.portType
                         };
-                        
-                        // Don't connect to self
                         if (conn.from !== conn.to) {
-                            // Remove existing connection from same output
                             state.connections = state.connections.filter(c => 
                                 !(c.from === conn.from && c.type === conn.type)
                             );
@@ -1371,7 +1552,6 @@
                             saveToUndo();
                         }
                     }
-                    
                     state.isConnecting = false;
                     state.connectionStart = null;
                     document.body.classList.remove('connecting');
@@ -1380,11 +1560,14 @@
         }
         
         // ===== CONNECTIONS =====
+        let stateSelectedConnIndex = null;
+        
         function renderConnections() {
             const svg = document.getElementById('connections-svg');
             svg.innerHTML = '';
             
-            state.connections.forEach(conn => {
+            const ns = 'http://www.w3.org/2000/svg';
+            state.connections.forEach((conn, idx) => {
                 const fromNode = document.getElementById(conn.from);
                 const toNode = document.getElementById(conn.to);
                 
@@ -1412,16 +1595,81 @@
                 const x2 = (toRect.left + toRect.width/2 - canvasRect.left) / state.zoom;
                 const y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
                 
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('class', `connection-path ${conn.type}`);
+                const path = document.createElementNS(ns, 'path');
+                path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
+                path.setAttribute('data-conn-index', String(idx));
                 
-                // Bezier curve
                 const midY = (y1 + y2) / 2;
                 const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
                 path.setAttribute('d', d);
                 
+                path.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectConnection(idx);
+                    showEdgeContextMenu(e.clientX, e.clientY, idx);
+                });
+                
                 svg.appendChild(path);
             });
+        }
+        
+        function selectConnection(idx) {
+            stateSelectedConnIndex = idx;
+            renderConnections();
+        }
+        
+        function deselectConnection() {
+            stateSelectedConnIndex = null;
+            renderConnections();
+            hideEdgeContextMenu();
+        }
+        
+        function deleteConnection(connIndex) {
+            if (connIndex >= 0 && connIndex < state.connections.length) {
+                state.connections.splice(connIndex, 1);
+                saveToUndo();
+                deselectConnection();
+                renderConnections();
+            }
+        }
+        
+        function reconnectConnection(connIndex) {
+            if (connIndex < 0 || connIndex >= state.connections.length) return;
+            const conn = state.connections[connIndex];
+            state.reconnectEdge = { from: conn.from, type: conn.type, connIndex };
+            state.connections.splice(connIndex, 1);
+            renderConnections();
+            hideEdgeContextMenu();
+            stateSelectedConnIndex = null;
+        }
+        
+        let edgeMenuConnIndex = null;
+        function showEdgeContextMenu(x, y, connIndex) {
+            const menu = document.getElementById('edge-context-menu');
+            if (!menu) return;
+            edgeMenuConnIndex = connIndex;
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.classList.add('show');
+        }
+        
+        function hideEdgeContextMenu() {
+            const menu = document.getElementById('edge-context-menu');
+            if (menu) menu.classList.remove('show');
+            edgeMenuConnIndex = null;
+        }
+        
+        function onEdgeMenuDelete() {
+            if (edgeMenuConnIndex != null) {
+                deleteConnection(edgeMenuConnIndex);
+            }
+            hideEdgeContextMenu();
+        }
+        
+        function onEdgeMenuReconnect() {
+            if (edgeMenuConnIndex != null) {
+                reconnectConnection(edgeMenuConnIndex);
+            }
         }
         
         // ===== SELECTION =====
@@ -2199,6 +2447,31 @@
             state.panY = 0;
             updateCanvasTransform();
             document.getElementById('zoom-level').textContent = '100%';
+        }
+        
+        function zoomFit() {
+            if (state.nodes.length === 0) return;
+            const container = document.getElementById('canvas-container');
+            const padding = 80;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            state.nodes.forEach(n => {
+                const el = document.getElementById(n.id);
+                if (!el) return;
+                const w = el.offsetWidth || 200, h = el.offsetHeight || 80;
+                minX = Math.min(minX, n.x);
+                minY = Math.min(minY, n.y);
+                maxX = Math.max(maxX, n.x + w);
+                maxY = Math.max(maxY, n.y + h);
+            });
+            const cw = container.clientWidth, ch = container.clientHeight;
+            const bw = maxX - minX + padding * 2, bh = maxY - minY + padding * 2;
+            const scale = Math.min(cw / bw, ch / bh, 2);
+            state.zoom = Math.max(0.25, scale);
+            const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+            state.panX = cw / 2 - cx * state.zoom;
+            state.panY = ch / 2 - cy * state.zoom;
+            updateCanvasTransform();
+            document.getElementById('zoom-level').textContent = Math.round(state.zoom * 100) + '%';
         }
         
         // ===== UNDO/REDO =====
