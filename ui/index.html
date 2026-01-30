@@ -8078,112 +8078,65 @@ Option 3"></textarea>
         // Track current page to prevent duplicate navigation from hashchange
         let _currentPage = '';
 
-        // Ensure modal is direct child of body so it's visible when opened from any page (sections use hidden)
+        // Ensure modal is direct child of body so it's visible when opened from any page
         function ensureModalInBody(modalId) {
-            console.log(`🔍 [ensureModalInBody] Checking modal: ${modalId}`);
             const modal = document.getElementById(modalId);
-            if (!modal) {
-                console.error(`❌ [ensureModalInBody] Modal not found: ${modalId}`);
-                return false;
-            }
-            const currentParent = modal.parentElement;
-            const isInBody = currentParent === document.body;
-            console.log(`📋 [ensureModalInBody] Modal ${modalId}:`, {
-                found: !!modal,
-                currentParent: currentParent?.tagName || 'null',
-                currentParentId: currentParent?.id || 'none',
-                isInBody: isInBody,
-                modalDisplay: window.getComputedStyle(modal).display,
-                modalVisibility: window.getComputedStyle(modal).visibility,
-                modalClasses: modal.className
-            });
-            
-            if (!isInBody) {
-                console.log(`🔄 [ensureModalInBody] Moving ${modalId} from ${currentParent?.tagName || 'unknown'} to body`);
-                document.body.appendChild(modal);
-                console.log(`✅ [ensureModalInBody] Modal ${modalId} moved to body. New parent:`, modal.parentElement?.tagName);
-            } else {
-                console.log(`✅ [ensureModalInBody] Modal ${modalId} already in body`);
-            }
+            if (!modal) return false;
+            if (modal.parentElement !== document.body) document.body.appendChild(modal);
             return true;
         }
 
         function navigate(p, updateHash = true){
-            console.log(`🧭 [navigate] Navigating to page: ${p} (previous: ${_currentPage})`);
+            // DEBUG: Log only create navigation
+            if (p === 'create') {
+                console.log('🎯 [CREATE] navigate("create") called', { from: _currentPage, stack: new Error().stack?.split('\n').slice(1, 4).join(' <- ') });
+            }
             
-            // Track current page to prevent duplicate navigation
+            // Track current page
             _currentPage = p;
             
             // Hide all sections
-            const allSections = document.querySelectorAll('main>section');
-            console.log(`📦 [navigate] Found ${allSections.length} sections, hiding all...`);
-            allSections.forEach(s => {
-                const wasHidden = s.classList.contains('hidden');
-                s.classList.add('hidden');
-                if (!wasHidden) {
-                    console.log(`  🔒 Hidden section: ${s.id || 'unnamed'}`);
-                }
-            });
+            document.querySelectorAll('main>section').forEach(s => s.classList.add('hidden'));
             
             // Show target page
             const targetPage = document.getElementById('page-'+p);
             if (targetPage) {
                 targetPage.classList.remove('hidden');
-                const computedStyle = window.getComputedStyle(targetPage);
-                console.log(`  ✅ Showing page: page-${p}`, {
-                    display: computedStyle.display,
-                    visibility: computedStyle.visibility,
-                    parent: targetPage.parentElement?.tagName,
-                    parentId: targetPage.parentElement?.id,
-                    grandparent: targetPage.parentElement?.parentElement?.tagName,
-                    grandparentId: targetPage.parentElement?.parentElement?.id,
-                    offsetWidth: targetPage.offsetWidth,
-                    offsetHeight: targetPage.offsetHeight,
-                    isConnected: targetPage.isConnected
-                });
-                // Check if inside main
-                const mainEl = document.querySelector('main');
-                const isInsideMain = mainEl?.contains(targetPage);
-                console.log(`  📍 [navigate] Position check:`, {
-                    mainExists: !!mainEl,
-                    isInsideMain: isInsideMain,
-                    mainChildren: mainEl ? Array.from(mainEl.children).map(c => c.id || c.tagName) : []
-                });
-            } else {
-                console.error(`❌ [navigate] Target page not found: page-${p}`);
+                // DEBUG: Check create page visibility
+                if (p === 'create') {
+                    console.log('🎯 [CREATE] page-create shown', { 
+                        display: window.getComputedStyle(targetPage).display,
+                        step0Visible: !document.getElementById('wizard-step-0')?.classList.contains('hidden'),
+                        goalInputExists: !!document.getElementById('w-initial-goal')
+                    });
+                }
             }
             
-            // Desktop nav
+            // Update nav
             document.querySelectorAll('.sidebar-item').forEach(b=>b.classList.remove('active'));
             document.getElementById('nav-'+p)?.classList.add('active');
-            // Mobile nav
             document.querySelectorAll('.mobile-nav button').forEach(b=>b.classList.remove('active'));
             document.getElementById('mob-'+p)?.classList.add('active');
             
-            // Update URL hash (for browser back/forward and refresh)
-            if (updateHash) {
-                window.location.hash = p;
-            }
+            // Update URL hash
+            if (updateHash) window.location.hash = p;
             
-            console.log(`✅ [navigate] Navigation complete to: ${p}`);
-            
+            // Page-specific initialization
             if(p==='agents')loadAgents();
             if(p==='tools')loadTools();
-            // Note: loadChatAgents() is called by openAgent or when user manually navigates
-            if(p==='chat') {
-                if (!window._skipChatAgentLoad) {
-                    loadChatAgents();
+            if(p==='chat') { if (!window._skipChatAgentLoad) loadChatAgents(); window._skipChatAgentLoad = false; }
+            if(p==='create'){
+                console.log('🎯 [CREATE] Calling resetWizardNew()...');
+                try {
+                    resetWizardNew();
+                    step=0;
+                    updateStepsNew();
+                    console.log('🎯 [CREATE] resetWizardNew() completed successfully');
+                } catch(e) {
+                    console.error('🎯 [CREATE] ERROR in resetWizardNew():', e);
                 }
-                // Always clear the skip flag after checking
-                window._skipChatAgentLoad = false;
             }
-            if(p==='create'){resetWizardNew();step=0;updateStepsNew();}
-            if(p==='settings'){
-                loadSettings();
-                // Update theme buttons to show current selection
-                const currentTheme = localStorage.getItem('agentforge-theme') || 'dark';
-                updateThemeButtons(currentTheme);
-            }
+            if(p==='settings'){ loadSettings(); updateThemeButtons(localStorage.getItem('agentforge-theme') || 'dark'); }
             if(p==='profile') loadProfileInfo();
             if(p==='demo')initDemoLab();
         }
@@ -9535,6 +9488,7 @@ Option 3"></textarea>
         let selectedAgentType = 'conversational'; // Default
         
         function selectAgentType(type) {
+            console.log('🎯 [CREATE] selectAgentType() called with type:', type);
             selectedAgentType = type;
             
             // Update card styles
@@ -10578,7 +10532,14 @@ Option 3"></textarea>
         
         // Open Visual Workflow Builder
         function openVisualBuilder() {
-            window.open('/ui/process-builder.html', '_blank');
+            console.log('🎯 [CREATE] openVisualBuilder() called - opening process-builder.html');
+            const newWindow = window.open('/ui/process-builder.html', '_blank');
+            if (!newWindow) {
+                console.error('🎯 [CREATE] window.open BLOCKED! Popup blocker may be active.');
+                showToast('Please allow popups to open the Visual Builder', 'warning');
+            } else {
+                console.log('🎯 [CREATE] window.open SUCCESS');
+            }
         }
         
         // Show AI Workflow Input
@@ -11564,25 +11525,11 @@ Option 3"></textarea>
         
         // Show select tool modal
         async function showSelectToolModal() {
-            console.log('🎯 [showSelectToolModal] Opening select-tool-modal');
             const modal = document.getElementById('select-tool-modal');
-            if (!modal) {
-                console.error('❌ [showSelectToolModal] Modal not found!');
-                return;
-            }
-            console.log('📋 [showSelectToolModal] Before ensureModalInBody:', {
-                parent: modal.parentElement?.tagName,
-                parentId: modal.parentElement?.id,
-                classes: modal.className
-            });
+            if (!modal) return;
             ensureModalInBody('select-tool-modal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
-            console.log('✅ [showSelectToolModal] Modal opened:', {
-                classes: modal.className,
-                display: window.getComputedStyle(modal).display,
-                isVisible: modal.offsetParent !== null
-            });
             
             // Reset temp selection to current selection
             tempToolSelection = {
@@ -12291,8 +12238,6 @@ Option 3"></textarea>
                     agentAdminState.isOwner = ownerIdStr && currentUserIdStr && ownerIdStr === currentUserIdStr;
                     agentAdminState.delegatedAdmins = data.delegated_admins || [];
                     
-                    console.log(`🔐 Delegation ownership check: owner_id=${ownerIdStr.slice(0,8)}..., currentUser=${currentUserIdStr.slice(0,8)}..., isOwner=${agentAdminState.isOwner}`);
-                    
                     // Enrich with names
                     agentAdminState.delegatedAdmins.forEach(admin => {
                         if (admin.entity_type === 'user') {
@@ -12711,16 +12656,9 @@ Option 3"></textarea>
             
             // Check if current user is the owner (for badge display)
             const isOwner = isAgentOwner();
-            console.log(`👤 Current user ownership check: isOwner=${isOwner}, owner_id=${wizard.owner_id}, currentUser=${currentUser?.id}`);
             
             if (accessControlSection) {
-                if (!canManage) {
-                    accessControlSection.style.display = 'none';
-                    console.log('🔐 Access Control section hidden - user is not owner or delegated admin');
-                } else {
-                    accessControlSection.style.display = 'block';
-                    console.log('✅ Access Control section visible - user is owner or delegated admin');
-                }
+                accessControlSection.style.display = canManage ? 'block' : 'none';
             }
             
             // Show owner badge if user is the owner
@@ -12767,34 +12705,13 @@ Option 3"></textarea>
             
             // Load agent admins if editing an existing agent (only for owner)
             const agentId = wizard.id || wizard.editId;
-            console.log(`🔍 Delegation section check: agentId=${agentId}, wizard.id=${wizard.id}, wizard.editId=${wizard.editId}`);
+            const delegateSection = document.getElementById('wizard-delegate-admin-section');
             
-            if (agentId) {
-                // First check ownership from wizard data
-                const isOwner = isAgentOwner();
-                const delegateSection = document.getElementById('wizard-delegate-admin-section');
-                
-                console.log(`🔐 Delegation visibility: isOwner=${isOwner}, delegateSection=${!!delegateSection}`);
-                
-                if (isOwner) {
-                    // Owner - show delegation section and load admins
-                    if (delegateSection) {
-                        delegateSection.classList.remove('hidden');
-                        delegateSection.style.display = 'block';
-                        console.log('✅ Delegation section SHOWN');
-                    }
-                    loadAgentAdmins(agentId);
-                } else {
-                    // Not owner - hide delegation section
-                    if (delegateSection) delegateSection.style.display = 'none';
-                }
+            if (agentId && isAgentOwner()) {
+                if (delegateSection) { delegateSection.classList.remove('hidden'); delegateSection.style.display = 'block'; }
+                loadAgentAdmins(agentId);
             } else {
-                // For new agents that haven't been saved yet
-                const delegateSection = document.getElementById('wizard-delegate-admin-section');
-                console.log('⏳ Agent not saved yet - hiding delegation section until saved');
-                if (delegateSection) {
-                    delegateSection.style.display = 'none';
-                }
+                if (delegateSection) delegateSection.style.display = 'none';
             }
         }
         
@@ -15099,33 +15016,11 @@ Option 3"></textarea>
 
         // Show create kit modal
         function showCreateKitModal() {
-            console.log('🎯 [showCreateKitModal] Opening create-kit-modal');
             const modal = document.getElementById('create-kit-modal');
-            if (!modal) {
-                console.error('❌ [showCreateKitModal] Modal not found!');
-                return;
-            }
-            console.log('📋 [showCreateKitModal] Before ensureModalInBody:', {
-                parent: modal.parentElement?.tagName,
-                parentId: modal.parentElement?.id,
-                classes: modal.className,
-                display: window.getComputedStyle(modal).display
-            });
+            if (!modal) return;
             ensureModalInBody('create-kit-modal');
-            console.log('📋 [showCreateKitModal] After ensureModalInBody:', {
-                parent: modal.parentElement?.tagName,
-                parentId: modal.parentElement?.id
-            });
             modal.classList.remove('hidden');
             modal.classList.add('flex');
-            console.log('✅ [showCreateKitModal] Modal classes updated:', modal.className);
-            console.log('📊 [showCreateKitModal] Final state:', {
-                display: window.getComputedStyle(modal).display,
-                visibility: window.getComputedStyle(modal).visibility,
-                opacity: window.getComputedStyle(modal).opacity,
-                zIndex: window.getComputedStyle(modal).zIndex,
-                isVisible: modal.offsetParent !== null
-            });
             document.getElementById('new-kit-description').focus();
         }
 
@@ -17552,23 +17447,9 @@ Option 3"></textarea>
         }
         
         function openTaskModal(editIndex = null) {
-            console.log(`🎯 [openTaskModal] Opening modal-task (editIndex: ${editIndex})`);
             const modal = document.getElementById('modal-task');
-            if (!modal) {
-                console.error('❌ [openTaskModal] Modal not found!');
-                return;
-            }
-            console.log('📋 [openTaskModal] Before ensureModalInBody:', {
-                parent: modal.parentElement?.tagName,
-                parentId: modal.parentElement?.id,
-                classes: modal.className,
-                display: window.getComputedStyle(modal).display
-            });
+            if (!modal) return;
             ensureModalInBody('modal-task');
-            console.log('📋 [openTaskModal] After ensureModalInBody:', {
-                parent: modal.parentElement?.tagName,
-                parentId: modal.parentElement?.id
-            });
             taskModalEditIndex = editIndex;
             const titleEl = document.getElementById('task-modal-title');
             const nameEl = document.getElementById('task-modal-name');
@@ -17604,14 +17485,6 @@ Option 3"></textarea>
             }
             
             modal.classList.remove('hidden');
-            console.log('✅ [openTaskModal] Modal classes updated:', modal.className);
-            console.log('📊 [openTaskModal] Final state:', {
-                display: window.getComputedStyle(modal).display,
-                visibility: window.getComputedStyle(modal).visibility,
-                opacity: window.getComputedStyle(modal).opacity,
-                zIndex: window.getComputedStyle(modal).zIndex,
-                isVisible: modal.offsetParent !== null
-            });
             nameEl.focus();
         }
         
@@ -27287,16 +27160,6 @@ function hasPermission(permission) {
         : currentUser.permissions.includes('system:admin') 
             ? true 
             : currentUser.permissions.includes(permission);
-    
-    // Log only for navigation-related permissions to avoid spam
-    if (['chat:use', 'agents:create', 'agents:view'].includes(permission)) {
-        console.log(`🔐 [hasPermission] ${permission}:`, {
-            hasPermission: hasPerm,
-            userPermissions: currentUser?.permissions || [],
-            isAdmin: currentUser?.permissions?.includes('system:admin')
-        });
-    }
-    
     return hasPerm;
 }
 
@@ -27319,76 +27182,34 @@ const MENU_PERMISSIONS = {
 };
 
 function updateUIByPermissions() {
-    console.log('🔐 [updateUIByPermissions] Starting...', {
-        hasCurrentUser: !!currentUser,
-        userEmail: currentUser?.email,
-        userPermissions: currentUser?.permissions || []
-    });
-    
-    if (!currentUser) {
-        console.warn('⚠️ [updateUIByPermissions] No currentUser, skipping');
-        return;
-    }
+    if (!currentUser) return;
     
     Object.entries(MENU_PERMISSIONS).forEach(([menu, permission]) => {
         const navItem = document.getElementById('nav-' + menu);
         const mobItem = document.getElementById('mob-' + menu);
         const hasPerm = hasPermission(permission);
         
-        console.log(`🔐 [updateUIByPermissions] ${menu}:`, {
-            permission: permission,
-            hasPermission: hasPerm,
-            navItemFound: !!navItem,
-            mobItemFound: !!mobItem,
-            navItemHidden: navItem?.classList.contains('hidden'),
-            mobItemHidden: mobItem?.classList.contains('hidden')
-        });
-        
         if (hasPerm) {
-            if (navItem) {
-                navItem.classList.remove('hidden');
-                navItem.style.display = '';
-            }
-            if (mobItem) {
-                mobItem.classList.remove('hidden');
-                mobItem.style.display = '';
-            }
+            if (navItem) { navItem.classList.remove('hidden'); navItem.style.display = ''; }
+            if (mobItem) { mobItem.classList.remove('hidden'); mobItem.style.display = ''; }
         } else {
-            if (navItem) {
-                navItem.classList.add('hidden');
-                navItem.style.display = 'none';
-            }
-            if (mobItem) {
-                mobItem.classList.add('hidden');
-                mobItem.style.display = 'none';
-            }
+            if (navItem) { navItem.classList.add('hidden'); navItem.style.display = 'none'; }
+            if (mobItem) { mobItem.classList.add('hidden'); mobItem.style.display = 'none'; }
         }
     });
     
     const secNav = document.getElementById('nav-security');
     if (secNav) {
         const hasSecPerm = hasAnyPermission(['users:view', 'roles:view', 'system:admin']);
-        console.log('🔐 [updateUIByPermissions] Security nav:', { hasPermission: hasSecPerm });
-        if (hasSecPerm) {
-            secNav.classList.remove('hidden');
-            secNav.style.display = '';
-        } else {
-            secNav.classList.add('hidden');
-            secNav.style.display = 'none';
-        }
+        if (hasSecPerm) { secNav.classList.remove('hidden'); secNav.style.display = ''; }
+        else { secNav.classList.add('hidden'); secNav.style.display = 'none'; }
     }
     
     document.querySelectorAll('[data-permission]').forEach(el => {
         const perms = el.dataset.permission.split(',').map(p => p.trim());
         const hasPerm = hasAnyPermission(perms);
-        if (hasPerm) {
-            el.style.display = '';
-        } else {
-            el.style.display = 'none';
-        }
+        el.style.display = hasPerm ? '' : 'none';
     });
-    
-    console.log('✅ [updateUIByPermissions] Complete:', currentUser.email);
 }
 
 
@@ -30238,14 +30059,13 @@ async function saveSecuritySettings() {
 // Update navigate function to include security
 const originalNavigate = navigate;
 navigate = function(p, updateHash = true) {
-    console.log(`🔐 [navigate override] Called with page: ${p}`, {
-        hasAuthToken: !!authToken,
-        updateHash: updateHash
-    });
+    // DEBUG: Log only create navigation
+    if (p === 'create') {
+        console.log('🎯 [CREATE] navigate override called', { hasAuth: !!authToken, hasPerm: hasPermission('agents:create') });
+    }
     
     // Check auth for protected pages
     if (!authToken && p !== 'login') {
-        console.warn('⚠️ [navigate override] No authToken, showing login page');
         showLoginPage();
         return;
     }
@@ -30259,24 +30079,16 @@ navigate = function(p, updateHash = true) {
     // Check permissions for protected pages
     const requiredPerm = MENU_PERMISSIONS[p];
     if (requiredPerm && !hasPermission(requiredPerm)) {
-        console.error(`❌ [navigate override] Permission denied for ${p}. Required: ${requiredPerm}`, {
-            userPermissions: currentUser?.permissions || [],
-            hasPermission: hasPermission(requiredPerm)
-        });
+        if (p === 'create') console.log('🎯 [CREATE] Permission denied!');
         showToast(`You don't have permission to access ${p}`, 'error');
         return;
     }
     
-    console.log(`✅ [navigate override] Calling originalNavigate for: ${p}`);
     // Call original navigate
     originalNavigate(p, updateHash);
     
     // Initialize security page
-    if (p === 'security') {
-        initSecurityPage();
-    }
-    
-    console.log(`✅ [navigate override] Complete for: ${p}`);
+    if (p === 'security') initSecurityPage();
 };
 
 // Handle reset password page
