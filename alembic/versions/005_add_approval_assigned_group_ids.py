@@ -1,6 +1,6 @@
 """Add assigned_group_ids to process_approval_requests
 
-Revision ID: 005_add_approval_assigned_group_ids
+Revision ID: 005_approval_assigned_group_ids (max 32 chars for alembic_version.version_num)
 Revises: 004_add_process_settings_tables
 Create Date: 2026-01-30
 
@@ -10,8 +10,8 @@ Supports approval step config: Approvers from Platform Group.
 from alembic import op
 import sqlalchemy as sa
 
-# revision identifiers, used by Alembic.
-revision = '005_add_approval_assigned_group_ids'
+# revision identifiers, used by Alembic. Must be <= 32 chars (alembic_version.version_num).
+revision = '005_approval_assigned_group_ids'
 down_revision = '004_add_process_settings_tables'
 branch_labels = None
 depends_on = None
