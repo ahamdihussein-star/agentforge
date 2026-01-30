@@ -212,13 +212,14 @@ class ProcessEngine:
                     )
                 
                 if result.is_waiting:
-                    # Process needs to pause
+                    # Process needs to pause (e.g. approval); pass metadata so API can create DB record
                     return ProcessResult.waiting(
                         waiting_for=result.waiting_for,
                         resume_node_id=current_node.id,
                         nodes_executed=self.state.get_completed_nodes(),
                         final_variables=self.state.get_all(),
-                        execution_id=self.execution_id
+                        execution_id=self.execution_id,
+                        waiting_metadata=result.waiting_metadata
                     )
                 
                 # Update state with result
@@ -568,7 +569,8 @@ class ProcessEngine:
                     resume_node_id=current_node.id,
                     nodes_executed=self.state.get_completed_nodes(),
                     final_variables=self.state.get_all(),
-                    execution_id=self.execution_id
+                    execution_id=self.execution_id,
+                    waiting_metadata=result.waiting_metadata
                 )
             
             self.state.mark_completed(current_node.id, result.output)

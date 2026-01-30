@@ -413,6 +413,7 @@ class ProcessResult(BaseModel):
     can_resume: bool = Field(default=False)
     resume_node_id: Optional[str] = Field(default=None)
     waiting_for: Optional[str] = Field(default=None)
+    waiting_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Metadata for waiting state (e.g. approval request)")
     
     # Execution ID for reference
     execution_id: Optional[str] = Field(default=None)
@@ -497,7 +498,8 @@ class ProcessResult(BaseModel):
         resume_node_id: str,
         nodes_executed: List[str] = None,
         final_variables: Dict[str, Any] = None,
-        execution_id: str = None
+        execution_id: str = None,
+        waiting_metadata: Dict[str, Any] = None
     ) -> 'ProcessResult':
         """Create a waiting result"""
         return cls(
@@ -508,5 +510,6 @@ class ProcessResult(BaseModel):
             nodes_executed=nodes_executed or [],
             node_count=len(nodes_executed or []),
             final_variables=final_variables or {},
-            execution_id=execution_id
+            execution_id=execution_id,
+            waiting_metadata=waiting_metadata
         )

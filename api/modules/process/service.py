@@ -349,6 +349,36 @@ class ProcessAPIService:
                     completed_nodes=result.nodes_executed,
                     checkpoint_data=engine.get_checkpoint()
                 )
+                # Create ProcessApprovalRequest in DB so it appears in Pending Approvals list
+                meta = getattr(result, 'waiting_metadata', None)
+                if result.waiting_for == 'approval' and meta and deps.approval_service:
+                    try:
+                        deadline_iso = meta.get('deadline')
+                        timeout_hours = 24
+                        if deadline_iso:
+                            try:
+                                from datetime import datetime as dt
+                                end = dt.fromisoformat(deadline_iso.replace('Z', '+00:00'))
+                                timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
+                            except Exception:
+                                pass
+                        await deps.approval_service.create_approval_request(
+                            execution_id=str(execution.id),
+                            org_id=meta.get('org_id') or str(execution.org_id),
+                            node_id=meta.get('node_id', result.resume_node_id or ''),
+                            node_name=meta.get('node_name', 'Approval'),
+                            title=meta.get('title', 'Approval Required'),
+                            description=meta.get('description'),
+                            review_data=meta.get('review_data') or {},
+                            assignee_type=meta.get('assignee_type', 'user'),
+                            assignee_ids=meta.get('assignee_ids') or [],
+                            min_approvals=meta.get('min_approvals', 1),
+                            priority=meta.get('priority', 'normal'),
+                            timeout_hours=int(timeout_hours),
+                            escalation_config=meta.get('escalation'),
+                        )
+                    except Exception as e:
+                        logger.warning("Failed to create approval request in DB: %s", e)
             else:
                 execution = self.exec_service.update_execution_status(
                     str(execution.id),
@@ -492,6 +522,35 @@ class ProcessAPIService:
                     completed_nodes=result.nodes_executed,
                     checkpoint_data=engine.get_checkpoint()
                 )
+                meta = getattr(result, 'waiting_metadata', None)
+                if result.waiting_for == 'approval' and meta and deps.approval_service:
+                    try:
+                        deadline_iso = meta.get('deadline')
+                        timeout_hours = 24
+                        if deadline_iso:
+                            try:
+                                from datetime import datetime as dt
+                                end = dt.fromisoformat(deadline_iso.replace('Z', '+00:00'))
+                                timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
+                            except Exception:
+                                pass
+                        await deps.approval_service.create_approval_request(
+                            execution_id=str(execution.id),
+                            org_id=meta.get('org_id') or str(execution.org_id),
+                            node_id=meta.get('node_id', result.resume_node_id or ''),
+                            node_name=meta.get('node_name', 'Approval'),
+                            title=meta.get('title', 'Approval Required'),
+                            description=meta.get('description'),
+                            review_data=meta.get('review_data') or {},
+                            assignee_type=meta.get('assignee_type', 'user'),
+                            assignee_ids=meta.get('assignee_ids') or [],
+                            min_approvals=meta.get('min_approvals', 1),
+                            priority=meta.get('priority', 'normal'),
+                            timeout_hours=int(timeout_hours),
+                            escalation_config=meta.get('escalation'),
+                        )
+                    except Exception as e:
+                        logger.warning("Failed to create approval request in DB (resume): %s", e)
             else:
                 execution = self.exec_service.update_execution_status(
                     str(execution.id),
