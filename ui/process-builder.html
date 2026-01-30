@@ -1410,6 +1410,25 @@
             panel.classList.add('active');
         }
         
+        // Helper function to get all available fields from trigger/form nodes
+        function getAvailableFields() {
+            const fields = [];
+            state.nodes.forEach(n => {
+                if ((n.type === 'trigger' || n.type === 'form') && n.config.fields) {
+                    n.config.fields.forEach(f => {
+                        if (f.name) {
+                            fields.push({
+                                name: f.name,
+                                type: f.type,
+                                source: n.name
+                            });
+                        }
+                    });
+                }
+            });
+            return fields;
+        }
+        
         function generatePropertiesForm(node) {
             let html = `
                 <div class="property-group">
@@ -1419,14 +1438,39 @@
                 </div>
             `;
             
+            // Get available fields for dropdowns
+            const availableFields = getAvailableFields();
+            
             switch (node.type) {
                 case 'condition':
                     html += `
                         <div class="property-group">
                             <label class="property-label">Field to Check</label>
-                            <input type="text" class="property-input" placeholder="e.g., amount, status" 
-                                   value="${node.config.field || ''}"
-                                   onchange="updateNodeConfig('${node.id}', 'field', this.value)">
+                            ${availableFields.length > 0 ? `
+                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'field', this.value)">
+                                    <option value="">-- Select Field --</option>
+                                    ${availableFields.map(f => `
+                                        <option value="${f.name}" ${node.config.field === f.name ? 'selected' : ''}>
+                                            ${f.name} (${f.type}) - from ${f.source}
+                                        </option>
+                                    `).join('')}
+                                    <option value="_custom" ${node.config.field && !availableFields.find(f => f.name === node.config.field) ? 'selected' : ''}>
+                                        ✏️ Custom field...
+                                    </option>
+                                </select>
+                                ${(node.config.field && !availableFields.find(f => f.name === node.config.field)) || node.config.field === '_custom' ? `
+                                    <input type="text" class="property-input" style="margin-top:8px;" placeholder="Enter custom field name" 
+                                           value="${node.config.field === '_custom' ? '' : (node.config.field || '')}"
+                                           onchange="updateNodeConfig('${node.id}', 'field', this.value)">
+                                ` : ''}
+                            ` : `
+                                <input type="text" class="property-input" placeholder="e.g., amount, status" 
+                                       value="${node.config.field || ''}"
+                                       onchange="updateNodeConfig('${node.id}', 'field', this.value)">
+                                <div style="font-size:11px;color:#f59e0b;margin-top:4px;">
+                                    💡 Tip: Add fields to your Start/Form node first
+                                </div>
+                            `}
                         </div>
                         <div class="property-group">
                             <label class="property-label">Operator</label>
@@ -1493,6 +1537,28 @@
                             <label class="property-label">Approval Message</label>
                             <textarea class="property-textarea" placeholder="Message to show approvers..."
                                       onchange="updateNodeConfig('${node.id}', 'message', this.value)">${node.config.message || ''}</textarea>
+                            ${availableFields.length > 0 ? `
+                                <div style="margin-top:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
+                                    <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">📋 Available Fields (click to insert):</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                        ${availableFields.map(f => `
+                                            <button onclick="insertFieldRef('${node.id}', 'message', '{{${f.name}}}')" 
+                                                    style="padding:4px 8px;background:#374151;border:none;border-radius:4px;color:#a5b4fc;font-size:11px;cursor:pointer;">
+                                                {{${f.name}}}
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Approvers</label>
+                            <input type="text" class="property-input" placeholder="email1@example.com, email2@example.com"
+                                   value="${(node.config.approvers || []).join(', ')}"
+                                   onchange="updateNodeConfig('${node.id}', 'approvers', this.value.split(',').map(s => s.trim()).filter(s => s))">
+                            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+                                Comma-separated list of approver emails
+                            </div>
                         </div>
                         <div class="property-group">
                             <label class="property-label">Timeout (hours)</label>
@@ -1514,9 +1580,40 @@
                             </select>
                         </div>
                         <div class="property-group">
+                            <label class="property-label">Recipient</label>
+                            ${availableFields.filter(f => f.type === 'email' || f.type === 'text').length > 0 ? `
+                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
+                                    <option value="">-- Select Field --</option>
+                                    ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
+                                        <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
+                                            ${f.name} (${f.type})
+                                        </option>
+                                    `).join('')}
+                                    <option value="_custom">✏️ Custom...</option>
+                                </select>
+                            ` : ''}
+                            <input type="text" class="property-input" ${availableFields.length > 0 ? 'style="margin-top:8px;"' : ''} 
+                                   placeholder="email@example.com or {{field_name}}" 
+                                   value="${node.config.recipient || ''}"
+                                   onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
+                        </div>
+                        <div class="property-group">
                             <label class="property-label">Message Template</label>
                             <textarea class="property-textarea" placeholder="Enter message template..."
                                       onchange="updateNodeConfig('${node.id}', 'template', this.value)">${node.config.template || ''}</textarea>
+                            ${availableFields.length > 0 ? `
+                                <div style="margin-top:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
+                                    <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">📋 Available Fields (click to insert):</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                        ${availableFields.map(f => `
+                                            <button onclick="insertFieldRef('${node.id}', 'template', '{{${f.name}}}')" 
+                                                    style="padding:4px 8px;background:#374151;border:none;border-radius:4px;color:#a5b4fc;font-size:11px;cursor:pointer;">
+                                                {{${f.name}}}
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
                         </div>
                     `;
                     break;
@@ -1528,6 +1625,19 @@
                             <textarea class="property-textarea" style="min-height:120px;" 
                                       placeholder="Describe what the AI should do..."
                                       onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${node.config.prompt || ''}</textarea>
+                            ${availableFields.length > 0 ? `
+                                <div style="margin-top:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
+                                    <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">📋 Available Fields (click to insert):</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                        ${availableFields.map(f => `
+                                            <button onclick="insertFieldRef('${node.id}', 'prompt', '{{${f.name}}}')" 
+                                                    style="padding:4px 8px;background:#374151;border:none;border-radius:4px;color:#a5b4fc;font-size:11px;cursor:pointer;">
+                                                {{${f.name}}}
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
                         </div>
                         <div class="property-group">
                             <label class="property-label">AI Model</label>
@@ -1657,11 +1767,30 @@
                     html += `
                         <div class="property-group">
                             <label class="property-label">Collection to Iterate</label>
-                            <input type="text" class="property-input" placeholder="e.g., items, users, data.results" 
-                                   value="${node.config.collection || ''}"
-                                   onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
+                            ${availableFields.length > 0 ? `
+                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
+                                    <option value="">-- Select Field --</option>
+                                    ${availableFields.map(f => `
+                                        <option value="${f.name}" ${node.config.collection === f.name ? 'selected' : ''}>
+                                            ${f.name} (${f.type}) - from ${f.source}
+                                        </option>
+                                    `).join('')}
+                                    <option value="_custom" ${node.config.collection && !availableFields.find(f => f.name === node.config.collection) ? 'selected' : ''}>
+                                        ✏️ Custom...
+                                    </option>
+                                </select>
+                                ${(node.config.collection && !availableFields.find(f => f.name === node.config.collection)) ? `
+                                    <input type="text" class="property-input" style="margin-top:8px;" placeholder="e.g., items, data.results" 
+                                           value="${node.config.collection || ''}"
+                                           onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
+                                ` : ''}
+                            ` : `
+                                <input type="text" class="property-input" placeholder="e.g., items, users, data.results" 
+                                       value="${node.config.collection || ''}"
+                                       onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
+                            `}
                             <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-                                Enter the variable name containing the array/list
+                                The array/list to iterate over
                             </div>
                         </div>
                         <div class="property-group">
@@ -1807,6 +1936,18 @@
             const node = state.nodes.find(n => n.id === nodeId);
             if (node && node.config.fields) {
                 node.config.fields.splice(fieldIndex, 1);
+                refreshNode(node);
+                showProperties(node);
+                saveToUndo();
+            }
+        }
+        
+        // Helper to insert field references into textareas
+        function insertFieldRef(nodeId, configKey, fieldRef) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) {
+                const currentValue = node.config[configKey] || '';
+                node.config[configKey] = currentValue + (currentValue ? ' ' : '') + fieldRef;
                 refreshNode(node);
                 showProperties(node);
                 saveToUndo();
