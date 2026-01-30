@@ -276,11 +276,29 @@ class ProcessState:
         def replace_var(match):
             var_path = match.group(1).strip()
             value = self._resolve_path(var_path)
-            
+            # If value is a string that looks like a variable reference (e.g. "{{name}}"), resolve it
+            # so that expressions like "{{name}} > 1000" work when "name" is in trigger_input
+            if isinstance(value, str) and re.match(r'^\s*\{\{[^}]+\}\}\s*$', value):
+                inner_match = re.match(r'^\s*\{\{([^}]+)\}\}\s*$', value)
+                if inner_match:
+                    inner_path = inner_match.group(1).strip()
+                    inner_value = self._resolve_path(inner_path)
+                    if inner_value is not None and not (
+                        isinstance(inner_value, str) and re.match(r'^\s*\{\{[^}]+\}\}\s*$', inner_value)
+                    ):
+                        value = inner_value
             if value is None:
                 return 'null'
             if isinstance(value, str):
-                return value
+                # Try numeric so "500" > 1000 works; otherwise quote for eval
+                try:
+                    if '.' in value:
+                        float(value)
+                        return value
+                    n = int(value)
+                    return str(n)
+                except (ValueError, TypeError):
+                    return repr(value)
             if isinstance(value, bool):
                 return 'true' if value else 'false'
             return json.dumps(value)
