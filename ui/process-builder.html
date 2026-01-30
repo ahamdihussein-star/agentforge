@@ -1993,8 +1993,12 @@
         }
         
         // ===== TOOLS =====
+        function getAuthToken() {
+            return localStorage.getItem('agentforge_token') || sessionStorage.getItem('agentforge_token');
+        }
+        
         function loadTools() {
-            const token = localStorage.getItem('agentforge_token');
+            const token = getAuthToken();
             fetch('/api/tools', {
                 headers: { 'Authorization': 'Bearer ' + token }
             })
@@ -2116,7 +2120,7 @@
         
         async function loadWorkflow(agentId) {
             try {
-                const token = localStorage.getItem('agentforge_token');
+                const token = getAuthToken();
                 const response = await fetch('/api/agents/' + agentId, {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
@@ -2149,9 +2153,9 @@
                 edges: state.connections
             };
             
-            const token = localStorage.getItem('agentforge_token');
+            const token = getAuthToken();
             if (!token) {
-                alert('❌ Please sign in first. Save and Publish require authentication.');
+                alert('❌ Please sign in first. Save and Publish require authentication.\n\nIf you opened the Workflow Builder in a new tab, try opening it from the main app (Create → Workflow → Visual Builder) after signing in.');
                 return;
             }
             
@@ -2219,7 +2223,7 @@
                 await saveWorkflow();
             }
             
-            const token = localStorage.getItem('agentforge_token');
+            const token = getAuthToken();
             if (!token) {
                 alert('❌ Please sign in first.');
                 return;

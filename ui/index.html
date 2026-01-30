@@ -10532,13 +10532,16 @@ Option 3"></textarea>
         
         // Open Visual Workflow Builder
         function openVisualBuilder() {
-            console.log('🎯 [CREATE] openVisualBuilder() called - opening process-builder.html');
+            // So the new tab can read the token: copy sessionStorage → localStorage if needed
+            const sessionToken = sessionStorage.getItem('agentforge_token');
+            if (sessionToken && !localStorage.getItem('agentforge_token')) {
+                localStorage.setItem('agentforge_token', sessionToken);
+                const u = sessionStorage.getItem('agentforge_user');
+                if (u) localStorage.setItem('agentforge_user', u);
+            }
             const newWindow = window.open('/ui/process-builder.html', '_blank');
             if (!newWindow) {
-                console.error('🎯 [CREATE] window.open BLOCKED! Popup blocker may be active.');
                 showToast('Please allow popups to open the Visual Builder', 'warning');
-            } else {
-                console.log('🎯 [CREATE] window.open SUCCESS');
             }
         }
         
