@@ -290,13 +290,11 @@ class ProcessState:
             if value is None:
                 return 'null'
             if isinstance(value, str):
-                # Try numeric so "500" > 1000 works; otherwise quote for eval
+                # Try numeric so "500" / "500.5" > 1000 works (no str vs float in eval)
+                s = value.strip()
                 try:
-                    if '.' in value:
-                        float(value)
-                        return value
-                    n = int(value)
-                    return str(n)
+                    n = float(s)
+                    return str(n) if n != int(n) else str(int(n))
                 except (ValueError, TypeError):
                     return repr(value)
             if isinstance(value, bool):

@@ -860,6 +860,15 @@ class ProcessAPIService:
                     type_cfg['recipients'] = [type_cfg['recipient']]
                 if not type_cfg.get('message') and type_cfg.get('template'):
                     type_cfg['message'] = type_cfg.get('template', '')
+            # Approval / human_task: Process Builder may use 'assignee' or 'assignee_id' (single); engine expects 'assignee_ids' (list)
+            if node_type in ('approval', 'human_task', 'human'):
+                aids = type_cfg.get('assignee_ids')
+                if not aids or (isinstance(aids, list) and len(aids) == 0):
+                    single = type_cfg.get('assignee') or type_cfg.get('assignee_id')
+                    if single is not None and str(single).strip():
+                        type_cfg['assignee_ids'] = [single] if isinstance(single, str) else list(single) if hasattr(single, '__iter__') and not isinstance(single, (str, bytes)) else [str(single)]
+                elif not isinstance(aids, list):
+                    type_cfg['assignee_ids'] = [aids] if aids is not None else []
             config['type_config'] = type_cfg
             node['config'] = config
             normalized_nodes.append(node)
