@@ -8562,7 +8562,188 @@ Option 3"></textarea>
             for(let i=1; i<=8; i++) {
                 document.getElementById('wizard-step-'+i)?.classList.add('hidden');
             }
-            document.getElementById('w-initial-goal').value = '';
+            
+            // Check if step-0 content was replaced (e.g., by showProcessEditor)
+            // If so, restore the original content
+            const goalInput = document.getElementById('w-initial-goal');
+            if (!goalInput) {
+                // Content was replaced, need to restore wizard-step-0
+                restoreWizardStep0();
+            } else {
+                goalInput.value = '';
+            }
+            
+            // Reset agent type selection to default
+            selectedAgentType = 'conversational';
+            const convCard = document.getElementById('type-card-conversational');
+            const procCard = document.getElementById('type-card-process');
+            const convSection = document.getElementById('section-conversational');
+            const procSection = document.getElementById('section-process');
+            
+            if (convCard && procCard && convSection && procSection) {
+                convCard.classList.add('border-purple-500');
+                convCard.classList.remove('border-transparent');
+                procCard.classList.remove('border-green-500');
+                procCard.classList.add('border-transparent');
+                convSection.classList.remove('hidden');
+                procSection.classList.add('hidden');
+                convCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
+                convCard.querySelector('.text-sm:last-child').className = 'text-sm text-purple-400 font-medium';
+                procCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
+                procCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
+            }
+        }
+        
+        // Restore wizard step 0 original content if it was replaced
+        function restoreWizardStep0() {
+            const step0 = document.getElementById('wizard-step-0');
+            if (!step0) return;
+            
+            step0.innerHTML = `
+                <div class="text-center mb-8">
+                    <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-4">
+                        <img src="/AgentForge_Logo.png" alt="" class="w-12 h-12">
+                    </div>
+                    <h2 class="text-2xl md:text-3xl font-bold mb-2">What would you like to create?</h2>
+                    <p class="text-gray-400">Choose the type of AI solution for your needs</p>
+                </div>
+                
+                <!-- Agent Type Selection Cards -->
+                <div class="grid md:grid-cols-2 gap-4 mb-6">
+                    <!-- Conversational AI Card -->
+                    <div id="type-card-conversational" onclick="selectAgentType('conversational')" 
+                         class="card rounded-xl p-5 cursor-pointer border-2 border-purple-500 hover:border-purple-400 transition-all">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">💬</div>
+                            <div>
+                                <h3 class="font-bold">Conversational AI</h3>
+                                <p class="text-xs text-gray-400">Chat & assist users</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-300 mb-3">An AI assistant that chats with users and helps with tasks through conversation.</p>
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Chat</span>
+                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Q&A</span>
+                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Support</span>
+                        </div>
+                        <div class="text-sm text-purple-400 font-medium">✓ Selected</div>
+                    </div>
+                    
+                    <!-- Workflow Automation Card -->
+                    <div id="type-card-process" onclick="selectAgentType('process')" 
+                         class="card rounded-xl p-5 cursor-pointer border-2 border-transparent hover:border-green-500 transition-all">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
+                            <div>
+                                <h3 class="font-bold">Workflow Automation</h3>
+                                <p class="text-xs text-gray-400">Automate processes</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-300 mb-3">Automated workflows with approvals, integrations, and step-by-step processes.</p>
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Approvals</span>
+                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Integrations</span>
+                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Automation</span>
+                        </div>
+                        <div class="text-sm text-gray-500">Click to select</div>
+                    </div>
+                </div>
+                
+                <!-- Conversational AI Section -->
+                <div id="section-conversational" class="card rounded-xl p-6 md:p-8">
+                    <label class="text-sm text-gray-400 mb-2 block">What should your assistant do? *</label>
+                    <textarea id="w-initial-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4 text-lg" placeholder="Example: Help customers track their orders, answer product questions, and process returns..."></textarea>
+                    
+                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                        <button onclick="generateAgentConfig()" id="btn-generate-config" class="btn-primary px-8 py-3 rounded-lg flex-1 flex items-center justify-center gap-2 text-lg">
+                            <span>✨</span> Create My Assistant
+                        </button>
+                    </div>
+                    
+                    <div class="mt-6 pt-6 border-t border-gray-700">
+                        <p class="text-sm text-gray-500 mb-3">Or start with a template:</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="useAgentTemplate('customer_support')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🎧 Customer Support</button>
+                            <button onclick="useAgentTemplate('sales')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">💼 Sales Assistant</button>
+                            <button onclick="useAgentTemplate('hr')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">👥 HR Helper</button>
+                            <button onclick="useAgentTemplate('research')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔬 Research Analyst</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Workflow Automation Section (Hidden by default) -->
+                <div id="section-process" class="hidden card rounded-xl p-6 md:p-8" style="background: linear-gradient(135deg, rgba(34,197,94,0.05), rgba(20,184,166,0.05)); border: 1px solid rgba(34,197,94,0.2);">
+                    <div class="text-center mb-6">
+                        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-3xl mb-4">🔄</div>
+                        <h3 class="text-xl font-bold mb-2">Visual Workflow Builder</h3>
+                        <p class="text-gray-400">Design powerful automations with drag & drop</p>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-2 gap-4 mb-6">
+                        <!-- Option 1: Visual Builder -->
+                        <div onclick="openVisualBuilder()" class="p-5 rounded-xl bg-gradient-to-br from-green-500/10 to-teal-500/10 border border-green-500/30 cursor-pointer hover:border-green-400 transition-all group">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-xl">🎨</div>
+                                <div class="font-semibold">Visual Builder</div>
+                                <span class="ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">Recommended</span>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-3">Drag & drop nodes, connect steps visually, configure with forms - no coding required.</p>
+                            <div class="flex items-center gap-2 text-green-400 text-sm group-hover:translate-x-1 transition-transform">
+                                <span>Open Builder</span>
+                                <span>→</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Option 2: AI Generate -->
+                        <div onclick="showAIWorkflowInput()" class="p-5 rounded-xl bg-gray-800/50 border border-gray-700 cursor-pointer hover:border-purple-500 transition-all group">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-xl">🤖</div>
+                                <div class="font-semibold">AI Generate</div>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-3">Describe what you need in plain English, AI creates the workflow for you.</p>
+                            <div class="flex items-center gap-2 text-purple-400 text-sm group-hover:translate-x-1 transition-transform">
+                                <span>Generate with AI</span>
+                                <span>→</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Input (Hidden by default) -->
+                    <div id="ai-workflow-input" class="hidden">
+                        <label class="text-sm text-gray-400 mb-2 block">Describe your workflow *</label>
+                        <textarea id="w-process-goal" rows="3" class="input-field w-full rounded-lg px-4 py-3" placeholder="When an expense over $500 is submitted, send to manager for approval..."></textarea>
+                        <div class="mt-4 flex gap-3">
+                            <button onclick="generateProcessConfig()" class="flex-1 px-6 py-3 rounded-lg text-white font-medium flex items-center justify-center gap-2" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">
+                                <span>✨</span> Generate Workflow
+                            </button>
+                            <button onclick="hideAIWorkflowInput()" class="px-4 py-3 rounded-lg bg-gray-700 text-gray-300">Cancel</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Templates -->
+                    <div id="workflow-templates" class="mt-4 pt-4 border-t border-gray-700/50">
+                        <p class="text-sm text-gray-500 mb-3">Quick start templates:</p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <button onclick="openBuilderWithTemplate('approval')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                <span class="text-lg">✅</span>
+                                <div class="text-sm font-medium mt-1">Approval</div>
+                            </button>
+                            <button onclick="openBuilderWithTemplate('onboarding')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                <span class="text-lg">👋</span>
+                                <div class="text-sm font-medium mt-1">Onboarding</div>
+                            </button>
+                            <button onclick="openBuilderWithTemplate('notification')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                <span class="text-lg">🔔</span>
+                                <div class="text-sm font-medium mt-1">Notifications</div>
+                            </button>
+                            <button onclick="openBuilderWithTemplate('integration')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                <span class="text-lg">🔗</span>
+                                <div class="text-sm font-medium mt-1">Integration</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
         
         async function updateStepsNew() {
@@ -9447,56 +9628,78 @@ Option 3"></textarea>
             }
         }
         
-        // Show Process Editor (simplified in-page version)
+        // Show Process Editor (using modal instead of replacing content)
         function showProcessEditor(workflow) {
-            // Create a modal or navigate to process builder
-            // For now, we'll show a success message and allow saving
+            // Hide the generating state and show step 0
+            document.getElementById('wizard-generating')?.classList.add('hidden');
+            document.getElementById('wizard-step-0')?.classList.remove('hidden');
             
-            const content = `
-                <div class="max-w-4xl mx-auto">
-                    <div class="text-center mb-8">
-                        <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center mb-4 text-4xl">
-                            ✅
+            // Create or get the process editor modal
+            let modal = document.getElementById('process-editor-preview-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'process-editor-preview-modal';
+                modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center p-4';
+                document.body.appendChild(modal);
+            }
+            
+            const nodesHtml = (workflow.nodes || []).map((node, i) => `
+                <div class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg">
+                    <div class="w-8 h-8 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">${i+1}</div>
+                    <div>
+                        <div class="font-medium">${node.name || node.type}</div>
+                        <div class="text-xs text-gray-400">${node.type}</div>
+                    </div>
+                </div>
+            `).join('');
+            
+            modal.innerHTML = `
+                <div class="absolute inset-0 bg-black/70" onclick="closeProcessEditorPreview()"></div>
+                <div class="relative bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                    <button onclick="closeProcessEditorPreview()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+                    
+                    <div class="p-8">
+                        <div class="text-center mb-8">
+                            <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center mb-4 text-4xl">
+                                ✅
+                            </div>
+                            <h2 class="text-2xl font-bold mb-2">Your Workflow is Ready!</h2>
+                            <p class="text-gray-400">${workflow.name || 'Workflow'} has been created with ${workflow.nodes?.length || 0} steps</p>
                         </div>
-                        <h2 class="text-2xl font-bold mb-2">Your Workflow is Ready!</h2>
-                        <p class="text-gray-400">${workflow.name || 'Workflow'} has been created with ${workflow.nodes?.length || 0} steps</p>
-                    </div>
-                    
-                    <div class="card rounded-xl p-6 mb-6">
-                        <h3 class="font-semibold mb-4">Workflow Steps:</h3>
-                        <div class="space-y-3">
-                            ${(workflow.nodes || []).map((node, i) => `
-                                <div class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg">
-                                    <div class="w-8 h-8 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">${i+1}</div>
-                                    <div>
-                                        <div class="font-medium">${node.name || node.type}</div>
-                                        <div class="text-xs text-gray-400">${node.type}</div>
-                                    </div>
-                                </div>
-                            `).join('')}
+                        
+                        <div class="card rounded-xl p-6 mb-6 bg-gray-800/50">
+                            <h3 class="font-semibold mb-4">Workflow Steps:</h3>
+                            <div class="space-y-3">
+                                ${nodesHtml || '<p class="text-gray-500">No steps defined</p>'}
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="card rounded-xl p-6 mb-6">
-                        <label class="text-sm text-gray-400 mb-2 block">Workflow Name</label>
-                        <input type="text" id="process-name" class="input-field w-full rounded-lg px-4 py-3" value="${workflow.name || 'My Workflow'}">
-                    </div>
-                    
-                    <div class="flex gap-4">
-                        <button onclick="openVisualEditor()" class="flex-1 px-6 py-3 rounded-lg border border-gray-600 hover:bg-gray-700 transition">
-                            ✏️ Edit Visually
-                        </button>
-                        <button onclick="saveProcess()" class="flex-1 px-6 py-3 rounded-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
-                            💾 Save & Activate
-                        </button>
+                        
+                        <div class="card rounded-xl p-6 mb-6 bg-gray-800/50">
+                            <label class="text-sm text-gray-400 mb-2 block">Workflow Name</label>
+                            <input type="text" id="process-name" class="input-field w-full rounded-lg px-4 py-3 bg-gray-700 border border-gray-600" value="${workflow.name || 'My Workflow'}">
+                        </div>
+                        
+                        <div class="flex gap-4">
+                            <button onclick="closeProcessEditorPreview(); openVisualEditor();" class="flex-1 px-6 py-3 rounded-lg border border-gray-600 hover:bg-gray-700 transition">
+                                ✏️ Edit Visually
+                            </button>
+                            <button onclick="saveProcess()" class="flex-1 px-6 py-3 rounded-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
+                                💾 Save & Activate
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
             
-            // Replace step 0 content temporarily
-            const step0 = document.getElementById('wizard-step-0');
-            step0.innerHTML = content;
-            step0.classList.remove('hidden');
+            modal.classList.remove('hidden');
+        }
+        
+        // Close the process editor preview modal
+        function closeProcessEditorPreview() {
+            const modal = document.getElementById('process-editor-preview-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
         }
         
         // Open Visual Editor
@@ -9530,14 +9733,15 @@ Option 3"></textarea>
                 
                 if (response.ok) {
                     const data = await response.json();
-                    alert('✅ Workflow saved successfully!');
+                    closeProcessEditorPreview(); // Close the modal
+                    showToast('Workflow saved successfully!', 'success');
                     navigate('agents'); // Go to agents list
                 } else {
                     const error = await response.json();
-                    alert('Could not save: ' + (error.detail || 'Unknown error'));
+                    showToast('Could not save: ' + (error.detail || 'Unknown error'), 'error');
                 }
             } catch(e) {
-                alert('Could not save workflow. Please try again.');
+                showToast('Could not save workflow. Please try again.', 'error');
             }
         }
         
