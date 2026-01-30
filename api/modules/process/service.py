@@ -322,6 +322,11 @@ class ProcessAPIService:
         # Execute (async)
         try:
             result = await engine.execute(trigger_input)
+            logger.info(
+                "[ProcessApproval] engine result: execution_id=%s status=%s is_success=%s is_waiting=%s waiting_for=%s nodes_executed=%s",
+                str(execution.id), getattr(result, 'status', None), result.is_success, result.is_waiting,
+                getattr(result, 'waiting_for', None), getattr(result, 'nodes_executed', []),
+            )
             
             # Update execution with result
             if result.is_success:
