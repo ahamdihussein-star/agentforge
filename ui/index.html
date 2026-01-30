@@ -9748,17 +9748,34 @@ Option 3"></textarea>
             const formContainer = document.getElementById('process-form-fields');
             const processDef = agent.process_definition;
             
-            // Try to extract trigger inputs from process definition
+            // Extract trigger/form inputs from process definition (dynamic from Process Builder)
             let triggerInputs = [];
             
-            if (processDef && processDef.trigger && processDef.trigger.inputs) {
-                triggerInputs = processDef.trigger.inputs;
-            } else if (processDef && processDef.nodes) {
-                // Try to find trigger node
-                const triggerNode = processDef.nodes.find(n => n.type === 'trigger' || n.id === 'trigger');
-                if (triggerNode && triggerNode.config && triggerNode.config.inputs) {
-                    triggerInputs = triggerNode.config.inputs;
+            if (processDef && processDef.nodes) {
+                // Process Builder: trigger or form node with config.fields (or config.type_config.fields)
+                const triggerNode = processDef.nodes.find(n => 
+                    (n.type === 'trigger' || n.type === 'form' || n.type === 'start')
+                );
+                if (triggerNode) {
+                    const config = triggerNode.config || {};
+                    const typeConfig = config.type_config || config;
+                    const fields = typeConfig.fields || config.fields || [];
+                    if (fields.length) {
+                        triggerInputs = fields.filter(f => f && f.name).map(f => ({
+                            id: f.name,
+                            label: (f.label || f.name).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                            type: f.type || 'text',
+                            required: !!f.required,
+                            placeholder: f.placeholder || `Enter ${(f.name || '').replace(/_/g, ' ')}...`,
+                            options: f.options
+                        }));
+                    }
                 }
+            }
+            
+            // Legacy: processDef.trigger.inputs
+            if (!triggerInputs.length && processDef && processDef.trigger && processDef.trigger.inputs) {
+                triggerInputs = processDef.trigger.inputs;
             }
             
             // If no inputs defined, create generic form based on goal
@@ -9808,6 +9825,9 @@ Option 3"></textarea>
                         break;
                     case 'date':
                         fieldHtml = `<input type="date" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''}>`;
+                        break;
+                    case 'email':
+                        fieldHtml = `<input type="email" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}>`;
                         break;
                     default:
                         fieldHtml = `<input type="text" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}>`;
