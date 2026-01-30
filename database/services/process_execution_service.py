@@ -513,21 +513,23 @@ class ProcessExecutionService:
         self,
         user_id: str,
         org_id: str,
-        user_role_ids: List[str] = None
+        user_role_ids: List[str] = None,
+        include_all_for_org_admin: bool = False
     ) -> List[ProcessApprovalRequest]:
         """
         Get pending approvals assigned to a user
         
         Filters approvals where:
         - User ID is in assigned_user_ids, OR
-        - Any of user's role IDs is in assigned_role_ids
+        - Any of user's role IDs is in assigned_role_ids, OR
+        - assignee_type is 'any' / no assignees
         
-        Since we use JSON columns (TEXT) for compatibility, we perform
-        the filtering in Python after fetching pending approvals.
+        If include_all_for_org_admin is True (platform admin/superadmin), return all
+        pending approvals for the org so they can test processes run from the platform.
         """
         logger.info(
-            "[ApprovalDB] RETRIEVE pending: user_id=%s org_id=%s user_role_ids_count=%s",
-            user_id, org_id, len(user_role_ids or []),
+            "[ApprovalDB] RETRIEVE pending: user_id=%s org_id=%s user_role_ids_count=%s include_all_for_admin=%s",
+            user_id, org_id, len(user_role_ids or []), include_all_for_org_admin,
         )
         resolved_org_id = self._resolve_org_id(org_id) if org_id else self._resolve_org_id("org_default")
         self.ensure_approvals_for_waiting_executions(resolved_org_id)
@@ -547,6 +549,10 @@ class ProcessExecutionService:
             "[ApprovalDB] RETRIEVE from DB: org_id=%s status=pending -> count=%s (approval_ids=%s)",
             org_id, len(pending), [str(a.id) for a in pending],
         )
+        
+        if include_all_for_org_admin:
+            logger.info("[ApprovalDB] include_all_for_org_admin=True -> returning all %s pending for org", len(pending))
+            return pending
         
         # Filter by user assignment (normalize IDs to strings for comparison)
         result = []

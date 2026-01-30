@@ -74,12 +74,87 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         # Get configuration (Process Builder uses 'approvers'; engine uses 'assignee_ids')
         title = self.get_config_value(node, 'title', f'Approval Required: {node.name}')
         description = self.get_config_value(node, 'description', '')
+        assignee_source = self.get_config_value(node, 'assignee_source') or 'platform_user'
         assignee_type = self.get_config_value(node, 'assignee_type', 'user')
-        assignee_ids = self.get_config_value(node, 'assignee_ids', [])
-        if not assignee_ids:
-            assignee_ids = _to_assignee_id_list(self.get_config_value(node, 'approvers', []))
+        assignee_ids_raw = self.get_config_value(node, 'assignee_ids', [])
+        if not assignee_ids_raw:
+            assignee_ids_raw = self.get_config_value(node, 'approvers', [])
+        # Resolve assignees: from tool (run tool to get approver IDs) or from platform (user/role/group) with optional interpolation
+        if assignee_source == 'tool':
+            tool_id = self.get_config_value(node, 'assignee_tool_id') or ''
+            if not tool_id:
+                logs_early = [f"Creating approval request: {title}"]
+                return NodeResult.failure(
+                    error=ExecutionError.validation_error("Approvers from Tool requires a selected tool (assignee_tool_id)"),
+                    logs=logs_early
+                )
+            if context.denied_tool_ids and tool_id in context.denied_tool_ids:
+                return NodeResult.failure(
+                    error=ExecutionError(
+                        category=ErrorCategory.AUTHORIZATION,
+                        code="TOOL_ACCESS_DENIED",
+                        message="Access denied to the approver tool",
+                        is_retryable=False
+                    ),
+                    logs=[f"Creating approval request: {title}"]
+                )
+            if not context.is_tool_allowed(tool_id):
+                return NodeResult.failure(
+                    error=ExecutionError(
+                        category=ErrorCategory.AUTHORIZATION,
+                        code="TOOL_NOT_AVAILABLE",
+                        message="Approver tool is not available in this execution context",
+                        is_retryable=False
+                    ),
+                    logs=[f"Creating approval request: {title}"]
+                )
+            tool = self.deps.get_tool(tool_id) if self.deps else None
+            if not tool:
+                return NodeResult.failure(
+                    error=ExecutionError.validation_error(f"Approver tool not found: {tool_id}"),
+                    logs=[f"Creating approval request: {title}"]
+                )
+            tool_input = self.get_config_value(node, 'assignee_tool_input') or {}
+            if not isinstance(tool_input, dict):
+                tool_input = {}
+            # Default input: user_id and trigger_input so tool can resolve manager/approvers
+            interpolated_input = state.interpolate_object({
+                "user_id": context.user_id,
+                **state.trigger_input,
+                **tool_input
+            })
+            try:
+                result = await tool.execute(**interpolated_input)
+                if getattr(result, 'success', True) is False:
+                    return NodeResult.failure(
+                        error=ExecutionError.validation_error(getattr(result, 'error', 'Approver tool failed') or 'Approver tool failed'),
+                        logs=[f"Creating approval request: {title}"]
+                    )
+                data = getattr(result, 'data', result)
+                if isinstance(data, dict):
+                    ids = data.get('approver_ids')
+                    if not ids and data.get('manager_id'):
+                        ids = [data['manager_id']]
+                    if not ids and data.get('assignee_id'):
+                        ids = [data['assignee_id']]
+                    ids = ids or []
+                elif isinstance(data, list):
+                    ids = [str(x) for x in data]
+                elif isinstance(data, (str, int)):
+                    ids = [str(data)] if data else []
+                else:
+                    ids = []
+                assignee_ids = [str(x) for x in ids if x]
+                assignee_type = 'user'
+            except Exception as e:
+                return NodeResult.failure(
+                    error=ExecutionError.validation_error(f"Approver tool failed: {e}"),
+                    logs=[f"Creating approval request: {title}", str(e)]
+                )
         else:
-            assignee_ids = _to_assignee_id_list(assignee_ids)  # normalize list of objects to list of IDs
+            # Platform user/role/group or dynamic expression (e.g. {{ trigger_input.manager_id }})
+            assignee_ids_resolved = state.interpolate_object(assignee_ids_raw) if assignee_ids_raw else []
+            assignee_ids = _to_assignee_id_list(assignee_ids_resolved)
         min_approvals = self.get_config_value(node, 'min_approvals', 1)
         timeout_hours = self.get_config_value(node, 'timeout_hours', 24)
         timeout_action = self.get_config_value(node, 'timeout_action', 'fail')

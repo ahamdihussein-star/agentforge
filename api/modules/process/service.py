@@ -741,17 +741,19 @@ class ProcessAPIService:
         self,
         user_id: str,
         org_id: str,
-        user_role_ids: List[str] = None
+        user_role_ids: List[str] = None,
+        include_all_for_org_admin: bool = False
     ) -> List[ApprovalRequestResponse]:
-        """Get pending approvals for user"""
+        """Get pending approvals for user. If include_all_for_org_admin, return all pending in org (for admin/superadmin testing)."""
         logger.info(
-            "[ProcessApproval] list requested: user_id=%s org_id=%s user_role_ids_count=%s",
-            user_id, org_id, len(user_role_ids or []),
+            "[ProcessApproval] list requested: user_id=%s org_id=%s user_role_ids_count=%s include_all_for_admin=%s",
+            user_id, org_id, len(user_role_ids or []), include_all_for_org_admin,
         )
         approvals = self.exec_service.get_pending_approvals_for_user(
             user_id=user_id,
             org_id=org_id,
-            user_role_ids=user_role_ids
+            user_role_ids=user_role_ids,
+            include_all_for_org_admin=include_all_for_org_admin
         )
         out = [self._approval_to_response(a) for a in approvals]
         logger.info("[ProcessApproval] list response: count=%s approval_ids=%s", len(out), [a.id for a in approvals])

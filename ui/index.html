@@ -9725,6 +9725,7 @@ Option 3"></textarea>
         let currentProcessAgent = null;
         let currentExecutionId = null;
         let executionPollInterval = null;
+        let executionPollStopped = false;  // stop loop on 401 so we don't keep hitting the server
         
         // Open Process Execution Modal
         async function openProcessExecution(agentId) {
@@ -10109,12 +10110,15 @@ Option 3"></textarea>
         // Poll for Execution Status
         function startExecutionPolling(executionId) {
             if (!executionId) return;
+            executionPollStopped = false;
             // Clear any existing polling
             if (executionPollInterval) {
                 clearInterval(executionPollInterval);
+                executionPollInterval = null;
             }
             
             executionPollInterval = setInterval(async () => {
+                if (executionPollStopped) return;
                 try {
                     const response = await fetch(API + `/process/executions/${executionId}`, {
                         headers: getAuthHeaders()
@@ -10122,7 +10126,10 @@ Option 3"></textarea>
                     
                     if (!response.ok) {
                         if (response.status === 401) {
+                            executionPollStopped = true;
                             if (executionPollInterval) { clearInterval(executionPollInterval); executionPollInterval = null; }
+                            if (typeof showToast === 'function') showToast('Session expired. Please log in again.', 'error');
+                            if (typeof updateExecutionStatus === 'function') updateExecutionStatus('failed', 'Session expired', 'Please log in again to view status.');
                         }
                         return;
                     }
@@ -10510,6 +10517,57 @@ Option 3"></textarea>
                         </div>
                     </div>
                 </div>
+                <!-- Approval step config modal (approvers from Platform User/Role/Group or Tool) -->
+                <div id="approval-config-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-[70]" onclick="if(event.target===this)closeApprovalConfigModal()">
+                    <div class="card rounded-xl w-full max-w-lg mx-4 p-6" onclick="event.stopPropagation()">
+                        <h3 class="text-lg font-bold mb-4">✅ Approval Step Configuration</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Title</label>
+                                <input type="text" id="approval-config-title" class="input-field w-full rounded-lg px-4 py-2" placeholder="Approval Required">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Description</label>
+                                <input type="text" id="approval-config-description" class="input-field w-full rounded-lg px-4 py-2" placeholder="Optional">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Approvers from</label>
+                                <select id="approval-config-source" onchange="onApprovalConfigSourceChange()" class="input-field w-full rounded-lg px-4 py-2">
+                                    <option value="platform_user">Platform User</option>
+                                    <option value="platform_role">Platform Role</option>
+                                    <option value="platform_group">Platform Group</option>
+                                    <option value="tool">Tool</option>
+                                </select>
+                            </div>
+                            <div id="approval-config-platform-user-wrap" class="hidden">
+                                <label class="block text-sm text-gray-400 mb-1">Select users</label>
+                                <select id="approval-config-user-list" multiple class="input-field w-full rounded-lg px-4 py-2 h-32"></select>
+                            </div>
+                            <div id="approval-config-platform-role-wrap" class="hidden">
+                                <label class="block text-sm text-gray-400 mb-1">Select roles</label>
+                                <select id="approval-config-role-list" multiple class="input-field w-full rounded-lg px-4 py-2 h-32"></select>
+                            </div>
+                            <div id="approval-config-platform-group-wrap" class="hidden">
+                                <label class="block text-sm text-gray-400 mb-1">Select groups</label>
+                                <select id="approval-config-group-list" multiple class="input-field w-full rounded-lg px-4 py-2 h-32"></select>
+                            </div>
+                            <div id="approval-config-tool-wrap" class="hidden">
+                                <label class="block text-sm text-gray-400 mb-1">Select tool (configured only)</label>
+                                <select id="approval-config-tool" class="input-field w-full rounded-lg px-4 py-2">
+                                    <option value="">— None —</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Timeout (hours)</label>
+                                <input type="number" id="approval-config-timeout" class="input-field w-full rounded-lg px-4 py-2" value="24" min="1">
+                            </div>
+                        </div>
+                        <div class="flex gap-3 mt-6">
+                            <button onclick="closeApprovalConfigModal()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
+                            <button onclick="saveApprovalConfig()" class="btn-primary flex-1 py-2 rounded-lg">Save</button>
+                        </div>
+                    </div>
+                </div>
             `;
             
             document.body.insertAdjacentHTML('beforeend', modalHtml);
@@ -10615,7 +10673,7 @@ Option 3"></textarea>
                     newNode.config = { condition: '', true_next: '', false_next: '' };
                     break;
                 case 'approval':
-                    newNode.config = { approvers: [], timeout_hours: 24 };
+                    newNode.config = { assignee_source: 'platform_user', assignee_type: 'user', assignee_ids: [], timeout_hours: 24 };
                     break;
                 case 'notification':
                     newNode.config = { channel: 'email', template: '' };
@@ -10671,13 +10729,17 @@ Option 3"></textarea>
             showToast('Step deleted', 'info');
         }
         
-        // Edit node configuration (opens a sub-modal)
+        // Edit node configuration (approval node opens dedicated modal; others use JSON prompt)
+        let approvalConfigNodeIndex = -1;
         function editNodeConfig(index) {
             if (!editingProcessAgent) return;
             const workflow = editingProcessAgent.process_definition;
             const node = workflow.nodes[index];
-            
-            // Simple prompt-based config for now (can be enhanced with modal)
+            if (node.type === 'approval') {
+                approvalConfigNodeIndex = index;
+                openApprovalConfigModal(node.config || {});
+                return;
+            }
             const configStr = prompt('Edit configuration (JSON):', JSON.stringify(node.config || {}, null, 2));
             if (configStr !== null) {
                 try {
@@ -10688,6 +10750,103 @@ Option 3"></textarea>
                     showToast('Invalid JSON', 'error');
                 }
             }
+        }
+        
+        // Approval config modal: approvers from Platform User / Role / Group / Tool
+        async function openApprovalConfigModal(currentConfig) {
+            const modal = document.getElementById('approval-config-modal');
+            if (!modal) return;
+            let source = currentConfig.assignee_source || '';
+            if (!source && currentConfig.assignee_type) source = 'platform_' + currentConfig.assignee_type;
+            if (!source) source = 'platform_user';
+            const assigneeType = currentConfig.assignee_type || 'user';
+            const assigneeIds = currentConfig.assignee_ids || currentConfig.approvers || [];
+            const assigneeToolId = currentConfig.assignee_tool_id || '';
+            const title = currentConfig.title || 'Approval Required';
+            const description = currentConfig.description || '';
+            const timeoutHours = currentConfig.timeout_hours != null ? currentConfig.timeout_hours : 24;
+            
+            const headers = getAuthHeaders();
+            let users = [], roles = [], groups = [], tools = [];
+            try {
+                const [uRes, rRes, gRes, tRes] = await Promise.all([
+                    fetch(API + '/api/security/users', { headers }),
+                    fetch(API + '/api/security/roles', { headers }),
+                    fetch(API + '/api/security/groups', { headers }),
+                    fetch(API + '/api/tools/accessible', { headers })
+                ]);
+                if (uRes.ok) { const d = await uRes.json(); users = Array.isArray(d) ? d : (d.users || []); }
+                if (rRes.ok) { const d = await rRes.json(); roles = Array.isArray(d) ? d : (d.roles || []); }
+                if (gRes.ok) { const d = await gRes.json(); groups = Array.isArray(d) ? d : (d.groups || []); }
+                if (tRes.ok) { const d = await tRes.json(); tools = d.tools || []; }
+            } catch (e) {
+                console.error('Load approval options:', e);
+            }
+            
+            const userOptions = users.map(u => `<option value="${u.id}" ${assigneeIds.includes(u.id) ? 'selected' : ''}>${(u.name || u.email || u.id).substring(0, 40)}</option>`).join('');
+            const roleOptions = roles.map(r => `<option value="${r.id}" ${assigneeIds.includes(r.id) ? 'selected' : ''}>${(r.name || r.id).substring(0, 40)}</option>`).join('');
+            const groupOptions = groups.map(g => `<option value="${g.id}" ${assigneeIds.includes(g.id) ? 'selected' : ''}>${(g.name || g.id).substring(0, 40)}</option>`).join('');
+            const toolOptions = tools.map(t => `<option value="${t.id}" ${assigneeToolId === t.id ? 'selected' : ''}>${(t.name || t.id).substring(0, 40)}</option>`).join('');
+            
+            document.getElementById('approval-config-title').value = title;
+            document.getElementById('approval-config-description').value = description;
+            document.getElementById('approval-config-timeout').value = timeoutHours;
+            document.getElementById('approval-config-source').value = source;
+            document.getElementById('approval-config-user-list').innerHTML = userOptions;
+            document.getElementById('approval-config-role-list').innerHTML = roleOptions;
+            document.getElementById('approval-config-group-list').innerHTML = groupOptions;
+            document.getElementById('approval-config-tool').innerHTML = '<option value="">— None —</option>' + (toolOptions || '');
+            document.getElementById('approval-config-tool').value = assigneeToolId;
+            
+            document.getElementById('approval-config-platform-user-wrap').classList.toggle('hidden', source !== 'platform_user');
+            document.getElementById('approval-config-platform-role-wrap').classList.toggle('hidden', source !== 'platform_role');
+            document.getElementById('approval-config-platform-group-wrap').classList.toggle('hidden', source !== 'platform_group');
+            document.getElementById('approval-config-tool-wrap').classList.toggle('hidden', source !== 'tool');
+            
+            modal.classList.remove('hidden');
+        }
+        function onApprovalConfigSourceChange() {
+            const v = document.getElementById('approval-config-source').value;
+            document.getElementById('approval-config-platform-user-wrap').classList.toggle('hidden', v !== 'platform_user');
+            document.getElementById('approval-config-platform-role-wrap').classList.toggle('hidden', v !== 'platform_role');
+            document.getElementById('approval-config-platform-group-wrap').classList.toggle('hidden', v !== 'platform_group');
+            document.getElementById('approval-config-tool-wrap').classList.toggle('hidden', v !== 'tool');
+        }
+        function saveApprovalConfig() {
+            if (!editingProcessAgent || approvalConfigNodeIndex < 0) return;
+            const workflow = editingProcessAgent.process_definition;
+            const node = workflow.nodes[approvalConfigNodeIndex];
+            const source = document.getElementById('approval-config-source').value;
+            const userList = document.getElementById('approval-config-user-list');
+            const roleList = document.getElementById('approval-config-role-list');
+            const groupList = document.getElementById('approval-config-group-list');
+            const toolSelect = document.getElementById('approval-config-tool');
+            const assigneeIds = [];
+            if (source === 'platform_user') {
+                for (let i = 0; i < userList.options.length; i++) if (userList.options[i].selected) assigneeIds.push(userList.options[i].value);
+            } else if (source === 'platform_role') {
+                for (let i = 0; i < roleList.options.length; i++) if (roleList.options[i].selected) assigneeIds.push(roleList.options[i].value);
+            } else if (source === 'platform_group') {
+                for (let i = 0; i < groupList.options.length; i++) if (groupList.options[i].selected) assigneeIds.push(groupList.options[i].value);
+            }
+            const assigneeType = source === 'platform_user' ? 'user' : source === 'platform_role' ? 'role' : source === 'platform_group' ? 'group' : 'user';
+            node.config = {
+                assignee_source: source,
+                assignee_type: assigneeType,
+                assignee_ids: assigneeIds,
+                assignee_tool_id: source === 'tool' ? (toolSelect.value || '') : undefined,
+                title: document.getElementById('approval-config-title').value.trim() || 'Approval Required',
+                description: document.getElementById('approval-config-description').value.trim(),
+                timeout_hours: parseInt(document.getElementById('approval-config-timeout').value, 10) || 24
+            };
+            document.getElementById('approval-config-modal').classList.add('hidden');
+            approvalConfigNodeIndex = -1;
+            renderWorkflowNodes(workflow);
+            showToast('Approval configuration updated', 'success');
+        }
+        function closeApprovalConfigModal() {
+            document.getElementById('approval-config-modal').classList.add('hidden');
+            approvalConfigNodeIndex = -1;
         }
         
         // Test the workflow

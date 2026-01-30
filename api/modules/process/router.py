@@ -40,6 +40,7 @@ from .service import ProcessAPIService
 
 # Import security from platform's auth system
 from api.security import require_auth, User
+from core.security import security_state, Permission
 
 # Import business-friendly messages and RFC 9457 problem details
 from core.process.messages import (
@@ -375,12 +376,20 @@ async def list_pending_approvals(
     List your pending approvals
     
     Shows approval requests waiting for your decision.
+    For assignees (user/role/group): only their approvals.
+    For platform admin/superadmin: all pending approvals in the org (for testing processes run from the platform).
     """
     user_dict = _user_to_dict(user)
+    is_platform_admin = (
+        security_state.check_permission(user, Permission.SYSTEM_ADMIN.value) or
+        security_state.check_permission(user, Permission.USERS_VIEW.value) or
+        security_state.check_permission(user, Permission.USERS_EDIT.value)
+    )
     approvals = service.get_pending_approvals(
         user_id=user_dict["id"],
         org_id=user_dict["org_id"],
-        user_role_ids=user_dict.get("role_ids", [])
+        user_role_ids=user_dict.get("role_ids", []),
+        include_all_for_org_admin=is_platform_admin
     )
     return ApprovalListResponse(items=approvals, total=len(approvals))
 
