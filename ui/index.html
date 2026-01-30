@@ -10052,7 +10052,7 @@ Option 3"></textarea>
                     
                     const execution = await response.json();
                     
-                    // Update status
+                    // Update status (show actual error message when failed)
                     const statusTitles = {
                         running: 'Processing...',
                         completed: 'Completed',
@@ -10060,11 +10060,16 @@ Option 3"></textarea>
                         pending_approval: 'Waiting for Approval',
                         paused: 'Paused'
                     };
-                    
+                    let subtitle = execution.current_step || execution.current_node_name || '';
+                    if (execution.status === 'failed' && (execution.error && execution.error.message)) {
+                        subtitle = execution.error.message;
+                    } else if (execution.status === 'failed' && execution.error_message) {
+                        subtitle = execution.error_message;
+                    }
                     updateExecutionStatus(
                         execution.status,
                         statusTitles[execution.status] || execution.status,
-                        execution.current_node_name || ''
+                        subtitle
                     );
                     
                     // Update steps if available
