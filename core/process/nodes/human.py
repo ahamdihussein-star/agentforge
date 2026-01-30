@@ -318,6 +318,9 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         title = state.interpolate_string(title)
         message = state.interpolate_string(message)
         template_data = state.interpolate_object(template_data)
+        # SendGrid (and other providers) require a non-empty subject; default to node name or "Notification"
+        if not (title and str(title).strip()):
+            title = (node.name or 'Notification').strip() or 'Notification'
         
         # Interpolate recipients if they contain variables
         interpolated_recipients = []

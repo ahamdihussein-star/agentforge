@@ -437,7 +437,7 @@ class EmailService:
     
     @classmethod
     async def send_email(cls, to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
-        """Send an email using SendGrid"""
+        """Send an email using SendGrid. Subject is required by SendGrid; defaults to 'Notification' if empty."""
         if not cls.SENDGRID_API_KEY:
             print(f"⚠️ SendGrid not configured. Email to {to_email} not sent.")
             print(f"   Subject: {subject}")
@@ -446,6 +446,9 @@ class EmailService:
         if not HTTPX_AVAILABLE:
             print("⚠️ httpx not installed. Cannot send email.")
             return False
+        
+        # SendGrid requires a non-empty subject (or template with subject)
+        subject = (subject or 'Notification').strip() or 'Notification'
         
         try:
             async with httpx.AsyncClient() as client:

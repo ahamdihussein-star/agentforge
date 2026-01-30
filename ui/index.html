@@ -7944,7 +7944,7 @@ Option 3"></textarea>
             <!-- How it works (short) -->
             <div class="px-6 pt-2 pb-0">
                 <p class="text-xs text-gray-500">
-                    <strong>How it works:</strong> Fill the form → Run → You'll see status (Processing / Waiting for Approval if needed) → When <strong>Completed</strong>, the <strong>Output</strong> appears below. Any notification steps (e.g. email) use the same email service as password reset &amp; MFA.
+                    <strong>How it works:</strong> Fill the form → Run → You'll see each step by name (Processing / Waiting for Approval if needed) → When <strong>Completed</strong>, the <strong>Result</strong> and summary appear below. Notifications use the same email service as password reset &amp; MFA.
                 </p>
             </div>
             
@@ -8000,10 +8000,21 @@ Option 3"></textarea>
                         <!-- Steps will be populated here -->
                     </div>
                     
-                    <!-- Output (when complete) -->
-                    <div id="process-output" class="hidden mt-4 p-4 rounded-lg bg-gray-800">
-                        <h5 class="font-medium mb-2">📋 Output</h5>
-                        <pre id="process-output-content" class="text-sm text-gray-300 whitespace-pre-wrap"></pre>
+                    <!-- Result (when complete) – business-friendly summary + optional submitted data -->
+                    <div id="process-output" class="hidden mt-4 space-y-4">
+                        <div class="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                            <p id="process-result-summary" class="font-medium text-green-400">Your request was processed successfully.</p>
+                        </div>
+                        <div id="process-result-body" class="hidden">
+                            <h5 class="font-medium mb-2">📋 Result</h5>
+                            <pre id="process-output-content" class="text-sm text-gray-300 whitespace-pre-wrap rounded bg-gray-800 p-3"></pre>
+                        </div>
+                        <div id="process-submitted-data-wrap" class="hidden">
+                            <button type="button" id="process-submitted-data-toggle" class="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-2">
+                                <span>▼</span> Submitted data
+                            </button>
+                            <pre id="process-submitted-data-content" class="text-sm text-gray-500 whitespace-pre-wrap rounded bg-gray-800/80 p-3 hidden"></pre>
+                        </div>
                     </div>
                 </div>
                 
@@ -9952,9 +9963,13 @@ Option 3"></textarea>
                     updateExecutionStatus('failed', 'Execution Failed', 'No execution ID returned from server.');
                     return;
                 }
-                // Hide output until completed
+                // Hide result section until completed; reset submitted-data toggle
                 const outEl = document.getElementById('process-output');
                 if (outEl) outEl.classList.add('hidden');
+                const toggle = document.getElementById('process-submitted-data-toggle');
+                if (toggle) { const s = toggle.querySelector('span'); if (s) s.textContent = '▼'; }
+                const submittedPre = document.getElementById('process-submitted-data-content');
+                if (submittedPre) submittedPre.classList.add('hidden');
                 // Start polling for status
                 startExecutionPolling(currentExecutionId);
                 
@@ -9974,6 +9989,49 @@ Option 3"></textarea>
                 }
                 updateExecutionStatus('failed', 'Execution Failed', errorMsg);
             }
+        }
+        
+        // Build a lookup from node id → { name, type, typeLabel } from current process definition
+        function getProcessNodeLookup() {
+            const agent = currentProcessAgent;
+            if (!agent) return {};
+            let def = agent.process_definition;
+            if (typeof def === 'string') {
+                try { def = def ? JSON.parse(def) : {}; } catch (_) { def = {}; }
+            }
+            if (!def || !Array.isArray(def.nodes)) return {};
+            const typeLabels = {
+                start: 'Start', trigger: 'Start', form: 'Start',
+                task: 'Task', condition: 'Decision', approval: 'Approval',
+                notification: 'Notification', end: 'End', human_task: 'Review'
+            };
+            const out = {};
+            def.nodes.forEach(n => {
+                const type = (n.type || 'task').toLowerCase();
+                out[n.id] = {
+                    name: n.name || n.id || 'Step',
+                    type: type,
+                    typeLabel: typeLabels[type] || 'Step'
+                };
+            });
+            return out;
+        }
+        
+        // Resolve step IDs to { name, type, typeLabel, status } using process definition
+        function resolveStepsFromIds(completedIds, currentId) {
+            const lookup = getProcessNodeLookup();
+            const resolve = (id, status) => {
+                const info = lookup[id];
+                return {
+                    name: info ? info.name : id,
+                    type: info ? info.type : 'step',
+                    typeLabel: info ? info.typeLabel : 'Step',
+                    status
+                };
+            };
+            const completed = (completedIds || []).map(id => resolve(id, 'completed'));
+            const current = currentId ? [resolve(currentId, 'running')] : [];
+            return completed.concat(current);
         }
         
         // Update Execution Status Badge
@@ -10009,7 +10067,7 @@ Option 3"></textarea>
             }
         }
         
-        // Update Execution Steps List
+        // Update Execution Steps List (node: name, typeLabel, status; typeLabel is business-friendly)
         function updateExecutionSteps(nodes) {
             const container = document.getElementById('process-steps-list');
             
@@ -10030,13 +10088,16 @@ Option 3"></textarea>
                     skipped: 'border-gray-600 bg-gray-800/30'
                 }[node.status] || 'border-gray-600';
                 
+                const displayName = node.name || node.type || 'Step';
+                const displayType = node.typeLabel != null ? node.typeLabel : (node.type || 'Step');
+                
                 return `
                     <div class="p-3 rounded-lg border ${statusClass} transition-all">
                         <div class="flex items-center gap-3">
                             <span class="text-lg">${statusIcon}</span>
                             <div class="flex-1">
-                                <p class="font-medium">${node.name || node.type}</p>
-                                <p class="text-xs text-gray-500">${node.type}</p>
+                                <p class="font-medium">${escHtml(displayName)}</p>
+                                <p class="text-xs text-gray-500">${escHtml(displayType)}</p>
                             </div>
                             ${node.duration_ms ? `<span class="text-xs text-gray-500">${node.duration_ms}ms</span>` : ''}
                         </div>
@@ -10086,25 +10147,79 @@ Option 3"></textarea>
                         subtitle
                     );
                     
-                    // Update steps: use node_executions if present, else build from completed_steps + current_step
+                    // Update steps: use node_executions if present, else build from completed_steps + current_step with resolved names
                     if (execution.node_executions && execution.node_executions.length) {
-                        updateExecutionSteps(execution.node_executions);
+                        const lookup = getProcessNodeLookup();
+                        const resolved = execution.node_executions.map(ne => {
+                            const info = lookup[ne.node_id || ne.id];
+                            return {
+                                name: info ? info.name : (ne.node_name || ne.node_id || ne.id || 'Step'),
+                                typeLabel: info ? info.typeLabel : (ne.type || 'Step'),
+                                type: ne.type,
+                                status: ne.status || 'completed',
+                                duration_ms: ne.duration_ms
+                            };
+                        });
+                        updateExecutionSteps(resolved);
                     } else if (execution.completed_steps || execution.current_step) {
-                        const completed = (execution.completed_steps || []).map(id => ({ name: id, type: 'step', status: 'completed' }));
-                        const current = execution.current_step ? [{ name: execution.current_step, type: 'step', status: 'running' }] : [];
-                        updateExecutionSteps(completed.concat(current));
+                        const steps = resolveStepsFromIds(execution.completed_steps || [], execution.current_step);
+                        updateExecutionSteps(steps);
                     }
                     
-                    // Show output and stop polling when completed
+                    // Show result and stop polling when completed
                     if (execution.status === 'completed') {
                         if (executionPollInterval) clearInterval(executionPollInterval);
                         executionPollInterval = null;
                         const outEl = document.getElementById('process-output');
+                        const summaryEl = document.getElementById('process-result-summary');
+                        const resultBodyEl = document.getElementById('process-result-body');
                         const contentEl = document.getElementById('process-output-content');
-                        if (outEl && contentEl) {
-                            outEl.classList.remove('hidden');
-                            const out = execution.output ?? execution.result;
-                            contentEl.textContent = out == null ? '' : (typeof out === 'string' ? out : JSON.stringify(out, null, 2));
+                        const submittedWrap = document.getElementById('process-submitted-data-wrap');
+                        const submittedContent = document.getElementById('process-submitted-data-content');
+                        const inputData = execution.input_data ?? execution.trigger_input ?? {};
+                        const output = execution.output ?? execution.result;
+                        const outputStr = output == null ? '' : (typeof output === 'string' ? output : JSON.stringify(output, null, 2));
+                        const inputStr = Object.keys(inputData).length ? JSON.stringify(inputData, null, 2) : '';
+                        const outputSameAsInput = outputStr && inputStr && outputStr.replace(/\s/g, '') === inputStr.replace(/\s/g, '');
+                        if (outEl) outEl.classList.remove('hidden');
+                        if (summaryEl) summaryEl.textContent = 'Your request was processed successfully.';
+                        if (outputSameAsInput || (!outputStr && inputStr)) {
+                            if (resultBodyEl) resultBodyEl.classList.add('hidden');
+                            if (submittedWrap) {
+                                submittedWrap.classList.remove('hidden');
+                                if (submittedContent) {
+                                    submittedContent.textContent = outputStr || inputStr;
+                                    submittedContent.classList.add('hidden');
+                                }
+                                const toggle = document.getElementById('process-submitted-data-toggle');
+                                if (toggle) {
+                                    toggle.onclick = function() {
+                                        const pre = submittedContent;
+                                        if (pre.classList.toggle('hidden')) toggle.querySelector('span').textContent = '▼';
+                                        else toggle.querySelector('span').textContent = '▲';
+                                    };
+                                }
+                            }
+                        } else {
+                            if (resultBodyEl) {
+                                resultBodyEl.classList.remove('hidden');
+                                if (contentEl) contentEl.textContent = outputStr;
+                            }
+                            if (inputStr && submittedWrap) {
+                                submittedWrap.classList.remove('hidden');
+                                if (submittedContent) {
+                                    submittedContent.textContent = inputStr;
+                                    submittedContent.classList.add('hidden');
+                                }
+                                const toggle = document.getElementById('process-submitted-data-toggle');
+                                if (toggle) {
+                                    toggle.onclick = function() {
+                                        const pre = submittedContent;
+                                        if (pre.classList.toggle('hidden')) toggle.querySelector('span').textContent = '▼';
+                                        else toggle.querySelector('span').textContent = '▲';
+                                    };
+                                }
+                            } else if (submittedWrap) submittedWrap.classList.add('hidden');
                         }
                     }
                     

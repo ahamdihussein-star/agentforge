@@ -137,13 +137,15 @@ class NotificationService:
 <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
 <p style="color: #999; font-size: 12px;">AgentForge</p>
 </div>"""
+                # SendGrid requires a non-empty subject; use title or fallback
+                email_subject = (title or 'Notification').strip() or 'Notification'
                 sent = 0
                 for to_email in recipients:
                     if not to_email or not str(to_email).strip():
                         continue
                     ok = await self.platform_email_service.send_email(
                         str(to_email).strip(),
-                        title,
+                        email_subject,
                         html_content,
                         text_content=text_content
                     )
