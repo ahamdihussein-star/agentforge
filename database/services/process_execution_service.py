@@ -449,7 +449,58 @@ class ProcessExecutionService:
                 ProcessApprovalRequest.status == "pending"
             )
         ).all()
-    
+
+    def ensure_approvals_for_waiting_executions(self, org_id: str) -> None:
+        """
+        Backfill: create approval records for any execution in status 'waiting'
+        that doesn't have a pending approval. Handles cases where approval creation
+        was missed during execute (e.g. exception, race).
+        """
+        resolved_org_id = self._resolve_org_id(org_id) if org_id else self._resolve_org_id("org_default")
+        try:
+            org_uuid = uuid.UUID(resolved_org_id)
+        except (ValueError, TypeError):
+            return
+        waiting_executions = self.db.query(ProcessExecution).filter(
+            and_(
+                ProcessExecution.org_id == org_uuid,
+                ProcessExecution.status == "waiting"
+            )
+        ).all()
+        for execution in waiting_executions:
+            existing = self.get_pending_approvals_for_execution(str(execution.id))
+            if existing:
+                continue
+            node_id = getattr(execution, "current_node_id", None) or "approval"
+            try:
+                self.create_approval_request(
+                    process_execution_id=str(execution.id),
+                    org_id=resolved_org_id,
+                    node_id=node_id,
+                    node_name="Approval",
+                    title="Approval Required",
+                    description=None,
+                    review_data=dict(execution.variables) if getattr(execution, "variables", None) else {},
+                    assignee_type="any",
+                    assigned_user_ids=[],
+                    assigned_role_ids=[],
+                    min_approvals=1,
+                    priority="normal",
+                    deadline_at=datetime.utcnow() + timedelta(hours=24),
+                    escalation_enabled=False,
+                    escalation_after_hours=None,
+                    escalation_user_ids=[],
+                )
+                logger.info(
+                    "[ApprovalDB] backfill: created approval for waiting execution_id=%s node_id=%s",
+                    str(execution.id), node_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "[ApprovalDB] backfill failed for execution_id=%s: %s",
+                    str(execution.id), e,
+                )
+
     def get_pending_approvals_for_user(
         self,
         user_id: str,
@@ -471,6 +522,7 @@ class ProcessExecutionService:
             user_id, org_id, len(user_role_ids or []),
         )
         resolved_org_id = self._resolve_org_id(org_id) if org_id else self._resolve_org_id("org_default")
+        self.ensure_approvals_for_waiting_executions(resolved_org_id)
         try:
             org_uuid = uuid.UUID(resolved_org_id)
         except (ValueError, TypeError):
