@@ -11,11 +11,14 @@ This service handles:
 All database-agnostic operations.
 """
 
+import logging
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
+
+logger = logging.getLogger(__name__)
 
 from ..models.process_execution import (
     ProcessExecution, 
@@ -371,8 +374,17 @@ class ProcessExecutionService:
         escalation_user_ids: List[str] = None
     ) -> ProcessApprovalRequest:
         """Create an approval request"""
+        approval_id = uuid.uuid4()
+        assigned_user_ids_str = [str(uid) for uid in (assigned_user_ids or [])]
+        assigned_role_ids_str = [str(rid) for rid in (assigned_role_ids or [])]
+        logger.info(
+            "[ApprovalDB] INSERT approval: id=%s execution_id=%s org_id=%s node_id=%s node_name=%s "
+            "assignee_type=%s assigned_user_ids=%s assigned_role_ids=%s",
+            approval_id, process_execution_id, org_id, node_id, node_name,
+            assignee_type, assigned_user_ids_str, assigned_role_ids_str,
+        )
         approval = ProcessApprovalRequest(
-            id=uuid.uuid4(),
+            id=approval_id,
             org_id=uuid.UUID(org_id),
             process_execution_id=uuid.UUID(process_execution_id),
             node_id=node_id,
@@ -383,8 +395,8 @@ class ProcessExecutionService:
             review_data=review_data or {},
             priority=priority,
             assignee_type=assignee_type,
-            assigned_user_ids=[str(uid) for uid in (assigned_user_ids or [])],
-            assigned_role_ids=[str(rid) for rid in (assigned_role_ids or [])],
+            assigned_user_ids=assigned_user_ids_str,
+            assigned_role_ids=assigned_role_ids_str,
             min_approvals=min_approvals,
             deadline_at=deadline_at,
             escalate_after_hours=escalation_after_hours if escalation_enabled else None,
@@ -394,7 +406,7 @@ class ProcessExecutionService:
         self.db.add(approval)
         self.db.commit()
         self.db.refresh(approval)
-        
+        logger.info("[ApprovalDB] INSERT success: approval_id=%s", str(approval.id))
         return approval
     
     def get_approval_request(self, approval_id: str) -> Optional[ProcessApprovalRequest]:
@@ -431,6 +443,10 @@ class ProcessExecutionService:
         Since we use JSON columns (TEXT) for compatibility, we perform
         the filtering in Python after fetching pending approvals.
         """
+        logger.info(
+            "[ApprovalDB] RETRIEVE pending: user_id=%s org_id=%s user_role_ids_count=%s",
+            user_id, org_id, len(user_role_ids or []),
+        )
         # Get all pending approvals for the org
         pending = self.db.query(ProcessApprovalRequest).filter(
             and_(
@@ -438,6 +454,10 @@ class ProcessExecutionService:
                 ProcessApprovalRequest.status == "pending"
             )
         ).order_by(desc(ProcessApprovalRequest.created_at)).all()
+        logger.info(
+            "[ApprovalDB] RETRIEVE from DB: org_id=%s status=pending -> count=%s (approval_ids=%s)",
+            org_id, len(pending), [str(a.id) for a in pending],
+        )
         
         # Filter by user assignment (normalize IDs to strings for comparison)
         result = []
@@ -446,23 +466,36 @@ class ProcessExecutionService:
         for approval in pending:
             assigned_users = approval.assigned_user_ids or []
             assigned_roles = approval.assigned_role_ids or []
+            assigned_users_str = [str(u) for u in assigned_users]
+            assigned_roles_str = [str(r) for r in assigned_roles]
 
             # Check if user is directly assigned (compare as strings; DB may store UUID strings)
-            if assigned_users and str(user_id) in [str(u) for u in assigned_users]:
+            if assigned_users and str(user_id) in assigned_users_str:
                 result.append(approval)
+                logger.info("[ApprovalDB] include approval_id=%s reason=user_assigned", str(approval.id))
                 continue
 
             # Check if user's role is assigned
-            if assigned_roles and user_role_set.intersection(set(str(r) for r in assigned_roles)):
+            if assigned_roles and user_role_set.intersection(set(assigned_roles_str)):
                 result.append(approval)
+                logger.info("[ApprovalDB] include approval_id=%s reason=role_assigned", str(approval.id))
                 continue
 
             # Anyone can approve: assignee_type is 'any' OR no assignees configured (workflow creator often approves their own run)
             if (approval.assignee_type == 'any' or
                     (not assigned_users and not assigned_roles)):
                 result.append(approval)
+                logger.info(
+                    "[ApprovalDB] include approval_id=%s reason=any_or_empty (assignee_type=%s assigned_users=%s assigned_roles=%s)",
+                    str(approval.id), approval.assignee_type, len(assigned_users), len(assigned_roles),
+                )
                 continue
+            logger.info(
+                "[ApprovalDB] exclude approval_id=%s (user_id not in %s, roles %s not in %s, assignee_type=%s)",
+                str(approval.id), assigned_users_str, list(user_role_set), assigned_roles_str, approval.assignee_type,
+            )
 
+        logger.info("[ApprovalDB] RETRIEVE result: returning count=%s", len(result))
         return result
     
     def decide_approval(

@@ -338,6 +338,11 @@ class ProcessAPIService:
                     tokens_used=result.total_tokens_used
                 )
             elif result.is_waiting:
+                meta = getattr(result, 'waiting_metadata', None)
+                logger.info(
+                    "[ProcessApproval] execution waiting: execution_id=%s waiting_for=%s has_meta=%s has_approval_svc=%s",
+                    str(execution.id), result.waiting_for, meta is not None, deps.approval_service is not None,
+                )
                 execution = self.exec_service.update_execution_status(
                     str(execution.id),
                     status="waiting",
@@ -350,9 +355,12 @@ class ProcessAPIService:
                     checkpoint_data=engine.get_checkpoint()
                 )
                 # Create ProcessApprovalRequest in DB so it appears in Pending Approvals list
-                meta = getattr(result, 'waiting_metadata', None)
                 if result.waiting_for == 'approval' and meta and deps.approval_service:
                     try:
+                        logger.info(
+                            "[ProcessApproval] creating approval in DB: execution_id=%s org_id=%s node_id=%s title=%s assignee_ids=%s",
+                            str(execution.id), meta.get('org_id') or str(execution.org_id), meta.get('node_id'), meta.get('title'), meta.get('assignee_ids'),
+                        )
                         deadline_iso = meta.get('deadline')
                         timeout_hours = 24
                         if deadline_iso:
@@ -362,7 +370,7 @@ class ProcessAPIService:
                                 timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
                             except Exception:
                                 pass
-                        await deps.approval_service.create_approval_request(
+                        create_result = await deps.approval_service.create_approval_request(
                             execution_id=str(execution.id),
                             org_id=meta.get('org_id') or str(execution.org_id),
                             node_id=meta.get('node_id', result.resume_node_id or ''),
@@ -377,8 +385,17 @@ class ProcessAPIService:
                             timeout_hours=int(timeout_hours),
                             escalation_config=meta.get('escalation'),
                         )
+                        logger.info(
+                            "[ProcessApproval] approval created in DB: approval_id=%s execution_id=%s",
+                            create_result.get('approval_id'), str(execution.id),
+                        )
                     except Exception as e:
-                        logger.warning("Failed to create approval request in DB: %s", e)
+                        logger.exception("Failed to create approval request in DB: %s", e)
+                else:
+                    logger.info(
+                        "[ProcessApproval] skip create: waiting_for=%s has_meta=%s has_approval_svc=%s",
+                        result.waiting_for, meta is not None, deps.approval_service is not None,
+                    )
             else:
                 execution = self.exec_service.update_execution_status(
                     str(execution.id),
@@ -511,6 +528,11 @@ class ProcessAPIService:
                     node_count_executed=result.node_count
                 )
             elif result.is_waiting:
+                meta = getattr(result, 'waiting_metadata', None)
+                logger.info(
+                    "[ProcessApproval] resume waiting: execution_id=%s waiting_for=%s has_meta=%s",
+                    str(execution.id), result.waiting_for, meta is not None,
+                )
                 execution = self.exec_service.update_execution_status(
                     str(execution.id),
                     status="waiting",
@@ -522,9 +544,9 @@ class ProcessAPIService:
                     completed_nodes=result.nodes_executed,
                     checkpoint_data=engine.get_checkpoint()
                 )
-                meta = getattr(result, 'waiting_metadata', None)
                 if result.waiting_for == 'approval' and meta and deps.approval_service:
                     try:
+                        logger.info("[ProcessApproval] creating approval (resume): execution_id=%s", str(execution.id))
                         deadline_iso = meta.get('deadline')
                         timeout_hours = 24
                         if deadline_iso:
@@ -534,7 +556,7 @@ class ProcessAPIService:
                                 timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
                             except Exception:
                                 pass
-                        await deps.approval_service.create_approval_request(
+                        create_result = await deps.approval_service.create_approval_request(
                             execution_id=str(execution.id),
                             org_id=meta.get('org_id') or str(execution.org_id),
                             node_id=meta.get('node_id', result.resume_node_id or ''),
@@ -549,8 +571,9 @@ class ProcessAPIService:
                             timeout_hours=int(timeout_hours),
                             escalation_config=meta.get('escalation'),
                         )
+                        logger.info("[ProcessApproval] approval created (resume): approval_id=%s", create_result.get('approval_id'))
                     except Exception as e:
-                        logger.warning("Failed to create approval request in DB (resume): %s", e)
+                        logger.exception("Failed to create approval request in DB (resume): %s", e)
             else:
                 execution = self.exec_service.update_execution_status(
                     str(execution.id),
@@ -708,12 +731,18 @@ class ProcessAPIService:
         user_role_ids: List[str] = None
     ) -> List[ApprovalRequestResponse]:
         """Get pending approvals for user"""
+        logger.info(
+            "[ProcessApproval] list requested: user_id=%s org_id=%s user_role_ids_count=%s",
+            user_id, org_id, len(user_role_ids or []),
+        )
         approvals = self.exec_service.get_pending_approvals_for_user(
             user_id=user_id,
             org_id=org_id,
             user_role_ids=user_role_ids
         )
-        return [self._approval_to_response(a) for a in approvals]
+        out = [self._approval_to_response(a) for a in approvals]
+        logger.info("[ProcessApproval] list response: count=%s approval_ids=%s", len(out), [a.id for a in approvals])
+        return out
     
     # =========================================================================
     # STATISTICS
