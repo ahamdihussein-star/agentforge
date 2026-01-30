@@ -356,6 +356,13 @@ class ProcessEngine:
         """Execute a single node"""
         
         logger.debug(f"Executing node: {node.id} ({node.type})")
+        # [ProcessDebug] Config passed to executor (for approval/condition debugging)
+        tc = getattr(node.config, "type_config", None) or {}
+        if node.type.value in ("approval", "human_task", "condition"):
+            logger.info(
+                "[ProcessDebug] Executing node id=%s type=%s assignee_ids=%s approvers=%s expression=%s",
+                node.id, node.type.value, tc.get("assignee_ids"), tc.get("approvers"), tc.get("expression")
+            )
         
         # Skip if disabled
         if not node.config.enabled:

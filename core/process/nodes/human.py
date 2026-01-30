@@ -17,6 +17,27 @@ from ..result import NodeResult, ExecutionError, ErrorCategory
 from .base import BaseNodeExecutor, register_executor
 
 
+def _to_assignee_id_list(value: Any) -> List[str]:
+    """Normalize approvers/assignees to a list of string IDs. Handles list of IDs, list of objects with id/value, or single ID."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        if not value:
+            return []
+        out = []
+        for item in value:
+            if isinstance(item, (str, int)):
+                out.append(str(item))
+            elif isinstance(item, dict):
+                out.append(str(item.get('id') or item.get('value') or item.get('user_id') or ''))
+            else:
+                out.append(str(item))
+        return [x for x in out if x]
+    if isinstance(value, (str, int)) and str(value).strip():
+        return [str(value)]
+    return []
+
+
 @register_executor(NodeType.APPROVAL)
 class ApprovalNodeExecutor(BaseNodeExecutor):
     """
@@ -50,11 +71,15 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
     ) -> NodeResult:
         """Execute approval node - creates approval request and waits"""
         
-        # Get configuration
+        # Get configuration (Process Builder uses 'approvers'; engine uses 'assignee_ids')
         title = self.get_config_value(node, 'title', f'Approval Required: {node.name}')
         description = self.get_config_value(node, 'description', '')
         assignee_type = self.get_config_value(node, 'assignee_type', 'user')
         assignee_ids = self.get_config_value(node, 'assignee_ids', [])
+        if not assignee_ids:
+            assignee_ids = _to_assignee_id_list(self.get_config_value(node, 'approvers', []))
+        else:
+            assignee_ids = _to_assignee_id_list(assignee_ids)  # normalize list of objects to list of IDs
         min_approvals = self.get_config_value(node, 'min_approvals', 1)
         timeout_hours = self.get_config_value(node, 'timeout_hours', 24)
         timeout_action = self.get_config_value(node, 'timeout_action', 'fail')
@@ -129,6 +154,8 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         
         assignee_ids = self.get_config_value(node, 'assignee_ids', [])
         if not assignee_ids:
+            assignee_ids = _to_assignee_id_list(self.get_config_value(node, 'approvers', []))
+        if not assignee_ids:
             return ExecutionError.validation_error(
                 "At least one assignee is required for approval"
             )
@@ -171,6 +198,8 @@ class HumanTaskNodeExecutor(BaseNodeExecutor):
         instructions = self.get_config_value(node, 'instructions', '')
         assignee_type = self.get_config_value(node, 'assignee_type', 'user')
         assignee_ids = self.get_config_value(node, 'assignee_ids', [])
+        if not assignee_ids:
+            assignee_ids = _to_assignee_id_list(self.get_config_value(node, 'approvers', []))
         form_schema = self.get_config_value(node, 'form_schema', {})
         required_fields = self.get_config_value(node, 'required_fields', [])
         due_date_hours = self.get_config_value(node, 'due_date_hours')
@@ -231,6 +260,8 @@ class HumanTaskNodeExecutor(BaseNodeExecutor):
             return base_error
         
         assignee_ids = self.get_config_value(node, 'assignee_ids', [])
+        if not assignee_ids:
+            assignee_ids = _to_assignee_id_list(self.get_config_value(node, 'approvers', []))
         if not assignee_ids:
             return ExecutionError.validation_error(
                 "At least one assignee is required for human task"

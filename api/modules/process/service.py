@@ -41,6 +41,27 @@ from api.modules.access_control.service import AccessControlService
 logger = logging.getLogger(__name__)
 
 
+def _approvers_to_ids(value: Any) -> List[str]:
+    """Normalize approvers/assignees to a list of string IDs. Handles list of IDs, list of objects with id/value, or single ID."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        if not value:
+            return []
+        out = []
+        for item in value:
+            if isinstance(item, (str, int)):
+                out.append(str(item))
+            elif isinstance(item, dict):
+                out.append(str(item.get('id') or item.get('value') or item.get('user_id') or ''))
+            else:
+                out.append(str(item))
+        return [x for x in out if x]
+    if isinstance(value, (str, int)) and str(value).strip():
+        return [str(value)]
+    return []
+
+
 class ProcessAPIService:
     """
     Service for process execution API operations
@@ -96,6 +117,26 @@ class ProcessAPIService:
         if not agent:
             raise ValueError(f"Agent not found: {agent_id}")
         # Agent (and process_definition, process_settings, name, tool_ids) are from DB above; we use _ensure_dict for JSON columns
+
+        # --- [ProcessDebug] What was loaded from DB ---
+        _raw_pd = agent.process_definition
+        _pd_type = type(_raw_pd).__name__
+        _pd = self._ensure_dict(_raw_pd)
+        _nodes = _pd.get("nodes") or []
+        _ps = self._ensure_dict(agent.process_settings or {})
+        logger.info(
+            "[ProcessDebug] Loaded from DB: agent_id=%s, process_definition type=%s, nodes_count=%s, process_settings keys=%s",
+            agent_id, _pd_type, len(_nodes), list(_ps.keys())
+        )
+        for i, n in enumerate(_nodes):
+            _cfg = n.get("config") or {}
+            _tc = _cfg.get("type_config") or _cfg
+            logger.info(
+                "[ProcessDebug]   node[%s] id=%s type=%s config_keys=%s (type_config: approvers=%s assignee_ids=%s expression=%s)",
+                i, n.get("id"), n.get("type"), list(_cfg.keys()) if isinstance(_cfg, dict) else [],
+                _tc.get("approvers"), _tc.get("assignee_ids"), _tc.get("expression") if isinstance(_tc, dict) else None
+            )
+        # --- end ProcessDebug ---
         
         if agent.agent_type != "process":
             raise ValueError(f"Agent is not a process type: {agent.agent_type}")
@@ -162,24 +203,49 @@ class ProcessAPIService:
                 definition_data, 
                 agent_name=getattr(agent, 'name', 'Workflow')
             )
+
+            # --- [ProcessDebug] Definition used for execution (after normalize) ---
+            _norm_nodes = definition_data.get("nodes") or []
+            logger.info("[ProcessDebug] After normalize: nodes_count=%s", len(_norm_nodes))
+            for i, nn in enumerate(_norm_nodes):
+                _nc = nn.get("config") or {}
+                _ntc = _nc.get("type_config") or _nc
+                logger.info(
+                    "[ProcessDebug]   norm_node[%s] id=%s type=%s assignee_ids=%s expression=%s true_branch=%s false_branch=%s",
+                    i, nn.get("id"), nn.get("type"),
+                    _ntc.get("assignee_ids") if isinstance(_ntc, dict) else None,
+                    _ntc.get("expression") if isinstance(_ntc, dict) else None,
+                    _ntc.get("true_branch") if isinstance(_ntc, dict) else None,
+                    _ntc.get("false_branch") if isinstance(_ntc, dict) else None,
+                )
+            # --- end ProcessDebug ---
             
             process_def = ProcessDefinition.from_dict(definition_data)
         except Exception as e:
             logger.exception("Process definition parse failed: %s", e)
             raise ValueError(f"Invalid process definition: {e}")
         
+        _trigger = self._ensure_dict(trigger_input or {})
+        # --- [ProcessDebug] Execution input ---
+        logger.info(
+            "[ProcessDebug] Starting execution: agent_id=%s, trigger_type=%s, trigger_input_keys=%s (values not logged to avoid PII)",
+            agent_id, trigger_type, list(_trigger.keys())
+        )
+        # --- end ProcessDebug ---
+
         # Create execution record (snapshot = normalized definition so resume/DB always get dict + normalizations)
         execution = self.exec_service.create_execution(
             agent_id=agent_id,
             org_id=org_id,
             created_by=user_id,
             trigger_type=trigger_type,
-            trigger_input=self._ensure_dict(trigger_input or {}),
+            trigger_input=_trigger,
             conversation_id=conversation_id,
             correlation_id=correlation_id,
             process_definition_snapshot=definition_data,
         )
-        
+        logger.info("[ProcessDebug] Created execution_id=%s", str(execution.id))
+
         # Update status to running
         execution = self.exec_service.update_execution_status(
             str(execution.id),
@@ -214,7 +280,18 @@ class ProcessAPIService:
             denied_tool_ids=denied_tool_ids,  # Track what's denied for error messages
             settings=self._ensure_dict(agent.process_settings or {}),
         )
-        
+
+        # تقرير واضح: ما المحفوظ في DB + ما المُستخدم في الـ execution (للتشخيص)
+        self._log_process_execution_info(
+            agent=agent,
+            definition_from_db=self._ensure_dict(agent.process_definition),
+            definition_normalized=definition_data,
+            execution_id=str(execution.id),
+            trigger_type=trigger_type,
+            trigger_input_keys=list(_trigger.keys()),
+            context_summary={"available_tool_ids_count": len(filtered_tool_ids)},
+        )
+
         # Build dependencies (only with allowed tools)
         deps = await self._build_dependencies(agent, filtered_tool_ids)
         
@@ -347,8 +424,13 @@ class ProcessAPIService:
         
         # Parse process definition from snapshot (support JSON string from DB)
         raw_def = execution.process_definition_snapshot or agent.process_definition
+        _def_source = "snapshot" if execution.process_definition_snapshot else "agent"
+        logger.info(
+            "[ProcessDebug] Resume: execution_id=%s, definition_source=%s, current_node=%s",
+            execution_id, _def_source, getattr(execution, "current_node_id", None)
+        )
         process_def = ProcessDefinition.from_dict(self._ensure_dict(raw_def))
-        
+
         # Build context (ensure dicts; DB may return JSON strings)
         context = ProcessContext(
             execution_id=str(execution.id),
@@ -606,7 +688,101 @@ class ProcessAPIService:
     # =========================================================================
     # HELPER METHODS
     # =========================================================================
-    
+
+    def _log_process_execution_info(
+        self,
+        agent: Agent,
+        definition_from_db: Dict[str, Any],
+        definition_normalized: Dict[str, Any],
+        execution_id: str,
+        trigger_type: str,
+        trigger_input_keys: List[str],
+        context_summary: Dict[str, Any],
+    ) -> None:
+        """
+        Log a clear report: what was loaded from DB (process data) and what is used for execution.
+        Use for debugging: grep '[ProcessExecutionInfo]' in logs.
+        """
+        nodes_from_db = definition_from_db.get("nodes") or []
+        nodes_norm = definition_normalized.get("nodes") or []
+        process_settings = self._ensure_dict(agent.process_settings or {})
+
+        logger.info("[ProcessExecutionInfo] ========== ما المحفوظ في الـ DB (Process من الـ Agent) ==========")
+        logger.info(
+            "[ProcessExecutionInfo] agent_id = %s  (معرّف الـ Agent في الـ DB)",
+            str(agent.id),
+        )
+        logger.info(
+            "[ProcessExecutionInfo] agent.name = %s  (اسم الـ workflow)",
+            getattr(agent, "name", None),
+        )
+        logger.info(
+            "[ProcessExecutionInfo] process_definition (خام من DB) = تعريف الـ workflow: nodes + edges. نوع العمود: %s، عدد الـ nodes: %s",
+            type(agent.process_definition).__name__,
+            len(nodes_from_db),
+        )
+        for i, n in enumerate(nodes_from_db):
+            cfg = n.get("config") or {}
+            tc = cfg.get("type_config") or cfg
+            logger.info(
+                "[ProcessExecutionInfo]   node[%s] من DB: id=%s, type=%s | approvers=%s | assignee_ids=%s | expression=%s | field=%s",
+                i, n.get("id"), n.get("type"),
+                tc.get("approvers") if isinstance(tc, dict) else None,
+                tc.get("assignee_ids") if isinstance(tc, dict) else None,
+                tc.get("expression") if isinstance(tc, dict) else None,
+                tc.get("field") if isinstance(tc, dict) else None,
+            )
+        logger.info(
+            "[ProcessExecutionInfo] process_settings (من DB) = إعدادات الـ process (timeout, retry, etc.). المفاتيح: %s",
+            list(process_settings.keys()),
+        )
+        logger.info(
+            "[ProcessExecutionInfo] agent.tool_ids (من DB) = أدوات الـ agent المسموح بها. العدد: %s",
+            len(agent.tool_ids or []),
+        )
+
+        logger.info("[ProcessExecutionInfo] ========== ما تحتاجه الـ Execution (المعلومات المُرسلة/المُستخدمة) ==========")
+        logger.info(
+            "[ProcessExecutionInfo] execution_id = %s  (معرّف تشغيل هذه الـ run؛ يُحفظ في DB ويُستخدم للمتابعة والـ resume)",
+            execution_id,
+        )
+        logger.info(
+            "[ProcessExecutionInfo] agent_id = %s  (نفس الـ agent اللي من DB)",
+            str(agent.id),
+        )
+        logger.info(
+            "[ProcessExecutionInfo] org_id = %s  (معرّف المنظمة)",
+            str(agent.org_id),
+        )
+        logger.info(
+            "[ProcessExecutionInfo] trigger_type = %s  (كيف تم تشغيل الـ process: manual, form, webhook, ...)",
+            trigger_type,
+        )
+        logger.info(
+            "[ProcessExecutionInfo] trigger_input (المدخلات) = البيانات اللي أرسلها المستخدم (form أو API). المفاتيح فقط: %s  (القيم لا تُسجّل لأمان البيانات)",
+            trigger_input_keys,
+        )
+        logger.info(
+            "[ProcessExecutionInfo] process_definition_snapshot = نسخة الـ definition المستخدمة في هذه الـ run (بعد التطبيع). عدد الـ nodes بعد التطبيع: %s",
+            len(nodes_norm),
+        )
+        for i, nn in enumerate(nodes_norm):
+            nc = nn.get("config") or {}
+            ntc = nc.get("type_config") or nc
+            logger.info(
+                "[ProcessExecutionInfo]   norm_node[%s] للـ execution: id=%s, type=%s | assignee_ids=%s | expression=%s | true_branch=%s | false_branch=%s",
+                i, nn.get("id"), nn.get("type"),
+                ntc.get("assignee_ids") if isinstance(ntc, dict) else None,
+                ntc.get("expression") if isinstance(ntc, dict) else None,
+                ntc.get("true_branch") if isinstance(ntc, dict) else None,
+                ntc.get("false_branch") if isinstance(ntc, dict) else None,
+            )
+        logger.info(
+            "[ProcessExecutionInfo] context (ملخص) = execution_id, agent_id, org_id, user_id, trigger_input, available_tool_ids, settings. available_tool_ids count=%s",
+            context_summary.get("available_tool_ids_count", 0),
+        )
+        logger.info("[ProcessExecutionInfo] ========== نهاية التقرير ==========")
+
     async def _build_dependencies(
         self, 
         agent: Agent, 
@@ -860,13 +1036,20 @@ class ProcessAPIService:
                     type_cfg['recipients'] = [type_cfg['recipient']]
                 if not type_cfg.get('message') and type_cfg.get('template'):
                     type_cfg['message'] = type_cfg.get('template', '')
-            # Approval / human_task: Process Builder may use 'assignee' or 'assignee_id' (single); engine expects 'assignee_ids' (list)
+            # Approval / human_task: Process Builder uses 'approvers' (UI) or 'assignee'/'assignee_id' (single); engine expects 'assignee_ids' (list)
             if node_type in ('approval', 'human_task', 'human'):
                 aids = type_cfg.get('assignee_ids')
                 if not aids or (isinstance(aids, list) and len(aids) == 0):
-                    single = type_cfg.get('assignee') or type_cfg.get('assignee_id')
-                    if single is not None and str(single).strip():
-                        type_cfg['assignee_ids'] = [single] if isinstance(single, str) else list(single) if hasattr(single, '__iter__') and not isinstance(single, (str, bytes)) else [str(single)]
+                    # UI saves as approvers: [] - map to assignee_ids
+                    approvers = type_cfg.get('approvers')
+                    if approvers is not None:
+                        _aids = _approvers_to_ids(approvers)
+                        if _aids:
+                            type_cfg['assignee_ids'] = _aids
+                    if not type_cfg.get('assignee_ids'):
+                        single = type_cfg.get('assignee') or type_cfg.get('assignee_id')
+                        if single is not None and str(single).strip():
+                            type_cfg['assignee_ids'] = [single] if isinstance(single, str) else list(single) if hasattr(single, '__iter__') and not isinstance(single, (str, bytes)) else [str(single)]
                 elif not isinstance(aids, list):
                     type_cfg['assignee_ids'] = [aids] if aids is not None else []
             config['type_config'] = type_cfg
