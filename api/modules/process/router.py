@@ -380,7 +380,7 @@ async def list_pending_approvals(
     approvals = service.get_pending_approvals(
         user_id=user_dict["id"],
         org_id=user_dict["org_id"],
-        user_role_ids=user_dict.get("roles", [])
+        user_role_ids=user_dict.get("role_ids", [])
     )
     return ApprovalListResponse(items=approvals, total=len(approvals))
 

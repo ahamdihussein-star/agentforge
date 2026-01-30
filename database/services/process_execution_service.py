@@ -439,28 +439,30 @@ class ProcessExecutionService:
             )
         ).order_by(desc(ProcessApprovalRequest.created_at)).all()
         
-        # Filter by user assignment
+        # Filter by user assignment (normalize IDs to strings for comparison)
         result = []
-        user_role_set = set(user_role_ids or [])
+        user_role_set = set(str(r) for r in (user_role_ids or []))
         
         for approval in pending:
-            # Check if user is directly assigned
             assigned_users = approval.assigned_user_ids or []
-            if user_id in assigned_users:
-                result.append(approval)
-                continue
-            
-            # Check if user's role is assigned
             assigned_roles = approval.assigned_role_ids or []
-            if user_role_set.intersection(set(assigned_roles)):
+
+            # Check if user is directly assigned (compare as strings; DB may store UUID strings)
+            if assigned_users and str(user_id) in [str(u) for u in assigned_users]:
                 result.append(approval)
                 continue
-            
-            # Check if assignee_type is 'any' (anyone can approve)
-            if approval.assignee_type == 'any':
+
+            # Check if user's role is assigned
+            if assigned_roles and user_role_set.intersection(set(str(r) for r in assigned_roles)):
                 result.append(approval)
                 continue
-        
+
+            # Anyone can approve: assignee_type is 'any' OR no assignees configured (workflow creator often approves their own run)
+            if (approval.assignee_type == 'any' or
+                    (not assigned_users and not assigned_roles)):
+                result.append(approval)
+                continue
+
         return result
     
     def decide_approval(
