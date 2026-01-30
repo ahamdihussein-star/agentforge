@@ -1218,6 +1218,24 @@
                     const fieldCount = (cfg.fields || []).length;
                     html = `<div class="node-config-item"><span class="config-label">Fields</span><span class="config-value">${fieldCount} input${fieldCount !== 1 ? 's' : ''}</span></div>`;
                     break;
+                case 'schedule':
+                    html = `<div class="node-config-item"><span class="config-label">Cron</span><span class="config-value">${cfg.cron || '0 9 * * *'}</span></div>`;
+                    break;
+                case 'webhook':
+                    html = `<div class="node-config-item"><span class="config-label">Method</span><span class="config-value">${cfg.method || 'POST'} ${cfg.path || '/trigger'}</span></div>`;
+                    break;
+                case 'loop':
+                    html = `<div class="node-config-item"><span class="config-label">Each</span><span class="config-value">${cfg.itemVar || 'item'} in ${cfg.collection || '...'}</span></div>`;
+                    break;
+                case 'ai':
+                    html = `<div class="node-config-item"><span class="config-label">Model</span><span class="config-value">${cfg.model || 'gpt-4o'}</span></div>`;
+                    break;
+                case 'end':
+                    html = `<div class="node-config-item"><span class="config-label">Output</span><span class="config-value">${cfg.output || 'result'}</span></div>`;
+                    break;
+                case 'action':
+                    html = `<div class="node-config-item"><span class="config-label">Type</span><span class="config-value">${cfg.actionType || 'custom'}</span></div>`;
+                    break;
                 default:
                     html = '<div class="node-config-item"><span class="config-value" style="color:#6b7280;">Click to configure</span></div>';
             }
@@ -1572,6 +1590,132 @@
                             <input type="text" class="property-input" placeholder="Submit" 
                                    value="${node.config.submitText || 'Submit'}"
                                    onchange="updateNodeConfig('${node.id}', 'submitText', this.value)">
+                        </div>
+                    `;
+                    break;
+                
+                case 'schedule':
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">Schedule (Cron Expression)</label>
+                            <input type="text" class="property-input" placeholder="0 9 * * *" 
+                                   value="${node.config.cron || '0 9 * * *'}"
+                                   onchange="updateNodeConfig('${node.id}', 'cron', this.value)">
+                            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+                                Format: minute hour day month weekday<br>
+                                Examples: "0 9 * * *" (daily 9AM), "0 */4 * * *" (every 4 hours)
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Timezone</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'timezone', this.value)">
+                                <option value="UTC" ${node.config.timezone === 'UTC' ? 'selected' : ''}>UTC</option>
+                                <option value="America/New_York" ${node.config.timezone === 'America/New_York' ? 'selected' : ''}>Eastern (US)</option>
+                                <option value="America/Los_Angeles" ${node.config.timezone === 'America/Los_Angeles' ? 'selected' : ''}>Pacific (US)</option>
+                                <option value="Europe/London" ${node.config.timezone === 'Europe/London' ? 'selected' : ''}>London</option>
+                                <option value="Europe/Paris" ${node.config.timezone === 'Europe/Paris' ? 'selected' : ''}>Paris</option>
+                                <option value="Asia/Dubai" ${node.config.timezone === 'Asia/Dubai' ? 'selected' : ''}>Dubai</option>
+                                <option value="Africa/Cairo" ${node.config.timezone === 'Africa/Cairo' ? 'selected' : ''}>Cairo</option>
+                                <option value="Asia/Tokyo" ${node.config.timezone === 'Asia/Tokyo' ? 'selected' : ''}>Tokyo</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+                
+                case 'webhook':
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">HTTP Method</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'method', this.value)">
+                                <option value="POST" ${node.config.method === 'POST' ? 'selected' : ''}>POST</option>
+                                <option value="GET" ${node.config.method === 'GET' ? 'selected' : ''}>GET</option>
+                                <option value="PUT" ${node.config.method === 'PUT' ? 'selected' : ''}>PUT</option>
+                                <option value="PATCH" ${node.config.method === 'PATCH' ? 'selected' : ''}>PATCH</option>
+                            </select>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Webhook Path</label>
+                            <input type="text" class="property-input" placeholder="/trigger" 
+                                   value="${node.config.path || '/trigger'}"
+                                   onchange="updateNodeConfig('${node.id}', 'path', this.value)">
+                            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+                                Full URL: /api/webhooks/process/{id}${node.config.path || '/trigger'}
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Authentication</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'auth', this.value)">
+                                <option value="none" ${node.config.auth === 'none' ? 'selected' : ''}>None</option>
+                                <option value="api_key" ${node.config.auth === 'api_key' ? 'selected' : ''}>API Key</option>
+                                <option value="bearer" ${node.config.auth === 'bearer' ? 'selected' : ''}>Bearer Token</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+                
+                case 'loop':
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">Collection to Iterate</label>
+                            <input type="text" class="property-input" placeholder="e.g., items, users, data.results" 
+                                   value="${node.config.collection || ''}"
+                                   onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
+                            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+                                Enter the variable name containing the array/list
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Item Variable Name</label>
+                            <input type="text" class="property-input" placeholder="item" 
+                                   value="${node.config.itemVar || 'item'}"
+                                   onchange="updateNodeConfig('${node.id}', 'itemVar', this.value)">
+                            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+                                Access current item with: {{${node.config.itemVar || 'item'}}}
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Max Iterations</label>
+                            <input type="number" class="property-input" placeholder="100" 
+                                   value="${node.config.maxIterations || 100}"
+                                   onchange="updateNodeConfig('${node.id}', 'maxIterations', parseInt(this.value))">
+                        </div>
+                    `;
+                    break;
+                
+                case 'end':
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">Output Variable</label>
+                            <input type="text" class="property-input" placeholder="e.g., result, response" 
+                                   value="${node.config.output || ''}"
+                                   onchange="updateNodeConfig('${node.id}', 'output', this.value)">
+                            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+                                The variable to return as workflow result
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Success Message</label>
+                            <textarea class="property-textarea" placeholder="Workflow completed successfully"
+                                      onchange="updateNodeConfig('${node.id}', 'successMessage', this.value)">${node.config.successMessage || ''}</textarea>
+                        </div>
+                    `;
+                    break;
+                
+                case 'action':
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">Action Description</label>
+                            <textarea class="property-textarea" placeholder="Describe what this action does..."
+                                      onchange="updateNodeConfig('${node.id}', 'description', this.value)">${node.config.description || ''}</textarea>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Action Type</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'actionType', this.value)">
+                                <option value="custom" ${node.config.actionType === 'custom' ? 'selected' : ''}>Custom Action</option>
+                                <option value="http" ${node.config.actionType === 'http' ? 'selected' : ''}>HTTP Request</option>
+                                <option value="script" ${node.config.actionType === 'script' ? 'selected' : ''}>Run Script</option>
+                                <option value="transform" ${node.config.actionType === 'transform' ? 'selected' : ''}>Transform Data</option>
+                            </select>
                         </div>
                     `;
                     break;
