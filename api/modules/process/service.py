@@ -784,8 +784,7 @@ class ProcessAPIService:
             if not source or not target:
                 continue
             edge_type = e.get('type', 'default')
-            if edge_type in ('yes', 'no'):
-                edge_type = 'conditional' if edge_type == 'yes' else 'conditional'
+            # Keep 'yes'/'no' for condition nodes so true_branch/false_branch get set
             edges.append({
                 'id': e.get('id') or f"edge_{source}_{target}_{i}",
                 'source': source,
