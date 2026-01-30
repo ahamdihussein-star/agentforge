@@ -3,7 +3,7 @@ Notification Service
 Handles sending notifications through various channels
 
 Supported channels:
-- email: Send via SMTP or email service
+- email: Uses platform EmailService (same as reset password, MFA) when provided; else SMTP
 - slack: Send to Slack channel/user
 - webhook: Send HTTP webhook
 - in_app: Create in-app notification
@@ -11,29 +11,36 @@ Supported channels:
 
 import logging
 import json
-from typing import Dict, Any, List, Optional
+import html
+import re
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    pass  # Platform EmailService is passed at runtime to avoid circular imports
 
 logger = logging.getLogger(__name__)
 
 
 class NotificationService:
     """
-    Service for sending notifications
-    
-    Supports multiple channels with extensible architecture.
+    Service for sending notifications.
+    When platform_email_service is set, email channel uses the same service as reset password and MFA.
     """
     
-    def __init__(self, db=None, config: Dict[str, Any] = None):
+    def __init__(self, db=None, config: Dict[str, Any] = None, platform_email_service: Any = None):
         """
-        Initialize notification service
+        Initialize notification service.
         
         Args:
             db: Database session for in-app notifications
             config: Channel configurations
+            platform_email_service: Optional. Same EmailService used for reset password, MFA, invitations.
+                                    When set, email notifications use it (SendGrid/etc.) instead of SMTP.
         """
         self.db = db
         self.config = config or {}
+        self.platform_email_service = platform_email_service
         
         # Channel handlers
         self._handlers = {
@@ -113,13 +120,49 @@ class NotificationService:
         priority: str = "normal",
         config: Dict[str, Any] = None
     ) -> Dict[str, Any]:
-        """Send email notification"""
+        """Send email: use platform EmailService (same as reset password, MFA) when set; else SMTP."""
         
-        # Get SMTP config
+        # Use platform EmailService (SendGrid / same as reset password & MFA) when available
+        if self.platform_email_service:
+            try:
+                # Build HTML body: if message looks like HTML use as-is, else wrap plain text
+                if message.strip().startswith('<') and ('</' in message or '/>' in message):
+                    html_content = message
+                    text_content = message.replace('<br>', '\n').replace('<br/>', '\n').replace('</p>', '\n')
+                    text_content = re.sub(r'<[^>]+>', '', text_content)
+                else:
+                    text_content = message
+                    html_content = f"""<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+<p>{html.escape(message).replace(chr(10), '<br>')}</p>
+<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+<p style="color: #999; font-size: 12px;">AgentForge</p>
+</div>"""
+                sent = 0
+                for to_email in recipients:
+                    if not to_email or not str(to_email).strip():
+                        continue
+                    ok = await self.platform_email_service.send_email(
+                        str(to_email).strip(),
+                        title,
+                        html_content,
+                        text_content=text_content
+                    )
+                    if ok:
+                        sent += 1
+                return {
+                    'success': sent > 0,
+                    'channel': 'email',
+                    'recipients_count': len(recipients),
+                    'sent_count': sent
+                }
+            except Exception as e:
+                logger.warning(f"Platform email service failed: {e}, falling back to SMTP if configured")
+                # Fall through to SMTP path below if platform email fails
+        
+        # Fallback: Get SMTP config
         smtp_config = self.config.get('email', config or {})
         
         if not smtp_config.get('smtp_host'):
-            # Log but don't fail - just record the notification
             logger.info(f"Email notification (no SMTP): {title} -> {recipients}")
             return {
                 'success': True,

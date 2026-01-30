@@ -396,11 +396,14 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 recipients = [single]
         message = self.get_config_value(node, 'message')
         template = self.get_config_value(node, 'template')
+        # Treat empty string as missing
+        has_message = message is not None and str(message).strip()
+        has_template = template is not None and str(template).strip()
         
         if not recipients:
             return ExecutionError.validation_error("At least one recipient is required")
         
-        if not message and not template:
+        if not has_message and not has_template:
             return ExecutionError.validation_error("Either message or template is required")
         
         return None
