@@ -447,10 +447,15 @@ class ProcessExecutionService:
             "[ApprovalDB] RETRIEVE pending: user_id=%s org_id=%s user_role_ids_count=%s",
             user_id, org_id, len(user_role_ids or []),
         )
+        try:
+            org_uuid = org_id if isinstance(org_id, uuid.UUID) else uuid.UUID(str(org_id))
+        except (ValueError, TypeError):
+            logger.warning("[ApprovalDB] Invalid org_id for approval list: %s", org_id)
+            return []
         # Get all pending approvals for the org
         pending = self.db.query(ProcessApprovalRequest).filter(
             and_(
-                ProcessApprovalRequest.org_id == uuid.UUID(org_id),
+                ProcessApprovalRequest.org_id == org_uuid,
                 ProcessApprovalRequest.status == "pending"
             )
         ).order_by(desc(ProcessApprovalRequest.created_at)).all()

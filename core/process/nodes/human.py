@@ -147,19 +147,10 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         )
     
     def validate(self, node: ProcessNode) -> Optional[ExecutionError]:
-        """Validate approval node"""
+        """Validate approval node. Empty assignees are allowed (treated as 'any' - visible to all)."""
         base_error = super().validate(node)
         if base_error:
             return base_error
-        
-        assignee_ids = self.get_config_value(node, 'assignee_ids', [])
-        if not assignee_ids:
-            assignee_ids = _to_assignee_id_list(self.get_config_value(node, 'approvers', []))
-        if not assignee_ids:
-            return ExecutionError.validation_error(
-                "At least one assignee is required for approval"
-            )
-        
         return None
 
 

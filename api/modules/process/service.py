@@ -362,9 +362,14 @@ class ProcessAPIService:
                 # Create ProcessApprovalRequest in DB so it appears in Pending Approvals list
                 if result.waiting_for == 'approval' and meta and deps.approval_service:
                     try:
+                        org_id_val = meta.get('org_id') or str(getattr(execution, 'org_id', ''))
+                        assignee_ids_val = meta.get('assignee_ids') or []
+                        assignee_type_val = meta.get('assignee_type', 'user')
+                        if not assignee_ids_val:
+                            assignee_type_val = 'any'
                         logger.info(
-                            "[ProcessApproval] creating approval in DB: execution_id=%s org_id=%s node_id=%s title=%s assignee_ids=%s",
-                            str(execution.id), meta.get('org_id') or str(execution.org_id), meta.get('node_id'), meta.get('title'), meta.get('assignee_ids'),
+                            "[ProcessApproval] creating approval in DB: execution_id=%s org_id=%s node_id=%s title=%s assignee_type=%s assignee_ids=%s",
+                            str(execution.id), org_id_val, meta.get('node_id'), meta.get('title'), assignee_type_val, assignee_ids_val,
                         )
                         deadline_iso = meta.get('deadline')
                         timeout_hours = 24
@@ -377,14 +382,14 @@ class ProcessAPIService:
                                 pass
                         create_result = await deps.approval_service.create_approval_request(
                             execution_id=str(execution.id),
-                            org_id=meta.get('org_id') or str(execution.org_id),
+                            org_id=org_id_val,
                             node_id=meta.get('node_id', result.resume_node_id or ''),
                             node_name=meta.get('node_name', 'Approval'),
                             title=meta.get('title', 'Approval Required'),
                             description=meta.get('description'),
                             review_data=meta.get('review_data') or {},
-                            assignee_type=meta.get('assignee_type', 'user'),
-                            assignee_ids=meta.get('assignee_ids') or [],
+                            assignee_type=assignee_type_val,
+                            assignee_ids=assignee_ids_val,
                             min_approvals=meta.get('min_approvals', 1),
                             priority=meta.get('priority', 'normal'),
                             timeout_hours=int(timeout_hours),
@@ -551,7 +556,10 @@ class ProcessAPIService:
                 )
                 if result.waiting_for == 'approval' and meta and deps.approval_service:
                     try:
-                        logger.info("[ProcessApproval] creating approval (resume): execution_id=%s", str(execution.id))
+                        org_id_val = meta.get('org_id') or str(getattr(execution, 'org_id', ''))
+                        assignee_ids_val = meta.get('assignee_ids') or []
+                        assignee_type_val = 'any' if not assignee_ids_val else meta.get('assignee_type', 'user')
+                        logger.info("[ProcessApproval] creating approval (resume): execution_id=%s org_id=%s assignee_type=%s", str(execution.id), org_id_val, assignee_type_val)
                         deadline_iso = meta.get('deadline')
                         timeout_hours = 24
                         if deadline_iso:
@@ -563,14 +571,14 @@ class ProcessAPIService:
                                 pass
                         create_result = await deps.approval_service.create_approval_request(
                             execution_id=str(execution.id),
-                            org_id=meta.get('org_id') or str(execution.org_id),
+                            org_id=org_id_val,
                             node_id=meta.get('node_id', result.resume_node_id or ''),
                             node_name=meta.get('node_name', 'Approval'),
                             title=meta.get('title', 'Approval Required'),
                             description=meta.get('description'),
                             review_data=meta.get('review_data') or {},
-                            assignee_type=meta.get('assignee_type', 'user'),
-                            assignee_ids=meta.get('assignee_ids') or [],
+                            assignee_type=assignee_type_val,
+                            assignee_ids=assignee_ids_val,
                             min_approvals=meta.get('min_approvals', 1),
                             priority=meta.get('priority', 'normal'),
                             timeout_hours=int(timeout_hours),
