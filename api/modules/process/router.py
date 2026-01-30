@@ -132,9 +132,17 @@ async def start_execution(
             detail=sanitize_for_user(str(e))
         )
     except Exception as e:
+        # Log full error; return user-friendly message with optional detail
+        import traceback
+        traceback.print_exc()
+        detail = format_error_for_user(ErrorCode.EXECUTION_FAILED)
+        if isinstance(detail, dict) and "message" in detail:
+            detail["message"] = detail["message"] + " " + str(e)
+        elif isinstance(detail, str):
+            detail = detail + " " + str(e)
         raise HTTPException(
             status_code=500, 
-            detail=format_error_for_user(ErrorCode.EXECUTION_FAILED)
+            detail=detail
         )
 
 

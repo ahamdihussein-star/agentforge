@@ -154,8 +154,15 @@ class ProcessAPIService:
                 definition_data.get('settings', {})
             )
             
+            # Normalize Visual Builder format to engine format
+            definition_data = self._normalize_visual_builder_definition(
+                definition_data, 
+                agent_name=getattr(agent, 'name', 'Workflow')
+            )
+            
             process_def = ProcessDefinition.from_dict(definition_data)
         except Exception as e:
+            logger.exception("Process definition parse failed: %s", e)
             raise ValueError(f"Invalid process definition: {e}")
         
         # Create execution record
@@ -748,6 +755,107 @@ class ProcessAPIService:
             deadline_at=approval.deadline_at,
             created_at=approval.created_at
         )
+    
+    def _normalize_visual_builder_definition(
+        self, 
+        data: Dict[str, Any], 
+        agent_name: str = "Workflow"
+    ) -> Dict[str, Any]:
+        """
+        Normalize process definition from Visual Builder format to engine format.
+        - Builder uses edges with from/to/type; engine expects id/source/target/edge_type.
+        - Builder uses node type 'trigger'/'form'; engine expects 'start'.
+        - Builder node.config is flat; engine expects config.type_config for type-specific fields.
+        """
+        data = data.copy()
+        if not data.get('name'):
+            data['name'] = agent_name
+        
+        # Normalize edges: from/to/type -> id/source/target/edge_type
+        raw_edges = data.get('edges') or data.get('connections') or []
+        edges = []
+        for i, e in enumerate(raw_edges):
+            source = e.get('from') or e.get('source')
+            target = e.get('to') or e.get('target')
+            if not source or not target:
+                continue
+            edge_type = e.get('type', 'default')
+            if edge_type in ('yes', 'no'):
+                edge_type = 'conditional' if edge_type == 'yes' else 'conditional'
+            edges.append({
+                'id': e.get('id') or f"edge_{source}_{target}_{i}",
+                'source': source,
+                'target': target,
+                'edge_type': edge_type,
+                'condition': e.get('condition'),
+                'label': e.get('label'),
+            })
+        data['edges'] = edges
+        
+        # Build lookup: from (source, edge_type) -> target for condition branching
+        edges_by_source = {}
+        for e in edges:
+            src = e['source']
+            if src not in edges_by_source:
+                edges_by_source[src] = {}
+            edges_by_source[src][e.get('edge_type', 'default')] = e['target']
+        
+        # Normalize nodes: type trigger/form -> start; wrap config in type_config
+        nodes = data.get('nodes') or []
+        normalized_nodes = []
+        for n in nodes:
+            node = dict(n)
+            node_type = (node.get('type') or '').strip().lower()
+            if node_type in ('trigger', 'form'):
+                node['type'] = 'start'
+            elif node_type == 'ai':
+                node['type'] = 'ai_task'
+            elif node_type == 'tool':
+                node['type'] = 'tool_call'
+            elif node_type == 'action':
+                node['type'] = 'ai_task'  # generic action as AI task
+            config = node.get('config')
+            if config is not None and isinstance(config, dict) and 'type_config' not in config:
+                config = dict(config)
+            else:
+                config = (config or {}).copy() if isinstance(config, dict) else {}
+            if 'type_config' not in config:
+                config = {'type_config': config}
+            type_cfg = config.get('type_config') or {}
+            # Condition node: build expression from field/operator/value, set true_branch/false_branch from edges
+            if node_type == 'condition':
+                field = type_cfg.get('field') or ''
+                operator = type_cfg.get('operator') or 'equals'
+                value = type_cfg.get('value')
+                try:
+                    num_val = float(value) if value is not None and str(value).strip() != '' else None
+                except (TypeError, ValueError):
+                    num_val = None
+                if not field:
+                    type_cfg['expression'] = 'True'
+                elif operator == 'greater_than':
+                    type_cfg['expression'] = f"{{{{{field}}}}} > {num_val if num_val is not None else repr(value)}"
+                elif operator == 'less_than':
+                    type_cfg['expression'] = f"{{{{{field}}}}} < {num_val if num_val is not None else repr(value)}"
+                elif operator == 'equals':
+                    type_cfg['expression'] = f"{{{{{field}}}}} == {num_val if num_val is not None else repr(value)}"
+                elif operator == 'not_equals':
+                    type_cfg['expression'] = f"{{{{{field}}}}} != {num_val if num_val is not None else repr(value)}"
+                elif operator == 'contains':
+                    type_cfg['expression'] = f"{repr(value)} in str({{{{{field}}}}})"
+                elif operator == 'is_empty':
+                    type_cfg['expression'] = f"{{{{{field}}}}} == '' or {{{{field}}}} == None"
+                else:
+                    type_cfg['expression'] = f"{{{{{field}}}}} == {repr(value)}"
+                out = edges_by_source.get(node.get('id'), {})
+                type_cfg['true_branch'] = out.get('yes') or out.get('default')
+                type_cfg['false_branch'] = out.get('no')
+            config['type_config'] = type_cfg
+            node['config'] = config
+            normalized_nodes.append(node)
+        data['nodes'] = normalized_nodes
+        
+        return data
     
     def _merge_settings(
         self, 

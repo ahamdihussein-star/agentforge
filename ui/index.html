@@ -9872,8 +9872,10 @@ Option 3"></textarea>
                 });
                 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Execution failed');
+                    const errBody = await response.json().catch(() => ({}));
+                    const d = errBody.detail;
+                    const msg = typeof d === 'string' ? d : (d && (d.message || d.msg)) ? (d.message || d.msg) : (d ? JSON.stringify(d) : 'Execution failed');
+                    throw new Error(msg);
                 }
                 
                 const execution = await response.json();
