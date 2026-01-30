@@ -4725,6 +4725,7 @@ async def get_agent(agent_id: str, current_user: User = Depends(get_current_user
     created_by = None
     admin_ids = []
     
+    agent_dict = None  # keep for process_definition/process_settings (ensure dict, not string)
     try:
         from database.services import AgentService
         org_id = current_user.org_id if current_user else "org_default"
@@ -4767,11 +4768,16 @@ async def get_agent(agent_id: str, current_user: User = Depends(get_current_user
     if 'agent_type' not in response or not response.get('agent_type'):
         response['agent_type'] = getattr(agent, 'agent_type', 'conversational')
     
-    # Include process-specific fields if it's a process agent
+    # Include process-specific fields if it's a process agent (ensure dict for UI form builder)
     if response.get('agent_type') == 'process':
-        if 'process_definition' not in response:
+        if agent_dict is not None:
+            if agent_dict.get('process_definition') is not None:
+                response['process_definition'] = agent_dict['process_definition']
+            if agent_dict.get('process_settings') is not None:
+                response['process_settings'] = agent_dict['process_settings']
+        if response.get('process_definition') is None:
             response['process_definition'] = getattr(agent, 'process_definition', None)
-        if 'process_settings' not in response:
+        if response.get('process_settings') is None:
             response['process_settings'] = getattr(agent, 'process_settings', None)
     
     if owner_id:

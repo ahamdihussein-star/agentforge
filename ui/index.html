@@ -9746,12 +9746,21 @@ Option 3"></textarea>
         // Build Dynamic Form from Process Definition
         function buildProcessForm(agent) {
             const formContainer = document.getElementById('process-form-fields');
-            const processDef = agent.process_definition;
+            // Normalize: API may return process_definition as JSON string (e.g. from DB)
+            let processDef = agent.process_definition;
+            if (typeof processDef === 'string') {
+                try {
+                    processDef = processDef ? JSON.parse(processDef) : null;
+                } catch (_) {
+                    processDef = null;
+                }
+            }
+            if (!processDef || typeof processDef !== 'object') processDef = {};
             
             // Extract trigger/form inputs from process definition (dynamic from Process Builder)
             let triggerInputs = [];
             
-            if (processDef && processDef.nodes) {
+            if (processDef.nodes && Array.isArray(processDef.nodes)) {
                 // Process Builder: trigger or form node with config.fields (or config.type_config.fields)
                 const triggerNode = processDef.nodes.find(n => 
                     (n.type === 'trigger' || n.type === 'form' || n.type === 'start')
