@@ -9894,7 +9894,7 @@ Option 3"></textarea>
                 if (!response.ok) {
                     const errBody = await response.json().catch(() => ({}));
                     const d = errBody.detail;
-                    const msg = typeof d === 'string' ? d : (d && (d.message || d.msg)) ? (d.message || d.msg) : (d ? JSON.stringify(d) : 'Execution failed');
+                    const msg = typeof d === 'string' ? d : (d && (d.detail || d.message || d.msg)) ? (d.detail || d.message || d.msg) : (d ? JSON.stringify(d) : 'Execution failed');
                     throw new Error(msg);
                 }
                 

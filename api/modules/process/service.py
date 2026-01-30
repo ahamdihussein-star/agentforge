@@ -191,7 +191,8 @@ class ProcessAPIService:
         filtered_tool_ids = [t for t in available_tools if t not in denied_tool_ids]
         
         if denied_tool_ids:
-            logger.info(f"Filtered {len(denied_tool_ids)} denied tools for user {user_id}")
+            # Log count only; do not log user_id or trigger_input (may contain PII)
+            logger.info("Filtered %s denied tools for execution %s", len(denied_tool_ids), str(execution.id))
         
         # Build context with filtered tools
         context = ProcessContext(
@@ -477,7 +478,8 @@ class ProcessAPIService:
             error_message=reason or f"Cancelled by user {user_id}"
         )
         
-        logger.info(f"Execution {execution_id} cancelled by {user_id}")
+        # Log execution_id only for correlation; avoid PII (user_id is UUID, acceptable for audit)
+        logger.info("Execution %s cancelled", execution_id)
         
         return self._to_response(execution)
     

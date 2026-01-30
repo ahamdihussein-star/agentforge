@@ -15,6 +15,7 @@
 | `PROJECT_STATUS.md` | **Current state, quick reference** | Always (primary) |
 | `.cursorrules` | Development rules | Auto-loaded |
 | `database/COMMON_ISSUES.md` | DB patterns & issues | Before DB work |
+| `docs/ENTERPRISE_BEST_PRACTICES.md` | **Scalability, API errors, logging, security** | API/process changes, new features |
 | `docs/MASTER_DOCUMENTATION_UPDATED.md` | Historical/Archive | Deep reference only |
 
 ### 🔑 Key Concepts (Quick Reference):

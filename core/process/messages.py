@@ -278,6 +278,36 @@ def format_error_for_user(
     return msg['message']
 
 
+def problem_details_rfc9457(
+    status: int,
+    code: ErrorCode,
+    context: Dict[str, Any] = None,
+    instance: Optional[str] = None,
+    request_id: Optional[str] = None,
+    detail_override: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Build RFC 9457 Problem Details object for API error responses.
+    Ensures consistent, machine-readable errors across all process API endpoints.
+    """
+    msg = get_error_message(code, context)
+    detail = detail_override if detail_override is not None else (
+        f"{msg['message']} {msg['action']}" if msg.get('action') else msg['message']
+    )
+    out = {
+        "type": f"https://api.agentforge.app/errors/{code.value}",
+        "status": status,
+        "title": msg.get("title", "Error"),
+        "detail": detail,
+        "code": code.value,
+    }
+    if instance:
+        out["instance"] = instance
+    if request_id:
+        out["request_id"] = request_id
+    return out
+
+
 # =============================================================================
 # SUCCESS MESSAGES
 # =============================================================================

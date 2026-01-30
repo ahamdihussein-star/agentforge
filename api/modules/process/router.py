@@ -38,12 +38,13 @@ from .service import ProcessAPIService
 # Import security from platform's auth system
 from api.security import require_auth, User
 
-# Import business-friendly messages
+# Import business-friendly messages and RFC 9457 problem details
 from core.process.messages import (
-    ErrorCode, 
+    ErrorCode,
     format_error_for_user,
     get_success_message,
-    sanitize_for_user
+    sanitize_for_user,
+    problem_details_rfc9457,
 )
 
 
@@ -122,27 +123,28 @@ async def start_execution(
         return result
     except PermissionError as e:
         raise HTTPException(
-            status_code=403, 
-            detail=format_error_for_user(ErrorCode.ACCESS_DENIED)
+            status_code=403,
+            detail=problem_details_rfc9457(403, ErrorCode.ACCESS_DENIED),
         )
     except ValueError as e:
-        # Sanitize technical error messages
+        sanitized = sanitize_for_user(str(e))
         raise HTTPException(
-            status_code=400, 
-            detail=sanitize_for_user(str(e))
+            status_code=400,
+            detail=problem_details_rfc9457(
+                400, ErrorCode.VALIDATION_FAILED,
+                detail_override=sanitized,
+            ),
         )
     except Exception as e:
-        # Log full error; return user-friendly message with optional detail
+        import logging
         import traceback
+        logging.getLogger(__name__).exception(
+            "Process execution failed: %s", type(e).__name__
+        )
         traceback.print_exc()
-        detail = format_error_for_user(ErrorCode.EXECUTION_FAILED)
-        if isinstance(detail, dict) and "message" in detail:
-            detail["message"] = detail["message"] + " " + str(e)
-        elif isinstance(detail, str):
-            detail = detail + " " + str(e)
         raise HTTPException(
-            status_code=500, 
-            detail=detail
+            status_code=500,
+            detail=problem_details_rfc9457(500, ErrorCode.EXECUTION_FAILED),
         )
 
 
