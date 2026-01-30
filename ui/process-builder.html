@@ -1213,6 +1213,11 @@
                 case 'notification':
                     html = `<div class="node-config-item"><span class="config-label">Channel</span><span class="config-value">${cfg.channel || 'email'}</span></div>`;
                     break;
+                case 'form':
+                case 'trigger':
+                    const fieldCount = (cfg.fields || []).length;
+                    html = `<div class="node-config-item"><span class="config-label">Fields</span><span class="config-value">${fieldCount} input${fieldCount !== 1 ? 's' : ''}</span></div>`;
+                    break;
                 default:
                     html = '<div class="node-config-item"><span class="config-value" style="color:#6b7280;">Click to configure</span></div>';
             }
@@ -1516,6 +1521,60 @@
                         </div>
                     `;
                     break;
+                
+                case 'form':
+                case 'trigger':
+                    // Form fields editor
+                    const fields = node.config.fields || [];
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">Form Title</label>
+                            <input type="text" class="property-input" placeholder="e.g., Submit Expense Report" 
+                                   value="${node.config.title || ''}"
+                                   onchange="updateNodeConfig('${node.id}', 'title', this.value)">
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Input Fields</label>
+                            <div id="form-fields-list" style="margin-bottom:12px;">
+                                ${fields.length === 0 ? '<div style="color:#6b7280;font-size:12px;padding:8px;">No fields yet. Add some below.</div>' : ''}
+                                ${fields.map((f, idx) => `
+                                    <div class="form-field-item" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
+                                        <input type="text" class="property-input" style="flex:1;margin:0;" placeholder="Field name"
+                                               value="${f.name || ''}"
+                                               onchange="updateFormField('${node.id}', ${idx}, 'name', this.value)">
+                                        <select class="property-select" style="width:100px;margin:0;"
+                                                onchange="updateFormField('${node.id}', ${idx}, 'type', this.value)">
+                                            <option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option>
+                                            <option value="number" ${f.type === 'number' ? 'selected' : ''}>Number</option>
+                                            <option value="email" ${f.type === 'email' ? 'selected' : ''}>Email</option>
+                                            <option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option>
+                                            <option value="textarea" ${f.type === 'textarea' ? 'selected' : ''}>Long Text</option>
+                                            <option value="select" ${f.type === 'select' ? 'selected' : ''}>Dropdown</option>
+                                            <option value="file" ${f.type === 'file' ? 'selected' : ''}>File</option>
+                                        </select>
+                                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#9ca3af;">
+                                            <input type="checkbox" ${f.required ? 'checked' : ''} 
+                                                   onchange="updateFormField('${node.id}', ${idx}, 'required', this.checked)">
+                                            Req
+                                        </label>
+                                        <button onclick="removeFormField('${node.id}', ${idx})" 
+                                                style="background:#ef4444;border:none;color:white;width:24px;height:24px;border-radius:4px;cursor:pointer;">×</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button onclick="addFormField('${node.id}')" 
+                                    style="width:100%;padding:10px;background:#22c55e;border:none;border-radius:8px;color:white;cursor:pointer;font-size:13px;">
+                                + Add Input Field
+                            </button>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Submit Button Text</label>
+                            <input type="text" class="property-input" placeholder="Submit" 
+                                   value="${node.config.submitText || 'Submit'}"
+                                   onchange="updateNodeConfig('${node.id}', 'submitText', this.value)">
+                        </div>
+                    `;
+                    break;
                     
                 default:
                     html += `
@@ -1570,6 +1629,42 @@
                 if (tool) node.name = tool.name;
                 refreshNode(node);
                 showProperties(node); // Refresh panel
+                saveToUndo();
+            }
+        }
+        
+        // Form field management functions
+        function addFormField(nodeId) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) {
+                if (!node.config.fields) node.config.fields = [];
+                node.config.fields.push({
+                    name: '',
+                    type: 'text',
+                    required: false,
+                    placeholder: ''
+                });
+                refreshNode(node);
+                showProperties(node);
+                saveToUndo();
+            }
+        }
+        
+        function updateFormField(nodeId, fieldIndex, key, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node && node.config.fields && node.config.fields[fieldIndex]) {
+                node.config.fields[fieldIndex][key] = value;
+                refreshNode(node);
+                saveToUndo();
+            }
+        }
+        
+        function removeFormField(nodeId, fieldIndex) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node && node.config.fields) {
+                node.config.fields.splice(fieldIndex, 1);
+                refreshNode(node);
+                showProperties(node);
                 saveToUndo();
             }
         }
