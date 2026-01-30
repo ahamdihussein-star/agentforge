@@ -2350,8 +2350,8 @@
                         message: `Checked: ${field} (${inputValue}) ${operator} ${compareValue} → ${result ? 'YES' : 'NO'}` 
                     });
                     
-                    // Find the correct path (yes or no)
-                    const nextConnection = connections.find(c => c.output === (result ? 'yes' : 'no'));
+                    // Find the correct path (yes or no) - connections use .type not .output
+                    const nextConnection = connections.find(c => c.type === (result ? 'yes' : 'no'));
                     if (nextConnection) {
                         currentNode = state.nodes.find(n => n.id === nextConnection.to);
                     } else {
