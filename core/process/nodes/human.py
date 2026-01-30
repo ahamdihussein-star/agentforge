@@ -270,6 +270,10 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         
         channel = self.get_config_value(node, 'channel', 'email')
         recipients = self.get_config_value(node, 'recipients', [])
+        if not recipients:
+            single = self.get_config_value(node, 'recipient')
+            if single:
+                recipients = [single]
         title = self.get_config_value(node, 'title', '')
         message = self.get_config_value(node, 'message', '')
         template_id = self.get_config_value(node, 'template')
@@ -355,6 +359,10 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             return ExecutionError.validation_error("Notification channel is required")
         
         recipients = self.get_config_value(node, 'recipients', [])
+        if not recipients:
+            single = self.get_config_value(node, 'recipient')
+            if single:
+                recipients = [single]
         message = self.get_config_value(node, 'message')
         template = self.get_config_value(node, 'template')
         

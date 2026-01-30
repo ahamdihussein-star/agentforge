@@ -95,6 +95,7 @@ class ProcessAPIService:
         
         if not agent:
             raise ValueError(f"Agent not found: {agent_id}")
+        # Agent (and process_definition, process_settings, name, tool_ids) are from DB above; we use _ensure_dict for JSON columns
         
         if agent.agent_type != "process":
             raise ValueError(f"Agent is not a process type: {agent.agent_type}")
@@ -167,16 +168,16 @@ class ProcessAPIService:
             logger.exception("Process definition parse failed: %s", e)
             raise ValueError(f"Invalid process definition: {e}")
         
-        # Create execution record
+        # Create execution record (snapshot = normalized definition so resume/DB always get dict + normalizations)
         execution = self.exec_service.create_execution(
             agent_id=agent_id,
             org_id=org_id,
             created_by=user_id,
             trigger_type=trigger_type,
-            trigger_input=trigger_input or {},
+            trigger_input=self._ensure_dict(trigger_input or {}),
             conversation_id=conversation_id,
             correlation_id=correlation_id,
-            process_definition_snapshot=agent.process_definition
+            process_definition_snapshot=definition_data,
         )
         
         # Update status to running
@@ -853,6 +854,12 @@ class ProcessAPIService:
                 out = edges_by_source.get(node.get('id'), {})
                 type_cfg['true_branch'] = out.get('yes') or out.get('default')
                 type_cfg['false_branch'] = out.get('no')
+            # Notification node: Process Builder uses 'recipient' (single); engine expects 'recipients' (list)
+            if node_type == 'notification':
+                if not type_cfg.get('recipients') and type_cfg.get('recipient'):
+                    type_cfg['recipients'] = [type_cfg['recipient']]
+                if not type_cfg.get('message') and type_cfg.get('template'):
+                    type_cfg['message'] = type_cfg.get('template', '')
             config['type_config'] = type_cfg
             node['config'] = config
             normalized_nodes.append(node)
