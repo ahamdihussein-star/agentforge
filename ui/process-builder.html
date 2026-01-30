@@ -1420,6 +1420,7 @@
                             fields.push({
                                 name: f.name,
                                 type: f.type,
+                                required: f.required || false,
                                 source: n.name
                             });
                         }
@@ -2207,11 +2208,223 @@
         }
         
         function testWorkflow() {
-            if (state.agentId) {
-                window.open('/ui/#agents', '_blank');
-            } else {
-                alert('Please save the workflow first');
+            // Get available input fields
+            const fields = getAvailableFields();
+            
+            if (fields.length === 0) {
+                alert('No input fields found. Add fields to your Start/Form node first.');
+                return;
             }
+            
+            // Create test modal
+            const modal = document.createElement('div');
+            modal.id = 'test-workflow-modal';
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.8); display: flex; align-items: center; 
+                justify-content: center; z-index: 10000;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background:#1f2937; border-radius:12px; width:500px; max-width:90%; max-height:80vh; overflow:auto;">
+                    <div style="padding:20px; border-bottom:1px solid #374151;">
+                        <h2 style="margin:0; font-size:18px;">▶️ Test Workflow</h2>
+                        <p style="margin:8px 0 0; color:#9ca3af; font-size:13px;">Fill in the input values to simulate the workflow</p>
+                    </div>
+                    <div style="padding:20px;">
+                        <form id="test-workflow-form">
+                            ${fields.map(f => `
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block; margin-bottom:6px; font-size:13px; color:#d1d5db;">
+                                        ${f.name} ${f.required ? '<span style="color:#ef4444;">*</span>' : ''}
+                                        <span style="color:#6b7280; font-size:11px;">(${f.type})</span>
+                                    </label>
+                                    ${f.type === 'textarea' ? `
+                                        <textarea name="${f.name}" style="width:100%; padding:10px; background:#111827; border:1px solid #374151; border-radius:6px; color:white; min-height:80px;" 
+                                                  placeholder="Enter ${f.name}..." ${f.required ? 'required' : ''}></textarea>
+                                    ` : `
+                                        <input type="${f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : f.type === 'date' ? 'date' : 'text'}" 
+                                               name="${f.name}" 
+                                               style="width:100%; padding:10px; background:#111827; border:1px solid #374151; border-radius:6px; color:white;" 
+                                               placeholder="Enter ${f.name}..." ${f.required ? 'required' : ''}>
+                                    `}
+                                </div>
+                            `).join('')}
+                        </form>
+                    </div>
+                    <div style="padding:20px; border-top:1px solid #374151; display:flex; gap:12px; justify-content:flex-end;">
+                        <button onclick="closeTestModal()" style="padding:10px 20px; background:#374151; border:none; border-radius:6px; color:white; cursor:pointer;">
+                            Cancel
+                        </button>
+                        <button onclick="runWorkflowTest()" style="padding:10px 20px; background:#22c55e; border:none; border-radius:6px; color:white; cursor:pointer; font-weight:500;">
+                            ▶️ Run Test
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        function closeTestModal() {
+            const modal = document.getElementById('test-workflow-modal');
+            if (modal) modal.remove();
+        }
+        
+        function runWorkflowTest() {
+            const form = document.getElementById('test-workflow-form');
+            const formData = new FormData(form);
+            const inputData = {};
+            
+            for (let [key, value] of formData.entries()) {
+                inputData[key] = value;
+            }
+            
+            // Simulate workflow execution
+            simulateWorkflow(inputData);
+        }
+        
+        function simulateWorkflow(inputData) {
+            closeTestModal();
+            
+            // Create results modal
+            const modal = document.createElement('div');
+            modal.id = 'test-results-modal';
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.8); display: flex; align-items: center; 
+                justify-content: center; z-index: 10000;
+            `;
+            
+            // Trace through the workflow
+            const trace = [];
+            let currentNode = state.nodes.find(n => n.type === 'trigger' || n.type === 'form');
+            
+            if (!currentNode) {
+                currentNode = state.nodes.find(n => n.type === 'schedule' || n.type === 'webhook');
+            }
+            
+            if (!currentNode) {
+                alert('No start node found');
+                return;
+            }
+            
+            trace.push({ node: currentNode, status: 'completed', message: 'Workflow started with input data' });
+            
+            // Follow the workflow path
+            let maxSteps = 20; // Prevent infinite loops
+            while (currentNode && maxSteps > 0) {
+                maxSteps--;
+                
+                // Find outgoing connection
+                const connections = state.connections.filter(c => c.from === currentNode.id);
+                
+                if (connections.length === 0) {
+                    // End node or no connections
+                    if (currentNode.type === 'end') {
+                        trace.push({ node: currentNode, status: 'completed', message: 'Workflow completed' });
+                    }
+                    break;
+                }
+                
+                // Handle condition nodes
+                if (currentNode.type === 'condition') {
+                    const field = currentNode.config.field;
+                    const operator = currentNode.config.operator;
+                    const compareValue = currentNode.config.value;
+                    const inputValue = inputData[field];
+                    
+                    let result = false;
+                    switch (operator) {
+                        case 'equals': result = inputValue == compareValue; break;
+                        case 'not_equals': result = inputValue != compareValue; break;
+                        case 'greater_than': result = parseFloat(inputValue) > parseFloat(compareValue); break;
+                        case 'less_than': result = parseFloat(inputValue) < parseFloat(compareValue); break;
+                        case 'contains': result = String(inputValue).includes(compareValue); break;
+                        case 'is_empty': result = !inputValue || inputValue === ''; break;
+                    }
+                    
+                    trace.push({ 
+                        node: currentNode, 
+                        status: 'completed', 
+                        message: `Checked: ${field} (${inputValue}) ${operator} ${compareValue} → ${result ? 'YES' : 'NO'}` 
+                    });
+                    
+                    // Find the correct path (yes or no)
+                    const nextConnection = connections.find(c => c.output === (result ? 'yes' : 'no'));
+                    if (nextConnection) {
+                        currentNode = state.nodes.find(n => n.id === nextConnection.to);
+                    } else {
+                        // Fallback - take first connection
+                        currentNode = state.nodes.find(n => n.id === connections[0].to);
+                    }
+                } else {
+                    // Regular node - add to trace and follow first connection
+                    let message = '';
+                    switch (currentNode.type) {
+                        case 'approval':
+                            message = `Approval requested from: ${(currentNode.config.approvers || []).join(', ') || 'Not set'}`;
+                            break;
+                        case 'notification':
+                            let template = currentNode.config.template || '';
+                            Object.keys(inputData).forEach(key => {
+                                template = template.replace(new RegExp('\\{\\{' + key + '\\}\\}', 'g'), inputData[key]);
+                            });
+                            message = `Notification sent: "${template.substring(0, 50)}..."`;
+                            break;
+                        case 'ai':
+                            message = `AI processed with model: ${currentNode.config.model || 'gpt-4o'}`;
+                            break;
+                        case 'delay':
+                            message = `Waiting ${currentNode.config.duration} ${currentNode.config.unit}`;
+                            break;
+                        default:
+                            message = `Executed: ${currentNode.name}`;
+                    }
+                    
+                    if (currentNode.type !== 'trigger' && currentNode.type !== 'form') {
+                        trace.push({ node: currentNode, status: 'completed', message });
+                    }
+                    
+                    currentNode = state.nodes.find(n => n.id === connections[0].to);
+                }
+            }
+            
+            // Display results
+            modal.innerHTML = `
+                <div style="background:#1f2937; border-radius:12px; width:600px; max-width:90%; max-height:80vh; overflow:auto;">
+                    <div style="padding:20px; border-bottom:1px solid #374151;">
+                        <h2 style="margin:0; font-size:18px;">📊 Test Results</h2>
+                    </div>
+                    <div style="padding:20px;">
+                        <div style="margin-bottom:16px; padding:12px; background:#111827; border-radius:8px;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:8px;">INPUT DATA:</div>
+                            <pre style="margin:0; color:#a5b4fc; font-size:12px;">${JSON.stringify(inputData, null, 2)}</pre>
+                        </div>
+                        
+                        <div style="font-size:12px; color:#6b7280; margin-bottom:12px;">EXECUTION TRACE:</div>
+                        ${trace.map((t, i) => `
+                            <div style="display:flex; gap:12px; margin-bottom:12px;">
+                                <div style="width:24px; height:24px; border-radius:50%; background:${t.status === 'completed' ? '#22c55e' : '#ef4444'}; display:flex; align-items:center; justify-content:center; font-size:12px;">
+                                    ${t.status === 'completed' ? '✓' : '✗'}
+                                </div>
+                                <div style="flex:1;">
+                                    <div style="font-weight:500;">${t.node.name}</div>
+                                    <div style="font-size:12px; color:#9ca3af;">${t.message}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div style="padding:20px; border-top:1px solid #374151; display:flex; justify-content:flex-end;">
+                        <button onclick="document.getElementById('test-results-modal').remove()" 
+                                style="padding:10px 20px; background:#6366f1; border:none; border-radius:6px; color:white; cursor:pointer;">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
         }
         
         function updateEmptyState() {
