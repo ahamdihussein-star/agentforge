@@ -21,25 +21,46 @@ from sqlalchemy import and_, or_, desc, func
 logger = logging.getLogger(__name__)
 
 from ..models.process_execution import (
-    ProcessExecution, 
-    ProcessNodeExecution, 
-    ProcessApprovalRequest
+    ProcessExecution,
+    ProcessNodeExecution,
+    ProcessApprovalRequest,
 )
 from ..models.agent import Agent
+from ..models.organization import Organization
 
 
 class ProcessExecutionService:
     """
     Service for managing process executions
     """
-    
+
     def __init__(self, db: Session):
         self.db = db
-    
+
+    def _resolve_org_id(self, org_id: str) -> str:
+        """
+        Resolve org_id to a valid UUID string.
+        Converts 'org_default' or invalid values to the default organization UUID
+        so that approvals and executions use a consistent org_id (DB stores UUID).
+        """
+        if not org_id or org_id == "org_default":
+            org = self.db.query(Organization).filter_by(slug="default").first()
+            if org:
+                return str(org.id)
+            return "2c969bf1-16d3-43d3-95da-66965c3fa132"
+        try:
+            uuid.UUID(org_id)
+            return org_id
+        except (ValueError, TypeError):
+            org = self.db.query(Organization).filter_by(slug="default").first()
+            if org:
+                return str(org.id)
+            return "2c969bf1-16d3-43d3-95da-66965c3fa132"
+
     # =========================================================================
     # PROCESS EXECUTION CRUD
     # =========================================================================
-    
+
     def create_execution(
         self,
         agent_id: str,
@@ -69,10 +90,11 @@ class ProcessExecutionService:
         """
         # Get execution number for this agent
         execution_number = self._get_next_execution_number(agent_id)
-        
+        resolved_org_id = self._resolve_org_id(str(org_id)) if org_id else self._resolve_org_id("org_default")
+
         execution = ProcessExecution(
             id=uuid.uuid4(),
-            org_id=uuid.UUID(org_id) if isinstance(org_id, str) else org_id,
+            org_id=uuid.UUID(resolved_org_id),
             agent_id=uuid.UUID(agent_id) if isinstance(agent_id, str) else agent_id,
             conversation_id=uuid.UUID(conversation_id) if conversation_id else None,
             execution_number=execution_number,
@@ -375,17 +397,18 @@ class ProcessExecutionService:
     ) -> ProcessApprovalRequest:
         """Create an approval request"""
         approval_id = uuid.uuid4()
+        resolved_org_id = self._resolve_org_id(org_id)
         assigned_user_ids_str = [str(uid) for uid in (assigned_user_ids or [])]
         assigned_role_ids_str = [str(rid) for rid in (assigned_role_ids or [])]
         logger.info(
             "[ApprovalDB] INSERT approval: id=%s execution_id=%s org_id=%s node_id=%s node_name=%s "
             "assignee_type=%s assigned_user_ids=%s assigned_role_ids=%s",
-            approval_id, process_execution_id, org_id, node_id, node_name,
+            approval_id, process_execution_id, resolved_org_id, node_id, node_name,
             assignee_type, assigned_user_ids_str, assigned_role_ids_str,
         )
         approval = ProcessApprovalRequest(
             id=approval_id,
-            org_id=uuid.UUID(org_id),
+            org_id=uuid.UUID(resolved_org_id),
             process_execution_id=uuid.UUID(process_execution_id),
             node_id=node_id,
             node_name=node_name,
@@ -447,10 +470,11 @@ class ProcessExecutionService:
             "[ApprovalDB] RETRIEVE pending: user_id=%s org_id=%s user_role_ids_count=%s",
             user_id, org_id, len(user_role_ids or []),
         )
+        resolved_org_id = self._resolve_org_id(org_id) if org_id else self._resolve_org_id("org_default")
         try:
-            org_uuid = org_id if isinstance(org_id, uuid.UUID) else uuid.UUID(str(org_id))
+            org_uuid = uuid.UUID(resolved_org_id)
         except (ValueError, TypeError):
-            logger.warning("[ApprovalDB] Invalid org_id for approval list: %s", org_id)
+            logger.warning("[ApprovalDB] Invalid resolved org_id for approval list: %s", resolved_org_id)
             return []
         # Get all pending approvals for the org
         pending = self.db.query(ProcessApprovalRequest).filter(
