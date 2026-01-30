@@ -356,7 +356,7 @@ class ProcessState:
         if not all(c in allowed_chars or c.isalnum() or c == '_' for c in expression):
             raise ValueError(f"Unsafe expression: {expression}")
         
-        # Evaluate
+        # Evaluate (null/None for empty checks from interpolated expressions)
         return eval(expression, {"__builtins__": {}}, {
             "True": True, "False": False, "None": None,
             "true": True, "false": False, "null": None

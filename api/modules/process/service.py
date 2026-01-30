@@ -6,6 +6,7 @@ This service bridges the API layer with the Process Engine.
 Integrates with the platform's security module for access control.
 """
 
+import json
 import uuid
 import logging
 from typing import Dict, Any, List, Optional, AsyncIterator
@@ -135,8 +136,8 @@ class ProcessAPIService:
         from database.services.process_settings_service import ProcessSettingsService
         
         settings_service = ProcessSettingsService(self.db)
-        org_settings = settings_service.get_org_settings(org_id)
-        process_settings = agent.process_settings or {}
+        org_settings = self._ensure_dict(settings_service.get_org_settings(org_id))
+        process_settings = self._ensure_dict(agent.process_settings or {})
         
         # Merge: org_settings as base, process_settings as override
         merged_settings = self._merge_settings(org_settings, process_settings)
@@ -859,6 +860,23 @@ class ProcessAPIService:
         
         return data
     
+    def _ensure_dict(self, value: Any) -> Dict[str, Any]:
+        """
+        Normalize a value to a dict for settings merge.
+        Handles JSON strings from DB, None, and non-dict types.
+        """
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, dict) else {}
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+    
     def _merge_settings(
         self, 
         base: Dict[str, Any], 
@@ -874,6 +892,8 @@ class ProcessAPIService:
         Returns:
             Merged settings with override taking precedence
         """
+        base = self._ensure_dict(base)
+        override = self._ensure_dict(override)
         result = base.copy()
         
         for key, value in override.items():
