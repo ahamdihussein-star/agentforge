@@ -9938,8 +9938,12 @@ Option 3"></textarea>
                 }
                 
                 const execution = await response.json();
-                currentExecutionId = execution.execution_id;
+                currentExecutionId = execution.id || execution.execution_id;
                 
+                if (!currentExecutionId) {
+                    updateExecutionStatus('failed', 'Execution Failed', 'No execution ID returned from server.');
+                    return;
+                }
                 // Start polling for status
                 startExecutionPolling(currentExecutionId);
                 
@@ -10032,6 +10036,7 @@ Option 3"></textarea>
         
         // Poll for Execution Status
         function startExecutionPolling(executionId) {
+            if (!executionId) return;
             // Clear any existing polling
             if (executionPollInterval) {
                 clearInterval(executionPollInterval);
