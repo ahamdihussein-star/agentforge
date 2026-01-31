@@ -271,7 +271,7 @@
             color: rgba(255,255,255,0.95);
         }
         
-        /* التسمية تحت الشكل فقط – بدون خلفية */
+        /* التسمية – موضعها حسب labelPosition (below/left/right/above) عشان تتقري لو الخط طاله */
         .node-label {
             font-weight: 600;
             font-size: 11px;
@@ -280,6 +280,33 @@
             line-height: 1.2;
             word-break: break-word;
             color: var(--pb-text);
+        }
+        .workflow-node.label-below .node-label { position: relative; margin-top: 0; }
+        .workflow-node.label-left .node-label {
+            position: absolute;
+            left: -72px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 64px;
+            margin: 0;
+        }
+        .workflow-node.label-right .node-label {
+            position: absolute;
+            right: -72px;
+            left: auto;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 64px;
+            margin: 0;
+        }
+        .workflow-node.label-above .node-label {
+            position: absolute;
+            left: 50%;
+            top: -28px;
+            transform: translateX(-50%);
+            width: auto;
+            max-width: 80px;
+            margin: 0;
         }
         
         .node-menu-btn {
@@ -568,8 +595,19 @@
         
         .toolbar-actions {
             display: flex;
+            align-items: center;
             gap: 8px;
             margin-left: auto;
+        }
+        .toolbar-actions .toolbar-label {
+            font-size: 12px;
+            color: var(--pb-text-muted, #9ca3af);
+            margin-right: 4px;
+        }
+        .toolbar-actions .flow-btn.active {
+            background: var(--connection-color, #6366f1);
+            color: #fff;
+            border-color: var(--connection-color, #6366f1);
         }
         
         .toolbar-btn {
@@ -1023,6 +1061,13 @@
         <input type="text" id="workflow-name" class="workflow-name-input" value="My Workflow" placeholder="Workflow Name">
         
         <div class="toolbar-actions">
+            <span class="toolbar-label">Flow:</span>
+            <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-vertical" title="Vertical (top to bottom)" onclick="setFlowDirection('vertical')">
+                <span>↕</span> Vertical
+            </button>
+            <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-horizontal" title="Horizontal (left to right)" onclick="setFlowDirection('horizontal')">
+                <span>↔</span> Horizontal
+            </button>
             <button class="toolbar-btn btn-secondary" onclick="undoAction()">
                 <span>↶</span> Undo
             </button>
@@ -1266,6 +1311,7 @@
             draggingBendPoint: null,
             justDropped: false,
             consumeNextClick: false,
+            flowDirection: 'vertical',
             tools: [],
             agentId: null,
             undoStack: [],
@@ -1290,7 +1336,21 @@
             initPaletteShapes();
             loadTools();
             loadWorkflowFromUrl();
+            updateFlowButtons();
         });
+        
+        function setFlowDirection(dir) {
+            state.flowDirection = dir;
+            updateFlowButtons();
+            renderConnections();
+        }
+        
+        function updateFlowButtons() {
+            const v = document.getElementById('flow-vertical');
+            const h = document.getElementById('flow-horizontal');
+            if (v) v.classList.toggle('active', state.flowDirection === 'vertical');
+            if (h) h.classList.toggle('active', state.flowDirection === 'horizontal');
+        }
         
         function initPaletteShapes() {
             document.querySelectorAll('.palette-item[data-type]').forEach(item => {
@@ -1500,7 +1560,8 @@
             
             const nodeEl = document.createElement('div');
             const shapeClass = getShapeClass(node.type);
-            nodeEl.className = 'workflow-node ' + shapeClass;
+            const labelPos = node.labelPosition || 'below';
+            nodeEl.className = 'workflow-node ' + shapeClass + ' label-' + labelPos;
             nodeEl.id = node.id;
             nodeEl.style.left = node.x + 'px';
             nodeEl.style.top = node.y + 'px';
@@ -1799,7 +1860,10 @@
                 const y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
                 
                 const midY = (y1 + y2) / 2;
-                const pathD = `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
+                const midX = (x1 + x2) / 2;
+                const pathD = state.flowDirection === 'horizontal'
+                    ? `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`
+                    : `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
                 
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
@@ -1830,8 +1894,8 @@
                 gHandle.appendChild(endHandle);
                 svg.appendChild(gHandle);
                 
-                const labelX = (x1 + x2) / 2;
-                const labelY = midY;
+                const labelX = state.flowDirection === 'horizontal' ? midX : (x1 + x2) / 2;
+                const labelY = state.flowDirection === 'horizontal' ? (y1 + y2) / 2 : midY;
                 if (conn.type === 'yes' || conn.type === 'no') {
                     const offset = 18;
                     const lx = labelX;
@@ -1858,7 +1922,10 @@
             if (state.draggingEdgeEnd) {
                 const d = state.draggingEdgeEnd;
                 const midY = (d.fromY + d.currentY) / 2;
-                const pathD = `M ${d.fromX} ${d.fromY} L ${d.fromX} ${midY} L ${d.currentX} ${midY} L ${d.currentX} ${d.currentY}`;
+                const midX = (d.fromX + d.currentX) / 2;
+                const pathD = state.flowDirection === 'horizontal'
+                    ? `M ${d.fromX} ${d.fromY} L ${midX} ${d.fromY} L ${midX} ${d.currentY} L ${d.currentX} ${d.currentY}`
+                    : `M ${d.fromX} ${d.fromY} L ${d.fromX} ${midY} L ${d.currentX} ${midY} L ${d.currentX} ${d.currentY}`;
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${d.type} connection-preview`);
                 path.setAttribute('d', pathD);
@@ -1994,11 +2061,22 @@
         }
         
         function generatePropertiesForm(node) {
+            const labelPos = node.labelPosition || 'below';
             let html = `
                 <div class="property-group">
                     <label class="property-label">Name</label>
                     <input type="text" class="property-input" value="${node.name}" 
                            onchange="updateNodeProperty('${node.id}', 'name', this.value)">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">Label position</label>
+                    <select class="property-select" onchange="updateNodeProperty('${node.id}', 'labelPosition', this.value)">
+                        <option value="below" ${labelPos === 'below' ? 'selected' : ''}>Below</option>
+                        <option value="left" ${labelPos === 'left' ? 'selected' : ''}>Left</option>
+                        <option value="right" ${labelPos === 'right' ? 'selected' : ''}>Right</option>
+                        <option value="above" ${labelPos === 'above' ? 'selected' : ''}>Above</option>
+                    </select>
+                    <div style="font-size:11px;color:#9ca3af;margin-top:4px;">Move label if line covers it</div>
                 </div>
             `;
             
