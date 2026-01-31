@@ -140,9 +140,8 @@
             border-radius: 50%;
         }
         .workflow-node.shape-start .node-body { display: none; }
-        .workflow-node.shape-start .node-label { font-size: 11px; padding: 0 4px; color: var(--pb-text); }
         .workflow-node.shape-start .node-menu-btn { display: none; }
-        /* End: الدائرة السميكة فقط – بدون مستطيل أبيض حولها */
+        /* End: دائرة 56×56 سميكة – نفس حجم Start */
         .workflow-node.shape-end {
             width: 72px;
             padding: 0 0 28px;
@@ -153,19 +152,18 @@
         .workflow-node.shape-end:hover,
         .workflow-node.shape-end.selected { box-shadow: none; }
         .workflow-node.shape-end .node-shape-wrap {
-            width: 48px;
-            height: 48px;
+            width: 56px;
+            height: 56px;
             margin: 0 auto 6px;
             border-radius: 50%;
             border: 4px solid currentColor;
             box-sizing: border-box;
         }
         .workflow-node.shape-end .node-body { display: none; }
-        .workflow-node.shape-end .node-label { font-size: 11px; padding: 0 4px; color: var(--pb-text); }
         .workflow-node.shape-end .node-menu-btn { display: none; }
-        /* Condition: الماسّة البرتقالية فقط – بدون شكل رمادي أو إطار وراها */
+        /* Condition: ماسّة 56×56 – نفس عرض العُقد الأخرى */
         .workflow-node.shape-gateway {
-            width: 80px;
+            width: 72px;
             padding: 0 0 28px;
             background: transparent !important;
             border: none !important;
@@ -182,26 +180,31 @@
             -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
         }
         .workflow-node.shape-gateway .node-body { display: none; }
-        .workflow-node.shape-gateway .node-label { font-size: 11px; color: var(--pb-text); }
-        /* Task: شكل + تسمية فقط، بدون مربع إعدادات تحت */
+        /* Task (Loop, Wait, Action, Tools, AI, Approval, Form, Notification): مربع دائري الزوايا بحجم Start – بدون مستطيل كبير */
         .workflow-node.shape-task {
-            width: 180px;
-            border-radius: 12px;
-            background: transparent;
-            border: none;
+            width: 72px;
+            padding: 0 0 28px;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none;
         }
         .workflow-node.shape-task:hover,
         .workflow-node.shape-task.selected { box-shadow: none; }
         .workflow-node.shape-task .node-shape-wrap {
-            border-radius: 12px 12px 0 0;
-            padding: 10px;
-        }
-        .workflow-node.shape-task .node-label {
-            padding: 6px 10px 4px;
-            background: transparent;
-            color: var(--pb-text);
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 6px;
+            border-radius: 12px;
+            padding: 0;
         }
         .workflow-node.shape-task .node-body { display: none; }
+        .workflow-node.shape-task .node-menu-btn {
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+        }
         
         .workflow-node:hover {
             border-color: #4f46e5;
@@ -249,26 +252,31 @@
         .node-shape-wrap.delay { background: linear-gradient(135deg, #06b6d4, #0891b2); }
         .node-shape-wrap.end { background: linear-gradient(135deg, #6b7280, #4b5563); }
         .node-shape-wrap.tool { background: linear-gradient(135deg, #ec4899, #db2777); }
+        .node-shape-wrap.ai { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .node-shape-wrap.form { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+        .node-shape-wrap.notification { background: linear-gradient(135deg, #f97316, #ea580c); }
         
+        /* حجم الأيقونة موحّد لجميع الأشكال */
         .node-shape {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .node-shape svg {
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             fill: currentColor;
             color: rgba(255,255,255,0.95);
         }
         
+        /* التسمية تحت الشكل فقط – بدون خلفية */
         .node-label {
             font-weight: 600;
-            font-size: 13px;
+            font-size: 11px;
             text-align: center;
-            padding: 6px 10px 4px;
+            padding: 4px 6px;
             line-height: 1.2;
             word-break: break-word;
             color: var(--pb-text);
@@ -373,7 +381,7 @@
         .workflow-node.shape-task .port.input:hover { transform: translate(-50%, -50%) scale(1.2); }
         .port.output-yes:hover,
         .port.output-no:hover { transform: translate(-50%, 50%) scale(1.2); }
-        .workflow-node.shape-task .port.output:hover { transform: translate(-50%, 50%) scale(1.2); }
+        .workflow-node.shape-task .port.output:hover { transform: translate(-50%, -50%) scale(1.2); }
         
         .port.input {
             top: -7px;
@@ -400,15 +408,15 @@
         .workflow-node.shape-start .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
         /* End = دائرة 48px */
         .workflow-node.shape-end .port.input { top: 0; transform: translate(-50%, -50%); }
-        .workflow-node.shape-end .port.output { top: 48px; bottom: auto; transform: translate(-50%, -50%); }
+        .workflow-node.shape-end .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
         /* Gateway = ماسّة 56px */
         .workflow-node.shape-gateway .port.input { top: 0; transform: translate(-50%, -50%); }
         .workflow-node.shape-gateway .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
         .workflow-node.shape-gateway .port.output-yes { top: 56px; bottom: auto; left: 35%; transform: translate(-50%, -50%); }
         .workflow-node.shape-gateway .port.output-no { top: 56px; bottom: auto; left: 65%; transform: translate(-50%, -50%); }
-        /* Task: input على الشكل (أعلى الشريط)، output على أسفل العقدة */
+        /* Task: input أعلى المربع، output أسفل المربع (مثل Start) */
         .workflow-node.shape-task .port.input { top: 0; transform: translate(-50%, -50%); }
-        .workflow-node.shape-task .port.output { bottom: 0; transform: translate(-50%, 50%); }
+        .workflow-node.shape-task .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
         
         .port-label {
             position: absolute;
@@ -1543,11 +1551,11 @@
         function getTypeClass(type) {
             const classes = {
                 trigger: 'trigger', schedule: 'trigger', webhook: 'trigger',
-                action: 'action', tool: 'tool', ai: 'action', notification: 'action',
+                action: 'action', tool: 'tool', ai: 'ai', notification: 'notification',
                 condition: 'condition',
                 loop: 'loop',
                 delay: 'delay',
-                approval: 'approval', form: 'approval',
+                approval: 'approval', form: 'form',
                 end: 'end'
             };
             return classes[type] || 'action';
