@@ -1352,15 +1352,18 @@
                 }
             });
             
-            // Delete / Backspace: remove selected connection or selected node
+            // Delete / Backspace: remove selected connection or selected node (من الـ canvas المحدد فعلياً)
             document.addEventListener('keydown', (e) => {
                 if (e.target.closest('input') || e.target.closest('textarea') || e.target.closest('select')) return;
                 if (e.key !== 'Delete' && e.key !== 'Backspace') return;
                 e.preventDefault();
                 if (stateSelectedConnIndex !== null) {
                     deleteConnection(stateSelectedConnIndex);
-                } else if (state.selectedNode) {
-                    deleteNode(state.selectedNode.id);
+                } else {
+                    const selectedEl = document.querySelector('#canvas .workflow-node.selected');
+                    if (selectedEl && selectedEl.id) {
+                        deleteNode(selectedEl.id);
+                    }
                 }
             });
         }
@@ -1399,8 +1402,13 @@
                     const x = (e.clientX - rect.left - state.panX) / state.zoom;
                     const y = (e.clientY - rect.top - state.panY) / state.zoom;
                     
-                    createNode(type, x, y, toolId);
                     state.justDropped = true;
+                    const node = createNode(type, x, y, toolId);
+                    if (node) {
+                        setTimeout(() => {
+                            selectNode(node.id);
+                        }, 0);
+                    }
                     setTimeout(() => { state.justDropped = false; }, 150);
                 }
             });
