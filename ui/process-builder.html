@@ -130,40 +130,62 @@
             border-radius: 50%;
             padding: 0;
         }
-        .workflow-node.shape-start .node-header { border-radius: 50%; min-height: 72px; justify-content: center; padding: 12px; }
-        .workflow-node.shape-start .node-body { display: none; }
-        .workflow-node.shape-start .node-title { display: none; }
-        .workflow-node.shape-start .node-menu-btn { display: none; }
-        .workflow-node.shape-start .node-icon { margin: 0; }
-        /* BPMN End Event: bold circle */
-        .workflow-node.shape-end {
-            width: 72px;
-            min-height: 72px;
-            border-radius: 50%;
-            border-width: 4px;
-            padding: 0;
+        /* BPMN Start: circle, label under */
+        .workflow-node.shape-start {
+            width: 88px;
+            padding: 0 0 8px;
         }
-        .workflow-node.shape-end .node-header { border-radius: 50%; min-height: 72px; justify-content: center; padding: 12px; }
+        .workflow-node.shape-start .node-shape-wrap {
+            width: 56px;
+            height: 56px;
+            margin: 10px auto 4px;
+            border-radius: 50%;
+        }
+        .workflow-node.shape-start .node-body { display: none; }
+        .workflow-node.shape-start .node-label { font-size: 11px; padding: 0 4px; }
+        .workflow-node.shape-start .node-menu-btn { display: none; }
+        /* BPMN End: bold circle, label under */
+        .workflow-node.shape-end {
+            width: 88px;
+            padding: 0 0 8px;
+            border-width: 3px;
+        }
+        .workflow-node.shape-end .node-shape-wrap {
+            width: 52px;
+            height: 52px;
+            margin: 8px auto 4px;
+            border-radius: 50%;
+            border: 3px solid currentColor;
+            box-sizing: border-box;
+        }
         .workflow-node.shape-end .node-body { display: none; }
-        .workflow-node.shape-end .node-title { display: none; }
+        .workflow-node.shape-end .node-label { font-size: 11px; padding: 0 4px; }
         .workflow-node.shape-end .node-menu-btn { display: none; }
-        .workflow-node.shape-end .node-icon { margin: 0; }
-        /* BPMN Gateway (Condition): diamond */
+        /* BPMN Gateway: diamond, label under */
         .workflow-node.shape-gateway {
-            width: 120px;
-            min-height: 120px;
-            border-radius: 0;
+            width: 100px;
+            padding: 0 0 8px;
             clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
             -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
         }
-        .workflow-node.shape-gateway .node-header { border-radius: 0; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
-        .workflow-node.shape-gateway .node-body { padding: 8px; }
-        .workflow-node.shape-gateway .node-title { font-size: 12px; text-align: center; }
-        /* Task (default): rounded rectangle */
+        .workflow-node.shape-gateway .node-shape-wrap {
+            width: 56px;
+            height: 56px;
+            margin: 18px auto 4px;
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+        .workflow-node.shape-gateway .node-body { padding: 6px; }
+        .workflow-node.shape-gateway .node-label { font-size: 11px; }
+        /* Task: rounded rect, shape on top then label */
         .workflow-node.shape-task {
-            width: 200px;
+            width: 180px;
             border-radius: 12px;
         }
+        .workflow-node.shape-task .node-shape-wrap {
+            border-radius: 10px 10px 0 0;
+            padding: 10px;
+        }
+        .workflow-node.shape-task .node-label { padding: 4px 10px 6px; }
         
         .workflow-node:hover {
             border-color: #4f46e5;
@@ -180,44 +202,53 @@
             z-index: 100;
         }
         
-        .node-header {
-            padding: 12px 16px;
-            border-radius: 10px 10px 0 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .node-header.trigger { background: linear-gradient(135deg, #22c55e, #16a34a); }
-        .node-header.action { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-        .node-header.condition { background: linear-gradient(135deg, #f59e0b, #d97706); }
-        .node-header.approval { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        .node-header.loop { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
-        .node-header.delay { background: linear-gradient(135deg, #06b6d4, #0891b2); }
-        .node-header.end { background: linear-gradient(135deg, #6b7280, #4b5563); }
-        .node-header.tool { background: linear-gradient(135deg, #ec4899, #db2777); }
-        
-        .node-icon {
-            width: 32px;
-            height: 32px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 8px;
+        /* Shape on top, label below (text under shape – BPMN-style) */
+        .node-shape-wrap {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .node-shape-wrap.trigger { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .node-shape-wrap.action { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .node-shape-wrap.condition { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .node-shape-wrap.approval { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .node-shape-wrap.loop { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .node-shape-wrap.delay { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+        .node-shape-wrap.end { background: linear-gradient(135deg, #6b7280, #4b5563); }
+        .node-shape-wrap.tool { background: linear-gradient(135deg, #ec4899, #db2777); }
+        
+        .node-shape {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .node-shape svg {
+            width: 28px;
+            height: 28px;
+            fill: currentColor;
+            color: rgba(255,255,255,0.95);
         }
         
-        .node-title {
-            flex: 1;
+        .node-label {
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
+            text-align: center;
+            padding: 6px 10px 4px;
+            line-height: 1.2;
+            word-break: break-word;
+            color: var(--pb-text);
         }
         
         .node-menu-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
             width: 24px;
             height: 24px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.15);
             border: none;
             border-radius: 4px;
             color: white;
@@ -225,14 +256,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 14px;
+            z-index: 5;
         }
-        
         .node-menu-btn:hover {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.25);
         }
         
         .node-body {
-            padding: 16px;
+            padding: 10px 12px 12px;
+            border-top: 1px solid var(--node-border);
         }
         
         .node-description {
@@ -359,33 +392,18 @@
             filter: drop-shadow(0 0 4px currentColor);
         }
         
-        /* Edge context menu (BPMN-style: delete / reconnect) */
-        #edge-context-menu {
-            position: fixed;
-            z-index: 200;
-            background: var(--pb-panel);
-            border: 1px solid var(--node-border);
-            border-radius: 8px;
-            padding: 4px 0;
-            min-width: 140px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            display: none;
+        /* Draggable endpoint handle: move connection to another step */
+        .connection-end-handle {
+            fill: var(--connection-color, #6366f1);
+            stroke: #fff;
+            stroke-width: 2;
+            cursor: grab;
+            r: 8;
         }
-        #edge-context-menu.show { display: block; }
-        #edge-context-menu button {
-            width: 100%;
-            text-align: left;
-            padding: 8px 14px;
-            border: none;
-            background: none;
-            color: var(--pb-text);
-            cursor: pointer;
-            font-size: 13px;
-        }
-        #edge-context-menu button:hover {
-            background: rgba(99, 102, 241, 0.2);
-        }
-        #edge-context-menu button.delete:hover { color: #ef4444; }
+        .connection-end-handle:hover { r: 10; }
+        .connection-end-handle:active { cursor: grabbing; }
+        .connection-path.yes + .connection-end-handle { fill: #22c55e; }
+        .connection-path.no + .connection-end-handle { fill: #ef4444; }
         
         /* Toolbar */
         #top-toolbar {
@@ -1109,12 +1127,6 @@
         <canvas id="minimap-canvas"></canvas>
     </div>
     
-    <!-- Edge context menu (BPMN-style: delete / reconnect) -->
-    <div id="edge-context-menu">
-        <button type="button" onclick="onEdgeMenuReconnect()">↷ Reconnect to another step</button>
-        <button type="button" class="delete" onclick="onEdgeMenuDelete()">✕ Delete connection</button>
-    </div>
-
     <script>
         // ===== STATE =====
         const state = {
@@ -1127,6 +1139,7 @@
             isDragging: false,
             isConnecting: false,
             connectionStart: null,
+            draggingEdgeEnd: null,
             tools: [],
             agentId: null,
             undoStack: [],
@@ -1135,6 +1148,13 @@
         
         // Node ID counter
         let nodeIdCounter = 1;
+        
+        function escapeHtml(s) {
+            if (s == null) return '';
+            const div = document.createElement('div');
+            div.textContent = String(s);
+            return div.innerHTML;
+        }
         
         // ===== INITIALIZATION =====
         document.addEventListener('DOMContentLoaded', () => {
@@ -1201,10 +1221,14 @@
                     deselectConnection();
                 }
             });
-            document.addEventListener('click', (e) => {
-                const menu = document.getElementById('edge-context-menu');
-                if (menu && menu.classList.contains('show') && !menu.contains(e.target) && !e.target.closest('.connection-path'))
-                    hideEdgeContextMenu();
+            
+            // Delete / Backspace: remove selected connection
+            document.addEventListener('keydown', (e) => {
+                if (e.target.closest('input') || e.target.closest('textarea') || e.target.closest('select')) return;
+                if ((e.key === 'Delete' || e.key === 'Backspace') && stateSelectedConnIndex !== null) {
+                    e.preventDefault();
+                    deleteConnection(stateSelectedConnIndex);
+                }
             });
         }
         
@@ -1320,17 +1344,16 @@
             nodeEl.style.top = node.y + 'px';
             
             const typeClass = getTypeClass(node.type);
-            const icon = getTypeIcon(node.type);
+            const svgIcon = getTypeSvgIcon(node.type);
             
             nodeEl.innerHTML = `
                 <div class="port input"></div>
-                <div class="node-header ${typeClass}">
-                    <div class="node-icon">${icon}</div>
-                    <div class="node-title">${node.name}</div>
-                    <button class="node-menu-btn" onclick="event.stopPropagation(); showNodeMenu('${node.id}')">⋮</button>
+                <div class="node-shape-wrap ${typeClass}">
+                    <div class="node-shape">${svgIcon}</div>
                 </div>
+                <div class="node-label">${escapeHtml(node.name)}</div>
+                <button class="node-menu-btn" onclick="event.stopPropagation(); showNodeMenu('${node.id}')">⋮</button>
                 <div class="node-body">
-                    <div class="node-description">${getNodeDescription(node)}</div>
                     <div class="node-config-preview">${getConfigPreview(node)}</div>
                 </div>
                 ${node.type === 'condition' ? `
@@ -1388,6 +1411,25 @@
                 end: '🏁'
             };
             return icons[type] || '📦';
+        }
+        
+        function getTypeSvgIcon(type) {
+            const icons = {
+                trigger: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z"/></svg>',
+                schedule: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>',
+                webhook: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>',
+                action: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 3v6h8l-8 12v-6H5l8-12z"/></svg>',
+                tool: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>',
+                ai: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
+                notification: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>',
+                condition: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 12l10 10 10-10L12 2zm0 15.5L4.5 12 12 4.5 19.5 12 12 19.5z"/></svg>',
+                loop: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>',
+                delay: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>',
+                approval: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/><path d="M18.5 10.5L16 13l-1.5-1.5 1-1L16 11l2.5-2.5 1 2z"/></svg>',
+                form: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>',
+                end: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"/></svg>'
+            };
+            return icons[type] || icons.action;
         }
         
         function getNodeDescription(node) {
@@ -1606,11 +1648,88 @@
                 path.addEventListener('click', (e) => {
                     e.stopPropagation();
                     selectConnection(idx);
-                    showEdgeContextMenu(e.clientX, e.clientY, idx);
                 });
                 
                 svg.appendChild(path);
+                
+                const g = document.createElementNS(ns, 'g');
+                g.setAttribute('data-conn-index', String(idx));
+                const handle = document.createElementNS(ns, 'circle');
+                handle.setAttribute('class', 'connection-end-handle');
+                handle.setAttribute('cx', x2);
+                handle.setAttribute('cy', y2);
+                handle.setAttribute('r', 8);
+                handle.style.pointerEvents = 'all';
+                handle.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
+                });
+                g.appendChild(handle);
+                svg.appendChild(g);
             });
+            
+            if (state.draggingEdgeEnd) {
+                const d = state.draggingEdgeEnd;
+                const path = document.createElementNS(ns, 'path');
+                path.setAttribute('class', `connection-path ${d.type} connection-preview`);
+                path.setAttribute('d', `M ${d.fromX} ${d.fromY} C ${d.fromX} ${(d.fromY + d.currentY) / 2}, ${d.currentX} ${(d.fromY + d.currentY) / 2}, ${d.currentX} ${d.currentY}`);
+                path.setAttribute('stroke-dasharray', '6 4');
+                svg.appendChild(path);
+            }
+        }
+        
+        function startDragEdgeEnd(connIndex, conn, fromX, fromY, startX, startY) {
+            const origTo = state.connections[connIndex].to;
+            state.connections.splice(connIndex, 1);
+            state.draggingEdgeEnd = {
+                connIndex,
+                from: conn.from,
+                type: conn.type,
+                fromX, fromY,
+                currentX: startX,
+                currentY: startY,
+                origTo
+            };
+            stateSelectedConnIndex = null;
+            
+            const onMove = (e) => {
+                if (!state.draggingEdgeEnd) return;
+                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                state.draggingEdgeEnd.currentX = (e.clientX - canvasRect.left - state.panX) / state.zoom;
+                state.draggingEdgeEnd.currentY = (e.clientY - canvasRect.top - state.panY) / state.zoom;
+                renderConnections();
+            };
+            const onUp = (e) => {
+                if (!state.draggingEdgeEnd) return;
+                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                const mx = (e.clientX - canvasRect.left - state.panX) / state.zoom;
+                const my = (e.clientY - canvasRect.top - state.panY) / state.zoom;
+                let newTo = null;
+                state.nodes.forEach(n => {
+                    if (n.id === state.draggingEdgeEnd.from) return;
+                    const el = document.getElementById(n.id);
+                    if (!el) return;
+                    const port = el.querySelector('.port.input');
+                    if (!port) return;
+                    const r = port.getBoundingClientRect();
+                    const px = (r.left + r.width / 2 - canvasRect.left - state.panX) / state.zoom;
+                    const py = (r.top + r.height / 2 - canvasRect.top - state.panY) / state.zoom;
+                    if (Math.hypot(mx - px, my - py) < 30) newTo = n.id;
+                });
+                if (newTo) {
+                    state.connections.push({ from: state.draggingEdgeEnd.from, to: newTo, type: state.draggingEdgeEnd.type });
+                    saveToUndo();
+                } else {
+                    state.connections.push({ from: state.draggingEdgeEnd.from, to: state.draggingEdgeEnd.origTo, type: state.draggingEdgeEnd.type });
+                }
+                state.draggingEdgeEnd = null;
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                renderConnections();
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
         }
         
         function selectConnection(idx) {
@@ -1621,7 +1740,6 @@
         function deselectConnection() {
             stateSelectedConnIndex = null;
             renderConnections();
-            hideEdgeContextMenu();
         }
         
         function deleteConnection(connIndex) {
@@ -1630,45 +1748,6 @@
                 saveToUndo();
                 deselectConnection();
                 renderConnections();
-            }
-        }
-        
-        function reconnectConnection(connIndex) {
-            if (connIndex < 0 || connIndex >= state.connections.length) return;
-            const conn = state.connections[connIndex];
-            state.reconnectEdge = { from: conn.from, type: conn.type, connIndex };
-            state.connections.splice(connIndex, 1);
-            renderConnections();
-            hideEdgeContextMenu();
-            stateSelectedConnIndex = null;
-        }
-        
-        let edgeMenuConnIndex = null;
-        function showEdgeContextMenu(x, y, connIndex) {
-            const menu = document.getElementById('edge-context-menu');
-            if (!menu) return;
-            edgeMenuConnIndex = connIndex;
-            menu.style.left = x + 'px';
-            menu.style.top = y + 'px';
-            menu.classList.add('show');
-        }
-        
-        function hideEdgeContextMenu() {
-            const menu = document.getElementById('edge-context-menu');
-            if (menu) menu.classList.remove('show');
-            edgeMenuConnIndex = null;
-        }
-        
-        function onEdgeMenuDelete() {
-            if (edgeMenuConnIndex != null) {
-                deleteConnection(edgeMenuConnIndex);
-            }
-            hideEdgeContextMenu();
-        }
-        
-        function onEdgeMenuReconnect() {
-            if (edgeMenuConnIndex != null) {
-                reconnectConnection(edgeMenuConnIndex);
             }
         }
         
