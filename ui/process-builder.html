@@ -1433,11 +1433,26 @@
                     }
                 });
             }
+            // توسيط الـ process في الشاشة حسب الاتجاه (vertical/horizontal)
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            state.nodes.forEach(n => {
+                minX = Math.min(minX, n.x);
+                minY = Math.min(minY, n.y);
+                maxX = Math.max(maxX, n.x + NODE_W);
+                maxY = Math.max(maxY, n.y + NODE_H);
+            });
+            const centerX = (minX + maxX) / 2, centerY = (minY + maxY) / 2;
+            const container = document.getElementById('canvas-container');
+            if (container) {
+                state.panX = container.clientWidth / 2 - centerX * state.zoom;
+                state.panY = container.clientHeight / 2 - centerY * state.zoom;
+            }
             saveToUndo();
             document.getElementById('canvas').innerHTML = '';
             state.nodes.forEach(n => renderNode(n));
             renderConnections();
             updateEmptyState();
+            updateCanvasTransform();
         }
         
         function alignProcess() {
