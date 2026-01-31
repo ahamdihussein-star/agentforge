@@ -122,6 +122,7 @@
             user-select: none;
             transition: box-shadow 0.2s, border-color 0.2s;
             z-index: 10;
+            overflow: visible;
         }
         /* Start: الدائرة الخضراء فقط – لا إطار أبيض ولا خلفية وراها */
         .workflow-node.shape-start {
@@ -271,10 +272,10 @@
             color: rgba(255,255,255,0.95);
         }
         
-        /* التسمية – اسحبها من الـ canvas لأي مكان عشان تتقري لو الخط طاله */
+        /* التسمية – اسحبها من الـ canvas لأي مكان عشان تتقري لو الخط طاله – حجم الخط يتحكم من الـ toolbar */
         .node-label {
             font-weight: 600;
-            font-size: 11px;
+            font-size: var(--label-font-size, 11px);
             text-align: center;
             padding: 4px 6px;
             line-height: 1.2;
@@ -291,8 +292,16 @@
             cursor: grabbing;
         }
         .workflow-node.label-below .node-label { position: relative; margin-top: 0; }
-        .workflow-node.label-custom .node-label { position: absolute; transform: none; }
-        
+        .workflow-node.label-custom .node-label {
+            position: absolute;
+            transform: none;
+            white-space: nowrap;
+            word-break: normal;
+            width: max-content;
+            min-width: min-content;
+            max-width: none;
+            overflow: visible;
+        }
         .node-menu-btn {
             position: absolute;
             top: 4px;
@@ -394,40 +403,30 @@
         .port.output-no:hover { transform: translate(-50%, 50%) scale(1.2); }
         .workflow-node.shape-task .port.output:hover { transform: translate(-50%, -50%) scale(1.2); }
         
-        .port.input {
-            top: -7px;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
-        .port.output {
-            bottom: -7px;
-            left: 50%;
-            transform: translate(-50%, 50%);
-        }
-        .port.output-yes {
-            bottom: -7px;
-            left: 30%;
-            transform: translate(-50%, 50%);
-        }
-        .port.output-no {
-            bottom: -7px;
-            left: 70%;
-            transform: translate(-50%, 50%);
-        }
-        /* Ports على الشكل نفسه – لا إطار: Start = دائرة 56px */
-        .workflow-node.shape-start .port.input { top: 0; transform: translate(-50%, -50%); }
-        .workflow-node.shape-start .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
-        /* End = دائرة 48px */
-        .workflow-node.shape-end .port.input { top: 0; transform: translate(-50%, -50%); }
-        .workflow-node.shape-end .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
-        /* Gateway = ماسّة: Yes من الزاوية اليمنى، No من الزاوية اللي تحت */
-        .workflow-node.shape-gateway .port.input { top: 0; transform: translate(-50%, -50%); }
-        .workflow-node.shape-gateway .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
-        .workflow-node.shape-gateway .port.output-yes { top: 28px; left: calc(50% + 28px); transform: translate(-50%, -50%); }
-        .workflow-node.shape-gateway .port.output-no { top: 56px; left: 50%; transform: translate(-50%, -50%); }
-        /* Task: input أعلى المربع، output أسفل المربع (مثل Start) */
-        .workflow-node.shape-task .port.input { top: 0; transform: translate(-50%, -50%); }
-        .workflow-node.shape-task .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
+        /* 4-side ports: أي زاوية على الشكل */
+        .port.input-top, .port.input-bottom { left: 50%; transform: translate(-50%, -50%); }
+        .port.input-right, .port.input-left { top: 50%; transform: translate(-50%, -50%); }
+        .port.input-top { top: -7px; }
+        .port.input-bottom { top: calc(100% + 7px); }
+        .port.input-right { left: calc(100% + 7px); }
+        .port.input-left { left: -7px; }
+        .port.output-top, .port.output-bottom { left: 50%; transform: translate(-50%, -50%); }
+        .port.output-right, .port.output-left { top: 50%; transform: translate(-50%, -50%); }
+        .port.output-top { top: -7px; }
+        .port.output-bottom { top: calc(100% + 7px); }
+        .port.output-right { left: calc(100% + 7px); }
+        .port.output-left { left: -7px; }
+        .port.output-yes-top, .port.output-yes-bottom, .port.output-no-top, .port.output-no-bottom { left: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes-right, .port.output-yes-left, .port.output-no-right, .port.output-no-left { top: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes-top, .port.output-no-top { top: -7px; }
+        .port.output-yes-bottom, .port.output-no-bottom { top: calc(100% + 7px); }
+        .port.output-yes-right, .port.output-no-right { left: calc(100% + 7px); }
+        .port.output-yes-left, .port.output-no-left { left: -7px; }
+        /* Fallback single port (hidden when 4-side present) */
+        .port.input { top: -7px; left: 50%; transform: translate(-50%, -50%); }
+        .port.output { top: calc(100% + 7px); left: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes { top: calc(100% + 7px); left: 30%; transform: translate(-50%, -50%); }
+        .port.output-no { top: calc(100% + 7px); left: 70%; transform: translate(-50%, -50%); }
         
         .port-label {
             position: absolute;
@@ -485,16 +484,21 @@
             pointer-events: all;
         }
         
-        /* Draggable endpoint handle: move connection to another step */
+        /* Draggable endpoint handle: move connection to another step – أكبر عشان السحب أسهل */
         .connection-end-handle {
             fill: var(--connection-color, #6366f1);
             stroke: #fff;
             stroke-width: 2;
             cursor: grab;
-            r: 8;
+            r: 10;
         }
-        .connection-end-handle:hover { r: 10; }
+        .connection-end-handle:hover { r: 14; }
         .connection-end-handle:active { cursor: grabbing; }
+        /* عند السحب: أي shape تحت المؤشر يظهر كهدف ربط */
+        .workflow-node.connection-drop-target {
+            box-shadow: 0 0 0 3px var(--connection-color, #6366f1);
+            border-radius: 12px;
+        }
         .connection-path.yes + .connection-end-handle { fill: #22c55e; }
         .connection-path.no + .connection-end-handle { fill: #ef4444; }
         /* Draggable bend point: خطوط مستقيمة + تحكم في الزاوية */
@@ -1011,7 +1015,19 @@
             50% { opacity: 0.5; }
         }
         
-        .connecting .port.output {
+        .connecting .port.output,
+        .connecting .port.output-top,
+        .connecting .port.output-right,
+        .connecting .port.output-bottom,
+        .connecting .port.output-left,
+        .connecting .port.output-yes-top,
+        .connecting .port.output-yes-right,
+        .connecting .port.output-yes-bottom,
+        .connecting .port.output-yes-left,
+        .connecting .port.output-no-top,
+        .connecting .port.output-no-right,
+        .connecting .port.output-no-bottom,
+        .connecting .port.output-no-left {
             animation: pulse 1s infinite;
         }
         
@@ -1046,12 +1062,23 @@
         
         <div class="toolbar-actions">
             <span class="toolbar-label">Flow:</span>
-            <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-vertical" title="Vertical (top to bottom)" onclick="setFlowDirection('vertical')">
+            <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-vertical" title="Vertical: من أعلى لأسفل (Top → Bottom)" onclick="setFlowDirection('vertical')">
                 <span>↕</span> Vertical
             </button>
-            <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-horizontal" title="Horizontal (left to right)" onclick="setFlowDirection('horizontal')">
+            <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-horizontal" title="Horizontal: من يسار ليمين (Left → Right)" onclick="setFlowDirection('horizontal')">
                 <span>↔</span> Horizontal
             </button>
+            <button type="button" class="toolbar-btn btn-secondary" title="Arrange process in best alignment" onclick="alignProcess()">
+                <span>⊟</span> Align
+            </button>
+            <span class="toolbar-label" style="margin-left:8px;">Labels:</span>
+            <button type="button" class="toolbar-btn btn-secondary" title="Smaller label font" onclick="setLabelFontSize(-1)">
+                <span>A−</span>
+            </button>
+            <button type="button" class="toolbar-btn btn-secondary" title="Larger label font" onclick="setLabelFontSize(1)">
+                <span>A+</span>
+            </button>
+            <span id="label-font-size-display" style="font-size:11px;color:var(--pb-muted);min-width:2.5em;">11px</span>
             <button class="toolbar-btn btn-secondary" onclick="undoAction()">
                 <span>↶</span> Undo
             </button>
@@ -1297,6 +1324,7 @@
             consumeNextClick: false,
             flowDirection: 'vertical',
             draggingLabel: null,
+            labelFontSize: Math.min(24, Math.max(9, parseInt(localStorage.getItem('pb-label-font-size'), 10) || 11)),
             tools: [],
             agentId: null,
             undoStack: [],
@@ -1322,12 +1350,98 @@
             loadTools();
             loadWorkflowFromUrl();
             updateFlowButtons();
+            applyLabelFontSize();
         });
+        
+        function setLabelFontSize(delta) {
+            state.labelFontSize = Math.min(24, Math.max(9, state.labelFontSize + delta));
+            localStorage.setItem('pb-label-font-size', String(state.labelFontSize));
+            applyLabelFontSize();
+        }
+        function applyLabelFontSize() {
+            const canvas = document.getElementById('canvas');
+            if (canvas) canvas.style.setProperty('--label-font-size', state.labelFontSize + 'px');
+            const el = document.getElementById('label-font-size-display');
+            if (el) el.textContent = state.labelFontSize + 'px';
+        }
         
         function setFlowDirection(dir) {
             state.flowDirection = dir;
             updateFlowButtons();
+            applyAutoLayout(dir);
             renderConnections();
+        }
+        
+        function applyAutoLayout(direction) {
+            if (state.nodes.length === 0) return;
+            // Vertical (↕) = تدفق من أعلى لأسفل: المستوى يزيد مع y، والعقد في نفس المستوى جنب بعض (x يتغير)
+            // Horizontal (↔) = تدفق من يسار ليمين: المستوى يزيد مع x، والعقد في نفس المستوى فوق بعض (y يتغير)
+            const NODE_W = 72, NODE_H = 90, GAP_X = 100, GAP_Y = 80;
+            const nodeIds = new Set(state.nodes.map(n => n.id));
+            const incoming = {};
+            const outgoing = {};
+            state.nodes.forEach(n => { incoming[n.id] = []; outgoing[n.id] = []; });
+            state.connections.forEach(c => {
+                if (nodeIds.has(c.from) && nodeIds.has(c.to)) {
+                    outgoing[c.from].push(c.to);
+                    incoming[c.to].push(c.from);
+                }
+            });
+            const startNodes = state.nodes.filter(n => incoming[n.id].length === 0);
+            if (startNodes.length === 0) startNodes.push(state.nodes[0]);
+            const levels = {};
+            const queue = startNodes.map(n => ({ id: n.id, level: 0 }));
+            queue.forEach(({ id, level }) => { levels[id] = Math.max(levels[id] || 0, level); });
+            let i = 0;
+            while (i < queue.length) {
+                const { id, level } = queue[i++];
+                outgoing[id].forEach(toId => {
+                    const next = level + 1;
+                    if (next > (levels[toId] || 0)) {
+                        levels[toId] = next;
+                        queue.push({ id: toId, level: next });
+                    }
+                });
+            }
+            state.nodes.forEach(n => { if (levels[n.id] === undefined) levels[n.id] = 0; });
+            const byLevel = {};
+            state.nodes.forEach(n => {
+                const L = levels[n.id];
+                if (!byLevel[L]) byLevel[L] = [];
+                byLevel[L].push(n.id);
+            });
+            const maxLevel = Math.max(...Object.keys(byLevel).map(Number));
+            const baseX = 400, baseY = 80;
+            for (let L = 0; L <= maxLevel; L++) {
+                const ids = byLevel[L] || [];
+                const count = ids.length;
+                const totalW = count * NODE_W + Math.max(0, count - 1) * GAP_X;
+                const totalH = count * NODE_H + Math.max(0, count - 1) * GAP_Y;
+                const startX = baseX - (totalW - NODE_W) / 2;
+                const startY = baseY - (totalH - NODE_H) / 2;
+                ids.forEach((id, idx) => {
+                    const node = state.nodes.find(n => n.id === id);
+                    if (!node) return;
+                    if (direction === 'vertical') {
+                        // Vertical: المستويات صفوف (y يزيد مع المستوى)، نفس المستوى = نفس الصف (x يختلف)
+                        node.x = Math.round((startX + idx * (NODE_W + GAP_X)) / 20) * 20;
+                        node.y = Math.round((baseY + L * (NODE_H + GAP_Y)) / 20) * 20;
+                    } else {
+                        // Horizontal: المستويات أعمدة (x يزيد مع المستوى)، نفس المستوى = نفس العمود (y يختلف)
+                        node.x = Math.round((baseX + L * (NODE_W + GAP_X)) / 20) * 20;
+                        node.y = Math.round((startY + idx * (NODE_H + GAP_Y)) / 20) * 20;
+                    }
+                });
+            }
+            saveToUndo();
+            document.getElementById('canvas').innerHTML = '';
+            state.nodes.forEach(n => renderNode(n));
+            renderConnections();
+            updateEmptyState();
+        }
+        
+        function alignProcess() {
+            applyAutoLayout(state.flowDirection);
         }
         
         function updateFlowButtons() {
@@ -1553,24 +1667,23 @@
             
             const typeClass = getTypeClass(node.type);
             const svgIcon = getTypeSvgIcon(node.type);
-            const labelStyle = hasCustomLabel ? `style="left:${node.labelOffset.x}px;top:${node.labelOffset.y}px;"` : '';
-            
+            const labelStyle = (hasCustomLabel ? `left:${node.labelOffset.x}px;top:${node.labelOffset.y}px;` : '') + (node.labelFontSize != null ? `font-size:${node.labelFontSize}px;` : '');
+            const labelStyleAttr = labelStyle ? `style="${labelStyle}"` : '';
+            const ports4 = ['top','right','bottom','left'].map(s => `<div class="port input input-${s}" data-side="${s}"></div>`).join('');
+            const outPorts = node.type === 'condition'
+                ? ['top','right','bottom','left'].map(s => `<div class="port output-yes output-yes-${s}" data-side="${s}"></div><div class="port output-no output-no-${s}" data-side="${s}"></div>`).join('')
+                : node.type !== 'end' ? ['top','right','bottom','left'].map(s => `<div class="port output output-${s}" data-side="${s}"></div>`).join('') : '';
             nodeEl.innerHTML = `
-                <div class="port input"></div>
+                ${ports4}
                 <div class="node-shape-wrap ${typeClass}">
                     <div class="node-shape">${svgIcon}</div>
                 </div>
-                <div class="node-label node-label-draggable" title="Drag to move label" ${labelStyle}>${escapeHtml(node.name)}</div>
+                <div class="node-label node-label-draggable" title="Drag to move • Drag right to enlarge, left to shrink" ${labelStyleAttr}>${escapeHtml(node.name)}</div>
                 <button class="node-menu-btn" onclick="event.stopPropagation(); showNodeMenu('${node.id}')">⋮</button>
                 <div class="node-body">
                     <div class="node-config-preview">${getConfigPreview(node)}</div>
                 </div>
-                ${node.type === 'condition' ? `
-                    <div class="port output-yes"></div>
-                    <div class="port output-no"></div>
-                ` : node.type !== 'end' ? `
-                    <div class="port output"></div>
-                ` : ''}
+                ${outPorts}
             `;
             
             // Make draggable
@@ -1614,7 +1727,8 @@
             const zoom = state.zoom;
             const startLabelX = (labelRect.left - nodeRect.left) / zoom;
             const startLabelY = (labelRect.top - nodeRect.top) / zoom;
-            state.draggingLabel = { nodeId, startClientX: e.clientX, startClientY: e.clientY, startLabelX, startLabelY };
+            const startFontSize = node.labelFontSize != null ? node.labelFontSize : state.labelFontSize;
+            state.draggingLabel = { nodeId, startClientX: e.clientX, startClientY: e.clientY, startLabelX, startLabelY, startFontSize };
             if (!node.labelOffset) node.labelOffset = { x: startLabelX, y: startLabelY };
             nodeEl.classList.add('label-custom');
             nodeEl.classList.remove('label-below');
@@ -1622,15 +1736,19 @@
             labelEl.style.transform = 'none';
             labelEl.style.left = startLabelX + 'px';
             labelEl.style.top = startLabelY + 'px';
+            labelEl.style.fontSize = startFontSize + 'px';
             const onMove = (e) => {
                 if (!state.draggingLabel || state.draggingLabel.nodeId !== nodeId) return;
                 const dx = (e.clientX - state.draggingLabel.startClientX) / state.zoom;
                 const dy = (e.clientY - state.draggingLabel.startClientY) / state.zoom;
                 const x = state.draggingLabel.startLabelX + dx;
                 const y = state.draggingLabel.startLabelY + dy;
+                const fontSize = Math.round(Math.min(24, Math.max(9, state.draggingLabel.startFontSize + dx * 0.25)));
                 node.labelOffset = { x, y };
+                node.labelFontSize = fontSize;
                 labelEl.style.left = x + 'px';
                 labelEl.style.top = y + 'px';
+                labelEl.style.fontSize = fontSize + 'px';
             };
             const onUp = () => {
                 if (state.draggingLabel && state.draggingLabel.nodeId === nodeId) {
@@ -1805,24 +1923,37 @@
             });
         }
         
+        function getSideToward(fromEl, toEl) {
+            const fr = fromEl.getBoundingClientRect();
+            const tr = toEl.getBoundingClientRect();
+            const dx = (tr.left + tr.width/2) - (fr.left + fr.width/2);
+            const dy = (tr.top + tr.height/2) - (fr.top + fr.height/2);
+            if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+            return dy > 0 ? 'bottom' : 'top';
+        }
+        function getPortForSide(nodeEl, portKind, side) {
+            const sel = portKind === 'input' ? '.port.input-' + side
+                : portKind === 'output-yes' ? '.port.output-yes-' + side
+                : portKind === 'output-no' ? '.port.output-no-' + side
+                : '.port.output-' + side;
+            return nodeEl.querySelector(sel);
+        }
         function setupPorts(nodeEl, node) {
-            const ports = nodeEl.querySelectorAll('.port.output, .port.output-yes, .port.output-no');
-            
+            const ports = nodeEl.querySelectorAll('.port.output, .port.output-top, .port.output-right, .port.output-bottom, .port.output-left, .port.output-yes, .port.output-no, .port.output-yes-top, .port.output-yes-right, .port.output-yes-bottom, .port.output-yes-left, .port.output-no-top, .port.output-no-right, .port.output-no-bottom, .port.output-no-left');
             ports.forEach(port => {
                 port.addEventListener('mousedown', (e) => {
                     e.stopPropagation();
                     state.isConnecting = true;
                     state.connectionStart = {
                         nodeId: node.id,
-                        portType: port.classList.contains('output-yes') ? 'yes' : 
-                                  port.classList.contains('output-no') ? 'no' : 'default'
+                        portType: port.classList.contains('output-yes') || (port.className && port.className.includes('output-yes')) ? 'yes' :
+                                  port.classList.contains('output-no') || (port.className && port.className.includes('output-no')) ? 'no' : 'default'
                     };
                     document.body.classList.add('connecting');
                 });
             });
-            
-            const inputPort = nodeEl.querySelector('.port.input');
-            if (inputPort) {
+            const inputPorts = nodeEl.querySelectorAll('.port.input, .port.input-top, .port.input-right, .port.input-bottom, .port.input-left');
+            inputPorts.forEach(inputPort => {
                 inputPort.addEventListener('mouseup', (e) => {
                     if (state.reconnectEdge) {
                         const from = state.reconnectEdge.from;
@@ -1855,7 +1986,7 @@
                     state.connectionStart = null;
                     document.body.classList.remove('connecting');
                 });
-            }
+            });
         }
         
         // ===== CONNECTIONS =====
@@ -1872,16 +2003,11 @@
                 
                 if (!fromNode || !toNode) return;
                 
-                let fromPort;
-                if (conn.type === 'yes') {
-                    fromPort = fromNode.querySelector('.port.output-yes');
-                } else if (conn.type === 'no') {
-                    fromPort = fromNode.querySelector('.port.output-no');
-                } else {
-                    fromPort = fromNode.querySelector('.port.output');
-                }
-                
-                const toPort = toNode.querySelector('.port.input');
+                const fromSide = getSideToward(fromNode, toNode);
+                const toSide = getSideToward(toNode, fromNode);
+                const outKind = conn.type === 'yes' ? 'output-yes' : conn.type === 'no' ? 'output-no' : 'output';
+                const fromPort = getPortForSide(fromNode, outKind, fromSide);
+                const toPort = getPortForSide(toNode, 'input', toSide);
                 
                 if (!fromPort || !toPort) return;
                 
@@ -1896,9 +2022,10 @@
                 
                 const midY = (y1 + y2) / 2;
                 const midX = (x1 + x2) / 2;
+                // Vertical: خط عمودي ثم أفقي ثم عمودي (V-H-V). Horizontal: خط أفقي ثم عمودي ثم أفقي (H-V-H)
                 const pathD = state.flowDirection === 'horizontal'
-                    ? `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`
-                    : `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
+                    ? `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`   // ↔ يسار-يمين: أفقي-عمودي-أفقي
+                    : `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;  // ↕ أعلى-أسفل: عمودي-أفقي-عمودي
                 
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
@@ -1919,7 +2046,8 @@
                 endHandle.setAttribute('class', 'connection-end-handle');
                 endHandle.setAttribute('cx', x2);
                 endHandle.setAttribute('cy', y2);
-                endHandle.setAttribute('r', 8);
+                endHandle.setAttribute('r', 10);
+                endHandle.setAttribute('title', 'Drag to reconnect to another step');
                 endHandle.style.pointerEvents = 'all';
                 endHandle.addEventListener('mousedown', (e) => {
                     e.stopPropagation();
@@ -1970,7 +2098,7 @@
         }
         
         function startDragEdgeEnd(connIndex, conn, fromX, fromY, startX, startY) {
-            const origTo = state.connections[connIndex].to;
+            const origTo = conn.to;
             state.connections.splice(connIndex, 1);
             state.draggingEdgeEnd = {
                 connIndex,
@@ -1983,29 +2111,39 @@
             };
             stateSelectedConnIndex = null;
             
+            function nodeUnderCursor(clientX, clientY) {
+                let found = null;
+                state.nodes.forEach(n => {
+                    if (n.id === state.draggingEdgeEnd.from) return;
+                    const el = document.getElementById(n.id);
+                    if (!el) return;
+                    const r = el.getBoundingClientRect();
+                    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom)
+                        found = n.id;
+                });
+                return found;
+            }
+            
             const onMove = (e) => {
                 if (!state.draggingEdgeEnd) return;
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
                 state.draggingEdgeEnd.currentX = (e.clientX - canvasRect.left - state.panX) / state.zoom;
                 state.draggingEdgeEnd.currentY = (e.clientY - canvasRect.top - state.panY) / state.zoom;
+                state.nodes.forEach(n => {
+                    const el = document.getElementById(n.id);
+                    if (!el) return;
+                    const over = nodeUnderCursor(e.clientX, e.clientY);
+                    if (over === n.id) el.classList.add('connection-drop-target');
+                    else el.classList.remove('connection-drop-target');
+                });
                 renderConnections();
             };
             const onUp = (e) => {
                 if (!state.draggingEdgeEnd) return;
-                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
-                const mx = (e.clientX - canvasRect.left - state.panX) / state.zoom;
-                const my = (e.clientY - canvasRect.top - state.panY) / state.zoom;
-                let newTo = null;
+                const newTo = nodeUnderCursor(e.clientX, e.clientY);
                 state.nodes.forEach(n => {
-                    if (n.id === state.draggingEdgeEnd.from) return;
                     const el = document.getElementById(n.id);
-                    if (!el) return;
-                    const port = el.querySelector('.port.input');
-                    if (!port) return;
-                    const r = port.getBoundingClientRect();
-                    const px = (r.left + r.width / 2 - canvasRect.left - state.panX) / state.zoom;
-                    const py = (r.top + r.height / 2 - canvasRect.top - state.panY) / state.zoom;
-                    if (Math.hypot(mx - px, my - py) < 30) newTo = n.id;
+                    if (el) el.classList.remove('connection-drop-target');
                 });
                 if (newTo) {
                     state.connections.push({ from: state.draggingEdgeEnd.from, to: newTo, type: state.draggingEdgeEnd.type });
