@@ -1931,14 +1931,17 @@
             if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
             return dy > 0 ? 'bottom' : 'top';
         }
-        /** نقطة على حافة مستطيل الشكل (node-shape-wrap) في اتجاه النقطة الأخرى – عشان الخط يوصل للشكل المرئي مش حدود الـ node */
-        function getShapeEdgePoint(shapeRect, otherCenterX, otherCenterY) {
-            const cx = shapeRect.left + shapeRect.width / 2;
-            const cy = shapeRect.top + shapeRect.height / 2;
-            const dx = otherCenterX - cx;
-            const dy = otherCenterY - cy;
+        /** نقطة على حافة مستطيل الشكل – لو forceSide معطى نرجع مركز تلك الحافة، وإلا نقطة الخروج في اتجاه النقطة الأخرى */
+        function getShapeEdgePoint(shapeRect, otherCenterX, otherCenterY, forceSide) {
             const L = shapeRect.left, R = shapeRect.left + shapeRect.width;
             const T = shapeRect.top, B = shapeRect.top + shapeRect.height;
+            const cx = (L + R) / 2, cy = (T + B) / 2;
+            if (forceSide === 'top') return { x: cx, y: T };
+            if (forceSide === 'bottom') return { x: cx, y: B };
+            if (forceSide === 'left') return { x: L, y: cy };
+            if (forceSide === 'right') return { x: R, y: cy };
+            const dx = otherCenterX - cx;
+            const dy = otherCenterY - cy;
             let bestT = Infinity;
             let x = cx, y = cy;
             if (dx !== 0) {
@@ -1955,6 +1958,20 @@
             }
             return { x, y };
         }
+        /** أي جهة من الشكل الأقرب لنقطة (لما المستخدم يفلت الخط نحدد الزاوية) */
+        function getSideOfPointFromShape(nodeEl, clientX, clientY) {
+            const shapeEl = nodeEl.querySelector('.node-shape-wrap');
+            if (!shapeEl) return 'bottom';
+            const r = shapeEl.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const dx = clientX - cx, dy = clientY - cy;
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI; // -180..180
+            if (angle >= -45 && angle < 45) return 'right';
+            if (angle >= 45 && angle < 135) return 'bottom';
+            if (angle >= 135 || angle < -135) return 'left';
+            return 'top';
+        }
         function getPortForSide(nodeEl, portKind, side) {
             const sel = portKind === 'input' ? '.port.input-' + side
                 : portKind === 'output-yes' ? '.port.output-yes-' + side
@@ -1968,10 +1985,12 @@
                 port.addEventListener('mousedown', (e) => {
                     e.stopPropagation();
                     state.isConnecting = true;
+                    const fromPort = port.getAttribute('data-side') || undefined;
                     state.connectionStart = {
                         nodeId: node.id,
                         portType: port.classList.contains('output-yes') || (port.className && port.className.includes('output-yes')) ? 'yes' :
-                                  port.classList.contains('output-no') || (port.className && port.className.includes('output-no')) ? 'no' : 'default'
+                                  port.classList.contains('output-no') || (port.className && port.className.includes('output-no')) ? 'no' : 'default',
+                        fromPort
                     };
                     document.body.classList.add('connecting');
                 });
@@ -1982,8 +2001,10 @@
                     if (state.reconnectEdge) {
                         const from = state.reconnectEdge.from;
                         const type = state.reconnectEdge.type;
+                        const fromPort = state.reconnectEdge.fromPort;
                         if (from !== node.id) {
-                            state.connections.push({ from, to: node.id, type });
+                            const toPort = (e.currentTarget.getAttribute && e.currentTarget.getAttribute('data-side')) || getSideOfPointFromShape(nodeEl, e.clientX, e.clientY);
+                            state.connections.push({ from, to: node.id, type, fromPort, toPort });
                             saveToUndo();
                             renderConnections();
                         }
@@ -1992,10 +2013,13 @@
                         return;
                     }
                     if (state.isConnecting && state.connectionStart) {
+                        const toPort = (e.currentTarget.getAttribute && e.currentTarget.getAttribute('data-side')) || getSideOfPointFromShape(nodeEl, e.clientX, e.clientY);
                         const conn = {
                             from: state.connectionStart.nodeId,
                             to: node.id,
-                            type: state.connectionStart.portType
+                            type: state.connectionStart.portType,
+                            fromPort: state.connectionStart.fromPort,
+                            toPort
                         };
                         if (conn.from !== conn.to) {
                             state.connections = state.connections.filter(c => 
@@ -2038,8 +2062,8 @@
                     const fromCenterY = fromShape.top + fromShape.height / 2;
                     const toCenterX = toShape.left + toShape.width / 2;
                     const toCenterY = toShape.top + toShape.height / 2;
-                    const p1 = getShapeEdgePoint(fromShape, toCenterX, toCenterY);
-                    const p2 = getShapeEdgePoint(toShape, fromCenterX, fromCenterY);
+                    const p1 = getShapeEdgePoint(fromShape, toCenterX, toCenterY, conn.fromPort);
+                    const p2 = getShapeEdgePoint(toShape, fromCenterX, fromCenterY, conn.toPort);
                     x1 = (p1.x - canvasRect.left) / state.zoom;
                     y1 = (p1.y - canvasRect.top) / state.zoom;
                     x2 = (p2.x - canvasRect.left) / state.zoom;
@@ -2123,21 +2147,30 @@
             
             if (state.draggingEdgeEnd) {
                 const d = state.draggingEdgeEnd;
-                const midY = (d.fromY + d.currentY) / 2;
-                const midX = (d.fromX + d.currentX) / 2;
-                const pathD = state.flowDirection === 'horizontal'
-                    ? `M ${d.fromX} ${d.fromY} L ${midX} ${d.fromY} L ${midX} ${d.currentY} L ${d.currentX} ${d.currentY}`
-                    : `M ${d.fromX} ${d.fromY} L ${d.fromX} ${midY} L ${d.currentX} ${midY} L ${d.currentX} ${d.currentY}`;
+                const pathD = getDragPreviewPathD(d.fromX, d.fromY, d.currentX, d.currentY);
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${d.type} connection-preview`);
                 path.setAttribute('d', pathD);
                 path.setAttribute('stroke-dasharray', '6 4');
                 svg.appendChild(path);
+                d.previewPath = path;
             }
+        }
+        function getDragPreviewPathD(fromX, fromY, currentX, currentY) {
+            const midY = (fromY + currentY) / 2;
+            const midX = (fromX + currentX) / 2;
+            return state.flowDirection === 'horizontal'
+                ? `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${currentY} L ${currentX} ${currentY}`
+                : `M ${fromX} ${fromY} L ${fromX} ${midY} L ${currentX} ${midY} L ${currentX} ${currentY}`;
+        }
+        function updateDragPreview() {
+            if (!state.draggingEdgeEnd || !state.draggingEdgeEnd.previewPath) return;
+            const d = state.draggingEdgeEnd;
+            d.previewPath.setAttribute('d', getDragPreviewPathD(d.fromX, d.fromY, d.currentX, d.currentY));
         }
         
         function startDragEdgeEnd(connIndex, conn, fromX, fromY, startX, startY) {
-            const origTo = conn.to;
+            const origConn = { from: conn.from, to: conn.to, type: conn.type, fromPort: conn.fromPort, toPort: conn.toPort };
             state.connections.splice(connIndex, 1);
             state.draggingEdgeEnd = {
                 connIndex,
@@ -2146,7 +2179,7 @@
                 fromX, fromY,
                 currentX: startX,
                 currentY: startY,
-                origTo
+                origConn
             };
             stateSelectedConnIndex = null;
             
@@ -2175,7 +2208,7 @@
                     if (over === n.id) el.classList.add('connection-drop-target');
                     else el.classList.remove('connection-drop-target');
                 });
-                renderConnections();
+                updateDragPreview();
             };
             const onUp = (e) => {
                 if (!state.draggingEdgeEnd) return;
@@ -2185,16 +2218,25 @@
                     if (el) el.classList.remove('connection-drop-target');
                 });
                 if (newTo) {
-                    state.connections.push({ from: state.draggingEdgeEnd.from, to: newTo, type: state.draggingEdgeEnd.type });
+                    const toNodeEl = document.getElementById(newTo);
+                    const toPort = toNodeEl ? getSideOfPointFromShape(toNodeEl, e.clientX, e.clientY) : undefined;
+                    state.connections.push({
+                        from: state.draggingEdgeEnd.from,
+                        to: newTo,
+                        type: state.draggingEdgeEnd.type,
+                        fromPort: origConn.fromPort,
+                        toPort
+                    });
                     saveToUndo();
                 } else {
-                    state.connections.push({ from: state.draggingEdgeEnd.from, to: state.draggingEdgeEnd.origTo, type: state.draggingEdgeEnd.type });
+                    state.connections.push(origConn);
                 }
                 state.draggingEdgeEnd = null;
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);
                 renderConnections();
             };
+            renderConnections();
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
         }
