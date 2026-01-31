@@ -110,7 +110,7 @@
             min-height: 2000px;
         }
         
-        /* Nodes – BPMN-style shapes */
+        /* Nodes – BPMN-style: الشكل نفسه فقط، بدون إطار أو خلفية خارجية */
         .workflow-node {
             position: absolute;
             width: 200px;
@@ -123,79 +123,112 @@
             transition: box-shadow 0.2s, border-color 0.2s;
             z-index: 10;
         }
-        /* BPMN Start Event: circle */
+        /* Start: الدائرة الخضراء فقط – لا إطار أبيض ولا خلفية وراها */
         .workflow-node.shape-start {
             width: 72px;
-            min-height: 72px;
-            border-radius: 50%;
-            padding: 0;
+            padding: 0 0 28px;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none;
         }
-        /* BPMN Start: circle, label under */
-        .workflow-node.shape-start {
-            width: 88px;
-            padding: 0 0 8px;
-        }
+        .workflow-node.shape-start:hover,
+        .workflow-node.shape-start.selected { box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5); border-radius: 50%; }
         .workflow-node.shape-start .node-shape-wrap {
             width: 56px;
             height: 56px;
-            margin: 10px auto 4px;
+            margin: 0 auto 6px;
             border-radius: 50%;
         }
         .workflow-node.shape-start .node-body { display: none; }
-        .workflow-node.shape-start .node-label { font-size: 11px; padding: 0 4px; }
+        .workflow-node.shape-start .node-label { font-size: 11px; padding: 0 4px; color: var(--pb-text); }
         .workflow-node.shape-start .node-menu-btn { display: none; }
-        /* BPMN End: bold circle, label under */
+        /* End: الدائرة السميكة فقط – بدون مستطيل أبيض حولها */
         .workflow-node.shape-end {
-            width: 88px;
-            padding: 0 0 8px;
-            border-width: 3px;
+            width: 72px;
+            padding: 0 0 28px;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none;
         }
+        .workflow-node.shape-end:hover,
+        .workflow-node.shape-end.selected { box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5); border-radius: 50%; }
         .workflow-node.shape-end .node-shape-wrap {
-            width: 52px;
-            height: 52px;
-            margin: 8px auto 4px;
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 6px;
             border-radius: 50%;
-            border: 3px solid currentColor;
+            border: 4px solid currentColor;
             box-sizing: border-box;
         }
         .workflow-node.shape-end .node-body { display: none; }
-        .workflow-node.shape-end .node-label { font-size: 11px; padding: 0 4px; }
+        .workflow-node.shape-end .node-label { font-size: 11px; padding: 0 4px; color: var(--pb-text); }
         .workflow-node.shape-end .node-menu-btn { display: none; }
-        /* BPMN Gateway: diamond, label under */
+        /* Condition: الماسّة البرتقالية فقط – بدون شكل رمادي أو إطار وراها */
         .workflow-node.shape-gateway {
-            width: 100px;
-            padding: 0 0 8px;
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-            -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            width: 80px;
+            padding: 0 0 28px;
+            background: transparent !important;
+            border: none !important;
+            clip-path: none;
+            box-shadow: none;
         }
+        .workflow-node.shape-gateway:hover,
+        .workflow-node.shape-gateway.selected { box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5); }
         .workflow-node.shape-gateway .node-shape-wrap {
             width: 56px;
             height: 56px;
-            margin: 18px auto 4px;
+            margin: 0 auto 6px;
             clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
         }
-        .workflow-node.shape-gateway .node-body { padding: 6px; }
-        .workflow-node.shape-gateway .node-label { font-size: 11px; }
-        /* Task: rounded rect, shape on top then label */
+        .workflow-node.shape-gateway .node-body {
+            padding: 6px;
+            background: transparent;
+            border: none;
+        }
+        .workflow-node.shape-gateway .node-label { font-size: 11px; color: var(--pb-text); }
+        /* Task: الشكل الملون فوق، ثم التسمية تحته، ثم الإعدادات – التسمية برة مش جوه الشكل */
         .workflow-node.shape-task {
             width: 180px;
             border-radius: 12px;
+            background: transparent;
+            border: none;
         }
+        .workflow-node.shape-task:hover,
+        .workflow-node.shape-task.selected { box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5); }
         .workflow-node.shape-task .node-shape-wrap {
-            border-radius: 10px 10px 0 0;
+            border-radius: 12px 12px 0 0;
             padding: 10px;
         }
-        .workflow-node.shape-task .node-label { padding: 4px 10px 6px; }
+        .workflow-node.shape-task .node-label {
+            padding: 6px 10px 4px;
+            background: transparent;
+            color: var(--pb-text);
+        }
+        .workflow-node.shape-task .node-body {
+            background: var(--node-bg);
+            border-radius: 0 0 12px 12px;
+            border: 1px solid var(--node-border);
+            border-top: none;
+        }
         
         .workflow-node:hover {
             border-color: #4f46e5;
             box-shadow: 0 0 20px rgba(79, 70, 229, 0.3);
         }
+        .workflow-node.shape-start:hover,
+        .workflow-node.shape-end:hover,
+        .workflow-node.shape-gateway:hover,
+        .workflow-node.shape-task:hover { border-color: transparent; }
         
         .workflow-node.selected {
             border-color: #6366f1;
             box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
         }
+        .workflow-node.shape-start.selected,
+        .workflow-node.shape-end.selected,
+        .workflow-node.shape-gateway.selected,
+        .workflow-node.shape-task.selected { border-color: transparent; }
         
         .workflow-node.dragging {
             opacity: 0.8;
@@ -404,6 +437,16 @@
         .connection-end-handle:active { cursor: grabbing; }
         .connection-path.yes + .connection-end-handle { fill: #22c55e; }
         .connection-path.no + .connection-end-handle { fill: #ef4444; }
+        /* Draggable bend point: خطوط مستقيمة + تحكم في الزاوية */
+        .connection-bend-handle {
+            fill: var(--connection-color, #6366f1);
+            stroke: #fff;
+            stroke-width: 2;
+            cursor: grab;
+            r: 6;
+        }
+        .connection-bend-handle:hover { r: 8; }
+        .connection-bend-handle:active { cursor: grabbing; }
         
         /* Toolbar */
         #top-toolbar {
@@ -1140,6 +1183,7 @@
             isConnecting: false,
             connectionStart: null,
             draggingEdgeEnd: null,
+            draggingBendPoint: null,
             tools: [],
             agentId: null,
             undoStack: [],
@@ -1637,13 +1681,14 @@
                 const x2 = (toRect.left + toRect.width/2 - canvasRect.left) / state.zoom;
                 const y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
                 
+                const defaultBend = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+                const bend = (conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number')
+                    ? conn.bendPoint : defaultBend;
+                
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
                 path.setAttribute('data-conn-index', String(idx));
-                
-                const midY = (y1 + y2) / 2;
-                const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
-                path.setAttribute('d', d);
+                path.setAttribute('d', `M ${x1} ${y1} L ${bend.x} ${bend.y} L ${x2} ${y2}`);
                 
                 path.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -1652,31 +1697,87 @@
                 
                 svg.appendChild(path);
                 
-                const g = document.createElementNS(ns, 'g');
-                g.setAttribute('data-conn-index', String(idx));
-                const handle = document.createElementNS(ns, 'circle');
-                handle.setAttribute('class', 'connection-end-handle');
-                handle.setAttribute('cx', x2);
-                handle.setAttribute('cy', y2);
-                handle.setAttribute('r', 8);
-                handle.style.pointerEvents = 'all';
-                handle.addEventListener('mousedown', (e) => {
+                const gHandle = document.createElementNS(ns, 'g');
+                gHandle.setAttribute('data-conn-index', String(idx));
+                const endHandle = document.createElementNS(ns, 'circle');
+                endHandle.setAttribute('class', 'connection-end-handle');
+                endHandle.setAttribute('cx', x2);
+                endHandle.setAttribute('cy', y2);
+                endHandle.setAttribute('r', 8);
+                endHandle.style.pointerEvents = 'all';
+                endHandle.addEventListener('mousedown', (e) => {
                     e.stopPropagation();
                     e.preventDefault();
                     startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
                 });
-                g.appendChild(handle);
-                svg.appendChild(g);
+                gHandle.appendChild(endHandle);
+                
+                const bendHandle = document.createElementNS(ns, 'circle');
+                bendHandle.setAttribute('class', 'connection-bend-handle');
+                bendHandle.setAttribute('cx', bend.x);
+                bendHandle.setAttribute('cy', bend.y);
+                bendHandle.setAttribute('r', 6);
+                bendHandle.style.pointerEvents = 'all';
+                bendHandle.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    startDragBendPoint(idx);
+                });
+                gHandle.appendChild(bendHandle);
+                svg.appendChild(gHandle);
             });
             
             if (state.draggingEdgeEnd) {
                 const d = state.draggingEdgeEnd;
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${d.type} connection-preview`);
-                path.setAttribute('d', `M ${d.fromX} ${d.fromY} C ${d.fromX} ${(d.fromY + d.currentY) / 2}, ${d.currentX} ${(d.fromY + d.currentY) / 2}, ${d.currentX} ${d.currentY}`);
+                path.setAttribute('d', `M ${d.fromX} ${d.fromY} L ${d.currentX} ${d.currentY}`);
                 path.setAttribute('stroke-dasharray', '6 4');
                 svg.appendChild(path);
             }
+        }
+        
+        function startDragBendPoint(connIndex) {
+            state.draggingBendPoint = { connIndex };
+            const conn = state.connections[connIndex];
+            if (!conn.bendPoint) {
+                const fromNode = document.getElementById(conn.from);
+                const toNode = document.getElementById(conn.to);
+                if (fromNode && toNode) {
+                    const fromPort = conn.type === 'yes' ? fromNode.querySelector('.port.output-yes') : conn.type === 'no' ? fromNode.querySelector('.port.output-no') : fromNode.querySelector('.port.output');
+                    const toPort = toNode.querySelector('.port.input');
+                    if (fromPort && toPort) {
+                        const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                        const x1 = (fromPort.getBoundingClientRect().left + fromPort.getBoundingClientRect().width/2 - canvasRect.left) / state.zoom;
+                        const y1 = (fromPort.getBoundingClientRect().top + fromPort.getBoundingClientRect().height/2 - canvasRect.top) / state.zoom;
+                        const x2 = (toPort.getBoundingClientRect().left + toPort.getBoundingClientRect().width/2 - canvasRect.left) / state.zoom;
+                        const y2 = (toPort.getBoundingClientRect().top + toPort.getBoundingClientRect().height/2 - canvasRect.top) / state.zoom;
+                        conn.bendPoint = { x: (x1+x2)/2, y: (y1+y2)/2 };
+                    }
+                }
+            }
+            const onMove = (e) => {
+                if (!state.draggingBendPoint) return;
+                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                const x = (e.clientX - canvasRect.left - state.panX) / state.zoom;
+                const y = (e.clientY - canvasRect.top - state.panY) / state.zoom;
+                const c = state.connections[state.draggingBendPoint.connIndex];
+                if (c) {
+                    c.bendPoint = { x, y };
+                    renderConnections();
+                }
+            };
+            const onUp = () => {
+                if (state.draggingBendPoint) {
+                    saveToUndo();
+                    state.draggingBendPoint = null;
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    renderConnections();
+                }
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
         }
         
         function startDragEdgeEnd(connIndex, conn, fromX, fromY, startX, startY) {
