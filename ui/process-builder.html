@@ -403,30 +403,30 @@
         .port.output-no:hover { transform: translate(-50%, 50%) scale(1.2); }
         .workflow-node.shape-task .port.output:hover { transform: translate(-50%, -50%) scale(1.2); }
         
-        /* 4-side ports: أي زاوية على الشكل */
+        /* 4-side ports: على حافة الشكل عشان الخط يوصّل للشكل (بدون فجوة) */
         .port.input-top, .port.input-bottom { left: 50%; transform: translate(-50%, -50%); }
         .port.input-right, .port.input-left { top: 50%; transform: translate(-50%, -50%); }
-        .port.input-top { top: -7px; }
-        .port.input-bottom { top: calc(100% + 7px); }
-        .port.input-right { left: calc(100% + 7px); }
-        .port.input-left { left: -7px; }
+        .port.input-top { top: 0; }
+        .port.input-bottom { top: 100%; }
+        .port.input-right { left: 100%; }
+        .port.input-left { left: 0; }
         .port.output-top, .port.output-bottom { left: 50%; transform: translate(-50%, -50%); }
         .port.output-right, .port.output-left { top: 50%; transform: translate(-50%, -50%); }
-        .port.output-top { top: -7px; }
-        .port.output-bottom { top: calc(100% + 7px); }
-        .port.output-right { left: calc(100% + 7px); }
-        .port.output-left { left: -7px; }
+        .port.output-top { top: 0; }
+        .port.output-bottom { top: 100%; }
+        .port.output-right { left: 100%; }
+        .port.output-left { left: 0; }
         .port.output-yes-top, .port.output-yes-bottom, .port.output-no-top, .port.output-no-bottom { left: 50%; transform: translate(-50%, -50%); }
         .port.output-yes-right, .port.output-yes-left, .port.output-no-right, .port.output-no-left { top: 50%; transform: translate(-50%, -50%); }
-        .port.output-yes-top, .port.output-no-top { top: -7px; }
-        .port.output-yes-bottom, .port.output-no-bottom { top: calc(100% + 7px); }
-        .port.output-yes-right, .port.output-no-right { left: calc(100% + 7px); }
-        .port.output-yes-left, .port.output-no-left { left: -7px; }
-        /* Fallback single port (hidden when 4-side present) */
-        .port.input { top: -7px; left: 50%; transform: translate(-50%, -50%); }
-        .port.output { top: calc(100% + 7px); left: 50%; transform: translate(-50%, -50%); }
-        .port.output-yes { top: calc(100% + 7px); left: 30%; transform: translate(-50%, -50%); }
-        .port.output-no { top: calc(100% + 7px); left: 70%; transform: translate(-50%, -50%); }
+        .port.output-yes-top, .port.output-no-top { top: 0; }
+        .port.output-yes-bottom, .port.output-no-bottom { top: 100%; }
+        .port.output-yes-right, .port.output-no-right { left: 100%; }
+        .port.output-yes-left, .port.output-no-left { left: 0; }
+        /* Fallback single port (على الحافة) */
+        .port.input { top: 0; left: 50%; transform: translate(-50%, -50%); }
+        .port.output { top: 100%; left: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes { top: 100%; left: 30%; transform: translate(-50%, -50%); }
+        .port.output-no { top: 100%; left: 70%; transform: translate(-50%, -50%); }
         
         .port-label {
             position: absolute;
