@@ -1256,6 +1256,7 @@
             connectionStart: null,
             draggingEdgeEnd: null,
             draggingBendPoint: null,
+            justDropped: false,
             tools: [],
             agentId: null,
             undoStack: [],
@@ -1344,18 +1345,22 @@
             
             // Click on canvas to deselect
             container.addEventListener('click', (e) => {
+                if (state.justDropped) return;
                 if (e.target === container || e.target.id === 'canvas') {
                     deselectAll();
                     deselectConnection();
                 }
             });
             
-            // Delete / Backspace: remove selected connection
+            // Delete / Backspace: remove selected connection or selected node
             document.addEventListener('keydown', (e) => {
                 if (e.target.closest('input') || e.target.closest('textarea') || e.target.closest('select')) return;
-                if ((e.key === 'Delete' || e.key === 'Backspace') && stateSelectedConnIndex !== null) {
-                    e.preventDefault();
+                if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+                e.preventDefault();
+                if (stateSelectedConnIndex !== null) {
                     deleteConnection(stateSelectedConnIndex);
+                } else if (state.selectedNode) {
+                    deleteNode(state.selectedNode.id);
                 }
             });
         }
@@ -1395,6 +1400,8 @@
                     const y = (e.clientY - rect.top - state.panY) / state.zoom;
                     
                     createNode(type, x, y, toolId);
+                    state.justDropped = true;
+                    setTimeout(() => { state.justDropped = false; }, 150);
                 }
             });
         }
@@ -1498,6 +1505,7 @@
             // Click to select
             nodeEl.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (state.justDropped) return;
                 selectNode(node.id);
             });
             
@@ -2636,15 +2644,10 @@
         function deleteNode(nodeId) {
             if (!confirm('Delete this node?')) return;
             
-            // Remove connections
+            if (state.selectedNode && state.selectedNode.id === nodeId) state.selectedNode = null;
             state.connections = state.connections.filter(c => c.from !== nodeId && c.to !== nodeId);
-            
-            // Remove node
             state.nodes = state.nodes.filter(n => n.id !== nodeId);
-            
-            // Remove element
             document.getElementById(nodeId)?.remove();
-            
             closeProperties();
             renderConnections();
             updateEmptyState();
