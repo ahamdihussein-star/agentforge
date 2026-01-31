@@ -271,7 +271,7 @@
             color: rgba(255,255,255,0.95);
         }
         
-        /* التسمية – موضعها حسب labelPosition (below/left/right/above) عشان تتقري لو الخط طاله */
+        /* التسمية – اسحبها من الـ canvas لأي مكان عشان تتقري لو الخط طاله */
         .node-label {
             font-weight: 600;
             font-size: 11px;
@@ -281,33 +281,17 @@
             word-break: break-word;
             color: var(--pb-text);
         }
+        .workflow-node .node-label.node-label-draggable {
+            cursor: grab;
+            position: absolute;
+            transform: none;
+            z-index: 15;
+        }
+        .workflow-node .node-label.node-label-draggable:active {
+            cursor: grabbing;
+        }
         .workflow-node.label-below .node-label { position: relative; margin-top: 0; }
-        .workflow-node.label-left .node-label {
-            position: absolute;
-            left: -72px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 64px;
-            margin: 0;
-        }
-        .workflow-node.label-right .node-label {
-            position: absolute;
-            right: -72px;
-            left: auto;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 64px;
-            margin: 0;
-        }
-        .workflow-node.label-above .node-label {
-            position: absolute;
-            left: 50%;
-            top: -28px;
-            transform: translateX(-50%);
-            width: auto;
-            max-width: 80px;
-            margin: 0;
-        }
+        .workflow-node.label-custom .node-label { position: absolute; transform: none; }
         
         .node-menu-btn {
             position: absolute;
@@ -1312,6 +1296,7 @@
             justDropped: false,
             consumeNextClick: false,
             flowDirection: 'vertical',
+            draggingLabel: null,
             tools: [],
             agentId: null,
             undoStack: [],
@@ -1560,21 +1545,22 @@
             
             const nodeEl = document.createElement('div');
             const shapeClass = getShapeClass(node.type);
-            const labelPos = node.labelPosition || 'below';
-            nodeEl.className = 'workflow-node ' + shapeClass + ' label-' + labelPos;
+            const hasCustomLabel = node.labelOffset && typeof node.labelOffset.x === 'number' && typeof node.labelOffset.y === 'number';
+            nodeEl.className = 'workflow-node ' + shapeClass + (hasCustomLabel ? ' label-custom' : ' label-below');
             nodeEl.id = node.id;
             nodeEl.style.left = node.x + 'px';
             nodeEl.style.top = node.y + 'px';
             
             const typeClass = getTypeClass(node.type);
             const svgIcon = getTypeSvgIcon(node.type);
+            const labelStyle = hasCustomLabel ? `style="left:${node.labelOffset.x}px;top:${node.labelOffset.y}px;"` : '';
             
             nodeEl.innerHTML = `
                 <div class="port input"></div>
                 <div class="node-shape-wrap ${typeClass}">
                     <div class="node-shape">${svgIcon}</div>
                 </div>
-                <div class="node-label">${escapeHtml(node.name)}</div>
+                <div class="node-label node-label-draggable" title="Drag to move label" ${labelStyle}>${escapeHtml(node.name)}</div>
                 <button class="node-menu-btn" onclick="event.stopPropagation(); showNodeMenu('${node.id}')">⋮</button>
                 <div class="node-body">
                     <div class="node-config-preview">${getConfigPreview(node)}</div>
@@ -1606,7 +1592,56 @@
             // Setup port connections
             setupPorts(nodeEl, node);
             
+            const labelEl = nodeEl.querySelector('.node-label');
+            if (labelEl) {
+                labelEl.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    startDragLabel(node.id, e);
+                });
+            }
+            
             canvas.appendChild(nodeEl);
+        }
+        
+        function startDragLabel(nodeId, e) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            const nodeEl = document.getElementById(nodeId);
+            const labelEl = nodeEl && nodeEl.querySelector('.node-label');
+            if (!labelEl || !nodeEl) return;
+            const nodeRect = nodeEl.getBoundingClientRect();
+            const labelRect = labelEl.getBoundingClientRect();
+            const zoom = state.zoom;
+            const startLabelX = (labelRect.left - nodeRect.left) / zoom;
+            const startLabelY = (labelRect.top - nodeRect.top) / zoom;
+            state.draggingLabel = { nodeId, startClientX: e.clientX, startClientY: e.clientY, startLabelX, startLabelY };
+            if (!node.labelOffset) node.labelOffset = { x: startLabelX, y: startLabelY };
+            nodeEl.classList.add('label-custom');
+            nodeEl.classList.remove('label-below');
+            labelEl.style.position = 'absolute';
+            labelEl.style.transform = 'none';
+            labelEl.style.left = startLabelX + 'px';
+            labelEl.style.top = startLabelY + 'px';
+            const onMove = (e) => {
+                if (!state.draggingLabel || state.draggingLabel.nodeId !== nodeId) return;
+                const dx = (e.clientX - state.draggingLabel.startClientX) / state.zoom;
+                const dy = (e.clientY - state.draggingLabel.startClientY) / state.zoom;
+                const x = state.draggingLabel.startLabelX + dx;
+                const y = state.draggingLabel.startLabelY + dy;
+                node.labelOffset = { x, y };
+                labelEl.style.left = x + 'px';
+                labelEl.style.top = y + 'px';
+            };
+            const onUp = () => {
+                if (state.draggingLabel && state.draggingLabel.nodeId === nodeId) {
+                    saveToUndo();
+                    state.draggingLabel = null;
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                }
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
         }
         
         function getTypeClass(type) {
@@ -2061,23 +2096,13 @@
         }
         
         function generatePropertiesForm(node) {
-            const labelPos = node.labelPosition || 'below';
             let html = `
                 <div class="property-group">
                     <label class="property-label">Name</label>
                     <input type="text" class="property-input" value="${node.name}" 
                            onchange="updateNodeProperty('${node.id}', 'name', this.value)">
                 </div>
-                <div class="property-group">
-                    <label class="property-label">Label position</label>
-                    <select class="property-select" onchange="updateNodeProperty('${node.id}', 'labelPosition', this.value)">
-                        <option value="below" ${labelPos === 'below' ? 'selected' : ''}>Below</option>
-                        <option value="left" ${labelPos === 'left' ? 'selected' : ''}>Left</option>
-                        <option value="right" ${labelPos === 'right' ? 'selected' : ''}>Right</option>
-                        <option value="above" ${labelPos === 'above' ? 'selected' : ''}>Above</option>
-                    </select>
-                    <div style="font-size:11px;color:#9ca3af;margin-top:4px;">Move label if line covers it</div>
-                </div>
+                <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;">Drag the label on the canvas to move it</div>
             `;
             
             // Get available fields for dropdowns
