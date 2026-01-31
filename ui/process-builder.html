@@ -181,13 +181,9 @@
             clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
             -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
         }
-        .workflow-node.shape-gateway .node-body {
-            padding: 6px;
-            background: transparent;
-            border: none;
-        }
+        .workflow-node.shape-gateway .node-body { display: none; }
         .workflow-node.shape-gateway .node-label { font-size: 11px; color: var(--pb-text); }
-        /* Task: الشكل الملون فوق، ثم التسمية تحته، ثم الإعدادات – التسمية برة مش جوه الشكل */
+        /* Task: شكل + تسمية فقط، بدون مربع إعدادات تحت */
         .workflow-node.shape-task {
             width: 180px;
             border-radius: 12px;
@@ -205,12 +201,7 @@
             background: transparent;
             color: var(--pb-text);
         }
-        .workflow-node.shape-task .node-body {
-            background: var(--node-bg);
-            border-radius: 0 0 12px 12px;
-            border: 1px solid var(--node-border);
-            border-top: none;
-        }
+        .workflow-node.shape-task .node-body { display: none; }
         
         .workflow-node:hover {
             border-color: #4f46e5;
@@ -416,8 +407,7 @@
             white-space: nowrap;
         }
         
-        .port.output-yes + .port-label { bottom: -22px; left: 30%; transform: translateX(-50%); color: #22c55e; }
-        .port.output-no ~ .port-label.no { bottom: -22px; left: 70%; transform: translateX(-50%); color: #ef4444; }
+        /* Yes/No تظهر على خط الربط نفسه في renderConnections */
         
         /* Connections SVG – same layer as canvas, same transform so lines stay aligned on zoom/pan */
         #connections-svg {
@@ -1455,9 +1445,7 @@
                 </div>
                 ${node.type === 'condition' ? `
                     <div class="port output-yes"></div>
-                    <span class="port-label" style="bottom:-22px;left:30%;transform:translateX(-50%);color:#22c55e;">Yes</span>
                     <div class="port output-no"></div>
-                    <span class="port-label no" style="bottom:-22px;left:70%;transform:translateX(-50%);color:#ef4444;">No</span>
                 ` : node.type !== 'end' ? `
                     <div class="port output"></div>
                 ` : ''}
@@ -1778,6 +1766,20 @@
                 });
                 gHandle.appendChild(bendHandle);
                 svg.appendChild(gHandle);
+                
+                if (conn.type === 'yes' || conn.type === 'no') {
+                    const label = document.createElementNS(ns, 'text');
+                    label.setAttribute('x', bend.x);
+                    label.setAttribute('y', bend.y);
+                    label.setAttribute('text-anchor', 'middle');
+                    label.setAttribute('dominant-baseline', 'middle');
+                    label.setAttribute('font-size', '11');
+                    label.setAttribute('font-weight', '600');
+                    label.setAttribute('fill', conn.type === 'yes' ? '#22c55e' : '#ef4444');
+                    label.setAttribute('class', 'connection-path-label');
+                    label.textContent = conn.type === 'yes' ? 'Yes' : 'No';
+                    svg.appendChild(label);
+                }
             });
             
             if (state.draggingEdgeEnd) {
