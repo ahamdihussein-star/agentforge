@@ -336,7 +336,7 @@
             white-space: nowrap;
         }
         
-        /* Connection Ports */
+        /* Connection Ports – تظهر فقط عند الوقوف على الـ shape أو أثناء الربط */
         .port {
             position: absolute;
             width: 14px;
@@ -345,8 +345,18 @@
             border: 2px solid #6b7280;
             border-radius: 50%;
             cursor: crosshair;
-            transition: all 0.2s;
+            transition: opacity 0.15s ease, transform 0.2s;
             z-index: 20;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .workflow-node:hover .port {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .connecting .workflow-node .port {
+            opacity: 1;
+            pointer-events: auto;
         }
         
         .port:hover {
@@ -444,6 +454,18 @@
             filter: drop-shadow(0 0 4px currentColor);
         }
         
+        /* مقابض الخط (نقطة الانحناء + نهاية الخط) – تظهر فقط عند الوقوف على الخط أو عند اختياره */
+        .connection-handles {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease;
+        }
+        .connection-path:hover + .connection-handles,
+        .connection-path.selected + .connection-handles {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
         /* Draggable endpoint handle: move connection to another step */
         .connection-end-handle {
             fill: var(--connection-color, #6366f1);
@@ -466,6 +488,25 @@
         }
         .connection-bend-handle:hover { r: 8; }
         .connection-bend-handle:active { cursor: grabbing; }
+        
+        /* تسمية Yes/No بجانب الخط (بدون أن يقطعه الخط) */
+        .connection-label-badge {
+            pointer-events: none;
+        }
+        .connection-label-badge rect {
+            stroke-width: 1.5;
+            vector-effect: non-scaling-stroke;
+        }
+        .connection-label-badge.yes rect { fill: #f0fdf4; stroke: #22c55e; }
+        .connection-label-badge.no rect { fill: #fef2f2; stroke: #ef4444; }
+        .connection-label-badge text {
+            font-size: 10px;
+            font-weight: 600;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+        .connection-label-badge.yes text { fill: #166534; }
+        .connection-label-badge.no text { fill: #b91c1c; }
         
         /* Toolbar */
         #top-toolbar {
@@ -1739,6 +1780,7 @@
                 svg.appendChild(path);
                 
                 const gHandle = document.createElementNS(ns, 'g');
+                gHandle.setAttribute('class', 'connection-handles');
                 gHandle.setAttribute('data-conn-index', String(idx));
                 const endHandle = document.createElementNS(ns, 'circle');
                 endHandle.setAttribute('class', 'connection-end-handle');
@@ -1768,17 +1810,28 @@
                 svg.appendChild(gHandle);
                 
                 if (conn.type === 'yes' || conn.type === 'no') {
-                    const label = document.createElementNS(ns, 'text');
-                    label.setAttribute('x', bend.x);
-                    label.setAttribute('y', bend.y);
-                    label.setAttribute('text-anchor', 'middle');
-                    label.setAttribute('dominant-baseline', 'middle');
-                    label.setAttribute('font-size', '11');
-                    label.setAttribute('font-weight', '600');
-                    label.setAttribute('fill', conn.type === 'yes' ? '#22c55e' : '#ef4444');
-                    label.setAttribute('class', 'connection-path-label');
-                    label.textContent = conn.type === 'yes' ? 'Yes' : 'No';
-                    svg.appendChild(label);
+                    const dx = bend.x - x1, dy = bend.y - y1;
+                    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const perpX = -dy / len, perpY = dx / len;
+                    const offset = 18;
+                    const lx = bend.x + perpX * offset;
+                    const ly = bend.y + perpY * offset;
+                    const badgeW = 22, badgeH = 12, rx = 6;
+                    const g = document.createElementNS(ns, 'g');
+                    g.setAttribute('class', `connection-label-badge ${conn.type}`);
+                    const rect = document.createElementNS(ns, 'rect');
+                    rect.setAttribute('x', lx - badgeW / 2);
+                    rect.setAttribute('y', ly - badgeH / 2);
+                    rect.setAttribute('width', badgeW);
+                    rect.setAttribute('height', badgeH);
+                    rect.setAttribute('rx', rx);
+                    g.appendChild(rect);
+                    const text = document.createElementNS(ns, 'text');
+                    text.setAttribute('x', lx);
+                    text.setAttribute('y', ly);
+                    text.textContent = conn.type === 'yes' ? 'Yes' : 'No';
+                    g.appendChild(text);
+                    svg.appendChild(g);
                 }
             });
             
