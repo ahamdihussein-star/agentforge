@@ -409,11 +409,11 @@
         /* End = دائرة 48px */
         .workflow-node.shape-end .port.input { top: 0; transform: translate(-50%, -50%); }
         .workflow-node.shape-end .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
-        /* Gateway = ماسّة 56px */
+        /* Gateway = ماسّة: Yes من الزاوية اليمنى، No من الزاوية اللي تحت */
         .workflow-node.shape-gateway .port.input { top: 0; transform: translate(-50%, -50%); }
         .workflow-node.shape-gateway .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
-        .workflow-node.shape-gateway .port.output-yes { top: 56px; bottom: auto; left: 35%; transform: translate(-50%, -50%); }
-        .workflow-node.shape-gateway .port.output-no { top: 56px; bottom: auto; left: 65%; transform: translate(-50%, -50%); }
+        .workflow-node.shape-gateway .port.output-yes { top: 28px; left: calc(50% + 28px); transform: translate(-50%, -50%); }
+        .workflow-node.shape-gateway .port.output-no { top: 56px; left: 50%; transform: translate(-50%, -50%); }
         /* Task: input أعلى المربع، output أسفل المربع (مثل Start) */
         .workflow-node.shape-task .port.input { top: 0; transform: translate(-50%, -50%); }
         .workflow-node.shape-task .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
@@ -1798,14 +1798,13 @@
                 const x2 = (toRect.left + toRect.width/2 - canvasRect.left) / state.zoom;
                 const y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
                 
-                const defaultBend = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
-                const bend = (conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number')
-                    ? conn.bendPoint : defaultBend;
+                const midY = (y1 + y2) / 2;
+                const pathD = `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
                 
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
                 path.setAttribute('data-conn-index', String(idx));
-                path.setAttribute('d', `M ${x1} ${y1} L ${bend.x} ${bend.y} L ${x2} ${y2}`);
+                path.setAttribute('d', pathD);
                 
                 path.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -1829,28 +1828,14 @@
                     startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
                 });
                 gHandle.appendChild(endHandle);
-                
-                const bendHandle = document.createElementNS(ns, 'circle');
-                bendHandle.setAttribute('class', 'connection-bend-handle');
-                bendHandle.setAttribute('cx', bend.x);
-                bendHandle.setAttribute('cy', bend.y);
-                bendHandle.setAttribute('r', 6);
-                bendHandle.style.pointerEvents = 'all';
-                bendHandle.addEventListener('mousedown', (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    startDragBendPoint(idx);
-                });
-                gHandle.appendChild(bendHandle);
                 svg.appendChild(gHandle);
                 
+                const labelX = (x1 + x2) / 2;
+                const labelY = midY;
                 if (conn.type === 'yes' || conn.type === 'no') {
-                    const dx = bend.x - x1, dy = bend.y - y1;
-                    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-                    const perpX = -dy / len, perpY = dx / len;
                     const offset = 18;
-                    const lx = bend.x + perpX * offset;
-                    const ly = bend.y + perpY * offset;
+                    const lx = labelX;
+                    const ly = labelY - offset;
                     const badgeW = 22, badgeH = 12, rx = 6;
                     const g = document.createElementNS(ns, 'g');
                     g.setAttribute('class', `connection-label-badge ${conn.type}`);
@@ -1872,55 +1857,14 @@
             
             if (state.draggingEdgeEnd) {
                 const d = state.draggingEdgeEnd;
+                const midY = (d.fromY + d.currentY) / 2;
+                const pathD = `M ${d.fromX} ${d.fromY} L ${d.fromX} ${midY} L ${d.currentX} ${midY} L ${d.currentX} ${d.currentY}`;
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${d.type} connection-preview`);
-                path.setAttribute('d', `M ${d.fromX} ${d.fromY} L ${d.currentX} ${d.currentY}`);
+                path.setAttribute('d', pathD);
                 path.setAttribute('stroke-dasharray', '6 4');
                 svg.appendChild(path);
             }
-        }
-        
-        function startDragBendPoint(connIndex) {
-            state.draggingBendPoint = { connIndex };
-            const conn = state.connections[connIndex];
-            if (!conn.bendPoint) {
-                const fromNode = document.getElementById(conn.from);
-                const toNode = document.getElementById(conn.to);
-                if (fromNode && toNode) {
-                    const fromPort = conn.type === 'yes' ? fromNode.querySelector('.port.output-yes') : conn.type === 'no' ? fromNode.querySelector('.port.output-no') : fromNode.querySelector('.port.output');
-                    const toPort = toNode.querySelector('.port.input');
-                    if (fromPort && toPort) {
-                        const canvasRect = document.getElementById('canvas').getBoundingClientRect();
-                        const x1 = (fromPort.getBoundingClientRect().left + fromPort.getBoundingClientRect().width/2 - canvasRect.left) / state.zoom;
-                        const y1 = (fromPort.getBoundingClientRect().top + fromPort.getBoundingClientRect().height/2 - canvasRect.top) / state.zoom;
-                        const x2 = (toPort.getBoundingClientRect().left + toPort.getBoundingClientRect().width/2 - canvasRect.left) / state.zoom;
-                        const y2 = (toPort.getBoundingClientRect().top + toPort.getBoundingClientRect().height/2 - canvasRect.top) / state.zoom;
-                        conn.bendPoint = { x: (x1+x2)/2, y: (y1+y2)/2 };
-                    }
-                }
-            }
-            const onMove = (e) => {
-                if (!state.draggingBendPoint) return;
-                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
-                const x = (e.clientX - canvasRect.left - state.panX) / state.zoom;
-                const y = (e.clientY - canvasRect.top - state.panY) / state.zoom;
-                const c = state.connections[state.draggingBendPoint.connIndex];
-                if (c) {
-                    c.bendPoint = { x, y };
-                    renderConnections();
-                }
-            };
-            const onUp = () => {
-                if (state.draggingBendPoint) {
-                    saveToUndo();
-                    state.draggingBendPoint = null;
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                    renderConnections();
-                }
-            };
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
         }
         
         function startDragEdgeEnd(connIndex, conn, fromX, fromY, startX, startY) {
