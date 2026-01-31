@@ -1257,6 +1257,7 @@
             draggingEdgeEnd: null,
             draggingBendPoint: null,
             justDropped: false,
+            consumeNextClick: false,
             tools: [],
             agentId: null,
             undoStack: [],
@@ -1343,6 +1344,15 @@
                 document.getElementById('zoom-level').textContent = Math.round(state.zoom * 100) + '%';
             });
             
+            // منع النقرة الأولى بعد الـ drop فقط (سبب ظهور properties الـ Start)
+            document.addEventListener('click', (e) => {
+                if (state.consumeNextClick) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    state.consumeNextClick = false;
+                }
+            }, true);
+            
             // Click on canvas to deselect
             container.addEventListener('click', (e) => {
                 if (state.justDropped) return;
@@ -1403,11 +1413,12 @@
                     const y = (e.clientY - rect.top - state.panY) / state.zoom;
                     
                     state.justDropped = true;
+                    state.consumeNextClick = true;
                     const node = createNode(type, x, y, toolId);
                     if (node) {
-                        setTimeout(() => {
-                            selectNode(node.id);
-                        }, 0);
+                        const newNodeId = node.id;
+                        requestAnimationFrame(() => selectNode(newNodeId));
+                        setTimeout(() => selectNode(newNodeId), 25);
                     }
                     setTimeout(() => { state.justDropped = false; }, 150);
                 }
@@ -2836,7 +2847,14 @@
                     state.nodes = def.nodes || [];
                     state.connections = def.edges || [];
                     
-                    // Render
+                    // تجنب تكرار الـ id: أي عقدة جديدة تأخذ id أكبر من كل العقد المحملة
+                    let maxNum = 0;
+                    state.nodes.forEach(n => {
+                        const m = (n.id || '').match(/^node_(\d+)$/);
+                        if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+                    });
+                    nodeIdCounter = maxNum + 1;
+                    
                     state.nodes.forEach(n => renderNode(n));
                     renderConnections();
                     updateEmptyState();
