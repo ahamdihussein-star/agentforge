@@ -351,34 +351,55 @@
         }
         
         .port:hover {
-            transform: scale(1.3);
             background: #6366f1;
             border-color: #818cf8;
         }
+        .port.input:hover { transform: translate(-50%, -50%) scale(1.2); }
+        .port.output:hover { transform: translate(-50%, 50%) scale(1.2); }
+        .workflow-node.shape-start .port.output:hover,
+        .workflow-node.shape-end .port.output:hover,
+        .workflow-node.shape-gateway .port.input:hover,
+        .workflow-node.shape-gateway .port.output-yes:hover,
+        .workflow-node.shape-gateway .port.output-no:hover,
+        .workflow-node.shape-task .port.input:hover { transform: translate(-50%, -50%) scale(1.2); }
+        .port.output-yes:hover,
+        .port.output-no:hover { transform: translate(-50%, 50%) scale(1.2); }
+        .workflow-node.shape-task .port.output:hover { transform: translate(-50%, 50%) scale(1.2); }
         
         .port.input {
             top: -7px;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, -50%);
         }
-        
         .port.output {
             bottom: -7px;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, 50%);
         }
-        
         .port.output-yes {
             bottom: -7px;
             left: 30%;
-            transform: translateX(-50%);
+            transform: translate(-50%, 50%);
         }
-        
         .port.output-no {
             bottom: -7px;
             left: 70%;
-            transform: translateX(-50%);
+            transform: translate(-50%, 50%);
         }
+        /* Ports على الشكل نفسه – لا إطار: Start = دائرة 56px */
+        .workflow-node.shape-start .port.input { top: 0; transform: translate(-50%, -50%); }
+        .workflow-node.shape-start .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
+        /* End = دائرة 48px */
+        .workflow-node.shape-end .port.input { top: 0; transform: translate(-50%, -50%); }
+        .workflow-node.shape-end .port.output { top: 48px; bottom: auto; transform: translate(-50%, -50%); }
+        /* Gateway = ماسّة 56px */
+        .workflow-node.shape-gateway .port.input { top: 0; transform: translate(-50%, -50%); }
+        .workflow-node.shape-gateway .port.output { top: 56px; bottom: auto; transform: translate(-50%, -50%); }
+        .workflow-node.shape-gateway .port.output-yes { top: 56px; bottom: auto; left: 35%; transform: translate(-50%, -50%); }
+        .workflow-node.shape-gateway .port.output-no { top: 56px; bottom: auto; left: 65%; transform: translate(-50%, -50%); }
+        /* Task: input على الشكل (أعلى الشريط)، output على أسفل العقدة */
+        .workflow-node.shape-task .port.input { top: 0; transform: translate(-50%, -50%); }
+        .workflow-node.shape-task .port.output { bottom: 0; transform: translate(-50%, 50%); }
         
         .port-label {
             position: absolute;
@@ -602,15 +623,22 @@
         }
         
         .palette-icon {
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            min-height: 40px;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            flex-shrink: 0;
         }
-        
+        .palette-icon svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+            color: rgba(255,255,255,0.95);
+        }
         .palette-icon.trigger { background: linear-gradient(135deg, #22c55e, #16a34a); }
         .palette-icon.action { background: linear-gradient(135deg, #3b82f6, #2563eb); }
         .palette-icon.condition { background: linear-gradient(135deg, #f59e0b, #d97706); }
@@ -619,6 +647,11 @@
         .palette-icon.delay { background: linear-gradient(135deg, #06b6d4, #0891b2); }
         .palette-icon.end { background: linear-gradient(135deg, #6b7280, #4b5563); }
         .palette-icon.tool { background: linear-gradient(135deg, #ec4899, #db2777); }
+        /* نفس شكل الـ shape على الـ canvas: دائرة، ماسّة، دائرة سميكة، مستطيل */
+        .palette-icon.palette-shape-start { border-radius: 50%; }
+        .palette-icon.palette-shape-end { border-radius: 50%; border: 3px solid currentColor; box-sizing: border-box; }
+        .palette-icon.palette-shape-gateway { border-radius: 0; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+        .palette-icon.palette-shape-task { border-radius: 8px; }
         
         .palette-info {
             flex: 1;
@@ -1205,9 +1238,21 @@
             loadPlatformTheme();
             initCanvas();
             initPalette();
+            initPaletteShapes();
             loadTools();
             loadWorkflowFromUrl();
         });
+        
+        function initPaletteShapes() {
+            document.querySelectorAll('.palette-item[data-type]').forEach(item => {
+                const type = item.dataset.type;
+                const iconEl = item.querySelector('.palette-icon');
+                if (!iconEl) return;
+                const shapeClass = getShapeClass(type);
+                iconEl.innerHTML = getTypeSvgIcon(type);
+                iconEl.classList.add('palette-shape-' + shapeClass.replace('shape-', ''));
+            });
+        }
         
         function loadPlatformTheme() {
             const theme = localStorage.getItem('agentforge-theme') || 'dark';
@@ -2580,7 +2625,7 @@
             
             container.innerHTML = state.tools.map(t => `
                 <div class="palette-item" draggable="true" data-type="tool" data-tool-id="${t.id}">
-                    <div class="palette-icon tool">${getToolIcon(t.type)}</div>
+                    <div class="palette-icon tool palette-shape-task">${getTypeSvgIcon('tool')}</div>
                     <div class="palette-info">
                         <div class="palette-name">${t.name}</div>
                         <div class="palette-desc">${t.type}</div>
@@ -2588,7 +2633,6 @@
                 </div>
             `).join('');
             
-            // Make draggable
             container.querySelectorAll('.palette-item').forEach(item => {
                 item.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('nodeType', 'tool');
