@@ -378,7 +378,8 @@
             opacity: 0;
             pointer-events: none;
         }
-        .workflow-node:hover .port {
+        /* الزوايا (المنافذ) تظهر فقط للـ shape المحدد – مش لكل الـ shapes */
+        .workflow-node.selected .port {
             opacity: 1;
             pointer-events: auto;
         }
@@ -1693,7 +1694,7 @@
                 <div class="node-shape-wrap ${typeClass}">
                     <div class="node-shape">${svgIcon}</div>
                 </div>
-                <div class="node-label node-label-draggable" title="Drag to move • Drag right to enlarge, left to shrink" ${labelStyleAttr}>${escapeHtml(node.name)}</div>
+                <div class="node-label node-label-draggable" title="Drag horizontal = move • Drag vertical = resize font" ${labelStyleAttr}>${escapeHtml(node.name)}</div>
                 <button class="node-menu-btn" onclick="event.stopPropagation(); showNodeMenu('${node.id}')">⋮</button>
                 <div class="node-body">
                     <div class="node-config-preview">${getConfigPreview(node)}</div>
@@ -1743,7 +1744,7 @@
             const startLabelX = (labelRect.left - nodeRect.left) / zoom;
             const startLabelY = (labelRect.top - nodeRect.top) / zoom;
             const startFontSize = node.labelFontSize != null ? node.labelFontSize : state.labelFontSize;
-            state.draggingLabel = { nodeId, startClientX: e.clientX, startClientY: e.clientY, startLabelX, startLabelY, startFontSize };
+            state.draggingLabel = { nodeId, startClientX: e.clientX, startClientY: e.clientY, startLabelX, startLabelY, startFontSize, mode: null };
             if (!node.labelOffset) node.labelOffset = { x: startLabelX, y: startLabelY };
             nodeEl.classList.add('label-custom');
             nodeEl.classList.remove('label-below');
@@ -1752,18 +1753,25 @@
             labelEl.style.left = startLabelX + 'px';
             labelEl.style.top = startLabelY + 'px';
             labelEl.style.fontSize = startFontSize + 'px';
+            const THRESHOLD = 6;
             const onMove = (e) => {
                 if (!state.draggingLabel || state.draggingLabel.nodeId !== nodeId) return;
                 const dx = (e.clientX - state.draggingLabel.startClientX) / state.zoom;
                 const dy = (e.clientY - state.draggingLabel.startClientY) / state.zoom;
-                const x = state.draggingLabel.startLabelX + dx;
-                const y = state.draggingLabel.startLabelY + dy;
-                const fontSize = Math.round(Math.min(24, Math.max(9, state.draggingLabel.startFontSize + dx * 0.25)));
-                node.labelOffset = { x, y };
-                node.labelFontSize = fontSize;
-                labelEl.style.left = x + 'px';
-                labelEl.style.top = y + 'px';
-                labelEl.style.fontSize = fontSize + 'px';
+                if (state.draggingLabel.mode == null && (Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD)) {
+                    state.draggingLabel.mode = Math.abs(dx) > Math.abs(dy) ? 'move' : 'resize';
+                }
+                if (state.draggingLabel.mode === 'move') {
+                    const x = state.draggingLabel.startLabelX + dx;
+                    const y = state.draggingLabel.startLabelY + dy;
+                    node.labelOffset = { x, y };
+                    labelEl.style.left = x + 'px';
+                    labelEl.style.top = y + 'px';
+                } else if (state.draggingLabel.mode === 'resize') {
+                    const fontSize = Math.round(Math.min(24, Math.max(9, state.draggingLabel.startFontSize + dy * 0.2)));
+                    node.labelFontSize = fontSize;
+                    labelEl.style.fontSize = fontSize + 'px';
+                }
             };
             const onUp = () => {
                 if (state.draggingLabel && state.draggingLabel.nodeId === nodeId) {
@@ -2185,6 +2193,7 @@
         }
         
         function startDragEdgeEnd(connIndex, conn, fromX, fromY, startX, startY) {
+            saveToUndo();
             const origConn = { from: conn.from, to: conn.to, type: conn.type, fromPort: conn.fromPort, toPort: conn.toPort };
             state.connections.splice(connIndex, 1);
             state.draggingEdgeEnd = {
@@ -2243,8 +2252,6 @@
                         toPort
                     });
                     saveToUndo();
-                } else {
-                    state.connections.push(origConn);
                 }
                 state.draggingEdgeEnd = null;
                 document.removeEventListener('mousemove', onMove);
