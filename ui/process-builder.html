@@ -1686,8 +1686,9 @@
             const labelStyle = (hasCustomLabel ? `left:${node.labelOffset.x}px;top:${node.labelOffset.y}px;` : '') + (node.labelFontSize != null ? `font-size:${node.labelFontSize}px;` : '');
             const labelStyleAttr = labelStyle ? `style="${labelStyle}"` : '';
             const ports4 = ['top','right','bottom','left'].map(s => `<div class="port input input-${s}" data-side="${s}"></div>`).join('');
+            /* عقدة القرار: 4 منافذ فقط (واحدة لكل جهة) – Yes أعلى/أسفل، No يسار/يمين حتى لا تكون نقطتان متجاورتان */
             const outPorts = node.type === 'condition'
-                ? '<div class="port output-yes output-yes-right" data-side="right"></div><div class="port output-yes output-yes-top" data-side="top"></div><div class="port output-no output-no-bottom" data-side="bottom"></div><div class="port output-no output-no-left" data-side="left"></div>'
+                ? '<div class="port output-yes output-yes-top" data-side="top"></div><div class="port output-no output-no-right" data-side="right"></div><div class="port output-yes output-yes-bottom" data-side="bottom"></div><div class="port output-no output-no-left" data-side="left"></div>'
                 : node.type !== 'end' ? ['top','right','bottom','left'].map(s => `<div class="port output output-${s}" data-side="${s}"></div>`).join('') : '';
             nodeEl.innerHTML = `
                 ${ports4}
@@ -1997,15 +1998,16 @@
         }
         function getPortForSide(nodeEl, portKind, side) {
             if (portKind === 'input') return nodeEl.querySelector('.port.input-' + side);
+            /* عقدة القرار: Yes على top/bottom فقط، No على left/right فقط – منفذ واحد لكل جهة */
             if (portKind === 'output-yes') {
                 const p = nodeEl.querySelector('.port.output-yes-' + side);
                 if (p) return p;
-                return nodeEl.querySelector('.port.output-yes-right') || nodeEl.querySelector('.port.output-yes-top');
+                return nodeEl.querySelector('.port.output-yes-top') || nodeEl.querySelector('.port.output-yes-bottom');
             }
             if (portKind === 'output-no') {
                 const p = nodeEl.querySelector('.port.output-no-' + side);
                 if (p) return p;
-                return nodeEl.querySelector('.port.output-no-bottom') || nodeEl.querySelector('.port.output-no-left');
+                return nodeEl.querySelector('.port.output-no-left') || nodeEl.querySelector('.port.output-no-right');
             }
             return nodeEl.querySelector('.port.output-' + side);
         }
