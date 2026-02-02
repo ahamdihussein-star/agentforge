@@ -404,30 +404,30 @@
         .port.output-no:hover { transform: translate(-50%, 50%) scale(1.2); }
         .workflow-node.shape-task .port.output:hover { transform: translate(-50%, -50%) scale(1.2); }
         
-        /* 4-side ports: على حافة الشكل عشان الخط يوصّل للشكل (بدون فجوة) */
+        /* 4-side ports: على حافة الشكل المرئي 56×56 (مش حدود الـ node اللي فيها الـ label) */
         .port.input-top, .port.input-bottom { left: 50%; transform: translate(-50%, -50%); }
-        .port.input-right, .port.input-left { top: 50%; transform: translate(-50%, -50%); }
+        .port.input-right, .port.input-left { transform: translate(-50%, -50%); }
         .port.input-top { top: 0; }
-        .port.input-bottom { top: 100%; }
-        .port.input-right { left: 100%; }
-        .port.input-left { left: 0; }
+        .port.input-bottom { top: 56px; }
+        .port.input-right { left: 64px; top: 28px; }
+        .port.input-left { left: 8px; top: 28px; }
         .port.output-top, .port.output-bottom { left: 50%; transform: translate(-50%, -50%); }
-        .port.output-right, .port.output-left { top: 50%; transform: translate(-50%, -50%); }
+        .port.output-right, .port.output-left { transform: translate(-50%, -50%); }
         .port.output-top { top: 0; }
-        .port.output-bottom { top: 100%; }
-        .port.output-right { left: 100%; }
-        .port.output-left { left: 0; }
+        .port.output-bottom { top: 56px; }
+        .port.output-right { left: 64px; top: 28px; }
+        .port.output-left { left: 8px; top: 28px; }
         .port.output-yes-top, .port.output-yes-bottom, .port.output-no-top, .port.output-no-bottom { left: 50%; transform: translate(-50%, -50%); }
-        .port.output-yes-right, .port.output-yes-left, .port.output-no-right, .port.output-no-left { top: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes-right, .port.output-yes-left, .port.output-no-right, .port.output-no-left { transform: translate(-50%, -50%); }
         .port.output-yes-top, .port.output-no-top { top: 0; }
-        .port.output-yes-bottom, .port.output-no-bottom { top: 100%; }
-        .port.output-yes-right, .port.output-no-right { left: 100%; }
-        .port.output-yes-left, .port.output-no-left { left: 0; }
-        /* Fallback single port (على الحافة) */
+        .port.output-yes-bottom, .port.output-no-bottom { top: 56px; }
+        .port.output-yes-right, .port.output-no-right { left: 64px; top: 28px; }
+        .port.output-yes-left, .port.output-no-left { left: 8px; top: 28px; }
+        /* Fallback single port (على حافة الشكل 56px) */
         .port.input { top: 0; left: 50%; transform: translate(-50%, -50%); }
-        .port.output { top: 100%; left: 50%; transform: translate(-50%, -50%); }
-        .port.output-yes { top: 100%; left: 30%; transform: translate(-50%, -50%); }
-        .port.output-no { top: 100%; left: 70%; transform: translate(-50%, -50%); }
+        .port.output { top: 56px; left: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes { top: 56px; left: 30%; transform: translate(-50%, -50%); }
+        .port.output-no { top: 56px; left: 70%; transform: translate(-50%, -50%); }
         
         .port-label {
             position: absolute;
