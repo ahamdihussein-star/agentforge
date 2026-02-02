@@ -1687,7 +1687,7 @@
             const labelStyleAttr = labelStyle ? `style="${labelStyle}"` : '';
             const ports4 = ['top','right','bottom','left'].map(s => `<div class="port input input-${s}" data-side="${s}"></div>`).join('');
             const outPorts = node.type === 'condition'
-                ? ['top','right','bottom','left'].map(s => `<div class="port output-yes output-yes-${s}" data-side="${s}"></div><div class="port output-no output-no-${s}" data-side="${s}"></div>`).join('')
+                ? '<div class="port output-yes output-yes-right" data-side="right"></div><div class="port output-yes output-yes-top" data-side="top"></div><div class="port output-no output-no-bottom" data-side="bottom"></div><div class="port output-no output-no-left" data-side="left"></div>'
                 : node.type !== 'end' ? ['top','right','bottom','left'].map(s => `<div class="port output output-${s}" data-side="${s}"></div>`).join('') : '';
             nodeEl.innerHTML = `
                 ${ports4}
@@ -1996,11 +1996,18 @@
             return 'top';
         }
         function getPortForSide(nodeEl, portKind, side) {
-            const sel = portKind === 'input' ? '.port.input-' + side
-                : portKind === 'output-yes' ? '.port.output-yes-' + side
-                : portKind === 'output-no' ? '.port.output-no-' + side
-                : '.port.output-' + side;
-            return nodeEl.querySelector(sel);
+            if (portKind === 'input') return nodeEl.querySelector('.port.input-' + side);
+            if (portKind === 'output-yes') {
+                const p = nodeEl.querySelector('.port.output-yes-' + side);
+                if (p) return p;
+                return nodeEl.querySelector('.port.output-yes-right') || nodeEl.querySelector('.port.output-yes-top');
+            }
+            if (portKind === 'output-no') {
+                const p = nodeEl.querySelector('.port.output-no-' + side);
+                if (p) return p;
+                return nodeEl.querySelector('.port.output-no-bottom') || nodeEl.querySelector('.port.output-no-left');
+            }
+            return nodeEl.querySelector('.port.output-' + side);
         }
         function setupPorts(nodeEl, node) {
             const ports = nodeEl.querySelectorAll('.port.output, .port.output-top, .port.output-right, .port.output-bottom, .port.output-left, .port.output-yes, .port.output-no, .port.output-yes-top, .port.output-yes-right, .port.output-yes-bottom, .port.output-yes-left, .port.output-no-top, .port.output-no-right, .port.output-no-bottom, .port.output-no-left');
@@ -2077,24 +2084,34 @@
                 const fromShapeEl = fromNode.querySelector('.node-shape-wrap');
                 const toShapeEl = toNode.querySelector('.node-shape-wrap');
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                const outKind = conn.type === 'yes' ? 'output-yes' : conn.type === 'no' ? 'output-no' : 'output';
+                const fromSide = conn.fromPort || getSideToward(fromNode, toNode);
+                const toSide = conn.toPort || getSideToward(toNode, fromNode);
+                const fromPortEl = getPortForSide(fromNode, outKind, fromSide);
+                const toPortEl = getPortForSide(toNode, 'input', toSide);
                 let x1, y1, x2, y2;
-                if (fromShapeEl && toShapeEl) {
+                if (fromPortEl && toPortEl) {
+                    // ربط الخط بمركز عناصر المنافذ الفعلية حتى يبقى متصلاً بنقاط الربط عند تحريك الشكل
+                    const fromRect = fromPortEl.getBoundingClientRect();
+                    const toRect = toPortEl.getBoundingClientRect();
+                    x1 = (fromRect.left + fromRect.width/2 - canvasRect.left) / state.zoom;
+                    y1 = (fromRect.top + fromRect.height/2 - canvasRect.top) / state.zoom;
+                    x2 = (toRect.left + toRect.width/2 - canvasRect.left) / state.zoom;
+                    y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
+                } else if (fromShapeEl && toShapeEl) {
                     const fromShape = fromShapeEl.getBoundingClientRect();
                     const toShape = toShapeEl.getBoundingClientRect();
                     const fromCenterX = fromShape.left + fromShape.width / 2;
                     const fromCenterY = fromShape.top + fromShape.height / 2;
                     const toCenterX = toShape.left + toShape.width / 2;
                     const toCenterY = toShape.top + toShape.height / 2;
-                    const p1 = getShapeEdgePoint(fromShape, toCenterX, toCenterY, conn.fromPort);
-                    const p2 = getShapeEdgePoint(toShape, fromCenterX, fromCenterY, conn.toPort);
+                    const p1 = getShapeEdgePoint(fromShape, toCenterX, toCenterY, fromSide);
+                    const p2 = getShapeEdgePoint(toShape, fromCenterX, fromCenterY, toSide);
                     x1 = (p1.x - canvasRect.left) / state.zoom;
                     y1 = (p1.y - canvasRect.top) / state.zoom;
                     x2 = (p2.x - canvasRect.left) / state.zoom;
                     y2 = (p2.y - canvasRect.top) / state.zoom;
                 } else {
-                    const fromSide = getSideToward(fromNode, toNode);
-                    const toSide = getSideToward(toNode, fromNode);
-                    const outKind = conn.type === 'yes' ? 'output-yes' : conn.type === 'no' ? 'output-no' : 'output';
                     const fromPort = getPortForSide(fromNode, outKind, fromSide);
                     const toPort = getPortForSide(toNode, 'input', toSide);
                     if (!fromPort || !toPort) return;
