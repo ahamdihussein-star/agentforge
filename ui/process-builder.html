@@ -404,7 +404,12 @@
         .port.output-no:hover { transform: translate(-50%, 50%) scale(1.2); }
         .workflow-node.shape-task .port.output:hover { transform: translate(-50%, -50%) scale(1.2); }
         
-        /* 4-side ports: على حافة الشكل المرئي 56×56 (مش حدود الـ node اللي فيها الـ label) */
+        /* Fallback single port – قبل قواعد الجهات الأربع حتى لا تتجاوزها */
+        .port.input { top: 0; left: 50%; transform: translate(-50%, -50%); }
+        .port.output { top: 56px; left: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes { top: 56px; left: 30%; transform: translate(-50%, -50%); }
+        .port.output-no { top: 56px; left: 70%; transform: translate(-50%, -50%); }
+        /* 4-side ports: منفذ واحد لكل جهة – أعلى، يمين، أسفل، يسار (كل الـ shapes) */
         .port.input-top, .port.input-bottom { left: 50%; transform: translate(-50%, -50%); }
         .port.input-right, .port.input-left { transform: translate(-50%, -50%); }
         .port.input-top { top: 0; }
@@ -423,11 +428,6 @@
         .port.output-yes-bottom, .port.output-no-bottom { top: 56px; }
         .port.output-yes-right, .port.output-no-right { left: 64px; top: 28px; }
         .port.output-yes-left, .port.output-no-left { left: 8px; top: 28px; }
-        /* Fallback single port (على حافة الشكل 56px) */
-        .port.input { top: 0; left: 50%; transform: translate(-50%, -50%); }
-        .port.output { top: 56px; left: 50%; transform: translate(-50%, -50%); }
-        .port.output-yes { top: 56px; left: 30%; transform: translate(-50%, -50%); }
-        .port.output-no { top: 56px; left: 70%; transform: translate(-50%, -50%); }
         
         .port-label {
             position: absolute;
@@ -2083,47 +2083,20 @@
                 
                 if (!fromNode || !toNode) return;
                 
-                const fromShapeEl = fromNode.querySelector('.node-shape-wrap');
-                const toShapeEl = toNode.querySelector('.node-shape-wrap');
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
                 const outKind = conn.type === 'yes' ? 'output-yes' : conn.type === 'no' ? 'output-no' : 'output';
                 const fromSide = conn.fromPort || getSideToward(fromNode, toNode);
                 const toSide = conn.toPort || getSideToward(toNode, fromNode);
                 const fromPortEl = getPortForSide(fromNode, outKind, fromSide);
                 const toPortEl = getPortForSide(toNode, 'input', toSide);
-                let x1, y1, x2, y2;
-                if (fromPortEl && toPortEl) {
-                    // ربط الخط بمركز عناصر المنافذ الفعلية حتى يبقى متصلاً بنقاط الربط عند تحريك الشكل
-                    const fromRect = fromPortEl.getBoundingClientRect();
-                    const toRect = toPortEl.getBoundingClientRect();
-                    x1 = (fromRect.left + fromRect.width/2 - canvasRect.left) / state.zoom;
-                    y1 = (fromRect.top + fromRect.height/2 - canvasRect.top) / state.zoom;
-                    x2 = (toRect.left + toRect.width/2 - canvasRect.left) / state.zoom;
-                    y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
-                } else if (fromShapeEl && toShapeEl) {
-                    const fromShape = fromShapeEl.getBoundingClientRect();
-                    const toShape = toShapeEl.getBoundingClientRect();
-                    const fromCenterX = fromShape.left + fromShape.width / 2;
-                    const fromCenterY = fromShape.top + fromShape.height / 2;
-                    const toCenterX = toShape.left + toShape.width / 2;
-                    const toCenterY = toShape.top + toShape.height / 2;
-                    const p1 = getShapeEdgePoint(fromShape, toCenterX, toCenterY, fromSide);
-                    const p2 = getShapeEdgePoint(toShape, fromCenterX, fromCenterY, toSide);
-                    x1 = (p1.x - canvasRect.left) / state.zoom;
-                    y1 = (p1.y - canvasRect.top) / state.zoom;
-                    x2 = (p2.x - canvasRect.left) / state.zoom;
-                    y2 = (p2.y - canvasRect.top) / state.zoom;
-                } else {
-                    const fromPort = getPortForSide(fromNode, outKind, fromSide);
-                    const toPort = getPortForSide(toNode, 'input', toSide);
-                    if (!fromPort || !toPort) return;
-                    const fromRect = fromPort.getBoundingClientRect();
-                    const toRect = toPort.getBoundingClientRect();
-                    x1 = (fromRect.left + fromRect.width/2 - canvasRect.left) / state.zoom;
-                    y1 = (fromRect.top + fromRect.height/2 - canvasRect.top) / state.zoom;
-                    x2 = (toRect.left + toRect.width/2 - canvasRect.left) / state.zoom;
-                    y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
-                }
+                /* خطوط الربط لا تتصل إلا بنقط الربط (عناصر المنافذ) فقط – لا بحافة الشكل */
+                if (!fromPortEl || !toPortEl) return;
+                const fromRect = fromPortEl.getBoundingClientRect();
+                const toRect = toPortEl.getBoundingClientRect();
+                const x1 = (fromRect.left + fromRect.width/2 - canvasRect.left) / state.zoom;
+                const y1 = (fromRect.top + fromRect.height/2 - canvasRect.top) / state.zoom;
+                const x2 = (toRect.left + toRect.width/2 - canvasRect.left) / state.zoom;
+                const y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
                 
                 const midY = (y1 + y2) / 2;
                 const midX = (x1 + x2) / 2;
