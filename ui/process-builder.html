@@ -364,21 +364,21 @@
             white-space: nowrap;
         }
         
-        /* Connection Ports – تظهر فقط عند الوقوف على الـ shape أو أثناء الربط */
+        /* Connection Ports – تظهر عند الـ hover أو التحديد أو أثناء الربط (UX أفضل) */
         .port {
             position: absolute;
-            width: 14px;
-            height: 14px;
+            width: 18px;
+            height: 18px;
             background: #374151;
             border: 2px solid #6b7280;
             border-radius: 50%;
             cursor: crosshair;
-            transition: opacity 0.15s ease, transform 0.2s;
+            transition: opacity 0.15s ease, transform 0.2s, background 0.15s, border-color 0.15s;
             z-index: 20;
             opacity: 0;
             pointer-events: none;
         }
-        /* الزوايا (المنافذ) تظهر فقط للـ shape المحدد – مش لكل الـ shapes */
+        .workflow-node:hover .port,
         .workflow-node.selected .port {
             opacity: 1;
             pointer-events: auto;
@@ -386,6 +386,9 @@
         .connecting .workflow-node .port {
             opacity: 1;
             pointer-events: auto;
+        }
+        body.connecting {
+            cursor: crosshair !important;
         }
         
         .port:hover {
@@ -469,6 +472,10 @@
         .connection-path:hover {
             stroke-width: 3;
             cursor: pointer;
+        }
+        .connection-preview-path {
+            pointer-events: none;
+            opacity: 0.8;
         }
         
         .connection-path.selected {
@@ -2066,6 +2073,33 @@
             }
             return nodeEl.querySelector('.port.output-' + side);
         }
+        function completeConnection(toNodeId, toPort) {
+            if (!state.isConnecting || !state.connectionStart) return false;
+            if (state.connectionStart.nodeId === toNodeId) return false;
+            const conn = {
+                from: state.connectionStart.nodeId,
+                to: toNodeId,
+                type: state.connectionStart.portType,
+                fromPort: state.connectionStart.fromPort,
+                toPort: toPort
+            };
+            state.connections = state.connections.filter(c => 
+                !(c.from === conn.from && c.type === conn.type)
+            );
+            state.connections.push(conn);
+            renderConnections();
+            saveToUndo();
+            return true;
+        }
+        function endConnectingMode() {
+            state.isConnecting = false;
+            state.connectionStart = null;
+            state.connectionPreview = null;
+            document.body.classList.remove('connecting');
+            const svg = document.getElementById('connections-svg');
+            const preview = svg && svg.querySelector('.connection-preview-path');
+            if (preview) preview.remove();
+        }
         function setupPorts(nodeEl, node) {
             const ports = nodeEl.querySelectorAll('.port.output, .port.output-top, .port.output-right, .port.output-bottom, .port.output-left, .port.output-yes, .port.output-no, .port.output-yes-top, .port.output-yes-right, .port.output-yes-bottom, .port.output-yes-left, .port.output-no-top, .port.output-no-right, .port.output-no-bottom, .port.output-no-left');
             ports.forEach(port => {
@@ -2080,6 +2114,7 @@
                         fromPort
                     };
                     document.body.classList.add('connecting');
+                    startConnectionPreview(node.id, fromPort, state.connectionStart.portType, e);
                 });
             });
             const inputPorts = nodeEl.querySelectorAll('.port.input, .port.input-top, .port.input-right, .port.input-bottom, .port.input-left');
@@ -2101,26 +2136,39 @@
                     }
                     if (state.isConnecting && state.connectionStart) {
                         const toPort = (e.currentTarget.getAttribute && e.currentTarget.getAttribute('data-side')) || getSideOfPointFromShape(nodeEl, e.clientX, e.clientY);
-                        const conn = {
-                            from: state.connectionStart.nodeId,
-                            to: node.id,
-                            type: state.connectionStart.portType,
-                            fromPort: state.connectionStart.fromPort,
-                            toPort
-                        };
-                        if (conn.from !== conn.to) {
-                            state.connections = state.connections.filter(c => 
-                                !(c.from === conn.from && c.type === conn.type)
-                            );
-                            state.connections.push(conn);
-                            renderConnections();
-                            saveToUndo();
-                        }
+                        if (completeConnection(node.id, toPort)) { }
+                        endConnectingMode();
+                        return;
                     }
-                    state.isConnecting = false;
-                    state.connectionStart = null;
-                    document.body.classList.remove('connecting');
                 });
+            });
+            /* إفلات على أي جزء من العقدة يكمل الربط (أسهل من استهداف المنفذ الصغير) */
+            nodeEl.addEventListener('mouseup', (e) => {
+                if (e.target.closest('.port')) return;
+                if (state.reconnectEdge) {
+                    if (state.reconnectEdge.from !== node.id) {
+                        const fromNodeEl = document.getElementById(state.reconnectEdge.from);
+                        const toPort = fromNodeEl ? getSideToward(nodeEl, fromNodeEl) : 'bottom';
+                        state.connections.push({
+                            from: state.reconnectEdge.from,
+                            to: node.id,
+                            type: state.reconnectEdge.type,
+                            fromPort: state.reconnectEdge.fromPort,
+                            toPort
+                        });
+                        saveToUndo();
+                        renderConnections();
+                    }
+                    state.reconnectEdge = null;
+                    document.body.classList.remove('connecting');
+                    return;
+                }
+                if (state.isConnecting && state.connectionStart && state.connectionStart.nodeId !== node.id) {
+                    const fromNodeEl = document.getElementById(state.connectionStart.nodeId);
+                    const toPort = fromNodeEl ? getSideToward(nodeEl, fromNodeEl) : 'bottom';
+                    if (completeConnection(node.id, toPort)) { }
+                }
+                endConnectingMode();
             });
         }
         
@@ -2243,6 +2291,53 @@
             return state.flowDirection === 'horizontal'
                 ? `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${currentY} L ${currentX} ${currentY}`
                 : `M ${fromX} ${fromY} L ${fromX} ${midY} L ${currentX} ${midY} L ${currentX} ${currentY}`;
+        }
+        function startConnectionPreview(fromNodeId, fromPort, portType, e) {
+            const fromNodeEl = document.getElementById(fromNodeId);
+            if (!fromNodeEl) return;
+            const outKind = portType === 'yes' ? 'output-yes' : portType === 'no' ? 'output-no' : 'output';
+            const side = fromPort || 'bottom';
+            const fromPortEl = getPortForSide(fromNodeEl, outKind, side);
+            if (!fromPortEl) return;
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            const fromRect = fromPortEl.getBoundingClientRect();
+            const fromX = (fromRect.left + fromRect.width/2 - canvasRect.left) / state.zoom;
+            const fromY = (fromRect.top + fromRect.height/2 - canvasRect.top) / state.zoom;
+            const svg = document.getElementById('connections-svg');
+            const ns = 'http://www.w3.org/2000/svg';
+            const path = document.createElementNS(ns, 'path');
+            path.setAttribute('class', `connection-path ${portType} connection-preview-path`);
+            path.setAttribute('stroke-dasharray', '6 4');
+            svg.appendChild(path);
+            state.connectionPreview = { path, fromX, fromY };
+            const onMove = (ev) => {
+                if (!state.connectionPreview) return;
+                const pt = clientToCanvas(ev.clientX, ev.clientY);
+                path.setAttribute('d', getDragPreviewPathD(fromX, fromY, pt.x, pt.y));
+                state.nodes.forEach(n => {
+                    const el = document.getElementById(n.id);
+                    if (!el || n.id === fromNodeId) return;
+                    const r = el.getBoundingClientRect();
+                    const over = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+                    el.classList.toggle('connection-drop-target', over);
+                });
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                state.nodes.forEach(n => {
+                    const el = document.getElementById(n.id);
+                    if (el) el.classList.remove('connection-drop-target');
+                });
+                if (state.connectionPreview && state.connectionPreview.path) {
+                    state.connectionPreview.path.remove();
+                }
+                state.connectionPreview = null;
+                if (state.isConnecting) endConnectingMode();
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            onMove(e);
         }
         function updateDragPreview() {
             if (!state.draggingEdgeEnd || !state.draggingEdgeEnd.previewPath) return;
