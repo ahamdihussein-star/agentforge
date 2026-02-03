@@ -28,6 +28,17 @@
             --label-badge-border: rgba(148, 163, 184, 0.55);
             --label-badge-text: #f8fafc;
             --label-badge-shadow: 0 8px 22px rgba(15, 23, 42, 0.4);
+            /* Toolbar buttons – contrast-safe per theme */
+            --tb-btn-secondary-bg: #1e293b;
+            --tb-btn-secondary-text: #e2e8f0;
+            --tb-btn-secondary-border: #334155;
+            --tb-btn-secondary-hover: #334155;
+            --tb-btn-primary-bg: #4f46e5;
+            --tb-btn-primary-text: #ffffff;
+            --tb-btn-primary-hover: #6366f1;
+            --tb-btn-success-bg: #059669;
+            --tb-btn-success-text: #ffffff;
+            --tb-btn-success-hover: #10b981;
         }
         [data-theme="light"] {
             --canvas-bg: #f1f5f9;
@@ -43,6 +54,16 @@
             --label-badge-border: rgba(100, 116, 139, 0.4);
             --label-badge-text: #0f172a;
             --label-badge-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+            --tb-btn-secondary-bg: #e2e8f0;
+            --tb-btn-secondary-text: #1e293b;
+            --tb-btn-secondary-border: #cbd5e1;
+            --tb-btn-secondary-hover: #cbd5e1;
+            --tb-btn-primary-bg: #4f46e5;
+            --tb-btn-primary-text: #ffffff;
+            --tb-btn-primary-hover: #6366f1;
+            --tb-btn-success-bg: #059669;
+            --tb-btn-success-text: #ffffff;
+            --tb-btn-success-hover: #10b981;
         }
         [data-theme="ocean"] {
             --canvas-bg: #dbeafe;
@@ -58,6 +79,16 @@
             --label-badge-border: rgba(3, 105, 161, 0.35);
             --label-badge-text: #0c4a6e;
             --label-badge-shadow: 0 8px 18px rgba(12, 74, 110, 0.18);
+            --tb-btn-secondary-bg: #0ea5e9;
+            --tb-btn-secondary-text: #ffffff;
+            --tb-btn-secondary-border: #0284c7;
+            --tb-btn-secondary-hover: #0284c7;
+            --tb-btn-primary-bg: #1d4ed8;
+            --tb-btn-primary-text: #ffffff;
+            --tb-btn-primary-hover: #2563eb;
+            --tb-btn-success-bg: #047857;
+            --tb-btn-success-text: #ffffff;
+            --tb-btn-success-hover: #059669;
         }
         [data-theme="sunset"] {
             --canvas-bg: #16213e;
@@ -73,6 +104,16 @@
             --label-badge-border: rgba(249, 115, 22, 0.45);
             --label-badge-text: #fef3c7;
             --label-badge-shadow: 0 8px 22px rgba(249, 115, 22, 0.22);
+            --tb-btn-secondary-bg: #78350f;
+            --tb-btn-secondary-text: #fef3c7;
+            --tb-btn-secondary-border: #92400e;
+            --tb-btn-secondary-hover: #92400e;
+            --tb-btn-primary-bg: #b45309;
+            --tb-btn-primary-text: #ffffff;
+            --tb-btn-primary-hover: #ea580c;
+            --tb-btn-success-bg: #166534;
+            --tb-btn-success-text: #ffffff;
+            --tb-btn-success-hover: #15803d;
         }
         [data-theme="forest"] {
             --canvas-bg: #14291a;
@@ -88,6 +129,16 @@
             --label-badge-border: rgba(74, 222, 128, 0.35);
             --label-badge-text: #dcfce7;
             --label-badge-shadow: 0 8px 20px rgba(34, 197, 94, 0.24);
+            --tb-btn-secondary-bg: #14532d;
+            --tb-btn-secondary-text: #dcfce7;
+            --tb-btn-secondary-border: #166534;
+            --tb-btn-secondary-hover: #166534;
+            --tb-btn-primary-bg: #2563eb;
+            --tb-btn-primary-text: #ffffff;
+            --tb-btn-primary-hover: #3b82f6;
+            --tb-btn-success-bg: #15803d;
+            --tb-btn-success-text: #ffffff;
+            --tb-btn-success-hover: #16a34a;
         }
         [data-theme="midnight"] {
             --canvas-bg: #0f172a;
@@ -103,6 +154,16 @@
             --label-badge-border: rgba(96, 165, 250, 0.45);
             --label-badge-text: #f8fafc;
             --label-badge-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+            --tb-btn-secondary-bg: #1e3a5f;
+            --tb-btn-secondary-text: #e0f2fe;
+            --tb-btn-secondary-border: #2563eb;
+            --tb-btn-secondary-hover: #1d4ed8;
+            --tb-btn-primary-bg: #2563eb;
+            --tb-btn-primary-text: #ffffff;
+            --tb-btn-primary-hover: #3b82f6;
+            --tb-btn-success-bg: #047857;
+            --tb-btn-success-text: #ffffff;
+            --tb-btn-success-hover: #059669;
         }
         
         * { box-sizing: border-box; }
@@ -132,6 +193,7 @@
             transform-origin: 0 0;
             min-width: 3000px;
             min-height: 2000px;
+            z-index: 2;
         }
         
         /* Nodes – BPMN-style: الشكل نفسه فقط، بدون إطار أو خلفية خارجية */
@@ -329,6 +391,13 @@
         .workflow-node .node-label.node-label-draggable:active {
             cursor: grabbing;
         }
+        /* عند اختيار العقدة تظهر التسمية كـ selected – واضح أن حجم الخط يتحكم فيه من الـ toolbar */
+        .workflow-node.selected .node-label {
+            border-color: var(--connection-color, #6366f1);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35), var(--label-badge-shadow);
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
         .workflow-node.label-below .node-label { position: relative; margin-top: 0; }
         .workflow-node.label-custom .node-label {
             position: absolute;
@@ -480,6 +549,7 @@
         /* Yes/No تظهر على خط الربط نفسه في renderConnections */
         
         /* Connections SVG – نفس أبعاد الـ canvas حتى لا تُقص الخطوط عند تحريك العُقد أو المحاذاة */
+        /* خطوط الربط خلف العُقد والتسميات حتى لا يقطع الخط الكلام */
         #connections-svg {
             position: absolute;
             top: 0;
@@ -490,7 +560,7 @@
             height: 2000px;
             overflow: visible;
             pointer-events: none;
-            z-index: 5;
+            z-index: 1;
             transform-origin: 0 0;
         }
         
@@ -654,53 +724,66 @@
             margin-right: 4px;
         }
         .toolbar-actions .flow-btn.active {
-            background: var(--connection-color, #6366f1);
-            color: #fff;
-            border-color: var(--connection-color, #6366f1);
+            background: var(--tb-btn-primary-bg);
+            color: var(--tb-btn-primary-text);
+            border-color: var(--tb-btn-primary-bg);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
         
+        /* Toolbar buttons – theme-aware contrast, consistent look */
         .toolbar-btn {
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 8px 14px;
+            border-radius: 8px;
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
+            transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+            display: inline-flex;
             align-items: center;
             gap: 6px;
+            border: 1px solid transparent;
+            letter-spacing: 0.01em;
+        }
+        
+        .toolbar-btn:active {
+            transform: scale(0.98);
         }
         
         .btn-secondary {
-            background: #1f2937;
-            border: 1px solid #374151;
-            color: #d1d5db;
+            background: var(--tb-btn-secondary-bg);
+            border-color: var(--tb-btn-secondary-border);
+            color: var(--tb-btn-secondary-text);
         }
         
         .btn-secondary:hover {
-            background: #374151;
-            border-color: #4b5563;
+            background: var(--tb-btn-secondary-hover);
+            border-color: var(--tb-btn-secondary-hover);
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
-            border: none;
-            color: white;
+            background: var(--tb-btn-primary-bg);
+            border-color: var(--tb-btn-primary-bg);
+            color: var(--tb-btn-primary-text);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
         }
         
         .btn-primary:hover {
-            background: linear-gradient(135deg, #818cf8, #6366f1);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+            background: var(--tb-btn-primary-hover);
+            border-color: var(--tb-btn-primary-hover);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         
         .btn-success {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            border: none;
-            color: white;
+            background: var(--tb-btn-success-bg);
+            border-color: var(--tb-btn-success-bg);
+            color: var(--tb-btn-success-text);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
         }
         
         .btn-success:hover {
-            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+            background: var(--tb-btn-success-hover);
+            border-color: var(--tb-btn-success-hover);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
         
         /* Left Panel - Node Palette */
@@ -1425,11 +1508,13 @@
             localStorage.setItem('pb-label-font-size', String(state.labelFontSize));
             applyLabelFontSize();
         }
+        /* حجم خط كل التسميات (عُقد + Yes/No) من الـ toolbar فقط – لا يتغير بالسحب */
         function applyLabelFontSize() {
             const container = document.getElementById('canvas-container');
             if (container) container.style.setProperty('--label-font-size', state.labelFontSize + 'px');
             const el = document.getElementById('label-font-size-display');
             if (el) el.textContent = state.labelFontSize + 'px';
+            state.nodes.forEach(n => renderNode(n));
             renderConnections();
         }
         
@@ -1762,7 +1847,7 @@
                 <div class="node-shape-wrap ${typeClass}">
                     <div class="node-shape">${svgIcon}</div>
                 </div>
-                <div class="node-label node-label-draggable" title="Drag horizontal = move • Drag vertical = resize font" ${labelStyleAttr}>${escapeHtml(node.name)}</div>
+                <div class="node-label node-label-draggable" title="Drag to move label • Font size: use +/- in toolbar" ${labelStyleAttr}>${escapeHtml(node.name)}</div>
                 <button class="node-menu-btn" onclick="event.stopPropagation(); showNodeMenu('${node.id}')">⋮</button>
                 <div class="node-body">
                     <div class="node-config-preview">${getConfigPreview(node)}</div>
@@ -1812,7 +1897,7 @@
             const startLabelX = (labelRect.left - nodeRect.left) / zoom;
             const startLabelY = (labelRect.top - nodeRect.top) / zoom;
             const startFontSize = node.labelFontSize != null ? node.labelFontSize : state.labelFontSize;
-            state.draggingLabel = { nodeId, startClientX: e.clientX, startClientY: e.clientY, startLabelX, startLabelY, startFontSize, mode: null };
+            state.draggingLabel = { nodeId, startClientX: e.clientX, startClientY: e.clientY, startLabelX, startLabelY };
             if (!node.labelOffset) node.labelOffset = { x: startLabelX, y: startLabelY };
             nodeEl.classList.add('label-custom');
             nodeEl.classList.remove('label-below');
@@ -1821,25 +1906,15 @@
             labelEl.style.left = startLabelX + 'px';
             labelEl.style.top = startLabelY + 'px';
             labelEl.style.fontSize = startFontSize + 'px';
-            const THRESHOLD = 6;
             const onMove = (e) => {
                 if (!state.draggingLabel || state.draggingLabel.nodeId !== nodeId) return;
                 const dx = (e.clientX - state.draggingLabel.startClientX) / state.zoom;
                 const dy = (e.clientY - state.draggingLabel.startClientY) / state.zoom;
-                if (state.draggingLabel.mode == null && (Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD)) {
-                    state.draggingLabel.mode = Math.abs(dx) > Math.abs(dy) ? 'move' : 'resize';
-                }
-                if (state.draggingLabel.mode === 'move') {
-                    const x = state.draggingLabel.startLabelX + dx;
-                    const y = state.draggingLabel.startLabelY + dy;
-                    node.labelOffset = { x, y };
-                    labelEl.style.left = x + 'px';
-                    labelEl.style.top = y + 'px';
-                } else if (state.draggingLabel.mode === 'resize') {
-                    const fontSize = Math.round(Math.min(24, Math.max(9, state.draggingLabel.startFontSize + dy * 0.2)));
-                    node.labelFontSize = fontSize;
-                    labelEl.style.fontSize = fontSize + 'px';
-                }
+                const x = state.draggingLabel.startLabelX + dx;
+                const y = state.draggingLabel.startLabelY + dy;
+                node.labelOffset = { x, y };
+                labelEl.style.left = x + 'px';
+                labelEl.style.top = y + 'px';
             };
             const onUp = () => {
                 if (state.draggingLabel && state.draggingLabel.nodeId === nodeId) {
@@ -1868,24 +1943,15 @@
             state.draggingConnectionLabel = {
                 connIndex, conn,
                 startClientX: e.clientX, startClientY: e.clientY,
-                startLx, startLy, startFontSize,
-                mode: null
+                startLx, startLy
             };
-            const THRESHOLD = 6;
             const onMove = (ev) => {
                 if (!state.draggingConnectionLabel || state.draggingConnectionLabel.connIndex !== connIndex) return;
                 const pt = clientToCanvas(ev.clientX, ev.clientY);
                 const startPt = clientToCanvas(state.draggingConnectionLabel.startClientX, state.draggingConnectionLabel.startClientY);
                 const dx = pt.x - startPt.x;
                 const dy = pt.y - startPt.y;
-                if (state.draggingConnectionLabel.mode == null && (Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD)) {
-                    state.draggingConnectionLabel.mode = Math.abs(dx) > Math.abs(dy) ? 'move' : 'resize';
-                }
-                if (state.draggingConnectionLabel.mode === 'move') {
-                    conn.labelOffset = { x: startLx + dx, y: startLy + dy };
-                } else if (state.draggingConnectionLabel.mode === 'resize') {
-                    conn.labelFontSize = Math.round(Math.min(24, Math.max(9, startFontSize + dy * 0.2)));
-                }
+                conn.labelOffset = { x: state.draggingConnectionLabel.startLx + dx, y: state.draggingConnectionLabel.startLy + dy };
                 renderConnections();
             };
             const onUp = () => {
@@ -2253,7 +2319,18 @@
                 
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
                 const outKind = conn.type === 'yes' ? 'output-yes' : conn.type === 'no' ? 'output-no' : 'output';
-                const fromSide = conn.fromPort || getSideToward(fromNode, toNode);
+                let fromSide = conn.fromPort || getSideToward(fromNode, toNode);
+                /* عقدة القرار: Yes لها منافذ top/bottom فقط، No لها left/right فقط – لو fromSide لا يطابق نصححه */
+                if (outKind === 'output-yes' && (fromSide === 'left' || fromSide === 'right')) {
+                    const fr = fromNode.getBoundingClientRect();
+                    const tr = toNode.getBoundingClientRect();
+                    fromSide = tr.top + tr.height / 2 > fr.top + fr.height / 2 ? 'bottom' : 'top';
+                }
+                if (outKind === 'output-no' && (fromSide === 'top' || fromSide === 'bottom')) {
+                    const fr = fromNode.getBoundingClientRect();
+                    const tr = toNode.getBoundingClientRect();
+                    fromSide = tr.left + tr.width / 2 > fr.left + fr.width / 2 ? 'right' : 'left';
+                }
                 const toSide = conn.toPort || getSideToward(toNode, fromNode);
                 const fromPortEl = getPortForSide(fromNode, outKind, fromSide);
                 const toPortEl = getPortForSide(toNode, 'input', toSide);
@@ -2261,10 +2338,10 @@
                 if (!fromPortEl || !toPortEl) return;
                 const fromRect = fromPortEl.getBoundingClientRect();
                 const toRect = toPortEl.getBoundingClientRect();
-                const x1 = (fromRect.left + fromRect.width/2 - canvasRect.left) / state.zoom;
-                const y1 = (fromRect.top + fromRect.height/2 - canvasRect.top) / state.zoom;
-                const x2 = (toRect.left + toRect.width/2 - canvasRect.left) / state.zoom;
-                const y2 = (toRect.top + toRect.height/2 - canvasRect.top) / state.zoom;
+                const x1 = (fromRect.left + fromRect.width / 2 - canvasRect.left) / state.zoom;
+                const y1 = (fromRect.top + fromRect.height / 2 - canvasRect.top) / state.zoom;
+                const x2 = (toRect.left + toRect.width / 2 - canvasRect.left) / state.zoom;
+                const y2 = (toRect.top + toRect.height / 2 - canvasRect.top) / state.zoom;
                 
                 const midY = (y1 + y2) / 2;
                 const midX = (x1 + x2) / 2;
@@ -2329,7 +2406,7 @@
                     const g = document.createElementNS(ns, 'g');
                     g.setAttribute('class', `connection-label-badge ${conn.type}`);
                     g.setAttribute('data-conn-index', String(idx));
-                    g.setAttribute('title', 'Drag horizontal = move • Drag vertical = resize font');
+                    g.setAttribute('title', 'Drag to move label • Font size: use +/- in toolbar');
                     const rect = document.createElementNS(ns, 'rect');
                     rect.setAttribute('x', lx - badgeW / 2);
                     rect.setAttribute('y', ly - badgeH / 2);
