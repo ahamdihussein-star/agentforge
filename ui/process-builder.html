@@ -1514,7 +1514,18 @@
             if (container) container.style.setProperty('--label-font-size', state.labelFontSize + 'px');
             const el = document.getElementById('label-font-size-display');
             if (el) el.textContent = state.labelFontSize + 'px';
-            state.nodes.forEach(n => renderNode(n));
+            state.nodes.forEach(n => {
+                const nodeEl = document.getElementById(n.id);
+                if (!nodeEl) {
+                    renderNode(n);
+                    return;
+                }
+                const labelEl = nodeEl.querySelector('.node-label');
+                if (labelEl) {
+                    const fontSize = n.labelFontSize != null ? n.labelFontSize : state.labelFontSize;
+                    labelEl.style.fontSize = fontSize + 'px';
+                }
+            });
             renderConnections();
         }
         
