@@ -438,13 +438,16 @@
         
         /* Yes/No تظهر على خط الربط نفسه في renderConnections */
         
-        /* Connections SVG – same layer as canvas, same transform so lines stay aligned on zoom/pan */
+        /* Connections SVG – نفس أبعاد الـ canvas حتى لا تُقص الخطوط عند تحريك العُقد أو المحاذاة */
         #connections-svg {
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+            min-width: 3000px;
+            min-height: 2000px;
+            width: 3000px;
+            height: 2000px;
+            overflow: visible;
             pointer-events: none;
             z-index: 5;
             transform-origin: 0 0;
@@ -513,9 +516,13 @@
         .connection-bend-handle:hover { r: 8; }
         .connection-bend-handle:active { cursor: grabbing; }
         
-        /* تسمية Yes/No بجانب الخط (بدون أن يقطعه الخط) */
+        /* تسمية Yes/No بجانب الخط – draggable مثل تسميات العقد */
         .connection-label-badge {
-            pointer-events: none;
+            cursor: grab;
+            pointer-events: all;
+        }
+        .connection-label-badge:active {
+            cursor: grabbing;
         }
         .connection-label-badge rect {
             stroke-width: 1.5;
@@ -524,7 +531,6 @@
         .connection-label-badge.yes rect { fill: #f0fdf4; stroke: #22c55e; }
         .connection-label-badge.no rect { fill: #fef2f2; stroke: #ef4444; }
         .connection-label-badge text {
-            font-size: 10px;
             font-weight: 600;
             text-anchor: middle;
             dominant-baseline: middle;
@@ -1325,6 +1331,7 @@
             consumeNextClick: false,
             flowDirection: 'vertical',
             draggingLabel: null,
+            draggingConnectionLabel: null,
             labelFontSize: Math.min(24, Math.max(9, parseInt(localStorage.getItem('pb-label-font-size'), 10) || 11)),
             tools: [],
             agentId: null,
@@ -1360,10 +1367,11 @@
             applyLabelFontSize();
         }
         function applyLabelFontSize() {
-            const canvas = document.getElementById('canvas');
-            if (canvas) canvas.style.setProperty('--label-font-size', state.labelFontSize + 'px');
+            const container = document.getElementById('canvas-container');
+            if (container) container.style.setProperty('--label-font-size', state.labelFontSize + 'px');
             const el = document.getElementById('label-font-size-display');
             if (el) el.textContent = state.labelFontSize + 'px';
+            renderConnections();
         }
         
         function setFlowDirection(dir) {
@@ -1786,6 +1794,53 @@
             document.addEventListener('mouseup', onUp);
         }
         
+        function clientToCanvas(clientX, clientY) {
+            const container = document.getElementById('canvas-container');
+            if (!container) return { x: 0, y: 0 };
+            const r = container.getBoundingClientRect();
+            return {
+                x: (clientX - r.left - state.panX) / state.zoom,
+                y: (clientY - r.top - state.panY) / state.zoom
+            };
+        }
+        
+        function startDragConnectionLabel(connIndex, conn, startLx, startLy, startFontSize, e) {
+            if (conn.type !== 'yes' && conn.type !== 'no') return;
+            state.draggingConnectionLabel = {
+                connIndex, conn,
+                startClientX: e.clientX, startClientY: e.clientY,
+                startLx, startLy, startFontSize,
+                mode: null
+            };
+            const THRESHOLD = 6;
+            const onMove = (ev) => {
+                if (!state.draggingConnectionLabel || state.draggingConnectionLabel.connIndex !== connIndex) return;
+                const pt = clientToCanvas(ev.clientX, ev.clientY);
+                const startPt = clientToCanvas(state.draggingConnectionLabel.startClientX, state.draggingConnectionLabel.startClientY);
+                const dx = pt.x - startPt.x;
+                const dy = pt.y - startPt.y;
+                if (state.draggingConnectionLabel.mode == null && (Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD)) {
+                    state.draggingConnectionLabel.mode = Math.abs(dx) > Math.abs(dy) ? 'move' : 'resize';
+                }
+                if (state.draggingConnectionLabel.mode === 'move') {
+                    conn.labelOffset = { x: startLx + dx, y: startLy + dy };
+                } else if (state.draggingConnectionLabel.mode === 'resize') {
+                    conn.labelFontSize = Math.round(Math.min(24, Math.max(9, startFontSize + dy * 0.2)));
+                }
+                renderConnections();
+            };
+            const onUp = () => {
+                if (state.draggingConnectionLabel && state.draggingConnectionLabel.connIndex === connIndex) {
+                    saveToUndo();
+                    state.draggingConnectionLabel = null;
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                }
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        }
+        
         function getTypeClass(type) {
             const classes = {
                 trigger: 'trigger', schedule: 'trigger', webhook: 'trigger',
@@ -2138,12 +2193,17 @@
                 const labelX = state.flowDirection === 'horizontal' ? midX : (x1 + x2) / 2;
                 const labelY = state.flowDirection === 'horizontal' ? (y1 + y2) / 2 : midY;
                 if (conn.type === 'yes' || conn.type === 'no') {
-                    const offset = 18;
-                    const lx = labelX;
-                    const ly = labelY - offset;
-                    const badgeW = 22, badgeH = 12, rx = 6;
+                    const fontSize = conn.labelFontSize != null ? conn.labelFontSize : state.labelFontSize;
+                    const offset = conn.labelOffset ? 0 : 18;
+                    const lx = conn.labelOffset ? conn.labelOffset.x : labelX;
+                    const ly = conn.labelOffset ? conn.labelOffset.y : (labelY - offset);
+                    const badgeW = Math.max(28, Math.round(fontSize * 2.2));
+                    const badgeH = Math.max(14, Math.round(fontSize * 1.2));
+                    const rx = 6;
                     const g = document.createElementNS(ns, 'g');
                     g.setAttribute('class', `connection-label-badge ${conn.type}`);
+                    g.setAttribute('data-conn-index', String(idx));
+                    g.setAttribute('title', 'Drag horizontal = move • Drag vertical = resize font');
                     const rect = document.createElementNS(ns, 'rect');
                     rect.setAttribute('x', lx - badgeW / 2);
                     rect.setAttribute('y', ly - badgeH / 2);
@@ -2154,8 +2214,14 @@
                     const text = document.createElementNS(ns, 'text');
                     text.setAttribute('x', lx);
                     text.setAttribute('y', ly);
+                    text.setAttribute('font-size', fontSize);
                     text.textContent = conn.type === 'yes' ? 'Yes' : 'No';
                     g.appendChild(text);
+                    g.addEventListener('mousedown', (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        startDragConnectionLabel(idx, conn, lx, ly, fontSize, e);
+                    });
                     svg.appendChild(g);
                 }
             });
