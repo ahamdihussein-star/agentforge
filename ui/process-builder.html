@@ -549,7 +549,7 @@
         /* Yes/No تظهر على خط الربط نفسه في renderConnections */
         
         /* Connections SVG – نفس أبعاد الـ canvas حتى لا تُقص الخطوط عند تحريك العُقد أو المحاذاة */
-        /* خطوط الربط خلف العُقد والتسميات حتى لا يقطع الخط الكلام */
+        /* خطوط الربط خلف العُقد؛ طبقة التسميات والمقابض فوق العُقد عشان تقبل نقر/سحب */
         #connections-svg {
             position: absolute;
             top: 0;
@@ -559,11 +559,10 @@
             width: 3000px;
             height: 2000px;
             overflow: visible;
-            pointer-events: none;
-            z-index: 1;
+            pointer-events: auto;
+            z-index: 3;
             transform-origin: 0 0;
         }
-        
         .connection-path {
             fill: none;
             stroke: var(--connection-color, #6366f1);
@@ -661,6 +660,12 @@
         .connection-label-badge.no rect { fill: rgba(254, 242, 242, 0.92); stroke: #ef4444; }
         .connection-label-badge.yes text { fill: #166534; }
         .connection-label-badge.no text { fill: #b91c1c; }
+        .connection-label-badge.selected rect {
+            stroke-width: 2.5;
+            filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.5));
+        }
+        .connection-label-badge.selected.yes rect { stroke: #166534; }
+        .connection-label-badge.selected.no rect { stroke: #b91c1c; }
         
         /* Toolbar */
         #top-toolbar {
@@ -1653,6 +1658,26 @@
         function initCanvas() {
             const container = document.getElementById('canvas-container');
             const canvas = document.getElementById('canvas');
+            const connectionsSvg = document.getElementById('connections-svg');
+            
+            /* تمرير النقر على المناطق الفارغة في الـ SVG للـ canvas عشان العُقد تستقبل (سحب، تحديد) */
+            function forwardSvgPointerToCanvas(e) {
+                const t = e.target;
+                if (t !== connectionsSvg && t && (!t.nodeName || t.nodeName.toLowerCase() !== 'svg')) return;
+                const prev = connectionsSvg.style.pointerEvents;
+                connectionsSvg.style.pointerEvents = 'none';
+                const under = document.elementFromPoint(e.clientX, e.clientY);
+                connectionsSvg.style.pointerEvents = prev;
+                if (under && (under === canvas || canvas.contains(under))) {
+                    const ev = new MouseEvent(e.type, { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, button: e.button, buttons: e.buttons, relatedTarget: e.relatedTarget });
+                    under.dispatchEvent(ev);
+                }
+            }
+            if (connectionsSvg) {
+                connectionsSvg.addEventListener('mousedown', forwardSvgPointerToCanvas);
+                connectionsSvg.addEventListener('mouseup', forwardSvgPointerToCanvas);
+                connectionsSvg.addEventListener('click', forwardSvgPointerToCanvas);
+            }
             
             // Pan with middle mouse or space+drag
             let isPanning = false;
@@ -2205,10 +2230,22 @@
         function completeConnection(toNodeId, toPort) {
             if (!state.isConnecting || !state.connectionStart) return false;
             if (state.connectionStart.nodeId === toNodeId) return false;
+            let connType = state.connectionStart.portType;
+            const fromNode = state.nodes.find(n => n.id === state.connectionStart.nodeId);
+            /* عقدة القرار: أول فرع دائماً Yes، الفرع التاني No – ممنوع فرعين No */
+            if (fromNode && fromNode.type === 'condition') {
+                const existingFromCondition = state.connections.filter(c => c.from === state.connectionStart.nodeId);
+                if (existingFromCondition.length === 0) {
+                    connType = 'yes';
+                } else if (existingFromCondition.length === 1) {
+                    connType = 'no';
+                }
+                /* لو فيه فرعين فعلاً (yes و no) واليوزر بيضيف تالت نترك النوع من البورت */
+            }
             const conn = {
                 from: state.connectionStart.nodeId,
                 to: toNodeId,
-                type: state.connectionStart.portType,
+                type: connType,
                 fromPort: state.connectionStart.fromPort,
                 toPort: toPort
             };
@@ -2415,7 +2452,7 @@
                     const badgeH = Math.max(14, Math.round(fontSize * 1.2));
                     const rx = 6;
                     const g = document.createElementNS(ns, 'g');
-                    g.setAttribute('class', `connection-label-badge ${conn.type}`);
+                    g.setAttribute('class', `connection-label-badge ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
                     g.setAttribute('data-conn-index', String(idx));
                     g.setAttribute('title', 'Drag to move label • Font size: use +/- in toolbar');
                     const rect = document.createElementNS(ns, 'rect');
@@ -2434,6 +2471,7 @@
                     g.addEventListener('mousedown', (e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        selectConnection(idx);
                         startDragConnectionLabel(idx, conn, lx, ly, fontSize, e);
                     });
                     svg.appendChild(g);
