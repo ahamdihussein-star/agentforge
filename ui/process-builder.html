@@ -296,12 +296,17 @@
             color: rgba(255,255,255,0.95);
         }
         
-        /* التسمية – اسحبها من الـ canvas لأي مكان عشان تتقري لو الخط طاله – حجم الخط يتحكم من الـ toolbar */
+        /* التسمية – سطر واحد تلقائياً، اسحبها لتغيير الموضع – حجم الخط من الـ toolbar */
         .node-label {
             font-weight: 600;
             font-size: var(--label-font-size, 11px);
             line-height: 1.2;
-            word-break: break-word;
+            white-space: nowrap;
+            word-break: normal;
+            width: max-content;
+            min-width: min-content;
+            max-width: none;
+            overflow: visible;
             color: var(--label-badge-text);
             background: var(--label-badge-bg);
             border: 1px solid var(--label-badge-border);
