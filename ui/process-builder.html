@@ -548,9 +548,22 @@
         
         /* Yes/No تظهر على خط الربط نفسه في renderConnections */
         
-        /* Connections SVG – نفس أبعاد الـ canvas حتى لا تُقص الخطوط عند تحريك العُقد أو المحاذاة */
-        /* خطوط الربط خلف العُقد؛ طبقة التسميات والمقابض فوق العُقد عشان تقبل نقر/سحب */
+        /* طبقة الخطوط فقط – خلف العُقد والتسميات (لا تقطع الكلام) */
         #connections-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            min-width: 3000px;
+            min-height: 2000px;
+            width: 3000px;
+            height: 2000px;
+            overflow: visible;
+            pointer-events: none;
+            z-index: 1;
+            transform-origin: 0 0;
+        }
+        /* طبقة المقابض وتسميات Yes/No فقط – فوق العُقد عشان تقبل نقر/سحب */
+        #connections-interactive-svg {
             position: absolute;
             top: 0;
             left: 0;
@@ -1248,9 +1261,10 @@
     
     <!-- Canvas Container -->
     <div id="canvas-container">
-        <!-- SVG for connections -->
+        <!-- SVG for connection paths only (behind nodes) -->
         <svg id="connections-svg"></svg>
-        
+        <!-- SVG for handles + Yes/No labels only (on top, clickable) -->
+        <svg id="connections-interactive-svg"></svg>
         <!-- Canvas for nodes -->
         <div id="canvas">
             <!-- Nodes will be added here -->
@@ -1658,25 +1672,25 @@
         function initCanvas() {
             const container = document.getElementById('canvas-container');
             const canvas = document.getElementById('canvas');
-            const connectionsSvg = document.getElementById('connections-svg');
+            const connectionsInteractiveSvg = document.getElementById('connections-interactive-svg');
             
-            /* تمرير النقر على المناطق الفارغة في الـ SVG للـ canvas عشان العُقد تستقبل (سحب، تحديد) */
+            /* تمرير النقر على المناطق الفارغة في طبقة المقابض/التسميات للـ canvas عشان العُقد تستقبل (سحب، تحديد) */
             function forwardSvgPointerToCanvas(e) {
                 const t = e.target;
-                if (t !== connectionsSvg && t && (!t.nodeName || t.nodeName.toLowerCase() !== 'svg')) return;
-                const prev = connectionsSvg.style.pointerEvents;
-                connectionsSvg.style.pointerEvents = 'none';
+                if (t !== connectionsInteractiveSvg && t && (!t.nodeName || t.nodeName.toLowerCase() !== 'svg')) return;
+                const prev = connectionsInteractiveSvg.style.pointerEvents;
+                connectionsInteractiveSvg.style.pointerEvents = 'none';
                 const under = document.elementFromPoint(e.clientX, e.clientY);
-                connectionsSvg.style.pointerEvents = prev;
+                connectionsInteractiveSvg.style.pointerEvents = prev;
                 if (under && (under === canvas || canvas.contains(under))) {
                     const ev = new MouseEvent(e.type, { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, button: e.button, buttons: e.buttons, relatedTarget: e.relatedTarget });
                     under.dispatchEvent(ev);
                 }
             }
-            if (connectionsSvg) {
-                connectionsSvg.addEventListener('mousedown', forwardSvgPointerToCanvas);
-                connectionsSvg.addEventListener('mouseup', forwardSvgPointerToCanvas);
-                connectionsSvg.addEventListener('click', forwardSvgPointerToCanvas);
+            if (connectionsInteractiveSvg) {
+                connectionsInteractiveSvg.addEventListener('mousedown', forwardSvgPointerToCanvas);
+                connectionsInteractiveSvg.addEventListener('mouseup', forwardSvgPointerToCanvas);
+                connectionsInteractiveSvg.addEventListener('click', forwardSvgPointerToCanvas);
             }
             
             // Pan with middle mouse or space+drag
@@ -1752,8 +1766,10 @@
         function updateCanvasTransform() {
             const canvas = document.getElementById('canvas');
             const svg = document.getElementById('connections-svg');
+            const svgInteractive = document.getElementById('connections-interactive-svg');
             canvas.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
             svg.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+            if (svgInteractive) svgInteractive.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
             renderConnections();
         }
         
@@ -2267,8 +2283,8 @@
             state.connectionStart = null;
             state.connectionPreview = null;
             document.body.classList.remove('connecting');
-            const svg = document.getElementById('connections-svg');
-            const preview = svg && svg.querySelector('.connection-preview-path');
+            const svgInteractive = document.getElementById('connections-interactive-svg');
+            const preview = svgInteractive && svgInteractive.querySelector('.connection-preview-path');
             if (preview) preview.remove();
             state.connectionHoverNode = null;
             state.connectionHoverPort = null;
@@ -2356,7 +2372,9 @@
         
         function renderConnections() {
             const svg = document.getElementById('connections-svg');
+            const svgInteractive = document.getElementById('connections-interactive-svg');
             svg.innerHTML = '';
+            if (svgInteractive) svgInteractive.innerHTML = '';
             
             const ns = 'http://www.w3.org/2000/svg';
             state.connections.forEach((conn, idx) => {
@@ -2403,11 +2421,6 @@
                 path.setAttribute('data-conn-index', String(idx));
                 path.setAttribute('d', pathD);
                 
-                path.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    selectConnection(idx);
-                });
-                
                 svg.appendChild(path);
                 
                 const gHandle = document.createElementNS(ns, 'g');
@@ -2439,7 +2452,7 @@
                     startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
                 });
                 gHandle.appendChild(endHandle);
-                svg.appendChild(gHandle);
+                if (svgInteractive) svgInteractive.appendChild(gHandle);
                 
                 const labelX = state.flowDirection === 'horizontal' ? midX : (x1 + x2) / 2;
                 const labelY = state.flowDirection === 'horizontal' ? (y1 + y2) / 2 : midY;
@@ -2474,7 +2487,7 @@
                         selectConnection(idx);
                         startDragConnectionLabel(idx, conn, lx, ly, fontSize, e);
                     });
-                    svg.appendChild(g);
+                    if (svgInteractive) svgInteractive.appendChild(g);
                 }
             });
             
@@ -2485,7 +2498,7 @@
                 path.setAttribute('class', `connection-path ${d.type} connection-preview`);
                 path.setAttribute('d', pathD);
                 path.setAttribute('stroke-dasharray', '6 4');
-                svg.appendChild(path);
+                if (svgInteractive) svgInteractive.appendChild(path);
                 d.previewPath = path;
             }
             if (state.draggingEdgeStart) {
@@ -2495,7 +2508,7 @@
                 path.setAttribute('class', `connection-path ${d.type} connection-preview`);
                 path.setAttribute('d', pathD);
                 path.setAttribute('stroke-dasharray', '6 4');
-                svg.appendChild(path);
+                if (svgInteractive) svgInteractive.appendChild(path);
                 d.previewPath = path;
             }
         }
@@ -2517,12 +2530,12 @@
             const fromRect = fromPortEl.getBoundingClientRect();
             const fromX = (fromRect.left + fromRect.width/2 - canvasRect.left) / state.zoom;
             const fromY = (fromRect.top + fromRect.height/2 - canvasRect.top) / state.zoom;
-            const svg = document.getElementById('connections-svg');
+            const svgInteractive = document.getElementById('connections-interactive-svg');
             const ns = 'http://www.w3.org/2000/svg';
             const path = document.createElementNS(ns, 'path');
             path.setAttribute('class', `connection-path ${portType} connection-preview-path`);
             path.setAttribute('stroke-dasharray', '6 4');
-            svg.appendChild(path);
+            if (svgInteractive) svgInteractive.appendChild(path);
             state.connectionPreview = { path, fromX, fromY };
             const onMove = (ev) => {
                 if (!state.connectionPreview) return;
