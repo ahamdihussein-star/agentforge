@@ -1386,7 +1386,11 @@
             tools: [],
             agentId: null,
             undoStack: [],
-            redoStack: []
+            redoStack: [],
+            connectionHoverNode: null,
+            connectionHoverPort: null,
+            connectionHoverPoint: null,
+            connectionCompleted: false
         };
         
         // Node ID counter
@@ -2133,6 +2137,10 @@
             state.connections.push(conn);
             renderConnections();
             saveToUndo();
+            state.connectionCompleted = true;
+            state.connectionHoverNode = null;
+            state.connectionHoverPort = null;
+            state.connectionHoverPoint = null;
             return true;
         }
         function endConnectingMode() {
@@ -2143,6 +2151,10 @@
             const svg = document.getElementById('connections-svg');
             const preview = svg && svg.querySelector('.connection-preview-path');
             if (preview) preview.remove();
+            state.connectionHoverNode = null;
+            state.connectionHoverPort = null;
+            state.connectionHoverPoint = null;
+            state.connectionCompleted = false;
         }
         function setupPorts(nodeEl, node) {
             const ports = nodeEl.querySelectorAll('.port.output, .port.output-top, .port.output-right, .port.output-bottom, .port.output-left, .port.output-yes, .port.output-no, .port.output-yes-top, .port.output-yes-right, .port.output-yes-bottom, .port.output-yes-left, .port.output-no-top, .port.output-no-right, .port.output-no-bottom, .port.output-no-left');
@@ -2157,6 +2169,10 @@
                                   port.classList.contains('output-no') || (port.className && port.className.includes('output-no')) ? 'no' : 'default',
                         fromPort
                     };
+                    state.connectionHoverNode = null;
+                    state.connectionHoverPort = null;
+                    state.connectionHoverPoint = null;
+                    state.connectionCompleted = false;
                     document.body.classList.add('connecting');
                     startConnectionPreview(node.id, fromPort, state.connectionStart.portType, e);
                 });
@@ -2381,15 +2397,46 @@
                 if (!state.connectionPreview) return;
                 const pt = clientToCanvas(ev.clientX, ev.clientY);
                 path.setAttribute('d', getDragPreviewPathD(fromX, fromY, pt.x, pt.y));
+                const inputPort = getInputPortAtPoint(ev.clientX, ev.clientY);
+                let hoveredId = null;
+                let hoverPort = null;
+                if (inputPort && inputPort.nodeId !== fromNodeId) {
+                    hoveredId = inputPort.nodeId;
+                    hoverPort = inputPort.toPort;
+                } else {
+                    for (let i = 0; i < state.nodes.length; i++) {
+                        const n = state.nodes[i];
+                        if (n.id === fromNodeId) continue;
+                        const el = document.getElementById(n.id);
+                        if (!el) continue;
+                        const r = el.getBoundingClientRect();
+                        if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+                            hoveredId = n.id;
+                            hoverPort = getSideOfPointFromShape(el, ev.clientX, ev.clientY);
+                            break;
+                        }
+                    }
+                }
                 state.nodes.forEach(n => {
                     const el = document.getElementById(n.id);
-                    if (!el || n.id === fromNodeId) return;
-                    const r = el.getBoundingClientRect();
-                    const over = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
-                    el.classList.toggle('connection-drop-target', over);
+                    if (!el) return;
+                    if (n.id === fromNodeId) {
+                        el.classList.remove('connection-drop-target');
+                        return;
+                    }
+                    el.classList.toggle('connection-drop-target', hoveredId === n.id);
                 });
+                if (hoveredId) {
+                    state.connectionHoverNode = hoveredId;
+                    state.connectionHoverPort = { toPort: hoverPort };
+                    state.connectionHoverPoint = { clientX: ev.clientX, clientY: ev.clientY };
+                } else {
+                    state.connectionHoverNode = null;
+                    state.connectionHoverPort = null;
+                    state.connectionHoverPoint = null;
+                }
             };
-            const onUp = () => {
+            const onUp = (ev) => {
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);
                 state.nodes.forEach(n => {
@@ -2400,6 +2447,15 @@
                     state.connectionPreview.path.remove();
                 }
                 state.connectionPreview = null;
+                if (state.isConnecting && !state.connectionCompleted && state.connectionHoverNode && state.connectionHoverNode !== fromNodeId) {
+                    const hoveredEl = document.getElementById(state.connectionHoverNode);
+                    const lastPoint = state.connectionHoverPoint || { clientX: ev.clientX, clientY: ev.clientY };
+                    let toPort = state.connectionHoverPort ? state.connectionHoverPort.toPort : null;
+                    if (!toPort && hoveredEl) {
+                        toPort = getSideOfPointFromShape(hoveredEl, lastPoint.clientX, lastPoint.clientY);
+                    }
+                    completeConnection(state.connectionHoverNode, toPort);
+                }
                 if (state.isConnecting) endConnectingMode();
             };
             document.addEventListener('mousemove', onMove);
@@ -2446,7 +2502,10 @@
                 fromX, fromY,
                 currentX: startX,
                 currentY: startY,
-                origConn
+                origConn,
+                hoverNode: null,
+                hoverPort: null,
+                hoverPoint: null
             };
             stateSelectedConnIndex = null;
             
@@ -2468,26 +2527,50 @@
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
                 state.draggingEdgeEnd.currentX = (e.clientX - canvasRect.left - state.panX) / state.zoom;
                 state.draggingEdgeEnd.currentY = (e.clientY - canvasRect.top - state.panY) / state.zoom;
+                const inputPort = getInputPortAtPoint(e.clientX, e.clientY);
+                let hoveredId = null;
+                let hoverPort = null;
+                if (inputPort && inputPort.nodeId !== state.draggingEdgeEnd.from) {
+                    hoveredId = inputPort.nodeId;
+                    hoverPort = inputPort.toPort;
+                } else {
+                    const candidate = nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeEnd.from);
+                    if (candidate && candidate !== state.draggingEdgeEnd.from) {
+                        hoveredId = candidate;
+                        const el = document.getElementById(candidate);
+                        hoverPort = el ? getSideOfPointFromShape(el, e.clientX, e.clientY) : null;
+                    }
+                }
                 state.nodes.forEach(n => {
                     const el = document.getElementById(n.id);
                     if (!el) return;
-                    const over = nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeEnd.from);
-                    if (over === n.id) el.classList.add('connection-drop-target');
-                    else el.classList.remove('connection-drop-target');
+                    if (n.id === state.draggingEdgeEnd.from) {
+                        el.classList.remove('connection-drop-target');
+                        return;
+                    }
+                    el.classList.toggle('connection-drop-target', hoveredId === n.id);
                 });
+                state.draggingEdgeEnd.hoverNode = hoveredId;
+                state.draggingEdgeEnd.hoverPort = hoverPort;
+                state.draggingEdgeEnd.hoverPoint = hoveredId ? { clientX: e.clientX, clientY: e.clientY } : null;
                 updateDragPreview();
             };
             const onUp = (e) => {
                 if (!state.draggingEdgeEnd) return;
                 const inputPort = getInputPortAtPoint(e.clientX, e.clientY);
-                const newTo = inputPort ? inputPort.nodeId : nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeEnd.from);
+                let newTo = inputPort ? inputPort.nodeId : nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeEnd.from);
+                let toPort = inputPort ? inputPort.toPort : (newTo ? getSideOfPointFromShape(document.getElementById(newTo), e.clientX, e.clientY) : undefined);
+                if ((!newTo || newTo === state.draggingEdgeEnd.from) && state.draggingEdgeEnd.hoverNode && state.draggingEdgeEnd.hoverNode !== state.draggingEdgeEnd.from) {
+                    newTo = state.draggingEdgeEnd.hoverNode;
+                    const hoverPoint = state.draggingEdgeEnd.hoverPoint || { clientX: e.clientX, clientY: e.clientY };
+                    const targetEl = document.getElementById(newTo);
+                    toPort = state.draggingEdgeEnd.hoverPort || (targetEl ? getSideOfPointFromShape(targetEl, hoverPoint.clientX, hoverPoint.clientY) : undefined);
+                }
                 state.nodes.forEach(n => {
                     const el = document.getElementById(n.id);
                     if (el) el.classList.remove('connection-drop-target');
                 });
                 if (newTo && newTo !== state.draggingEdgeEnd.from) {
-                    const toNodeEl = document.getElementById(newTo);
-                    const toPort = inputPort ? inputPort.toPort : (toNodeEl ? getSideOfPointFromShape(toNodeEl, e.clientX, e.clientY) : undefined);
                     state.connections.push({
                         from: state.draggingEdgeEnd.from,
                         to: newTo,
@@ -2525,7 +2608,9 @@
                 toX, toY,
                 currentX: startX,
                 currentY: startY,
-                origConn
+                origConn,
+                hoverNode: null,
+                hoverData: null
             };
             stateSelectedConnIndex = null;
             
@@ -2547,27 +2632,66 @@
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
                 state.draggingEdgeStart.currentX = (e.clientX - canvasRect.left - state.panX) / state.zoom;
                 state.draggingEdgeStart.currentY = (e.clientY - canvasRect.top - state.panY) / state.zoom;
+                const outputPort = getOutputPortAtPoint(e.clientX, e.clientY);
+                let hoveredId = null;
+                let hoverData = null;
+                if (outputPort && outputPort.nodeId !== state.draggingEdgeStart.to) {
+                    hoveredId = outputPort.nodeId;
+                    hoverData = { fromPort: outputPort.fromPort, portType: outputPort.portType };
+                } else {
+                    const candidate = nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeStart.to);
+                    if (candidate && candidate !== state.draggingEdgeStart.to) {
+                        hoveredId = candidate;
+                        const el = document.getElementById(candidate);
+                        const side = el ? getSideOfPointFromShape(el, e.clientX, e.clientY) : 'bottom';
+                        const nodeObj = state.nodes.find(n => n.id === candidate);
+                        const portType = nodeObj && nodeObj.type === 'condition'
+                            ? (side === 'top' || side === 'bottom' ? 'yes' : 'no')
+                            : 'default';
+                        hoverData = { fromPort: side, portType };
+                    }
+                }
                 state.nodes.forEach(n => {
                     const el = document.getElementById(n.id);
                     if (!el) return;
-                    const over = nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeStart.to);
-                    if (over === n.id) el.classList.add('connection-drop-target');
-                    else el.classList.remove('connection-drop-target');
+                    if (n.id === state.draggingEdgeStart.to) {
+                        el.classList.remove('connection-drop-target');
+                        return;
+                    }
+                    el.classList.toggle('connection-drop-target', hoveredId === n.id);
                 });
+                state.draggingEdgeStart.hoverNode = hoveredId;
+                state.draggingEdgeStart.hoverData = hoveredId ? { ...hoverData, point: { clientX: e.clientX, clientY: e.clientY } } : null;
                 updateDragPreviewStart();
             };
             const onUp = (e) => {
                 if (!state.draggingEdgeStart) return;
                 const outputPort = getOutputPortAtPoint(e.clientX, e.clientY);
-                const newFrom = outputPort ? outputPort.nodeId : nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeStart.to);
+                let newFrom = outputPort ? outputPort.nodeId : nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeStart.to);
+                let data = outputPort ? { fromPort: outputPort.fromPort, portType: outputPort.portType } : null;
+                if ((!newFrom || newFrom === state.draggingEdgeStart.to) && state.draggingEdgeStart.hoverNode && state.draggingEdgeStart.hoverNode !== state.draggingEdgeStart.to) {
+                    newFrom = state.draggingEdgeStart.hoverNode;
+                    data = state.draggingEdgeStart.hoverData ? { fromPort: state.draggingEdgeStart.hoverData.fromPort, portType: state.draggingEdgeStart.hoverData.portType, point: state.draggingEdgeStart.hoverData.point } : null;
+                }
                 state.nodes.forEach(n => {
                     const el = document.getElementById(n.id);
                     if (el) el.classList.remove('connection-drop-target');
                 });
                 if (newFrom && newFrom !== state.draggingEdgeStart.to) {
                     const fromNodeEl = document.getElementById(newFrom);
-                    const fromPort = outputPort ? outputPort.fromPort : (fromNodeEl ? getSideOfPointFromShape(fromNodeEl, e.clientX, e.clientY) : undefined);
-                    const portType = outputPort ? outputPort.portType : state.draggingEdgeStart.type;
+                    let fromPort = data && data.fromPort ? data.fromPort : (fromNodeEl ? getSideOfPointFromShape(fromNodeEl, e.clientX, e.clientY) : 'bottom');
+                    if (!fromPort) fromPort = 'bottom';
+                    let portType;
+                    if (data && data.portType) {
+                        portType = data.portType;
+                    } else {
+                        const nodeObj = state.nodes.find(n => n.id === newFrom);
+                        if (nodeObj && nodeObj.type === 'condition') {
+                            portType = (fromPort === 'top' || fromPort === 'bottom') ? 'yes' : 'no';
+                        } else {
+                            portType = 'default';
+                        }
+                    }
                     state.connections.push({
                         from: newFrom,
                         to: state.draggingEdgeStart.to,
