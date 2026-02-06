@@ -219,7 +219,8 @@
             box-shadow: none;
         }
         .workflow-node.shape-start:hover,
-        .workflow-node.shape-start.selected { box-shadow: none; }
+        .workflow-node.shape-start.selected,
+        .workflow-node.shape-start.multi-selected { box-shadow: none; }
         .workflow-node.shape-start .node-shape-wrap {
             width: 56px;
             height: 56px;
@@ -237,7 +238,8 @@
             box-shadow: none;
         }
         .workflow-node.shape-end:hover,
-        .workflow-node.shape-end.selected { box-shadow: none; }
+        .workflow-node.shape-end.selected,
+        .workflow-node.shape-end.multi-selected { box-shadow: none; }
         .workflow-node.shape-end .node-shape-wrap {
             width: 56px;
             height: 56px;
@@ -258,7 +260,8 @@
             box-shadow: none;
         }
         .workflow-node.shape-gateway:hover,
-        .workflow-node.shape-gateway.selected { box-shadow: none; }
+        .workflow-node.shape-gateway.selected,
+        .workflow-node.shape-gateway.multi-selected { box-shadow: none; }
         .workflow-node.shape-gateway .node-shape-wrap {
             width: 56px;
             height: 56px;
@@ -276,7 +279,8 @@
             box-shadow: none;
         }
         .workflow-node.shape-task:hover,
-        .workflow-node.shape-task.selected { box-shadow: none; }
+        .workflow-node.shape-task.selected,
+        .workflow-node.shape-task.multi-selected { box-shadow: none; }
         .workflow-node.shape-task .node-shape-wrap {
             width: 56px;
             height: 56px;
@@ -306,14 +310,19 @@
             outline: none;
         }
         
-        .workflow-node.selected {
+        .workflow-node.selected,
+        .workflow-node.multi-selected {
             border-color: #6366f1;
             box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
         }
         .workflow-node.shape-start.selected,
+        .workflow-node.shape-start.multi-selected,
         .workflow-node.shape-end.selected,
+        .workflow-node.shape-end.multi-selected,
         .workflow-node.shape-gateway.selected,
-        .workflow-node.shape-task.selected {
+        .workflow-node.shape-gateway.multi-selected,
+        .workflow-node.shape-task.selected,
+        .workflow-node.shape-task.multi-selected {
             border-color: transparent;
             box-shadow: none;
             outline: none;
@@ -496,7 +505,8 @@
             pointer-events: none;
         }
         .workflow-node:hover .port,
-        .workflow-node.selected .port {
+        .workflow-node.selected .port,
+        .workflow-node.multi-selected .port {
             opacity: 1;
             pointer-events: auto;
         }
@@ -1255,6 +1265,9 @@
             <button type="button" class="toolbar-btn btn-secondary" title="Arrange process in best alignment" onclick="alignProcess()">
                 <span>⊟</span> Align
             </button>
+            <button type="button" class="toolbar-btn btn-secondary" title="Select all nodes (Ctrl+A)" onclick="selectAllNodes()">
+                <span>☑</span> Select All
+            </button>
             <span class="toolbar-label" style="margin-left:8px;">Labels:</span>
             <button type="button" class="toolbar-btn btn-secondary" title="Smaller label font" onclick="setLabelFontSize(-1)">
                 <span>A−</span>
@@ -1263,10 +1276,10 @@
                 <span>A+</span>
             </button>
             <span id="label-font-size-display" style="font-size:11px;color:var(--pb-muted);min-width:2.5em;">11px</span>
-            <button class="toolbar-btn btn-secondary" onclick="undoAction()">
+            <button class="toolbar-btn btn-secondary" title="Undo (Ctrl+Z)" onclick="undoAction()">
                 <span>↶</span> Undo
             </button>
-            <button class="toolbar-btn btn-secondary" onclick="redoAction()">
+            <button class="toolbar-btn btn-secondary" title="Redo (Ctrl+Shift+Z)" onclick="redoAction()">
                 <span>↷</span> Redo
             </button>
             <button class="toolbar-btn btn-secondary" onclick="testWorkflow()">
@@ -1498,6 +1511,7 @@
             connections: [],
             selectedNode: null,
             selectedLabelNodeId: null,
+            selectedNodeIds: [],
             zoom: 1,
             panX: 0,
             panY: 0,
@@ -1811,19 +1825,32 @@
                 }
             });
             
-            // Delete / Backspace: remove selected connection or selected node (من الـ canvas المحدد فعلياً)
+            // Keyboard: Undo, Redo, Delete, Select All
             document.addEventListener('keydown', (e) => {
                 if (e.target.closest('input') || e.target.closest('textarea') || e.target.closest('select')) return;
+                const ctrl = e.ctrlKey || e.metaKey;
+                if (ctrl && e.key === 'z') {
+                    e.preventDefault();
+                    if (e.shiftKey) redoAction();
+                    else undoAction();
+                    return;
+                }
+                if (ctrl && e.key === 'y') {
+                    e.preventDefault();
+                    redoAction();
+                    return;
+                }
+                if (ctrl && e.key === 'a') {
+                    e.preventDefault();
+                    selectAllNodes();
+                    return;
+                }
                 if (e.key !== 'Delete' && e.key !== 'Backspace') return;
                 e.preventDefault();
                 if (stateSelectedConnIndex !== null) {
                     deleteConnection(stateSelectedConnIndex);
                 } else {
-                    let toDelete = null;
-                    const selectedEl = document.querySelector('#canvas .workflow-node.selected');
-                    if (selectedEl && selectedEl.id) toDelete = selectedEl.id;
-                    else if (state.selectedLabelNodeId) toDelete = state.selectedLabelNodeId;
-                    if (toDelete) deleteNode(toDelete);
+                    deleteSelectedNodes();
                 }
             });
         }
@@ -1975,11 +2002,15 @@
             // Make draggable
             makeDraggable(nodeEl, node);
             
-            // Click anywhere on shape (shape, body) → select shape. Click on label → select label فقط (منفصل)
+            // Click: Ctrl+Click = toggle في الـ selection. بدون Ctrl: shape→selectNode، label→selectLabelOnly
             nodeEl.addEventListener('click', (e) => {
                 if (e.target.closest('.port') || e.target.closest('.node-menu-btn')) return;
                 e.stopPropagation();
                 if (state.justDropped) return;
+                if (e.ctrlKey || e.metaKey) {
+                    toggleNodeInSelection(node.id, true);
+                    return;
+                }
                 if (e.target.closest('.node-label')) {
                     selectLabelOnly(node.id);
                     return;
@@ -2211,7 +2242,7 @@
         }
         
         function makeDraggable(nodeEl, node) {
-            let startX, startY, nodeStartX, nodeStartY;
+            let startX, startY;
             
             nodeEl.addEventListener('mousedown', (e) => {
                 if (e.target.closest('.port') || e.target.closest('.node-menu-btn')) return;
@@ -2221,30 +2252,66 @@
                 
                 startX = e.clientX;
                 startY = e.clientY;
-                nodeStartX = node.x;
-                nodeStartY = node.y;
+                const ids = getSelectedNodeIds();
+                const movingIds = ids.includes(node.id) ? ids : [node.id];
+                if (!ids.includes(node.id)) {
+                    state.selectedNode = node;
+                    state.selectedLabelNodeId = null;
+                    state.selectedNodeIds = [node.id];
+                    updateSelectionUI();
+                }
+                const startPositions = {};
+                movingIds.forEach(id => {
+                    const n = state.nodes.find(x => x.id === id);
+                    if (n) startPositions[id] = { x: n.x, y: n.y };
+                });
+                state.connections.forEach(conn => {
+                    if (conn.labelOffset && (conn.type === 'yes' || conn.type === 'no') && movingIds.includes(conn.from) && movingIds.includes(conn.to)) {
+                        conn.labelOffset._dragStartX = conn.labelOffset.x;
+                        conn.labelOffset._dragStartY = conn.labelOffset.y;
+                    }
+                });
                 
                 const onMove = (e) => {
                     if (!state.isDragging) return;
+                    const dx = Math.round(((e.clientX - startX) / state.zoom) / 20) * 20;
+                    const dy = Math.round(((e.clientY - startY) / state.zoom) / 20) * 20;
                     
-                    const dx = (e.clientX - startX) / state.zoom;
-                    const dy = (e.clientY - startY) / state.zoom;
+                    movingIds.forEach(id => {
+                        const n = state.nodes.find(x => x.id === id);
+                        const start = startPositions[id];
+                        if (!n || !start) return;
+                        n.x = start.x + dx;
+                        n.y = start.y + dy;
+                        const el = document.getElementById(id);
+                        if (el) {
+                            el.style.left = n.x + 'px';
+                            el.style.top = n.y + 'px';
+                        }
+                    });
                     
-                    node.x = Math.round((nodeStartX + dx) / 20) * 20;
-                    node.y = Math.round((nodeStartY + dy) / 20) * 20;
-                    
-                    nodeEl.style.left = node.x + 'px';
-                    nodeEl.style.top = node.y + 'px';
+                    state.connections.forEach(conn => {
+                        if (conn.labelOffset && conn.labelOffset._dragStartX !== undefined) {
+                            conn.labelOffset.x = conn.labelOffset._dragStartX + dx;
+                            conn.labelOffset.y = conn.labelOffset._dragStartY + dy;
+                        }
+                    });
                     
                     renderConnections();
                 };
                 
                 const onUp = () => {
+                    state.connections.forEach(conn => {
+                        if (conn.labelOffset) {
+                            delete conn.labelOffset._dragStartX;
+                            delete conn.labelOffset._dragStartY;
+                        }
+                    });
                     state.isDragging = false;
                     nodeEl.classList.remove('dragging');
                     document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp);
-                    saveToUndo();
+                    if (movingIds.length > 0) saveToUndo();
                 };
                 
                 document.addEventListener('mousemove', onMove);
@@ -2964,7 +3031,8 @@
         function selectConnection(idx) {
             state.selectedNode = null;
             state.selectedLabelNodeId = null;
-            document.querySelectorAll('.workflow-node').forEach(n => { n.classList.remove('selected'); n.classList.remove('label-selected'); });
+            state.selectedNodeIds = [];
+            updateSelectionUI();
             closeProperties();
             stateSelectedConnIndex = idx;
             const conn = state.connections[idx];
@@ -2989,14 +3057,22 @@
         }
         
         // ===== SELECTION =====
+        function getSelectedNodeIds() {
+            if (state.selectedNodeIds.length > 0) return state.selectedNodeIds.filter(id => state.nodes.some(n => n.id === id));
+            if (state.selectedNode) return [state.selectedNode.id];
+            if (state.selectedLabelNodeId) return [state.selectedLabelNodeId];
+            return [];
+        }
         function selectNode(id) {
             state.selectedNode = null;
             state.selectedLabelNodeId = null;
+            state.selectedNodeIds = [];
             stateSelectedConnIndex = null;
-            document.querySelectorAll('.workflow-node').forEach(n => { n.classList.remove('selected'); n.classList.remove('label-selected'); });
+            updateSelectionUI();
             const node = state.nodes.find(n => n.id === id);
             if (node) {
                 state.selectedNode = node;
+                state.selectedNodeIds = [id];
                 const el = document.getElementById(id);
                 if (el) el.classList.add('selected');
                 updateLabelFontSizeDisplay(node.labelFontSize != null ? node.labelFontSize : state.labelFontSize);
@@ -3008,21 +3084,87 @@
         function selectLabelOnly(nodeId) {
             state.selectedNode = null;
             state.selectedLabelNodeId = nodeId;
+            state.selectedNodeIds = [nodeId];
             stateSelectedConnIndex = null;
-            document.querySelectorAll('.workflow-node').forEach(n => { n.classList.remove('selected'); n.classList.remove('label-selected'); });
+            updateSelectionUI();
             const el = document.getElementById(nodeId);
             if (el) el.classList.add('label-selected');
             const node = state.nodes.find(n => n.id === nodeId);
             if (node) updateLabelFontSizeDisplay(node.labelFontSize != null ? node.labelFontSize : state.labelFontSize);
             closeProperties();
         }
-        function deselectAll() {
+        function toggleNodeInSelection(nodeId, ctrlKey) {
+            if (!ctrlKey) {
+                selectNode(nodeId);
+                return;
+            }
             state.selectedNode = null;
             state.selectedLabelNodeId = null;
             stateSelectedConnIndex = null;
-            document.querySelectorAll('.workflow-node').forEach(n => { n.classList.remove('selected'); n.classList.remove('label-selected'); });
+            const idx = state.selectedNodeIds.indexOf(nodeId);
+            if (idx >= 0) {
+                state.selectedNodeIds.splice(idx, 1);
+            } else {
+                state.selectedNodeIds.push(nodeId);
+            }
+            if (state.selectedNodeIds.length === 1) {
+                const node = state.nodes.find(n => n.id === state.selectedNodeIds[0]);
+                if (node) {
+                    state.selectedNode = node;
+                    updateLabelFontSizeDisplay(node.labelFontSize != null ? node.labelFontSize : state.labelFontSize);
+                    showProperties(node);
+                }
+            } else {
+                closeProperties();
+                if (state.selectedNodeIds.length > 0) updateLabelFontSizeDisplay(state.labelFontSize);
+            }
+            updateSelectionUI();
+        }
+        function selectAllNodes() {
+            if (state.nodes.length === 0) return;
+            state.selectedNode = null;
+            state.selectedLabelNodeId = null;
+            state.selectedNodeIds = state.nodes.map(n => n.id);
+            stateSelectedConnIndex = null;
+            updateSelectionUI();
+            closeProperties();
+        }
+        function updateSelectionUI() {
+            document.querySelectorAll('.workflow-node').forEach(n => {
+                n.classList.remove('selected', 'label-selected', 'multi-selected');
+                const id = n.id;
+                if (state.selectedNodeIds.includes(id)) {
+                    n.classList.add(state.selectedNodeIds.length > 1 ? 'multi-selected' : (state.selectedLabelNodeId === id ? 'label-selected' : 'selected'));
+                } else if (state.selectedLabelNodeId === id) {
+                    n.classList.add('label-selected');
+                }
+            });
+        }
+        function deselectAll() {
+            state.selectedNode = null;
+            state.selectedLabelNodeId = null;
+            state.selectedNodeIds = [];
+            stateSelectedConnIndex = null;
+            updateSelectionUI();
             closeProperties();
             updateLabelFontSizeDisplay(state.labelFontSize);
+        }
+        function deleteSelectedNodes() {
+            const ids = getSelectedNodeIds();
+            if (ids.length === 0) return;
+            if (!confirm(ids.length > 1 ? `Delete ${ids.length} selected nodes?` : 'Delete this node?')) return;
+            ids.forEach(id => {
+                state.connections = state.connections.filter(c => c.from !== id && c.to !== id);
+                state.nodes = state.nodes.filter(n => n.id !== id);
+                document.getElementById(id)?.remove();
+            });
+            state.selectedNode = null;
+            state.selectedLabelNodeId = null;
+            state.selectedNodeIds = [];
+            closeProperties();
+            renderConnections();
+            updateEmptyState();
+            saveToUndo();
         }
         
         // ===== PROPERTIES PANEL =====
@@ -3677,8 +3819,8 @@
                 renderNode(node);
                 const el = document.getElementById(node.id);
                 if (el) {
-                    if (state.selectedNode && state.selectedNode.id === node.id) el.classList.add('selected');
-                    if (state.selectedLabelNodeId === node.id) el.classList.add('label-selected');
+                    if (state.selectedNodeIds.includes(node.id)) el.classList.add(state.selectedNodeIds.length > 1 ? 'multi-selected' : (state.selectedLabelNodeId === node.id ? 'label-selected' : 'selected'));
+                    else if (state.selectedLabelNodeId === node.id) el.classList.add('label-selected');
                 }
                 renderConnections();
             }
