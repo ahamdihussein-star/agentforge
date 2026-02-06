@@ -1677,6 +1677,10 @@
                 state.panX = container.clientWidth / 2 - centerX * state.zoom;
                 state.panY = container.clientHeight / 2 - centerY * state.zoom;
             }
+            /* إعادة تموضع تسميات Yes/No على الخطوط بعد تحريك العقد */
+            state.connections.forEach(c => {
+                if (c.type === 'yes' || c.type === 'no') delete c.labelOffset;
+            });
             saveToUndo();
             document.getElementById('canvas').innerHTML = '';
             state.nodes.forEach(n => renderNode(n));
