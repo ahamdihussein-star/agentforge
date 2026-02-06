@@ -398,6 +398,16 @@
             outline: none;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
+        /* وضوح أكبر لأي label معملته selection */
+        .workflow-node.selected .node-label::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 9999px;
+            border: 2px solid var(--connection-color, #6366f1);
+            pointer-events: none;
+            opacity: 0.7;
+        }
         .workflow-node.label-below .node-label { position: relative; margin-top: 0; }
         .workflow-node.label-custom .node-label {
             position: absolute;
@@ -1520,19 +1530,42 @@
             loadWorkflowFromUrl();
             updateFlowButtons();
             applyLabelFontSize();
+            updateLabelFontSizeDisplay(state.labelFontSize);
         });
         
         function setLabelFontSize(delta) {
-            state.labelFontSize = Math.min(24, Math.max(9, state.labelFontSize + delta));
+            const clamp = (v) => Math.min(24, Math.max(9, v));
+            if (state.selectedNode) {
+                const node = state.selectedNode;
+                const current = node.labelFontSize != null ? node.labelFontSize : state.labelFontSize;
+                node.labelFontSize = clamp(current + delta);
+                updateLabelFontSizeDisplay(node.labelFontSize);
+                refreshNode(node);
+                saveToUndo();
+                return;
+            }
+            if (stateSelectedConnIndex !== null && state.connections[stateSelectedConnIndex] && (state.connections[stateSelectedConnIndex].type === 'yes' || state.connections[stateSelectedConnIndex].type === 'no')) {
+                const conn = state.connections[stateSelectedConnIndex];
+                const current = conn.labelFontSize != null ? conn.labelFontSize : state.labelFontSize;
+                conn.labelFontSize = clamp(current + delta);
+                updateLabelFontSizeDisplay(conn.labelFontSize);
+                renderConnections();
+                saveToUndo();
+                return;
+            }
+            state.labelFontSize = clamp(state.labelFontSize + delta);
             localStorage.setItem('pb-label-font-size', String(state.labelFontSize));
             applyLabelFontSize();
+            updateLabelFontSizeDisplay(state.labelFontSize);
         }
-        /* حجم خط كل التسميات (عُقد + Yes/No) من الـ toolbar فقط – لا يتغير بالسحب */
+        function updateLabelFontSizeDisplay(px) {
+            const el = document.getElementById('label-font-size-display');
+            if (el) el.textContent = px + 'px';
+        }
+        /* تطبيق حجم الخط الافتراضي على كل التسميات (عند عدم تحديد عقدة/ربط) */
         function applyLabelFontSize() {
             const container = document.getElementById('canvas-container');
             if (container) container.style.setProperty('--label-font-size', state.labelFontSize + 'px');
-            const el = document.getElementById('label-font-size-display');
-            if (el) el.textContent = state.labelFontSize + 'px';
             state.nodes.forEach(n => {
                 const nodeEl = document.getElementById(n.id);
                 if (!nodeEl) {
@@ -1633,9 +1666,22 @@
             saveToUndo();
             document.getElementById('canvas').innerHTML = '';
             state.nodes.forEach(n => renderNode(n));
+            updateConnectionsToClosestPorts();
             renderConnections();
             updateEmptyState();
             updateCanvasTransform();
+        }
+        
+        function updateConnectionsToClosestPorts() {
+            state.connections.forEach(conn => {
+                const fromNode = document.getElementById(conn.from);
+                const toNode = document.getElementById(conn.to);
+                if (!fromNode || !toNode) return;
+                const outKind = conn.type === 'yes' ? 'output-yes' : conn.type === 'no' ? 'output-no' : 'output';
+                const pair = getClosestPortPair(fromNode, toNode, outKind);
+                conn.fromPort = pair.fromSide;
+                conn.toPort = pair.toSide;
+            });
         }
         
         function alignProcess() {
@@ -1910,12 +1956,13 @@
             // Make draggable
             makeDraggable(nodeEl, node);
             
-            // Click to select
+            // Click anywhere on shape (shape, body, label) to select – استثناء المنافذ والزر فقط
             nodeEl.addEventListener('click', (e) => {
+                if (e.target.closest('.port') || e.target.closest('.node-menu-btn')) return;
                 e.stopPropagation();
                 if (state.justDropped) return;
                 selectNode(node.id);
-            });
+            }, true);
             
             // Double click to edit
             nodeEl.addEventListener('dblclick', (e) => {
@@ -2243,6 +2290,27 @@
             }
             return nodeEl.querySelector('.port.output-' + side);
         }
+        /** أقرب نقطتي ربط بين عقدتين – لاستخدامها بعد المحاذاة أو عند الرسم */
+        function getClosestPortPair(fromNodeEl, toNodeEl, outKind) {
+            const outSides = outKind === 'output-yes' ? ['top', 'bottom'] : outKind === 'output-no' ? ['left', 'right'] : ['top', 'right', 'bottom', 'left'];
+            const inSides = ['top', 'right', 'bottom', 'left'];
+            let bestDist = Infinity, bestFrom = outSides[0], bestTo = inSides[0];
+            for (const fs of outSides) {
+                const fp = getPortForSide(fromNodeEl, outKind, fs);
+                if (!fp) continue;
+                const fr = fp.getBoundingClientRect();
+                const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
+                for (const ts of inSides) {
+                    const tp = getPortForSide(toNodeEl, 'input', ts);
+                    if (!tp) continue;
+                    const tr = tp.getBoundingClientRect();
+                    const tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
+                    const d = (fx - tx) * (fx - tx) + (fy - ty) * (fy - ty);
+                    if (d < bestDist) { bestDist = d; bestFrom = fs; bestTo = ts; }
+                }
+            }
+            return { fromSide: bestFrom, toSide: bestTo };
+        }
         function completeConnection(toNodeId, toPort) {
             if (!state.isConnecting || !state.connectionStart) return false;
             if (state.connectionStart.nodeId === toNodeId) return false;
@@ -2385,19 +2453,29 @@
                 
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
                 const outKind = conn.type === 'yes' ? 'output-yes' : conn.type === 'no' ? 'output-no' : 'output';
-                let fromSide = conn.fromPort || getSideToward(fromNode, toNode);
+                let fromSide = conn.fromPort;
+                let toSide = conn.toPort;
+                if (fromSide == null || toSide == null) {
+                    const pair = getClosestPortPair(fromNode, toNode, outKind);
+                    fromSide = fromSide ?? pair.fromSide;
+                    toSide = toSide ?? pair.toSide;
+                    conn.fromPort = pair.fromSide;
+                    conn.toPort = pair.toSide;
+                }
                 /* عقدة القرار: Yes لها منافذ top/bottom فقط، No لها left/right فقط – لو fromSide لا يطابق نصححه */
                 if (outKind === 'output-yes' && (fromSide === 'left' || fromSide === 'right')) {
                     const fr = fromNode.getBoundingClientRect();
                     const tr = toNode.getBoundingClientRect();
                     fromSide = tr.top + tr.height / 2 > fr.top + fr.height / 2 ? 'bottom' : 'top';
+                    conn.fromPort = fromSide;
                 }
                 if (outKind === 'output-no' && (fromSide === 'top' || fromSide === 'bottom')) {
                     const fr = fromNode.getBoundingClientRect();
                     const tr = toNode.getBoundingClientRect();
                     fromSide = tr.left + tr.width / 2 > fr.left + fr.width / 2 ? 'right' : 'left';
+                    conn.fromPort = fromSide;
                 }
-                const toSide = conn.toPort || getSideToward(toNode, fromNode);
+                if (toSide == null) toSide = getSideToward(toNode, fromNode);
                 const fromPortEl = getPortForSide(fromNode, outKind, fromSide);
                 const toPortEl = getPortForSide(toNode, 'input', toSide);
                 /* خطوط الربط لا تتصل إلا بنقط الربط (عناصر المنافذ) فقط – لا بحافة الشكل */
@@ -2858,12 +2936,19 @@
         }
         
         function selectConnection(idx) {
+            state.selectedNode = null;
+            document.querySelectorAll('.workflow-node').forEach(n => n.classList.remove('selected'));
+            closeProperties();
             stateSelectedConnIndex = idx;
+            const conn = state.connections[idx];
+            const px = (conn && (conn.type === 'yes' || conn.type === 'no')) ? (conn.labelFontSize != null ? conn.labelFontSize : state.labelFontSize) : state.labelFontSize;
+            updateLabelFontSizeDisplay(px);
             renderConnections();
         }
         
         function deselectConnection() {
             stateSelectedConnIndex = null;
+            updateLabelFontSizeDisplay(state.labelFontSize);
             renderConnections();
         }
         
@@ -2882,15 +2967,19 @@
             const node = state.nodes.find(n => n.id === id);
             if (node) {
                 state.selectedNode = node;
+                stateSelectedConnIndex = null;
                 document.getElementById(id).classList.add('selected');
+                updateLabelFontSizeDisplay(node.labelFontSize != null ? node.labelFontSize : state.labelFontSize);
                 showProperties(node);
             }
         }
         
         function deselectAll() {
             state.selectedNode = null;
+            stateSelectedConnIndex = null;
             document.querySelectorAll('.workflow-node').forEach(n => n.classList.remove('selected'));
             closeProperties();
+            updateLabelFontSizeDisplay(state.labelFontSize);
         }
         
         // ===== PROPERTIES PANEL =====
