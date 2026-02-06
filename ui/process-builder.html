@@ -391,22 +391,22 @@
         .workflow-node .node-label.node-label-draggable:active {
             cursor: grabbing;
         }
-        /* عند اختيار العقدة تظهر التسمية كـ selected – واضح أن حجم الخط يتحكم فيه من الـ toolbar */
-        .workflow-node.selected .node-label {
+        /* label selection منفصل عن shape selection – عند اختيار الـ label فقط */
+        .workflow-node.label-selected .node-label {
             border-color: var(--connection-color, #6366f1);
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35), var(--label-badge-shadow);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4), var(--label-badge-shadow);
             outline: none;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        /* وضوح أكبر لأي label معملته selection */
-        .workflow-node.selected .node-label::after {
+        .workflow-node.label-selected .node-label::after {
             content: '';
             position: absolute;
-            inset: -3px;
+            inset: -4px;
             border-radius: 9999px;
             border: 2px solid var(--connection-color, #6366f1);
             pointer-events: none;
-            opacity: 0.7;
+            opacity: 0.85;
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
         }
         .workflow-node.label-below .node-label { position: relative; margin-top: 0; }
         .workflow-node.label-custom .node-label {
@@ -607,20 +607,32 @@
             pointer-events: none;
             opacity: 0.8;
         }
-        
-        .connection-path.selected {
-            stroke-width: 3;
-            filter: drop-shadow(0 0 4px currentColor);
+        .connection-hit-path {
+            fill: none;
+            stroke: transparent;
+            stroke-width: 20;
+            vector-effect: non-scaling-stroke;
+            cursor: pointer;
         }
         
-        /* مقابض الخط (نقطة الانحناء + نهاية الخط) – تظهر فقط عند الوقوف على الخط أو عند اختياره */
+        .connection-path.selected {
+            stroke-width: 4;
+            filter: drop-shadow(0 0 6px currentColor);
+        }
+        .connection-path.yes.selected { stroke-width: 4; filter: drop-shadow(0 0 8px rgba(34,197,94,0.6)); }
+        .connection-path.no.selected { stroke-width: 4; filter: drop-shadow(0 0 8px rgba(239,68,68,0.6)); }
+        
+        /* مقابض الخط – تظهر عند اختيار الخط (الطبقة التفاعلية منفصلة عن مسار الرسم) */
         .connection-handles {
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.15s ease;
         }
-        .connection-path:hover + .connection-handles,
-        .connection-path.selected + .connection-handles {
+        .connection-handles.selected {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .connection-hit-path:hover ~ .connection-handles {
             opacity: 1;
             pointer-events: all;
         }
@@ -685,10 +697,10 @@
         .connection-label-badge.no text { fill: #b91c1c; }
         .connection-label-badge.selected rect {
             stroke-width: 2.5;
-            filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.5));
+            filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.5));
         }
-        .connection-label-badge.selected.yes rect { stroke: #166534; }
-        .connection-label-badge.selected.no rect { stroke: #b91c1c; }
+        .connection-label-badge.selected.yes rect { stroke: #166534; filter: drop-shadow(0 0 8px rgba(34,197,94,0.5)); }
+        .connection-label-badge.selected.no rect { stroke: #b91c1c; filter: drop-shadow(0 0 8px rgba(239,68,68,0.5)); }
         
         /* Toolbar */
         #top-toolbar {
@@ -1485,6 +1497,7 @@
             nodes: [],
             connections: [],
             selectedNode: null,
+            selectedLabelNodeId: null,
             zoom: 1,
             panX: 0,
             panY: 0,
@@ -1535,8 +1548,9 @@
         
         function setLabelFontSize(delta) {
             const clamp = (v) => Math.min(24, Math.max(9, v));
-            if (state.selectedNode) {
-                const node = state.selectedNode;
+            const nodeForLabel = state.selectedNode || (state.selectedLabelNodeId ? state.nodes.find(n => n.id === state.selectedLabelNodeId) : null);
+            if (nodeForLabel) {
+                const node = nodeForLabel;
                 const current = node.labelFontSize != null ? node.labelFontSize : state.labelFontSize;
                 node.labelFontSize = clamp(current + delta);
                 updateLabelFontSizeDisplay(node.labelFontSize);
@@ -1801,10 +1815,11 @@
                 if (stateSelectedConnIndex !== null) {
                     deleteConnection(stateSelectedConnIndex);
                 } else {
+                    let toDelete = null;
                     const selectedEl = document.querySelector('#canvas .workflow-node.selected');
-                    if (selectedEl && selectedEl.id) {
-                        deleteNode(selectedEl.id);
-                    }
+                    if (selectedEl && selectedEl.id) toDelete = selectedEl.id;
+                    else if (state.selectedLabelNodeId) toDelete = state.selectedLabelNodeId;
+                    if (toDelete) deleteNode(toDelete);
                 }
             });
         }
@@ -1936,9 +1951,9 @@
             const labelStyle = (hasCustomLabel ? `left:${node.labelOffset.x}px;top:${node.labelOffset.y}px;` : '') + (node.labelFontSize != null ? `font-size:${node.labelFontSize}px;` : '');
             const labelStyleAttr = labelStyle ? `style="${labelStyle}"` : '';
             const ports4 = ['top','right','bottom','left'].map(s => `<div class="port input input-${s}" data-side="${s}"></div>`).join('');
-            /* عقدة القرار: 4 منافذ فقط (واحدة لكل جهة) – Yes أعلى/أسفل، No يسار/يمين حتى لا تكون نقطتان متجاورتان */
+            /* عقدة القرار: Yes من اليسار، No من اليمين (default) – وكلاهما يدعم الأربع حواف */
             const outPorts = node.type === 'condition'
-                ? '<div class="port output-yes output-yes-top" data-side="top"></div><div class="port output-no output-no-right" data-side="right"></div><div class="port output-yes output-yes-bottom" data-side="bottom"></div><div class="port output-no output-no-left" data-side="left"></div>'
+                ? '<div class="port output-yes output-yes-left" data-side="left"></div><div class="port output-no output-no-right" data-side="right"></div><div class="port output-yes output-yes-top" data-side="top"></div><div class="port output-yes output-yes-bottom" data-side="bottom"></div><div class="port output-yes output-yes-right" data-side="right"></div><div class="port output-no output-no-left" data-side="left"></div><div class="port output-no output-no-top" data-side="top"></div><div class="port output-no output-no-bottom" data-side="bottom"></div>'
                 : node.type !== 'end' ? ['top','right','bottom','left'].map(s => `<div class="port output output-${s}" data-side="${s}"></div>`).join('') : '';
             nodeEl.innerHTML = `
                 ${ports4}
@@ -1956,11 +1971,15 @@
             // Make draggable
             makeDraggable(nodeEl, node);
             
-            // Click anywhere on shape (shape, body, label) to select – استثناء المنافذ والزر فقط
+            // Click anywhere on shape (shape, body) → select shape. Click on label → select label فقط (منفصل)
             nodeEl.addEventListener('click', (e) => {
                 if (e.target.closest('.port') || e.target.closest('.node-menu-btn')) return;
                 e.stopPropagation();
                 if (state.justDropped) return;
+                if (e.target.closest('.node-label')) {
+                    selectLabelOnly(node.id);
+                    return;
+                }
                 selectNode(node.id);
             }, true);
             
@@ -2005,10 +2024,12 @@
             labelEl.style.left = startLabelX + 'px';
             labelEl.style.top = startLabelY + 'px';
             labelEl.style.fontSize = startFontSize + 'px';
+            let didMove = false;
             const onMove = (e) => {
                 if (!state.draggingLabel || state.draggingLabel.nodeId !== nodeId) return;
                 const dx = (e.clientX - state.draggingLabel.startClientX) / state.zoom;
                 const dy = (e.clientY - state.draggingLabel.startClientY) / state.zoom;
+                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) didMove = true;
                 const x = state.draggingLabel.startLabelX + dx;
                 const y = state.draggingLabel.startLabelY + dy;
                 node.labelOffset = { x, y };
@@ -2017,7 +2038,8 @@
             };
             const onUp = () => {
                 if (state.draggingLabel && state.draggingLabel.nodeId === nodeId) {
-                    saveToUndo();
+                    if (didMove) saveToUndo();
+                    else selectLabelOnly(nodeId);
                     state.draggingLabel = null;
                     document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp);
@@ -2281,18 +2303,18 @@
             if (portKind === 'output-yes') {
                 const p = nodeEl.querySelector('.port.output-yes-' + side);
                 if (p) return p;
-                return nodeEl.querySelector('.port.output-yes-top') || nodeEl.querySelector('.port.output-yes-bottom');
+                return nodeEl.querySelector('.port.output-yes-left') || nodeEl.querySelector('.port.output-yes-right') || nodeEl.querySelector('.port.output-yes-top') || nodeEl.querySelector('.port.output-yes-bottom');
             }
             if (portKind === 'output-no') {
                 const p = nodeEl.querySelector('.port.output-no-' + side);
                 if (p) return p;
-                return nodeEl.querySelector('.port.output-no-left') || nodeEl.querySelector('.port.output-no-right');
+                return nodeEl.querySelector('.port.output-no-right') || nodeEl.querySelector('.port.output-no-left') || nodeEl.querySelector('.port.output-no-top') || nodeEl.querySelector('.port.output-no-bottom');
             }
             return nodeEl.querySelector('.port.output-' + side);
         }
         /** أقرب نقطتي ربط بين عقدتين – لاستخدامها بعد المحاذاة أو عند الرسم */
         function getClosestPortPair(fromNodeEl, toNodeEl, outKind) {
-            const outSides = outKind === 'output-yes' ? ['top', 'bottom'] : outKind === 'output-no' ? ['left', 'right'] : ['top', 'right', 'bottom', 'left'];
+            const outSides = outKind === 'output-yes' ? ['left', 'right', 'top', 'bottom'] : outKind === 'output-no' ? ['right', 'left', 'top', 'bottom'] : ['top', 'right', 'bottom', 'left'];
             const inSides = ['top', 'right', 'bottom', 'left'];
             let bestDist = Infinity, bestFrom = outSides[0], bestTo = inSides[0];
             for (const fs of outSides) {
@@ -2462,19 +2484,7 @@
                     conn.fromPort = pair.fromSide;
                     conn.toPort = pair.toSide;
                 }
-                /* عقدة القرار: Yes لها منافذ top/bottom فقط، No لها left/right فقط – لو fromSide لا يطابق نصححه */
-                if (outKind === 'output-yes' && (fromSide === 'left' || fromSide === 'right')) {
-                    const fr = fromNode.getBoundingClientRect();
-                    const tr = toNode.getBoundingClientRect();
-                    fromSide = tr.top + tr.height / 2 > fr.top + fr.height / 2 ? 'bottom' : 'top';
-                    conn.fromPort = fromSide;
-                }
-                if (outKind === 'output-no' && (fromSide === 'top' || fromSide === 'bottom')) {
-                    const fr = fromNode.getBoundingClientRect();
-                    const tr = toNode.getBoundingClientRect();
-                    fromSide = tr.left + tr.width / 2 > fr.left + fr.width / 2 ? 'right' : 'left';
-                    conn.fromPort = fromSide;
-                }
+                /* عقدة القرار: Yes و No يدعمان الأربع حواف – لا تصحيح */
                 if (toSide == null) toSide = getSideToward(toNode, fromNode);
                 const fromPortEl = getPortForSide(fromNode, outKind, fromSide);
                 const toPortEl = getPortForSide(toNode, 'input', toSide);
@@ -2501,8 +2511,20 @@
                 
                 svg.appendChild(path);
                 
+                /* مسار شفاف في الطبقة التفاعلية لتحديد الخط بالنقر عليه */
+                const hitPath = document.createElementNS(ns, 'path');
+                hitPath.setAttribute('class', 'connection-hit-path');
+                hitPath.setAttribute('data-conn-index', String(idx));
+                hitPath.setAttribute('d', pathD);
+                hitPath.style.pointerEvents = 'stroke';
+                hitPath.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectConnection(idx);
+                });
+                if (svgInteractive) svgInteractive.appendChild(hitPath);
+                
                 const gHandle = document.createElementNS(ns, 'g');
-                gHandle.setAttribute('class', 'connection-handles');
+                gHandle.setAttribute('class', `connection-handles${stateSelectedConnIndex === idx ? ' selected' : ''}`);
                 gHandle.setAttribute('data-conn-index', String(idx));
                 const startHandle = document.createElementNS(ns, 'circle');
                 startHandle.setAttribute('class', 'connection-start-handle');
@@ -2573,7 +2595,7 @@
                 const d = state.draggingEdgeEnd;
                 const pathD = getDragPreviewPathD(d.fromX, d.fromY, d.currentX, d.currentY);
                 const path = document.createElementNS(ns, 'path');
-                path.setAttribute('class', `connection-path ${d.type} connection-preview`);
+                path.setAttribute('class', `connection-path ${d.type} connection-preview selected`);
                 path.setAttribute('d', pathD);
                 path.setAttribute('stroke-dasharray', '6 4');
                 if (svgInteractive) svgInteractive.appendChild(path);
@@ -2583,7 +2605,7 @@
                 const d = state.draggingEdgeStart;
                 const pathD = getDragPreviewPathD(d.currentX, d.currentY, d.toX, d.toY);
                 const path = document.createElementNS(ns, 'path');
-                path.setAttribute('class', `connection-path ${d.type} connection-preview`);
+                path.setAttribute('class', `connection-path ${d.type} connection-preview selected`);
                 path.setAttribute('d', pathD);
                 path.setAttribute('stroke-dasharray', '6 4');
                 if (svgInteractive) svgInteractive.appendChild(path);
@@ -2747,8 +2769,8 @@
             const onMove = (e) => {
                 if (!state.draggingEdgeEnd) return;
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
-                state.draggingEdgeEnd.currentX = (e.clientX - canvasRect.left - state.panX) / state.zoom;
-                state.draggingEdgeEnd.currentY = (e.clientY - canvasRect.top - state.panY) / state.zoom;
+                state.draggingEdgeEnd.currentX = (e.clientX - canvasRect.left) / state.zoom;
+                state.draggingEdgeEnd.currentY = (e.clientY - canvasRect.top) / state.zoom;
                 const inputPort = getInputPortAtPoint(e.clientX, e.clientY);
                 let hoveredId = null;
                 let hoverPort = null;
@@ -2852,8 +2874,8 @@
             const onMove = (e) => {
                 if (!state.draggingEdgeStart) return;
                 const canvasRect = document.getElementById('canvas').getBoundingClientRect();
-                state.draggingEdgeStart.currentX = (e.clientX - canvasRect.left - state.panX) / state.zoom;
-                state.draggingEdgeStart.currentY = (e.clientY - canvasRect.top - state.panY) / state.zoom;
+                state.draggingEdgeStart.currentX = (e.clientX - canvasRect.left) / state.zoom;
+                state.draggingEdgeStart.currentY = (e.clientY - canvasRect.top) / state.zoom;
                 const outputPort = getOutputPortAtPoint(e.clientX, e.clientY);
                 let hoveredId = null;
                 let hoverData = null;
@@ -2937,7 +2959,8 @@
         
         function selectConnection(idx) {
             state.selectedNode = null;
-            document.querySelectorAll('.workflow-node').forEach(n => n.classList.remove('selected'));
+            state.selectedLabelNodeId = null;
+            document.querySelectorAll('.workflow-node').forEach(n => { n.classList.remove('selected'); n.classList.remove('label-selected'); });
             closeProperties();
             stateSelectedConnIndex = idx;
             const conn = state.connections[idx];
@@ -2963,21 +2986,37 @@
         
         // ===== SELECTION =====
         function selectNode(id) {
-            deselectAll();
+            state.selectedNode = null;
+            state.selectedLabelNodeId = null;
+            stateSelectedConnIndex = null;
+            document.querySelectorAll('.workflow-node').forEach(n => { n.classList.remove('selected'); n.classList.remove('label-selected'); });
             const node = state.nodes.find(n => n.id === id);
             if (node) {
                 state.selectedNode = node;
-                stateSelectedConnIndex = null;
-                document.getElementById(id).classList.add('selected');
+                const el = document.getElementById(id);
+                if (el) el.classList.add('selected');
                 updateLabelFontSizeDisplay(node.labelFontSize != null ? node.labelFontSize : state.labelFontSize);
                 showProperties(node);
+            } else {
+                closeProperties();
             }
         }
-        
+        function selectLabelOnly(nodeId) {
+            state.selectedNode = null;
+            state.selectedLabelNodeId = nodeId;
+            stateSelectedConnIndex = null;
+            document.querySelectorAll('.workflow-node').forEach(n => { n.classList.remove('selected'); n.classList.remove('label-selected'); });
+            const el = document.getElementById(nodeId);
+            if (el) el.classList.add('label-selected');
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) updateLabelFontSizeDisplay(node.labelFontSize != null ? node.labelFontSize : state.labelFontSize);
+            closeProperties();
+        }
         function deselectAll() {
             state.selectedNode = null;
+            state.selectedLabelNodeId = null;
             stateSelectedConnIndex = null;
-            document.querySelectorAll('.workflow-node').forEach(n => n.classList.remove('selected'));
+            document.querySelectorAll('.workflow-node').forEach(n => { n.classList.remove('selected'); n.classList.remove('label-selected'); });
             closeProperties();
             updateLabelFontSizeDisplay(state.labelFontSize);
         }
@@ -3632,8 +3671,10 @@
             if (oldEl) {
                 oldEl.remove();
                 renderNode(node);
-                if (state.selectedNode && state.selectedNode.id === node.id) {
-                    document.getElementById(node.id).classList.add('selected');
+                const el = document.getElementById(node.id);
+                if (el) {
+                    if (state.selectedNode && state.selectedNode.id === node.id) el.classList.add('selected');
+                    if (state.selectedLabelNodeId === node.id) el.classList.add('label-selected');
                 }
                 renderConnections();
             }
@@ -3643,6 +3684,7 @@
             if (!confirm('Delete this node?')) return;
             
             if (state.selectedNode && state.selectedNode.id === nodeId) state.selectedNode = null;
+            if (state.selectedLabelNodeId === nodeId) state.selectedLabelNodeId = null;
             state.connections = state.connections.filter(c => c.from !== nodeId && c.to !== nodeId);
             state.nodes = state.nodes.filter(n => n.id !== nodeId);
             document.getElementById(nodeId)?.remove();
