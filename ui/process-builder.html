@@ -3282,6 +3282,22 @@
             if (sameDirection && r1 && r2 && !useManualBend) {
                 const around = tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, placePad);
                 if (around) return { pathD: around.pathD, bendX: around.bendX, bendY: around.bendY, useHVH: fromH, straightLine: false, twoBend: true, pathSource: 'sameDir' };
+                // لو tryAroundPath فشل: نبني U-shape مباشرة بدون validation
+                const spad = placePad + 10;
+                const sBlw = Math.max(r1.bottom, r2.bottom) + spad, sAbv = Math.min(r1.top, r2.top) - spad;
+                const sLft = Math.min(r1.left, r2.left) - spad, sRgt = Math.max(r1.right, r2.right) + spad;
+                let uPath;
+                if (fromSide === 'bottom') {
+                    uPath = `M ${x1} ${y1} L ${x1} ${sBlw} L ${x2} ${sBlw} L ${x2} ${y2}`;
+                } else if (fromSide === 'top') {
+                    uPath = `M ${x1} ${y1} L ${x1} ${sAbv} L ${x2} ${sAbv} L ${x2} ${y2}`;
+                } else if (fromSide === 'left') {
+                    uPath = `M ${x1} ${y1} L ${sLft} ${y1} L ${sLft} ${y2} L ${x2} ${y2}`;
+                } else {
+                    uPath = `M ${x1} ${y1} L ${sRgt} ${y1} L ${sRgt} ${y2} L ${x2} ${y2}`;
+                }
+                const sBx = (x1 + x2) / 2, sBy = (y1 + y2) / 2;
+                return { pathD: uPath, bendX: sBx, bendY: sBy, useHVH: fromH, straightLine: false, twoBend: true, pathSource: 'sameDir' };
             }
             const def = getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
             let bendX = def.x, bendY = def.y;
@@ -3589,6 +3605,7 @@
         function startDragBendPoint(connIndex, conn, x1, y1, x2, y2) {
             saveToUndo();
             if (!conn.bendPoint) conn.bendPoint = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+            state.draggingBendPoint = true;
             const startClientX = event.clientX, startClientY = event.clientY;
             const startBX = conn.bendPoint.x, startBY = conn.bendPoint.y;
             const onMove = (e) => {
@@ -3599,6 +3616,7 @@
                 renderConnections();
             };
             const onUp = () => {
+                state.draggingBendPoint = false;
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);
             };
