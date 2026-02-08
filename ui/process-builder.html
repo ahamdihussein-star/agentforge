@@ -3203,19 +3203,23 @@
             } else if (!fromH && !toH) {
                 const sameDir = fromSide === toSide;
                 if (sameDir && fromSide === 'bottom') {
-                    // bottom→bottom: نزول → جنب → صعود (U-shape)
-                    if (Math.abs(x1 - x2) > 10) {
+                    // bottom→bottom: نزول تحت r1 → جنب → تحت r2 → صعود (5 نقاط)
+                    const exitY = r1.bottom + pad + 5;
+                    if (Math.abs(x1 - x2) > 40) {
+                        // العقد مش على نفس المحور: مسار بسيط
                         routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: (x1 + x2) / 2, bendY: belowBoth });
                     }
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: belowBoth });
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: belowBoth });
+                    // مسارات بتروح للجنب (شمال أو يمين)
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${exitY} L ${leftOfBoth} ${exitY} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: belowBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${exitY} L ${rightOfBoth} ${exitY} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: belowBoth });
                 } else if (sameDir && fromSide === 'top') {
-                    // top→top: صعود → جنب → نزول (U-shape)
-                    if (Math.abs(x1 - x2) > 10) {
+                    // top→top: صعود فوق r1 → جنب → فوق r2 → نزول (5 نقاط)
+                    const exitY = r1.top - pad - 5;
+                    if (Math.abs(x1 - x2) > 40) {
                         routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: (x1 + x2) / 2, bendY: aboveBoth });
                     }
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: aboveBoth });
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: aboveBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${exitY} L ${leftOfBoth} ${exitY} L ${leftOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: aboveBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${exitY} L ${rightOfBoth} ${exitY} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: aboveBoth });
                 } else if (sameDir && fromSide === 'left') {
                     // left→left: شمال → فوق/تحت → شمال (U-shape أفقي)
                     if (Math.abs(y1 - y2) > 10) {
@@ -3283,18 +3287,21 @@
                 const around = tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, placePad);
                 if (around) return { pathD: around.pathD, bendX: around.bendX, bendY: around.bendY, useHVH: fromH, straightLine: false, twoBend: true, pathSource: 'sameDir' };
                 // لو tryAroundPath فشل: نبني U-shape مباشرة بدون validation
+                // لازم يروح للجنب عشان ميعديش من جوا العقدة التانية
                 const spad = placePad + 10;
                 const sBlw = Math.max(r1.bottom, r2.bottom) + spad, sAbv = Math.min(r1.top, r2.top) - spad;
                 const sLft = Math.min(r1.left, r2.left) - spad, sRgt = Math.max(r1.right, r2.right) + spad;
                 let uPath;
+                const eY1 = r1.bottom + spad, eY2 = r1.top - spad;
+                const eX1 = r1.right + spad, eX2 = r1.left - spad;
                 if (fromSide === 'bottom') {
-                    uPath = `M ${x1} ${y1} L ${x1} ${sBlw} L ${x2} ${sBlw} L ${x2} ${y2}`;
+                    uPath = `M ${x1} ${y1} L ${x1} ${eY1} L ${sLft} ${eY1} L ${sLft} ${sBlw} L ${x2} ${sBlw} L ${x2} ${y2}`;
                 } else if (fromSide === 'top') {
-                    uPath = `M ${x1} ${y1} L ${x1} ${sAbv} L ${x2} ${sAbv} L ${x2} ${y2}`;
+                    uPath = `M ${x1} ${y1} L ${x1} ${eY2} L ${sLft} ${eY2} L ${sLft} ${sAbv} L ${x2} ${sAbv} L ${x2} ${y2}`;
                 } else if (fromSide === 'left') {
-                    uPath = `M ${x1} ${y1} L ${sLft} ${y1} L ${sLft} ${y2} L ${x2} ${y2}`;
+                    uPath = `M ${x1} ${y1} L ${eX2} ${y1} L ${eX2} ${sAbv} L ${sLft} ${sAbv} L ${sLft} ${y2} L ${x2} ${y2}`;
                 } else {
-                    uPath = `M ${x1} ${y1} L ${sRgt} ${y1} L ${sRgt} ${y2} L ${x2} ${y2}`;
+                    uPath = `M ${x1} ${y1} L ${eX1} ${y1} L ${eX1} ${sAbv} L ${sRgt} ${sAbv} L ${sRgt} ${y2} L ${x2} ${y2}`;
                 }
                 const sBx = (x1 + x2) / 2, sBy = (y1 + y2) / 2;
                 return { pathD: uPath, bendX: sBx, bendY: sBy, useHVH: fromH, straightLine: false, twoBend: true, pathSource: 'sameDir' };
