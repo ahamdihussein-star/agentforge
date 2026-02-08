@@ -3346,6 +3346,22 @@
                     if (toSide === 'right' && bendX < x2) bendX = rgt;
                 }
             }
+            // --- منع self-folding: التأكد إن المسار مبيرجعش على نفسه ---
+            // V-H-V: المسار (x1,y1)→(x1,bendY)→(bendX,bendY)→(x2,bendY)→(x2,y2)
+            //   seg1 = x1→bendX, seg2 = bendX→x2. لو اتجاههم عكس بعض → fold → نخلي bendX = midX
+            // H-V-H: المسار (x1,y1)→(bendX,y1)→(bendX,bendY)→(bendX,y2)→(x2,y2)
+            //   seg1 = y1→bendY (ده عمودي واحد) — مفيش fold ممكن
+            if (!fromH && !toH) {
+                // seg1: x1→bendX, seg2: bendX→x2. fold لو (bendX-x1) و (x2-bendX) اتجاههم عكس بعض
+                if ((bendX - x1) * (x2 - bendX) < 0) bendX = (x1 + x2) / 2;
+            }
+            if (fromH && !toH) {
+                // seg2: bendY→y2. fold لو y direction changes between seg1(y1→bendY) and seg2(bendY→y2) — not applicable (different axes)
+                // But seg0: x1→bendX (horizontal). fold لو seg3: bendY→y2 folds — different axis, OK.
+            }
+            if (!fromH && toH) {
+                // seg2: bendX→y2 at bendY level — different axis, OK.
+            }
             let pathD;
             if (fromH && toH) {
                 pathD = `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${bendY} L ${bendX} ${y2} L ${x2} ${y2}`;
