@@ -2929,16 +2929,17 @@
             // القطع الوسيطة نفحصها ضد كلتا العقدتين
             const crossDetails = [];
             if (r1 && r2 && points.length >= 2) {
+                const isSingle = points.length === 2;
                 for (let i = 0; i < points.length - 1; i++) {
                     const a = points[i], b = points[i + 1];
                     const isFirst = (i === 0);
                     const isLast = (i === points.length - 2);
-                    if (!isFirst && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r1, 0)) crossDetails.push(`seg${i}⊘r1`);
-                    if (!isLast && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r2, 0)) crossDetails.push(`seg${i}⊘r2`);
-                    // القطعة الأولى تعبر العقدة التانية = crossing حقيقي
-                    if (isFirst && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r2, 0)) crossDetails.push(`seg${i}⊘r2!`);
-                    // القطعة الأخيرة تعبر العقدة الأولى = crossing حقيقي
-                    if (isLast && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r1, 0)) crossDetails.push(`seg${i}⊘r1!`);
+                    // القطعة الأولى تخرج من r1 (متوقع) فنتجاهلها ضد r1. القطعة الأخيرة تدخل r2 فنتجاهلها ضد r2.
+                    // للخط المستقيم (قطعة واحدة): نفحص المنتصف فقط ضد كلتا العقدتين.
+                    const checkR1 = isSingle || !isFirst;
+                    const checkR2 = isSingle || !isLast;
+                    if (checkR1 && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r1, 0)) crossDetails.push(`seg${i}⊘r1`);
+                    if (checkR2 && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r2, 0)) crossDetails.push(`seg${i}⊘r2`);
                 }
             }
             const crosses = crossDetails.length > 0;
@@ -2961,11 +2962,11 @@
                 if (segLen < 5) continue;
                 // انحناء على النفس = قطعة تتجه عكس الاتجاه العام بمسافة كبيرة
                 const dotX = sdx * overallDX, dotY = sdy * overallDY;
-                if (Math.abs(overallDX) > 5 && dotX < 0 && Math.abs(sdx) > 30) {
+                if (Math.abs(overallDX) > 5 && dotX < 0 && Math.abs(sdx) > 40) {
                     backtrack = true;
                     backtrackDetail += `seg${i}:backX(${fmt(sdx)}) `;
                 }
-                if (Math.abs(overallDY) > 5 && dotY < 0 && Math.abs(sdy) > 30) {
+                if (Math.abs(overallDY) > 5 && dotY < 0 && Math.abs(sdy) > 40) {
                     backtrack = true;
                     backtrackDetail += `seg${i}:backY(${fmt(sdy)}) `;
                 }
@@ -3001,6 +3002,7 @@
         /** نقطة انحناء خارج العُقد – الخط لا يمر أبداً من داخل الشكل. الأولوية لاتجاه الدخول/الخروج */
         function getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
             const pad = 20;
+            const gapPad = 5; // هامش أصغر لكشف الفجوات بين العقد
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
             let bx = (x1 + x2) / 2, by = (y1 + y2) / 2;
@@ -3011,10 +3013,10 @@
             const rightOfBoth = Math.max(r1.right, r2.right) + pad;
             const aboveBoth = Math.min(r1.top, r2.top) - pad;
             const belowBoth = Math.max(r1.bottom, r2.bottom) + pad;
-            const gapX = r1.right + pad <= r2.left - pad ? (r1.right + r2.left) / 2 : null;
-            const gapX2 = r2.right + pad <= r1.left - pad ? (r2.right + r1.left) / 2 : null;
-            const gapY = r1.bottom + pad <= r2.top - pad ? (r1.bottom + r2.top) / 2 : null;
-            const gapY2 = r2.bottom + pad <= r1.top - pad ? (r2.bottom + r1.top) / 2 : null;
+            const gapX = r1.right + gapPad <= r2.left - gapPad ? (r1.right + r2.left) / 2 : null;
+            const gapX2 = r2.right + gapPad <= r1.left - gapPad ? (r2.right + r1.left) / 2 : null;
+            const gapY = r1.bottom + gapPad <= r2.top - gapPad ? (r1.bottom + r2.top) / 2 : null;
+            const gapY2 = r2.bottom + gapPad <= r1.top - gapPad ? (r2.bottom + r1.top) / 2 : null;
             if (fromH && toH) {
                 if (gapX != null && (fromSide !== 'right' || gapX >= r2.right + pad)) { bx = gapX; }
                 else if (gapX2 != null && (fromSide !== 'left' || gapX2 <= r2.left - pad)) { bx = gapX2; }
@@ -3055,11 +3057,11 @@
                 }
             } else {
                 if (gapY != null) {
-                    const okForFrom = (fromSide === 'top' && gapY <= r1.top - pad) || (fromSide === 'bottom' && gapY >= r1.bottom + pad);
+                    const okForFrom = (fromSide === 'top' && gapY <= r1.top - gapPad) || (fromSide === 'bottom' && gapY >= r1.bottom + gapPad);
                     if (okForFrom) by = gapY;
                     else by = fromSide === 'top' ? aboveBoth : belowBoth;
                 } else if (gapY2 != null) {
-                    const okForFrom = (fromSide === 'top' && gapY2 <= r1.top - pad) || (fromSide === 'bottom' && gapY2 >= r1.bottom + pad);
+                    const okForFrom = (fromSide === 'top' && gapY2 <= r1.top - gapPad) || (fromSide === 'bottom' && gapY2 >= r1.bottom + gapPad);
                     if (okForFrom) by = gapY2;
                     else by = fromSide === 'top' ? aboveBoth : belowBoth;
                 } else { by = fromSide === 'top' ? aboveBoth : belowBoth; }
