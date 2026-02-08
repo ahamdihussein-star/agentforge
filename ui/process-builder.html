@@ -1732,6 +1732,8 @@
                 if (under && (under === canvas || canvas.contains(under))) {
                     const ev = new MouseEvent(e.type, { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, button: e.button, buttons: e.buttons, relatedTarget: e.relatedTarget });
                     under.dispatchEvent(ev);
+                    e.stopPropagation();
+                    e.preventDefault();
                 }
             }
             if (connectionsInteractiveSvg) {
