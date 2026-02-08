@@ -3177,13 +3177,18 @@
             const placePad = 20;
             const checkPad = 0;
             const useManualBend = conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number';
-            const straightPossible = !useManualBend && fromNode && toNode;
             const r1 = fromNode ? getNodeRectInCanvas(fromNode, canvasRect) : null;
             const r2 = toNode ? getNodeRectInCanvas(toNode, canvasRect) : null;
+            // خط مستقيم مسموح فقط عندما المنافذ متقابلة (bottom↔top, left↔right)
+            const portsFaceEachOther = (fromSide === 'bottom' && toSide === 'top') || (fromSide === 'top' && toSide === 'bottom')
+                || (fromSide === 'left' && toSide === 'right') || (fromSide === 'right' && toSide === 'left');
+            const straightPossible = !useManualBend && fromNode && toNode && portsFaceEachOther;
             if (straightPossible && r1 && r2) {
-                const crosses = lineSegmentCrossesRectMid(x1, y1, x2, y2, r1, 0) || lineSegmentCrossesRectMid(x1, y1, x2, y2, r2, 0);
-                if (!crosses) {
-                    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+                // فحص نقطة المنتصف فقط: هل هي خارج كلتا العقدتين
+                const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+                const midClear = !pointInRect(mx, my, r1, 0) && !pointInRect(mx, my, r2, 0);
+                if (midClear) {
+                    const midX = mx, midY = my;
                     return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true, pathSource: 'straight' };
                 }
             }
