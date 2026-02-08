@@ -2743,7 +2743,7 @@
                     startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
                 });
                 gHandle.appendChild(endHandle);
-                if (!isStraight && !isTwoBend) {
+                if (!isStraight) {
                     const bendHandle = document.createElementNS(ns, 'circle');
                     bendHandle.setAttribute('class', 'connection-bend-handle');
                     bendHandle.setAttribute('cx', midX);
