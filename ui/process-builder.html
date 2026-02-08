@@ -2849,9 +2849,9 @@
             const xMin = Math.min(xa, xb), xMax = Math.max(xa, xb);
             return y >= r.top - pad && y <= r.bottom + pad && xMin <= r.right + pad && xMax >= r.left - pad;
         }
-        /** نقطة انحناء خارج العُقد – الخط لا يمر أبداً من داخل الشكل (يمين/يسار/فوق/تحت) */
+        /** نقطة انحناء خارج العُقد – الخط لا يمر أبداً من داخل الشكل. الأولوية لاتجاه الدخول/الخروج */
         function getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
-            const pad = 18;
+            const pad = 20;
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
             let bx = (x1 + x2) / 2, by = (y1 + y2) / 2;
@@ -2867,7 +2867,8 @@
             const gapY = r1.bottom + pad <= r2.top - pad ? (r1.bottom + r2.top) / 2 : null;
             const gapY2 = r2.bottom + pad <= r1.top - pad ? (r2.bottom + r1.top) / 2 : null;
             if (fromH && toH) {
-                if (gapX != null) { bx = gapX; } else if (gapX2 != null) { bx = gapX2; }
+                if (gapX != null && (fromSide !== 'right' || gapX >= r2.right + pad)) { bx = gapX; }
+                else if (gapX2 != null && (fromSide !== 'left' || gapX2 <= r2.left - pad)) { bx = gapX2; }
                 else { bx = fromSide === 'left' ? leftOfBoth : rightOfBoth; }
                 const yLo = Math.min(r1.top, r2.top) - pad, yHi = Math.max(r1.bottom, r2.bottom) + pad;
                 by = Math.max(yLo, Math.min(yHi, (y1 + y2) / 2));
@@ -2875,7 +2876,8 @@
                     bx = bx <= (r1.left + r2.left) / 2 ? leftOfBoth : rightOfBoth;
                 }
             } else if (!fromH && !toH) {
-                if (gapY != null) { by = gapY; } else if (gapY2 != null) { by = gapY2; }
+                if (gapY != null && (fromSide !== 'bottom' || gapY >= r2.bottom + pad)) { by = gapY; }
+                else if (gapY2 != null && (fromSide !== 'top' || gapY2 <= r2.top - pad)) { by = gapY2; }
                 else { by = fromSide === 'top' ? aboveBoth : belowBoth; }
                 const xLo = Math.min(r1.left, r2.left) - pad, xHi = Math.max(r1.right, r2.right) + pad;
                 bx = Math.max(xLo, Math.min(xHi, (x1 + x2) / 2));
@@ -2883,28 +2885,38 @@
                     by = by <= (r1.top + r2.top) / 2 ? aboveBoth : belowBoth;
                 }
             } else if (fromH && !toH) {
-                if (gapX != null) { bx = gapX; } else if (gapX2 != null) { bx = gapX2; }
+                if (fromSide === 'right' && gapX != null) { bx = gapX; }
+                else if (fromSide === 'left' && gapX2 != null) { bx = gapX2; }
                 else { bx = fromSide === 'left' ? leftOfBoth : rightOfBoth; }
-                if (gapY != null) { by = gapY; } else if (gapY2 != null) { by = gapY2; }
+                if (toSide === 'top' && gapY != null) { by = gapY; }
+                else if (toSide === 'bottom' && gapY2 != null) { by = gapY2; }
                 else { by = toSide === 'top' ? aboveBoth : belowBoth; }
                 if (verticalSegmentCrossesRect(bx, y1, by, r1, pad) || verticalSegmentCrossesRect(bx, y1, by, r2, pad) ||
                     verticalSegmentCrossesRect(bx, by, y2, r1, pad) || verticalSegmentCrossesRect(bx, by, y2, r2, pad)) {
-                    bx = bx <= (r1.left + r2.left) / 2 ? leftOfBoth : rightOfBoth;
+                    bx = fromSide === 'left' ? leftOfBoth : rightOfBoth;
                 }
                 if (horizontalSegmentCrossesRect(by, bx, x2, r1, pad) || horizontalSegmentCrossesRect(by, bx, x2, r2, pad)) {
-                    by = by <= (r1.top + r2.top) / 2 ? aboveBoth : belowBoth;
+                    by = toSide === 'top' ? aboveBoth : belowBoth;
                 }
             } else {
-                if (gapY != null) { by = gapY; } else if (gapY2 != null) { by = gapY2; }
-                else { by = fromSide === 'top' ? aboveBoth : belowBoth; }
-                if (gapX != null) { bx = gapX; } else if (gapX2 != null) { bx = gapX2; }
+                if (gapY != null) {
+                    const okForFrom = (fromSide === 'top' && gapY <= r1.top - pad) || (fromSide === 'bottom' && gapY >= r1.bottom + pad);
+                    if (okForFrom) by = gapY;
+                    else by = fromSide === 'top' ? aboveBoth : belowBoth;
+                } else if (gapY2 != null) {
+                    const okForFrom = (fromSide === 'top' && gapY2 <= r1.top - pad) || (fromSide === 'bottom' && gapY2 >= r1.bottom + pad);
+                    if (okForFrom) by = gapY2;
+                    else by = fromSide === 'top' ? aboveBoth : belowBoth;
+                } else { by = fromSide === 'top' ? aboveBoth : belowBoth; }
+                if (toSide === 'right' && gapX2 != null) { bx = gapX2; }
+                else if (toSide === 'left' && gapX != null) { bx = gapX; }
                 else { bx = toSide === 'left' ? leftOfBoth : rightOfBoth; }
                 if (horizontalSegmentCrossesRect(by, x1, bx, r1, pad) || horizontalSegmentCrossesRect(by, x1, bx, r2, pad) ||
                     horizontalSegmentCrossesRect(by, bx, x2, r1, pad) || horizontalSegmentCrossesRect(by, bx, x2, r2, pad)) {
-                    by = by <= (r1.top + r2.top) / 2 ? aboveBoth : belowBoth;
+                    by = fromSide === 'top' ? aboveBoth : belowBoth;
                 }
                 if (verticalSegmentCrossesRect(bx, by, y2, r1, pad) || verticalSegmentCrossesRect(bx, by, y2, r2, pad)) {
-                    bx = bx <= (r1.left + r2.left) / 2 ? leftOfBoth : rightOfBoth;
+                    bx = toSide === 'left' ? leftOfBoth : rightOfBoth;
                 }
             }
             if (pointInRect(bx, by, r1, pad) || pointInRect(bx, by, r2, pad)) {
