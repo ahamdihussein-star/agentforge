@@ -3190,16 +3190,18 @@
             const useManualBend = conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number';
             const r1 = fromNode ? getNodeRectInCanvas(fromNode, canvasRect) : null;
             const r2 = toNode ? getNodeRectInCanvas(toNode, canvasRect) : null;
-            // خط مستقيم مسموح فقط عندما المنافذ متقابلة (bottom↔top, left↔right)
-            const portsFaceEachOther = (fromSide === 'bottom' && toSide === 'top') || (fromSide === 'top' && toSide === 'bottom')
-                || (fromSide === 'left' && toSide === 'right') || (fromSide === 'right' && toSide === 'left');
-            const straightPossible = !useManualBend && fromNode && toNode && portsFaceEachOther;
-            if (straightPossible && r1 && r2) {
-                // فحص نقطة المنتصف فقط: هل هي خارج كلتا العقدتين
-                const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-                const midClear = !pointInRect(mx, my, r1, 0) && !pointInRect(mx, my, r2, 0);
-                if (midClear) {
-                    const midX = mx, midY = my;
+            // خط مستقيم مسموح فقط عندما المنافذ متقابلة والعقد تقريباً على نفس المحور
+            const portsFaceVertical = (fromSide === 'bottom' && toSide === 'top') || (fromSide === 'top' && toSide === 'bottom');
+            const portsFaceHorizontal = (fromSide === 'left' && toSide === 'right') || (fromSide === 'right' && toSide === 'left');
+            const portsFaceEachOther = portsFaceVertical || portsFaceHorizontal;
+            if (!useManualBend && fromNode && toNode && portsFaceEachOther && r1 && r2) {
+                const dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);
+                // المحاذاة: الفرق العمودي/الأفقي صغير نسبياً (زاوية < ~20 درجة عن اتجاه المنفذ)
+                const aligned = portsFaceVertical
+                    ? (dx < 30 || (dy > 0 && dx / dy < 0.35))
+                    : (dy < 30 || (dx > 0 && dy / dx < 0.35));
+                if (aligned) {
+                    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
                     return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true, pathSource: 'straight' };
                 }
             }
