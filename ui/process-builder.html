@@ -2690,6 +2690,7 @@
                 const midX = pathInfo.bendX;
                 const midY = pathInfo.bendY;
                 const isStraight = pathInfo.straightLine === true;
+                const isTwoBend = pathInfo.twoBend === true;
                 
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
@@ -2739,7 +2740,7 @@
                     startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
                 });
                 gHandle.appendChild(endHandle);
-                if (!isStraight) {
+                if (!isStraight && !isTwoBend) {
                     const bendHandle = document.createElementNS(ns, 'circle');
                     bendHandle.setAttribute('class', 'connection-bend-handle');
                     bendHandle.setAttribute('cx', midX);
@@ -2966,6 +2967,98 @@
             }
             return { x: bx, y: by };
         }
+        /** يضمن عدم مرور مسار الانحناء عبر العقد: إذا مرّ، يجرّب مواضع بديلة حتى يجد واحداً صالحاً */
+        function ensureBendOutsideNodes(bx, by, x1, y1, x2, y2, fromH, toH, r1, r2, pad) {
+            if (!bendPathCrossesNodes(bx, by, x1, y1, x2, y2, fromH, toH, r1, r2, pad))
+                return { x: bx, y: by };
+            const leftOfBoth = Math.min(r1.left, r2.left) - pad;
+            const rightOfBoth = Math.max(r1.right, r2.right) + pad;
+            const aboveBoth = Math.min(r1.top, r2.top) - pad;
+            const belowBoth = Math.max(r1.bottom, r2.bottom) + pad;
+            const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+            const gapX = r1.right + pad <= r2.left - pad ? (r1.right + r2.left) / 2 : null;
+            const gapY = r1.bottom + pad <= r2.top - pad ? (r1.bottom + r2.top) / 2 : null;
+            const candidates = [
+                { x: leftOfBoth, y: aboveBoth }, { x: leftOfBoth, y: belowBoth },
+                { x: rightOfBoth, y: aboveBoth }, { x: rightOfBoth, y: belowBoth },
+                { x: leftOfBoth, y: midY }, { x: rightOfBoth, y: midY },
+                { x: midX, y: aboveBoth }, { x: midX, y: belowBoth },
+                ...(gapX != null ? [{ x: gapX, y: aboveBoth }, { x: gapX, y: belowBoth }, { x: gapX, y: midY }] : []),
+                ...(gapY != null ? [{ x: leftOfBoth, y: gapY }, { x: rightOfBoth, y: gapY }, { x: midX, y: gapY }] : []),
+                { x: midX, y: midY }
+            ];
+            for (const c of candidates) {
+                if (!bendPathCrossesNodes(c.x, c.y, x1, y1, x2, y2, fromH, toH, r1, r2, pad))
+                    return c;
+            }
+            return null;
+        }
+        /** مسار بـ 2 انحناءات يلتف حول العقد عند استحالة المسار الواحد. يُستخدم كملاذ أخير. */
+        function tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, pad) {
+            const leftOfBoth = Math.min(r1.left, r2.left) - pad;
+            const rightOfBoth = Math.max(r1.right, r2.right) + pad;
+            const aboveBoth = Math.min(r1.top, r2.top) - pad;
+            const belowBoth = Math.max(r1.bottom, r2.bottom) + pad;
+            const horSides = ['left', 'right'];
+            const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
+            const checkH = (y, xa, xb) => horizontalSegmentCrossesRect(y, xa, xb, r1, pad) || horizontalSegmentCrossesRect(y, xa, xb, r2, pad);
+            const checkV = (x, ya, yb) => verticalSegmentCrossesRect(x, ya, yb, r1, pad) || verticalSegmentCrossesRect(x, ya, yb, r2, pad);
+            const routes = [];
+            if (!fromH && toH) {
+                if (fromSide === 'bottom' && toSide === 'top') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (belowBoth + aboveBoth) / 2 });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${leftOfBoth} ${belowBoth} L ${leftOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: (belowBoth + aboveBoth) / 2 });
+                } else if (fromSide === 'top' && toSide === 'bottom') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
+                } else if (fromSide === 'bottom' && (toSide === 'left' || toSide === 'right')) {
+                    const bx = toSide === 'right' ? rightOfBoth : leftOfBoth;
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${bx} ${belowBoth} L ${bx} ${y2} L ${x2} ${y2}`, bendX: bx, bendY: belowBoth });
+                } else if (fromSide === 'top' && (toSide === 'left' || toSide === 'right')) {
+                    const bx = toSide === 'right' ? rightOfBoth : leftOfBoth;
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${bx} ${aboveBoth} L ${bx} ${y2} L ${x2} ${y2}`, bendX: bx, bendY: aboveBoth });
+                }
+            } else if (fromH && !toH) {
+                if (fromSide === 'right' && toSide === 'top') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: aboveBoth });
+                } else if (fromSide === 'left' && toSide === 'top') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: aboveBoth });
+                } else if (fromSide === 'right' && toSide === 'bottom') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: belowBoth });
+                } else if (fromSide === 'left' && toSide === 'bottom') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: belowBoth });
+                }
+            } else if (fromH && toH) {
+                const goLeftFirst = fromSide === 'left', goRightFirst = fromSide === 'right';
+                if (goLeftFirst) {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${rightOfBoth} ${y2} L ${x2} ${y2}`, bendX: (leftOfBoth + rightOfBoth) / 2, bendY: aboveBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${rightOfBoth} ${y2} L ${x2} ${y2}`, bendX: (leftOfBoth + rightOfBoth) / 2, bendY: belowBoth });
+                } else {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${leftOfBoth} ${y2} L ${x2} ${y2}`, bendX: (leftOfBoth + rightOfBoth) / 2, bendY: aboveBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${belowBoth} L ${leftOfBoth} ${belowBoth} L ${leftOfBoth} ${y2} L ${x2} ${y2}`, bendX: (leftOfBoth + rightOfBoth) / 2, bendY: belowBoth });
+                }
+            } else if (!fromH && !toH) {
+                if (fromSide === 'top') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
+                } else {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${leftOfBoth} ${belowBoth} L ${leftOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
+                }
+            }
+            for (const r of routes) {
+                const pts = r.pathD.replace(/M|L/g, ' ').trim().split(/\s+/).map(Number);
+                const numSegs = pts.length / 2 - 1;
+                let ok = true;
+                for (let i = 1; i < numSegs - 1; i++) {
+                    const xa = pts[i * 2], ya = pts[i * 2 + 1], xb = pts[(i + 1) * 2], yb = pts[(i + 1) * 2 + 1];
+                    if (xa === xb) { if (checkV(xa, ya, yb)) { ok = false; break; } }
+                    else { if (checkH(ya, xa, xb)) { ok = false; break; } }
+                }
+                if (ok) return { ...r, twoBend: true };
+            }
+            return null;
+        }
         /** مسار الربط الذكي والديناميكي
          * Rules: الخط لا يمر من داخل الـ shape؛ الانحناء يتناسب مع المسافة؛ تجنب القطاعات القصيرة جداً (kinks)
          * Paths recalculate on node move (renderConnections in makeDraggable mousemove) */
@@ -2990,6 +3083,18 @@
                 if (!bendPathCrossesNodes(conn.bendPoint.x, conn.bendPoint.y, x1, y1, x2, y2, fromH, toH, r1, r2, pad)) {
                     bendX = conn.bendPoint.x;
                     bendY = conn.bendPoint.y;
+                }
+            }
+            if (r1 && r2) {
+                const valid = ensureBendOutsideNodes(bendX, bendY, x1, y1, x2, y2, fromH, toH, r1, r2, pad);
+                if (valid) {
+                    bendX = valid.x;
+                    bendY = valid.y;
+                } else {
+                    const around = tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, pad);
+                    if (around) return { pathD: around.pathD, bendX: around.bendX, bendY: around.bendY, useHVH: fromH, straightLine: false, twoBend: true };
+                    bendX = Math.min(r1.left, r2.left) - pad;
+                    bendY = (y1 + y2) / 2;
                 }
             }
             let pathD;
