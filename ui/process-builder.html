@@ -2986,8 +2986,9 @@
             ];
             if (drag) parts.push(`drag: dx=${drag.dx} dy=${drag.dy} nodes=[${(drag.nodeIds || []).map(id => id.slice(0, 8)).join(',')}]`);
             const hasIssue = crosses || unnecessaryBend || backtrack || weirdBend || ratio > 2.5 || kink;
-            if (hasIssue) console.warn('🔗', parts.filter(Boolean).join(' | '));
-            else console.log('🔗', parts.filter(Boolean).join(' | '));
+            const msg = parts.filter(Boolean).join(' | ');
+            if (hasIssue) console.warn('🔗', msg);
+            else console.warn('🔗✅', msg);
         }
         /** نقطة انحناء خارج العُقد – الخط لا يمر أبداً من داخل الشكل. الأولوية لاتجاه الدخول/الخروج */
         function getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
