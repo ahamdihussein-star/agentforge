@@ -3069,11 +3069,11 @@
                 // أفقي→عمودي (مثل right→top, left→bottom)
                 // bx: اتجاه الخروج من المنفذ الأفقي
                 bx = fromSide === 'left' ? (gapX2 != null ? gapX2 : leftOfBoth) : (gapX != null ? gapX : rightOfBoth);
-                // by: نبحث عن الفجوة بين العقد أولاً
+                // by: الهدف أسفل (y2>y1) → نزول؛ الهدف فوق (y2<y1) → صعود. تجنب aboveBoth للهدف الأسفل
                 if (toSide === 'top') {
-                    by = gapY != null ? gapY : gapY2 != null ? gapY2 : aboveBoth;
+                    by = gapY != null ? gapY : gapY2 != null ? gapY2 : (y2 > y1 ? (r1.bottom + r2.top) / 2 : aboveBoth);
                 } else {
-                    by = gapY2 != null ? gapY2 : gapY != null ? gapY : belowBoth;
+                    by = gapY2 != null ? gapY2 : gapY != null ? gapY : (y2 < y1 ? (r2.bottom + r1.top) / 2 : belowBoth);
                 }
                 if (verticalSegmentCrossesRect(bx, y1, by, r1, pad) || verticalSegmentCrossesRect(bx, y1, by, r2, pad) ||
                     verticalSegmentCrossesRect(bx, by, y2, r1, pad) || verticalSegmentCrossesRect(bx, by, y2, r2, pad)) {
@@ -3128,11 +3128,15 @@
             const gapY = r1.bottom + gapPad <= r2.top - gapPad ? (r1.bottom + r2.top) / 2 : null;
             const gapY2 = r2.bottom + gapPad <= r1.top - gapPad ? (r2.bottom + r1.top) / 2 : null;
             const candidates = [];
-            // أولوية عالية: نقاط في الفجوات بين العقد (أقصر مسار)
+            // أولوية عالية: نقاط في الفجوات ونقاط اقتراب فوق/تحت r2 (لتجنب المرور من داخل الشكل)
+            const approachAboveR2 = r2.top - placePad - 2, approachBelowR2 = r2.bottom + placePad + 2;
+            const approachAboveR1 = r1.top - placePad - 2, approachBelowR1 = r1.bottom + placePad + 2;
             if (gapY != null) candidates.push({ x: midX, y: gapY }, { x: leftOfBoth, y: gapY }, { x: rightOfBoth, y: gapY });
             if (gapY2 != null) candidates.push({ x: midX, y: gapY2 }, { x: leftOfBoth, y: gapY2 }, { x: rightOfBoth, y: gapY2 });
             if (gapX != null) candidates.push({ x: gapX, y: midY }, { x: gapX, y: aboveBoth }, { x: gapX, y: belowBoth });
             if (gapX2 != null) candidates.push({ x: gapX2, y: midY }, { x: gapX2, y: aboveBoth }, { x: gapX2, y: belowBoth });
+            candidates.push({ x: rightOfBoth, y: approachAboveR2 }, { x: rightOfBoth, y: approachBelowR2 }, { x: leftOfBoth, y: approachAboveR2 }, { x: leftOfBoth, y: approachBelowR2 });
+            candidates.push({ x: rightOfBoth, y: approachAboveR1 }, { x: rightOfBoth, y: approachBelowR1 }, { x: leftOfBoth, y: approachAboveR1 }, { x: leftOfBoth, y: approachBelowR1 });
             // أولوية متوسطة: نقاط على الحواف مع المنتصف
             candidates.push(
                 { x: midX, y: aboveBoth }, { x: midX, y: belowBoth },
@@ -3162,8 +3166,11 @@
             const belowBoth = Math.max(r1.bottom, r2.bottom) + pad + extra;
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
-            const checkH = (y, xa, xb) => horizontalSegmentCrossesRect(y, xa, xb, r1, pad) || horizontalSegmentCrossesRect(y, xa, xb, r2, pad);
-            const checkV = (x, ya, yb) => verticalSegmentCrossesRect(x, ya, yb, r1, pad) || verticalSegmentCrossesRect(x, ya, yb, r2, pad);
+            const checkPad = 0;  // لا عبور فعلي — مثل bendPathCrossesNodes
+            const checkH = (y, xa, xb, skipR1, skipR2) =>
+                (!skipR1 && horizontalSegmentCrossesRect(y, xa, xb, r1, checkPad)) || (!skipR2 && horizontalSegmentCrossesRect(y, xa, xb, r2, checkPad));
+            const checkV = (x, ya, yb, skipR1, skipR2) =>
+                (!skipR1 && verticalSegmentCrossesRect(x, ya, yb, r1, checkPad)) || (!skipR2 && verticalSegmentCrossesRect(x, ya, yb, r2, checkPad));
             const routes = [];
             if (!fromH && toH) {
                 if (fromSide === 'bottom' && toSide === 'top') {
@@ -3182,17 +3189,23 @@
             } else if (fromH && !toH) {
                 const gapYLocal = r1.bottom + 5 <= r2.top - 5 ? (r1.bottom + r2.top) / 2 : null;
                 const gapY2Local = r2.bottom + 5 <= r1.top - 5 ? (r2.bottom + r1.top) / 2 : null;
+                const approachTop = r2.top - pad - extra;  // فوق r2 مباشرة — تجنب المرور من داخل الشكل
+                const approachBottom = r2.bottom + pad + extra;
                 if (fromSide === 'right' && toSide === 'top') {
-                    // أولوية: يمين ثم نزول في الفجوة ثم دخول من فوق
+                    // أقصر مسار: يمين → نزول فوق r2 → دخول من الأعلى (لا يمر من داخل الشكل)
+                    routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${approachTop} L ${x2} ${approachTop} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: approachTop });
                     if (gapYLocal != null) routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${gapYLocal} L ${x2} ${gapYLocal} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: gapYLocal });
                     routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: aboveBoth });
                 } else if (fromSide === 'left' && toSide === 'top') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${approachTop} L ${x2} ${approachTop} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: approachTop });
                     if (gapYLocal != null) routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${gapYLocal} L ${x2} ${gapYLocal} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: gapYLocal });
                     routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: aboveBoth });
                 } else if (fromSide === 'right' && toSide === 'bottom') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${approachBottom} L ${x2} ${approachBottom} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: approachBottom });
                     if (gapY2Local != null) routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${gapY2Local} L ${x2} ${gapY2Local} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: gapY2Local });
                     routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: belowBoth });
                 } else if (fromSide === 'left' && toSide === 'bottom') {
+                    routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${approachBottom} L ${x2} ${approachBottom} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: approachBottom });
                     if (gapY2Local != null) routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${gapY2Local} L ${x2} ${gapY2Local} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: gapY2Local });
                     routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: belowBoth });
                 }
@@ -3247,16 +3260,18 @@
                     routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
                 }
             }
-            // نختار أقصر route صالح (مش أول واحد)
+            // نختار أقصر route صالح (مش أول واحد) — فحص كل القطع بما فيها الأولى والأخيرة
             let bestRoute = null, bestLen = Infinity;
             for (const r of routes) {
                 const pts = r.pathD.replace(/M|L/g, ' ').trim().split(/\s+/).map(Number);
                 const numSegs = pts.length / 2 - 1;
                 let ok = true;
-                for (let i = 1; i < numSegs - 1; i++) {
+                for (let i = 0; i < numSegs; i++) {
                     const xa = pts[i * 2], ya = pts[i * 2 + 1], xb = pts[(i + 1) * 2], yb = pts[(i + 1) * 2 + 1];
-                    if (xa === xb) { if (checkV(xa, ya, yb)) { ok = false; break; } }
-                    else { if (checkH(ya, xa, xb)) { ok = false; break; } }
+                    const isFirst = (i === 0), isLast = (i === numSegs - 1);
+                    const skipR1 = isFirst, skipR2 = isLast;  // الأولى تخرج من r1، الأخيرة تدخل r2
+                    if (xa === xb) { if (checkV(xa, Math.min(ya, yb), Math.max(ya, yb), skipR1, skipR2)) { ok = false; break; } }
+                    else { if (checkH(ya, Math.min(xa, xb), Math.max(xa, xb), skipR1, skipR2)) { ok = false; break; } }
                 }
                 if (ok) {
                     let len = 0;
