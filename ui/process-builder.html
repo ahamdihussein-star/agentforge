@@ -513,6 +513,8 @@
         .connecting .workflow-node .port {
             opacity: 1;
             pointer-events: auto;
+            width: 24px;
+            height: 24px;
         }
         body.connecting {
             cursor: crosshair !important;
@@ -665,6 +667,18 @@
             box-shadow: 0 0 0 3px var(--connection-color, #6366f1);
             border-radius: 12px;
         }
+        /* المنفذ المستهدف أثناء السحب – يبرز حتى تعرف أي نقطة ستُربط */
+        .port.connection-target-port {
+            opacity: 1 !important;
+            background: #6366f1 !important;
+            border-color: #818cf8 !important;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.6);
+        }
+        .port.input.connection-target-port,
+        .port.input-top.connection-target-port,
+        .port.input-right.connection-target-port,
+        .port.input-bottom.connection-target-port,
+        .port.input-left.connection-target-port { transform: translate(-50%, -50%) scale(1.3) !important; }
         .connection-path.yes + .connection-handles .connection-end-handle,
         .connection-path.yes + .connection-handles .connection-start-handle { fill: #22c55e; }
         .connection-path.no + .connection-handles .connection-end-handle,
@@ -2407,19 +2421,63 @@
             }
             return { x, y };
         }
-        /** أي جهة من الشكل الأقرب لنقطة (لما المستخدم يفلت الخط نحدد الزاوية) */
+        /** أقرب منفذ إدخال لنقطة (BPMN-style: الربط يتبع المنفذ الأقرب للمؤشر) */
+        function getClosestInputPortToPoint(nodeEl, clientX, clientY) {
+            const sides = ['top', 'right', 'bottom', 'left'];
+            let bestSide = 'bottom';
+            let bestDist = Infinity;
+            for (const s of sides) {
+                const port = nodeEl.querySelector('.port.input-' + s);
+                if (!port) continue;
+                const r = port.getBoundingClientRect();
+                const px = r.left + r.width / 2;
+                const py = r.top + r.height / 2;
+                const d = (clientX - px) ** 2 + (clientY - py) ** 2;
+                if (d < bestDist) { bestDist = d; bestSide = s; }
+            }
+            return bestSide;
+        }
+        /** احتياطي: جهة من الشكل حسب الزاوية (للتوافق مع كود قديم) */
         function getSideOfPointFromShape(nodeEl, clientX, clientY) {
-            const shapeEl = nodeEl.querySelector('.node-shape-wrap');
-            if (!shapeEl) return 'bottom';
-            const r = shapeEl.getBoundingClientRect();
-            const cx = r.left + r.width / 2;
-            const cy = r.top + r.height / 2;
-            const dx = clientX - cx, dy = clientY - cy;
-            const angle = Math.atan2(dy, dx) * 180 / Math.PI; // -180..180
-            if (angle >= -45 && angle < 45) return 'right';
-            if (angle >= 45 && angle < 135) return 'bottom';
-            if (angle >= 135 || angle < -135) return 'left';
-            return 'top';
+            return getClosestInputPortToPoint(nodeEl, clientX, clientY);
+        }
+        /** أقرب منفذ إخراج لنقطة – يُستعمل عند سحب بداية خط إلى عقدة أخرى */
+        function getClosestOutputPortToPoint(nodeEl, clientX, clientY) {
+            const sel = '.port.output-top, .port.output-right, .port.output-bottom, .port.output-left, .port.output-yes-top, .port.output-yes-right, .port.output-yes-bottom, .port.output-yes-left, .port.output-no-top, .port.output-no-right, .port.output-no-bottom, .port.output-no-left';
+            const ports = nodeEl.querySelectorAll(sel);
+            let best = { side: 'bottom', portType: 'default' };
+            let bestDist = Infinity;
+            for (const p of ports) {
+                const r = p.getBoundingClientRect();
+                const px = r.left + r.width / 2, py = r.top + r.height / 2;
+                const d = (clientX - px) ** 2 + (clientY - py) ** 2;
+                if (d >= bestDist) continue;
+                bestDist = d;
+                best = {
+                    side: p.getAttribute('data-side') || 'bottom',
+                    portType: p.classList.contains('output-yes') || (p.className && String(p.className).includes('output-yes')) ? 'yes' :
+                              p.classList.contains('output-no') || (p.className && String(p.className).includes('output-no')) ? 'no' : 'default'
+                };
+            }
+            return best;
+        }
+        /** مسح تمييز المنفذ المستهدف من كل العُقد */
+        function clearConnectionTargetPort() {
+            document.querySelectorAll('.port.connection-target-port').forEach(p => p.classList.remove('connection-target-port'));
+        }
+        /** تمييز منفذ إدخال معين كهدف ربط */
+        function setConnectionTargetPort(nodeEl, toPort) {
+            clearConnectionTargetPort();
+            if (!nodeEl || !toPort) return;
+            const portEl = getPortForSide(nodeEl, 'input', toPort);
+            if (portEl) portEl.classList.add('connection-target-port');
+        }
+        /** مركز المنفذ في إحداثيات الـ canvas */
+        function getPortCenterInCanvas(nodeEl, portKind, side) {
+            const portEl = getPortForSide(nodeEl, portKind, side);
+            if (!portEl) return null;
+            const r = portEl.getBoundingClientRect();
+            return clientToCanvas(r.left + r.width / 2, r.top + r.height / 2);
         }
         function getPortForSide(nodeEl, portKind, side) {
             if (portKind === 'input') return nodeEl.querySelector('.port.input-' + side);
@@ -2497,6 +2555,7 @@
             state.connectionStart = null;
             state.connectionPreview = null;
             document.body.classList.remove('connecting');
+            clearConnectionTargetPort();
             const svgInteractive = document.getElementById('connections-interactive-svg');
             const preview = svgInteractive && svgInteractive.querySelector('.connection-preview-path');
             if (preview) preview.remove();
@@ -2717,7 +2776,13 @@
             
             if (state.draggingEdgeEnd) {
                 const d = state.draggingEdgeEnd;
-                const pathD = getDragPreviewPathD(d.fromX, d.fromY, d.currentX, d.currentY);
+                let endX = d.currentX, endY = d.currentY;
+                if (d.hoverNode && d.hoverPort) {
+                    const targetEl = document.getElementById(d.hoverNode);
+                    const pc = targetEl ? getPortCenterInCanvas(targetEl, 'input', d.hoverPort) : null;
+                    if (pc) { endX = pc.x; endY = pc.y; }
+                }
+                const pathD = getDragPreviewPathD(d.fromX, d.fromY, endX, endY);
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${d.type} connection-preview selected`);
                 path.setAttribute('d', pathD);
@@ -2763,8 +2828,6 @@
             state.connectionPreview = { path, fromX, fromY };
             const onMove = (ev) => {
                 if (!state.connectionPreview) return;
-                const pt = clientToCanvas(ev.clientX, ev.clientY);
-                path.setAttribute('d', getDragPreviewPathD(fromX, fromY, pt.x, pt.y));
                 const inputPort = getInputPortAtPoint(ev.clientX, ev.clientY);
                 let hoveredId = null;
                 let hoverPort = null;
@@ -2780,11 +2843,24 @@
                         const r = el.getBoundingClientRect();
                         if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
                             hoveredId = n.id;
-                            hoverPort = getSideOfPointFromShape(el, ev.clientX, ev.clientY);
+                            hoverPort = getClosestInputPortToPoint(el, ev.clientX, ev.clientY);
                             break;
                         }
                     }
                 }
+                const hoveredEl = hoveredId ? document.getElementById(hoveredId) : null;
+                setConnectionTargetPort(hoveredEl, hoverPort);
+                let endX, endY;
+                if (hoveredEl && hoverPort) {
+                    const pc = getPortCenterInCanvas(hoveredEl, 'input', hoverPort);
+                    endX = pc ? pc.x : (clientToCanvas(ev.clientX, ev.clientY)).x;
+                    endY = pc ? pc.y : (clientToCanvas(ev.clientX, ev.clientY)).y;
+                } else {
+                    const pt = clientToCanvas(ev.clientX, ev.clientY);
+                    endX = pt.x;
+                    endY = pt.y;
+                }
+                path.setAttribute('d', getDragPreviewPathD(fromX, fromY, endX, endY));
                 state.nodes.forEach(n => {
                     const el = document.getElementById(n.id);
                     if (!el) return;
@@ -2807,6 +2883,7 @@
             const onUp = (ev) => {
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);
+                clearConnectionTargetPort();
                 state.nodes.forEach(n => {
                     const el = document.getElementById(n.id);
                     if (el) el.classList.remove('connection-drop-target');
@@ -2820,7 +2897,7 @@
                     const lastPoint = state.connectionHoverPoint || { clientX: ev.clientX, clientY: ev.clientY };
                     let toPort = state.connectionHoverPort ? state.connectionHoverPort.toPort : null;
                     if (!toPort && hoveredEl) {
-                        toPort = getSideOfPointFromShape(hoveredEl, lastPoint.clientX, lastPoint.clientY);
+                        toPort = getClosestInputPortToPoint(hoveredEl, lastPoint.clientX, lastPoint.clientY);
                     }
                     completeConnection(state.connectionHoverNode, toPort);
                 }
@@ -2833,7 +2910,13 @@
         function updateDragPreview() {
             if (!state.draggingEdgeEnd || !state.draggingEdgeEnd.previewPath) return;
             const d = state.draggingEdgeEnd;
-            d.previewPath.setAttribute('d', getDragPreviewPathD(d.fromX, d.fromY, d.currentX, d.currentY));
+            let endX = d.currentX, endY = d.currentY;
+            if (d.hoverNode && d.hoverPort) {
+                const targetEl = document.getElementById(d.hoverNode);
+                const pc = targetEl ? getPortCenterInCanvas(targetEl, 'input', d.hoverPort) : null;
+                if (pc) { endX = pc.x; endY = pc.y; }
+            }
+            d.previewPath.setAttribute('d', getDragPreviewPathD(d.fromX, d.fromY, endX, endY));
         }
         
         function getOutputPortAtPoint(clientX, clientY) {
@@ -2909,6 +2992,8 @@
                         hoverPort = el ? getSideOfPointFromShape(el, e.clientX, e.clientY) : null;
                     }
                 }
+                const hoveredEl = hoveredId ? document.getElementById(hoveredId) : null;
+                setConnectionTargetPort(hoveredEl, hoverPort);
                 state.nodes.forEach(n => {
                     const el = document.getElementById(n.id);
                     if (!el) return;
@@ -2925,6 +3010,7 @@
             };
             const onUp = (e) => {
                 if (!state.draggingEdgeEnd) return;
+                clearConnectionTargetPort();
                 const inputPort = getInputPortAtPoint(e.clientX, e.clientY);
                 let newTo = inputPort ? inputPort.nodeId : nodeUnderCursor(e.clientX, e.clientY, state.draggingEdgeEnd.from);
                 let toPort = inputPort ? inputPort.toPort : (newTo ? getSideOfPointFromShape(document.getElementById(newTo), e.clientX, e.clientY) : undefined);
@@ -3011,12 +3097,8 @@
                     if (candidate && candidate !== state.draggingEdgeStart.to) {
                         hoveredId = candidate;
                         const el = document.getElementById(candidate);
-                        const side = el ? getSideOfPointFromShape(el, e.clientX, e.clientY) : 'bottom';
-                        const nodeObj = state.nodes.find(n => n.id === candidate);
-                        const portType = nodeObj && nodeObj.type === 'condition'
-                            ? (side === 'top' || side === 'bottom' ? 'yes' : 'no')
-                            : 'default';
-                        hoverData = { fromPort: side, portType };
+                        const out = el ? getClosestOutputPortToPoint(el, e.clientX, e.clientY) : { side: 'bottom', portType: 'default' };
+                        hoverData = { fromPort: out.side, portType: out.portType };
                     }
                 }
                 state.nodes.forEach(n => {
@@ -3047,18 +3129,17 @@
                 });
                 if (newFrom && newFrom !== state.draggingEdgeStart.to) {
                     const fromNodeEl = document.getElementById(newFrom);
-                    let fromPort = data && data.fromPort ? data.fromPort : (fromNodeEl ? getSideOfPointFromShape(fromNodeEl, e.clientX, e.clientY) : 'bottom');
-                    if (!fromPort) fromPort = 'bottom';
-                    let portType;
-                    if (data && data.portType) {
+                    let fromPort, portType;
+                    if (data && data.fromPort && data.portType) {
+                        fromPort = data.fromPort;
                         portType = data.portType;
+                    } else if (fromNodeEl) {
+                        const out = getClosestOutputPortToPoint(fromNodeEl, e.clientX, e.clientY);
+                        fromPort = out.side || 'bottom';
+                        portType = out.portType || 'default';
                     } else {
-                        const nodeObj = state.nodes.find(n => n.id === newFrom);
-                        if (nodeObj && nodeObj.type === 'condition') {
-                            portType = (fromPort === 'top' || fromPort === 'bottom') ? 'yes' : 'no';
-                        } else {
-                            portType = 'default';
-                        }
+                        fromPort = 'bottom';
+                        portType = 'default';
                     }
                     state.connections.push({
                         from: newFrom,
