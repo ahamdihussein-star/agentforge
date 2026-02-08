@@ -2883,6 +2883,15 @@
             }
             return false;
         }
+        /** فحص الجزء الأوسط فقط (25%-75%) لتجنب false positive عند بداية/نهاية المنفذ */
+        function lineSegmentCrossesRectMid(x1, y1, x2, y2, r, pad) {
+            for (let t = 0.25; t <= 0.75; t += 0.05) {
+                const px = x1 + t * (x2 - x1);
+                const py = y1 + t * (y2 - y1);
+                if (pointInRect(px, py, r, pad)) return true;
+            }
+            return false;
+        }
         /** استخراج نقاط المسار من pathD وحساب الطول الإجمالي */
         function parsePathSegments(pathD) {
             const pts = pathD.replace(/M|L/g, ' ').trim().split(/\s+/).map(Number);
@@ -2895,63 +2904,88 @@
             }
             return { points, length, segments: points.length - 1 };
         }
-        /** تسجيل تصحيح الربط: تغطية كاملة لفهم المشكلة والتحقق من الطلبات */
+        /** تسجيل تصحيح الربط: فحص كل القطع بـ pad=0, كشف العبور والانحناء غير المنطقي والانحناء على النفس */
         function logConnectionDebug(connIdx, conn, pathInfo, x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
             if (!state.connectionDebugLog && window.processBuilderConnDebug !== true) return;
-            const pad = 20;
             const r1 = fromNode ? getNodeRectInCanvas(fromNode, canvasRect) : null;
             const r2 = toNode ? getNodeRectInCanvas(toNode, canvasRect) : null;
             const directDist = Math.hypot(x2 - x1, y2 - y1);
             const { points, length: pathLength } = parsePathSegments(pathInfo.pathD);
             const ratio = directDist > 0.1 ? pathLength / directDist : 1;
             let minSegLen = Infinity;
+            const segLens = [];
             for (let i = 0; i < points.length - 1; i++) {
                 const a = points[i], b = points[i + 1];
-                minSegLen = Math.min(minSegLen, Math.hypot(b.x - a.x, b.y - a.y));
+                const len = Math.hypot(b.x - a.x, b.y - a.y);
+                segLens.push(len);
+                minSegLen = Math.min(minSegLen, len);
             }
             if (points.length < 2) minSegLen = 0;
             const kink = minSegLen < 15 && minSegLen > 0;
-            const horSides = ['left', 'right'];
-            const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
+            const fmt = (n) => Math.round(n).toString();
+            // --- Rule 1: خط الربط يعدي من داخل الشكل ---
             const crossDetails = [];
             if (r1 && r2 && points.length >= 2) {
-                const singleSegment = points.length === 2;
                 for (let i = 0; i < points.length - 1; i++) {
                     const a = points[i], b = points[i + 1];
-                    const isFirst = (i === 0), isLast = (i === points.length - 2);
-                    const skipR1 = !singleSegment && isFirst;
-                    const skipR2 = !singleSegment && isLast;
-                    if (!skipR1 && lineSegmentCrossesRect(a.x, a.y, b.x, b.y, r1, pad)) crossDetails.push(`seg${i}→r1`);
-                    if (!skipR2 && lineSegmentCrossesRect(a.x, a.y, b.x, b.y, r2, pad)) crossDetails.push(`seg${i}→r2`);
+                    // فحص كل قطعة ضد كل عقدة بدون pad وبدون skip
+                    if (lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r1, 0)) crossDetails.push(`seg${i}→r1`);
+                    if (lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r2, 0)) crossDetails.push(`seg${i}→r2`);
                 }
             }
             const crosses = crossDetails.length > 0;
-            const portsFace = (fromSide === 'top' && toSide === 'bottom') || (fromSide === 'bottom' && toSide === 'top');
+            // --- Rule 2: الانحناء غير المنطقي ---
+            const straightWouldWork = r1 && r2 && !lineSegmentCrossesRectMid(x1, y1, x2, y2, r1, 0) && !lineSegmentCrossesRectMid(x1, y1, x2, y2, r2, 0);
+            const unnecessaryBend = !pathInfo.straightLine && straightWouldWork;
+            const portsFace = (fromSide === 'top' && toSide === 'bottom') || (fromSide === 'bottom' && toSide === 'top')
+                || (fromSide === 'left' && toSide === 'right') || (fromSide === 'right' && toSide === 'left');
             const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
             const bendOffMid = pathInfo.straightLine ? 0 : Math.hypot(pathInfo.bendX - midX, pathInfo.bendY - midY);
             const weirdBend = !pathInfo.straightLine && portsFace && bendOffMid > Math.min(80, directDist * 0.5);
+            // --- Rule 3: الخط ينحني على نفسه (backtrack) ---
+            const overallDX = x2 - x1, overallDY = y2 - y1;
+            let backtrack = false;
+            let backtrackDetail = '';
+            for (let i = 0; i < points.length - 1; i++) {
+                const a = points[i], b = points[i + 1];
+                const sdx = b.x - a.x, sdy = b.y - a.y;
+                const segLen = segLens[i];
+                if (segLen < 5) continue;
+                // انحناء على النفس = قطعة تتجه عكس الاتجاه العام بمسافة كبيرة
+                const dotX = sdx * overallDX, dotY = sdy * overallDY;
+                if (Math.abs(overallDX) > 5 && dotX < 0 && Math.abs(sdx) > 30) {
+                    backtrack = true;
+                    backtrackDetail += `seg${i}:backX(${fmt(sdx)}) `;
+                }
+                if (Math.abs(overallDY) > 5 && dotY < 0 && Math.abs(sdy) > 30) {
+                    backtrack = true;
+                    backtrackDetail += `seg${i}:backY(${fmt(sdy)}) `;
+                }
+            }
             const drag = state.lastDragDelta;
             const manualBend = !!(conn && conn.bendPoint);
-            const fmt = (n) => Math.round(n).toString();
             const parts = [
                 `[Conn#${connIdx}] ${conn?.from?.slice(0, 8)}→${conn?.to?.slice(0, 8)}`,
                 `${fromSide}→${toSide}`,
-                pathInfo.straightLine ? 'straight' : (pathInfo.twoBend ? '2-bend' : '1-bend'),
+                pathInfo.straightLine ? 'STRAIGHT' : (pathInfo.twoBend ? '2-BEND' : '1-BEND'),
                 pathInfo.pathSource || '-',
-                manualBend ? 'manualBend' : '',
-                crosses ? `❌ CROSSES[${crossDetails.join(',')}]` : '✓ no cross',
-                `len=${fmt(pathLength)} dist=${fmt(directDist)} ratio=${ratio.toFixed(2)}`,
-                `minSeg=${fmt(minSegLen)}`,
-                kink ? '⚠ kink' : '',
+                manualBend ? 'HAS_MANUAL_BEND' : '',
+                crosses ? `❌ R1-CROSSES[${crossDetails.join(',')}]` : '✓ R1-no-cross',
+                unnecessaryBend ? '❌ R2-UNNECESSARY-BEND' : '✓ R2-bend-ok',
+                backtrack ? `❌ R3-BACKTRACK[${backtrackDetail.trim()}]` : '✓ R3-no-backtrack',
                 weirdBend ? '⚠ weirdBend' : '',
+                kink ? `⚠ kink(${fmt(minSegLen)}px)` : '',
+                `len=${fmt(pathLength)} dist=${fmt(directDist)} ratio=${ratio.toFixed(2)}`,
+                `segs=[${segLens.map(l => fmt(l)).join(',')}]`,
                 `p1(${fmt(x1)},${fmt(y1)}) p2(${fmt(x2)},${fmt(y2)})`,
                 !pathInfo.straightLine ? `bend(${fmt(pathInfo.bendX)},${fmt(pathInfo.bendY)})` : '',
-                r1 ? `r1[${fmt(r1.left)},${fmt(r1.right)},${fmt(r1.top)},${fmt(r1.bottom)}]` : '',
-                r2 ? `r2[${fmt(r2.left)},${fmt(r2.right)},${fmt(r2.top)},${fmt(r2.bottom)}]` : '',
+                `path=[${points.map(p => `(${fmt(p.x)},${fmt(p.y)})`).join('→')}]`,
+                r1 ? `r1[L${fmt(r1.left)},R${fmt(r1.right)},T${fmt(r1.top)},B${fmt(r1.bottom)}]` : '',
+                r2 ? `r2[L${fmt(r2.left)},R${fmt(r2.right)},T${fmt(r2.top)},B${fmt(r2.bottom)}]` : '',
                 `zoom=${state.zoom.toFixed(2)}`
             ];
             if (drag) parts.push(`drag: dx=${drag.dx} dy=${drag.dy} nodes=[${(drag.nodeIds || []).map(id => id.slice(0, 8)).join(',')}]`);
-            const hasIssue = crosses || weirdBend || ratio > 2.5 || kink;
+            const hasIssue = crosses || unnecessaryBend || backtrack || weirdBend || ratio > 2.5 || kink;
             if (hasIssue) console.warn('🔗', parts.filter(Boolean).join(' | '));
             else console.log('🔗', parts.filter(Boolean).join(' | '));
         }
@@ -3140,13 +3174,14 @@
          * Rules: الخط لا يمر من داخل الـ shape؛ الانحناء يتناسب مع المسافة؛ تجنب القطاعات القصيرة جداً (kinks)
          * Paths recalculate on node move (renderConnections in makeDraggable mousemove) */
         function getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect) {
-            const pad = 20;
+            const placePad = 20;
+            const checkPad = 0;
             const useManualBend = conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number';
             const straightPossible = !useManualBend && fromNode && toNode;
             const r1 = fromNode ? getNodeRectInCanvas(fromNode, canvasRect) : null;
             const r2 = toNode ? getNodeRectInCanvas(toNode, canvasRect) : null;
             if (straightPossible && r1 && r2) {
-                const crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, 0) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, 0);
+                const crosses = lineSegmentCrossesRectMid(x1, y1, x2, y2, r1, 0) || lineSegmentCrossesRectMid(x1, y1, x2, y2, r2, 0);
                 if (!crosses) {
                     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
                     return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true, pathSource: 'straight' };
@@ -3157,7 +3192,7 @@
             const def = getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
             let bendX = def.x, bendY = def.y;
             if (useManualBend && r1 && r2) {
-                if (!bendPathCrossesNodes(conn.bendPoint.x, conn.bendPoint.y, x1, y1, x2, y2, fromH, toH, r1, r2, pad)) {
+                if (!bendPathCrossesNodes(conn.bendPoint.x, conn.bendPoint.y, x1, y1, x2, y2, fromH, toH, r1, r2, checkPad)) {
                     bendX = conn.bendPoint.x;
                     bendY = conn.bendPoint.y;
                 }
@@ -3165,19 +3200,20 @@
             let pathSource = 'ensureValid';
             if (useManualBend && bendX === conn.bendPoint.x && bendY === conn.bendPoint.y) pathSource = 'manualBend';
             if (r1 && r2) {
-                const valid = ensureBendOutsideNodes(bendX, bendY, x1, y1, x2, y2, fromH, toH, r1, r2, pad);
+                const valid = ensureBendOutsideNodes(bendX, bendY, x1, y1, x2, y2, fromH, toH, r1, r2, checkPad);
                 if (valid) {
                     bendX = valid.x;
                     bendY = valid.y;
                     if (!(useManualBend && bendX === conn.bendPoint.x && bendY === conn.bendPoint.y)) pathSource = 'ensureValid';
                 } else {
-                    const around = tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, pad);
+                    const around = tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, placePad);
                     if (around) return { pathD: around.pathD, bendX: around.bendX, bendY: around.bendY, useHVH: fromH, straightLine: false, twoBend: true, pathSource: 'aroundPath' };
                     bendX = (x1 + x2) / 2;
                     bendY = (y1 + y2) / 2;
                     pathSource = 'fallback';
                 }
             }
+            let pathD;
             if (fromH && toH) {
                 pathD = `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${bendY} L ${bendX} ${y2} L ${x2} ${y2}`;
             } else if (!fromH && !toH) {
