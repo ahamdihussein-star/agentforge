@@ -3142,11 +3142,16 @@
                 { x: rightOfBoth, y: aboveBoth }, { x: rightOfBoth, y: belowBoth },
                 { x: midX, y: midY }
             );
+            // نختار أقصر مسار من كل الـ candidates الصالحة (مش أول واحد بس)
+            let best = null, bestCost = Infinity;
             for (const c of candidates) {
-                if (!bendPathCrossesNodes(c.x, c.y, x1, y1, x2, y2, fromH, toH, r1, r2, pad))
-                    return c;
+                if (!bendPathCrossesNodes(c.x, c.y, x1, y1, x2, y2, fromH, toH, r1, r2, pad)) {
+                    // تكلفة المسار ≈ مجموع المسافات Manhattan من الـ bend لكلا المنفذين
+                    const cost = Math.abs(c.x - x1) + Math.abs(c.y - y1) + Math.abs(c.x - x2) + Math.abs(c.y - y2);
+                    if (cost < bestCost) { best = c; bestCost = cost; }
+                }
             }
-            return null;
+            return best;
         }
         /** مسار بـ 2 انحناءات يلتف حول العقد عند استحالة المسار الواحد. يُستخدم كملاذ أخير. */
         function tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, pad) {
@@ -3242,6 +3247,8 @@
                     routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
                 }
             }
+            // نختار أقصر route صالح (مش أول واحد)
+            let bestRoute = null, bestLen = Infinity;
             for (const r of routes) {
                 const pts = r.pathD.replace(/M|L/g, ' ').trim().split(/\s+/).map(Number);
                 const numSegs = pts.length / 2 - 1;
@@ -3251,9 +3258,13 @@
                     if (xa === xb) { if (checkV(xa, ya, yb)) { ok = false; break; } }
                     else { if (checkH(ya, xa, xb)) { ok = false; break; } }
                 }
-                if (ok) return { ...r, twoBend: true };
+                if (ok) {
+                    let len = 0;
+                    for (let i = 0; i < pts.length - 2; i += 2) len += Math.abs(pts[i+2]-pts[i]) + Math.abs(pts[i+3]-pts[i+1]);
+                    if (len < bestLen) { bestRoute = r; bestLen = len; }
+                }
             }
-            return null;
+            return bestRoute ? { ...bestRoute, twoBend: true } : null;
         }
         /** مسار الربط الذكي والديناميكي
          * Rules: الخط لا يمر من داخل الـ shape؛ الانحناء يتناسب مع المسافة؛ تجنب القطاعات القصيرة جداً (kinks)
