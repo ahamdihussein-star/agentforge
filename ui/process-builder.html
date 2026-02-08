@@ -2956,8 +2956,8 @@
             const bendOffMid = pathInfo.straightLine ? 0 : Math.hypot(pathInfo.bendX - midX, pathInfo.bendY - midY);
             const weirdBend = !pathInfo.straightLine && portsFace && bendOffMid > Math.min(80, directDist * 0.5);
             // --- Rule 3: الخط ينحني على نفسه (backtrack) ---
-            // القطعة الأولى: اتجاهها يتبع fromSide مش الاتجاه العام
-            // القطعة الأخيرة: اتجاهها يتبع toSide مش الاتجاه العام
+            // aroundPath و sameDir و twoBend: القطع الوسيطة بتروح في اتجاهات مختلفة طبيعياً — مش backtrack
+            const skipR3Middle = pathInfo.twoBend === true || pathInfo.pathSource === 'aroundPath' || pathInfo.pathSource === 'sameDir';
             const portDirX = { left: -1, right: 1, top: 0, bottom: 0 };
             const portDirY = { left: 0, right: 0, top: -1, bottom: 1 };
             const overallDX = x2 - x1, overallDY = y2 - y1;
@@ -2983,7 +2983,8 @@
                     if (pdy !== 0 && sdy * pdy < 0 && Math.abs(sdy) > 40) { backtrack = true; backtrackDetail += `seg${i}:backPortY(${fmt(sdy)}) `; }
                     continue;
                 }
-                // القطع الوسيطة: نتحقق من الاتجاه العام
+                // القطع الوسيطة: نتحقق من الاتجاه العام (بس مش لـ aroundPath/twoBend)
+                if (skipR3Middle) continue;
                 const dotX = sdx * overallDX, dotY = sdy * overallDY;
                 if (Math.abs(overallDX) > 5 && dotX < 0 && Math.abs(sdx) > 40) {
                     backtrack = true;
@@ -3149,10 +3150,11 @@
         }
         /** مسار بـ 2 انحناءات يلتف حول العقد عند استحالة المسار الواحد. يُستخدم كملاذ أخير. */
         function tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, pad) {
-            const leftOfBoth = Math.min(r1.left, r2.left) - pad;
-            const rightOfBoth = Math.max(r1.right, r2.right) + pad;
-            const aboveBoth = Math.min(r1.top, r2.top) - pad;
-            const belowBoth = Math.max(r1.bottom, r2.bottom) + pad;
+            const extra = 5; // هامش إضافي لتجنب ملامسة حد الـ pad بالظبط
+            const leftOfBoth = Math.min(r1.left, r2.left) - pad - extra;
+            const rightOfBoth = Math.max(r1.right, r2.right) + pad + extra;
+            const aboveBoth = Math.min(r1.top, r2.top) - pad - extra;
+            const belowBoth = Math.max(r1.bottom, r2.bottom) + pad + extra;
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
             const checkH = (y, xa, xb) => horizontalSegmentCrossesRect(y, xa, xb, r1, pad) || horizontalSegmentCrossesRect(y, xa, xb, r2, pad);
