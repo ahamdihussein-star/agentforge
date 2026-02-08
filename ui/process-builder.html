@@ -2888,8 +2888,8 @@
                     bx = bx <= (r1.left + r2.left) / 2 ? leftOfBoth : rightOfBoth;
                 }
             } else if (!fromH && !toH) {
-                if (fromSide === 'top' && toSide === 'bottom' && gapY != null) { by = gapY; }
-                else if (fromSide === 'bottom' && toSide === 'top' && gapY2 != null) { by = gapY2; }
+                if (gapY != null) { by = gapY; }
+                else if (gapY2 != null) { by = gapY2; }
                 else { by = fromSide === 'top' ? aboveBoth : belowBoth; }
                 const xLo = Math.min(r1.left, r2.left) - pad, xHi = Math.max(r1.right, r2.right) + pad;
                 bx = Math.max(xLo, Math.min(xHi, (x1 + x2) / 2));
