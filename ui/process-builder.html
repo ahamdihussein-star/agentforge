@@ -1917,6 +1917,7 @@
                     return;
                 }
                 if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+                if (state.isDragging || state.draggingEdgeEnd || state.draggingEdgeStart || state.draggingBendPoint || state.draggingLabel || state.draggingConnectionLabel) return;
                 e.preventDefault();
                 if (stateSelectedConnIndex !== null) {
                     deleteConnection(stateSelectedConnIndex);
@@ -2852,6 +2853,21 @@
             const xMin = Math.min(xa, xb), xMax = Math.max(xa, xb);
             return y >= r.top - pad && y <= r.bottom + pad && xMin <= r.right + pad && xMax >= r.left - pad;
         }
+        /** هل مسار الانحناء (bx,by) يمر عبر r1 أو r2 */
+        function bendPathCrossesNodes(bx, by, x1, y1, x2, y2, fromH, toH, r1, r2, pad) {
+            const check = (h, y, xa, xb) => horizontalSegmentCrossesRect(y, xa, xb, r1, pad) || horizontalSegmentCrossesRect(y, xa, xb, r2, pad);
+            const checkV = (x, ya, yb) => verticalSegmentCrossesRect(x, ya, yb, r1, pad) || verticalSegmentCrossesRect(x, ya, yb, r2, pad);
+            if (fromH && toH) {
+                return check(y1, x1, bx) || checkV(bx, y1, y2) || check(y2, bx, x2);
+            }
+            if (!fromH && !toH) {
+                return checkV(x1, y1, by) || check(by, x1, x2) || checkV(x2, by, y2);
+            }
+            if (fromH && !toH) {
+                return check(y1, x1, bx) || checkV(bx, y1, by) || check(by, bx, x2) || checkV(x2, by, y2);
+            }
+            return checkV(x1, y1, by) || check(by, x1, bx) || checkV(bx, by, y2) || check(y2, bx, x2);
+        }
         /** هل قطعة الخط من (x1,y1) إلى (x2,y2) تمر عبر المستطيل (نقاط داخلية فقط) */
         function lineSegmentCrossesRect(x1, y1, x2, y2, r, pad) {
             for (let t = 0.1; t < 1; t += 0.1) {
@@ -2863,8 +2879,7 @@
         }
         /** نقطة انحناء خارج العُقد – الخط لا يمر أبداً من داخل الشكل. الأولوية لاتجاه الدخول/الخروج */
         function getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
-            const segmentLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-            const pad = Math.min(20, Math.max(8, segmentLen * 0.25));
+            const pad = 20;
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
             let bx = (x1 + x2) / 2, by = (y1 + y2) / 2;
@@ -2890,12 +2905,17 @@
                 }
             } else if (!fromH && !toH) {
                 const portsFaceEachOther = (fromSide === 'top' && toSide === 'bottom') || (fromSide === 'bottom' && toSide === 'top');
-                if (portsFaceEachOther && gapY != null) { by = gapY; }
-                else if (portsFaceEachOther && gapY2 != null) { by = gapY2; }
-                else { by = fromSide === 'top' ? aboveBoth : belowBoth; }
+                let usedMidpoint = false;
+                if (portsFaceEachOther) {
+                    if (r1.bottom < r2.top) { by = (r1.bottom + r2.top) / 2; usedMidpoint = true; }
+                    else if (r2.bottom < r1.top) { by = (r2.bottom + r1.top) / 2; usedMidpoint = true; }
+                    else { by = gapY != null ? gapY : gapY2 != null ? gapY2 : (fromSide === 'top' ? aboveBoth : belowBoth); }
+                } else {
+                    by = fromSide === 'top' ? aboveBoth : belowBoth;
+                }
                 const xLo = Math.min(r1.left, r2.left) - pad, xHi = Math.max(r1.right, r2.right) + pad;
                 bx = Math.max(xLo, Math.min(xHi, (x1 + x2) / 2));
-                if (horizontalSegmentCrossesRect(by, x1, x2, r1, pad) || horizontalSegmentCrossesRect(by, x1, x2, r2, pad)) {
+                if (!usedMidpoint && (horizontalSegmentCrossesRect(by, x1, x2, r1, pad) || horizontalSegmentCrossesRect(by, x1, x2, r2, pad))) {
                     by = fromSide === 'top' ? aboveBoth : belowBoth;
                 }
             } else if (fromH && !toH) {
@@ -2953,21 +2973,11 @@
             const pad = 20;
             const useManualBend = conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number';
             const straightPossible = !useManualBend && fromNode && toNode;
-            if (straightPossible) {
-                const r1 = getNodeRectInCanvas(fromNode, canvasRect);
-                const r2 = getNodeRectInCanvas(toNode, canvasRect);
-                const segmentLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-                const dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);
-                const minBendDist = 40;
-                const minSegmentForBend = 12;
-                const alignedVertically = dx < minSegmentForBend;
-                const alignedHorizontally = dy < minSegmentForBend;
-                const wouldCreateKink = segmentLen < minBendDist && (alignedVertically || alignedHorizontally);
-                const straightPad = wouldCreateKink ? 0 : Math.max(1, Math.min(pad, segmentLen * 0.2));
-                let crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, straightPad) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, straightPad);
-                const minSegmentLen = 10;
-                const bentWouldKink = Math.min(dx, dy) < minSegmentLen;
-                if (!crosses || (bentWouldKink && !lineSegmentCrossesRect(x1, y1, x2, y2, r1, 0) && !lineSegmentCrossesRect(x1, y1, x2, y2, r2, 0))) {
+            const r1 = fromNode ? getNodeRectInCanvas(fromNode, canvasRect) : null;
+            const r2 = toNode ? getNodeRectInCanvas(toNode, canvasRect) : null;
+            if (straightPossible && r1 && r2) {
+                const crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, 0) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, 0);
+                if (!crosses) {
                     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
                     return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true };
                 }
@@ -2976,9 +2986,11 @@
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
             const def = getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
             let bendX = def.x, bendY = def.y;
-            if (useManualBend) {
-                bendX = conn.bendPoint.x;
-                bendY = conn.bendPoint.y;
+            if (useManualBend && r1 && r2) {
+                if (!bendPathCrossesNodes(conn.bendPoint.x, conn.bendPoint.y, x1, y1, x2, y2, fromH, toH, r1, r2, pad)) {
+                    bendX = conn.bendPoint.x;
+                    bendY = conn.bendPoint.y;
+                }
             }
             let pathD;
             if (fromH && toH) {
