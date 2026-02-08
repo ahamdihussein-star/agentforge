@@ -1512,6 +1512,8 @@
             draggingLabel: null,
             draggingConnectionLabel: null,
             boxSelect: null,
+            connectionDebugLog: typeof window !== 'undefined' && (window.processBuilderConnDebug === true || /[?&]connDebug=1/.test(window.location.search || '')),
+            lastDragDelta: null,
             justBoxSelected: false,
             labelFontSize: Math.min(24, Math.max(9, parseInt(localStorage.getItem('pb-label-font-size'), 10) || 11)),
             tools: [],
@@ -2348,7 +2350,7 @@
                     if (!state.isDragging) return;
                     const dx = Math.round(((e.clientX - startX) / state.zoom) / 20) * 20;
                     const dy = Math.round(((e.clientY - startY) / state.zoom) / 20) * 20;
-                    
+                    state.lastDragDelta = { dx, dy, nodeIds: movingIds };
                     movingIds.forEach(id => {
                         const n = state.nodes.find(x => x.id === id);
                         const start = startPositions[id];
@@ -2380,6 +2382,7 @@
                         }
                     });
                     state.isDragging = false;
+                    state.lastDragDelta = null;
                     nodeEl.classList.remove('dragging');
                     document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp);
@@ -2691,7 +2694,7 @@
                 const midY = pathInfo.bendY;
                 const isStraight = pathInfo.straightLine === true;
                 const isTwoBend = pathInfo.twoBend === true;
-                
+                logConnectionDebug(idx, conn, pathInfo, x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
                 path.setAttribute('data-conn-index', String(idx));
@@ -2854,20 +2857,22 @@
             const xMin = Math.min(xa, xb), xMax = Math.max(xa, xb);
             return y >= r.top - pad && y <= r.bottom + pad && xMin <= r.right + pad && xMax >= r.left - pad;
         }
-        /** هل مسار الانحناء (bx,by) يمر عبر r1 أو r2 */
+        /** هل مسار الانحناء (bx,by) يمر عبر r1 أو r2. القطعة الأولى تربط r1 فلا نتحقق منها ضد r1، والقطعة الأخيرة تربط r2 فلا نتحقق منها ضد r2. */
         function bendPathCrossesNodes(bx, by, x1, y1, x2, y2, fromH, toH, r1, r2, pad) {
-            const check = (h, y, xa, xb) => horizontalSegmentCrossesRect(y, xa, xb, r1, pad) || horizontalSegmentCrossesRect(y, xa, xb, r2, pad);
-            const checkV = (x, ya, yb) => verticalSegmentCrossesRect(x, ya, yb, r1, pad) || verticalSegmentCrossesRect(x, ya, yb, r2, pad);
+            const checkH = (y, xa, xb, skipR1, skipR2) =>
+                (!skipR1 && horizontalSegmentCrossesRect(y, xa, xb, r1, pad)) || (!skipR2 && horizontalSegmentCrossesRect(y, xa, xb, r2, pad));
+            const checkV = (x, ya, yb, skipR1, skipR2) =>
+                (!skipR1 && verticalSegmentCrossesRect(x, ya, yb, r1, pad)) || (!skipR2 && verticalSegmentCrossesRect(x, ya, yb, r2, pad));
             if (fromH && toH) {
-                return check(y1, x1, bx) || checkV(bx, y1, y2) || check(y2, bx, x2);
+                return checkH(y1, x1, bx, false, true) || checkV(bx, y1, y2, false, false) || checkH(y2, bx, x2, true, false);
             }
             if (!fromH && !toH) {
-                return checkV(x1, y1, by) || check(by, x1, x2) || checkV(x2, by, y2);
+                return checkV(x1, y1, by, true, false) || checkH(by, x1, x2, false, false) || checkV(x2, by, y2, false, true);
             }
             if (fromH && !toH) {
-                return check(y1, x1, bx) || checkV(bx, y1, by) || check(by, bx, x2) || checkV(x2, by, y2);
+                return checkH(y1, x1, bx, false, true) || checkV(bx, y1, by, false, false) || checkH(by, bx, x2, false, false) || checkV(x2, by, y2, true, false);
             }
-            return checkV(x1, y1, by) || check(by, x1, bx) || checkV(bx, by, y2) || check(y2, bx, x2);
+            return checkV(x1, y1, by, true, false) || checkH(by, x1, bx, false, false) || checkV(bx, by, y2, false, false) || checkH(y2, bx, x2, false, true);
         }
         /** هل قطعة الخط من (x1,y1) إلى (x2,y2) تمر عبر المستطيل (نقاط داخلية فقط) */
         function lineSegmentCrossesRect(x1, y1, x2, y2, r, pad) {
@@ -2877,6 +2882,78 @@
                 if (pointInRect(px, py, r, pad)) return true;
             }
             return false;
+        }
+        /** استخراج نقاط المسار من pathD وحساب الطول الإجمالي */
+        function parsePathSegments(pathD) {
+            const pts = pathD.replace(/M|L/g, ' ').trim().split(/\s+/).map(Number);
+            const points = [];
+            for (let i = 0; i < pts.length; i += 2) points.push({ x: pts[i], y: pts[i + 1] });
+            let length = 0;
+            for (let i = 0; i < points.length - 1; i++) {
+                const a = points[i], b = points[i + 1];
+                length += Math.hypot(b.x - a.x, b.y - a.y);
+            }
+            return { points, length, segments: points.length - 1 };
+        }
+        /** تسجيل تصحيح الربط: تغطية كاملة لفهم المشكلة والتحقق من الطلبات */
+        function logConnectionDebug(connIdx, conn, pathInfo, x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
+            if (!state.connectionDebugLog && window.processBuilderConnDebug !== true) return;
+            const pad = 20;
+            const r1 = fromNode ? getNodeRectInCanvas(fromNode, canvasRect) : null;
+            const r2 = toNode ? getNodeRectInCanvas(toNode, canvasRect) : null;
+            const directDist = Math.hypot(x2 - x1, y2 - y1);
+            const { points, length: pathLength } = parsePathSegments(pathInfo.pathD);
+            const ratio = directDist > 0.1 ? pathLength / directDist : 1;
+            let minSegLen = Infinity;
+            for (let i = 0; i < points.length - 1; i++) {
+                const a = points[i], b = points[i + 1];
+                minSegLen = Math.min(minSegLen, Math.hypot(b.x - a.x, b.y - a.y));
+            }
+            if (points.length < 2) minSegLen = 0;
+            const kink = minSegLen < 15 && minSegLen > 0;
+            const horSides = ['left', 'right'];
+            const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
+            const crossDetails = [];
+            if (r1 && r2 && points.length >= 2) {
+                const singleSegment = points.length === 2;
+                for (let i = 0; i < points.length - 1; i++) {
+                    const a = points[i], b = points[i + 1];
+                    const isFirst = (i === 0), isLast = (i === points.length - 2);
+                    const skipR1 = !singleSegment && isFirst;
+                    const skipR2 = !singleSegment && isLast;
+                    if (!skipR1 && lineSegmentCrossesRect(a.x, a.y, b.x, b.y, r1, pad)) crossDetails.push(`seg${i}→r1`);
+                    if (!skipR2 && lineSegmentCrossesRect(a.x, a.y, b.x, b.y, r2, pad)) crossDetails.push(`seg${i}→r2`);
+                }
+            }
+            const crosses = crossDetails.length > 0;
+            const portsFace = (fromSide === 'top' && toSide === 'bottom') || (fromSide === 'bottom' && toSide === 'top');
+            const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+            const bendOffMid = pathInfo.straightLine ? 0 : Math.hypot(pathInfo.bendX - midX, pathInfo.bendY - midY);
+            const weirdBend = !pathInfo.straightLine && portsFace && bendOffMid > Math.min(80, directDist * 0.5);
+            const drag = state.lastDragDelta;
+            const manualBend = !!(conn && conn.bendPoint);
+            const fmt = (n) => Math.round(n).toString();
+            const parts = [
+                `[Conn#${connIdx}] ${conn?.from?.slice(0, 8)}→${conn?.to?.slice(0, 8)}`,
+                `${fromSide}→${toSide}`,
+                pathInfo.straightLine ? 'straight' : (pathInfo.twoBend ? '2-bend' : '1-bend'),
+                pathInfo.pathSource || '-',
+                manualBend ? 'manualBend' : '',
+                crosses ? `❌ CROSSES[${crossDetails.join(',')}]` : '✓ no cross',
+                `len=${fmt(pathLength)} dist=${fmt(directDist)} ratio=${ratio.toFixed(2)}`,
+                `minSeg=${fmt(minSegLen)}`,
+                kink ? '⚠ kink' : '',
+                weirdBend ? '⚠ weirdBend' : '',
+                `p1(${fmt(x1)},${fmt(y1)}) p2(${fmt(x2)},${fmt(y2)})`,
+                !pathInfo.straightLine ? `bend(${fmt(pathInfo.bendX)},${fmt(pathInfo.bendY)})` : '',
+                r1 ? `r1[${fmt(r1.left)},${fmt(r1.right)},${fmt(r1.top)},${fmt(r1.bottom)}]` : '',
+                r2 ? `r2[${fmt(r2.left)},${fmt(r2.right)},${fmt(r2.top)},${fmt(r2.bottom)}]` : '',
+                `zoom=${state.zoom.toFixed(2)}`
+            ];
+            if (drag) parts.push(`drag: dx=${drag.dx} dy=${drag.dy} nodes=[${(drag.nodeIds || []).map(id => id.slice(0, 8)).join(',')}]`);
+            const hasIssue = crosses || weirdBend || ratio > 2.5 || kink;
+            if (hasIssue) console.warn('🔗', parts.filter(Boolean).join(' | '));
+            else console.log('🔗', parts.filter(Boolean).join(' | '));
         }
         /** نقطة انحناء خارج العُقد – الخط لا يمر أبداً من داخل الشكل. الأولوية لاتجاه الدخول/الخروج */
         function getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
@@ -3072,7 +3149,7 @@
                 const crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, 0) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, 0);
                 if (!crosses) {
                     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-                    return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true };
+                    return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true, pathSource: 'straight' };
                 }
             }
             const horSides = ['left', 'right'];
@@ -3085,19 +3162,22 @@
                     bendY = conn.bendPoint.y;
                 }
             }
+            let pathSource = 'ensureValid';
+            if (useManualBend && bendX === conn.bendPoint.x && bendY === conn.bendPoint.y) pathSource = 'manualBend';
             if (r1 && r2) {
                 const valid = ensureBendOutsideNodes(bendX, bendY, x1, y1, x2, y2, fromH, toH, r1, r2, pad);
                 if (valid) {
                     bendX = valid.x;
                     bendY = valid.y;
+                    if (!(useManualBend && bendX === conn.bendPoint.x && bendY === conn.bendPoint.y)) pathSource = 'ensureValid';
                 } else {
                     const around = tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, pad);
-                    if (around) return { pathD: around.pathD, bendX: around.bendX, bendY: around.bendY, useHVH: fromH, straightLine: false, twoBend: true };
-                    bendX = Math.min(r1.left, r2.left) - pad;
+                    if (around) return { pathD: around.pathD, bendX: around.bendX, bendY: around.bendY, useHVH: fromH, straightLine: false, twoBend: true, pathSource: 'aroundPath' };
+                    bendX = (x1 + x2) / 2;
                     bendY = (y1 + y2) / 2;
+                    pathSource = 'fallback';
                 }
             }
-            let pathD;
             if (fromH && toH) {
                 pathD = `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${bendY} L ${bendX} ${y2} L ${x2} ${y2}`;
             } else if (!fromH && !toH) {
@@ -3107,7 +3187,7 @@
             } else {
                 pathD = `M ${x1} ${y1} L ${x1} ${bendY} L ${bendX} ${bendY} L ${bendX} ${y2} L ${x2} ${y2}`;
             }
-            return { pathD, bendX, bendY, useHVH: fromH, straightLine: false };
+            return { pathD, bendX, bendY, useHVH: fromH, straightLine: false, pathSource };
         }
         function getDragPreviewPathD(fromX, fromY, currentX, currentY) {
             const midY = (fromY + currentY) / 2;
