@@ -2924,13 +2924,21 @@
             const kink = minSegLen < 15 && minSegLen > 0;
             const fmt = (n) => Math.round(n).toString();
             // --- Rule 1: خط الربط يعدي من داخل الشكل ---
+            // القطعة الأولى تخرج من r1 (متوقع إنها تعبر r1) فنفحصها ضد r2 فقط
+            // القطعة الأخيرة تدخل r2 (متوقع إنها تعبر r2) فنفحصها ضد r1 فقط
+            // القطع الوسيطة نفحصها ضد كلتا العقدتين
             const crossDetails = [];
             if (r1 && r2 && points.length >= 2) {
                 for (let i = 0; i < points.length - 1; i++) {
                     const a = points[i], b = points[i + 1];
-                    // فحص كل قطعة ضد كل عقدة بدون pad وبدون skip
-                    if (lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r1, 0)) crossDetails.push(`seg${i}→r1`);
-                    if (lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r2, 0)) crossDetails.push(`seg${i}→r2`);
+                    const isFirst = (i === 0);
+                    const isLast = (i === points.length - 2);
+                    if (!isFirst && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r1, 0)) crossDetails.push(`seg${i}⊘r1`);
+                    if (!isLast && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r2, 0)) crossDetails.push(`seg${i}⊘r2`);
+                    // القطعة الأولى تعبر العقدة التانية = crossing حقيقي
+                    if (isFirst && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r2, 0)) crossDetails.push(`seg${i}⊘r2!`);
+                    // القطعة الأخيرة تعبر العقدة الأولى = crossing حقيقي
+                    if (isLast && lineSegmentCrossesRectMid(a.x, a.y, b.x, b.y, r1, 0)) crossDetails.push(`seg${i}⊘r1!`);
                 }
             }
             const crosses = crossDetails.length > 0;
@@ -3217,6 +3225,29 @@
                     bendX = (x1 + x2) / 2;
                     bendY = (y1 + y2) / 2;
                     pathSource = 'fallback';
+                }
+            }
+            // --- فرض اتجاه المنفذ: القطعة الأولى لازم تمشي في اتجاه خروج المنفذ ---
+            if (r1 && r2) {
+                const abv = Math.min(r1.top, r2.top) - placePad;
+                const blw = Math.max(r1.bottom, r2.bottom) + placePad;
+                const lft = Math.min(r1.left, r2.left) - placePad;
+                const rgt = Math.max(r1.right, r2.right) + placePad;
+                // القطعة الأولى: اتجاه fromSide
+                if (!fromH) {
+                    if (fromSide === 'bottom' && bendY < y1) bendY = blw;
+                    if (fromSide === 'top' && bendY > y1) bendY = abv;
+                } else {
+                    if (fromSide === 'right' && bendX < x1) bendX = rgt;
+                    if (fromSide === 'left' && bendX > x1) bendX = lft;
+                }
+                // القطعة الأخيرة: اتجاه toSide (الخط يدخل من الاتجاه الصحيح)
+                if (!toH) {
+                    if (toSide === 'top' && bendY > y2) bendY = Math.min(bendY, y2 > abv ? (r1.bottom < r2.top ? (r1.bottom + r2.top) / 2 : abv) : abv);
+                    if (toSide === 'bottom' && bendY < y2) bendY = blw;
+                } else {
+                    if (toSide === 'left' && bendX > x2) bendX = lft;
+                    if (toSide === 'right' && bendX < x2) bendX = rgt;
                 }
             }
             let pathD;
