@@ -3201,14 +3201,11 @@
             } else if (!fromH && !toH) {
                 const sameDir = fromSide === toSide;
                 if (sameDir && fromSide === 'bottom') {
-                    // bottom→bottom: نزول تحت العقدتين ثم أفقي ثم صعود (بدون backtrack كبير)
+                    // bottom→bottom: نزول تحت العقدتين → أفقي → صعود (U-shape)
                     routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: (x1 + x2) / 2, bendY: belowBoth });
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${leftOfBoth} ${belowBoth} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: belowBoth });
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: belowBoth });
                 } else if (sameDir && fromSide === 'top') {
+                    // top→top: صعود فوق العقدتين → أفقي → نزول (U-shape)
                     routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: (x1 + x2) / 2, bendY: aboveBoth });
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: aboveBoth });
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: aboveBoth });
                 } else if (fromSide === 'top') {
                     routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
                     routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
