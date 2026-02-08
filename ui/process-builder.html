@@ -2953,7 +2953,9 @@
             if (straightPossible) {
                 const r1 = getNodeRectInCanvas(fromNode, canvasRect);
                 const r2 = getNodeRectInCanvas(toNode, canvasRect);
-                const crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, pad) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, pad);
+                const segmentLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+                const straightPad = Math.max(1, Math.min(pad, segmentLen * 0.2));
+                const crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, straightPad) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, straightPad);
                 if (!crosses) {
                     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
                     return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true };
