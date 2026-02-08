@@ -1265,9 +1265,6 @@
             <button type="button" class="toolbar-btn btn-secondary" title="Arrange process in best alignment" onclick="alignProcess()">
                 <span>⊟</span> Align
             </button>
-            <button type="button" class="toolbar-btn btn-secondary" title="Select all nodes (Ctrl+A)" onclick="selectAllNodes()">
-                <span>☑</span> Select All
-            </button>
             <span class="toolbar-label" style="margin-left:8px;">Labels:</span>
             <button type="button" class="toolbar-btn btn-secondary" title="Smaller label font" onclick="setLabelFontSize(-1)">
                 <span>A−</span>
@@ -1778,11 +1775,19 @@
             let isPanning = false;
             let startX, startY;
             
+            /** BPMN-style: box selection فقط على المساحة الفارغة فعلياً – استبعاد العُقد والمنافذ وخطوط الربط */
             function isEmptyArea(e) {
+                if (state.isConnecting || state.connectionPreview) return false;
                 const t = e.target;
                 if (t !== container && t.id !== 'canvas' && t !== connectionsInteractiveSvg) return false;
+                if (t.closest && (t.closest('.connection-hit-path') || t.closest('.connection-handles') || t.closest('.connection-label-badge'))) return false;
+                const prev = connectionsInteractiveSvg ? connectionsInteractiveSvg.style.pointerEvents : '';
+                if (connectionsInteractiveSvg) connectionsInteractiveSvg.style.pointerEvents = 'none';
                 const under = document.elementFromPoint(e.clientX, e.clientY);
-                return !under || !under.closest || !under.closest('.workflow-node');
+                if (connectionsInteractiveSvg) connectionsInteractiveSvg.style.pointerEvents = prev;
+                if (under && under.closest && under.closest('.workflow-node')) return false;
+                if (under && under.closest && under.closest('.port')) return false;
+                return true;
             }
             
             container.addEventListener('mousedown', (e) => {
