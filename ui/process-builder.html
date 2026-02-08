@@ -2839,46 +2839,77 @@
             margin = margin || 0;
             return px >= r.left - margin && px <= r.right + margin && py >= r.top - margin && py <= r.bottom + margin;
         }
-        /** نقطة انحناء افتراضية خارج العُقد – الخط لا يمر عبر الأشكال */
-        function getBendOutsideNodes(x1, y1, x2, y2, fromNode, toNode, canvasRect) {
-            const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-            if (!fromNode || !toNode) return { x: midX, y: midY };
+        /** نقطة انحناء خارج العُقد – الخط يخرج عمودياً على المنفذ ولا يمر من داخل الشكل */
+        function getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
+            const pad = 16;
+            const horSides = ['left', 'right'];
+            const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
+            let bx = (x1 + x2) / 2, by = (y1 + y2) / 2;
+            if (!fromNode || !toNode) return { x: bx, y: by };
             const r1 = getNodeRectInCanvas(fromNode, canvasRect);
             const r2 = getNodeRectInCanvas(toNode, canvasRect);
-            const pad = 12;
-            let bx = midX, by = midY;
+            if (fromH && toH) {
+                if (fromSide === 'left' && toSide === 'left') bx = Math.min(r1.left, r2.left) - pad;
+                else if (fromSide === 'right' && toSide === 'right') bx = Math.max(r1.right, r2.right) + pad;
+                else if (r1.right <= r2.left) bx = (r1.right + r2.left) / 2;
+                else if (r2.right <= r1.left) bx = (r2.right + r1.left) / 2;
+                else bx = fromSide === 'left' ? Math.min(r1.left, r2.left) - pad : Math.max(r1.right, r2.right) + pad;
+                const yLo = Math.min(r1.top, r2.top) - pad, yHi = Math.max(r1.bottom, r2.bottom) + pad;
+                by = Math.max(yLo, Math.min(yHi, (y1 + y2) / 2));
+            } else if (!fromH && !toH) {
+                if (fromSide === 'top' && toSide === 'top') by = Math.min(r1.top, r2.top) - pad;
+                else if (fromSide === 'bottom' && toSide === 'bottom') by = Math.max(r1.bottom, r2.bottom) + pad;
+                else if (r1.bottom <= r2.top) by = (r1.bottom + r2.top) / 2;
+                else if (r2.bottom <= r1.top) by = (r2.bottom + r1.top) / 2;
+                else by = fromSide === 'top' ? Math.min(r1.top, r2.top) - pad : Math.max(r1.bottom, r2.bottom) + pad;
+                const xLo = Math.min(r1.left, r2.left) - pad, xHi = Math.max(r1.right, r2.right) + pad;
+                bx = Math.max(xLo, Math.min(xHi, (x1 + x2) / 2));
+            } else if (fromH && !toH) {
+                if (r1.right <= r2.left) bx = (r1.right + r2.left) / 2;
+                else if (r2.right <= r1.left) bx = (r2.right + r1.left) / 2;
+                else bx = fromSide === 'left' ? r1.left - pad : r1.right + pad;
+                if (r1.bottom <= r2.top) by = (r1.bottom + r2.top) / 2;
+                else if (r2.bottom <= r1.top) by = (r2.bottom + r1.top) / 2;
+                else by = toSide === 'top' ? r2.top - pad : r2.bottom + pad;
+            } else {
+                if (r1.bottom <= r2.top) by = (r1.bottom + r2.top) / 2;
+                else if (r2.bottom <= r1.top) by = (r2.bottom + r1.top) / 2;
+                else by = fromSide === 'top' ? r1.top - pad : r1.bottom + pad;
+                if (r1.right <= r2.left) bx = (r1.right + r2.left) / 2;
+                else if (r2.right <= r1.left) bx = (r2.right + r1.left) / 2;
+                else bx = toSide === 'left' ? r2.left - pad : r2.right + pad;
+            }
             if (pointInRect(bx, by, r1, pad) || pointInRect(bx, by, r2, pad)) {
-                const dx = x2 - x1, dy = y2 - y1;
-                if (Math.abs(dx) >= Math.abs(dy)) {
-                    bx = r1.right <= r2.left ? (r1.right + r2.left) / 2 : r2.right <= r1.left ? (r2.right + r1.left) / 2 : midX;
-                    const yMin = Math.max(r1.top, r2.top) - pad, yMax = Math.min(r1.bottom, r2.bottom) + pad;
-                    by = Math.max(yMin, Math.min(yMax, midY));
-                } else {
-                    by = r1.bottom <= r2.top ? (r1.bottom + r2.top) / 2 : r2.bottom <= r1.top ? (r2.bottom + r1.top) / 2 : midY;
-                    const xMin = Math.max(r1.left, r2.left) - pad, xMax = Math.min(r1.right, r2.right) + pad;
-                    bx = Math.max(xMin, Math.min(xMax, midX));
-                }
-                if (pointInRect(bx, by, r1, pad) || pointInRect(bx, by, r2, pad)) {
-                    for (let t = 0.15; t <= 0.85; t += 0.1) {
-                        const tx = x1 + t * dx, ty = y1 + t * dy;
-                        if (!pointInRect(tx, ty, r1, pad) && !pointInRect(tx, ty, r2, pad)) {
-                            bx = tx; by = ty; break;
-                        }
+                for (let t = 0.2; t <= 0.8; t += 0.1) {
+                    const tx = x1 + t * (x2 - x1), ty = y1 + t * (y2 - y1);
+                    if (!pointInRect(tx, ty, r1, pad) && !pointInRect(tx, ty, r2, pad)) {
+                        bx = tx; by = ty; break;
                     }
                 }
             }
             return { x: bx, y: by };
         }
-        /** مسار الربط: 4 أجزاء مع نقطة انحناء (bendX,bendY) قابلة للسحب في الاتجاهين – الخط لا يمر عبر الأشكال */
+        /** مسار الربط حسب اتجاه المنافذ – الخروج والدخول عمودي على حافة الشكل (الخط لا يمر من الداخل) */
         function getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect) {
-            const def = getBendOutsideNodes(x1, y1, x2, y2, fromNode, toNode, canvasRect);
+            const horSides = ['left', 'right'];
+            const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
+            const def = getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
             let bendX = def.x, bendY = def.y;
             if (conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number') {
                 bendX = conn.bendPoint.x;
                 bendY = conn.bendPoint.y;
             }
-            const pathD = `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${bendY} L ${x2} ${bendY} L ${x2} ${y2}`;
-            return { pathD, bendX, bendY, useHVH: true };
+            let pathD;
+            if (fromH && toH) {
+                pathD = `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${bendY} L ${bendX} ${y2} L ${x2} ${y2}`;
+            } else if (!fromH && !toH) {
+                pathD = `M ${x1} ${y1} L ${x1} ${bendY} L ${bendX} ${bendY} L ${x2} ${bendY} L ${x2} ${y2}`;
+            } else if (fromH && !toH) {
+                pathD = `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${bendY} L ${x2} ${bendY} L ${x2} ${y2}`;
+            } else {
+                pathD = `M ${x1} ${y1} L ${x1} ${bendY} L ${bendX} ${bendY} L ${bendX} ${y2} L ${x2} ${y2}`;
+            }
+            return { pathD, bendX, bendY, useHVH: fromH };
         }
         function getDragPreviewPathD(fromX, fromY, currentX, currentY) {
             const midY = (fromY + currentY) / 2;
@@ -3023,7 +3054,7 @@
         }
         function startDragEdgeEnd(connIndex, conn, fromX, fromY, startX, startY) {
             saveToUndo();
-            const origConn = { from: conn.from, to: conn.to, type: conn.type, fromPort: conn.fromPort, toPort: conn.toPort };
+            const origConn = { ...conn };
             state.connections.splice(connIndex, 1);
             state.draggingEdgeEnd = {
                 connIndex,
@@ -3150,7 +3181,7 @@
         }
         function startDragEdgeStart(connIndex, conn, startX, startY, toX, toY) {
             saveToUndo();
-            const origConn = { from: conn.from, to: conn.to, type: conn.type, fromPort: conn.fromPort, toPort: conn.toPort };
+            const origConn = { ...conn };
             state.connections.splice(connIndex, 1);
             state.draggingEdgeStart = {
                 connIndex,
