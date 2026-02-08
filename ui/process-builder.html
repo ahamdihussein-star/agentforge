@@ -1296,6 +1296,7 @@
     
     <!-- Canvas Container -->
     <div id="canvas-container">
+        <div id="selection-box" style="display:none;position:absolute;border:2px dashed rgba(99,102,241,0.9);background:rgba(99,102,241,0.08);pointer-events:none;z-index:20;border-radius:4px;"></div>
         <!-- SVG for connection paths only (behind nodes) -->
         <svg id="connections-svg"></svg>
         <!-- SVG for handles + Yes/No labels only (on top, clickable) -->
@@ -1526,6 +1527,8 @@
             flowDirection: 'vertical',
             draggingLabel: null,
             draggingConnectionLabel: null,
+            boxSelect: null,
+            justBoxSelected: false,
             labelFontSize: Math.min(24, Math.max(9, parseInt(localStorage.getItem('pb-label-font-size'), 10) || 11)),
             tools: [],
             agentId: null,
@@ -1771,16 +1774,35 @@
                 connectionsInteractiveSvg.addEventListener('click', forwardSvgPointerToCanvas);
             }
             
-            // Pan with middle mouse or space+drag
+            // Pan (middle mouse) and box selection (left drag on empty area)
             let isPanning = false;
             let startX, startY;
             
+            function isEmptyArea(e) {
+                const t = e.target;
+                if (t !== container && t.id !== 'canvas' && t !== connectionsInteractiveSvg) return false;
+                const under = document.elementFromPoint(e.clientX, e.clientY);
+                return !under || !under.closest || !under.closest('.workflow-node');
+            }
+            
             container.addEventListener('mousedown', (e) => {
-                if (e.button === 1 || (e.button === 0 && e.target === container)) {
+                if (e.button === 1) {
                     isPanning = true;
                     startX = e.clientX - state.panX;
                     startY = e.clientY - state.panY;
                     container.style.cursor = 'grabbing';
+                } else if (e.button === 0 && isEmptyArea(e)) {
+                    state.boxSelect = { startClientX: e.clientX, startClientY: e.clientY, addToSelection: e.ctrlKey || e.metaKey };
+                    container.style.cursor = 'crosshair';
+                    const box = document.getElementById('selection-box');
+                    if (box) {
+                        const r = container.getBoundingClientRect();
+                        box.style.left = (e.clientX - r.left) + 'px';
+                        box.style.top = (e.clientY - r.top) + 'px';
+                        box.style.width = '0';
+                        box.style.height = '0';
+                        box.style.display = 'block';
+                    }
                 }
             });
             
@@ -1789,12 +1811,67 @@
                     state.panX = e.clientX - startX;
                     state.panY = e.clientY - startY;
                     updateCanvasTransform();
+                } else if (state.boxSelect) {
+                    const box = document.getElementById('selection-box');
+                    if (!box) return;
+                    const r = container.getBoundingClientRect();
+                    const x1 = Math.min(state.boxSelect.startClientX, e.clientX);
+                    const y1 = Math.min(state.boxSelect.startClientY, e.clientY);
+                    const x2 = Math.max(state.boxSelect.startClientX, e.clientX);
+                    const y2 = Math.max(state.boxSelect.startClientY, e.clientY);
+                    box.style.left = (x1 - r.left) + 'px';
+                    box.style.top = (y1 - r.top) + 'px';
+                    box.style.width = (x2 - x1) + 'px';
+                    box.style.height = (y2 - y1) + 'px';
                 }
             });
             
-            document.addEventListener('mouseup', () => {
-                isPanning = false;
-                container.style.cursor = '';
+            document.addEventListener('mouseup', (e) => {
+                if (e.button === 1) {
+                    isPanning = false;
+                    container.style.cursor = '';
+                } else if (e.button === 0 && state.boxSelect) {
+                    container.style.cursor = '';
+                    const box = document.getElementById('selection-box');
+                    if (box) box.style.display = 'none';
+                    const x1 = Math.min(state.boxSelect.startClientX, e.clientX);
+                    const y1 = Math.min(state.boxSelect.startClientY, e.clientY);
+                    const x2 = Math.max(state.boxSelect.startClientX, e.clientX);
+                    const y2 = Math.max(state.boxSelect.startClientY, e.clientY);
+                    if (x2 - x1 > 4 || y2 - y1 > 4) {
+                        const r = container.getBoundingClientRect();
+                        const c1 = clientToCanvas(x1, y1);
+                        const c2 = clientToCanvas(x2, y2);
+                        const minX = Math.min(c1.x, c2.x), maxX = Math.max(c1.x, c2.x);
+                        const minY = Math.min(c1.y, c2.y), maxY = Math.max(c1.y, c2.y);
+                        const NODE_W = 72, NODE_H = 90;
+                        const selected = state.nodes.filter(n => {
+                            const nR = n.x + NODE_W;
+                            const nB = n.y + NODE_H;
+                            return n.x < maxX && nR > minX && n.y < maxY && nB > minY;
+                        });
+                        if (selected.length > 0) {
+                            state.justBoxSelected = true;
+                            setTimeout(() => { state.justBoxSelected = false; }, 0);
+                            const addTo = state.boxSelect.addToSelection;
+                            const newIds = selected.map(n => n.id);
+                            if (addTo) {
+                                const cur = new Set(state.selectedNodeIds.length ? state.selectedNodeIds : (state.selectedNode ? [state.selectedNode.id] : state.selectedLabelNodeId ? [state.selectedLabelNodeId] : []));
+                                newIds.forEach(id => cur.add(id));
+                                state.selectedNodeIds = Array.from(cur);
+                            } else {
+                                state.selectedNodeIds = newIds;
+                            }
+                            state.selectedNode = state.selectedNodeIds.length === 1 ? state.nodes.find(n => n.id === state.selectedNodeIds[0]) : null;
+                            state.selectedLabelNodeId = null;
+                            stateSelectedConnIndex = null;
+                            updateSelectionUI();
+                            if (state.selectedNodeIds.length === 1) showProperties(state.nodes.find(n => n.id === state.selectedNodeIds[0]));
+                            else closeProperties();
+                        }
+                    }
+                    state.boxSelect = null;
+                }
             });
             
             // Zoom with scroll
@@ -1818,8 +1895,8 @@
             
             // Click on canvas to deselect
             container.addEventListener('click', (e) => {
-                if (state.justDropped) return;
-                if (e.target === container || e.target.id === 'canvas') {
+                if (state.justDropped || state.justBoxSelected) return;
+                if (e.target === container || e.target.id === 'canvas' || e.target === connectionsInteractiveSvg) {
                     deselectAll();
                     deselectConnection();
                 }
