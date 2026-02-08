@@ -2863,7 +2863,8 @@
         }
         /** نقطة انحناء خارج العُقد – الخط لا يمر أبداً من داخل الشكل. الأولوية لاتجاه الدخول/الخروج */
         function getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
-            const pad = 20;
+            const segmentLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+            const pad = Math.min(20, Math.max(8, segmentLen * 0.25));
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
             let bx = (x1 + x2) / 2, by = (y1 + y2) / 2;
@@ -2945,7 +2946,9 @@
             }
             return { x: bx, y: by };
         }
-        /** مسار الربط حسب اتجاه المنافذ – الخروج والدخول عمودي على حافة الشكل (الخط لا يمر من الداخل) */
+        /** مسار الربط الذكي والديناميكي
+         * Rules: الخط لا يمر من داخل الـ shape؛ الانحناء يتناسب مع المسافة؛ تجنب القطاعات القصيرة جداً (kinks)
+         * Paths recalculate on node move (renderConnections in makeDraggable mousemove) */
         function getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect) {
             const pad = 20;
             const useManualBend = conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number';
@@ -2954,9 +2957,17 @@
                 const r1 = getNodeRectInCanvas(fromNode, canvasRect);
                 const r2 = getNodeRectInCanvas(toNode, canvasRect);
                 const segmentLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-                const straightPad = Math.max(1, Math.min(pad, segmentLen * 0.2));
-                const crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, straightPad) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, straightPad);
-                if (!crosses) {
+                const dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);
+                const minBendDist = 40;
+                const minSegmentForBend = 12;
+                const alignedVertically = dx < minSegmentForBend;
+                const alignedHorizontally = dy < minSegmentForBend;
+                const wouldCreateKink = segmentLen < minBendDist && (alignedVertically || alignedHorizontally);
+                const straightPad = wouldCreateKink ? 0 : Math.max(1, Math.min(pad, segmentLen * 0.2));
+                let crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, straightPad) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, straightPad);
+                const minSegmentLen = 10;
+                const bentWouldKink = Math.min(dx, dy) < minSegmentLen;
+                if (!crosses || (bentWouldKink && !lineSegmentCrossesRect(x1, y1, x2, y2, r1, 0) && !lineSegmentCrossesRect(x1, y1, x2, y2, r2, 0))) {
                     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
                     return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true };
                 }
