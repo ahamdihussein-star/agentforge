@@ -2688,6 +2688,7 @@
                 const pathD = pathInfo.pathD;
                 const midX = pathInfo.bendX;
                 const midY = pathInfo.bendY;
+                const isStraight = pathInfo.straightLine === true;
                 
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
@@ -2737,27 +2738,29 @@
                     startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
                 });
                 gHandle.appendChild(endHandle);
-                const bendHandle = document.createElementNS(ns, 'circle');
-                bendHandle.setAttribute('class', 'connection-bend-handle');
-                bendHandle.setAttribute('cx', midX);
-                bendHandle.setAttribute('cy', midY);
-                bendHandle.setAttribute('r', 6);
-                bendHandle.setAttribute('title', 'Drag to adjust bend • Double-click to reset');
-                bendHandle.style.pointerEvents = 'all';
-                bendHandle.addEventListener('mousedown', (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    startDragBendPoint(idx, conn, x1, y1, x2, y2);
-                });
-                bendHandle.addEventListener('dblclick', (e) => {
-                    e.stopPropagation();
-                    if (conn.bendPoint) {
-                        delete conn.bendPoint;
-                        saveToUndo();
-                        renderConnections();
-                    }
-                });
-                gHandle.appendChild(bendHandle);
+                if (!isStraight) {
+                    const bendHandle = document.createElementNS(ns, 'circle');
+                    bendHandle.setAttribute('class', 'connection-bend-handle');
+                    bendHandle.setAttribute('cx', midX);
+                    bendHandle.setAttribute('cy', midY);
+                    bendHandle.setAttribute('r', 6);
+                    bendHandle.setAttribute('title', 'Drag to adjust bend • Double-click to reset');
+                    bendHandle.style.pointerEvents = 'all';
+                    bendHandle.addEventListener('mousedown', (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        startDragBendPoint(idx, conn, x1, y1, x2, y2);
+                    });
+                    bendHandle.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        if (conn.bendPoint) {
+                            delete conn.bendPoint;
+                            saveToUndo();
+                            renderConnections();
+                        }
+                    });
+                    gHandle.appendChild(bendHandle);
+                }
                 if (svgInteractive) svgInteractive.appendChild(gHandle);
                 
                 const labelX = midX;
@@ -2849,6 +2852,15 @@
             const xMin = Math.min(xa, xb), xMax = Math.max(xa, xb);
             return y >= r.top - pad && y <= r.bottom + pad && xMin <= r.right + pad && xMax >= r.left - pad;
         }
+        /** هل قطعة الخط من (x1,y1) إلى (x2,y2) تمر عبر المستطيل (نقاط داخلية فقط) */
+        function lineSegmentCrossesRect(x1, y1, x2, y2, r, pad) {
+            for (let t = 0.1; t < 1; t += 0.1) {
+                const px = x1 + t * (x2 - x1);
+                const py = y1 + t * (y2 - y1);
+                if (pointInRect(px, py, r, pad)) return true;
+            }
+            return false;
+        }
         /** نقطة انحناء خارج العُقد – الخط لا يمر أبداً من داخل الشكل. الأولوية لاتجاه الدخول/الخروج */
         function getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
             const pad = 20;
@@ -2876,13 +2888,13 @@
                     bx = bx <= (r1.left + r2.left) / 2 ? leftOfBoth : rightOfBoth;
                 }
             } else if (!fromH && !toH) {
-                if (gapY != null && (fromSide !== 'bottom' || gapY >= r2.bottom + pad)) { by = gapY; }
-                else if (gapY2 != null && (fromSide !== 'top' || gapY2 <= r2.top - pad)) { by = gapY2; }
+                if (fromSide === 'top' && toSide === 'bottom' && gapY != null) { by = gapY; }
+                else if (fromSide === 'bottom' && toSide === 'top' && gapY2 != null) { by = gapY2; }
                 else { by = fromSide === 'top' ? aboveBoth : belowBoth; }
                 const xLo = Math.min(r1.left, r2.left) - pad, xHi = Math.max(r1.right, r2.right) + pad;
                 bx = Math.max(xLo, Math.min(xHi, (x1 + x2) / 2));
                 if (horizontalSegmentCrossesRect(by, x1, x2, r1, pad) || horizontalSegmentCrossesRect(by, x1, x2, r2, pad)) {
-                    by = by <= (r1.top + r2.top) / 2 ? aboveBoth : belowBoth;
+                    by = fromSide === 'top' ? aboveBoth : belowBoth;
                 }
             } else if (fromH && !toH) {
                 if (fromSide === 'right' && gapX != null) { bx = gapX; }
@@ -2934,11 +2946,23 @@
         }
         /** مسار الربط حسب اتجاه المنافذ – الخروج والدخول عمودي على حافة الشكل (الخط لا يمر من الداخل) */
         function getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect) {
+            const pad = 20;
+            const useManualBend = conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number';
+            const straightPossible = !useManualBend && fromNode && toNode;
+            if (straightPossible) {
+                const r1 = getNodeRectInCanvas(fromNode, canvasRect);
+                const r2 = getNodeRectInCanvas(toNode, canvasRect);
+                const crosses = lineSegmentCrossesRect(x1, y1, x2, y2, r1, pad) || lineSegmentCrossesRect(x1, y1, x2, y2, r2, pad);
+                if (!crosses) {
+                    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+                    return { pathD: `M ${x1} ${y1} L ${x2} ${y2}`, bendX: midX, bendY: midY, useHVH: false, straightLine: true };
+                }
+            }
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
             const def = getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
             let bendX = def.x, bendY = def.y;
-            if (conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number') {
+            if (useManualBend) {
                 bendX = conn.bendPoint.x;
                 bendY = conn.bendPoint.y;
             }
@@ -2952,7 +2976,7 @@
             } else {
                 pathD = `M ${x1} ${y1} L ${x1} ${bendY} L ${bendX} ${bendY} L ${bendX} ${y2} L ${x2} ${y2}`;
             }
-            return { pathD, bendX, bendY, useHVH: fromH };
+            return { pathD, bendX, bendY, useHVH: fromH, straightLine: false };
         }
         function getDragPreviewPathD(fromX, fromY, currentX, currentY) {
             const midY = (fromY + currentY) / 2;
