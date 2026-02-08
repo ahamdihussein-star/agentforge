@@ -3157,6 +3157,54 @@
             }
             return best;
         }
+        /** يضبط نقطة الانحناء المرسومة من المستخدم لأقرب موضع صالح مع احترام R1,R2,R3. يُستخدم عند السحب. */
+        function getValidBendNearestTo(rawX, rawY, x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect) {
+            const pad = 0;
+            if (!fromNode || !toNode) return { x: rawX, y: rawY };
+            const r1 = getNodeRectInCanvas(fromNode, canvasRect);
+            const r2 = getNodeRectInCanvas(toNode, canvasRect);
+            const horSides = ['left', 'right'];
+            const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
+            let bx = rawX, by = rawY;
+            // R3: منع self-fold للـ V-H-V
+            if (!fromH && !toH && (bx - x1) * (x2 - bx) < 0) bx = (x1 + x2) / 2;
+            if (!bendPathCrossesNodes(bx, by, x1, y1, x2, y2, fromH, toH, r1, r2, pad))
+                return { x: bx, y: by };
+            // موضع غير صالح: نأخذ أقرب نقطة صالحة من قائمة المرشحين + نقاط قريبة من الموضع المرسوم
+            const placePad = 20, gapPad = 5;
+            const leftOfBoth = Math.min(r1.left, r2.left) - placePad;
+            const rightOfBoth = Math.max(r1.right, r2.right) + placePad;
+            const aboveBoth = Math.min(r1.top, r2.top) - placePad;
+            const belowBoth = Math.max(r1.bottom, r2.bottom) + placePad;
+            const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+            const gapX = r1.right + gapPad <= r2.left - gapPad ? (r1.right + r2.left) / 2 : null;
+            const gapX2 = r2.right + gapPad <= r1.left - gapPad ? (r2.right + r1.left) / 2 : null;
+            const gapY = r1.bottom + gapPad <= r2.top - gapPad ? (r1.bottom + r2.top) / 2 : null;
+            const gapY2 = r2.bottom + gapPad <= r1.top - gapPad ? (r2.bottom + r1.top) / 2 : null;
+            const approachAboveR2 = r2.top - placePad - 2, approachBelowR2 = r2.bottom + placePad + 2;
+            const approachAboveR1 = r1.top - placePad - 2, approachBelowR1 = r1.bottom + placePad + 2;
+            const candidates = [];
+            if (gapY != null) candidates.push({ x: midX, y: gapY }, { x: leftOfBoth, y: gapY }, { x: rightOfBoth, y: gapY });
+            if (gapY2 != null) candidates.push({ x: midX, y: gapY2 }, { x: leftOfBoth, y: gapY2 }, { x: rightOfBoth, y: gapY2 });
+            if (gapX != null) candidates.push({ x: gapX, y: midY }, { x: gapX, y: aboveBoth }, { x: gapX, y: belowBoth });
+            if (gapX2 != null) candidates.push({ x: gapX2, y: midY }, { x: gapX2, y: aboveBoth }, { x: gapX2, y: belowBoth });
+            candidates.push({ x: rightOfBoth, y: approachAboveR2 }, { x: rightOfBoth, y: approachBelowR2 }, { x: leftOfBoth, y: approachAboveR2 }, { x: leftOfBoth, y: approachBelowR2 });
+            candidates.push({ x: rightOfBoth, y: approachAboveR1 }, { x: rightOfBoth, y: approachBelowR1 }, { x: leftOfBoth, y: approachAboveR1 }, { x: leftOfBoth, y: approachBelowR1 });
+            candidates.push({ x: midX, y: aboveBoth }, { x: midX, y: belowBoth }, { x: leftOfBoth, y: midY }, { x: rightOfBoth, y: midY });
+            candidates.push({ x: leftOfBoth, y: aboveBoth }, { x: leftOfBoth, y: belowBoth }, { x: rightOfBoth, y: aboveBoth }, { x: rightOfBoth, y: belowBoth }, { x: midX, y: midY });
+            candidates.push({ x: rawX, y: rawY }, { x: rawX, y: y1 }, { x: rawX, y: y2 }, { x: x1, y: rawY }, { x: x2, y: rawY });
+            let best = null, bestDist = Infinity;
+            for (const c of candidates) {
+                let cx = c.x, cy = c.y;
+                if (!fromH && !toH && (cx - x1) * (x2 - cx) < 0) cx = (x1 + x2) / 2;
+                if (!bendPathCrossesNodes(cx, cy, x1, y1, x2, y2, fromH, toH, r1, r2, pad)) {
+                    const cost = Math.abs(cx - x1) + Math.abs(cy - y1) + Math.abs(cx - x2) + Math.abs(cy - y2);
+                    const dist = Math.hypot(cx - rawX, cy - rawY) + cost * 0.01;
+                    if (dist < bestDist) { best = { x: cx, y: cy }; bestDist = dist; }
+                }
+            }
+            return best || { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+        }
         /** مسار بـ 2 انحناءات يلتف حول العقد عند استحالة المسار الواحد. يُستخدم كملاذ أخير. */
         function tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, pad) {
             const extra = 5; // هامش إضافي لتجنب ملامسة حد الـ pad بالظبط
@@ -3655,13 +3703,26 @@
             saveToUndo();
             if (!conn.bendPoint) conn.bendPoint = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
             state.draggingBendPoint = true;
+            const fromNode = document.getElementById(conn.from);
+            const toNode = document.getElementById(conn.to);
+            let fromSide = conn.fromPort;
+            let toSide = conn.toPort;
+            if (fromSide == null || toSide == null) {
+                const outKind = conn.type === 'yes' ? 'output-yes' : conn.type === 'no' ? 'output-no' : 'output';
+                const pair = getClosestPortPair(fromNode, toNode, outKind);
+                fromSide = fromSide ?? pair.fromSide;
+                toSide = toSide ?? pair.toSide;
+            }
             const startClientX = event.clientX, startClientY = event.clientY;
             const startBX = conn.bendPoint.x, startBY = conn.bendPoint.y;
             const onMove = (e) => {
                 const dx = (e.clientX - startClientX) / state.zoom;
                 const dy = (e.clientY - startClientY) / state.zoom;
-                conn.bendPoint.x = startBX + dx;
-                conn.bendPoint.y = startBY + dy;
+                const rawX = startBX + dx, rawY = startBY + dy;
+                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                const valid = getValidBendNearestTo(rawX, rawY, x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
+                conn.bendPoint.x = valid.x;
+                conn.bendPoint.y = valid.y;
                 renderConnections();
             };
             const onUp = () => {
