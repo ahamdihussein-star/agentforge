@@ -2743,7 +2743,7 @@
                     startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
                 });
                 gHandle.appendChild(endHandle);
-                if (!isStraight) {
+                if (!isStraight && !isTwoBend) {
                     const bendHandle = document.createElementNS(ns, 'circle');
                     bendHandle.setAttribute('class', 'connection-bend-handle');
                     bendHandle.setAttribute('cx', midX);
@@ -3170,7 +3170,14 @@
             if (!fromH && !toH && (bx - x1) * (x2 - bx) < 0) bx = (x1 + x2) / 2;
             if (!bendPathCrossesNodes(bx, by, x1, y1, x2, y2, fromH, toH, r1, r2, pad))
                 return { x: bx, y: by };
-            // موضع غير صالح: نأخذ أقرب نقطة صالحة من قائمة المرشحين + نقاط قريبة من الموضع المرسوم
+            // موضع غير صالح: شبكة كثيفة حول الموضع المرسوم أولاً لحركة سلسة، ثم مرشحو الحواف
+            const step = 8;
+            const candidates = [];
+            for (let di = -3; di <= 3; di++) {
+                for (let dj = -3; dj <= 3; dj++) {
+                    candidates.push({ x: rawX + di * step, y: rawY + dj * step });
+                }
+            }
             const placePad = 20, gapPad = 5;
             const leftOfBoth = Math.min(r1.left, r2.left) - placePad;
             const rightOfBoth = Math.max(r1.right, r2.right) + placePad;
@@ -3183,7 +3190,6 @@
             const gapY2 = r2.bottom + gapPad <= r1.top - gapPad ? (r2.bottom + r1.top) / 2 : null;
             const approachAboveR2 = r2.top - placePad - 2, approachBelowR2 = r2.bottom + placePad + 2;
             const approachAboveR1 = r1.top - placePad - 2, approachBelowR1 = r1.bottom + placePad + 2;
-            const candidates = [];
             if (gapY != null) candidates.push({ x: midX, y: gapY }, { x: leftOfBoth, y: gapY }, { x: rightOfBoth, y: gapY });
             if (gapY2 != null) candidates.push({ x: midX, y: gapY2 }, { x: leftOfBoth, y: gapY2 }, { x: rightOfBoth, y: gapY2 });
             if (gapX != null) candidates.push({ x: gapX, y: midY }, { x: gapX, y: aboveBoth }, { x: gapX, y: belowBoth });
@@ -3355,9 +3361,10 @@
             }
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
-            // منافذ بنفس الاتجاه (bottom→bottom, top→top, left→left, right→right): مسار U-shape مباشرة
+            // منافذ بنفس الاتجاه (bottom→bottom, top→top, ...): مسار U-shape دائماً — لا نستخدم manual bend أبداً
             const sameDirection = fromSide === toSide;
-            if (sameDirection && r1 && r2 && !useManualBend) {
+            if (sameDirection && r1 && r2) {
+                if (conn && conn.bendPoint) delete conn.bendPoint;
                 const around = tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, placePad);
                 if (around) return { pathD: around.pathD, bendX: around.bendX, bendY: around.bendY, useHVH: fromH, straightLine: false, twoBend: true, pathSource: 'sameDir' };
                 // لو tryAroundPath فشل: نبني U-shape مباشرة بدون validation
@@ -3427,6 +3434,14 @@
                     if (toSide === 'right' && bendX < x2) bendX = rgt;
                 }
             }
+            // --- إعادة التحقق بعد التعديلات: لو صار المسار يمر من العقد نرجع لـ ensureBendOutsideNodes ---
+            if (r1 && r2 && bendPathCrossesNodes(bendX, bendY, x1, y1, x2, y2, fromH, toH, r1, r2, checkPad)) {
+                const valid = ensureBendOutsideNodes(bendX, bendY, x1, y1, x2, y2, fromH, toH, r1, r2, checkPad);
+                if (valid) {
+                    bendX = valid.x;
+                    bendY = valid.y;
+                }
+            }
             // --- منع self-folding: التأكد إن المسار مبيرجعش على نفسه ---
             // V-H-V: المسار (x1,y1)→(x1,bendY)→(bendX,bendY)→(x2,bendY)→(x2,y2)
             //   seg1 = x1→bendX, seg2 = bendX→x2. لو اتجاههم عكس بعض → fold → نخلي bendX = midX
@@ -3435,6 +3450,10 @@
             if (!fromH && !toH) {
                 // seg1: x1→bendX, seg2: bendX→x2. fold لو (bendX-x1) و (x2-bendX) اتجاههم عكس بعض
                 if ((bendX - x1) * (x2 - bendX) < 0) bendX = (x1 + x2) / 2;
+            }
+            if (r1 && r2 && bendPathCrossesNodes(bendX, bendY, x1, y1, x2, y2, fromH, toH, r1, r2, checkPad)) {
+                const valid = ensureBendOutsideNodes(bendX, bendY, x1, y1, x2, y2, fromH, toH, r1, r2, checkPad);
+                if (valid) { bendX = valid.x; bendY = valid.y; }
             }
             if (fromH && !toH) {
                 // seg2: bendY→y2. fold لو y direction changes between seg1(y1→bendY) and seg2(bendY→y2) — not applicable (different axes)
