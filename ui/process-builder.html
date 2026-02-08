@@ -1147,32 +1147,6 @@
             align-items: center;
         }
         
-        /* Minimap */
-        #minimap {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            width: 160px;
-            height: 100px;
-            background: var(--pb-panel);
-            border: 1px solid var(--node-border);
-            border-radius: 8px;
-            overflow: hidden;
-            z-index: 50;
-        }
-        
-        #minimap-canvas {
-            width: 100%;
-            height: 100%;
-        }
-        
-        .minimap-viewport {
-            position: absolute;
-            border: 2px solid #6366f1;
-            background: rgba(99, 102, 241, 0.1);
-            pointer-events: none;
-        }
-        
         /* Empty State */
         #empty-state {
             position: absolute;
@@ -1495,11 +1469,6 @@
         <button class="zoom-btn" onclick="zoomIn()">+</button>
         <button class="zoom-btn" onclick="zoomReset()" title="Reset zoom">⊙</button>
         <button class="zoom-btn" onclick="zoomFit()" title="Fit all steps in view">⊡</button>
-    </div>
-    
-    <!-- Minimap -->
-    <div id="minimap">
-        <canvas id="minimap-canvas"></canvas>
     </div>
     
     <script>
