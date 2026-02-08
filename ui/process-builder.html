@@ -690,7 +690,11 @@
             stroke-width: 2;
             cursor: grab;
             r: 6;
+            visibility: hidden;
         }
+        .connection-handles.selected .connection-bend-handle { visibility: visible; }
+        .connection-handles.yes .connection-bend-handle { fill: #22c55e; }
+        .connection-handles.no .connection-bend-handle { fill: #ef4444; }
         .connection-bend-handle:hover { r: 8; }
         .connection-bend-handle:active { cursor: grabbing; }
         
@@ -2680,12 +2684,10 @@
                 const x2 = (toRect.left + toRect.width / 2 - canvasRect.left) / state.zoom;
                 const y2 = (toRect.top + toRect.height / 2 - canvasRect.top) / state.zoom;
                 
-                const midY = (y1 + y2) / 2;
-                const midX = (x1 + x2) / 2;
-                // Vertical: خط عمودي ثم أفقي ثم عمودي (V-H-V). Horizontal: خط أفقي ثم عمودي ثم أفقي (H-V-H)
-                const pathD = state.flowDirection === 'horizontal'
-                    ? `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`   // ↔ يسار-يمين: أفقي-عمودي-أفقي
-                    : `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;  // ↕ أعلى-أسفل: عمودي-أفقي-عمودي
+                const pathInfo = getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn);
+                const pathD = pathInfo.pathD;
+                const midX = pathInfo.bendX;
+                const midY = pathInfo.bendY;
                 
                 const path = document.createElementNS(ns, 'path');
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
@@ -2707,7 +2709,7 @@
                 if (svgInteractive) svgInteractive.appendChild(hitPath);
                 
                 const gHandle = document.createElementNS(ns, 'g');
-                gHandle.setAttribute('class', `connection-handles${stateSelectedConnIndex === idx ? ' selected' : ''}`);
+                gHandle.setAttribute('class', `connection-handles ${conn.type || ''}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
                 gHandle.setAttribute('data-conn-index', String(idx));
                 const startHandle = document.createElementNS(ns, 'circle');
                 startHandle.setAttribute('class', 'connection-start-handle');
@@ -2735,10 +2737,31 @@
                     startDragEdgeEnd(idx, conn, x1, y1, x2, y2);
                 });
                 gHandle.appendChild(endHandle);
+                const bendHandle = document.createElementNS(ns, 'circle');
+                bendHandle.setAttribute('class', 'connection-bend-handle');
+                bendHandle.setAttribute('cx', midX);
+                bendHandle.setAttribute('cy', midY);
+                bendHandle.setAttribute('r', 6);
+                bendHandle.setAttribute('title', 'Drag to adjust bend • Double-click to reset');
+                bendHandle.style.pointerEvents = 'all';
+                bendHandle.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    startDragBendPoint(idx, conn, x1, y1, x2, y2, pathInfo.useHVH);
+                });
+                bendHandle.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    if (conn.bendPoint) {
+                        delete conn.bendPoint;
+                        saveToUndo();
+                        renderConnections();
+                    }
+                });
+                gHandle.appendChild(bendHandle);
                 if (svgInteractive) svgInteractive.appendChild(gHandle);
                 
-                const labelX = state.flowDirection === 'horizontal' ? midX : (x1 + x2) / 2;
-                const labelY = state.flowDirection === 'horizontal' ? (y1 + y2) / 2 : midY;
+                const labelX = pathInfo.useHVH ? midX : (x1 + x2) / 2;
+                const labelY = pathInfo.useHVH ? (y1 + y2) / 2 : midY;
                 if (conn.type === 'yes' || conn.type === 'no') {
                     const fontSize = conn.labelFontSize != null ? conn.labelFontSize : state.labelFontSize;
                     const offset = conn.labelOffset ? 0 : 18;
@@ -2800,6 +2823,27 @@
                 if (svgInteractive) svgInteractive.appendChild(path);
                 d.previewPath = path;
             }
+        }
+        /** مسار الربط التلقائي حسب مواقع المنافذ – مع دعم تحكم المستخدم في نقطة الانحناء */
+        function getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn) {
+            const dx = x2 - x1, dy = y2 - y1;
+            const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+            const horSides = ['left', 'right'];
+            const fromHor = horSides.includes(fromSide), toHor = horSides.includes(toSide);
+            let useHVH = state.flowDirection === 'horizontal';
+            if (fromHor && toHor) useHVH = true;
+            else if (!fromHor && !toHor) useHVH = false;
+            else if (Math.abs(dx) > Math.abs(dy)) useHVH = true;
+            else if (Math.abs(dy) > Math.abs(dx)) useHVH = false;
+            let bendX = midX, bendY = midY;
+            if (conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number') {
+                bendX = conn.bendPoint.x;
+                bendY = conn.bendPoint.y;
+            }
+            const pathD = useHVH
+                ? `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${y2} L ${x2} ${y2}`
+                : `M ${x1} ${y1} L ${x1} ${bendY} L ${x2} ${bendY} L ${x2} ${y2}`;
+            return { pathD, bendX, bendY, useHVH };
         }
         function getDragPreviewPathD(fromX, fromY, currentX, currentY) {
             const midY = (fromY + currentY) / 2;
@@ -3042,6 +3086,31 @@
                 renderConnections();
             };
             renderConnections();
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        }
+        function startDragBendPoint(connIndex, conn, x1, y1, x2, y2, useHVH) {
+            saveToUndo();
+            if (!conn.bendPoint) conn.bendPoint = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+            const startClientX = event.clientX, startClientY = event.clientY;
+            const startBX = conn.bendPoint.x, startBY = conn.bendPoint.y;
+            const margin = 80;
+            const onMove = (e) => {
+                const dx = (e.clientX - startClientX) / state.zoom;
+                const dy = (e.clientY - startClientY) / state.zoom;
+                if (useHVH) {
+                    conn.bendPoint.x = Math.max(Math.min(x1, x2) - margin, Math.min(Math.max(x1, x2) + margin, startBX + dx));
+                    conn.bendPoint.y = (y1 + y2) / 2;
+                } else {
+                    conn.bendPoint.y = Math.max(Math.min(y1, y2) - margin, Math.min(Math.max(y1, y2) + margin, startBY + dy));
+                    conn.bendPoint.x = (x1 + x2) / 2;
+                }
+                renderConnections();
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
         }
