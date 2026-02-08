@@ -3201,11 +3201,33 @@
             } else if (!fromH && !toH) {
                 const sameDir = fromSide === toSide;
                 if (sameDir && fromSide === 'bottom') {
-                    // bottom→bottom: نزول تحت العقدتين → أفقي → صعود (U-shape)
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: (x1 + x2) / 2, bendY: belowBoth });
+                    // bottom→bottom: نزول → جنب → صعود (U-shape)
+                    if (Math.abs(x1 - x2) > 10) {
+                        routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: (x1 + x2) / 2, bendY: belowBoth });
+                    }
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: belowBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${belowBoth} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: belowBoth });
                 } else if (sameDir && fromSide === 'top') {
-                    // top→top: صعود فوق العقدتين → أفقي → نزول (U-shape)
-                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: (x1 + x2) / 2, bendY: aboveBoth });
+                    // top→top: صعود → جنب → نزول (U-shape)
+                    if (Math.abs(x1 - x2) > 10) {
+                        routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: (x1 + x2) / 2, bendY: aboveBoth });
+                    }
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: aboveBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${x2} ${aboveBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: aboveBoth });
+                } else if (sameDir && fromSide === 'left') {
+                    // left→left: شمال → فوق/تحت → شمال (U-shape أفقي)
+                    if (Math.abs(y1 - y2) > 10) {
+                        routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${y2} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: (y1 + y2) / 2 });
+                    }
+                    routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${aboveBoth} L ${leftOfBoth} ${y2} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: aboveBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${leftOfBoth} ${y1} L ${leftOfBoth} ${belowBoth} L ${leftOfBoth} ${y2} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: belowBoth });
+                } else if (sameDir && fromSide === 'right') {
+                    // right→right: يمين → فوق/تحت → يمين (U-shape أفقي)
+                    if (Math.abs(y1 - y2) > 10) {
+                        routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${y2} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (y1 + y2) / 2 });
+                    }
+                    routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${aboveBoth} L ${rightOfBoth} ${y2} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: aboveBoth });
+                    routes.push({ pathD: `M ${x1} ${y1} L ${rightOfBoth} ${y1} L ${rightOfBoth} ${belowBoth} L ${rightOfBoth} ${y2} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: belowBoth });
                 } else if (fromSide === 'top') {
                     routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${leftOfBoth} ${aboveBoth} L ${leftOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: leftOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
                     routes.push({ pathD: `M ${x1} ${y1} L ${x1} ${aboveBoth} L ${rightOfBoth} ${aboveBoth} L ${rightOfBoth} ${belowBoth} L ${x2} ${belowBoth} L ${x2} ${y2}`, bendX: rightOfBoth, bendY: (aboveBoth + belowBoth) / 2 });
@@ -3253,6 +3275,12 @@
             }
             const horSides = ['left', 'right'];
             const fromH = horSides.includes(fromSide), toH = horSides.includes(toSide);
+            // منافذ بنفس الاتجاه (bottom→bottom, top→top, left→left, right→right): مسار U-shape مباشرة
+            const sameDirection = fromSide === toSide;
+            if (sameDirection && r1 && r2 && !useManualBend) {
+                const around = tryAroundPath(x1, y1, x2, y2, fromSide, toSide, r1, r2, placePad);
+                if (around) return { pathD: around.pathD, bendX: around.bendX, bendY: around.bendY, useHVH: fromH, straightLine: false, twoBend: true, pathSource: 'sameDir' };
+            }
             const def = getBendOutsideNodes(x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
             let bendX = def.x, bendY = def.y;
             if (useManualBend && r1 && r2) {
