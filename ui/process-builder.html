@@ -2943,15 +2943,23 @@
                 }
             }
             const crosses = crossDetails.length > 0;
-            // --- Rule 2: الانحناء غير المنطقي ---
-            const straightWouldWork = r1 && r2 && !lineSegmentCrossesRectMid(x1, y1, x2, y2, r1, 0) && !lineSegmentCrossesRectMid(x1, y1, x2, y2, r2, 0);
-            const unnecessaryBend = !pathInfo.straightLine && straightWouldWork;
-            const portsFace = (fromSide === 'top' && toSide === 'bottom') || (fromSide === 'bottom' && toSide === 'top')
-                || (fromSide === 'left' && toSide === 'right') || (fromSide === 'right' && toSide === 'left');
+            // --- Rule 2: الانحناء غير المنطقي (بس لما المنافذ متقابلة ومتحاذية) ---
+            const portsFaceV = (fromSide === 'top' && toSide === 'bottom') || (fromSide === 'bottom' && toSide === 'top');
+            const portsFaceH = (fromSide === 'left' && toSide === 'right') || (fromSide === 'right' && toSide === 'left');
+            const portsFace = portsFaceV || portsFaceH;
+            const dxLog = Math.abs(x2 - x1), dyLog = Math.abs(y2 - y1);
+            const alignedForStraight = portsFace && (portsFaceV
+                ? (dxLog < 30 || (dyLog > 0 && dxLog / dyLog < 0.35))
+                : (dyLog < 30 || (dxLog > 0 && dyLog / dxLog < 0.35)));
+            const unnecessaryBend = !pathInfo.straightLine && alignedForStraight;
             const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
             const bendOffMid = pathInfo.straightLine ? 0 : Math.hypot(pathInfo.bendX - midX, pathInfo.bendY - midY);
             const weirdBend = !pathInfo.straightLine && portsFace && bendOffMid > Math.min(80, directDist * 0.5);
             // --- Rule 3: الخط ينحني على نفسه (backtrack) ---
+            // القطعة الأولى: اتجاهها يتبع fromSide مش الاتجاه العام
+            // القطعة الأخيرة: اتجاهها يتبع toSide مش الاتجاه العام
+            const portDirX = { left: -1, right: 1, top: 0, bottom: 0 };
+            const portDirY = { left: 0, right: 0, top: -1, bottom: 1 };
             const overallDX = x2 - x1, overallDY = y2 - y1;
             let backtrack = false;
             let backtrackDetail = '';
@@ -2960,7 +2968,22 @@
                 const sdx = b.x - a.x, sdy = b.y - a.y;
                 const segLen = segLens[i];
                 if (segLen < 5) continue;
-                // انحناء على النفس = قطعة تتجه عكس الاتجاه العام بمسافة كبيرة
+                const isFirst = (i === 0), isLast = (i === points.length - 2);
+                // القطعة الأولى: نتحقق من اتجاه المنفذ مش الاتجاه العام
+                if (isFirst) {
+                    const pdx = portDirX[fromSide], pdy = portDirY[fromSide];
+                    if (pdx !== 0 && sdx * pdx < 0 && Math.abs(sdx) > 40) { backtrack = true; backtrackDetail += `seg${i}:backPortX(${fmt(sdx)}) `; }
+                    if (pdy !== 0 && sdy * pdy < 0 && Math.abs(sdy) > 40) { backtrack = true; backtrackDetail += `seg${i}:backPortY(${fmt(sdy)}) `; }
+                    continue;
+                }
+                // القطعة الأخيرة: نتحقق من اتجاه المنفذ الهدف
+                if (isLast) {
+                    const pdx = -portDirX[toSide], pdy = -portDirY[toSide];
+                    if (pdx !== 0 && sdx * pdx < 0 && Math.abs(sdx) > 40) { backtrack = true; backtrackDetail += `seg${i}:backPortX(${fmt(sdx)}) `; }
+                    if (pdy !== 0 && sdy * pdy < 0 && Math.abs(sdy) > 40) { backtrack = true; backtrackDetail += `seg${i}:backPortY(${fmt(sdy)}) `; }
+                    continue;
+                }
+                // القطع الوسيطة: نتحقق من الاتجاه العام
                 const dotX = sdx * overallDX, dotY = sdy * overallDY;
                 if (Math.abs(overallDX) > 5 && dotX < 0 && Math.abs(sdx) > 40) {
                     backtrack = true;
