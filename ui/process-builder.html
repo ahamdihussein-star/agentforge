@@ -2684,7 +2684,7 @@
                 const x2 = (toRect.left + toRect.width / 2 - canvasRect.left) / state.zoom;
                 const y2 = (toRect.top + toRect.height / 2 - canvasRect.top) / state.zoom;
                 
-                const pathInfo = getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn);
+                const pathInfo = getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect);
                 const pathD = pathInfo.pathD;
                 const midX = pathInfo.bendX;
                 const midY = pathInfo.bendY;
@@ -2747,7 +2747,7 @@
                 bendHandle.addEventListener('mousedown', (e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    startDragBendPoint(idx, conn, x1, y1, x2, y2, pathInfo.useHVH);
+                    startDragBendPoint(idx, conn, x1, y1, x2, y2);
                 });
                 bendHandle.addEventListener('dblclick', (e) => {
                     e.stopPropagation();
@@ -2760,8 +2760,8 @@
                 gHandle.appendChild(bendHandle);
                 if (svgInteractive) svgInteractive.appendChild(gHandle);
                 
-                const labelX = pathInfo.useHVH ? midX : (x1 + x2) / 2;
-                const labelY = pathInfo.useHVH ? (y1 + y2) / 2 : midY;
+                const labelX = midX;
+                const labelY = midY;
                 if (conn.type === 'yes' || conn.type === 'no') {
                     const fontSize = conn.labelFontSize != null ? conn.labelFontSize : state.labelFontSize;
                     const offset = conn.labelOffset ? 0 : 18;
@@ -2824,26 +2824,61 @@
                 d.previewPath = path;
             }
         }
-        /** مسار الربط التلقائي حسب مواقع المنافذ – مع دعم تحكم المستخدم في نقطة الانحناء */
-        function getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn) {
-            const dx = x2 - x1, dy = y2 - y1;
+        /** مستطيل العقدة في إحداثيات الـ canvas */
+        function getNodeRectInCanvas(nodeEl, canvasRect) {
+            const r = nodeEl.getBoundingClientRect();
+            return {
+                left: (r.left - canvasRect.left) / state.zoom,
+                right: (r.right - canvasRect.left) / state.zoom,
+                top: (r.top - canvasRect.top) / state.zoom,
+                bottom: (r.bottom - canvasRect.top) / state.zoom
+            };
+        }
+        /** هل النقطة داخل المستطيل (مع هامش) */
+        function pointInRect(px, py, r, margin) {
+            margin = margin || 0;
+            return px >= r.left - margin && px <= r.right + margin && py >= r.top - margin && py <= r.bottom + margin;
+        }
+        /** نقطة انحناء افتراضية خارج العُقد – الخط لا يمر عبر الأشكال */
+        function getBendOutsideNodes(x1, y1, x2, y2, fromNode, toNode, canvasRect) {
             const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-            const horSides = ['left', 'right'];
-            const fromHor = horSides.includes(fromSide), toHor = horSides.includes(toSide);
-            let useHVH = state.flowDirection === 'horizontal';
-            if (fromHor && toHor) useHVH = true;
-            else if (!fromHor && !toHor) useHVH = false;
-            else if (Math.abs(dx) > Math.abs(dy)) useHVH = true;
-            else if (Math.abs(dy) > Math.abs(dx)) useHVH = false;
-            let bendX = midX, bendY = midY;
+            if (!fromNode || !toNode) return { x: midX, y: midY };
+            const r1 = getNodeRectInCanvas(fromNode, canvasRect);
+            const r2 = getNodeRectInCanvas(toNode, canvasRect);
+            const pad = 12;
+            let bx = midX, by = midY;
+            if (pointInRect(bx, by, r1, pad) || pointInRect(bx, by, r2, pad)) {
+                const dx = x2 - x1, dy = y2 - y1;
+                if (Math.abs(dx) >= Math.abs(dy)) {
+                    bx = r1.right <= r2.left ? (r1.right + r2.left) / 2 : r2.right <= r1.left ? (r2.right + r1.left) / 2 : midX;
+                    const yMin = Math.max(r1.top, r2.top) - pad, yMax = Math.min(r1.bottom, r2.bottom) + pad;
+                    by = Math.max(yMin, Math.min(yMax, midY));
+                } else {
+                    by = r1.bottom <= r2.top ? (r1.bottom + r2.top) / 2 : r2.bottom <= r1.top ? (r2.bottom + r1.top) / 2 : midY;
+                    const xMin = Math.max(r1.left, r2.left) - pad, xMax = Math.min(r1.right, r2.right) + pad;
+                    bx = Math.max(xMin, Math.min(xMax, midX));
+                }
+                if (pointInRect(bx, by, r1, pad) || pointInRect(bx, by, r2, pad)) {
+                    for (let t = 0.15; t <= 0.85; t += 0.1) {
+                        const tx = x1 + t * dx, ty = y1 + t * dy;
+                        if (!pointInRect(tx, ty, r1, pad) && !pointInRect(tx, ty, r2, pad)) {
+                            bx = tx; by = ty; break;
+                        }
+                    }
+                }
+            }
+            return { x: bx, y: by };
+        }
+        /** مسار الربط: 4 أجزاء مع نقطة انحناء (bendX,bendY) قابلة للسحب في الاتجاهين – الخط لا يمر عبر الأشكال */
+        function getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect) {
+            const def = getBendOutsideNodes(x1, y1, x2, y2, fromNode, toNode, canvasRect);
+            let bendX = def.x, bendY = def.y;
             if (conn && conn.bendPoint && typeof conn.bendPoint.x === 'number' && typeof conn.bendPoint.y === 'number') {
                 bendX = conn.bendPoint.x;
                 bendY = conn.bendPoint.y;
             }
-            const pathD = useHVH
-                ? `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${y2} L ${x2} ${y2}`
-                : `M ${x1} ${y1} L ${x1} ${bendY} L ${x2} ${bendY} L ${x2} ${y2}`;
-            return { pathD, bendX, bendY, useHVH };
+            const pathD = `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${bendY} L ${x2} ${bendY} L ${x2} ${y2}`;
+            return { pathD, bendX, bendY, useHVH: true };
         }
         function getDragPreviewPathD(fromX, fromY, currentX, currentY) {
             const midY = (fromY + currentY) / 2;
@@ -3089,22 +3124,16 @@
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
         }
-        function startDragBendPoint(connIndex, conn, x1, y1, x2, y2, useHVH) {
+        function startDragBendPoint(connIndex, conn, x1, y1, x2, y2) {
             saveToUndo();
             if (!conn.bendPoint) conn.bendPoint = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
             const startClientX = event.clientX, startClientY = event.clientY;
             const startBX = conn.bendPoint.x, startBY = conn.bendPoint.y;
-            const margin = 80;
             const onMove = (e) => {
                 const dx = (e.clientX - startClientX) / state.zoom;
                 const dy = (e.clientY - startClientY) / state.zoom;
-                if (useHVH) {
-                    conn.bendPoint.x = Math.max(Math.min(x1, x2) - margin, Math.min(Math.max(x1, x2) + margin, startBX + dx));
-                    conn.bendPoint.y = (y1 + y2) / 2;
-                } else {
-                    conn.bendPoint.y = Math.max(Math.min(y1, y2) - margin, Math.min(Math.max(y1, y2) + margin, startBY + dy));
-                    conn.bendPoint.x = (x1 + x2) / 2;
-                }
+                conn.bendPoint.x = startBX + dx;
+                conn.bendPoint.y = startBY + dy;
                 renderConnections();
             };
             const onUp = () => {
