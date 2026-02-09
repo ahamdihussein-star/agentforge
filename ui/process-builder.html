@@ -1364,13 +1364,7 @@
                     <div class="palette-desc">Perform an operation</div>
                 </div>
             </div>
-            <div class="palette-item" draggable="true" data-type="tool">
-                <div class="palette-icon tool">🔧</div>
-                <div class="palette-info">
-                    <div class="palette-name">Use Tool</div>
-                    <div class="palette-desc">Call a platform tool</div>
-                </div>
-            </div>
+            <!-- Tool nodes come from "Your Tools" below (platform-configured tools only) -->
             <div class="palette-item" draggable="true" data-type="ai">
                 <div class="palette-icon action">🤖</div>
                 <div class="palette-info">
@@ -1418,9 +1412,10 @@
         
         <div class="palette-section" id="tools-section">
             <div class="palette-title">Your Tools</div>
+            <p class="palette-desc" style="margin: 0 0 8px 0; padding: 0 8px; font-size: 11px; color: var(--pb-muted);">Tools configured in the platform. Drag one onto the canvas.</p>
             <div id="platform-tools-list">
                 <!-- Loaded dynamically -->
-                <div style="font-size: 11px; color: #6b7280; padding: 8px;">Loading tools...</div>
+                <div style="font-size: 11px; color: var(--pb-muted); padding: 8px;">Loading tools...</div>
             </div>
         </div>
     </div>
@@ -4696,32 +4691,49 @@
         function loadTools() {
             const token = getAuthToken();
             fetch('/api/tools', {
-                headers: { 'Authorization': 'Bearer ' + token }
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
             })
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) {
+                    return r.json().then(d => Promise.reject({ status: r.status, detail: d })).catch(() => Promise.reject({ status: r.status }));
+                }
+                return r.json();
+            })
             .then(data => {
-                state.tools = data.tools || [];
-                renderToolsPalette();
+                // API returns { tools: [...] }; support alternate shapes
+                state.tools = Array.isArray(data.tools) ? data.tools : (Array.isArray(data) ? data : []);
+                renderToolsPalette(null);
             })
             .catch(e => {
                 console.error('Failed to load tools:', e);
+                state.tools = [];
+                renderToolsPalette(e);
             });
         }
         
-        function renderToolsPalette() {
+        function renderToolsPalette(loadError) {
             const container = document.getElementById('platform-tools-list');
+            if (!container) return;
+            
+            if (loadError) {
+                const msg = loadError.status === 401 || loadError.status === 403
+                    ? 'Sign in to see your tools'
+                    : 'Could not load tools. Check connection and try again.';
+                container.innerHTML = '<div style="font-size:11px;color:#94a3b8;padding:8px;">' + msg + '</div>';
+                return;
+            }
             
             if (!state.tools.length) {
-                container.innerHTML = '<div style="font-size:11px;color:#6b7280;padding:8px;">No tools available</div>';
+                container.innerHTML = '<div style="font-size:11px;color:#94a3b8;padding:8px;">No tools yet. Add tools in the platform, then refresh this page.</div>';
                 return;
             }
             
             container.innerHTML = state.tools.map(t => `
-                <div class="palette-item" draggable="true" data-type="tool" data-tool-id="${t.id}">
-                    <div class="palette-icon tool palette-shape-task">${getTypeSvgIcon('tool')}</div>
+                <div class="palette-item" draggable="true" data-type="tool" data-tool-id="${escapeHtml(t.id)}">
+                    <div class="palette-icon tool palette-shape-task">${getTypeSvgIcon(t.type || 'tool')}</div>
                     <div class="palette-info">
-                        <div class="palette-name">${t.name}</div>
-                        <div class="palette-desc">${t.type}</div>
+                        <div class="palette-name">${escapeHtml(t.name || 'Tool')}</div>
+                        <div class="palette-desc">${escapeHtml(t.type || '')}</div>
                     </div>
                 </div>
             `).join('');
@@ -4729,7 +4741,7 @@
             container.querySelectorAll('.palette-item').forEach(item => {
                 item.addEventListener('dragstart', (e) => {
                     e.dataTransfer.setData('nodeType', 'tool');
-                    e.dataTransfer.setData('toolId', item.dataset.toolId);
+                    e.dataTransfer.setData('toolId', item.dataset.toolId || '');
                 });
             });
         }
