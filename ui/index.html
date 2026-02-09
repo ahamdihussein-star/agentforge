@@ -4690,49 +4690,44 @@ Example: I need an HR agent that can:
                     </div>
                 </div>
                 
-                <!-- API Test Modal (used by wizard "Try this API" and by demo kits) -->
-                <div id="api-test-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
-                    <div class="modal-content-box rounded-2xl w-full max-w-3xl mx-4 max-h-[85vh] overflow-hidden flex flex-col">
-                        <div class="p-4 border-b border-gray-700 flex items-center justify-between shrink-0">
-                            <h3 class="font-bold text-lg" id="api-test-title">Test API</h3>
-                            <button onclick="closeApiTestModal()" class="p-2 hover:bg-gray-700 rounded-lg transition" aria-label="Close">✕</button>
+                <!-- API Test Modal (business-friendly, no technical terms) -->
+                <div id="api-test-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4">
+                    <div class="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl w-full max-w-5xl border border-purple-500/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div class="p-6 border-b border-purple-500/20 flex items-center justify-between bg-gradient-to-r from-purple-900/20 to-transparent shrink-0">
+                            <div>
+                                <h3 class="font-bold text-xl text-white" id="api-test-title">Try It Out</h3>
+                                <p class="text-sm text-gray-400 mt-1">Fill in the details below to see the results</p>
+                            </div>
+                            <button onclick="closeApiTestModal()" class="p-2 hover:bg-white/10 rounded-lg transition text-gray-400 hover:text-white" aria-label="Close">✕</button>
                         </div>
                         <div class="p-6 overflow-y-auto flex-1 min-h-0">
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <!-- Request -->
                                 <div class="space-y-4">
-                                    <h4 class="text-sm font-semibold text-gray-300">Request</h4>
-                                    <div class="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-600 shadow-lg">
-                                        <div class="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b border-gray-700">
-                                            <span id="api-test-method" class="px-2.5 py-1 rounded-md text-xs font-bold bg-green-500/30 text-green-300">GET</span>
-                                            <code id="api-test-endpoint" class="text-sm text-blue-300 break-all font-mono">/api/...</code>
+                                    <div id="api-test-params-wrapper" class="space-y-4">
+                                        <div id="api-test-params" class="space-y-4">
+                                            <!-- Parameters rendered here -->
                                         </div>
-                                        <!-- Values to send (parameters) - clear for non-technical users -->
-                                        <div id="api-test-params-wrapper" class="space-y-3">
-                                            <p class="text-xs text-gray-400 mb-2" id="api-test-params-hint">📝 Enter values below (if any), then click Send Request.</p>
-                                            <div id="api-test-params" class="space-y-3">
-                                                <!-- Parameters form rendered here -->
-                                            </div>
-                                        </div>
-                                        <textarea id="api-test-body" class="hidden w-full input-field rounded-lg px-3 py-2 mt-3 text-sm font-mono h-28" placeholder="{}"></textarea>
                                     </div>
+                                    <textarea id="api-test-body" class="hidden w-full input-field rounded-lg px-3 py-2 text-sm font-mono h-28" placeholder="{}"></textarea>
+                                    <button type="button" id="api-test-send-btn" onclick="sendApiTestRequest()" class="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-purple-500/20">
+                                        <span>✓</span>
+                                        <span>Get Results</span>
+                                    </button>
                                 </div>
-                                <!-- Response -->
-                                <div class="space-y-4">
-                                    <h4 class="text-sm font-semibold text-gray-300">Response</h4>
-                                    <div class="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-600 min-h-[200px] shadow-lg">
-                                        <div id="api-test-response" class="text-sm overflow-auto max-h-64 m-0">
-                                            <p class="text-gray-400 text-sm">Click "Send Request" to see the result here.</p>
-                                        </div>
+                                <div class="bg-gray-950/50 rounded-xl p-4 border border-gray-700/50 min-h-[300px] flex flex-col">
+                                    <div class="text-sm font-semibold text-gray-300 mb-3">Results</div>
+                                    <div id="api-test-response" class="text-sm overflow-auto flex-1">
+                                        <p class="text-gray-500 text-center py-8">Results will appear here...</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="p-4 border-t border-gray-700 flex justify-end gap-3 shrink-0">
-                            <button type="button" onclick="closeApiTestModal()" class="px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 transition">Close</button>
-                            <button type="button" id="api-test-send-btn" onclick="sendApiTestRequest()" class="px-6 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 flex items-center gap-2 transition">
-                                <span>▶</span> Send Request
-                            </button>
+                        <div class="p-4 border-t border-purple-500/20 flex justify-between items-center shrink-0 bg-gray-900/50">
+                            <div class="text-xs text-gray-500">
+                                <span id="api-test-method" class="hidden"></span>
+                                <code id="api-test-endpoint" class="hidden"></code>
+                            </div>
+                            <button type="button" onclick="closeApiTestModal()" class="px-5 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition text-sm">Close</button>
                         </div>
                     </div>
                 </div>
@@ -15654,11 +15649,11 @@ Option 3"></textarea>
             }
             apiTestFromWizard = true;
             currentTestApi = null;
-            document.getElementById('api-test-title').textContent = 'Test: ' + name;
+            document.getElementById('api-test-title').textContent = name;
             document.getElementById('api-test-method').textContent = method;
             document.getElementById('api-test-method').className = 'px-2.5 py-1 rounded-md text-xs font-bold ' + (method === 'GET' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400');
             document.getElementById('api-test-endpoint').textContent = (baseUrl.replace(/\/$/, '') + '/' + path.replace(/^\//, '')) || baseUrl;
-            document.getElementById('api-test-response').innerHTML = '<p class="text-gray-400 text-sm">Click "Send Request" to see the result here.</p>';
+            document.getElementById('api-test-response').innerHTML = '<p class="text-gray-500 text-center py-8">Results will appear here...</p>';
             if (typeof renderTestParams === 'function') renderTestParams();
             const bodyEl = document.getElementById('api-test-body');
             if (bodyEl) {
@@ -15696,7 +15691,7 @@ Option 3"></textarea>
                     parameters: params
                 };
                 if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = 'Sending...'; }
-                responseEl.innerHTML = '<p class="text-gray-400 text-sm">Sending request...</p>';
+                responseEl.innerHTML = '<p class="text-gray-400 text-center py-8">⏳ Loading...</p>';
                 try {
                     const r = await fetch(API + '/api/tools/test-api', {
                         method: 'POST',
@@ -15715,7 +15710,7 @@ Option 3"></textarea>
                     responseEl.innerHTML = `<p class="text-red-400 text-sm">❌ Error: ${e.message}</p>`;
                     responseEl.className = 'text-sm overflow-auto max-h-64 m-0';
                 }
-                if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<span>▶</span> Send Request'; }
+                if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<span>✓</span> Get Results'; }
                 return;
             }
 
@@ -15736,7 +15731,7 @@ Option 3"></textarea>
                 }
             }
             if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = 'Sending...'; }
-            responseEl.innerHTML = '<p class="text-gray-400 text-sm">Sending request...</p>';
+            responseEl.innerHTML = '<p class="text-gray-400 text-center py-8">⏳ Loading...</p>';
             try {
                 const response = await fetch(API + `/api/demo-kits/${kitId}/api/${apiId}/test`, {
                     method: 'POST',
@@ -15750,8 +15745,7 @@ Option 3"></textarea>
                 responseEl.innerHTML = `<p class="text-red-400 text-sm">❌ Error: ${e.message}</p>`;
                 responseEl.className = 'text-sm overflow-auto max-h-64 m-0';
             }
-            if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<span>▶</span> Send Request';
-            }
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<span>✓</span> Get Results'; }
         }
 
         // View Knowledge Base
@@ -22689,26 +22683,39 @@ async function saveToolEdit() {
             if(keyOptions) keyOptions.classList.toggle('hidden',auth!=='api_key');
         }
 
+        function getBusinessFriendlyParamLabel(paramName, description) {
+            const lowerName = (paramName || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ');
+            if (description && description.length > 3 && !description.toLowerCase().includes('the ')) return description;
+            const labelMap = {
+                'supplier id': 'Supplier ID', 'supplierid': 'Supplier ID',
+                'customer id': 'Customer ID', 'customerid': 'Customer ID',
+                'order id': 'Order Number', 'orderid': 'Order Number',
+                'product id': 'Product Code', 'productid': 'Product Code',
+                'user id': 'User ID', 'userid': 'User ID',
+                'id': 'ID', 'name': 'Name', 'email': 'Email Address',
+                'phone': 'Phone Number', 'date': 'Date', 'status': 'Status',
+                'type': 'Type', 'category': 'Category'
+            };
+            return labelMap[lowerName] || paramName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+
         function renderTestParams(){
             const container = document.getElementById('api-test-params');
             if (!container) return;
-            const hintEl = document.getElementById('api-test-params-hint');
             const hasParams = apiParams && apiParams.length > 0;
-            if (hintEl) {
-                hintEl.textContent = hasParams
-                    ? 'Enter values below to send with the request. You can leave optional fields empty.'
-                    : 'This API doesn\'t need any extra values. Click "Send Request" to try it.';
-            }
             container.innerHTML = hasParams ? apiParams.map((p,i)=> {
                 const safeId = 'test-param-' + (p.id != null ? p.id : i);
-                const label = (p.name || 'Field ' + (i+1)) + (p.required ? ' *' : '');
-                const placeholder = p.description || 'Enter value...';
+                const friendlyLabel = getBusinessFriendlyParamLabel(p.name, p.description);
+                const required = p.required ? '<span class="text-purple-400 text-xs ml-1">Required</span>' : '';
+                const placeholder = p.description || `Enter ${friendlyLabel}`;
                 return `
-                <div class="flex flex-col gap-1.5">
-                    <label for="${safeId}" class="text-sm font-medium text-gray-300">${escHtml(label)}</label>
-                    <input type="text" id="${safeId}" class="input-field w-full rounded-lg px-3 py-2.5 text-sm" placeholder="${escHtml(placeholder)}" data-param-key="${escHtml(p.name || '')}" data-param-id="${p.id != null ? p.id : i}">
+                <div class="space-y-2">
+                    <label for="${safeId}" class="block text-sm font-semibold text-white">
+                        ${escHtml(friendlyLabel)} ${required}
+                    </label>
+                    <input type="text" id="${safeId}" class="w-full bg-gray-950 border border-purple-500/30 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none transition" placeholder="${escHtml(placeholder)}" data-param-key="${escHtml(p.name || '')}" data-param-id="${p.id != null ? p.id : i}">
                 </div>`;
-            }).join('') : '<p class="text-gray-500 text-sm py-2">No fields to fill — click "Send Request" to test.</p>';
+            }).join('') : '<p class="text-gray-500 text-sm py-8 text-center">No additional information needed</p>';
         }
 
         async function testApiConnection(){
