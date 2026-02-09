@@ -94,7 +94,8 @@ class LabService:
         name: str,
         description: str,
         record_count: int = 10,
-        org_id: str = None
+        org_id: str = None,
+        user_id: str = None
     ) -> Dict[str, Any]:
         """
         Generate mock API data using AI
@@ -186,10 +187,40 @@ Example format:
         filepath = os.path.join(cls.STORAGE_PATH, f"{item_id}.json")
         with open(filepath, 'w') as f:
             json.dump(result, f, indent=2)
-        
+
+        cls._save_mock_api_to_db(result, user_id)
+
         print(f"💾 [LAB] Saved API: name='{name}', slug='{slug}', file={filepath}")
-        
         return result
+
+    @classmethod
+    def _save_mock_api_to_db(cls, result: Dict[str, Any], user_id: Optional[str] = None) -> None:
+        """Persist mock API to database (id, slug, data, parameters, etc.)."""
+        try:
+            from database.base import get_db_session
+            from database.models import LabMockAPI
+
+            item_id = result.get("id")
+            slug = (result.get("slug") or "")[:120]
+            if not item_id or not slug:
+                return
+            with get_db_session() as db:
+                row = LabMockAPI(
+                    id=item_id,
+                    user_id=user_id,
+                    name=result.get("name", ""),
+                    slug=slug,
+                    description=None,
+                    endpoint=result.get("endpoint", f"/api/lab/mock/{slug}"),
+                    agent_description=result.get("agent_description"),
+                    parameters=result.get("parameters") or [],
+                    response_schema=result.get("response_schema") or {},
+                    data=result.get("data") or [],
+                    record_count=result.get("record_count", 0),
+                )
+                db.add(row)
+        except Exception as e:
+            print(f"⚠️ [LAB] Could not save mock API to DB: {e}")
     
     @classmethod
     def _generate_agent_metadata(
@@ -970,23 +1001,98 @@ Return ONLY the JSON, no explanation or markdown."""
     
     @classmethod
     def get_mock_data(cls, item_id: str) -> Optional[List[Dict]]:
-        """Get mock API data by item id (UUID) or by slug (e.g. get-customer-by-id)"""
-        # If it looks like a UUID, load by filename
+        """Get mock API data by item id (UUID) or by slug. DB first, then file."""
+        # 1) Try DB by id (UUID)
+        if len(item_id) == 36 and item_id.count("-") == 4:
+            data = cls._get_mock_data_from_db_by_id(item_id)
+            if data is not None:
+                return data
+        # 2) Try DB by slug
+        data = cls._get_mock_data_from_db_by_slug(item_id)
+        if data is not None:
+            return data
+        # 3) Fallback: file by id
         if len(item_id) == 36 and item_id.count("-") == 4:
             filepath = os.path.join(cls.STORAGE_PATH, f"{item_id}.json")
             if os.path.exists(filepath):
                 with open(filepath, 'r') as f:
-                    data = json.load(f)
-                    return data.get('data', [])
+                    obj = json.load(f)
+                    return obj.get("data", [])
             return None
-        # Otherwise treat as slug: find file with matching slug
+        # 4) Fallback: file by slug
         return cls.get_mock_data_by_slug(item_id)
 
     @classmethod
+    def get_mock_api_record(cls, item_id: str) -> Optional[Dict[str, Any]]:
+        """Return mock API record (user_id, id) from DB for access check. None if file-only or not found."""
+        if not item_id or item_id in ("null", "undefined", "None"):
+            return None
+        try:
+            from database.base import get_db_session
+            from database.models import LabMockAPI
+            with get_db_session() as db:
+                # Try by id (UUID)
+                if len(item_id) == 36 and item_id.count("-") == 4:
+                    row = db.query(LabMockAPI).filter(LabMockAPI.id == item_id).first()
+                    if row:
+                        return {"user_id": str(row.user_id) if row.user_id else None, "id": str(row.id)}
+                # Try by slug
+                row = (
+                    db.query(LabMockAPI)
+                    .filter(LabMockAPI.slug == item_id)
+                    .order_by(LabMockAPI.created_at.desc())
+                    .first()
+                )
+                if row:
+                    return {"user_id": str(row.user_id) if row.user_id else None, "id": str(row.id)}
+        except Exception as e:
+            print(f"⚠️ [LAB] get_mock_api_record failed: {e}")
+        return None
+
+    @classmethod
+    def _get_mock_data_from_db_by_id(cls, item_id: str) -> Optional[List[Dict]]:
+        """Load mock API data from DB by primary key id."""
+        try:
+            from database.base import get_db_session
+            from database.models import LabMockAPI
+            with get_db_session() as db:
+                row = db.query(LabMockAPI).filter(LabMockAPI.id == item_id).first()
+                if row and row.data is not None:
+                    return list(row.data) if isinstance(row.data, list) else []
+        except Exception as e:
+            print(f"⚠️ [LAB] DB get by id failed: {e}")
+        return None
+
+    @classmethod
+    def _get_mock_data_from_db_by_slug(cls, slug: str) -> Optional[List[Dict]]:
+        """Load mock API data from DB by slug (most recent when multiple)."""
+        if not slug or slug in ("null", "undefined", "None"):
+            return None
+        try:
+            from database.base import get_db_session
+            from database.models import LabMockAPI
+            with get_db_session() as db:
+                row = (
+                    db.query(LabMockAPI)
+                    .filter(LabMockAPI.slug == slug)
+                    .order_by(LabMockAPI.created_at.desc())
+                    .first()
+                )
+                if row and row.data is not None:
+                    return list(row.data) if isinstance(row.data, list) else []
+        except Exception as e:
+            print(f"⚠️ [LAB] DB get by slug failed: {e}")
+        return None
+
+    @classmethod
     def get_mock_data_by_slug(cls, slug: str) -> Optional[List[Dict]]:
-        """Get mock API data by URL slug (e.g. get-customer-by-id)"""
+        """Get mock API data by URL slug from DB first, then from files."""
+        if not slug or slug in ("null", "undefined", "None"):
+            return None
+        data = cls._get_mock_data_from_db_by_slug(slug)
+        if data is not None:
+            return data
         cls._ensure_storage()
-        print(f"🔍 [LAB] Looking for slug: '{slug}'")
         for f in os.listdir(cls.STORAGE_PATH):
             if not f.endswith(".json"):
                 continue
@@ -994,13 +1100,8 @@ Return ONLY the JSON, no explanation or markdown."""
             try:
                 with open(filepath, 'r') as file:
                     obj = json.load(file)
-                    file_slug = obj.get("slug")
-                    print(f"   📄 File {f}: slug='{file_slug}'")
-                    if file_slug == slug:
-                        print(f"   ✅ Match found!")
+                    if obj.get("slug") == slug:
                         return obj.get("data", [])
-            except Exception as e:
-                print(f"   ❌ Error reading {f}: {e}")
+            except Exception:
                 continue
-        print(f"   ⚠️  No match found for slug '{slug}'")
         return None

@@ -47,6 +47,10 @@ from .audit import (
     AuditLog, SecurityEvent, DataExport, ComplianceReport
 )
 
+# Lab
+from .lab_history import LabHistoryItem
+from .lab_mock_api import LabMockAPI
+
 
 __all__ = [
     # Security & Access Control
@@ -77,4 +81,8 @@ __all__ = [
     
     # Audit & Compliance
     'AuditLog', 'SecurityEvent', 'DataExport', 'ComplianceReport',
+
+    # Lab
+    'LabHistoryItem',
+    'LabMockAPI',
 ]

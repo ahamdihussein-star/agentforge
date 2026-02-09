@@ -102,19 +102,35 @@ class ImageGenerateResponse(BaseModel):
 
 
 # ============================================
-# History & Management
+# History & Management (DB-backed, no localStorage)
 # ============================================
 
-class LabItem(BaseModel):
-    """A generated item in the lab"""
+class LabHistoryAddRequest(BaseModel):
+    """Request to add an item to Lab history"""
+    type: str = Field(..., description="api | document | image")
+    name: str = Field(..., description="Display name")
+    result: Dict[str, Any] = Field(default_factory=dict, description="Full result payload from generate API")
+
+
+class LabHistoryItemResponse(BaseModel):
+    """One Lab history item (for list and add response)"""
     id: str
-    type: str  # api, document, image
+    type: str
+    name: str
+    result: Dict[str, Any]
+    created_at: str
+
+
+class LabItem(BaseModel):
+    """A generated item in the lab (legacy shape)"""
+    id: str
+    type: str
     name: str
     created_at: str
     metadata: Dict[str, Any] = {}
 
 
 class LabHistoryResponse(BaseModel):
-    """List of generated items"""
-    items: List[LabItem]
+    """List of generated items (full payload for each so UI can load without extra fetch)"""
+    items: List[LabHistoryItemResponse]
     total: int

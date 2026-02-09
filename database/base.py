@@ -125,7 +125,11 @@ def init_db():
         
         # Audit & Compliance
         from .models.audit import AuditLog, SecurityEvent, DataExport, ComplianceReport
-        
+
+        # Lab
+        from .models.lab_history import LabHistoryItem
+        from .models.lab_mock_api import LabMockAPI
+
         print("✅ All models imported successfully")
     except ImportError as e:
         print(f"⚠️  Could not import some models: {e}")
