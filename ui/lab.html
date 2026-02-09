@@ -988,6 +988,51 @@ Create an invoice image with:
             `;
         }
         
+        // Business-friendly display: table for arrays, structured for objects
+        function renderBusinessFriendlyResponse(data) {
+            if (!data) return '<p class="text-gray-400 text-sm">No data returned</p>';
+            
+            // Array of objects → Table
+            if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+                const keys = Object.keys(data[0]);
+                let html = `<div class="overflow-x-auto"><table class="w-full text-sm border-collapse">
+                    <thead><tr class="bg-blue-900/30 border-b border-blue-700">`;
+                keys.forEach(k => {
+                    html += `<th class="px-3 py-2 text-left font-semibold text-blue-200">${k}</th>`;
+                });
+                html += `</tr></thead><tbody>`;
+                data.forEach((row, idx) => {
+                    html += `<tr class="${idx % 2 === 0 ? 'bg-gray-800/40' : 'bg-gray-800/20'} border-b border-gray-700/50">`;
+                    keys.forEach(k => {
+                        const val = row[k];
+                        const display = val != null ? String(val) : '-';
+                        html += `<td class="px-3 py-2 text-gray-200">${display}</td>`;
+                    });
+                    html += `</tr>`;
+                });
+                html += `</tbody></table></div>`;
+                html += `<p class="text-xs text-gray-400 mt-2">${data.length} record${data.length !== 1 ? 's' : ''}</p>`;
+                return html;
+            }
+            
+            // Single object → Structured view
+            if (typeof data === 'object' && !Array.isArray(data)) {
+                let html = '<div class="space-y-2">';
+                Object.entries(data).forEach(([k, v]) => {
+                    const display = v != null ? (typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)) : '-';
+                    html += `<div class="flex items-start gap-3 border-b border-gray-700/30 pb-2">
+                        <span class="font-semibold text-blue-300 min-w-[120px]">${k}:</span>
+                        <span class="text-gray-200 break-all">${display}</span>
+                    </div>`;
+                });
+                html += '</div>';
+                return html;
+            }
+            
+            // Fallback: simple value or JSON
+            return `<pre class="text-gray-200 text-sm whitespace-pre-wrap break-words">${typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data)}</pre>`;
+        }
+
         // Test API endpoint - check if parameterized and show modal if needed
         let currentTestItemId = null;
         let currentTestSlug = null;
@@ -1096,17 +1141,18 @@ Create an invoice image with:
                 if (response.ok) {
                     statusBadge.textContent = `${response.status} OK (${duration}ms)`;
                     statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400';
+                    // Business-friendly display
+                    responseCode.innerHTML = renderBusinessFriendlyResponse(data);
                 } else {
                     statusBadge.textContent = `${response.status} Error`;
                     statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
+                    responseCode.innerHTML = `<p class="text-red-400 text-sm">❌ ${escapeHtml(JSON.stringify(data, null, 2))}</p>`;
                 }
-                
-                responseCode.innerHTML = `<code class="text-gray-300">${escapeHtml(JSON.stringify(data, null, 2))}</code>`;
                 
             } catch (e) {
                 statusBadge.textContent = 'Error';
                 statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
-                responseCode.innerHTML = `<code class="text-red-400">❌ ${e.message}</code>`;
+                responseCode.innerHTML = `<p class="text-red-400 text-sm">❌ ${e.message}</p>`;
             }
         }
         
