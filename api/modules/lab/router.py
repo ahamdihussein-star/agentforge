@@ -2,7 +2,7 @@
 Lab Router - API endpoints for test data generation
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Optional
 import os
@@ -42,7 +42,7 @@ async def generate_api(request: APIGenerateRequest):
 
 
 @router.get("/mock/{item_id}")
-async def get_mock_api(item_id: str, **query_params):
+async def get_mock_api(item_id: str, request: Request):
     """
     Call the generated mock API to get data
     
@@ -52,6 +52,9 @@ async def get_mock_api(item_id: str, **query_params):
     data = LabService.get_mock_data(item_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Mock API not found")
+    
+    # Get query parameters from request
+    query_params = dict(request.query_params)
     
     # If data is a list and query params provided, filter the results
     if isinstance(data, list) and query_params:
