@@ -19093,7 +19093,10 @@ Option 3"></textarea>
         
         async function delDoc(docId, toolId){
             if(!confirm('Delete this document?')) return;
-            await fetch(API+'/api/documents/'+docId, {method:'DELETE'});
+            await fetch(API+'/api/documents/'+docId, {
+                method:'DELETE',
+                headers: getAuthHeaders()
+            });
             if(toolId) viewTool(toolId);
             else location.reload();
         }
@@ -20064,7 +20067,10 @@ Option 3"></textarea>
         
         async function delPage(pageId, toolId) {
             if(!confirm('Delete this page?')) return;
-            await fetch(API+'/api/scraped-pages/'+pageId, {method:'DELETE'});
+            await fetch(API+'/api/scraped-pages/'+pageId, {
+                method:'DELETE',
+                headers: getAuthHeaders()
+            });
             if(toolId) viewTool(toolId);
             else location.reload();
         }
@@ -20670,11 +20676,14 @@ Option 3"></textarea>
                 }
             }
         }
-        async function delPage(id){if(!confirm('Delete page?'))return;await fetch(API+'/api/scraped-pages/'+id,{method:'DELETE'});location.reload();}
+        async function delPage(id){if(!confirm('Delete page?'))return;await fetch(API+'/api/scraped-pages/'+id,{method:'DELETE',headers:getAuthHeaders()});location.reload();}
         async function delTool(id){
             if(!confirm('Delete this tool?')) return;
             try {
-                const res = await fetch(API+'/api/tools/'+id, {method:'DELETE'});
+                const res = await fetch(API+'/api/tools/'+id, {
+                    method:'DELETE',
+                    headers: getAuthHeaders()
+                });
                 if (!res.ok) {
                     const error = await res.json();
                     showToast(error.detail || 'Failed to delete tool', 'error');
@@ -20690,7 +20699,10 @@ Option 3"></textarea>
         async function delToolFromCard(id, name){
             if(!confirm('Delete tool "' + name + '"?')) return;
             try {
-                const res = await fetch(API+'/api/tools/'+id, {method:'DELETE'});
+                const res = await fetch(API+'/api/tools/'+id, {
+                    method:'DELETE',
+                    headers: getAuthHeaders()
+                });
                 if (!res.ok) {
                     const error = await res.json();
                     showToast(error.detail || 'Failed to delete tool', 'error');
