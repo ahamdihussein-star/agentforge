@@ -1102,41 +1102,15 @@ Create an invoice image with:
         let currentTestSlug = null;
         
         async function testAPI(itemId) {
-            var rawId = (itemId != null && itemId !== 'null' && itemId !== 'undefined' && itemId !== '') ? String(itemId).trim() : '';
-            if (!rawId && lastGeneratedAPIResult) rawId = getApiIdOrSlugFromResult(lastGeneratedAPIResult);
-            if (!rawId && lastGeneratedAPIResult && lastGeneratedAPIResult.full_url) {
-                var m = String(lastGeneratedAPIResult.full_url).match(/\/mock\/?([^/?]+)/);
-                if (m) rawId = m[1];
-            }
-            if (!rawId) {
-                var btn = document.getElementById('lab-test-api-btn');
-                if (btn) {
-                    rawId = (btn.getAttribute('data-api-id') || '').trim();
-                    if (!rawId && (btn.getAttribute('data-full-url') || btn.getAttribute('data-endpoint-path'))) {
-                        var path = String(btn.getAttribute('data-full-url') || btn.getAttribute('data-endpoint-path') || '');
-                        var match = path.match(/\/mock\/?([^/?]+)/);
-                        if (match) rawId = match[1];
-                    }
-                }
-            }
-            console.log('[Lab Test API] button itemId:', itemId, '| rawId:', rawId, '| full_url:', lastGeneratedAPIResult ? !!lastGeneratedAPIResult.full_url : false);
-            if (!rawId || rawId === 'null' || rawId === 'undefined') {
-                showToast('Cannot run test: API identifier (id/slug) is missing in this item. Check that history was saved correctly or generate the API again.', 'error');
+            if (!lastGeneratedAPIResult) {
+                showToast('No API loaded. Please select or generate an API first.', 'error');
                 return;
             }
-            const effectiveId = String(rawId);
-            var result = lastGeneratedAPIResult && (lastGeneratedAPIResult.id === effectiveId || lastGeneratedAPIResult.slug === effectiveId) ? lastGeneratedAPIResult : null;
-            if (!result && lastGeneratedAPIResult && (getApiIdOrSlugFromResult(lastGeneratedAPIResult) === effectiveId)) result = lastGeneratedAPIResult;
-            const hasParams = result && result.parameters && result.parameters.length > 0;
-            const slug = result ? (result.slug || result.id) : null;
-            const slugOrId = (slug != null && slug !== 'null' && slug !== 'undefined') ? String(slug) : effectiveId;
-            
+            const hasParams = lastGeneratedAPIResult.parameters && lastGeneratedAPIResult.parameters.length > 0;
             if (hasParams) {
-                currentTestItemId = effectiveId;
-                currentTestSlug = slugOrId;
-                openTestParamsModal(result.parameters);
+                openTestParamsModal(lastGeneratedAPIResult.parameters);
             } else {
-                await runTest(slugOrId, {});
+                await runTestDirect({});
             }
         }
         
@@ -1177,86 +1151,70 @@ Create an invoice image with:
         }
         
         async function runTestWithParams() {
-            if (!currentTestItemId) return;
-            
-            // Collect parameter values
             const params = {};
             const inputs = document.querySelectorAll('[data-param-name]');
             inputs.forEach(input => {
                 const paramName = input.dataset.paramName;
                 const value = input.value.trim();
-                if (value) {
-                    params[paramName] = value;
-                }
+                if (value) params[paramName] = value;
             });
-            
-            // Close modal
             closeTestParamsModal();
-            
-            // Run test with parameters
-            await runTest(currentTestSlug || currentTestItemId, params);
+            await runTestDirect(params);
         }
-        
-        async function runTest(slugOrId, params = {}) {
-            const safeSlugOrId = (slugOrId != null && slugOrId !== 'null' && slugOrId !== 'undefined') ? String(slugOrId).trim() : '';
-            if (!safeSlugOrId) {
-                showToast('Cannot run test: API identifier is missing.', 'error');
+
+        async function runTestDirect(params) {
+            if (!lastGeneratedAPIResult) {
+                showToast('No API to test.', 'error');
                 return;
             }
             const resultDiv = document.getElementById('api-test-result');
             const responseCode = document.getElementById('api-test-response');
             const statusBadge = document.getElementById('api-test-status');
-            
             resultDiv.classList.remove('hidden');
             responseCode.innerHTML = '<code class="text-gray-400">⏳ Sending request...</code>';
             statusBadge.textContent = '...';
             statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-gray-500/20 text-gray-400';
-            
             try {
                 const startTime = Date.now();
-                const hasParams = params && typeof params === 'object' && Object.keys(params).length > 0;
-                const queryString = hasParams
-                    ? '?' + Object.entries(params).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&')
-                    : '';
-                var basePath;
-                if (lastGeneratedAPIResult && lastGeneratedAPIResult.full_url) {
-                    var fromDb = lastGeneratedAPIResult.full_url.split('?')[0];
-                    basePath = fromDb.indexOf('http') === 0 ? fromDb.replace(/^https?:\/\/[^/]+/, '') : fromDb;
-                } else {
-                    basePath = '/api/lab/mock/' + encodeURIComponent(safeSlugOrId);
+                var urlToUse = lastGeneratedAPIResult.full_url || '';
+                if (!urlToUse) {
+                    var path = lastGeneratedAPIResult.endpoint || '/api/lab/mock/' + (lastGeneratedAPIResult.slug || lastGeneratedAPIResult.id || '');
+                    urlToUse = window.location.origin + (path.indexOf('/') === 0 ? path : '/' + path);
                 }
-                const url = basePath + queryString;
-                const fullUrlWithParams = window.location.origin + url;
-                var requestText = 'Request (from DB base): GET ' + url;
-                if (hasParams) requestText += '  |  params: ' + JSON.stringify(params);
+                var finalUrl = urlToUse.split('?')[0];
+                const hasParams = params && typeof params === 'object' && Object.keys(params).length > 0;
+                if (hasParams) {
+                    const q = Object.entries(params).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+                    finalUrl += '?' + q;
+                }
+                var displayUrl = finalUrl.replace(window.location.origin, '');
+                console.log('[Lab Test] Using stored URL from DB:', urlToUse, '| Final URL:', finalUrl);
                 var urlEl = document.getElementById('api-test-request-url');
-                if (urlEl) urlEl.innerHTML = requestText + (hasParams ? '<br><span class="text-green-400 mt-1 block">URL with parameter values: ' + escapeHtml(fullUrlWithParams) + '</span>' : '');
+                if (urlEl) urlEl.innerHTML = 'Request: GET ' + escapeHtml(displayUrl) + (hasParams ? '<br><span class="text-green-400 mt-1 block">Full URL: ' + escapeHtml(finalUrl) + '</span>' : '');
                 var lastReqEl = document.getElementById('api-last-request-url');
-                if (lastReqEl) lastReqEl.innerHTML = requestText + (hasParams ? '<br><span class="text-green-400 mt-1 block">URL with parameter values: ' + escapeHtml(fullUrlWithParams) + '</span>' : '');
-                console.log('[Lab Test API] URL (from DB base):', url, '| full URL with params:', fullUrlWithParams, '| params:', hasParams ? params : '(none)');
-                
-                const response = await fetch(url);
+                if (lastReqEl) lastReqEl.innerHTML = 'Request: GET ' + escapeHtml(displayUrl) + (hasParams ? '<br><span class="text-green-400 mt-1 block">Full URL: ' + escapeHtml(finalUrl) + '</span>' : '');
+                const response = await fetch(displayUrl);
                 const endTime = Date.now();
                 const duration = endTime - startTime;
-                
                 const data = await response.json();
-                
                 if (response.ok) {
                     statusBadge.textContent = `${response.status} OK (${duration}ms)`;
                     statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400';
-                    // Business-friendly display
                     responseCode.innerHTML = renderBusinessFriendlyResponse(data);
                 } else {
                     statusBadge.textContent = `${response.status} Error`;
                     statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
                     responseCode.innerHTML = `<p class="text-red-400 text-sm">❌ ${escapeHtml(JSON.stringify(data, null, 2))}</p>`;
                 }
-                
             } catch (e) {
                 statusBadge.textContent = 'Error';
                 statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
                 responseCode.innerHTML = `<p class="text-red-400 text-sm">❌ ${e.message}</p>`;
             }
+        }
+        
+        async function runTest(slugOrId, params = {}) {
+            await runTestDirect(params);
         }
         
         // Copy to clipboard
@@ -1271,7 +1229,7 @@ Create an invoice image with:
         // Last generated API result (from backend); used so we don't hardcode description/params.
         let lastGeneratedAPIResult = null;
         let currentHistoryItemId = null;
-        const LAB_CACHE_CHECK = 'Build: stored URL + edit — no cache';
+        const LAB_CACHE_CHECK = 'Direct URL from DB — FIXED';
         
         function sanitizeAgentDescription(text) {
             if (!text || typeof text !== 'string') return '';
