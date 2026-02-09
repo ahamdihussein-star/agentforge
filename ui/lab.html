@@ -944,6 +944,7 @@ Create an invoice image with:
                             <span>▶️</span>
                             <span>${isParametrized ? 'Test API (set parameters)' : 'Test API'}</span>
                         </button>
+                        <div id="api-last-request-url" class="mt-3 pt-3 border-t border-green-500/20 text-xs font-mono text-green-300/90 break-all min-h-[2rem]">Request URL will appear here after you run Test.</div>
                     </div>
                     
                     <!-- Configuration: Method, Endpoint, Parameters -->
@@ -1192,8 +1193,11 @@ Create an invoice image with:
                     ? '?' + Object.entries(params).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&')
                     : '';
                 const url = '/api/lab/mock/' + encodeURIComponent(safeSlugOrId) + queryString;
+                const requestText = 'GET ' + url + (hasParams ? '  |  params: ' + JSON.stringify(params) : '  |  params: (none)');
                 var urlEl = document.getElementById('api-test-request-url');
-                if (urlEl) urlEl.textContent = 'Request: GET ' + url + (hasParams ? '  |  params: ' + JSON.stringify(params) : '  |  params: (none)');
+                if (urlEl) urlEl.textContent = 'Request: ' + requestText;
+                var lastReqEl = document.getElementById('api-last-request-url');
+                if (lastReqEl) lastReqEl.textContent = 'Request: ' + requestText;
                 console.log('[Lab Test API] URL:', url, '| params:', hasParams ? params : '(none)');
                 
                 const response = await fetch(url);
