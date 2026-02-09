@@ -8136,6 +8136,12 @@ async def create_tool(request: CreateToolRequest, current_user: User = Depends(g
     # Get owner_id from current user
     owner_id = str(current_user.id) if current_user else "system"
     
+    # Debug log
+    print(f"\n🔧 [CREATE TOOL] '{request.name}'")
+    print(f"   Current user: {current_user.email if current_user else 'None'}")
+    print(f"   Owner ID: {owner_id}")
+    print(f"   Access type: {request.access_type}")
+    
     api_config = None
     kb_config = None
     
@@ -8482,6 +8488,29 @@ async def update_table_entry(tool_id: str, source: str, request: Dict[str, Any])
 
 
 
+@app.get("/api/tools/{tool_id}/debug-ownership")
+async def debug_tool_ownership(tool_id: str, current_user: User = Depends(get_current_user_optional)):
+    """Debug endpoint: check tool ownership and user info"""
+    if tool_id not in app_state.tools:
+        raise HTTPException(404, "Tool not found")
+    
+    tool = app_state.tools[tool_id]
+    user_id = str(current_user.id) if current_user else None
+    
+    return {
+        "tool_id": tool_id,
+        "tool_name": tool.name,
+        "tool_owner_id": getattr(tool, 'owner_id', None),
+        "tool_access_type": getattr(tool, 'access_type', None),
+        "current_user_id": user_id,
+        "current_user_email": current_user.email if current_user else None,
+        "is_owner": str(getattr(tool, 'owner_id', None)) == str(user_id) if user_id and getattr(tool, 'owner_id', None) else False,
+        "has_current_user": current_user is not None,
+        "allowed_user_ids": getattr(tool, 'allowed_user_ids', []),
+        "can_delete_user_ids": getattr(tool, 'can_delete_user_ids', [])
+    }
+
+
 @app.delete("/api/tools/{tool_id}")
 async def delete_tool(tool_id: str, current_user: User = Depends(get_current_user_optional)):
     if tool_id not in app_state.tools:
@@ -8492,8 +8521,15 @@ async def delete_tool(tool_id: str, current_user: User = Depends(get_current_use
     # Get user's groups dynamically
     user_group_ids = get_user_group_ids(user_id) if user_id else []
     
+    # Debug log
+    print(f"\n🗑️  [DELETE] Tool '{tool.name}' ({tool_id})")
+    print(f"   Tool owner_id: {getattr(tool, 'owner_id', None)}")
+    print(f"   Current user_id: {user_id}")
+    print(f"   Is owner: {str(getattr(tool, 'owner_id', None)) == str(user_id) if user_id and getattr(tool, 'owner_id', None) else False}")
+    
     # Check if user can delete this tool
     if not check_tool_access(tool, user_id, user_group_ids, 'delete'):
+        print(f"   ❌ Access denied for delete")
         raise HTTPException(403, "You don't have permission to delete this tool")
     
     # Check if tool is being used by any agent
