@@ -9,11 +9,14 @@
     --bg-secondary: #16161e;
     --bg-card: #1e1e2e;
     --bg-input: #2d2d3d;
-    --border-color: #2d2d3d;
-    --border-hover: #3d3d4d;
+    --border-color: #475569;
+    --border-hover: #64748b;
+    --input-border: #475569;
+    --input-border-focus: #8b5cf6;
     --text-primary: #f1f5f9;
     --text-secondary: #94a3b8;
     --text-muted: #6b7280;
+    --placeholder-color: #6b7280;
     --accent-primary: #8b5cf6;
     --accent-secondary: #667eea;
     --accent-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -22,6 +25,8 @@
     --danger: #ef4444;
     --sidebar-bg: #16161e;
     --sidebar-active: rgba(139, 92, 246, 0.3);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
     /* Lab aliases */
     --accent-purple: #8b5cf6;
     --accent-blue: #667eea;
@@ -31,7 +36,7 @@
     --canvas-bg: #0f1419;
     --grid-color: rgba(255,255,255,0.03);
     --node-bg: #1a1f2e;
-    --node-border: #2d3748;
+    --node-border: #475569;
     --connection-color: #6366f1;
     --trigger-color: #22c55e;
     --action-color: #3b82f6;
@@ -64,17 +69,22 @@
     --bg-primary: #f8fafc;
     --bg-secondary: #f1f5f9;
     --bg-card: #ffffff;
-    --bg-input: #e2e8f0;
-    --border-color: #94a3b8;
-    --border-hover: #64748b;
+    --bg-input: #ffffff;
+    --border-color: #cbd5e1;
+    --border-hover: #94a3b8;
+    --input-border: #cbd5e1;
+    --input-border-focus: #7c3aed;
     --text-primary: #1e293b;
     --text-secondary: #475569;
     --text-muted: #64748b;
+    --placeholder-color: #94a3b8;
     --accent-primary: #7c3aed;
     --accent-secondary: #6366f1;
     --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
     --sidebar-bg: #ffffff;
     --sidebar-active: rgba(124, 58, 237, 0.15);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.12);
     --accent-purple: #7c3aed;
     --accent-blue: #6366f1;
     --accent-green: #16a34a;
@@ -108,17 +118,22 @@
     --bg-primary: #e8f4f8;
     --bg-secondary: #dbeafe;
     --bg-card: #ffffff;
-    --bg-input: #e0f2fe;
-    --border-color: #7dd3fc;
+    --bg-input: #ffffff;
+    --border-color: #38bdf8;
     --border-hover: #0ea5e9;
+    --input-border: #38bdf8;
+    --input-border-focus: #6366f1;
     --text-primary: #0c4a6e;
     --text-secondary: #0369a1;
     --text-muted: #0284c7;
+    --placeholder-color: #0ea5e9;
     --accent-primary: #6366f1;
     --accent-secondary: #8b5cf6;
     --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
     --sidebar-bg: #dbeafe;
     --sidebar-active: rgba(99, 102, 241, 0.2);
+    --shadow-sm: 0 1px 2px 0 rgba(14, 165, 233, 0.12);
+    --shadow-md: 0 4px 6px -1px rgba(14, 165, 233, 0.15);
     --accent-purple: #8b5cf6;
     --accent-blue: #6366f1;
     --accent-green: #0d9488;
@@ -153,16 +168,21 @@
     --bg-secondary: #16213e;
     --bg-card: #1f2937;
     --bg-input: #374151;
-    --border-color: #4b5563;
-    --border-hover: #6b7280;
+    --border-color: #64748b;
+    --border-hover: #94a3b8;
+    --input-border: #64748b;
+    --input-border-focus: #f97316;
     --text-primary: #fef3c7;
     --text-secondary: #fcd34d;
     --text-muted: #f59e0b;
+    --placeholder-color: #f59e0b;
     --accent-primary: #f97316;
     --accent-secondary: #ef4444;
     --accent-gradient: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
     --sidebar-bg: #16213e;
     --sidebar-active: rgba(249, 115, 22, 0.3);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35);
     --accent-purple: #ea580c;
     --accent-blue: #ef4444;
     --accent-green: #22c55e;
@@ -197,16 +217,21 @@
     --bg-secondary: #14291a;
     --bg-card: #1a3320;
     --bg-input: #234429;
-    --border-color: #2d5a35;
-    --border-hover: #3d7a45;
+    --border-color: #4ade80;
+    --border-hover: #22c55e;
+    --input-border: #4ade80;
+    --input-border-focus: #22c55e;
     --text-primary: #dcfce7;
     --text-secondary: #86efac;
     --text-muted: #4ade80;
+    --placeholder-color: #4ade80;
     --accent-primary: #22c55e;
     --accent-secondary: #16a34a;
     --accent-gradient: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
     --sidebar-bg: #14291a;
     --sidebar-active: rgba(34, 197, 94, 0.3);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.28);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.32);
     --accent-purple: #22c55e;
     --accent-blue: #16a34a;
     --accent-green: #15803d;
@@ -241,16 +266,21 @@
     --bg-secondary: #0f172a;
     --bg-card: #1e293b;
     --bg-input: #334155;
-    --border-color: #475569;
-    --border-hover: #64748b;
+    --border-color: #64748b;
+    --border-hover: #94a3b8;
+    --input-border: #64748b;
+    --input-border-focus: #3b82f6;
     --text-primary: #f8fafc;
     --text-secondary: #cbd5e1;
     --text-muted: #94a3b8;
+    --placeholder-color: #94a3b8;
     --accent-primary: #3b82f6;
     --accent-secondary: #2563eb;
     --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
     --sidebar-bg: #0f172a;
     --sidebar-active: rgba(59, 130, 246, 0.3);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
     --accent-purple: #818cf8;
     --accent-blue: #3b82f6;
     --accent-green: #22c55e;
@@ -339,4 +369,127 @@
 .bg-gray-900 .text-gray-900,
 .bg-gray-900 .text-black {
     color: var(--text-primary) !important;
+}
+
+/* ========== Standard UI/UX: Borders, Inputs, Cards, Focus States ========== */
+
+/* Cards - clear visible borders */
+.card {
+    border: 1.5px solid var(--border-color) !important;
+    box-shadow: var(--shadow-sm);
+}
+.card:hover {
+    border-color: var(--border-hover) !important;
+    box-shadow: var(--shadow-md);
+}
+
+/* Input fields - clear borders and focus */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+textarea,
+select,
+.input-field {
+    background: var(--bg-input) !important;
+    border: 1.5px solid var(--input-border) !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+input[type="text"]::placeholder,
+input[type="email"]::placeholder,
+input[type="password"]::placeholder,
+input[type="number"]::placeholder,
+input[type="search"]::placeholder,
+input[type="tel"]::placeholder,
+input[type="url"]::placeholder,
+textarea::placeholder,
+.input-field::placeholder {
+    color: var(--placeholder-color) !important;
+    opacity: 0.75;
+}
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="search"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+textarea:focus,
+select:focus,
+.input-field:focus {
+    border-color: var(--input-border-focus) !important;
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--input-border-focus) 20%, transparent), var(--shadow-md);
+}
+input[type="text"]:hover,
+input[type="email"]:hover,
+input[type="password"]:hover,
+input[type="number"]:hover,
+input[type="search"]:hover,
+input[type="tel"]:hover,
+input[type="url"]:hover,
+textarea:hover,
+select:hover,
+.input-field:hover {
+    border-color: var(--border-hover) !important;
+}
+
+/* Select dropdowns - clear arrow and styling */
+select,
+select.input-field {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25em 1.25em;
+    padding-right: 2.5rem;
+}
+
+/* Disabled inputs - clear visual indication */
+input:disabled,
+textarea:disabled,
+select:disabled,
+.input-field:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: var(--border-color) !important;
+}
+
+/* Text contrast in all areas */
+input,
+textarea,
+select,
+.input-field {
+    color: var(--text-primary) !important;
+}
+
+/* Tables - clear borders */
+table {
+    border-collapse: collapse;
+}
+table th,
+table td {
+    border: 1px solid var(--border-color);
+}
+table thead {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* Modals - clear backdrop */
+.modal-backdrop,
+[class*="modal"][class*="fixed"] {
+    backdrop-filter: blur(4px);
+}
+
+/* Buttons - clear hover/focus */
+button:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
 }
