@@ -901,9 +901,12 @@ Create an invoice image with:
             }
             var slugFromDisplayedPath = (typeof displayedPath === 'string' && displayedPath.match(/\/mock\/?([^/?]+)/));
             const apiIdOrSlug = (storedUrl && storedUrl.match(/\/mock\/?([^/?]+)/) && storedUrl.match(/\/mock\/?([^/?]+)/)[1]) || getApiIdOrSlugFromResult(result) || (slugFromDisplayedPath && slugFromDisplayedPath[1]) || '';
-            const fullEndpoint = storedUrl || ((typeof displayedPath === 'string' && displayedPath.indexOf('http') === 0) ? displayedPath : (window.location.origin + (displayedPath.indexOf('/') === 0 ? displayedPath : '/' + displayedPath)));
+            var fullEndpoint = storedUrl || ((typeof displayedPath === 'string' && displayedPath.indexOf('http') === 0) ? displayedPath : (window.location.origin + (displayedPath.indexOf('/') === 0 ? displayedPath : '/' + displayedPath)));
+            if (isParametrized && fullEndpoint.indexOf('?') < 0) fullEndpoint = buildFullUrlWithParams(fullEndpoint, params);
             const jsonContent = JSON.stringify(result.data || result, null, 2);
             const showStoredUrl = !!storedUrl;
+            var storedUrlDisplay = storedUrl;
+            if (showStoredUrl && isParametrized && storedUrl.indexOf('?') < 0) storedUrlDisplay = buildFullUrlWithParams(storedUrl, params);
             const showEditSave = !!currentHistoryItemId;
             
             const paramsConfigHtml = isParametrized
@@ -952,7 +955,7 @@ Create an invoice image with:
                             <span>▶️</span>
                             <span>${isParametrized ? 'Test API (set parameters)' : 'Test API'}</span>
                         </button>
-                        ${showStoredUrl ? '<div class="mt-2 text-xs font-mono text-green-400/90 break-all">Stored URL (from DB): ' + escapeHtml(storedUrl) + '</div>' : ''}
+                        ${showStoredUrl ? '<div class="mt-2 text-xs font-mono text-green-400/90 break-all">Stored URL (from DB): ' + escapeHtml(storedUrlDisplay) + '</div>' : ''}
                         <div id="api-last-request-url" class="mt-3 pt-3 border-t border-green-500/20 text-xs font-mono text-green-300/90 break-all min-h-[2rem]">Request URL will appear here after you run Test.</div>
                         ${showEditSave ? '<button type="button" onclick="saveStoredUrlToHistory(\'' + (currentHistoryItemId || '').replace(/'/g, "\\'") + '\')" class="mt-2 w-full btn-secondary text-sm py-2">Edit &amp; Save URL to DB</button>' : ''}
                         <div class="mt-1 text-[10px] text-gray-500 opacity-90" dir="ltr">${LAB_CACHE_CHECK}</div>
@@ -1207,21 +1210,26 @@ Create an invoice image with:
             
             try {
                 const startTime = Date.now();
-                // URL format (must match backend): /api/lab/mock/{slug}?param1=value1&param2=value2
-                // Example: /api/lab/mock/supplier-details-by-id?supplier_id=S001
-                // - Path: /api/lab/mock/ + slug (no trailing slash, no extra segments)
-                // - Query: only if API has parameters; one ? then key=value pairs with & (dynamic by API name + params)
                 const hasParams = params && typeof params === 'object' && Object.keys(params).length > 0;
                 const queryString = hasParams
                     ? '?' + Object.entries(params).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&')
                     : '';
-                const url = '/api/lab/mock/' + encodeURIComponent(safeSlugOrId) + queryString;
-                const requestText = 'GET ' + url + (hasParams ? '  |  params: ' + JSON.stringify(params) : '  |  params: (none)');
+                var basePath;
+                if (lastGeneratedAPIResult && lastGeneratedAPIResult.full_url) {
+                    var fromDb = lastGeneratedAPIResult.full_url.split('?')[0];
+                    basePath = fromDb.indexOf('http') === 0 ? fromDb.replace(/^https?:\/\/[^/]+/, '') : fromDb;
+                } else {
+                    basePath = '/api/lab/mock/' + encodeURIComponent(safeSlugOrId);
+                }
+                const url = basePath + queryString;
+                const fullUrlWithParams = window.location.origin + url;
+                var requestText = 'Request (from DB base): GET ' + url;
+                if (hasParams) requestText += '  |  params: ' + JSON.stringify(params);
                 var urlEl = document.getElementById('api-test-request-url');
-                if (urlEl) urlEl.textContent = 'Request: ' + requestText;
+                if (urlEl) urlEl.innerHTML = requestText + (hasParams ? '<br><span class="text-green-400 mt-1 block">URL with parameter values: ' + escapeHtml(fullUrlWithParams) + '</span>' : '');
                 var lastReqEl = document.getElementById('api-last-request-url');
-                if (lastReqEl) lastReqEl.textContent = 'Request: ' + requestText;
-                console.log('[Lab Test API] URL:', url, '| params:', hasParams ? params : '(none)');
+                if (lastReqEl) lastReqEl.innerHTML = requestText + (hasParams ? '<br><span class="text-green-400 mt-1 block">URL with parameter values: ' + escapeHtml(fullUrlWithParams) + '</span>' : '');
+                console.log('[Lab Test API] URL (from DB base):', url, '| full URL with params:', fullUrlWithParams, '| params:', hasParams ? params : '(none)');
                 
                 const response = await fetch(url);
                 const endTime = Date.now();
@@ -1381,14 +1389,21 @@ Create an invoice image with:
             }
         }
         
-        // History (API only; no localStorage). For API type we store full_url so Test works from DB.
+        function buildFullUrlWithParams(baseUrl, parameters) {
+            if (!baseUrl) return '';
+            if (!parameters || !Array.isArray(parameters) || parameters.length === 0) return baseUrl;
+            var q = parameters.map(function(p) { return encodeURIComponent(p.name || 'param') + '=' + encodeURIComponent('value'); }).join('&');
+            return baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + q;
+        }
+
+        // History (API only; no localStorage). For API type we store full_url (with params template) so Test works from DB.
         async function addToHistory(type, name, result) {
             var payload = result;
             if (type === 'api' && result && typeof result === 'object') {
                 payload = Object.assign({}, result);
                 var path = payload.endpoint || payload.Endpoint || '/api/lab/mock/' + (payload.slug || payload.id || '');
-                if (path.indexOf('http') !== 0) path = (path.indexOf('/') === 0 ? path : '/' + path);
-                payload.full_url = window.location.origin + path;
+                if (path.indexOf('http') !== 0) path = window.location.origin + (path.indexOf('/') === 0 ? path : '/' + path);
+                payload.full_url = buildFullUrlWithParams(path, payload.parameters);
             }
             try {
                 const response = await fetch('/api/lab/history', {
@@ -1421,7 +1436,7 @@ Create an invoice image with:
             var path = lastGeneratedAPIResult.endpoint || lastGeneratedAPIResult.Endpoint || '/api/lab/mock/' + (lastGeneratedAPIResult.slug || lastGeneratedAPIResult.id || '');
             if (path.indexOf('http') !== 0) path = window.location.origin + (path.indexOf('/') === 0 ? path : '/' + path);
             var result = Object.assign({}, lastGeneratedAPIResult);
-            result.full_url = path;
+            result.full_url = buildFullUrlWithParams(path, lastGeneratedAPIResult.parameters);
             try {
                 const response = await fetch('/api/lab/history/' + encodeURIComponent(itemId), {
                     method: 'PATCH',
