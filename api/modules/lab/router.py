@@ -42,16 +42,37 @@ async def generate_api(request: APIGenerateRequest):
 
 
 @router.get("/mock/{item_id}")
-async def get_mock_api(item_id: str):
+async def get_mock_api(item_id: str, **query_params):
     """
     Call the generated mock API to get data
     
     This endpoint serves the generated mock data as if it were
-    a real API endpoint.
+    a real API endpoint. Supports query parameters for filtering.
     """
     data = LabService.get_mock_data(item_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Mock API not found")
+    
+    # If data is a list and query params provided, filter the results
+    if isinstance(data, list) and query_params:
+        filtered = []
+        for item in data:
+            if isinstance(item, dict):
+                # Check if all query params match
+                match = True
+                for key, value in query_params.items():
+                    # Case-insensitive partial match for strings
+                    item_value = item.get(key)
+                    if item_value is None:
+                        match = False
+                        break
+                    # Convert both to string for comparison
+                    if str(value).lower() not in str(item_value).lower():
+                        match = False
+                        break
+                if match:
+                    filtered.append(item)
+        data = filtered
     
     return JSONResponse(content=data)
 

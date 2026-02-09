@@ -4702,14 +4702,14 @@ Example: I need an HR agent that can:
                                 <!-- Request -->
                                 <div class="space-y-4">
                                     <h4 class="text-sm font-semibold text-gray-300">Request</h4>
-                                    <div class="bg-gray-800/60 rounded-xl p-4 border border-gray-700/60">
-                                        <div class="flex flex-wrap items-center gap-2 mb-4">
-                                            <span id="api-test-method" class="px-2.5 py-1 rounded-md text-xs font-bold bg-green-500/20 text-green-400">GET</span>
-                                            <code id="api-test-endpoint" class="text-sm text-gray-300 break-all">/api/...</code>
+                                    <div class="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-600 shadow-lg">
+                                        <div class="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b border-gray-700">
+                                            <span id="api-test-method" class="px-2.5 py-1 rounded-md text-xs font-bold bg-green-500/30 text-green-300">GET</span>
+                                            <code id="api-test-endpoint" class="text-sm text-blue-300 break-all font-mono">/api/...</code>
                                         </div>
                                         <!-- Values to send (parameters) - clear for non-technical users -->
                                         <div id="api-test-params-wrapper" class="space-y-3">
-                                            <p class="text-xs text-gray-500 mb-2" id="api-test-params-hint">If this API needs values (e.g. city, ID), enter them below. Otherwise leave empty and click Send.</p>
+                                            <p class="text-xs text-gray-400 mb-2" id="api-test-params-hint">📝 Enter values below (if any), then click Send Request.</p>
                                             <div id="api-test-params" class="space-y-3">
                                                 <!-- Parameters form rendered here -->
                                             </div>
@@ -4720,8 +4720,10 @@ Example: I need an HR agent that can:
                                 <!-- Response -->
                                 <div class="space-y-4">
                                     <h4 class="text-sm font-semibold text-gray-300">Response</h4>
-                                    <div class="bg-gray-800/60 rounded-xl p-4 border border-gray-700/60 min-h-[200px]">
-                                        <pre id="api-test-response" class="text-sm text-green-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0">Click "Send Request" to see the result here.</pre>
+                                    <div class="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-600 min-h-[200px] shadow-lg">
+                                        <div id="api-test-response" class="text-sm overflow-auto max-h-64 m-0">
+                                            <p class="text-gray-400 text-sm">Click "Send Request" to see the result here.</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -15596,6 +15598,51 @@ Option 3"></textarea>
         }
 
         // Open API test modal from tool wizard (Try this API)
+        // Business-friendly display: table for arrays, structured for objects
+        function renderBusinessFriendlyResponse(data) {
+            if (!data) return '<p class="text-gray-400 text-sm">No data returned</p>';
+            
+            // Array of objects → Table
+            if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+                const keys = Object.keys(data[0]);
+                let html = `<div class="overflow-x-auto"><table class="w-full text-sm border-collapse">
+                    <thead><tr class="bg-blue-900/30 border-b border-blue-700">`;
+                keys.forEach(k => {
+                    html += `<th class="px-3 py-2 text-left font-semibold text-blue-200">${k}</th>`;
+                });
+                html += `</tr></thead><tbody>`;
+                data.forEach((row, idx) => {
+                    html += `<tr class="${idx % 2 === 0 ? 'bg-gray-800/40' : 'bg-gray-800/20'} border-b border-gray-700/50">`;
+                    keys.forEach(k => {
+                        const val = row[k];
+                        const display = val != null ? String(val) : '-';
+                        html += `<td class="px-3 py-2 text-gray-200">${display}</td>`;
+                    });
+                    html += `</tr>`;
+                });
+                html += `</tbody></table></div>`;
+                html += `<p class="text-xs text-gray-400 mt-2">${data.length} record${data.length !== 1 ? 's' : ''}</p>`;
+                return html;
+            }
+            
+            // Single object → Structured view
+            if (typeof data === 'object' && !Array.isArray(data)) {
+                let html = '<div class="space-y-2">';
+                Object.entries(data).forEach(([k, v]) => {
+                    const display = v != null ? (typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)) : '-';
+                    html += `<div class="flex items-start gap-3 border-b border-gray-700/30 pb-2">
+                        <span class="font-semibold text-blue-300 min-w-[120px]">${k}:</span>
+                        <span class="text-gray-200 break-all">${display}</span>
+                    </div>`;
+                });
+                html += '</div>';
+                return html;
+            }
+            
+            // Fallback: simple value or JSON
+            return `<pre class="text-gray-200 text-sm whitespace-pre-wrap break-words">${typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data)}</pre>`;
+        }
+
         function openWizardApiTestModal() {
             const baseUrl = (document.getElementById('api-base-url') || document.getElementById('api-url'))?.value?.trim() || '';
             const path = document.getElementById('api-path')?.value?.trim() || '';
@@ -15611,7 +15658,7 @@ Option 3"></textarea>
             document.getElementById('api-test-method').textContent = method;
             document.getElementById('api-test-method').className = 'px-2.5 py-1 rounded-md text-xs font-bold ' + (method === 'GET' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400');
             document.getElementById('api-test-endpoint').textContent = (baseUrl.replace(/\/$/, '') + '/' + path.replace(/^\//, '')) || baseUrl;
-            document.getElementById('api-test-response').textContent = 'Click "Send Request" to see the result here.';
+            document.getElementById('api-test-response').innerHTML = '<p class="text-gray-400 text-sm">Click "Send Request" to see the result here.</p>';
             if (typeof renderTestParams === 'function') renderTestParams();
             const bodyEl = document.getElementById('api-test-body');
             if (bodyEl) {
@@ -15649,7 +15696,7 @@ Option 3"></textarea>
                     parameters: params
                 };
                 if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = 'Sending...'; }
-                responseEl.textContent = 'Sending request...';
+                responseEl.innerHTML = '<p class="text-gray-400 text-sm">Sending request...</p>';
                 try {
                     const r = await fetch(API + '/api/tools/test-api', {
                         method: 'POST',
@@ -15658,15 +15705,15 @@ Option 3"></textarea>
                     });
                     const d = await r.json();
                     if (d.success) {
-                        responseEl.textContent = typeof d.data === 'object' ? JSON.stringify(d.data, null, 2) : (d.data != null ? String(d.data) : 'OK');
-                        responseEl.className = 'text-sm text-green-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+                        responseEl.innerHTML = renderBusinessFriendlyResponse(d.data);
+                        responseEl.className = 'text-sm overflow-auto max-h-64 m-0';
                     } else {
-                        responseEl.textContent = 'Error: ' + (d.error || 'Request failed');
-                        responseEl.className = 'text-sm text-red-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+                        responseEl.innerHTML = `<p class="text-red-400 text-sm">❌ Error: ${d.error || 'Request failed'}</p>`;
+                        responseEl.className = 'text-sm overflow-auto max-h-64 m-0';
                     }
                 } catch (e) {
-                    responseEl.textContent = 'Error: ' + e.message;
-                    responseEl.className = 'text-sm text-red-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+                    responseEl.innerHTML = `<p class="text-red-400 text-sm">❌ Error: ${e.message}</p>`;
+                    responseEl.className = 'text-sm overflow-auto max-h-64 m-0';
                 }
                 if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<span>▶</span> Send Request'; }
                 return;
@@ -15689,7 +15736,7 @@ Option 3"></textarea>
                 }
             }
             if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = 'Sending...'; }
-            responseEl.textContent = 'Sending request...';
+            responseEl.innerHTML = '<p class="text-gray-400 text-sm">Sending request...</p>';
             try {
                 const response = await fetch(API + `/api/demo-kits/${kitId}/api/${apiId}/test`, {
                     method: 'POST',
@@ -15697,11 +15744,11 @@ Option 3"></textarea>
                     body: JSON.stringify({ ...params, ...body })
                 });
                 const result = await response.json();
-                responseEl.textContent = JSON.stringify(result.response || result, null, 2);
-                responseEl.className = 'text-sm text-green-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+                responseEl.innerHTML = renderBusinessFriendlyResponse(result.response || result);
+                responseEl.className = 'text-sm overflow-auto max-h-64 m-0';
             } catch (e) {
-                responseEl.textContent = 'Error: ' + e.message;
-                responseEl.className = 'text-sm text-red-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+                responseEl.innerHTML = `<p class="text-red-400 text-sm">❌ Error: ${e.message}</p>`;
+                responseEl.className = 'text-sm overflow-auto max-h-64 m-0';
             }
             if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<span>▶</span> Send Request';
             }
