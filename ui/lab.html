@@ -894,7 +894,7 @@ Create an invoice image with:
             
             const params = result.parameters && Array.isArray(result.parameters) ? result.parameters : [];
             const isParametrized = params.length > 0;
-            const apiIdOrSlug = result.id || result.slug || (result.endpoint ? result.endpoint.replace(/^.*\/mock\/?/, '').replace(/\/$/, '') : '');
+            const apiIdOrSlug = getApiIdOrSlugFromResult(result);
             const fullEndpoint = window.location.origin + (result.endpoint || '/api/lab/mock/' + apiIdOrSlug);
             const jsonContent = JSON.stringify(result.data || result, null, 2);
             
@@ -1086,8 +1086,8 @@ Create an invoice image with:
         let currentTestSlug = null;
         
         async function testAPI(itemId) {
-            // Normalize: avoid string 'null' or undefined from history/preview
-            const rawId = (itemId != null && itemId !== 'null' && itemId !== 'undefined') ? itemId : (lastGeneratedAPIResult && (lastGeneratedAPIResult.id || lastGeneratedAPIResult.slug));
+            var rawId = (itemId != null && itemId !== 'null' && itemId !== 'undefined' && itemId !== '') ? String(itemId).trim() : '';
+            if (!rawId && lastGeneratedAPIResult) rawId = getApiIdOrSlugFromResult(lastGeneratedAPIResult);
             if (!rawId || rawId === 'null' || rawId === 'undefined') {
                 showToast('Cannot run test: API identifier (id/slug) is missing in this item. Check that history was saved correctly or generate the API again.', 'error');
                 return;
@@ -1181,10 +1181,12 @@ Create an invoice image with:
             
             try {
                 const startTime = Date.now();
-                const queryString = Object.keys(params).length > 0 
-                    ? '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
+                // Build URL: base path + optional query (parametrized APIs use ?key=value&...; non-parametrized use no query)
+                const hasParams = params && typeof params === 'object' && Object.keys(params).length > 0;
+                const queryString = hasParams
+                    ? '?' + Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
                     : '';
-                const url = `/api/lab/mock/${encodeURIComponent(safeSlugOrId)}${queryString}`;
+                const url = '/api/lab/mock/' + encodeURIComponent(safeSlugOrId) + queryString;
                 
                 const response = await fetch(url);
                 const endTime = Date.now();
@@ -1418,6 +1420,17 @@ Create an invoice image with:
             }).join('');
         }
 
+        function getApiIdOrSlugFromResult(result) {
+            if (!result || typeof result !== 'object') return '';
+            const id = result.id != null && result.id !== '' ? String(result.id) : '';
+            const slug = result.slug != null && result.slug !== '' ? String(result.slug) : '';
+            if (id) return id;
+            if (slug) return slug;
+            const ep = result.endpoint || result.Endpoint || '';
+            const m = typeof ep === 'string' ? ep.match(/\/mock\/?([^/?]+)/) : null;
+            return m ? m[1] : '';
+        }
+
         function loadHistoryItem(id) {
             const item = history.find(h => h.id === id);
             if (!item) return;
@@ -1426,6 +1439,14 @@ Create an invoice image with:
             generatedResult = item.result;
 
             if (item.type === 'api') {
+                if (item.result && typeof item.result === 'object') {
+                    var r = item.result;
+                    var derived = getApiIdOrSlugFromResult(r);
+                    if (derived && (r.id == null || r.id === '') && (r.slug == null || r.slug === '')) {
+                        r.slug = r.slug || derived;
+                        r.id = r.id || derived;
+                    }
+                }
                 showAPIPreview(item.result);
             } else if (item.type === 'document') {
                 showDocumentPreview(item.result);
