@@ -4690,41 +4690,45 @@ Example: I need an HR agent that can:
                     </div>
                 </div>
                 
-                <!-- API Test Modal -->
+                <!-- API Test Modal (used by wizard "Try this API" and by demo kits) -->
                 <div id="api-test-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
-                    <div class="modal-content-box rounded-2xl w-full max-w-3xl mx-4 max-h-[85vh] overflow-hidden">
-                        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                    <div class="modal-content-box rounded-2xl w-full max-w-3xl mx-4 max-h-[85vh] overflow-hidden flex flex-col">
+                        <div class="p-4 border-b border-gray-700 flex items-center justify-between shrink-0">
                             <h3 class="font-bold text-lg" id="api-test-title">Test API</h3>
-                            <button onclick="closeApiTestModal()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
+                            <button onclick="closeApiTestModal()" class="p-2 hover:bg-gray-700 rounded-lg transition" aria-label="Close">✕</button>
                         </div>
-                        <div class="p-6 overflow-y-auto max-h-[65vh]">
-                            <div class="grid grid-cols-2 gap-6">
+                        <div class="p-6 overflow-y-auto flex-1 min-h-0">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <!-- Request -->
-                                <div>
-                                    <h4 class="text-sm font-medium text-gray-400 mb-2">Request</h4>
-                                    <div class="bg-gray-900 rounded-lg p-4">
-                                        <div class="flex items-center gap-2 mb-3">
-                                            <span id="api-test-method" class="px-2 py-0.5 rounded text-xs font-bold bg-green-500/20 text-green-400">GET</span>
-                                            <code id="api-test-endpoint" class="text-sm text-gray-300">/api/mock/...</code>
+                                <div class="space-y-4">
+                                    <h4 class="text-sm font-semibold text-gray-300">Request</h4>
+                                    <div class="bg-gray-800/60 rounded-xl p-4 border border-gray-700/60">
+                                        <div class="flex flex-wrap items-center gap-2 mb-4">
+                                            <span id="api-test-method" class="px-2.5 py-1 rounded-md text-xs font-bold bg-green-500/20 text-green-400">GET</span>
+                                            <code id="api-test-endpoint" class="text-sm text-gray-300 break-all">/api/...</code>
                                         </div>
-                                        <div id="api-test-params" class="space-y-2">
-                                            <!-- Parameters will be rendered here -->
+                                        <!-- Values to send (parameters) - clear for non-technical users -->
+                                        <div id="api-test-params-wrapper" class="space-y-3">
+                                            <p class="text-xs text-gray-500 mb-2" id="api-test-params-hint">If this API needs values (e.g. city, ID), enter them below. Otherwise leave empty and click Send.</p>
+                                            <div id="api-test-params" class="space-y-3">
+                                                <!-- Parameters form rendered here -->
+                                            </div>
                                         </div>
-                                        <textarea id="api-test-body" class="hidden w-full input-field rounded-lg px-3 py-2 mt-3 text-sm font-mono h-32" placeholder="Request body (JSON)"></textarea>
+                                        <textarea id="api-test-body" class="hidden w-full input-field rounded-lg px-3 py-2 mt-3 text-sm font-mono h-28" placeholder="{}"></textarea>
                                     </div>
                                 </div>
                                 <!-- Response -->
-                                <div>
-                                    <h4 class="text-sm font-medium text-gray-400 mb-2">Response</h4>
-                                    <pre id="api-test-response" class="bg-gray-900 rounded-lg p-4 text-sm text-green-400 font-mono overflow-auto max-h-64">
-// Click "Send Request" to test
-                                    </pre>
+                                <div class="space-y-4">
+                                    <h4 class="text-sm font-semibold text-gray-300">Response</h4>
+                                    <div class="bg-gray-800/60 rounded-xl p-4 border border-gray-700/60 min-h-[200px]">
+                                        <pre id="api-test-response" class="text-sm text-green-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0">Click "Send Request" to see the result here.</pre>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="p-4 border-t border-gray-700 flex justify-end gap-2">
-                            <button onclick="closeApiTestModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Close</button>
-                            <button onclick="sendApiTestRequest()" class="px-6 py-2 rounded-lg bg-green-600 hover:bg-green-500 flex items-center gap-2">
+                        <div class="p-4 border-t border-gray-700 flex justify-end gap-3 shrink-0">
+                            <button type="button" onclick="closeApiTestModal()" class="px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 transition">Close</button>
+                            <button type="button" id="api-test-send-btn" onclick="sendApiTestRequest()" class="px-6 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 flex items-center gap-2 transition">
                                 <span>▶</span> Send Request
                             </button>
                         </div>
@@ -5590,6 +5594,24 @@ Example: I need an HR agent that can:
                             <label class="text-sm text-gray-400 mb-1 block">Auth Value</label>
                             <input type="password" id="api-auth-val" class="input-field w-full rounded-lg px-4 py-2">
                         </div>
+                    </div>
+
+                    <!-- Parameters (optional) - non-technical: user gets list from IT -->
+                    <div class="border-t border-gray-700/60 pt-4 mt-4">
+                        <h5 class="text-sm font-semibold text-gray-300 mb-1">Fields this API needs <span class="text-gray-500 font-normal">(optional)</span></h5>
+                        <p class="text-xs text-gray-500 mb-3">If your IT team gave you a list of fields (e.g. city, ID, date), add them here. Leave empty if the API doesn’t need any.</p>
+                        <div id="api-params-list" class="space-y-3 mb-3"></div>
+                        <button type="button" onclick="addApiParam()" class="btn-secondary px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+                            <span>+</span> Add field
+                        </button>
+                    </div>
+
+                    <!-- Try API (test from wizard) -->
+                    <div class="border-t border-gray-700/60 pt-4 mt-4">
+                        <p class="text-sm text-gray-400 mb-3">Check that the connection works before saving.</p>
+                        <button type="button" onclick="openWizardApiTestModal()" class="btn-primary px-5 py-2.5 rounded-lg flex items-center gap-2">
+                            <span>🧪</span> Try this API
+                        </button>
                     </div>
                 </div>
 
@@ -15262,6 +15284,7 @@ Option 3"></textarea>
         let demoKits = [];
         let currentKitId = null;
         let currentTestApi = null;
+        let apiTestFromWizard = false;
 
         // Initialize Demo Lab
         function initDemoLab() {
@@ -15533,6 +15556,7 @@ Option 3"></textarea>
                     if (!api) return;
                     
                     currentTestApi = { kitId, apiId, api };
+                    apiTestFromWizard = false;
                     
                     document.getElementById('api-test-title').textContent = `Test: ${api.name}`;
                     document.getElementById('api-test-method').textContent = api.method;
@@ -15575,23 +15599,93 @@ Option 3"></textarea>
             document.getElementById('api-test-modal').classList.add('hidden');
             document.getElementById('api-test-modal').classList.remove('flex');
             currentTestApi = null;
+            apiTestFromWizard = false;
         }
 
-        // Send API test request
+        // Open API test modal from tool wizard (Try this API)
+        function openWizardApiTestModal() {
+            const baseUrl = (document.getElementById('api-base-url') || document.getElementById('api-url'))?.value?.trim() || '';
+            const path = document.getElementById('api-path')?.value?.trim() || '';
+            const method = document.getElementById('api-method')?.value || 'GET';
+            const name = document.getElementById('wiz-name')?.value?.trim() || 'API';
+            if (!baseUrl) {
+                alert('Please enter the Base URL first.');
+                return;
+            }
+            apiTestFromWizard = true;
+            currentTestApi = null;
+            document.getElementById('api-test-title').textContent = 'Test: ' + name;
+            document.getElementById('api-test-method').textContent = method;
+            document.getElementById('api-test-method').className = 'px-2.5 py-1 rounded-md text-xs font-bold ' + (method === 'GET' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400');
+            document.getElementById('api-test-endpoint').textContent = (baseUrl.replace(/\/$/, '') + '/' + path.replace(/^\//, '')) || baseUrl;
+            document.getElementById('api-test-response').textContent = 'Click "Send Request" to see the result here.';
+            if (typeof renderTestParams === 'function') renderTestParams();
+            const bodyEl = document.getElementById('api-test-body');
+            if (bodyEl) {
+                bodyEl.classList.add('hidden');
+                bodyEl.value = '{}';
+            }
+            ensureModalInBody('api-test-modal');
+            document.getElementById('api-test-modal').classList.remove('hidden');
+            document.getElementById('api-test-modal').classList.add('flex');
+        }
+
+        // Send API test request (wizard mode or demo kit mode)
         async function sendApiTestRequest() {
+            const responseEl = document.getElementById('api-test-response');
+            const sendBtn = document.getElementById('api-test-send-btn');
+            if (!responseEl) return;
+
+            // Wizard mode: test from tool create form
+            if (apiTestFromWizard) {
+                const params = {};
+                (apiParams || []).forEach((p, i) => {
+                    const key = (p.name || '').trim() || ('param_' + i);
+                    const el = document.getElementById('test-param-' + (p.id != null ? p.id : i));
+                    if (el && el.value !== undefined && el.value !== '') params[key] = el.value;
+                });
+                const baseUrl = (document.getElementById('api-base-url') || document.getElementById('api-url'))?.value?.trim() || '';
+                const body = {
+                    base_url: baseUrl,
+                    http_method: document.getElementById('api-method')?.value || 'GET',
+                    endpoint_path: document.getElementById('api-path')?.value || '',
+                    auth_type: document.getElementById('api-auth')?.value || 'none',
+                    auth_value: (document.getElementById('api-auth-value') || document.getElementById('api-auth-val'))?.value || '',
+                    api_key_name: document.getElementById('api-key-name')?.value || '',
+                    api_key_location: document.getElementById('api-key-loc')?.value || '',
+                    parameters: params
+                };
+                if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = 'Sending...'; }
+                responseEl.textContent = 'Sending request...';
+                try {
+                    const r = await fetch(API + '/api/tools/test-api', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...(typeof getAuthHeaders === 'function' ? getAuthHeaders() : {}) },
+                        body: JSON.stringify(body)
+                    });
+                    const d = await r.json();
+                    if (d.success) {
+                        responseEl.textContent = typeof d.data === 'object' ? JSON.stringify(d.data, null, 2) : (d.data != null ? String(d.data) : 'OK');
+                        responseEl.className = 'text-sm text-green-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+                    } else {
+                        responseEl.textContent = 'Error: ' + (d.error || 'Request failed');
+                        responseEl.className = 'text-sm text-red-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+                    }
+                } catch (e) {
+                    responseEl.textContent = 'Error: ' + e.message;
+                    responseEl.className = 'text-sm text-red-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+                }
+                if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<span>▶</span> Send Request'; }
+                return;
+            }
+
             if (!currentTestApi) return;
-            
             const { kitId, apiId, api } = currentTestApi;
-            
-            // Collect parameters
+
             const params = {};
             document.querySelectorAll('.api-param-input').forEach(input => {
-                if (input.value) {
-                    params[input.dataset.param] = input.value;
-                }
+                if (input.value && input.dataset.param) params[input.dataset.param] = input.value;
             });
-            
-            // Get body if POST
             let body = {};
             if (api.method === 'POST' || api.method === 'PUT') {
                 try {
@@ -15601,18 +15695,22 @@ Option 3"></textarea>
                     return;
                 }
             }
-            
+            if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = 'Sending...'; }
+            responseEl.textContent = 'Sending request...';
             try {
                 const response = await fetch(API + `/api/demo-kits/${kitId}/api/${apiId}/test`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ...params, ...body })
                 });
-                
                 const result = await response.json();
-                document.getElementById('api-test-response').textContent = JSON.stringify(result.response || result, null, 2);
+                responseEl.textContent = JSON.stringify(result.response || result, null, 2);
+                responseEl.className = 'text-sm text-green-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
             } catch (e) {
-                document.getElementById('api-test-response').textContent = `Error: ${e.message}`;
+                responseEl.textContent = 'Error: ' + e.message;
+                responseEl.className = 'text-sm text-red-400 font-mono overflow-auto max-h-64 whitespace-pre-wrap break-words m-0';
+            }
+            if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '<span>▶</span> Send Request';
             }
         }
 
@@ -18816,28 +18914,27 @@ Option 3"></textarea>
                     <!-- Parameters Container - Will be populated by LLM analysis or default -->
                     <div id="api-params-container-${t.id}">
                         ${apiConfig.input_parameters?.length ? `
+                            <p class="text-sm text-gray-400 mb-3">Enter values below to try the API. Optional fields can be left empty.</p>
                             <div class="space-y-4 mb-4">
                                 ${apiConfig.input_parameters.map(p => `
-                                <div class="bg-gray-800/50 rounded-lg p-3" id="param-wrapper-${p.name}">
+                                <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50" id="param-wrapper-${p.name}">
                                     <div class="flex items-center justify-between mb-2">
-                                        <label class="text-sm font-medium">${p.name} ${p.required ? '<span class="text-red-400">*</span>' : ''}</label>
+                                        <label class="text-sm font-medium text-gray-200">${p.name} ${p.required ? '<span class="text-red-400">*</span>' : ''}</label>
                                         <span class="text-xs text-gray-500">${p.data_type || 'string'}</span>
                                     </div>
-                                    <p class="text-xs text-gray-400 mb-2">${p.description || ''}</p>
-                                    
-                                    <!-- Default: Simple input, LLM will enhance this -->
+                                    ${p.description ? `<p class="text-xs text-gray-500 mb-2">${p.description}</p>` : ''}
                                     <div id="param-input-area-${p.name}">
-                                        <textarea id="test-param-${p.name}" class="input-field w-full rounded px-3 py-2 text-sm" rows="2" 
-                                                  placeholder="Enter ${p.name}..."></textarea>
+                                        <input type="text" id="test-param-${p.name}" class="input-field w-full rounded-lg px-3 py-2.5 text-sm" placeholder="Enter ${p.name}..." />
                                     </div>
                                 </div>
                                 `).join('')}
                             </div>
-                            
+                            ${isDemoMode ? `
                             <div class="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3 mb-4 text-sm" id="analyze-hint-${t.id}">
                                 <p class="text-blue-300">💡 Click "🔍 Analyze Parameters" to get smart input options based on your API configuration.</p>
                             </div>
-                        ` : '<p class="text-gray-500 text-sm mb-4">No parameters required for this API.</p>'}
+                            ` : ''}
+                        ` : '<p class="text-gray-500 text-sm mb-4">This API doesn\'t need any values. Click "Test Call" to try it.</p>'}
                     </div>
                     
                     <div class="flex gap-2">
@@ -22443,10 +22540,12 @@ async function saveToolEdit() {
         function setApiStep(s){
             apiStep=s;
             for(let i=1;i<=4;i++){
-                document.getElementById('api-step-'+i).classList.toggle('hidden',i!==s);
-                document.getElementById('api-step-'+i+'-btn').className='api-step px-2 md:px-4 py-2 rounded-lg border text-xs md:text-sm whitespace-nowrap '+(i===s?'border-purple-500 bg-purple-500/10 text-white':'border-gray-700 text-gray-400');
+                const stepEl = document.getElementById('api-step-'+i);
+                const btnEl = document.getElementById('api-step-'+i+'-btn');
+                if(stepEl) stepEl.classList.toggle('hidden',i!==s);
+                if(btnEl) btnEl.className='api-step px-2 md:px-4 py-2 rounded-lg border text-xs md:text-sm whitespace-nowrap '+(i===s?'border-purple-500 bg-purple-500/10 text-white':'border-gray-700 text-gray-400');
             }
-            if(s===4)renderTestParams();
+            if(s===4 && typeof renderTestParams==='function') renderTestParams();
         }
 
         function addApiParam(){
@@ -22494,7 +22593,7 @@ async function saveToolEdit() {
                         <button onclick="apiParams.splice(${i},1);renderApiParams()" class="text-gray-500 hover:text-red-400 text-sm">Remove</button>
                     </div>
                 </div>
-            `).join('')||'<p class="text-gray-500 text-center py-4">No parameters. Click "Add Parameter" to create one.</p>';
+            `).join('')||'<p class="text-gray-500 text-sm text-center py-3">No fields yet. Click "Add field" if the API needs any.</p>';
         }
 
         function setConfigMode(mode){
@@ -22511,7 +22610,7 @@ async function saveToolEdit() {
             try{
                 const r=await fetch(API+'/api/tools/parse-openapi',{method:'POST',body:fd});
                 const d=await r.json();
-                if(d.base_url)document.getElementById('api-base-url').value=d.base_url;
+                if(d.base_url){ const u=document.getElementById('api-base-url')||document.getElementById('api-url'); if(u) u.value=d.base_url; }
                 if(d.endpoints?.length){
                     const ep=d.endpoints[0];
                     document.getElementById('api-method').value=ep.method;
@@ -22525,53 +22624,74 @@ async function saveToolEdit() {
         }
 
         function toggleAuthFields(){
-            const auth=document.getElementById('api-auth').value;
-            document.getElementById('auth-value-container').classList.toggle('hidden',auth==='none');
-            document.getElementById('api-key-options').classList.toggle('hidden',auth!=='api_key');
+            const auth=document.getElementById('api-auth')?.value;
+            const authValContainer = document.getElementById('auth-value-container') || document.getElementById('api-auth-val-group');
+            const keyOptions = document.getElementById('api-key-options');
+            if(authValContainer) authValContainer.classList.toggle('hidden',auth==='none');
+            if(keyOptions) keyOptions.classList.toggle('hidden',auth!=='api_key');
         }
 
         function renderTestParams(){
-            document.getElementById('api-test-params').innerHTML=apiParams.map(p=>`
-                <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
-                    <label class="sm:w-32 text-sm text-gray-400">${p.name}${p.required?' *':''}</label>
-                    <input type="text" id="test-param-${p.name}" class="input-field flex-1 rounded px-3 py-2 text-sm" placeholder="Enter ${p.name}">
-                </div>
-            `).join('')||'<p class="text-gray-500 text-sm">No parameters to test</p>';
+            const container = document.getElementById('api-test-params');
+            if (!container) return;
+            const hintEl = document.getElementById('api-test-params-hint');
+            const hasParams = apiParams && apiParams.length > 0;
+            if (hintEl) {
+                hintEl.textContent = hasParams
+                    ? 'Enter values below to send with the request. You can leave optional fields empty.'
+                    : 'This API doesn\'t need any extra values. Click "Send Request" to try it.';
+            }
+            container.innerHTML = hasParams ? apiParams.map((p,i)=> {
+                const safeId = 'test-param-' + (p.id != null ? p.id : i);
+                const label = (p.name || 'Field ' + (i+1)) + (p.required ? ' *' : '');
+                const placeholder = p.description || 'Enter value...';
+                return `
+                <div class="flex flex-col gap-1.5">
+                    <label for="${safeId}" class="text-sm font-medium text-gray-300">${escHtml(label)}</label>
+                    <input type="text" id="${safeId}" class="input-field w-full rounded-lg px-3 py-2.5 text-sm" placeholder="${escHtml(placeholder)}" data-param-key="${escHtml(p.name || '')}" data-param-id="${p.id != null ? p.id : i}">
+                </div>`;
+            }).join('') : '<p class="text-gray-500 text-sm py-2">No fields to fill — click "Send Request" to test.</p>';
         }
 
         async function testApiConnection(){
             const btn=document.getElementById('test-api-btn');
-            btn.disabled=true;btn.textContent='Testing...';
-            document.getElementById('api-test-result').classList.remove('hidden');
-            document.getElementById('test-status-icon').textContent='⏳';
-            document.getElementById('test-status-text').textContent='Testing...';
+            if(btn){ btn.disabled=true; btn.textContent='Testing...'; }
+            const resultEl=document.getElementById('api-test-result');
+            const statusIcon=document.getElementById('test-status-icon');
+            const statusText=document.getElementById('test-status-text');
+            const responsePre=document.getElementById('test-response');
+            if(resultEl) resultEl.classList.remove('hidden');
+            if(statusIcon) statusIcon.textContent='⏳';
+            if(statusText) statusText.textContent='Testing...';
             const params={};
-            apiParams.forEach(p=>{const el=document.getElementById('test-param-'+p.name);if(el&&el.value)params[p.name]=el.value;});
+            (apiParams||[]).forEach((p,i)=>{ const el=document.getElementById('test-param-'+(p.id!=null?p.id:i))||document.getElementById('test-param-'+p.name); if(el&&el.value) params[p.name||('param_'+i)]=el.value; });
+            const baseUrlEl=document.getElementById('api-base-url')||document.getElementById('api-url');
+            const authValEl=document.getElementById('api-auth-value')||document.getElementById('api-auth-val');
             try{
-                const r=await fetch(API+'/api/tools/test-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-                    base_url:document.getElementById('api-base-url').value,
-                    http_method:document.getElementById('api-method').value,
-                    endpoint_path:document.getElementById('api-path').value,
-                    auth_type:document.getElementById('api-auth').value,
-                    auth_value:document.getElementById('api-auth-value').value,
-                    api_key_name:document.getElementById('api-key-name').value,
-                    api_key_location:document.getElementById('api-key-loc').value,
+                const r=await fetch(API+'/api/tools/test-api',{method:'POST',headers:{'Content-Type':'application/json',...(typeof getAuthHeaders==='function'?getAuthHeaders():{})},body:JSON.stringify({
+                    base_url:baseUrlEl?.value||'',
+                    http_method:document.getElementById('api-method')?.value,
+                    endpoint_path:document.getElementById('api-path')?.value,
+                    auth_type:document.getElementById('api-auth')?.value,
+                    auth_value:authValEl?.value||'',
+                    api_key_name:document.getElementById('api-key-name')?.value||'',
+                    api_key_location:document.getElementById('api-key-loc')?.value||'',
                     parameters:params
                 })});
                 const d=await r.json();
                 if(d.success){
-                    document.getElementById('test-status-icon').textContent='✅';
-                    document.getElementById('test-status-text').textContent='Success! Status: '+d.status_code;
+                    if(statusIcon) statusIcon.textContent='✅';
+                    if(statusText) statusText.textContent='Success! Status: '+d.status_code;
                 }else{
-                    document.getElementById('test-status-icon').textContent='❌';
-                    document.getElementById('test-status-text').textContent='Failed: '+(d.error||'Status '+d.status_code);
+                    if(statusIcon) statusIcon.textContent='❌';
+                    if(statusText) statusText.textContent='Failed: '+(d.error||'Status '+d.status_code);
                 }
-                document.getElementById('test-response').textContent=JSON.stringify(d.data,null,2);
+                if(responsePre) responsePre.textContent=JSON.stringify(d.data,null,2);
             }catch(e){
-                document.getElementById('test-status-icon').textContent='❌';
-                document.getElementById('test-status-text').textContent='Error: '+e.message;
+                if(statusIcon) statusIcon.textContent='❌';
+                if(statusText) statusText.textContent='Error: '+e.message;
             }
-            btn.disabled=false;btn.textContent='🔌 Test Connection';
+            if(btn){ btn.disabled=false; btn.textContent='🔌 Test Connection'; }
         }
 
         async function createTool(){
@@ -22649,23 +22769,23 @@ async function saveToolEdit() {
                 }
                 if(!config.url){alert('Enter website URL');return;}
             }else if(toolType==='api'){
-                name=document.getElementById('api-name').value?.trim();
-                desc=document.getElementById('api-desc').value;
+                name=(document.getElementById('api-name')||document.getElementById('wiz-name'))?.value?.trim();
+                desc=(document.getElementById('api-desc')||document.getElementById('wiz-desc'))?.value||'';
                 if(!name){alert('Enter tool name');return;}
                 if(isNameDuplicate(name)){
                     alert(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
                     return;
                 }
                 api_config={
-                    base_url:document.getElementById('api-base-url').value,
+                    base_url:(document.getElementById('api-base-url')||document.getElementById('api-url'))?.value||'',
                     http_method:document.getElementById('api-method').value,
                     endpoint_path:document.getElementById('api-path').value,
                     auth_type:document.getElementById('api-auth').value,
-                    auth_value:document.getElementById('api-auth-value').value,
-                    api_key_name:document.getElementById('api-key-name').value,
-                    api_key_location:document.getElementById('api-key-loc').value,
+                    auth_value:(document.getElementById('api-auth-value')||document.getElementById('api-auth-val'))?.value||'',
+                    api_key_name:document.getElementById('api-key-name')?.value||'',
+                    api_key_location:document.getElementById('api-key-loc')?.value||'',
                     headers:{},
-                    input_parameters:apiParams.map(p=>({name:p.name,description:p.description,data_type:p.data_type,required:p.required,location:p.location}))
+                    input_parameters:(apiParams||[]).map(p=>({name:p.name,description:p.description,data_type:p.data_type,required:p.required,location:p.location}))
                 };
             }
             // Email Tool
@@ -25420,6 +25540,9 @@ function startWizard(type) {
     wizState.type = type;
     wizState.step = 1;
     
+    // Reset API parameters when starting a new API tool (edit flow sets them in openToolEditor)
+    if (type === 'api') apiParams = [];
+    
     // Reset access control state for new tools
     selectedToolAccessType = 'owner_only';
     wizState.data = {
@@ -25637,6 +25760,11 @@ function showConfigSection() {
         cfgEl.classList.remove('hidden');
     } else {
         document.getElementById('cfg-simple').classList.remove('hidden');
+    }
+    
+    // When showing API config, render the parameters list (optional section)
+    if (wizState.type === 'api' && typeof renderApiParams === 'function') {
+        renderApiParams();
     }
     
     // Hide the old Access Control section in step 2 (now moved to step 5)
@@ -26209,6 +26337,12 @@ function updateReviewStep() {
                     <span class="text-gray-400">Auth:</span>
                     <span class="col-span-2">${escHtml(authType === 'none' ? 'None' : authType)}</span>
                 </div>
+                ${(apiParams && apiParams.length > 0) ? `
+                <div class="grid grid-cols-3 gap-2 items-center">
+                    <span class="text-gray-400">Fields (params):</span>
+                    <span class="col-span-2">${apiParams.length} field(s) — ${apiParams.map(p => escHtml(p.name || 'unnamed')).join(', ') || '-'}</span>
+                </div>
+                ` : ''}
             `;
         } else if (wizState.type === 'website') {
             const url = document.getElementById('web-url')?.value || '';
