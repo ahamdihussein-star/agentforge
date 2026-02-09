@@ -183,8 +183,11 @@ Example format:
             "parameters": agent_meta.get("parameters") or []
         }
         
-        with open(os.path.join(cls.STORAGE_PATH, f"{item_id}.json"), 'w') as f:
+        filepath = os.path.join(cls.STORAGE_PATH, f"{item_id}.json")
+        with open(filepath, 'w') as f:
             json.dump(result, f, indent=2)
+        
+        print(f"💾 [LAB] Saved API: name='{name}', slug='{slug}', file={filepath}")
         
         return result
     
@@ -983,15 +986,21 @@ Return ONLY the JSON, no explanation or markdown."""
     def get_mock_data_by_slug(cls, slug: str) -> Optional[List[Dict]]:
         """Get mock API data by URL slug (e.g. get-customer-by-id)"""
         cls._ensure_storage()
+        print(f"🔍 [LAB] Looking for slug: '{slug}'")
         for f in os.listdir(cls.STORAGE_PATH):
             if not f.endswith(".json"):
                 continue
             filepath = os.path.join(cls.STORAGE_PATH, f)
             try:
-                with open(filepath, 'r') as f:
-                    obj = json.load(f)
-                    if obj.get("slug") == slug:
+                with open(filepath, 'r') as file:
+                    obj = json.load(file)
+                    file_slug = obj.get("slug")
+                    print(f"   📄 File {f}: slug='{file_slug}'")
+                    if file_slug == slug:
+                        print(f"   ✅ Match found!")
                         return obj.get("data", [])
-            except Exception:
+            except Exception as e:
+                print(f"   ❌ Error reading {f}: {e}")
                 continue
+        print(f"   ⚠️  No match found for slug '{slug}'")
         return None
