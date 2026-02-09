@@ -894,8 +894,10 @@ Create an invoice image with:
             
             const params = result.parameters && Array.isArray(result.parameters) ? result.parameters : [];
             const isParametrized = params.length > 0;
-            const apiIdOrSlug = getApiIdOrSlugFromResult(result);
+            let apiIdOrSlug = getApiIdOrSlugFromResult(result);
             const fullEndpoint = window.location.origin + (result.endpoint || '/api/lab/mock/' + apiIdOrSlug);
+            var slugFromUrl = (typeof fullEndpoint === 'string' && fullEndpoint.match(/\/mock\/?([^/?]+)/));
+            if (!apiIdOrSlug && slugFromUrl) apiIdOrSlug = slugFromUrl[1];
             const jsonContent = JSON.stringify(result.data || result, null, 2);
             
             const paramsConfigHtml = isParametrized
@@ -1240,7 +1242,7 @@ Create an invoice image with:
         
         // Last generated API result (from backend); used so we don't hardcode description/params.
         let lastGeneratedAPIResult = null;
-        const LAB_UI_BUILD_LABEL = 'Lab UI: slug-from-name + item.name + button data-api-id (no cache check)';
+        const LAB_UI_BUILD_LABEL = 'آخر تحديث: slug من الـ URL المعروض — إذا شفت هذا النص فالصفحة ليست من الـ cache';
         
         function sanitizeAgentDescription(text) {
             if (!text || typeof text !== 'string') return '';
