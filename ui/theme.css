@@ -65,8 +65,8 @@
     --bg-secondary: #f1f5f9;
     --bg-card: #ffffff;
     --bg-input: #e2e8f0;
-    --border-color: #cbd5e1;
-    --border-hover: #94a3b8;
+    --border-color: #94a3b8;
+    --border-hover: #64748b;
     --text-primary: #1e293b;
     --text-secondary: #475569;
     --text-muted: #64748b;
@@ -109,8 +109,8 @@
     --bg-secondary: #dbeafe;
     --bg-card: #ffffff;
     --bg-input: #e0f2fe;
-    --border-color: #bae6fd;
-    --border-hover: #7dd3fc;
+    --border-color: #7dd3fc;
+    --border-hover: #0ea5e9;
     --text-primary: #0c4a6e;
     --text-secondary: #0369a1;
     --text-muted: #0284c7;
@@ -278,4 +278,65 @@
     --tb-btn-success-bg: #047857;
     --tb-btn-success-text: #ffffff;
     --tb-btn-success-hover: #059669;
+}
+
+/* ========== إلغاء الخلفيات السوداء + تناسق النص مع الخلفية ========== */
+.bg-black {
+    background: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+}
+.bg-black\/80,
+.bg-black\/70 {
+    background: color-mix(in srgb, var(--bg-primary) 92%, transparent) !important;
+}
+.bg-black\/50 {
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+}
+.bg-black\/30,
+.bg-black\/25 {
+    background: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+}
+.bg-gray-950,
+.bg-gray-900 {
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+}
+.bg-gray-900\/80,
+.bg-gray-900\/50,
+.bg-gray-900\/30 {
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+}
+.bg-black .text-white,
+.bg-black .text-gray-100,
+.bg-black .text-gray-200,
+.bg-black .text-gray-300,
+.bg-black .text-gray-400,
+.bg-black\/50 .text-white,
+.bg-black\/50 .text-gray-100,
+.bg-black\/50 .text-gray-200,
+.bg-black\/50 .text-gray-300,
+.bg-black\/50 .text-gray-400,
+.bg-black\/30 .text-white,
+.bg-black\/30 .text-gray-300,
+.bg-black\/30 .text-gray-400,
+.bg-gray-900 .text-white,
+.bg-gray-900 .text-gray-100,
+.bg-gray-900 .text-gray-200,
+.bg-gray-900 .text-gray-300,
+.bg-gray-900 .text-gray-400,
+.bg-gray-900\/50 .text-white,
+.bg-gray-900\/50 .text-gray-300,
+.bg-gray-900\/50 .text-gray-400 {
+    color: var(--text-primary) !important;
+}
+.bg-black .text-gray-800,
+.bg-black .text-gray-900,
+.bg-black .text-black,
+.bg-gray-900 .text-gray-800,
+.bg-gray-900 .text-gray-900,
+.bg-gray-900 .text-black {
+    color: var(--text-primary) !important;
 }
