@@ -778,8 +778,7 @@ Create an invoice image with:
                 
                 const result = await response.json();
                 generatedResult = result;
-                
-                // Show preview
+                currentHistoryItemId = null;
                 showAPIPreview(result);
                 await addToHistory('api', name, result);
                 showToast('API generated successfully!', 'success');
@@ -883,7 +882,7 @@ Create an invoice image with:
             }
         }
         
-        // Previews (result must include id/slug from backend; we do not mutate to hide missing data)
+        // Previews. Prefer stored full_url from DB for display and Test.
         function showAPIPreview(result) {
             lastGeneratedAPIResult = result;
             const previewSection = document.getElementById('preview-section');
@@ -894,11 +893,18 @@ Create an invoice image with:
             
             const params = result.parameters && Array.isArray(result.parameters) ? result.parameters : [];
             const isParametrized = params.length > 0;
+            var storedUrl = result.full_url || '';
             var displayedPath = result.endpoint || result.Endpoint || '/api/lab/mock/' + (result.slug || result.id || '');
+            if (storedUrl) {
+                var m = storedUrl.match(/\/mock\/?([^/?]+)/);
+                if (m) displayedPath = '/api/lab/mock/' + m[1];
+            }
             var slugFromDisplayedPath = (typeof displayedPath === 'string' && displayedPath.match(/\/mock\/?([^/?]+)/));
-            const apiIdOrSlug = (getApiIdOrSlugFromResult(result) || (slugFromDisplayedPath && slugFromDisplayedPath[1])) || '';
-            const fullEndpoint = (typeof displayedPath === 'string' && displayedPath.indexOf('http') === 0) ? displayedPath : (window.location.origin + (displayedPath.indexOf('/') === 0 ? displayedPath : '/' + displayedPath));
+            const apiIdOrSlug = (storedUrl && storedUrl.match(/\/mock\/?([^/?]+)/) && storedUrl.match(/\/mock\/?([^/?]+)/)[1]) || getApiIdOrSlugFromResult(result) || (slugFromDisplayedPath && slugFromDisplayedPath[1]) || '';
+            const fullEndpoint = storedUrl || ((typeof displayedPath === 'string' && displayedPath.indexOf('http') === 0) ? displayedPath : (window.location.origin + (displayedPath.indexOf('/') === 0 ? displayedPath : '/' + displayedPath)));
             const jsonContent = JSON.stringify(result.data || result, null, 2);
+            const showStoredUrl = !!storedUrl;
+            const showEditSave = !!currentHistoryItemId;
             
             const paramsConfigHtml = isParametrized
                 ? `
@@ -946,7 +952,9 @@ Create an invoice image with:
                             <span>▶️</span>
                             <span>${isParametrized ? 'Test API (set parameters)' : 'Test API'}</span>
                         </button>
+                        ${showStoredUrl ? '<div class="mt-2 text-xs font-mono text-green-400/90 break-all">Stored URL (from DB): ' + escapeHtml(storedUrl) + '</div>' : ''}
                         <div id="api-last-request-url" class="mt-3 pt-3 border-t border-green-500/20 text-xs font-mono text-green-300/90 break-all min-h-[2rem]">Request URL will appear here after you run Test.</div>
+                        ${showEditSave ? '<button type="button" onclick="saveStoredUrlToHistory(\'' + (currentHistoryItemId || '').replace(/'/g, "\\'") + '\')" class="mt-2 w-full btn-secondary text-sm py-2">Edit &amp; Save URL to DB</button>' : ''}
                         <div class="mt-1 text-[10px] text-gray-500 opacity-90" dir="ltr">${LAB_CACHE_CHECK}</div>
                     </div>
                     
@@ -1250,7 +1258,8 @@ Create an invoice image with:
         
         // Last generated API result (from backend); used so we don't hardcode description/params.
         let lastGeneratedAPIResult = null;
-        const LAB_CACHE_CHECK = 'No cache — latest build';
+        let currentHistoryItemId = null;
+        const LAB_CACHE_CHECK = 'Build: stored URL + edit — no cache';
         
         function sanitizeAgentDescription(text) {
             if (!text || typeof text !== 'string') return '';
@@ -1372,8 +1381,15 @@ Create an invoice image with:
             }
         }
         
-        // History (API only; no localStorage)
+        // History (API only; no localStorage). For API type we store full_url so Test works from DB.
         async function addToHistory(type, name, result) {
+            var payload = result;
+            if (type === 'api' && result && typeof result === 'object') {
+                payload = Object.assign({}, result);
+                var path = payload.endpoint || payload.Endpoint || '/api/lab/mock/' + (payload.slug || payload.id || '');
+                if (path.indexOf('http') !== 0) path = (path.indexOf('/') === 0 ? path : '/' + path);
+                payload.full_url = window.location.origin + path;
+            }
             try {
                 const response = await fetch('/api/lab/history', {
                     method: 'POST',
@@ -1381,7 +1397,7 @@ Create an invoice image with:
                         ...getAuthHeaders(),
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ type, name, result })
+                    body: JSON.stringify({ type, name, result: payload })
                 });
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
@@ -1394,6 +1410,38 @@ Create an invoice image with:
             } catch (e) {
                 console.error('Lab history add failed:', e);
                 showToast('Could not save to history: ' + e.message, 'error');
+            }
+        }
+
+        async function saveStoredUrlToHistory(itemId) {
+            if (!itemId || !lastGeneratedAPIResult) {
+                showToast('Nothing to save or no API selected.', 'error');
+                return;
+            }
+            var path = lastGeneratedAPIResult.endpoint || lastGeneratedAPIResult.Endpoint || '/api/lab/mock/' + (lastGeneratedAPIResult.slug || lastGeneratedAPIResult.id || '');
+            if (path.indexOf('http') !== 0) path = window.location.origin + (path.indexOf('/') === 0 ? path : '/' + path);
+            var result = Object.assign({}, lastGeneratedAPIResult);
+            result.full_url = path;
+            try {
+                const response = await fetch('/api/lab/history/' + encodeURIComponent(itemId), {
+                    method: 'PATCH',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ result: result })
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.detail || response.statusText);
+                }
+                var updated = await response.json();
+                var idx = history.findIndex(function(h) { return h.id === itemId; });
+                if (idx >= 0) history[idx] = updated;
+                generatedResult = updated.result;
+                lastGeneratedAPIResult = updated.result;
+                showAPIPreview(updated.result);
+                showToast('Stored URL saved to DB.', 'success');
+            } catch (e) {
+                console.error('Save URL failed:', e);
+                showToast('Failed to save: ' + e.message, 'error');
             }
         }
 
@@ -1466,6 +1514,7 @@ Create an invoice image with:
             const item = history.find(h => h.id === id);
             if (!item) return;
 
+            currentHistoryItemId = item.id;
             selectGenerator(item.type);
             generatedResult = item.result;
 

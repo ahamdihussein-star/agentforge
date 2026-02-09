@@ -130,6 +130,11 @@ class LabItem(BaseModel):
     metadata: Dict[str, Any] = {}
 
 
+class LabHistoryUpdateRequest(BaseModel):
+    """Request to update a Lab history item (e.g. add full_url to result)"""
+    result: Dict[str, Any] = Field(default_factory=dict, description="Updated result payload (e.g. with full_url)")
+
+
 class LabHistoryResponse(BaseModel):
     """List of generated items (full payload for each so UI can load without extra fetch)"""
     items: List[LabHistoryItemResponse]

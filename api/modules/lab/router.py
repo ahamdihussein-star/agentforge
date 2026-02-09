@@ -15,6 +15,7 @@ from .schemas import (
     DocumentGenerateRequest, DocumentGenerateResponse,
     ImageGenerateRequest, ImageGenerateResponse,
     LabHistoryAddRequest,
+    LabHistoryUpdateRequest,
     LabHistoryItemResponse,
     LabHistoryResponse,
 )
@@ -360,6 +361,43 @@ async def add_lab_history(request: LabHistoryAddRequest, user=Depends(get_curren
             name=item.name,
             result=item.result or {},
             created_at=item.created_at.isoformat() if item.created_at else "",
+        )
+
+
+@router.patch("/history/{item_id}", response_model=LabHistoryItemResponse)
+async def update_lab_history_item(item_id: str, request: LabHistoryUpdateRequest, user=Depends(get_current_user_optional)):
+    """Update a Lab history item (e.g. add full_url to result for existing APIs)."""
+    _require_user(user)
+    from database.base import get_db_session
+    from database.models import LabHistoryItem
+
+    uid = _user_id(user)
+    if not uid:
+        raise HTTPException(status_code=401, detail="User ID not found")
+    with get_db_session() as db:
+        row = db.query(LabHistoryItem).filter(
+            LabHistoryItem.id == item_id,
+            LabHistoryItem.user_id == uid,
+        ).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Item not found or access denied")
+        current = dict(row.result or {})
+        updated = dict(request.result or {})
+        if row.type == "api":
+            current.update(updated)
+            current = _normalize_api_result(current)
+            row.result = current
+        else:
+            current.update(updated)
+            row.result = current
+        db.flush()
+        db.refresh(row)
+        return LabHistoryItemResponse(
+            id=str(row.id),
+            type=row.type,
+            name=row.name,
+            result=row.result or {},
+            created_at=row.created_at.isoformat() if row.created_at else "",
         )
 
 
