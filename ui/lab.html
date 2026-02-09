@@ -1440,7 +1440,10 @@ Create an invoice image with:
             if (slug) return slug;
             const ep = result.endpoint || result.Endpoint || '';
             const m = typeof ep === 'string' ? ep.match(/\/mock\/?([^/?]+)/) : null;
-            return m ? m[1] : '';
+            if (m) return m[1];
+            var name = result.name || result.Name || '';
+            if (name) return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || '';
+            return '';
         }
 
         function loadHistoryItem(id) {
@@ -1454,9 +1457,10 @@ Create an invoice image with:
                 if (item.result && typeof item.result === 'object') {
                     var r = item.result;
                     var derived = getApiIdOrSlugFromResult(r);
-                    if (derived && (r.id == null || r.id === '') && (r.slug == null || r.slug === '')) {
-                        r.slug = r.slug || derived;
-                        r.id = r.id || derived;
+                    if (derived) {
+                        if (r.id == null || r.id === '') r.id = r.id || derived;
+                        if (r.slug == null || r.slug === '') r.slug = r.slug || derived;
+                        if (!r.endpoint && !r.Endpoint) r.endpoint = '/api/lab/mock/' + derived;
                     }
                 }
                 showAPIPreview(item.result);
