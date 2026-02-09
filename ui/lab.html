@@ -997,14 +997,16 @@ Create an invoice image with:
             const result = lastGeneratedAPIResult && lastGeneratedAPIResult.id === itemId ? lastGeneratedAPIResult : null;
             const hasParams = result && result.parameters && result.parameters.length > 0;
             
+            // Use slug if available, otherwise use UUID (works for both)
+            const slugOrId = (result && result.slug) ? result.slug : itemId;
+            
             if (hasParams) {
                 // Show parameters modal
                 currentTestItemId = itemId;
-                currentTestSlug = (result && result.slug) ? result.slug : itemId;
+                currentTestSlug = slugOrId;
                 openTestParamsModal(result.parameters);
             } else {
-                // Direct test without parameters - use slug if available
-                const slugOrId = (result && result.slug) ? result.slug : itemId;
+                // Direct test without parameters
                 await runTest(slugOrId, {});
             }
         }
