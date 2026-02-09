@@ -4693,12 +4693,17 @@ Example: I need an HR agent that can:
                 <!-- API Test Modal (business-friendly, no technical terms) -->
                 <div id="api-test-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4">
                     <div class="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl w-full max-w-5xl border border-purple-500/30 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div class="p-6 border-b border-purple-500/20 flex items-center justify-between bg-gradient-to-r from-purple-900/20 to-transparent shrink-0">
-                            <div>
-                                <h3 class="font-bold text-xl text-white" id="api-test-title">Try It Out</h3>
-                                <p class="text-sm text-gray-400 mt-1">Fill in the details below to see the results</p>
+                        <div class="p-6 border-b border-purple-500/20 flex items-center justify-between bg-gradient-to-r from-purple-900/30 via-purple-800/10 to-transparent shrink-0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg shadow-purple-500/30">
+                                    🔍
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-xl text-white" id="api-test-title">Try It Out</h3>
+                                    <p class="text-sm text-purple-200/70 mt-0.5">Enter information to see results</p>
+                                </div>
                             </div>
-                            <button onclick="closeApiTestModal()" class="p-2 hover:bg-white/10 rounded-lg transition text-gray-400 hover:text-white" aria-label="Close">✕</button>
+                            <button onclick="closeApiTestModal()" class="p-2 hover:bg-white/10 rounded-xl transition text-gray-400 hover:text-white" aria-label="Close">✕</button>
                         </div>
                         <div class="p-6 overflow-y-auto flex-1 min-h-0">
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -4714,10 +4719,16 @@ Example: I need an HR agent that can:
                                         <span>Get Results</span>
                                     </button>
                                 </div>
-                                <div class="bg-gray-950/50 rounded-xl p-4 border border-gray-700/50 min-h-[300px] flex flex-col">
-                                    <div class="text-sm font-semibold text-gray-300 mb-3">Results</div>
+                                <div class="bg-gradient-to-br from-gray-950 to-gray-900 rounded-xl p-5 border-2 border-gray-700/30 shadow-inner min-h-[300px] flex flex-col">
+                                    <div class="flex items-center gap-2 text-sm font-semibold text-purple-300 mb-4">
+                                        <span>📊</span>
+                                        <span>Results</span>
+                                    </div>
                                     <div id="api-test-response" class="text-sm overflow-auto flex-1">
-                                        <p class="text-gray-500 text-center py-8">Results will appear here...</p>
+                                        <div class="text-center py-12 text-gray-500">
+                                            <div class="text-4xl mb-3">💡</div>
+                                            <p>Results will appear here</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -22684,19 +22695,30 @@ async function saveToolEdit() {
         }
 
         function getBusinessFriendlyParamLabel(paramName, description) {
-            const lowerName = (paramName || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ');
-            if (description && description.length > 3 && !description.toLowerCase().includes('the ')) return description;
+            if (description && description.length > 5 && !description.toLowerCase().startsWith('the ')) {
+                var cleaned = description.charAt(0).toUpperCase() + description.slice(1);
+                if (cleaned.endsWith('.')) cleaned = cleaned.slice(0, -1);
+                return cleaned;
+            }
+            const lowerName = (paramName || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim();
             const labelMap = {
                 'supplier id': 'Supplier ID', 'supplierid': 'Supplier ID',
                 'customer id': 'Customer ID', 'customerid': 'Customer ID',
                 'order id': 'Order Number', 'orderid': 'Order Number',
                 'product id': 'Product Code', 'productid': 'Product Code',
                 'user id': 'User ID', 'userid': 'User ID',
+                'account id': 'Account Number', 'accountid': 'Account Number',
+                'invoice id': 'Invoice Number', 'invoiceid': 'Invoice Number',
+                'transaction id': 'Transaction ID', 'transactionid': 'Transaction ID',
                 'id': 'ID', 'name': 'Name', 'email': 'Email Address',
-                'phone': 'Phone Number', 'date': 'Date', 'status': 'Status',
-                'type': 'Type', 'category': 'Category'
+                'phone': 'Phone Number', 'mobile': 'Mobile Number',
+                'date': 'Date', 'start date': 'Start Date', 'end date': 'End Date',
+                'status': 'Status', 'type': 'Type', 'category': 'Category',
+                'amount': 'Amount', 'price': 'Price', 'quantity': 'Quantity',
+                'address': 'Address', 'city': 'City', 'country': 'Country',
+                'code': 'Code', 'reference': 'Reference Number'
             };
-            return labelMap[lowerName] || paramName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            return labelMap[lowerName] || paramName.split(/[_-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
         }
 
         function renderTestParams(){
@@ -22706,14 +22728,17 @@ async function saveToolEdit() {
             container.innerHTML = hasParams ? apiParams.map((p,i)=> {
                 const safeId = 'test-param-' + (p.id != null ? p.id : i);
                 const friendlyLabel = getBusinessFriendlyParamLabel(p.name, p.description);
-                const required = p.required ? '<span class="text-purple-400 text-xs ml-1">Required</span>' : '';
-                const placeholder = p.description || `Enter ${friendlyLabel}`;
+                const required = p.required ? '<span class="text-purple-400 text-xs ml-1 font-normal">Required</span>' : '<span class="text-gray-500 text-xs ml-1 font-normal">Optional</span>';
+                const helpText = p.description && p.description.length > 5 ? `<div class="text-xs text-gray-400 mt-1">${escHtml(p.description)}</div>` : '';
+                const placeholder = `Enter ${friendlyLabel.toLowerCase()}`;
                 return `
-                <div class="space-y-2">
-                    <label for="${safeId}" class="block text-sm font-semibold text-white">
-                        ${escHtml(friendlyLabel)} ${required}
+                <div class="space-y-1.5">
+                    <label for="${safeId}" class="flex items-baseline justify-between text-sm font-semibold text-white">
+                        <span>${escHtml(friendlyLabel)}</span>
+                        ${required}
                     </label>
-                    <input type="text" id="${safeId}" class="w-full bg-gray-950 border border-purple-500/30 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none transition" placeholder="${escHtml(placeholder)}" data-param-key="${escHtml(p.name || '')}" data-param-id="${p.id != null ? p.id : i}">
+                    ${helpText}
+                    <input type="text" id="${safeId}" class="w-full bg-gray-900/80 border-2 border-purple-500/20 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 focus:border-purple-400 focus:bg-gray-900 focus:ring-4 focus:ring-purple-500/10 focus:outline-none transition-all duration-200 hover:border-purple-500/30" placeholder="${escHtml(placeholder)}" data-param-key="${escHtml(p.name || '')}" data-param-id="${p.id != null ? p.id : i}">
                 </div>`;
             }).join('') : '<p class="text-gray-500 text-sm py-8 text-center">No additional information needed</p>';
         }
