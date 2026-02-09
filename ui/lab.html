@@ -1114,33 +1114,61 @@ Create an invoice image with:
             }
         }
         
+        function getBusinessFriendlyLabel(paramName, description) {
+            const lowerName = (paramName || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ');
+            if (description && description.length > 3) return description;
+            const labelMap = {
+                'supplier id': 'Supplier ID',
+                'supplierid': 'Supplier ID',
+                'customer id': 'Customer ID',
+                'customerid': 'Customer ID',
+                'order id': 'Order Number',
+                'orderid': 'Order Number',
+                'product id': 'Product Code',
+                'productid': 'Product Code',
+                'user id': 'User ID',
+                'userid': 'User ID',
+                'id': 'ID',
+                'name': 'Name',
+                'email': 'Email Address',
+                'phone': 'Phone Number',
+                'date': 'Date',
+                'status': 'Status',
+                'type': 'Type',
+                'category': 'Category'
+            };
+            return labelMap[lowerName] || paramName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+
         function openTestParamsModal(parameters) {
             const modal = document.getElementById('test-params-modal');
             const inputsContainer = document.getElementById('test-params-inputs');
-            
-            // Build parameter inputs
+            const titleEl = document.getElementById('test-modal-title');
+            if (titleEl && lastGeneratedAPIResult && lastGeneratedAPIResult.name) {
+                titleEl.textContent = lastGeneratedAPIResult.name;
+            }
             let html = '';
             parameters.forEach((param, idx) => {
-                const required = param.required ? '<span class="text-red-400">*</span>' : '';
+                const label = getBusinessFriendlyLabel(param.name, param.description);
+                const required = param.required ? '<span class="text-purple-400 text-xs ml-1">Required</span>' : '';
+                const placeholder = param.description || `Enter ${label}`;
                 html += `
-                    <div>
-                        <label class="block text-sm font-medium mb-1">
-                            ${param.name} ${required}
-                            ${param.description ? `<span class="text-gray-500 text-xs ml-1">(${param.description})</span>` : ''}
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-white">
+                            ${escapeHtml(label)} ${required}
                         </label>
                         <input 
                             type="text" 
                             id="test-param-${idx}" 
                             data-param-name="${param.name}"
-                            placeholder="Enter ${param.name}"
-                            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                            placeholder="${escapeHtml(placeholder)}"
+                            class="w-full bg-gray-950 border border-purple-500/30 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none transition"
                             ${param.required ? 'required' : ''}
                         />
                     </div>
                 `;
             });
             inputsContainer.innerHTML = html;
-            
             modal.style.display = 'flex';
         }
         
@@ -1167,13 +1195,17 @@ Create an invoice image with:
                 showToast('No API to test.', 'error');
                 return;
             }
+            const previewDiv = document.getElementById('test-params-preview');
             const resultDiv = document.getElementById('api-test-result');
             const responseCode = document.getElementById('api-test-response');
             const statusBadge = document.getElementById('api-test-status');
-            resultDiv.classList.remove('hidden');
-            responseCode.innerHTML = '<code class="text-gray-400">⏳ Sending request...</code>';
-            statusBadge.textContent = '...';
-            statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-gray-500/20 text-gray-400';
+            if (previewDiv) previewDiv.innerHTML = '<div class="text-center py-8 text-gray-400">⏳ Loading...</div>';
+            if (resultDiv) resultDiv.classList.remove('hidden');
+            if (responseCode) responseCode.innerHTML = '<code class="text-gray-400">⏳ Sending request...</code>';
+            if (statusBadge) {
+                statusBadge.textContent = '...';
+                statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-gray-500/20 text-gray-400';
+            }
             try {
                 const startTime = Date.now();
                 var urlToUse = lastGeneratedAPIResult.full_url || '';
@@ -1188,28 +1220,40 @@ Create an invoice image with:
                     finalUrl += '?' + q;
                 }
                 var displayUrl = finalUrl.replace(window.location.origin, '');
-                console.log('[Lab Test] Using stored URL from DB:', urlToUse, '| Final URL:', finalUrl);
+                console.log('[Lab Test] Stored URL from DB:', urlToUse, '| Final URL with params:', finalUrl);
                 var urlEl = document.getElementById('api-test-request-url');
                 if (urlEl) urlEl.innerHTML = 'Request: GET ' + escapeHtml(displayUrl) + (hasParams ? '<br><span class="text-green-400 mt-1 block">Full URL: ' + escapeHtml(finalUrl) + '</span>' : '');
                 var lastReqEl = document.getElementById('api-last-request-url');
-                if (lastReqEl) lastReqEl.innerHTML = 'Request: GET ' + escapeHtml(displayUrl) + (hasParams ? '<br><span class="text-green-400 mt-1 block">Full URL: ' + escapeHtml(finalUrl) + '</span>' : '');
+                if (lastReqEl) lastReqEl.innerHTML = 'GET ' + escapeHtml(displayUrl) + (hasParams ? '<br><span class="text-purple-400 mt-1 block font-semibold">Complete URL: ' + escapeHtml(finalUrl) + '</span>' : '');
                 const response = await fetch(displayUrl);
                 const endTime = Date.now();
                 const duration = endTime - startTime;
                 const data = await response.json();
                 if (response.ok) {
-                    statusBadge.textContent = `${response.status} OK (${duration}ms)`;
-                    statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400';
-                    responseCode.innerHTML = renderBusinessFriendlyResponse(data);
+                    if (statusBadge) {
+                        statusBadge.textContent = `${response.status} OK (${duration}ms)`;
+                        statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400';
+                    }
+                    const businessDisplay = renderBusinessFriendlyResponse(data);
+                    if (responseCode) responseCode.innerHTML = businessDisplay;
+                    if (previewDiv) previewDiv.innerHTML = businessDisplay;
                 } else {
-                    statusBadge.textContent = `${response.status} Error`;
-                    statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
-                    responseCode.innerHTML = `<p class="text-red-400 text-sm">❌ ${escapeHtml(JSON.stringify(data, null, 2))}</p>`;
+                    if (statusBadge) {
+                        statusBadge.textContent = `${response.status} Error`;
+                        statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
+                    }
+                    const errorHtml = `<p class="text-red-400 text-sm">❌ ${escapeHtml(JSON.stringify(data, null, 2))}</p>`;
+                    if (responseCode) responseCode.innerHTML = errorHtml;
+                    if (previewDiv) previewDiv.innerHTML = errorHtml;
                 }
             } catch (e) {
-                statusBadge.textContent = 'Error';
-                statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
-                responseCode.innerHTML = `<p class="text-red-400 text-sm">❌ ${e.message}</p>`;
+                if (statusBadge) {
+                    statusBadge.textContent = 'Error';
+                    statusBadge.className = 'ml-auto text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400';
+                }
+                const errorHtml = `<p class="text-red-400 text-sm">❌ ${e.message}</p>`;
+                if (responseCode) responseCode.innerHTML = errorHtml;
+                if (previewDiv) previewDiv.innerHTML = errorHtml;
             }
         }
         
@@ -1229,7 +1273,7 @@ Create an invoice image with:
         // Last generated API result (from backend); used so we don't hardcode description/params.
         let lastGeneratedAPIResult = null;
         let currentHistoryItemId = null;
-        const LAB_CACHE_CHECK = 'Direct URL from DB — FIXED';
+        const LAB_CACHE_CHECK = 'v2: Business-friendly test modal — no cache';
         
         function sanitizeAgentDescription(text) {
             if (!text || typeof text !== 'string') return '';
@@ -1817,24 +1861,31 @@ Create an invoice image with:
     </script>
     
     <!-- Test API Parameters Modal -->
-    <div id="test-params-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50" style="display: none;">
-        <div class="bg-gray-900 rounded-2xl w-full max-w-md mx-4 border border-gray-700 shadow-2xl">
-            <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-                <h3 class="font-bold text-lg">🧪 Test API with Parameters</h3>
-                <button onclick="closeTestParamsModal()" class="p-2 hover:bg-gray-800 rounded-lg transition">✕</button>
-            </div>
-            <div class="p-6 space-y-4">
-                <p class="text-sm text-gray-400 mb-4">Enter values for the parameters below:</p>
-                <div id="test-params-inputs" class="space-y-3">
-                    <!-- Parameters will be rendered here -->
+    <div id="test-params-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4" style="display: none;">
+        <div class="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl w-full max-w-5xl border border-purple-500/30 shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-purple-500/20 flex items-center justify-between bg-gradient-to-r from-purple-900/20 to-transparent">
+                <div>
+                    <h3 class="font-bold text-xl text-white" id="test-modal-title">Try It Out</h3>
+                    <p class="text-sm text-gray-400 mt-1">Fill in the details below</p>
                 </div>
+                <button onclick="closeTestParamsModal()" class="p-2 hover:bg-white/10 rounded-lg transition text-gray-400 hover:text-white">✕</button>
             </div>
-            <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
-                <button onclick="closeTestParamsModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition">Cancel</button>
-                <button onclick="runTestWithParams()" class="px-6 py-2 rounded-lg bg-green-600 hover:bg-green-500 flex items-center gap-2 transition">
-                    <span>▶</span>
-                    <span>Send Request</span>
-                </button>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+                <div class="space-y-4">
+                    <div id="test-params-inputs" class="space-y-4">
+                        <!-- Parameters rendered here -->
+                    </div>
+                    <button onclick="runTestWithParams()" class="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-purple-500/20">
+                        <span>✓</span>
+                        <span>Get Results</span>
+                    </button>
+                </div>
+                <div class="bg-gray-950/50 rounded-xl p-4 border border-gray-700/50">
+                    <div class="text-sm font-semibold text-gray-300 mb-3">Preview</div>
+                    <div id="test-params-preview" class="text-xs text-gray-400 max-h-96 overflow-auto">
+                        <div class="text-center py-8 text-gray-500">Results will appear here...</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
