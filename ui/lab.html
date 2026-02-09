@@ -1181,12 +1181,17 @@ Create an invoice image with:
             
             try {
                 const startTime = Date.now();
-                // Build URL: base path + optional query (parametrized APIs use ?key=value&...; non-parametrized use no query)
+                // URL format (must match backend): /api/lab/mock/{slug}?param1=value1&param2=value2
+                // Example: /api/lab/mock/supplier-details-by-id?supplier_id=S001
+                // - Path: /api/lab/mock/ + slug (no trailing slash, no extra segments)
+                // - Query: only if API has parameters; one ? then key=value pairs with & (dynamic by API name + params)
                 const hasParams = params && typeof params === 'object' && Object.keys(params).length > 0;
                 const queryString = hasParams
-                    ? '?' + Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
+                    ? '?' + Object.entries(params).map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&')
                     : '';
                 const url = '/api/lab/mock/' + encodeURIComponent(safeSlugOrId) + queryString;
+                // Log so you can verify URL and params in DevTools (Console)
+                console.log('[Lab Test API] URL:', url, '| params:', hasParams ? params : '(none)');
                 
                 const response = await fetch(url);
                 const endTime = Date.now();
