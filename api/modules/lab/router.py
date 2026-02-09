@@ -61,18 +61,25 @@ async def get_mock_api(item_id: str, request: Request):
         filtered = []
         for item in data:
             if isinstance(item, dict):
+                # Create case-insensitive field mapping
+                item_lower = {k.lower(): v for k, v in item.items()}
+                
                 # Check if all query params match
                 match = True
                 for key, value in query_params.items():
-                    # Case-insensitive partial match for strings
-                    item_value = item.get(key)
+                    # Case-insensitive field name lookup
+                    key_lower = key.lower()
+                    item_value = item_lower.get(key_lower)
+                    
                     if item_value is None:
                         match = False
                         break
-                    # Convert both to string for comparison
+                    
+                    # Case-insensitive partial match for values
                     if str(value).lower() not in str(item_value).lower():
                         match = False
                         break
+                
                 if match:
                     filtered.append(item)
         data = filtered
