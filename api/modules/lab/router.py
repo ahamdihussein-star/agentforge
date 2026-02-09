@@ -61,15 +61,19 @@ async def get_mock_api(item_id: str, request: Request):
         filtered = []
         for item in data:
             if isinstance(item, dict):
-                # Create case-insensitive field mapping
-                item_lower = {k.lower(): v for k, v in item.items()}
+                # Create normalized field mapping (remove underscores, lowercase)
+                # This handles: supplier_id, SupplierID, SUPPLIER_ID all the same
+                def normalize_key(k):
+                    return k.lower().replace('_', '').replace('-', '')
+                
+                item_normalized = {normalize_key(k): v for k, v in item.items()}
                 
                 # Check if all query params match
                 match = True
                 for key, value in query_params.items():
-                    # Case-insensitive field name lookup
-                    key_lower = key.lower()
-                    item_value = item_lower.get(key_lower)
+                    # Normalize parameter name
+                    key_normalized = normalize_key(key)
+                    item_value = item_normalized.get(key_normalized)
                     
                     if item_value is None:
                         match = False
