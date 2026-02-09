@@ -959,16 +959,23 @@
             position: absolute;
             right: 20px;
             top: 80px;
-            width: 320px;
+            width: 340px;
+            max-width: calc(100vw - 40px);
             background: var(--pb-panel);
             border: 1px solid var(--node-border);
-            border-radius: 12px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.03);
             max-height: calc(100vh - 160px);
             overflow-y: auto;
+            overflow-x: hidden;
             z-index: 50;
             display: none;
+            animation: propPanelIn 0.2s ease-out;
         }
-        
+        @keyframes propPanelIn {
+            from { opacity: 0; transform: translateX(8px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
         #properties-panel.active { display: block; }
         
         #approval-config-modal { display: none; align-items: center; justify-content: center; }
@@ -976,102 +983,273 @@
         #approval-config-modal .hidden { display: none !important; }
         
         .properties-header {
-            padding: 16px;
-            border-bottom: 1px solid #1f2937;
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--node-border);
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
+            background: rgba(0,0,0,0.15);
+            border-radius: 16px 16px 0 0;
         }
         
         .properties-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 22px;
+            flex-shrink: 0;
         }
         
         .properties-title {
             flex: 1;
+            min-width: 0;
         }
         
         .properties-title h3 {
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 600;
-            margin: 0;
+            margin: 0 0 2px 0;
+            color: var(--pb-text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .properties-title span {
             font-size: 11px;
-            color: #6b7280;
+            color: var(--pb-muted);
+            text-transform: capitalize;
         }
         
         .properties-close {
-            width: 28px;
-            height: 28px;
-            background: none;
+            width: 32px;
+            height: 32px;
+            background: transparent;
             border: none;
-            color: #6b7280;
+            color: var(--pb-muted);
             cursor: pointer;
-            font-size: 18px;
+            font-size: 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s, background 0.15s;
         }
         
-        .properties-close:hover { color: white; }
+        .properties-close:hover { color: var(--pb-text); background: rgba(255,255,255,0.06); }
         
         .properties-body {
-            padding: 16px;
+            padding: 20px;
         }
         
         .property-group {
-            margin-bottom: 20px;
+            margin-bottom: 22px;
         }
+        
+        .property-group:last-child { margin-bottom: 0; }
         
         .property-label {
             font-size: 12px;
-            font-weight: 500;
-            color: #9ca3af;
+            font-weight: 600;
+            color: var(--pb-muted);
             margin-bottom: 8px;
             display: block;
+            letter-spacing: 0.01em;
+        }
+        
+        .property-hint {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-top: 6px;
+            line-height: 1.4;
+            opacity: 0.9;
         }
         
         .property-input {
             width: 100%;
-            padding: 10px 12px;
-            background: #1a1f2e;
-            border: 1px solid #2d3748;
-            border-radius: 8px;
-            color: white;
+            padding: 11px 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 10px;
+            color: var(--pb-text);
             font-size: 13px;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
+        
+        .property-input::placeholder { color: var(--pb-muted); opacity: 0.7; }
         
         .property-input:focus {
             outline: none;
             border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
         }
         
         .property-select {
             width: 100%;
-            padding: 10px 12px;
-            background: #1a1f2e;
-            border: 1px solid #2d3748;
-            border-radius: 8px;
-            color: white;
+            padding: 11px 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 10px;
+            color: var(--pb-text);
             font-size: 13px;
             cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
+        
+        .property-select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        
+        .property-select optgroup { font-weight: 600; color: var(--pb-muted); }
         
         .property-textarea {
             width: 100%;
-            padding: 10px 12px;
-            background: #1a1f2e;
-            border: 1px solid #2d3748;
-            border-radius: 8px;
-            color: white;
+            padding: 11px 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 10px;
+            color: var(--pb-text);
             font-size: 13px;
-            min-height: 80px;
+            min-height: 88px;
             resize: vertical;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .property-textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        
+        /* Section block inside properties */
+        .prop-section {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--node-border);
+        }
+        
+        .prop-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--pb-text);
+            margin: 0 0 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .prop-section-hint {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-bottom: 14px;
+            line-height: 1.45;
+        }
+        
+        /* Tool parameter card - clear, scannable */
+        .tool-param-card {
+            margin-bottom: 12px;
+            padding: 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 12px;
+            border-left: 3px solid #6366f1;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        
+        .tool-param-card:hover { border-left-color: #818cf8; }
+        
+        .tool-param-card .param-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--pb-text);
+            margin-bottom: 2px;
+        }
+        
+        .tool-param-card .param-desc {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        
+        .tool-param-card .value-from-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .tool-param-card .property-select { flex: 1; min-width: 140px; }
+        
+        .tool-param-card .property-input { flex: 1; min-width: 120px; }
+        
+        .value-from-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--pb-muted);
+            margin-bottom: 6px;
+            display: block;
+        }
+        
+        .prop-actions {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--node-border);
+        }
+        
+        .btn-delete-node {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 10px;
+            color: #f87171;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        
+        .btn-delete-node:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+        
+        .field-chips {
+            margin-top: 8px;
+            padding: 10px;
+            background: var(--node-bg);
+            border-radius: 10px;
+            border: 1px solid var(--node-border);
+        }
+        
+        .field-chips-label {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .field-chip {
+            padding: 6px 12px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            color: #a5b4fc;
+            font-size: 11px;
+            cursor: pointer;
+            margin: 4px 4px 0 0;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        
+        .field-chip:hover {
+            background: rgba(99, 102, 241, 0.25);
+            border-color: rgba(99, 102, 241, 0.5);
         }
         
         /* Tool Selector */
@@ -1121,7 +1299,26 @@
         
         .tool-option-type {
             font-size: 11px;
-            color: #6b7280;
+            color: var(--pb-muted);
+        }
+        
+        .tool-selector-empty {
+            padding: 20px 16px;
+            text-align: center;
+        }
+        
+        .tool-selector-empty-icon {
+            font-size: 28px;
+            opacity: 0.5;
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        .tool-selector-empty-text {
+            font-size: 12px;
+            color: var(--pb-muted);
+            margin: 0;
+            line-height: 1.45;
         }
         
         /* Zoom Controls */
@@ -1172,28 +1369,32 @@
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
-            color: #6b7280;
+            color: var(--pb-muted);
             z-index: 5;
+            max-width: 320px;
+            padding: 24px;
         }
         
         .empty-icon {
-            font-size: 64px;
+            font-size: 56px;
             margin-bottom: 16px;
-            opacity: 0.5;
+            opacity: 0.6;
+            line-height: 1;
         }
         
         .empty-title {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 600;
-            color: #9ca3af;
+            color: var(--pb-text);
             margin-bottom: 8px;
         }
         
         .empty-desc {
-            font-size: 14px;
-            max-width: 300px;
+            font-size: 13px;
             line-height: 1.5;
+            color: var(--pb-muted);
         }
+        
         
         /* Animations */
         @keyframes pulse {
@@ -1298,8 +1499,8 @@
         <!-- Empty State -->
         <div id="empty-state">
             <div class="empty-icon">🔄</div>
-            <div class="empty-title">Start Building Your Workflow</div>
-            <div class="empty-desc">Drag components from the left panel onto the canvas to create your automation flow</div>
+            <div class="empty-title">Start building your workflow</div>
+            <div class="empty-desc">Drag a step from the left panel and drop it here. Connect steps to define the flow.</div>
         </div>
     </div>
     
@@ -4040,14 +4241,30 @@
             return fields;
         }
         
+        // Sources for mapping: form/start fields + output from other steps. Used in Tool params and similar.
+        function getMappingSources(currentNodeId) {
+            const sources = [];
+            const availableFields = getAvailableFields();
+            availableFields.forEach(f => {
+                sources.push({ label: `From form: ${f.name}`, value: `{{${f.name}}}`, group: 'form' });
+            });
+            state.nodes.forEach(n => {
+                if (n.id === currentNodeId || n.type === 'end') return;
+                const name = n.name || n.type || n.id;
+                sources.push({ label: `From step: ${name}`, value: `{{steps.${n.id}.output}}`, group: 'step' });
+            });
+            return sources;
+        }
+        
         function generatePropertiesForm(node) {
             let html = `
                 <div class="property-group">
-                    <label class="property-label">Name</label>
-                    <input type="text" class="property-input" value="${node.name}" 
+                    <label class="property-label">Step name</label>
+                    <input type="text" class="property-input" value="${escapeHtml(node.name)}" 
+                           placeholder="e.g. Send confirmation"
                            onchange="updateNodeProperty('${node.id}', 'name', this.value)">
+                    <p class="property-hint">You can drag the label on the canvas to reposition it.</p>
                 </div>
-                <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;">Drag the label on the canvas to move it</div>
             `;
             
             // Get available fields for dropdowns
@@ -4124,23 +4341,71 @@
                     break;
                     
                 case 'tool':
+                    const selTool = state.tools.find(t => t.id === node.config.toolId);
+                    const inputParams = (selTool && selTool.api_config && selTool.api_config.input_parameters) ? selTool.api_config.input_parameters : [];
+                    const toolParams = node.config.params || {};
+                    const mappingSources = getMappingSources(node.id);
                     html += `
                         <div class="property-group">
-                            <label class="property-label">Select Tool</label>
+                            <label class="property-label">Tool</label>
                             <div class="tool-selector">
-                                ${state.tools.map(t => `
+                                ${state.tools.length ? state.tools.map(t => `
                                     <div class="tool-option ${node.config.toolId === t.id ? 'selected' : ''}" 
                                          onclick="selectTool('${node.id}', '${t.id}')">
                                         <div class="tool-option-icon">${getToolIcon(t.type)}</div>
                                         <div class="tool-option-info">
-                                            <div class="tool-option-name">${t.name}</div>
-                                            <div class="tool-option-type">${t.type}</div>
+                                            <div class="tool-option-name">${escapeHtml(t.name)}</div>
+                                            <div class="tool-option-type">${escapeHtml(t.type)}</div>
                                         </div>
                                     </div>
-                                `).join('')}
+                                `).join('') : `
+                                    <div class="tool-selector-empty">
+                                        <span class="tool-selector-empty-icon">🔧</span>
+                                        <p class="tool-selector-empty-text">No tools in the platform yet. Add tools in Settings, then refresh.</p>
+                                    </div>
+                                `}
                             </div>
                         </div>
                     `;
+                    if (inputParams.length > 0) {
+                        const formSources = mappingSources.filter(s => s.group === 'form');
+                        const stepSources = mappingSources.filter(s => s.group === 'step');
+                        html += `
+                        <div class="prop-section">
+                            <h4 class="prop-section-title">What to send</h4>
+                            <p class="prop-section-hint">Map each field to data from your form, a previous step, or enter a fixed value.</p>
+                            ${inputParams.map((p, idx) => {
+                                const paramName = (p.name || ('param_' + idx)).replace(/'/g, "\\'");
+                                const currentVal = toolParams[p.name || paramName] || '';
+                                const isFromSource = currentVal && String(currentVal).startsWith('{{') && String(currentVal).endsWith('}}');
+                                const fixedVal = isFromSource ? '' : (currentVal || '');
+                                const sourceVal = isFromSource ? currentVal : '_fixed_';
+                                return `
+                                <div class="tool-param-card tool-param-row">
+                                    <div class="param-name">${escapeHtml(p.name)}${p.required ? ' <span style="color:#f87171;">*</span>' : ''}</div>
+                                    ${p.description ? `<div class="param-desc">${escapeHtml(p.description)}</div>` : ''}
+                                    <span class="value-from-label">Value from</span>
+                                    <div class="value-from-row">
+                                        <select class="property-select tool-param-source" data-node-id="${node.id}" data-param-name="${escapeHtml(paramName)}" onchange="onToolParamSourceChange(this)">
+                                            <option value="_fixed_" ${sourceVal === '_fixed_' ? 'selected' : ''}>Type a fixed value</option>
+                                            ${formSources.length ? `<optgroup label="From form / start">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${stepSources.length ? `<optgroup label="From a previous step">${stepSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                        </select>
+                                        <input type="text" class="property-input tool-param-fixed" placeholder="Enter value" 
+                                               data-node-id="${node.id}" data-param-name="${escapeHtml(paramName)}"
+                                               value="${escapeHtml(fixedVal)}"
+                                               onchange="updateToolParamFromInput(this)"
+                                               ${isFromSource ? 'style="display:none;"' : ''}>
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                    } else if (selTool && (selTool.type === 'api' || selTool.type === 'website' || selTool.type === 'knowledge')) {
+                        html += `<div class="prop-section"><p class="property-hint">This tool doesn’t need extra fields here — use it as is or configure it in the platform.</p></div>`;
+                    } else if (!node.config.toolId) {
+                        html += `<div class="prop-section"><p class="property-hint">Select a tool above. If it needs data to send, you’ll see fields to map from your form or previous steps.</p></div>`;
+                    }
                     break;
                     
                 case 'approval':
@@ -4156,14 +4421,11 @@
                             <textarea class="property-textarea" placeholder="Message to show approvers..."
                                       onchange="updateNodeConfig('${node.id}', 'message', this.value)">${aCfg.message || ''}</textarea>
                             ${availableFields.length > 0 ? `
-                                <div style="margin-top:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
-                                    <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">📋 Available Fields (click to insert):</div>
-                                    <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                <div class="field-chips">
+                                    <span class="field-chips-label">Insert from form:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
-                                            <button onclick="insertFieldRef('${node.id}', 'message', '{{${f.name}}}')" 
-                                                    style="padding:4px 8px;background:#374151;border:none;border-radius:4px;color:#a5b4fc;font-size:11px;cursor:pointer;">
-                                                {{${f.name}}}
-                                            </button>
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${f.name}}}')" class="field-chip">{{${f.name}}}</button>
                                         `).join('')}
                                     </div>
                                 </div>
@@ -4218,14 +4480,11 @@
                             <textarea class="property-textarea" placeholder="Enter message template..."
                                       onchange="updateNodeConfig('${node.id}', 'template', this.value)">${node.config.template || ''}</textarea>
                             ${availableFields.length > 0 ? `
-                                <div style="margin-top:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
-                                    <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">📋 Available Fields (click to insert):</div>
-                                    <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                <div class="field-chips">
+                                    <span class="field-chips-label">Insert from form:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
-                                            <button onclick="insertFieldRef('${node.id}', 'template', '{{${f.name}}}')" 
-                                                    style="padding:4px 8px;background:#374151;border:none;border-radius:4px;color:#a5b4fc;font-size:11px;cursor:pointer;">
-                                                {{${f.name}}}
-                                            </button>
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'template', '{{${f.name}}}')" class="field-chip">{{${f.name}}}</button>
                                         `).join('')}
                                     </div>
                                 </div>
@@ -4242,14 +4501,11 @@
                                       placeholder="Describe what the AI should do..."
                                       onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${node.config.prompt || ''}</textarea>
                             ${availableFields.length > 0 ? `
-                                <div style="margin-top:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
-                                    <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">📋 Available Fields (click to insert):</div>
-                                    <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                <div class="field-chips">
+                                    <span class="field-chips-label">Insert from form:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
-                                            <button onclick="insertFieldRef('${node.id}', 'prompt', '{{${f.name}}}')" 
-                                                    style="padding:4px 8px;background:#374151;border:none;border-radius:4px;color:#a5b4fc;font-size:11px;cursor:pointer;">
-                                                {{${f.name}}}
-                                            </button>
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'prompt', '{{${f.name}}}')" class="field-chip">{{${f.name}}}</button>
                                         `).join('')}
                                     </div>
                                 </div>
@@ -4475,12 +4731,10 @@
                     `;
             }
             
-            // Delete button
             html += `
-                <div style="margin-top:24px; padding-top:16px; border-top:1px solid #2d3748;">
-                    <button onclick="deleteNode('${node.id}')" 
-                            style="width:100%; padding:10px; background:#ef4444; border:none; border-radius:8px; color:white; cursor:pointer;">
-                        🗑️ Delete Node
+                <div class="prop-actions">
+                    <button type="button" onclick="deleteNode('${node.id}')" class="btn-delete-node">
+                        Remove this step
                     </button>
                 </div>
             `;
@@ -4516,10 +4770,39 @@
                 const tool = state.tools.find(t => t.id === toolId);
                 node.config.toolId = toolId;
                 if (tool) node.name = tool.name;
+                if (!node.config.params) node.config.params = {};
                 refreshNode(node);
                 showProperties(node); // Refresh panel
                 saveToUndo();
             }
+        }
+        
+        function updateToolParam(nodeId, paramName, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!node.config.params) node.config.params = {};
+            node.config.params[paramName] = value;
+            saveToUndo();
+        }
+        
+        function onToolParamSourceChange(selectEl) {
+            const nodeId = selectEl.dataset.nodeId;
+            const paramName = selectEl.dataset.paramName;
+            const row = selectEl.closest('.tool-param-row');
+            const input = row ? row.querySelector('.tool-param-fixed') : null;
+            const value = selectEl.value;
+            if (value === '_fixed_') {
+                if (input) { input.style.display = ''; updateToolParam(nodeId, paramName, input.value); }
+            } else {
+                if (input) input.style.display = 'none';
+                updateToolParam(nodeId, paramName, value);
+            }
+        }
+        
+        function updateToolParamFromInput(inputEl) {
+            const nodeId = inputEl.dataset.nodeId;
+            const paramName = inputEl.dataset.paramName;
+            updateToolParam(nodeId, paramName, inputEl.value);
         }
         
         // Approval config modal (Approvers from Platform User / Role / Group / Tool)

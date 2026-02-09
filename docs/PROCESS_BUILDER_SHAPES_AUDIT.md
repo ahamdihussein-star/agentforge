@@ -122,4 +122,47 @@
 
 ---
 
+---
+
+## 5. معاملات الـ API في خطوة "Use Tool" – Best Practice (مستخدم غير تقني)
+
+**السؤال:** لو الـ tool بتنادي على API وبتحتاج parameters، هل يكون في shape منفصل لتمرير القيم، ولا الـ parameters تظهر في الـ properties بتاعة الـ tool مع إمكانية mapping؟
+
+**التوصية: لا shape منفصل. الـ parameters تظهر داخل نفس خطوة الـ Tool في الـ Properties، ديناميكياً حسب تعريف الـ tool، مع إمكانية mapping من بيانات الـ workflow.**
+
+### لماذا مش shape منفصل؟
+
+- لو عملنا shape زي "Pass Parameters" أو "Set API Input":
+  - المستخدم غير التقني يلاقي نفسه محتاج يفهم: "أنا محتاج صندوقين، واحد للـ API وواحد للقيم"، ويربط بينهم.
+  - الـ flow يبقى أطول (nodes أكتر) وواضح أقل.
+- الـ Best Practice في منصات no-code (Zapier, n8n, Make, Power Automate): **خطوة واحدة = فعل واحد**. "استدعاء هذا الـ API" = node واحد، وبداخله تختار الأداة وتعبّي/تربط الـ parameters.
+
+### المطلوب في الـ UI (Properties للـ Tool node)
+
+1. **اختيار الأداة** (موجود حالياً: قائمة "Your Tools" أو اختيار من الـ panel).
+2. **بعد ما المستخدم يختار tool:**
+   - لو الـ tool من نوع API وله `input_parameters` (من `api_config.input_parameters`): يظهر قسم **"API Parameters"** أو **"What to send to the API"**.
+3. **لكل parameter:**
+   - **اسم واضح** (من تعريف الـ tool، مع وصف إن وُجد).
+   - **مصدر القيمة** (بدون مصطلحات تقنية قدر الإمكان):
+     - **"From form"** أو **"From start step"**: اختيار حقل من النموذج/البداية (مثلاً "Email", "Amount").
+     - **"From previous step"**: اختيار خطوة سابقة والمخرج اللي هيتستخدم (مثلاً "Result from step X").
+     - **"Type a value"**: إدخال ثابت (نص أو رقم).
+   - القيمة الفعلية تُخزَّن في `node.config.params` كأنها literal أو reference (مثلاً `{{form.email}}`, `{{steps.step_2.output}}`)، والـ Engine وقت التنفيذ يعمل resolve لهذه الـ references.
+
+4. **بدون مصطلحات تقنية في الواجهة:**
+   - تجنب: "Parameter", "Mapping", "Payload".  
+   - استخدم: "What to send", "Value from", "From form", "From previous step", "Type value".
+
+### ملخص
+
+| الخيار | التوصية | السبب (لمستخدم غير تقني) |
+|--------|---------|---------------------------|
+| Shape منفصل لتمرير الـ parameters | ❌ لا | يزيد التعقيد وعدد الـ nodes ويحتاج فهم "ربط بيانات" بشكل صريح. |
+| الـ parameters في Properties الـ tool، ديناميكية + mapping | ✅ نعم | خطوة واحدة = "استدعاء هذا الـ API"، وكل الإعداد في مكان واحد مع لغة واضحة (من النموذج، من خطوة سابقة، أو كتابة قيمة). |
+
+الـ Backend حالياً: الـ tool له `api_config.input_parameters` (name, description, data_type, required, location). الـ Process Builder عند تحميل الـ tools من `GET /api/tools` يستقبل هذه البيانات؛ يكفي في الـ Properties panel عند اختيار tool من نوع API أن نقرأ `tool.api_config.input_parameters` ونبني الحقول ديناميكياً مع خيارات المصدر (form / previous step / type value).
+
+---
+
 *آخر تحديث: فبراير 2026*

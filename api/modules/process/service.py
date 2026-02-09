@@ -1154,6 +1154,12 @@ class ProcessAPIService:
                 # Ensure at least one of message/template so "Either message or template is required" does not fail
                 if not (type_cfg.get('message') or type_cfg.get('template')):
                     type_cfg['message'] = 'Notification'
+            # Tool node: Process Builder uses 'toolId' and 'params'; engine expects 'tool_id' and 'arguments'
+            if node_type == 'tool':
+                if not type_cfg.get('tool_id') and type_cfg.get('toolId'):
+                    type_cfg['tool_id'] = type_cfg['toolId']
+                if type_cfg.get('arguments') is None and type_cfg.get('params') is not None:
+                    type_cfg['arguments'] = type_cfg.get('params') or {}
             # Approval / human_task: Process Builder uses 'approvers' (UI) or 'assignee'/'assignee_id' (single); engine expects 'assignee_ids' (list)
             if node_type in ('approval', 'human_task', 'human'):
                 aids = type_cfg.get('assignee_ids')
