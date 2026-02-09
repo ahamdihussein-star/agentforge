@@ -7851,16 +7851,9 @@ Option 3"></textarea>
                     </div>
                 </div>
 
-                <!-- Test Tool Section -->
-                <div class="card rounded-lg p-4">
-                    <h5 class="font-medium mb-3">🧪 Test Tool (Optional)</h5>
-                    <p class="text-xs text-gray-400 mb-3">Verify that your configuration works correctly before saving.</p>
-                    <button onclick="testWizTool()" class="btn-secondary w-full py-2 rounded-lg mb-3">▶ Run Test</button>
-                    <div id="review-test-result" class="hidden p-3 rounded-lg text-sm max-h-48 overflow-y-auto bg-gray-800"></div>
-                </div>
-
                 <div class="bg-green-900/30 border border-green-600/50 rounded-lg p-3 text-sm">
                     <p class="text-green-300">✅ Review complete! Click the button below to finish.</p>
+                    <p class="text-xs text-gray-400 mt-2">To test an API, go back to Configuration and click "Try this API".</p>
                 </div>
             </div>
 
@@ -16919,19 +16912,25 @@ Option 3"></textarea>
 
         async function createToolFromDemo(demoApiId) {
             try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (typeof getAuthHeaders === 'function') Object.assign(headers, getAuthHeaders());
                 const response = await fetch(API + '/api/demo/create-tool', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({ demo_id: demoApiId })
                 });
                 
                 const data = await response.json();
                 
+                if (response.status === 401) {
+                    addDemoMessage('assistant', '⚠️ ' + (data.detail || 'Please sign in to create a tool from Demo Lab. You will be the owner and can edit or delete it later.'));
+                    return;
+                }
                 if (data.success) {
-                    addDemoMessage('assistant', `✅ API Tool "${data.tool_name}" created successfully! You can now assign it to any agent.`);
+                    addDemoMessage('assistant', `✅ API Tool "${data.tool_name}" created successfully! You can now assign it to any agent and you are the owner (you can edit or delete it).`);
                     loadTools();
                 } else {
-                    addDemoMessage('assistant', '❌ Failed to create tool: ' + data.error);
+                    addDemoMessage('assistant', '❌ Failed to create tool: ' + (data.error || 'Unknown error'));
                 }
             } catch (e) {
                 addDemoMessage('assistant', '❌ Error: ' + e.message);
@@ -26567,13 +26566,16 @@ async function rescrapeWebsite() {
     }
 }
 
-// Test tool
+// Test tool (unified: API opens same modal as "Try this API", other types run inline)
 async function testWizTool() {
-    // Support both old (wiz-step-4) and new (wiz-step-6) result elements
+    if (wizState.type === 'api' && typeof openWizardApiTestModal === 'function') {
+        openWizardApiTestModal();
+        return;
+    }
+    
     const resultEl = document.getElementById('wiz-test-result') || document.getElementById('review-test-result');
     const reviewResultEl = document.getElementById('review-test-result');
     
-    // Show loading state
     if (resultEl) {
         resultEl.classList.remove('hidden');
         resultEl.className = 'p-3 rounded-lg text-sm bg-blue-900/30 border border-blue-600';
@@ -26588,7 +26590,6 @@ async function testWizTool() {
     try {
         let testResult = { success: true, message: 'Connection successful!' };
         
-        // Real test based on tool type
         if (wizState.type === 'api') {
             const baseUrl = document.getElementById('api-url')?.value;
             const endpoint = document.getElementById('api-path')?.value || '';

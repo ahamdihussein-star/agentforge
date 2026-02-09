@@ -885,6 +885,7 @@ Create an invoice image with:
         
         // Previews
         function showAPIPreview(result) {
+            lastGeneratedAPIResult = result;
             const previewSection = document.getElementById('preview-section');
             const previewArea = document.getElementById('preview-area');
             
@@ -1032,18 +1033,38 @@ Create an invoice image with:
             });
         }
         
-        // Create tool automatically from generated API
+        // Last generated API result (from backend); used so we don't hardcode description/params.
+        let lastGeneratedAPIResult = null;
+        
+        function sanitizeAgentDescription(text) {
+            if (!text || typeof text !== 'string') return '';
+            return text.replace(/\b(mock|demo|test(ing)?)\b/gi, '').replace(/\s+/g, ' ').trim();
+        }
+        
+        function normalizeParameters(params) {
+            if (!Array.isArray(params)) return [];
+            return params.map(p => ({
+                name: p.name || 'param',
+                description: p.description || '',
+                data_type: p.data_type || 'string',
+                required: !!p.required,
+                location: p.location === 'path' ? 'path' : 'query'
+            }));
+        }
+        
+        // Create tool from generated API using backend-provided description and parameters (no hardcoding).
         async function createToolFromAPI(apiId, apiName) {
             showLoading('Creating Tool...', 'Adding API to Tools library');
             
             try {
-                const endpoint = `/api/lab/mock/${apiId}`;
-                const fullUrl = window.location.origin + endpoint;
+                const result = lastGeneratedAPIResult && lastGeneratedAPIResult.id === apiId ? lastGeneratedAPIResult : null;
+                const slug = (result && result.slug) ? result.slug : ((apiName || 'api').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || apiId);
+                const endpointPath = `/api/lab/mock/${slug}`;
+                const baseUrl = window.location.origin;
                 
-                // Parse URL to extract base_url and endpoint_path
-                const urlObj = new URL(fullUrl);
-                const baseUrl = urlObj.origin;
-                const endpointPath = urlObj.pathname;
+                const rawDesc = (result && result.agent_description) ? result.agent_description : null;
+                const desc = rawDesc ? sanitizeAgentDescription(rawDesc) : (apiName ? `Returns ${apiName}. Use when the user asks for this data.` : 'Returns data. Use when the user asks for this information.');
+                const input_parameters = (result && result.parameters && result.parameters.length) ? normalizeParameters(result.parameters) : [];
                 
                 const response = await fetch('/api/tools', {
                     method: 'POST',
@@ -1053,7 +1074,7 @@ Create an invoice image with:
                     },
                     body: JSON.stringify({
                         name: apiName || 'Generated API',
-                        description: `Mock API generated from Lab. Endpoint: ${fullUrl}. Returns realistic test data.`,
+                        description: desc,
                         type: 'api',
                         api_config: {
                             base_url: baseUrl,
@@ -1064,7 +1085,7 @@ Create an invoice image with:
                             api_key_name: '',
                             api_key_location: 'header',
                             headers: {},
-                            input_parameters: []
+                            input_parameters
                         }
                     })
                 });

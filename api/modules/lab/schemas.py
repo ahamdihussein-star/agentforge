@@ -49,6 +49,9 @@ class APIGenerateResponse(BaseModel):
     data: List[Dict[str, Any]]
     response_schema: Dict[str, Any]  # renamed from 'schema' to avoid shadowing BaseModel.schema
     created_at: str
+    slug: Optional[str] = None
+    agent_description: Optional[str] = None  # For AI agent: what the API does, when to use it (no mock/demo)
+    parameters: Optional[List[Dict[str, Any]]] = None  # Input parameters when the API is parameterized
 
 
 # ============================================

@@ -14661,7 +14661,9 @@ async def test_document_generation():
 
 @app.post("/api/demo/create-tool")
 async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: User = Depends(get_current_user_optional)):
-    """Create an API tool from a generated mock API (parameters and description set for agent use)"""
+    """Create an API tool from a generated mock API. Requires sign-in so you are set as owner and can edit/delete the tool."""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Sign in required to create a tool from Demo Lab so you can edit or delete it later.")
     demo_id = request.demo_id
     
     if demo_id not in demo_items:
@@ -14672,9 +14674,9 @@ async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: Us
     if item.type != "api":
         return {"success": False, "error": "Only API demos can be converted to tools"}
     
-    # Get owner_id from current user
-    owner_id = str(current_user.id) if current_user else "system"
-    print(f"🔧 [CREATE_TOOL_FROM_DEMO] Creating tool '{item.name}' with owner_id='{owner_id}', user={current_user.email if current_user else 'None'}")
+    # Creator is always the owner (can delete/edit later)
+    owner_id = str(current_user.id)
+    print(f"🔧 [CREATE_TOOL_FROM_DEMO] Creating tool '{item.name}' with owner_id='{owner_id}', user={current_user.email}")
     
     # Get base URL from environment or default
     base_url = os.environ.get("PUBLIC_URL", "http://localhost:8000")

@@ -8,6 +8,7 @@ This service handles:
 """
 
 import os
+import re
 import json
 import uuid
 import base64
@@ -161,22 +162,74 @@ Example format:
         # Infer schema from data
         schema = cls._infer_schema(data)
         
+        # URL-friendly slug from name so endpoint can be /api/lab/mock/{api-name}
+        slug = (re.sub(r"[^a-z0-9-]+", "-", name.lower()).strip("-") or item_id)[:80]
+        
+        # AI-generated metadata for agent tool: description and parameters (no hardcoded rules)
+        agent_meta = cls._generate_agent_metadata(name, description, client)
+        
         # Save to storage (response_schema for APIGenerateResponse compatibility)
         result = {
             "id": item_id,
             "name": name,
-            "endpoint": f"/api/lab/mock/{item_id}",
+            "slug": slug,
+            "endpoint": f"/api/lab/mock/{slug}",
             "data": data,
             "response_schema": schema,
             "record_count": len(data),
             "created_at": datetime.utcnow().isoformat(),
-            "org_id": org_id
+            "org_id": org_id,
+            "agent_description": agent_meta.get("agent_description"),
+            "parameters": agent_meta.get("parameters") or []
         }
         
         with open(os.path.join(cls.STORAGE_PATH, f"{item_id}.json"), 'w') as f:
             json.dump(result, f, indent=2)
         
         return result
+    
+    @classmethod
+    def _generate_agent_metadata(
+        cls, name: str, description: str, client: Any
+    ) -> Dict[str, Any]:
+        """
+        Use AI to generate agent-facing description and input parameters.
+        No hardcoded rules; suitable for any enterprise API.
+        """
+        out = {"agent_description": None, "parameters": []}
+        if not client:
+            out["agent_description"] = f"Returns data for: {name}. Use when the user asks for this information."
+            return out
+        prompt = f"""API name: {name}
+User description: {description}
+
+Return a JSON object with exactly two keys:
+1. "agent_description": One clear sentence for an AI agent: what this API returns and when to use it. Do not mention mock, demo, or test.
+2. "parameters": If this API logically accepts parameters (e.g. ID, filter, date range), return an array of objects, each with: "name", "description", "data_type" (string/number/boolean), "required" (boolean), "location" (query or path). If the API does not take parameters, return [].
+
+Return only valid JSON, no markdown or explanation."""
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You output only valid JSON. No markdown code blocks."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=800
+            )
+            content = response.choices[0].message.content.strip()
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+            obj = json.loads(content)
+            out["agent_description"] = obj.get("agent_description") or out["agent_description"]
+            out["parameters"] = obj.get("parameters") if isinstance(obj.get("parameters"), list) else []
+        except Exception as e:
+            print(f"Agent metadata generation failed: {e}")
+            out["agent_description"] = f"Returns data for: {name}. Use when the user asks for this information."
+        return out
     
     @classmethod
     def _generate_sample_data(cls, description: str, count: int) -> List[Dict]:
@@ -914,10 +967,31 @@ Return ONLY the JSON, no explanation or markdown."""
     
     @classmethod
     def get_mock_data(cls, item_id: str) -> Optional[List[Dict]]:
-        """Get mock API data"""
-        filepath = os.path.join(cls.STORAGE_PATH, f"{item_id}.json")
-        if os.path.exists(filepath):
-            with open(filepath, 'r') as f:
-                data = json.load(f)
-                return data.get('data', [])
+        """Get mock API data by item id (UUID) or by slug (e.g. get-customer-by-id)"""
+        # If it looks like a UUID, load by filename
+        if len(item_id) == 36 and item_id.count("-") == 4:
+            filepath = os.path.join(cls.STORAGE_PATH, f"{item_id}.json")
+            if os.path.exists(filepath):
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                    return data.get('data', [])
+            return None
+        # Otherwise treat as slug: find file with matching slug
+        return cls.get_mock_data_by_slug(item_id)
+
+    @classmethod
+    def get_mock_data_by_slug(cls, slug: str) -> Optional[List[Dict]]:
+        """Get mock API data by URL slug (e.g. get-customer-by-id)"""
+        cls._ensure_storage()
+        for f in os.listdir(cls.STORAGE_PATH):
+            if not f.endswith(".json"):
+                continue
+            filepath = os.path.join(cls.STORAGE_PATH, f)
+            try:
+                with open(filepath, 'r') as f:
+                    obj = json.load(f)
+                    if obj.get("slug") == slug:
+                        return obj.get("data", [])
+            except Exception:
+                continue
         return None
