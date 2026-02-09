@@ -69,10 +69,10 @@
     --bg-primary: #f8fafc;
     --bg-secondary: #f1f5f9;
     --bg-card: #ffffff;
-    --bg-input: #ffffff;
-    --border-color: #cbd5e1;
-    --border-hover: #94a3b8;
-    --input-border: #cbd5e1;
+    --bg-input: #f1f5f9;
+    --border-color: #94a3b8;
+    --border-hover: #64748b;
+    --input-border: #94a3b8;
     --input-border-focus: #7c3aed;
     --text-primary: #1e293b;
     --text-secondary: #475569;
@@ -121,9 +121,9 @@
     --bg-primary: #e8f4f8;
     --bg-secondary: #dbeafe;
     --bg-card: #ffffff;
-    --bg-input: #ffffff;
-    --border-color: #38bdf8;
-    --border-hover: #0ea5e9;
+    --bg-input: #e0f2fe;
+    --border-color: #7dd3fc;
+    --border-hover: #38bdf8;
     --input-border: #38bdf8;
     --input-border-focus: #6366f1;
     --text-primary: #0c4a6e;
@@ -390,11 +390,13 @@
 
 /* Cards - clear visible borders */
 .card {
-    border: 1.5px solid var(--border-color) !important;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border-color);
+    border-radius: 16px;
     box-shadow: var(--shadow-sm);
 }
 .card:hover {
-    border-color: var(--border-hover) !important;
+    border-color: var(--border-hover);
     box-shadow: var(--shadow-md);
 }
 
