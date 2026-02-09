@@ -5926,11 +5926,11 @@ Return a JSON object with this structure:
     "apis": [
         {
             "name": "API name",
-            "description": "What this API does",
+            "description": "Clear description for the AI agent: what this API returns or does and when to use it. Do NOT mention mock or demo - write as a real API (e.g. 'Returns order details by ID. Use when user asks for order status.')",
             "method": "GET or POST",
-            "endpoint": "/api/mock/...",
+            "endpoint": "/api/mock/<api-name-slug>",
             "parameters": [
-                {"name": "param_name", "type": "string", "required": true, "description": "..."}
+                {"name": "param_name", "type": "string", "required": true, "description": "...", "location": "query"}
             ],
             "sample_request": {"key": "value"} or null for GET,
             "sample_response": {"realistic": "response data"}
@@ -5990,15 +5990,23 @@ IMPORTANT:
         kit_id = f"kit_{uuid.uuid4().hex[:8]}"
         now = datetime.now().isoformat()
         
-        # Process APIs
+        # Process APIs - endpoint path must end with API name (readable URL)
         apis = []
         for i, api_data in enumerate(kit_data.get("apis", [])):
+            api_name = api_data.get("name", f"API {i+1}")
+            raw_endpoint = api_data.get("endpoint", "")
+            # Ensure endpoint ends with API name slug (no random numbers)
+            slug = re.sub(r"[^a-z0-9/-]+", "-", api_name.lower()).strip("-").replace(" ", "-") or f"api-{i}"
+            if "/api/mock/" in raw_endpoint and (not raw_endpoint.rstrip("/").split("/")[-1] or re.search(r"endpoint_\d+|\d+", raw_endpoint)):
+                endpoint = f"/api/mock/{slug}"
+            else:
+                endpoint = raw_endpoint or f"/api/mock/{slug}"
             api = DemoAPITool(
                 id=f"{kit_id}_api_{i}",
-                name=api_data.get("name", f"API {i+1}"),
+                name=api_name,
                 description=api_data.get("description", ""),
                 method=api_data.get("method", "GET"),
-                endpoint=api_data.get("endpoint", f"/api/mock/endpoint_{i}"),
+                endpoint=endpoint,
                 parameters=api_data.get("parameters", []),
                 sample_request=api_data.get("sample_request"),
                 sample_response=api_data.get("sample_response", {}),
@@ -13013,7 +13021,30 @@ If user asks for "Invoice Excel":
     }
 }
 
-FOR APIs - details MUST include endpoints array with sample_response
+FOR APIs - details MUST include:
+- "base_name": URL-friendly slug from the API name (e.g. "Orders API" -> "orders-api", "Customer Lookup" -> "customer-lookup"). Used in the endpoint URL. No random numbers or IDs.
+- "endpoints": array of { "method": "GET"|"POST", "path": "/", "description": "...", "sample_response": {...}, "parameters": [{"name": "id", "type": "string", "required": true, "description": "Customer or order ID"}] }. If the API accepts inputs (e.g. lookup by id, filter by city), include "parameters" so the tool can be parameterized.
+- "description": Write what this API does so an AI agent understands when and how to use it (e.g. "Returns order details by order ID. Use when the user asks for order status or order information."). Do NOT use the words mock, demo, or test - describe it as a real API capability.
+
+API EXAMPLE - parameterized "Order lookup API":
+{
+    "type": "api",
+    "name": "Order Lookup API",
+    "description": "Returns order details by order ID. Use when the user asks for order status, tracking, or order information.",
+    "response_text": "Here's your Order Lookup API!",
+    "details": {
+        "base_name": "order-lookup",
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/",
+                "description": "Get order by ID",
+                "parameters": [{"name": "order_id", "type": "string", "required": true, "description": "Order ID"}],
+                "sample_response": {"order_id": "ORD-001", "status": "shipped", "total": 99.99}
+            }
+        ]
+    }
+}
 
 REMEMBER: 
 - Generate IMMEDIATELY with FULL content
@@ -13060,8 +13091,9 @@ REMEMBER:
         generated_item = None
         
         if item_type == "api":
-            # Create mock API
-            base_name = details.get("base_name", name.lower().replace(" ", "_"))
+            # Create mock API - URL must end with API name (readable slug)
+            raw_base = details.get("base_name") or name
+            base_name = re.sub(r"[^a-z0-9_-]+", "-", raw_base.lower()).strip("-") or "api"
             endpoints = details.get("endpoints", [])
             
             # Store mock data
@@ -13071,7 +13103,7 @@ REMEMBER:
                 "description": description
             }
             
-            # Create demo item
+            # Create demo item (url = /demo-api/{api-name-slug})
             item = DemoItem(
                 type="api",
                 name=name,
@@ -13085,7 +13117,7 @@ REMEMBER:
             
             # Format endpoint list for response
             endpoint_list = "\n".join([f"  {e.get('method', 'GET')} {e.get('path', '/')} - {e.get('description', '')}" for e in endpoints])
-            response_text = f"""I've created the **{name}** mock API with the following endpoints:
+            response_text = f"""I've created the **{name}** API with the following endpoints:
 
 ```
 {endpoint_list}
@@ -13094,6 +13126,12 @@ REMEMBER:
 🔗 **Base URL:** `{item.url}`
 
 You can test it now or create an API Tool to use with your agents."""
+
+            # Normalize description for agent: no "mock/demo" wording
+            if item.description and ("mock" in item.description.lower() or "demo" in item.description.lower()):
+                item.description = re.sub(r"\s*\(?\s*mock\s*\)?\s*", " ", item.description, flags=re.I)
+                item.description = re.sub(r"\s*\(?\s*demo\s*\)?\s*", " ", item.description, flags=re.I)
+                item.description = item.description.strip()
         
         elif item_type == "document":
             # Generate document
@@ -14623,7 +14661,7 @@ async def test_document_generation():
 
 @app.post("/api/demo/create-tool")
 async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: User = Depends(get_current_user_optional)):
-    """Create an API tool from a generated mock API"""
+    """Create an API tool from a generated mock API (parameters and description set for agent use)"""
     demo_id = request.demo_id
     
     if demo_id not in demo_items:
@@ -14641,19 +14679,39 @@ async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: Us
     # Get base URL from environment or default
     base_url = os.environ.get("PUBLIC_URL", "http://localhost:8000")
     
-    # Create the API tool
+    # Collect input_parameters from all endpoints (dedupe by name) so tool wizard has them
+    seen_params = {}
+    for ep in item.config.get("endpoints", []):
+        for p in ep.get("parameters", []):
+            pname = (p.get("name") or "").strip()
+            if pname and pname not in seen_params:
+                seen_params[pname] = APIInputParameter(
+                    name=pname,
+                    description=p.get("description", ""),
+                    data_type=p.get("type", "string"),
+                    required=p.get("required", False),
+                    location=p.get("location", "query")
+                )
+    input_parameters = list(seen_params.values())
+    
     api_config = APIEndpointConfig(
         base_url=f"{base_url}{item.url}",
         http_method="GET",
         endpoint_path="/",
-        auth_type="none"
+        auth_type="none",
+        input_parameters=input_parameters
     )
+    
+    # Description: clear, agent-facing (what the API does). No "Mock" or "Demo" prefix.
+    tool_description = (item.description or "").strip()
+    if not tool_description:
+        tool_description = f"Returns or processes data for {item.name}."
     
     # Demo Lab tools default to PUBLIC access so everyone can use them
     tool = ToolConfiguration(
         type="api",
-        name=f"Demo: {item.name}",
-        description=f"Mock API - {item.description}",
+        name=item.name,
+        description=tool_description,
         api_config=api_config,
         config=item.config,
         # Access Control - Demo tools are PUBLIC by default
