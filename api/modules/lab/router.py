@@ -3,9 +3,11 @@ Lab Router - API endpoints for test data generation
 History is stored in DB (no localStorage).
 """
 
+import re
+from copy import deepcopy
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import FileResponse, JSONResponse
-from typing import Optional
+from typing import Optional, Dict, Any
 import os
 
 from .schemas import (
@@ -25,6 +27,29 @@ try:
 except Exception:
     async def get_current_user_optional():
         return None  # history endpoints will 401 via _require_user
+
+
+def _normalize_api_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Ensure API-type result has id and slug so history always has complete data.
+    If endpoint exists but id/slug missing, derive from endpoint path (/mock/{slug}).
+    """
+    if not result or not isinstance(result, dict):
+        return result or {}
+    out = deepcopy(result)
+    has_id = bool(out.get("id"))
+    has_slug = bool(out.get("slug"))
+    if has_id and has_slug:
+        return out
+    endpoint = out.get("endpoint") or ""
+    m = re.search(r"/mock/?([^/?]+)", endpoint)
+    if m:
+        slug = m.group(1)
+        if not has_slug:
+            out["slug"] = slug
+        if not has_id:
+            out["id"] = out.get("id") or out.get("slug") or slug
+    return out
 
 
 # ============================================
@@ -286,22 +311,26 @@ async def list_lab_history(user=Depends(get_current_user_optional)):
             .limit(20)
             .all()
         )
-        items = [
-            LabHistoryItemResponse(
-                id=str(r.id),
-                type=r.type,
-                name=r.name,
-                result=r.result or {},
-                created_at=r.created_at.isoformat() if r.created_at else "",
+        items = []
+        for r in rows:
+            result = dict(r.result or {})
+            if r.type == "api":
+                result = _normalize_api_result(result)
+            items.append(
+                LabHistoryItemResponse(
+                    id=str(r.id),
+                    type=r.type,
+                    name=r.name,
+                    result=result,
+                    created_at=r.created_at.isoformat() if r.created_at else "",
+                )
             )
-            for r in rows
-        ]
         return LabHistoryResponse(items=items, total=len(items))
 
 
 @router.post("/history", response_model=LabHistoryItemResponse)
 async def add_lab_history(request: LabHistoryAddRequest, user=Depends(get_current_user_optional)):
-    """Add a generated item to Lab history."""
+    """Add a generated item to Lab history. API results are normalized so id/slug are always stored."""
     _require_user(user)
     from database.base import get_db_session
     from database.models import LabHistoryItem
@@ -310,12 +339,17 @@ async def add_lab_history(request: LabHistoryAddRequest, user=Depends(get_curren
     if not uid:
         raise HTTPException(status_code=401, detail="User ID not found")
 
+    item_type = request.type if request.type in ("api", "document", "image") else "api"
+    result = dict(request.result or {})
+    if item_type == "api":
+        result = _normalize_api_result(result)
+
     with get_db_session() as db:
         item = LabHistoryItem(
             user_id=uid,
-            type=request.type if request.type in ("api", "document", "image") else "api",
+            type=item_type,
             name=request.name,
-            result=request.result,
+            result=result,
         )
         db.add(item)
         db.flush()

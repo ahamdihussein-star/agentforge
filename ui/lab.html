@@ -883,7 +883,7 @@ Create an invoice image with:
             }
         }
         
-        // Previews
+        // Previews (result must include id/slug from backend; we do not mutate to hide missing data)
         function showAPIPreview(result) {
             lastGeneratedAPIResult = result;
             const previewSection = document.getElementById('preview-section');
@@ -894,7 +894,8 @@ Create an invoice image with:
             
             const params = result.parameters && Array.isArray(result.parameters) ? result.parameters : [];
             const isParametrized = params.length > 0;
-            const fullEndpoint = window.location.origin + (result.endpoint || '/api/lab/mock/' + (result.slug || result.id));
+            const apiIdOrSlug = result.id || result.slug || (result.endpoint ? result.endpoint.replace(/^.*\/mock\/?/, '').replace(/\/$/, '') : '');
+            const fullEndpoint = window.location.origin + (result.endpoint || '/api/lab/mock/' + apiIdOrSlug);
             const jsonContent = JSON.stringify(result.data || result, null, 2);
             
             const paramsConfigHtml = isParametrized
@@ -939,7 +940,7 @@ Create an invoice image with:
                             <code class="flex-1 text-sm text-green-400 bg-black/30 px-3 py-2 rounded-lg font-mono overflow-x-auto break-all">${escapeHtml(fullEndpoint)}</code>
                             <button onclick="copyToClipboard('${String(fullEndpoint).replace(/'/g, "\\'")}')" class="btn-secondary text-sm px-3 py-2 flex-shrink-0">📋 Copy</button>
                         </div>
-                        <button onclick="testAPI('${(result && (result.id || result.slug)) ? String(result.id || result.slug).replace(/'/g, "\\'") : ''}')" class="btn-primary w-full flex items-center justify-center gap-2">
+                        <button onclick="testAPI('${(apiIdOrSlug ? String(apiIdOrSlug).replace(/'/g, "\\'") : '')}')" class="btn-primary w-full flex items-center justify-center gap-2">
                             <span>▶️</span>
                             <span>${isParametrized ? 'Test API (set parameters)' : 'Test API'}</span>
                         </button>
@@ -1088,7 +1089,7 @@ Create an invoice image with:
             // Normalize: avoid string 'null' or undefined from history/preview
             const rawId = (itemId != null && itemId !== 'null' && itemId !== 'undefined') ? itemId : (lastGeneratedAPIResult && (lastGeneratedAPIResult.id || lastGeneratedAPIResult.slug));
             if (!rawId || rawId === 'null' || rawId === 'undefined') {
-                showToast('Cannot test: API id/slug missing. Try generating again or pick another item.', 'error');
+                showToast('Cannot run test: API identifier (id/slug) is missing in this item. Check that history was saved correctly or generate the API again.', 'error');
                 return;
             }
             const effectiveId = String(rawId);
