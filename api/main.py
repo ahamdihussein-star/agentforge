@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -12650,8 +12650,13 @@ async def serve_chat_portal(path: str = ""):
 # ============================================================================
 @app.get("/lab", response_class=HTMLResponse)
 @app.get("/lab/", response_class=HTMLResponse)
-async def serve_lab_portal():
+async def serve_lab_portal(response: Response):
     """Lab Portal - Generate test APIs, documents, and images"""
+    # Force no-cache to ensure users always get latest version
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
     lab_file = "ui/lab.html"
     if os.path.exists(lab_file):
         with open(lab_file) as f:
