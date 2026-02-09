@@ -113,6 +113,9 @@ def _user_can_access_mock(item_id: str, current_user, record: dict) -> bool:
 async def get_mock_api(item_id: str, request: Request, user=Depends(get_current_user_optional)):
     """
     Call the generated mock API to get data.
+    Lookup is by item_id (slug or UUID) in lab_mock_apis + query params from request.
+    Does NOT read lab_history_items or full_url; the UI builds the request URL from
+    stored full_url and sends path + query here.
     Only the owner or users with execute access to a tool using this mock can read data.
     Unauthenticated requests are allowed (e.g. tool execution from backend).
     """
