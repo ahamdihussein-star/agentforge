@@ -940,11 +940,12 @@ Create an invoice image with:
                             <code class="flex-1 text-sm text-green-400 bg-black/30 px-3 py-2 rounded-lg font-mono overflow-x-auto break-all">${escapeHtml(fullEndpoint)}</code>
                             <button onclick="copyToClipboard('${String(fullEndpoint).replace(/'/g, "\\'")}')" class="btn-secondary text-sm px-3 py-2 flex-shrink-0">📋 Copy</button>
                         </div>
-                        <button onclick="testAPI('${(apiIdOrSlug ? String(apiIdOrSlug).replace(/'/g, "\\'") : '')}')" class="btn-primary w-full flex items-center justify-center gap-2">
+                        <button id="lab-test-api-btn" data-api-id="${String(apiIdOrSlug || '').replace(/"/g, '&quot;')}" onclick="testAPI('${(apiIdOrSlug ? String(apiIdOrSlug).replace(/'/g, "\\'") : '')}')" class="btn-primary w-full flex items-center justify-center gap-2">
                             <span>▶️</span>
                             <span>${isParametrized ? 'Test API (set parameters)' : 'Test API'}</span>
                         </button>
                         <div id="api-last-request-url" class="mt-3 pt-3 border-t border-green-500/20 text-xs font-mono text-green-300/90 break-all min-h-[2rem]">Request URL will appear here after you run Test.</div>
+                        <div class="mt-1 text-[10px] text-gray-500 opacity-90">${LAB_UI_BUILD_LABEL}</div>
                     </div>
                     
                     <!-- Configuration: Method, Endpoint, Parameters -->
@@ -1090,6 +1091,10 @@ Create an invoice image with:
         async function testAPI(itemId) {
             var rawId = (itemId != null && itemId !== 'null' && itemId !== 'undefined' && itemId !== '') ? String(itemId).trim() : '';
             if (!rawId && lastGeneratedAPIResult) rawId = getApiIdOrSlugFromResult(lastGeneratedAPIResult);
+            if (!rawId) {
+                var btn = document.getElementById('lab-test-api-btn');
+                if (btn && btn.getAttribute('data-api-id')) rawId = String(btn.getAttribute('data-api-id')).trim();
+            }
             console.log('[Lab Test API] button itemId:', itemId, '| derived rawId:', rawId, '| result has endpoint:', lastGeneratedAPIResult ? !!lastGeneratedAPIResult.endpoint : false);
             if (!rawId || rawId === 'null' || rawId === 'undefined') {
                 showToast('Cannot run test: API identifier (id/slug) is missing in this item. Check that history was saved correctly or generate the API again.', 'error');
@@ -1235,6 +1240,7 @@ Create an invoice image with:
         
         // Last generated API result (from backend); used so we don't hardcode description/params.
         let lastGeneratedAPIResult = null;
+        const LAB_UI_BUILD_LABEL = 'Lab UI: slug-from-name + item.name + button data-api-id (no cache check)';
         
         function sanitizeAgentDescription(text) {
             if (!text || typeof text !== 'string') return '';
@@ -1454,8 +1460,14 @@ Create an invoice image with:
             generatedResult = item.result;
 
             if (item.type === 'api') {
-                if (item.result && typeof item.result === 'object') {
-                    var r = item.result;
+                var resultToShow = item.result && typeof item.result === 'object' ? item.result : {};
+                if (!item.result || typeof item.result !== 'object') {
+                    var slugFromName = (item.name && String(item.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')) || 'api';
+                    resultToShow = { name: item.name, endpoint: '/api/lab/mock/' + slugFromName, slug: slugFromName, id: slugFromName };
+                    generatedResult = resultToShow;
+                } else {
+                    var r = resultToShow;
+                    r.name = r.name || r.Name || item.name || '';
                     var derived = getApiIdOrSlugFromResult(r);
                     if (derived) {
                         if (r.id == null || r.id === '') r.id = r.id || derived;
@@ -1463,7 +1475,7 @@ Create an invoice image with:
                         if (!r.endpoint && !r.Endpoint) r.endpoint = '/api/lab/mock/' + derived;
                     }
                 }
-                showAPIPreview(item.result);
+                showAPIPreview(resultToShow);
             } else if (item.type === 'document') {
                 showDocumentPreview(item.result);
             } else if (item.type === 'image') {
