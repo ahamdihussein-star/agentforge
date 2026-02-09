@@ -130,13 +130,14 @@ async def get_mock_api(item_id: str, request: Request, user=Depends(get_current_
                         match = False
                         break
                     
-                    # Case-insensitive partial match for values
-                    if str(value).lower() not in str(item_value).lower():
-                        print(f"      ❌ Value mismatch: '{value}' not in '{item_value}'")
+                    # Exact match (case-insensitive): "1" must not match "S001" or "S010"
+                    value_str = str(value).strip().lower()
+                    item_str = str(item_value).strip().lower()
+                    if value_str != item_str:
+                        print(f"      ❌ Value mismatch: '{value}' != '{item_value}' (exact match required)")
                         match = False
                         break
-                    else:
-                        print(f"      ✅ Match!")
+                    print(f"      ✅ Match!")
                 
                 if match:
                     print(f"   ✅ Item {idx} MATCHED")

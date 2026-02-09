@@ -8544,19 +8544,19 @@ async def delete_tool(tool_id: str, current_user: User = Depends(get_current_use
                 "name": agent.name
             })
     
-    # Also check database agents
+    # Also check database agents (AgentService returns list of dicts)
     try:
         from database.services import AgentService
         db_agents = AgentService.get_all_agents()
         for agent in db_agents:
-            agent_tool_ids = agent.tool_ids if isinstance(agent.tool_ids, list) else []
+            agent_tool_ids = agent.get("tool_ids", []) if isinstance(agent, dict) else (getattr(agent, "tool_ids", None) or [])
+            if not isinstance(agent_tool_ids, list):
+                agent_tool_ids = []
             if tool_id in agent_tool_ids:
-                # Avoid duplicates
-                if not any(a["id"] == agent.id for a in agents_using_tool):
-                    agents_using_tool.append({
-                        "id": agent.id,
-                        "name": agent.name
-                    })
+                aid = agent.get("id", "") if isinstance(agent, dict) else getattr(agent, "id", "")
+                aname = agent.get("name", "") if isinstance(agent, dict) else getattr(agent, "name", "")
+                if not any(a["id"] == aid for a in agents_using_tool):
+                    agents_using_tool.append({"id": aid, "name": aname})
     except Exception as e:
         print(f"⚠️  [DATABASE] Failed to check agents: {e}")
     

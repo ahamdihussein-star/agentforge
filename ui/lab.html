@@ -939,7 +939,7 @@ Create an invoice image with:
                             <code class="flex-1 text-sm text-green-400 bg-black/30 px-3 py-2 rounded-lg font-mono overflow-x-auto break-all">${escapeHtml(fullEndpoint)}</code>
                             <button onclick="copyToClipboard('${String(fullEndpoint).replace(/'/g, "\\'")}')" class="btn-secondary text-sm px-3 py-2 flex-shrink-0">📋 Copy</button>
                         </div>
-                        <button onclick="testAPI('${result.id}')" class="btn-primary w-full flex items-center justify-center gap-2">
+                        <button onclick="testAPI('${(result && (result.id || result.slug)) ? String(result.id || result.slug).replace(/'/g, "\\'") : ''}')" class="btn-primary w-full flex items-center justify-center gap-2">
                             <span>▶️</span>
                             <span>${isParametrized ? 'Test API (set parameters)' : 'Test API'}</span>
                         </button>
@@ -1085,21 +1085,23 @@ Create an invoice image with:
         let currentTestSlug = null;
         
         async function testAPI(itemId) {
-            // Check if API has parameters (from lastGeneratedAPIResult)
-            const result = lastGeneratedAPIResult && lastGeneratedAPIResult.id === itemId ? lastGeneratedAPIResult : null;
+            // Normalize: avoid string 'null' or undefined from history/preview
+            const rawId = (itemId != null && itemId !== 'null' && itemId !== 'undefined') ? itemId : (lastGeneratedAPIResult && (lastGeneratedAPIResult.id || lastGeneratedAPIResult.slug));
+            if (!rawId || rawId === 'null' || rawId === 'undefined') {
+                showToast('Cannot test: API id/slug missing. Try generating again or pick another item.', 'error');
+                return;
+            }
+            const effectiveId = String(rawId);
+            const result = lastGeneratedAPIResult && (lastGeneratedAPIResult.id === effectiveId || lastGeneratedAPIResult.slug === effectiveId) ? lastGeneratedAPIResult : null;
             const hasParams = result && result.parameters && result.parameters.length > 0;
-            
-            // Use slug if available and valid (not null, undefined, or 'null' string), otherwise use UUID
             const slug = result?.slug;
-            const slugOrId = (slug && slug !== 'null' && slug !== 'undefined') ? slug : itemId;
+            const slugOrId = (slug != null && slug !== 'null' && slug !== 'undefined') ? String(slug) : effectiveId;
             
             if (hasParams) {
-                // Show parameters modal
-                currentTestItemId = itemId;
+                currentTestItemId = effectiveId;
                 currentTestSlug = slugOrId;
                 openTestParamsModal(result.parameters);
             } else {
-                // Direct test without parameters
                 await runTest(slugOrId, {});
             }
         }
@@ -1162,6 +1164,11 @@ Create an invoice image with:
         }
         
         async function runTest(slugOrId, params = {}) {
+            const safeSlugOrId = (slugOrId != null && slugOrId !== 'null' && slugOrId !== 'undefined') ? String(slugOrId).trim() : '';
+            if (!safeSlugOrId) {
+                showToast('Cannot run test: API identifier is missing.', 'error');
+                return;
+            }
             const resultDiv = document.getElementById('api-test-result');
             const responseCode = document.getElementById('api-test-response');
             const statusBadge = document.getElementById('api-test-status');
@@ -1173,12 +1180,10 @@ Create an invoice image with:
             
             try {
                 const startTime = Date.now();
-                
-                // Build URL with query params
                 const queryString = Object.keys(params).length > 0 
                     ? '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
                     : '';
-                const url = `/api/lab/mock/${slugOrId}${queryString}`;
+                const url = `/api/lab/mock/${encodeURIComponent(safeSlugOrId)}${queryString}`;
                 
                 const response = await fetch(url);
                 const endTime = Date.now();
