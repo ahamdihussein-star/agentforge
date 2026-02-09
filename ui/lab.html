@@ -5,22 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AgentForge Lab - Test Data Generator</title>
     <link rel="icon" type="image/png" href="/AgentForge_Logo.png">
+    <link rel="stylesheet" href="theme.css">
+    <script src="theme.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
-            --bg-card: #1a1a24;
-            --accent-purple: #8b5cf6;
-            --accent-blue: #3b82f6;
-            --accent-green: #10b981;
-            --accent-orange: #f59e0b;
-            --text-primary: #ffffff;
-            --text-secondary: #9ca3af;
-            --border-color: #2d2d3a;
-        }
-        
+        /* Theme from theme.css; Lab-only overrides */
+        [data-theme="light"] .text-gray-400,
+        [data-theme="light"] .text-gray-500,
+        [data-theme="ocean"] .text-gray-400,
+        [data-theme="ocean"] .text-gray-500 { color: var(--text-secondary) !important; }
+        [data-theme="light"] .text-gray-300,
+        [data-theme="ocean"] .text-gray-300 { color: var(--text-primary) !important; }
+        [data-theme="light"] .text-gray-200,
+        [data-theme="ocean"] .text-gray-200 { color: var(--text-primary) !important; }
+        [data-theme="light"] .border-gray-800,
+        [data-theme="light"] .border-gray-700,
+        [data-theme="ocean"] .border-gray-800,
+        [data-theme="ocean"] .border-gray-700 { border-color: var(--border-color) !important; }
+        [data-theme="light"] .bg-gray-800\/40,
+        [data-theme="light"] .bg-gray-800\/20,
+        [data-theme="light"] .bg-gray-800\/50,
+        [data-theme="ocean"] .bg-gray-800\/40,
+        [data-theme="ocean"] .bg-gray-800\/20,
+        [data-theme="ocean"] .bg-gray-800\/50 { background: var(--bg-card) !important; }
+        [data-theme="light"] .bg-black\/50,
+        [data-theme="ocean"] .bg-black\/50 { background: var(--bg-input) !important; }
+        [data-theme="light"] .from-gray-950,
+        [data-theme="light"] .to-gray-900,
+        [data-theme="ocean"] .from-gray-950,
+        [data-theme="ocean"] .to-gray-900 { background: var(--bg-secondary) !important; }
         * {
             margin: 0;
             padding: 0;
