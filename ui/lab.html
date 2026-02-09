@@ -894,10 +894,10 @@ Create an invoice image with:
             
             const params = result.parameters && Array.isArray(result.parameters) ? result.parameters : [];
             const isParametrized = params.length > 0;
-            let apiIdOrSlug = getApiIdOrSlugFromResult(result);
-            const fullEndpoint = window.location.origin + (result.endpoint || '/api/lab/mock/' + apiIdOrSlug);
-            var slugFromUrl = (typeof fullEndpoint === 'string' && fullEndpoint.match(/\/mock\/?([^/?]+)/));
-            if (!apiIdOrSlug && slugFromUrl) apiIdOrSlug = slugFromUrl[1];
+            var displayedPath = result.endpoint || result.Endpoint || '/api/lab/mock/' + (result.slug || result.id || '');
+            var slugFromDisplayedPath = (typeof displayedPath === 'string' && displayedPath.match(/\/mock\/?([^/?]+)/));
+            const apiIdOrSlug = (getApiIdOrSlugFromResult(result) || (slugFromDisplayedPath && slugFromDisplayedPath[1])) || '';
+            const fullEndpoint = (typeof displayedPath === 'string' && displayedPath.indexOf('http') === 0) ? displayedPath : (window.location.origin + (displayedPath.indexOf('/') === 0 ? displayedPath : '/' + displayedPath));
             const jsonContent = JSON.stringify(result.data || result, null, 2);
             
             const paramsConfigHtml = isParametrized
@@ -942,12 +942,12 @@ Create an invoice image with:
                             <code class="flex-1 text-sm text-green-400 bg-black/30 px-3 py-2 rounded-lg font-mono overflow-x-auto break-all">${escapeHtml(fullEndpoint)}</code>
                             <button onclick="copyToClipboard('${String(fullEndpoint).replace(/'/g, "\\'")}')" class="btn-secondary text-sm px-3 py-2 flex-shrink-0">📋 Copy</button>
                         </div>
-                        <button id="lab-test-api-btn" data-api-id="${String(apiIdOrSlug || '').replace(/"/g, '&quot;')}" onclick="testAPI('${(apiIdOrSlug ? String(apiIdOrSlug).replace(/'/g, "\\'") : '')}')" class="btn-primary w-full flex items-center justify-center gap-2">
+                        <button id="lab-test-api-btn" data-api-id="${String(apiIdOrSlug || '').replace(/"/g, '&quot;')}" data-endpoint-path="${String(displayedPath || '').replace(/"/g, '&quot;')}" onclick="testAPI('${(apiIdOrSlug ? String(apiIdOrSlug).replace(/'/g, "\\'") : '')}')" class="btn-primary w-full flex items-center justify-center gap-2">
                             <span>▶️</span>
                             <span>${isParametrized ? 'Test API (set parameters)' : 'Test API'}</span>
                         </button>
                         <div id="api-last-request-url" class="mt-3 pt-3 border-t border-green-500/20 text-xs font-mono text-green-300/90 break-all min-h-[2rem]">Request URL will appear here after you run Test.</div>
-                        <div class="mt-1 text-[10px] text-gray-500 opacity-90">${LAB_UI_BUILD_LABEL}</div>
+                        <div class="mt-1 text-[10px] text-gray-500 opacity-90" dir="ltr">${LAB_CACHE_CHECK}</div>
                     </div>
                     
                     <!-- Configuration: Method, Endpoint, Parameters -->
@@ -1095,7 +1095,14 @@ Create an invoice image with:
             if (!rawId && lastGeneratedAPIResult) rawId = getApiIdOrSlugFromResult(lastGeneratedAPIResult);
             if (!rawId) {
                 var btn = document.getElementById('lab-test-api-btn');
-                if (btn && btn.getAttribute('data-api-id')) rawId = String(btn.getAttribute('data-api-id')).trim();
+                if (btn) {
+                    rawId = (btn.getAttribute('data-api-id') || '').trim();
+                    if (!rawId && btn.getAttribute('data-endpoint-path')) {
+                        var path = String(btn.getAttribute('data-endpoint-path'));
+                        var match = path.match(/\/mock\/?([^/?]+)/);
+                        if (match) rawId = match[1];
+                    }
+                }
             }
             console.log('[Lab Test API] button itemId:', itemId, '| derived rawId:', rawId, '| result has endpoint:', lastGeneratedAPIResult ? !!lastGeneratedAPIResult.endpoint : false);
             if (!rawId || rawId === 'null' || rawId === 'undefined') {
@@ -1103,9 +1110,10 @@ Create an invoice image with:
                 return;
             }
             const effectiveId = String(rawId);
-            const result = lastGeneratedAPIResult && (lastGeneratedAPIResult.id === effectiveId || lastGeneratedAPIResult.slug === effectiveId) ? lastGeneratedAPIResult : null;
+            var result = lastGeneratedAPIResult && (lastGeneratedAPIResult.id === effectiveId || lastGeneratedAPIResult.slug === effectiveId) ? lastGeneratedAPIResult : null;
+            if (!result && lastGeneratedAPIResult && (getApiIdOrSlugFromResult(lastGeneratedAPIResult) === effectiveId)) result = lastGeneratedAPIResult;
             const hasParams = result && result.parameters && result.parameters.length > 0;
-            const slug = result?.slug;
+            const slug = result ? (result.slug || result.id) : null;
             const slugOrId = (slug != null && slug !== 'null' && slug !== 'undefined') ? String(slug) : effectiveId;
             
             if (hasParams) {
@@ -1242,7 +1250,7 @@ Create an invoice image with:
         
         // Last generated API result (from backend); used so we don't hardcode description/params.
         let lastGeneratedAPIResult = null;
-        const LAB_UI_BUILD_LABEL = 'آخر تحديث: slug من الـ URL المعروض — إذا شفت هذا النص فالصفحة ليست من الـ cache';
+        const LAB_CACHE_CHECK = 'No cache — latest build';
         
         function sanitizeAgentDescription(text) {
             if (!text || typeof text !== 'string') return '';
