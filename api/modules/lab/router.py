@@ -58,8 +58,9 @@ async def get_mock_api(item_id: str, request: Request):
     
     # If data is a list and query params provided, filter the results
     if isinstance(data, list) and query_params:
+        print(f"🔍 [FILTER] Starting filter: {len(data)} items, params: {query_params}")
         filtered = []
-        for item in data:
+        for idx, item in enumerate(data):
             if isinstance(item, dict):
                 # Create normalized field mapping (remove underscores, lowercase)
                 # This handles: supplier_id, SupplierID, SUPPLIER_ID all the same
@@ -67,6 +68,7 @@ async def get_mock_api(item_id: str, request: Request):
                     return k.lower().replace('_', '').replace('-', '')
                 
                 item_normalized = {normalize_key(k): v for k, v in item.items()}
+                print(f"   Item {idx}: original keys={list(item.keys())[:3]}, normalized keys={list(item_normalized.keys())[:3]}")
                 
                 # Check if all query params match
                 match = True
@@ -75,17 +77,29 @@ async def get_mock_api(item_id: str, request: Request):
                     key_normalized = normalize_key(key)
                     item_value = item_normalized.get(key_normalized)
                     
+                    print(f"      Checking param '{key}' (normalized: '{key_normalized}') = '{value}'")
+                    print(f"      Found value: {item_value}")
+                    
                     if item_value is None:
+                        print(f"      ❌ Field not found in item")
                         match = False
                         break
                     
                     # Case-insensitive partial match for values
                     if str(value).lower() not in str(item_value).lower():
+                        print(f"      ❌ Value mismatch: '{value}' not in '{item_value}'")
                         match = False
                         break
+                    else:
+                        print(f"      ✅ Match!")
                 
                 if match:
+                    print(f"   ✅ Item {idx} MATCHED")
                     filtered.append(item)
+                else:
+                    print(f"   ❌ Item {idx} rejected")
+        
+        print(f"🔍 [FILTER] Result: {len(filtered)} items matched")
         data = filtered
     
     return JSONResponse(content=data)
