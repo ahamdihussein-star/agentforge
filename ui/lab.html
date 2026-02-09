@@ -988,8 +988,84 @@ Create an invoice image with:
             `;
         }
         
-        // Test API endpoint
+        // Test API endpoint - check if parameterized and show modal if needed
+        let currentTestItemId = null;
+        let currentTestSlug = null;
+        
         async function testAPI(itemId) {
+            // Check if API has parameters (from lastGeneratedAPIResult)
+            const result = lastGeneratedAPIResult && lastGeneratedAPIResult.id === itemId ? lastGeneratedAPIResult : null;
+            const hasParams = result && result.parameters && result.parameters.length > 0;
+            
+            if (hasParams) {
+                // Show parameters modal
+                currentTestItemId = itemId;
+                currentTestSlug = result.slug || itemId;
+                openTestParamsModal(result.parameters);
+            } else {
+                // Direct test without parameters
+                await runTest(itemId, {});
+            }
+        }
+        
+        function openTestParamsModal(parameters) {
+            const modal = document.getElementById('test-params-modal');
+            const inputsContainer = document.getElementById('test-params-inputs');
+            
+            // Build parameter inputs
+            let html = '';
+            parameters.forEach((param, idx) => {
+                const required = param.required ? '<span class="text-red-400">*</span>' : '';
+                html += `
+                    <div>
+                        <label class="block text-sm font-medium mb-1">
+                            ${param.name} ${required}
+                            ${param.description ? `<span class="text-gray-500 text-xs ml-1">(${param.description})</span>` : ''}
+                        </label>
+                        <input 
+                            type="text" 
+                            id="test-param-${idx}" 
+                            data-param-name="${param.name}"
+                            placeholder="Enter ${param.name}"
+                            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-purple-500 focus:outline-none"
+                            ${param.required ? 'required' : ''}
+                        />
+                    </div>
+                `;
+            });
+            inputsContainer.innerHTML = html;
+            
+            modal.style.display = 'flex';
+        }
+        
+        function closeTestParamsModal() {
+            document.getElementById('test-params-modal').style.display = 'none';
+            currentTestItemId = null;
+            currentTestSlug = null;
+        }
+        
+        async function runTestWithParams() {
+            if (!currentTestItemId) return;
+            
+            // Collect parameter values
+            const params = {};
+            const inputs = document.querySelectorAll('[data-param-name]');
+            inputs.forEach(input => {
+                const paramName = input.dataset.paramName;
+                const value = input.value.trim();
+                if (value) {
+                    params[paramName] = value;
+                }
+            });
+            
+            // Close modal
+            closeTestParamsModal();
+            
+            // Run test with parameters
+            await runTest(currentTestSlug || currentTestItemId, params);
+        }
+        
+        async function runTest(slugOrId, params = {}) {
             const resultDiv = document.getElementById('api-test-result');
             const responseCode = document.getElementById('api-test-response');
             const statusBadge = document.getElementById('api-test-status');
@@ -1001,7 +1077,14 @@ Create an invoice image with:
             
             try {
                 const startTime = Date.now();
-                const response = await fetch(`/api/lab/mock/${itemId}`);
+                
+                // Build URL with query params
+                const queryString = Object.keys(params).length > 0 
+                    ? '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
+                    : '';
+                const url = `/api/lab/mock/${slugOrId}${queryString}`;
+                
+                const response = await fetch(url);
                 const endTime = Date.now();
                 const duration = endTime - startTime;
                 
@@ -1507,5 +1590,28 @@ Create an invoice image with:
             return date.toLocaleDateString();
         }
     </script>
+    
+    <!-- Test API Parameters Modal -->
+    <div id="test-params-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50" style="display: none;">
+        <div class="bg-gray-900 rounded-2xl w-full max-w-md mx-4 border border-gray-700 shadow-2xl">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                <h3 class="font-bold text-lg">🧪 Test API with Parameters</h3>
+                <button onclick="closeTestParamsModal()" class="p-2 hover:bg-gray-800 rounded-lg transition">✕</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-gray-400 mb-4">Enter values for the parameters below:</p>
+                <div id="test-params-inputs" class="space-y-3">
+                    <!-- Parameters will be rendered here -->
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
+                <button onclick="closeTestParamsModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition">Cancel</button>
+                <button onclick="runTestWithParams()" class="px-6 py-2 rounded-lg bg-green-600 hover:bg-green-500 flex items-center gap-2 transition">
+                    <span>▶</span>
+                    <span>Send Request</span>
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
