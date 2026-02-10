@@ -1438,8 +1438,8 @@
             <button class="toolbar-btn btn-secondary" onclick="testWorkflow()">
                 <span>▶</span> Test
             </button>
-            <button class="toolbar-btn btn-secondary" onclick="openAIGenerateModal()" title="Build workflow from a prompt">
-                <span>✨</span> AI Build
+            <button class="toolbar-btn btn-secondary" onclick="openAIGenerateModal()" title="Generate/replace the workflow from a prompt">
+                <span>✨</span> AI Generate
             </button>
             <button class="toolbar-btn btn-primary" onclick="saveWorkflow()">
                 <span>💾</span> Save
@@ -5681,6 +5681,14 @@
                 return;
             }
 
+            if (Array.isArray(state.nodes) && state.nodes.length > 0) {
+                const ok = confirm('This will replace the current workflow on the canvas.\n\nContinue?');
+                if (!ok) {
+                    setAIGenerateStatus('', false, true);
+                    return;
+                }
+            }
+
             setAIGenerateStatus('Generating workflow…', false);
 
             // Keep tool context small and safe
@@ -6612,8 +6620,8 @@
                 if (node) {
                     try {
                         const p = _nodeCanvasCenter(node);
-                        await _moveCursorToCanvasPoint(p.x, p.y, 320);
-                        await _cursorClick();
+                        _moveCursorToCanvasPoint(p);
+                        _cursorClick();
                     } catch (_) {}
                 }
                 if (i > 0) {
@@ -6624,6 +6632,17 @@
             }
             await _sleep(450);
             try { _hideBuildCursor(); } catch (_) {}
+        }
+
+        async function playTestPlaybackFromReport() {
+            const m = document.getElementById('test-results-modal');
+            const prev = m ? (m.style.display || '') : '';
+            if (m) m.style.display = 'none';
+            try {
+                await playTestPlayback(window._lastTestTrace || []);
+            } finally {
+                if (m) m.style.display = prev || 'flex';
+            }
         }
 
         async function simulateWorkflow(inputData, ctx) {
@@ -6764,6 +6783,11 @@
                 current = next;
                 if (current.type === 'end') break;
             }
+
+            // Auto-play on the canvas FIRST (so the user can see the path animation),
+            // then show the final report modal.
+            window._lastTestTrace = trace;
+            try { await playTestPlayback(trace); } catch (_) {}
             
             // Build results modal (business-friendly report)
             const modal = document.createElement('div');
@@ -6817,7 +6841,7 @@
                             <p style="margin:6px 0 0; color:#94a3b8; font-size:13px;">${escapeHtml(outcome.headline || '')}${outcome.detail ? ' ' + escapeHtml(outcome.detail) : ''}</p>
                         </div>
                         <div style="display:flex;gap:10px;align-items:center;">
-                            <button type="button" onclick="(async()=>{ try{ await playTestPlayback(window._lastTestTrace || []);}catch(_){}})()" style="padding:10px 12px;background:#6366f1;border:none;border-radius:12px;color:white;cursor:pointer;font-weight:700;">
+                            <button type="button" onclick="(async()=>{ try{ await playTestPlaybackFromReport(); }catch(_){}})()" style="padding:10px 12px;background:#6366f1;border:none;border-radius:12px;color:white;cursor:pointer;font-weight:700;">
                                 Play path
                             </button>
                             <button type="button" onclick="document.getElementById('test-results-modal')?.remove(); clearPlaybackHighlights();" style="padding:10px 12px;background:#334155;border:none;border-radius:12px;color:white;cursor:pointer;">
@@ -6847,11 +6871,7 @@
                 </div>
             `;
             
-            window._lastTestTrace = trace;
             document.body.appendChild(modal);
-            
-            // Auto-play once
-            try { await playTestPlayback(trace); } catch (_) {}
         }
         
         function updateEmptyState() {
