@@ -2159,15 +2159,42 @@
                 }
             });
             
-            // Zoom with scroll
+            // Trackpad / mouse wheel: PAN the canvas (Mac-friendly).
+            // Zoom is intentionally handled via the on-canvas buttons (no wheel-to-zoom).
+            const wheelPan = { raf: null, dx: 0, dy: 0 };
             container.addEventListener('wheel', (e) => {
+                // Prevent page zoom/scroll (esp. pinch generates wheel+ctrlKey in Chrome)
                 e.preventDefault();
-                const delta = e.deltaY > 0 ? 0.9 : 1.1;
-                const newZoom = Math.min(Math.max(state.zoom * delta, 0.25), 2);
-                state.zoom = newZoom;
-                updateCanvasTransform();
-                document.getElementById('zoom-level').textContent = Math.round(state.zoom * 100) + '%';
-            });
+
+                // Normalize deltas to pixels
+                const mode = e.deltaMode; // 0=pixels, 1=lines, 2=pages
+                const linePx = 16;
+                const pagePx = Math.max(600, container.clientHeight || 800);
+                const factor = mode === 1 ? linePx : mode === 2 ? pagePx : 1;
+
+                let dx = (e.deltaX || 0) * factor;
+                let dy = (e.deltaY || 0) * factor;
+
+                // Common mouse behavior: Shift + wheel scrolls horizontally
+                if (!dx && e.shiftKey) {
+                    dx = dy;
+                    dy = 0;
+                }
+
+                wheelPan.dx += dx;
+                wheelPan.dy += dy;
+
+                if (wheelPan.raf) return;
+                wheelPan.raf = requestAnimationFrame(() => {
+                    // Translate is in screen pixels. Use inverse deltas so scrolling "moves the view".
+                    state.panX -= wheelPan.dx;
+                    state.panY -= wheelPan.dy;
+                    wheelPan.dx = 0;
+                    wheelPan.dy = 0;
+                    wheelPan.raf = null;
+                    updateCanvasTransform();
+                });
+            }, { passive: false });
             
             // منع النقرة الأولى بعد الـ drop فقط (سبب ظهور properties الـ Start)
             document.addEventListener('click', (e) => {
