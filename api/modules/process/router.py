@@ -14,9 +14,10 @@ Endpoints:
 - GET /process/stats - Execution statistics
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field, EmailStr
 
 from database.config import get_db
 from core.llm.registry import LLMRegistry
@@ -96,6 +97,59 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
         "role_ids": role_ids,
         "group_ids": group_ids
     }
+
+
+# =============================================================================
+# BUILDER TEST UTILITIES
+# =============================================================================
+
+class ProcessTestSendNotificationRequest(BaseModel):
+    """Send a real notification during a visual builder test run."""
+    channel: str = Field(default="email", description="Notification channel (only email supported for test)")
+    recipients: List[EmailStr] = Field(default_factory=list, description="Recipient email addresses")
+    title: str = Field(default="Notification", description="Email subject")
+    message: str = Field(default="", description="Email body (plain text or HTML)")
+
+
+@router.post("/test/send-notification")
+async def test_send_notification(
+    request: ProcessTestSendNotificationRequest,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Send a real notification during a Process Builder "Test" run.
+
+    This is used by the visual builder playback/simulation so business users can verify
+    that email notifications actually deliver (SendGrid), while still using the animated
+    path playback UX.
+    """
+    channel = (request.channel or "email").strip().lower()
+    if channel != "email":
+        raise HTTPException(status_code=400, detail="Only email notifications are supported in test mode right now.")
+    if not request.recipients:
+        raise HTTPException(status_code=400, detail="At least one recipient is required.")
+    if len(request.recipients) > 10:
+        raise HTTPException(status_code=400, detail="Too many recipients (max 10).")
+    if request.message is None or not str(request.message).strip():
+        raise HTTPException(status_code=400, detail="Message is required.")
+
+    # Use the same platform email service as verification / MFA (SendGrid via env)
+    from core.process.services.notification import NotificationService
+    from core.security import EmailService as PlatformEmailService
+
+    svc = NotificationService(db=db, platform_email_service=PlatformEmailService)
+    result = await svc.send(
+        channel="email",
+        recipients=[str(x).strip() for x in request.recipients if str(x).strip()],
+        title=(request.title or "Notification").strip() or "Notification",
+        message=str(request.message),
+        template_id=None,
+        template_data={},
+        priority="normal",
+        config={},
+    )
+    return result
 
 
 # =============================================================================

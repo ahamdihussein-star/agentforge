@@ -6378,7 +6378,13 @@
                         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
                             <div>
                                 <h2 style="margin:0; font-size:18px;">Test run</h2>
-                                <p style="margin:6px 0 0; color:var(--pb-muted); font-size:13px;">Fill the fields and we’ll simulate the workflow path with a visual playback.</p>
+                                <p style="margin:6px 0 0; color:var(--pb-muted); font-size:13px;">Fill the fields and we’ll play back the workflow path on the canvas.</p>
+                                <div style="margin-top:10px;">
+                                    <label style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;">
+                                        <input id="test-send-real-emails" type="checkbox" checked style="width:16px;height:16px;accent-color: var(--success);">
+                                        Send email notifications for real (SendGrid)
+                                    </label>
+                                </div>
                             </div>
                             <button type="button" onclick="closeTestModal()" style="background:transparent;border:none;color:var(--pb-muted);font-size:22px;line-height:1;cursor:pointer;">×</button>
                         </div>
@@ -6576,18 +6582,93 @@
                     return;
                 }
             }
+            const sendRealEmails = !!document.getElementById('test-send-real-emails')?.checked;
+            let currentUser = null;
+            try {
+                const me = await getCurrentUserProfile();
+                if (me) {
+                    currentUser = {
+                        id: me.id,
+                        name: me.name,
+                        email: me.email,
+                        orgId: me.org_id,
+                        roles: Array.isArray(me.roles) ? me.roles.map(r => r?.name || r?.id || r).filter(Boolean) : [],
+                        groups: Array.isArray(me.groups) ? me.groups.map(g => g?.name || g?.id || g).filter(Boolean) : [],
+                    };
+                }
+            } catch (_) {
+                currentUser = null;
+            }
             closeTestModal();
-            await simulateWorkflow(values, { fieldDefs });
+            await simulateWorkflow(values, { fieldDefs, sendRealEmails, currentUser });
+        }
+
+        function _resolveTemplatePath(values, path) {
+            if (!values) return '';
+            const raw = String(path || '').trim();
+            if (!raw) return '';
+            try {
+                if (Object.prototype.hasOwnProperty.call(values, raw)) return values[raw];
+            } catch (_) { /* ignore */ }
+            const norm = raw.replace(/\[(\d+)\]/g, '.$1');
+            const parts = norm.split('.').filter(Boolean);
+            let cur = values;
+            for (const part of parts) {
+                if (cur && typeof cur === 'object') {
+                    if (Object.prototype.hasOwnProperty.call(cur, part)) cur = cur[part];
+                    else return '';
+                } else {
+                    return '';
+                }
+            }
+            return cur;
         }
 
         function interpolateTemplate(template, values) {
             let t = String(template || '');
             t = t.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_, key) => {
                 const k = String(key || '').trim();
-                const v = values && (k in values) ? values[k] : '';
-                return v == null ? '' : String(v);
+                const v = _resolveTemplatePath(values, k);
+                if (v == null) return '';
+                if (typeof v === 'object') {
+                    try { return JSON.stringify(v); } catch (_) { return String(v); }
+                }
+                return String(v);
             });
             return t;
+        }
+
+        function _splitRecipientList(value) {
+            if (Array.isArray(value)) {
+                return value.map(v => String(v || '').trim()).filter(Boolean);
+            }
+            const s = String(value || '').trim();
+            if (!s) return [];
+            return s.split(/[\s,;]+/g).map(x => x.trim()).filter(Boolean);
+        }
+
+        async function sendTestNotification(payload) {
+            const token = getAuthToken();
+            if (!token) return { ok: false, error: 'Please sign in first.' };
+            try {
+                const res = await fetch('/process/test/send-notification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(payload || {})
+                });
+                let data = null;
+                try { data = await res.json(); } catch (_) { data = null; }
+                if (!res.ok) {
+                    const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to send notification');
+                    return { ok: false, error: String(msg || 'Failed to send notification') };
+                }
+                return { ok: true, data };
+            } catch (e) {
+                return { ok: false, error: String(e?.message || e || 'Failed to send notification') };
+            }
         }
 
         function clearPlaybackHighlights() {
@@ -6772,6 +6853,13 @@
             const fieldDefs = (ctx && ctx.fieldDefs) ? ctx.fieldDefs : [];
             const fieldLabelByKey = {};
             fieldDefs.forEach(f => { if (f && f.name) fieldLabelByKey[f.name] = f.label || humanizeFieldLabel(f.name) || f.name; });
+
+            const sendRealEmails = !!(ctx && ctx.sendRealEmails);
+            // Template values support both direct keys and nested references (e.g. {{currentUser.email}}, {{trigger_input.requesterEmail}})
+            const tplValues = Object.assign({}, inputData || {});
+            tplValues.trigger_input = inputData || {};
+            tplValues.triggerInput = inputData || {};
+            if (ctx && ctx.currentUser) tplValues.currentUser = ctx.currentUser;
             
             const startNode = getStartNodeForTest();
             if (!startNode) {
@@ -6844,11 +6932,49 @@
                     const cfg = current.config || {};
                     let msg = 'Step executed.';
                     if (current.type === 'notification') {
-                        const channel = cfg.channel || 'email';
-                        const recipient = interpolateTemplate(cfg.recipient || '', inputData);
-                        const text = interpolateTemplate(cfg.template || '', inputData);
-                        msg = `${channel.toUpperCase()} notification sent to ${recipient || 'recipient'}.`;
-                        if (text) msg += ` Message: “${text.length > 80 ? (text.slice(0, 80) + '…') : text}”`;
+                        const channel = String(cfg.channel || 'email').trim() || 'email';
+                        const subject = String(cfg.title || current.name || 'Notification').trim() || 'Notification';
+                        const recipientTpl = cfg.recipient || (Array.isArray(cfg.recipients) ? cfg.recipients.join(', ') : '');
+                        const bodyTpl = cfg.message || cfg.template || '';
+                        const recipientResolved = interpolateTemplate(recipientTpl || '', tplValues).trim();
+                        const bodyResolved = interpolateTemplate(bodyTpl || '', tplValues);
+                        const recipients = _splitRecipientList(recipientResolved);
+                        const shortBody = bodyResolved ? (bodyResolved.length > 80 ? (bodyResolved.slice(0, 80) + '…') : bodyResolved) : '';
+
+                        if (channel.toLowerCase() === 'email') {
+                            if (!recipientResolved) {
+                                msg = 'Email notification skipped (no recipient configured).';
+                            } else if (!bodyResolved || !String(bodyResolved).trim()) {
+                                msg = `Email notification skipped (no message configured) to ${recipientResolved}.`;
+                            } else if (sendRealEmails) {
+                                const sendRes = await sendTestNotification({
+                                    channel: 'email',
+                                    recipients: (recipients.length ? recipients : [recipientResolved]),
+                                    title: subject,
+                                    message: bodyResolved
+                                });
+                                if (sendRes.ok && sendRes.data && sendRes.data.success) {
+                                    const sentCount = Number(sendRes.data.sent_count || sendRes.data.sentCount || 0);
+                                    msg = sentCount > 1
+                                        ? `EMAIL notification sent to ${sentCount} recipients.`
+                                        : `EMAIL notification sent to ${recipientResolved}.`;
+                                } else if (sendRes.ok && sendRes.data) {
+                                    const err = sendRes.data.error || sendRes.data.note || '';
+                                    msg = `EMAIL notification could not be sent to ${recipientResolved}.` + (err ? ` Reason: ${String(err)}` : '');
+                                } else {
+                                    msg = `EMAIL notification could not be sent to ${recipientResolved}.` + (sendRes.error ? ` Reason: ${String(sendRes.error)}` : '');
+                                }
+                                if (shortBody) msg += ` Message: “${shortBody}”`;
+                            } else {
+                                msg = `EMAIL notification (simulated) to ${recipientResolved || 'recipient'}.`;
+                                if (shortBody) msg += ` Message: “${shortBody}”`;
+                            }
+                        } else {
+                            // Non-email channels are simulated (no provider configured in builder test)
+                            msg = `${channel.toUpperCase()} notification (simulated).`;
+                            if (recipientResolved) msg += ` Recipient: ${recipientResolved}.`;
+                            if (shortBody) msg += ` Message: “${shortBody}”`;
+                        }
                     } else if (current.type === 'delay') {
                         msg = `Waited ${cfg.duration || 0} ${cfg.unit || 'minutes'}.`;
                     } else if (current.type === 'ai') {
