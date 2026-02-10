@@ -37,7 +37,7 @@
 
 **BEFORE committing:**
 1. ✅ Run `./scripts/comprehensive_db_check.sh` (auto-runs via pre-commit hook)
-2. ✅ Verify: `python -c "from database.models import *"` (if Python available)
+2. ✅ Verify: `python3 -c "from database.models import *"` (or `python` if available)
 3. ✅ Review changes against COMMON_ISSUES.md
 
 ---
@@ -83,15 +83,15 @@ grep -r "UUID(as_uuid=True)" database/models/
 
 ### Database-Agnostic Design (CRITICAL!):
 - ❌ **NEVER** use PostgreSQL-specific types
-- ❌ `UUID(as_uuid=True)` → Use `UUID` from `..types`
-- ❌ `JSONB` direct import → Use `JSON` from `..types`, alias `JSONB = JSON`
-- ❌ `ARRAY(...)` → Use `JSONArray` from `..types`
+- ❌ `UUID(as_uuid=True)` → Use `UUID` from `..column_types`
+- ❌ `JSONB` direct import → Use `JSON` from `..column_types`, alias `JSONB = JSON`
+- ❌ `ARRAY(...)` → Use `JSONArray` from `..column_types`
 - ❌ `INET` → Use `String(45)` for IP addresses
 - ❌ `from sqlalchemy.dialects.postgresql import ...` → FORBIDDEN!
 
-✅ **ALWAYS** use types from `database/types.py`:
+✅ **ALWAYS** use types from `database/column_types.py`:
 ```python
-from ..types import UUID, JSON, JSONArray
+from ..column_types import UUID, JSON, JSONArray
 JSONB = JSON  # Alias after ALL imports
 ```
 
@@ -107,7 +107,7 @@ from sqlalchemy.orm import relationship
 
 # 3. Local
 from ..base import Base
-from ..types import UUID, JSON, JSONArray
+from ..column_types import UUID, JSON, JSONArray
 
 # 4. Then assignments (AFTER all imports!)
 JSONB = JSON
@@ -162,7 +162,7 @@ Before committing database changes:
 **Models:**
 - [ ] No `metadata` column
 - [ ] No PostgreSQL-specific imports
-- [ ] All types from `database/types.py`
+- [ ] All types from `database/column_types.py`
 - [ ] Imports follow PEP 8 order
 - [ ] `JSONB = JSON` AFTER all imports
 - [ ] Run `./scripts/comprehensive_db_check.sh`
