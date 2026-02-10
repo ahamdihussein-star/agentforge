@@ -1404,6 +1404,31 @@
             scrollbar-width: thin;
             scrollbar-color: #374151 transparent;
         }
+
+        /* ============================
+           Player mode (embedded playback)
+           - Used by Admin Portal "Play" / Test runs
+           - Hides editing UI and keeps only the workflow canvas + playback animation
+        ============================ */
+        body.pb-player-mode #top-toolbar,
+        body.pb-player-mode #node-palette,
+        body.pb-player-mode #properties-panel,
+        body.pb-player-mode #empty-state {
+            display: none !important;
+        }
+        body.pb-player-mode #canvas-container {
+            height: 100vh;
+        }
+        body.pb-player-mode #selection-box {
+            display: none !important;
+        }
+        body.pb-player-mode .connection-handles,
+        body.pb-player-mode .connection-label-badge {
+            display: none !important;
+        }
+        body.pb-player-mode .workflow-node {
+            cursor: default;
+        }
     </style>
 </head>
 <body>
@@ -1739,14 +1764,75 @@
             while (used.has(`${base}${i}`)) i++;
             return `${base}${i}`;
         }
+
+        function _isPlayerMode() {
+            try {
+                const params = new URLSearchParams(window.location.search || '');
+                const v = String(params.get('player') || '').toLowerCase();
+                const m = String(params.get('mode') || '').toLowerCase();
+                return v === '1' || v === 'true' || m === 'player' || /[?&]player=1/.test(window.location.search || '');
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function _postToParent(msg) {
+            try {
+                if (!msg) return;
+                if (!window.parent || window.parent === window) return;
+                window.parent.postMessage(msg, window.location.origin);
+            } catch (_) {
+                // ignore
+            }
+        }
+
+        function initPlayerMode() {
+            const on = _isPlayerMode();
+            state.playerMode = on;
+            if (on) {
+                try { document.body.classList.add('pb-player-mode'); } catch (_) {}
+            }
+        }
+
+        function initPlayerMessaging() {
+            window.addEventListener('message', async (event) => {
+                try {
+                    if (event.origin !== window.location.origin) return;
+                } catch (_) { /* ignore */ }
+                const data = event.data || {};
+                if (!data || typeof data !== 'object') return;
+
+                if (data.type === 'PB_PLAYER_PLAY_TRACE') {
+                    const playId = data.playId || null;
+                    try {
+                        const trace = Array.isArray(data.trace) ? data.trace : [];
+                        await playTestPlayback(trace);
+                    } catch (_) {
+                        // ignore playback errors in player mode
+                    } finally {
+                        _postToParent({ type: 'PB_PLAYER_PLAY_DONE', playId });
+                    }
+                    return;
+                }
+
+                if (data.type === 'PB_PLAYER_CLEAR') {
+                    try { clearPlaybackHighlights(); } catch (_) {}
+                    try { _hideBuildCursor(); } catch (_) {}
+                    _postToParent({ type: 'PB_PLAYER_CLEARED' });
+                    return;
+                }
+            });
+        }
         
         // ===== INITIALIZATION =====
         document.addEventListener('DOMContentLoaded', () => {
+            initPlayerMode();
             loadPlatformTheme();
             initCanvas();
             initPalette();
             initPaletteShapes();
             initDraftMessaging();
+            initPlayerMessaging();
             loadTools();
             loadWorkflowFromUrl();
             updateFlowButtons();
@@ -5983,6 +6069,14 @@
                         goal: agent.goal || state.goal || ''
                     });
                 }
+
+                // Notify parent iframe host that the player is ready for playback
+                if (state.playerMode) {
+                    try { zoomFit(); } catch (_) {}
+                    setTimeout(() => {
+                        try { _postToParent({ type: 'PB_PLAYER_READY' }); } catch (_) {}
+                    }, 80);
+                }
             } catch (e) {
                 console.error('Load error:', e);
                 alert('Could not load workflow');
@@ -6658,6 +6752,45 @@
             try { _hideBuildCursor(); } catch (_) {}
         }
 
+        // Continue playback from a specific index without clearing existing highlights.
+        // Useful for approval pauses (animate up to approval, then resume after user approves).
+        async function playTestPlaybackIncremental(trace, startIndex) {
+            if (!Array.isArray(trace) || trace.length === 0) return;
+            const start = Math.max(0, Math.min(trace.length - 1, Number(startIndex) || 0));
+            if (start <= 0) {
+                return await playTestPlayback(trace);
+            }
+            try { _showBuildCursor(); } catch (_) {}
+            for (let i = start; i < trace.length; i++) {
+                const step = trace[i];
+                if (!step || !step.nodeId) continue;
+                const nodeId = step.nodeId;
+                const node = state.nodes.find(n => n.id === nodeId);
+                if (!node) continue;
+
+                const prev = trace[i - 1] || {};
+                const prevId = prev.nodeId;
+                if (prevId && prevId !== nodeId) {
+                    const connIdx = setEdgePlayActive(prevId, nodeId, step.edgeType);
+                    try { await _moveCursorAlongConnectionIndex(connIdx, 560); } catch (_) {}
+                }
+
+                setNodePlayActive(nodeId);
+                try {
+                    _moveCursorToCanvasPoint(_nodeCanvasCenter(node), 180);
+                    await _sleep(180);
+                    _cursorClick();
+                } catch (_) {}
+                await _sleep(520);
+            }
+
+            state.connections.forEach(c => { if (c) delete c._playCurrent; });
+            renderConnections();
+
+            await _sleep(220);
+            try { _hideBuildCursor(); } catch (_) {}
+        }
+
         async function simulateWorkflow(inputData, ctx) {
             // Build label lookup for nicer explanations
             const fieldDefs = (ctx && ctx.fieldDefs) ? ctx.fieldDefs : [];
@@ -6691,6 +6824,74 @@
             let steps = 0;
             let current = startNode;
             let outcome = { status: 'completed', headline: 'Workflow completed successfully.' };
+            let lastPlaybackIndex = 0;
+
+            const playNewTrace = async () => {
+                // Play only what hasn't been animated yet (supports approval pauses)
+                if (trace.length <= lastPlaybackIndex) return;
+                if (lastPlaybackIndex <= 0) {
+                    await playTestPlayback(trace);
+                } else {
+                    await playTestPlaybackIncremental(trace, lastPlaybackIndex);
+                }
+                lastPlaybackIndex = trace.length;
+            };
+
+            const promptApprovalDecision = (info) => {
+                const title = (info && info.title) ? String(info.title) : 'Approval';
+                const who = (info && info.who) ? String(info.who) : '';
+                const message = (info && info.message) ? String(info.message) : 'This step requires approval to continue.';
+                return new Promise((resolve) => {
+                    let done = false;
+                    const modal = document.createElement('div');
+                    modal.id = 'test-approval-modal';
+                    modal.style.cssText = `
+                        position: fixed; inset: 0;
+                        background: rgba(0,0,0,0.78); display: flex; align-items: center;
+                        justify-content: center; z-index: 10001; padding: 18px;
+                    `;
+                    const finish = (v) => {
+                        if (done) return;
+                        done = true;
+                        try { modal.remove(); } catch (_) {}
+                        resolve(v);
+                    };
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) finish('pending');
+                    });
+                    modal.innerHTML = `
+                        <div style="background:var(--pb-panel); color:var(--pb-text); border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); border-radius:16px; width:720px; max-width:100%; box-shadow: var(--shadow-md); overflow:hidden;">
+                            <div style="padding:16px 18px; border-bottom:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                                <div>
+                                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                        <div style="width:36px; height:36px; border-radius:12px; background: color-mix(in srgb, var(--warning) 18%, transparent); border:1px solid color-mix(in srgb, var(--warning) 45%, transparent); display:flex; align-items:center; justify-content:center; font-size:18px;">⏳</div>
+                                        <div>
+                                            <div style="font-weight:900; font-size:16px;">Waiting for approval</div>
+                                            <div style="margin-top:2px; font-size:13px; color: var(--pb-muted);">${escapeHtml(title)}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="test-approval-close" type="button" class="toolbar-btn btn-secondary" style="padding:10px 12px;border-radius:12px;">Close</button>
+                            </div>
+                            <div style="padding:18px;">
+                                <div style="font-size:13px; color: color-mix(in srgb, var(--pb-text) 88%, var(--pb-muted)); line-height:1.45;">${escapeHtml(message)}</div>
+                                ${who ? `<div style="margin-top:10px; font-size:12px; color: var(--pb-muted);">Approver(s): <span style="color:var(--pb-text); font-weight:700;">${escapeHtml(who)}</span></div>` : ''}
+                                <div style="margin-top:16px; display:flex; gap:10px;">
+                                    <button id="test-approval-approve" type="button" class="toolbar-btn btn-primary" style="flex:1; padding:12px 12px; border-radius:12px;">Approve & continue</button>
+                                    <button id="test-approval-reject" type="button" class="toolbar-btn btn-secondary" style="flex:1; padding:12px 12px; border-radius:12px; border:1px solid color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent);">Reject</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                    const closeBtn = modal.querySelector('#test-approval-close');
+                    const approveBtn = modal.querySelector('#test-approval-approve');
+                    const rejectBtn = modal.querySelector('#test-approval-reject');
+                    if (closeBtn) closeBtn.addEventListener('click', () => finish('pending'));
+                    if (approveBtn) approveBtn.addEventListener('click', () => finish('approved'));
+                    if (rejectBtn) rejectBtn.addEventListener('click', () => finish('rejected'));
+                });
+            };
             
             // Start
             trace.push({
@@ -6741,6 +6942,7 @@
                     // Regular step summary
                     const cfg = current.config || {};
                     let msg = 'Step executed.';
+                    let pushedCurrent = false;
                     if (current.type === 'notification') {
                         const channel = String(cfg.channel || 'email').trim() || 'email';
                         const subject = String(cfg.title || current.name || 'Notification').trim() || 'Notification';
@@ -6793,7 +6995,7 @@
                         const tool = (state.tools || []).find(t => t.id === cfg.toolId);
                         msg = `Ran tool: ${tool ? tool.name : 'Tool'}.`;
                     } else if (current.type === 'approval') {
-                        // Approvals typically pause the process
+                        // Approvals pause until the tester decides (Approve/Reject).
                         const ac = cfg || {};
                         const src = ac.assignee_source || (ac.approvers && ac.approvers.length ? 'platform_user' : '');
                         const ids = ac.assignee_ids || ac.approvers || [];
@@ -6806,6 +7008,7 @@
                             who = ids.length ? `${ids.length} selected` : '';
                         }
                         msg = `Waiting for approval${who ? ` (${who})` : ''}.`;
+                        const approvalTraceIndex = trace.length;
                         trace.push({
                             nodeId: current.id,
                             edgeType: null,
@@ -6813,20 +7016,51 @@
                             title: current.name || 'Approval',
                             message: msg
                         });
-                        outcome = {
-                            status: 'pending',
-                            headline: `Waiting for approval at: ${current.name || 'Approval'}.`,
-                            detail: who ? `Approver(s): ${who}` : ''
-                        };
-                        break;
+                        pushedCurrent = true;
+
+                        // Show playback up to this approval (so user sees where it stopped),
+                        // then ask for decision.
+                        try { await playNewTrace(); } catch (_) {}
+                        const decision = await promptApprovalDecision({
+                            title: current.name || 'Approval',
+                            who,
+                            message: msg
+                        });
+
+                        if (decision === 'approved') {
+                            // Update the message for the report (no need to add a new node in the trace)
+                            if (trace[approvalTraceIndex]) {
+                                trace[approvalTraceIndex].message = `Approved. Continuing the workflow.`;
+                            }
+                            // Continue normally (use the default outgoing edge)
+                        } else if (decision === 'rejected') {
+                            if (trace[approvalTraceIndex]) {
+                                trace[approvalTraceIndex].message = `Rejected. The workflow will stop here.`;
+                            }
+                            outcome = {
+                                status: 'failed',
+                                headline: `Rejected at: ${current.name || 'Approval'}.`
+                            };
+                            break;
+                        } else {
+                            // User closed the approval dialog: treat as pending (test stops here)
+                            outcome = {
+                                status: 'pending',
+                                headline: `Waiting for approval at: ${current.name || 'Approval'}.`,
+                                detail: who ? `Approver(s): ${who}` : ''
+                            };
+                            break;
+                        }
                     }
-                    trace.push({
-                        nodeId: current.id,
-                        edgeType: null,
-                        type: current.type,
-                        title: current.name || 'Step',
-                        message: msg
-                    });
+                    if (!pushedCurrent) {
+                        trace.push({
+                            nodeId: current.id,
+                            edgeType: null,
+                            type: current.type,
+                            title: current.name || 'Step',
+                            message: msg
+                        });
+                    }
                 }
                 
                 const next = nodeById[nextConn.to];
@@ -6845,7 +7079,7 @@
             // Auto-play on the canvas FIRST (so the user can see the path animation),
             // then show the final report modal.
             window._lastTestTrace = trace;
-            try { await playTestPlayback(trace); } catch (_) {}
+            try { await playNewTrace(); } catch (_) {}
             
             // Build results modal (business-friendly report)
             const modal = document.createElement('div');
@@ -6891,7 +7125,9 @@
             
             const statusBadge = outcome.status === 'pending'
                 ? `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--warning) 18%, transparent);border:1px solid color-mix(in srgb, var(--warning) 45%, transparent);color:var(--warning);font-weight:700;font-size:12px;">Pending</span>`
-                : `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--success) 18%, transparent);border:1px solid color-mix(in srgb, var(--success) 45%, transparent);color:var(--success);font-weight:700;font-size:12px;">Completed</span>`;
+                : outcome.status === 'failed'
+                    ? `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--danger) 18%, transparent);border:1px solid color-mix(in srgb, var(--danger) 45%, transparent);color:var(--danger);font-weight:700;font-size:12px;">Stopped</span>`
+                    : `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--success) 18%, transparent);border:1px solid color-mix(in srgb, var(--success) 45%, transparent);color:var(--success);font-weight:700;font-size:12px;">Completed</span>`;
             
             modal.innerHTML = `
                 <div style="background:var(--pb-panel); color:var(--pb-text); border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); border-radius:16px; width:980px; max-width:100%; max-height:88vh; overflow:auto; box-shadow: var(--shadow-md);">

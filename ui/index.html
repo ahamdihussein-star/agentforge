@@ -8041,14 +8041,39 @@ Option 3"></textarea>
                 
                 <!-- Pending Approval Section (hidden initially) -->
                 <div id="process-pending-approval" class="hidden">
-                    <div class="text-center py-6">
-                        <div class="w-16 h-16 mx-auto rounded-full bg-yellow-500/20 flex items-center justify-center mb-4">
-                            <span class="text-3xl">⏳</span>
+                    <div class="p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/5">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+                                    <span class="text-2xl">⏳</span>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-lg">Waiting for Approval</h4>
+                                    <p class="text-sm text-gray-400">Approve to continue and reach the end of the workflow.</p>
+                                </div>
+                            </div>
+                            <button type="button" onclick="openApprovalDashboard()" class="btn-secondary px-3 py-2 rounded-lg text-sm">Open approvals</button>
                         </div>
-                        <h4 class="font-semibold text-lg mb-2">Waiting for Approval</h4>
-                        <p class="text-gray-400 mb-4">This workflow requires approval to proceed.</p>
-                        <button type="button" onclick="openApprovalDashboard()" class="btn-primary px-4 py-2 rounded-lg">Review & Approve</button>
-                        <p class="text-sm text-gray-500 mt-3">After you approve, the workflow will continue and this page will update.</p>
+
+                        <div id="process-inline-approval-details" class="mt-4 text-sm text-gray-300">
+                            <div class="text-gray-500">Loading approval details…</div>
+                        </div>
+
+                        <div class="mt-4">
+                            <label class="text-xs text-gray-500 uppercase tracking-wide mb-2 block">Comments (optional)</label>
+                            <textarea id="process-inline-approval-comments" class="input-field w-full rounded-lg px-4 py-3" rows="2" placeholder="Add a note for the requester…"></textarea>
+                        </div>
+
+                        <div class="mt-4 flex gap-3">
+                            <button type="button" onclick="approveInlineApproval()" class="flex-1 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition">
+                                ✅ Approve & Continue
+                            </button>
+                            <button type="button" onclick="rejectInlineApproval()" class="flex-1 py-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition">
+                                ❌ Reject
+                            </button>
+                        </div>
+
+                        <p id="process-inline-approval-hint" class="text-xs text-gray-500 mt-3">Tip: After approving, the workflow will automatically continue and the report will appear when it completes.</p>
                     </div>
                 </div>
             </div>
@@ -8085,6 +8110,47 @@ Option 3"></textarea>
                         <p>No pending approvals</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Process Playback Modal (Business-friendly animation on process flow) -->
+    <div id="process-playback-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-[80]" onclick="if(event.target===this)closeProcessPlaybackModal()">
+        <div class="card rounded-xl w-full max-w-6xl mx-4 max-h-[92vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between flex-shrink-0" style="background: linear-gradient(135deg, rgba(99,102,241,0.10), rgba(139,92,246,0.10));">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">🧭</div>
+                    <div>
+                        <h3 class="text-lg font-bold">Process playback</h3>
+                        <p id="process-playback-subtitle" class="text-sm text-gray-400">Showing the actual path the workflow took</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="replayProcessPlayback()" class="btn-secondary px-3 py-1.5 rounded-lg text-sm">Replay</button>
+                    <button onclick="closeProcessPlaybackModal()" class="text-gray-400 hover:text-white text-2xl px-2">✕</button>
+                </div>
+            </div>
+            <div class="flex-1 bg-black/30">
+                <iframe id="process-playback-frame" title="Process Playback" class="w-full h-[74vh] border-0" src="about:blank"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Process Test Report Modal (Business-friendly result summary; no raw JSON by default) -->
+    <div id="process-test-report-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-[85]" onclick="if(event.target===this)closeProcessTestReport()">
+        <div class="card rounded-xl w-full max-w-5xl mx-4 max-h-[92vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between flex-shrink-0" style="background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(20,184,166,0.08));">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">📋</div>
+                    <div>
+                        <h3 id="process-test-report-title" class="text-lg font-bold">Test report</h3>
+                        <p id="process-test-report-subtitle" class="text-sm text-gray-400">Summary of what happened in this run</p>
+                    </div>
+                </div>
+                <button onclick="closeProcessTestReport()" class="text-gray-400 hover:text-white text-2xl px-2">✕</button>
+            </div>
+            <div id="process-test-report-body" class="flex-1 overflow-y-auto p-5">
+                <div class="text-center text-gray-500 py-10">Loading…</div>
             </div>
         </div>
     </div>
@@ -9826,6 +9892,524 @@ Option 3"></textarea>
         let currentExecutionId = null;
         let executionPollInterval = null;
         let executionPollStopped = false;  // stop loop on 401 so we don't keep hitting the server
+
+        // Process playback (visual animation) + test report (business-friendly)
+        const _execMilestones = {}; // { [executionId]: { waiting?: true, completed?: true, failed?: true } }
+        let _pbPlayer = {
+            agentId: null,
+            ready: false,
+            playId: null,
+            pending: null, // { playId, trace, after, subtitle }
+            last: null // { agentId, trace, subtitle }
+        };
+        let _inlineApproval = { approvalId: null, executionId: null };
+
+        function _markMilestone(executionId, milestone) {
+            if (!executionId) return false;
+            if (!_execMilestones[executionId]) _execMilestones[executionId] = {};
+            if (_execMilestones[executionId][milestone]) return false;
+            _execMilestones[executionId][milestone] = true;
+            return true;
+        }
+
+        function closeProcessPlaybackModal() {
+            const modal = document.getElementById('process-playback-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function _setPlaybackSubtitle(text) {
+            const el = document.getElementById('process-playback-subtitle');
+            if (el) el.textContent = text || 'Showing the actual path the workflow took';
+        }
+
+        function _openProcessPlaybackModal(agentId, subtitle) {
+            const modal = document.getElementById('process-playback-modal');
+            const frame = document.getElementById('process-playback-frame');
+            if (!modal || !frame) return;
+
+            // If agent changed (or iframe not loaded yet), reload the player
+            const shouldReload = !agentId || _pbPlayer.agentId !== agentId || !frame.src || frame.src === 'about:blank';
+            if (shouldReload) {
+                _pbPlayer.ready = false;
+                _pbPlayer.agentId = agentId || null;
+                const src = agentId ? `/ui/process-builder.html?agent=${encodeURIComponent(agentId)}&player=1` : '/ui/process-builder.html?player=1';
+                frame.src = src;
+            }
+
+            _setPlaybackSubtitle(subtitle || '');
+            modal.classList.remove('hidden');
+        }
+
+        function replayProcessPlayback() {
+            if (_pbPlayer.last && _pbPlayer.last.agentId && Array.isArray(_pbPlayer.last.trace)) {
+                requestProcessPlayback(_pbPlayer.last.agentId, _pbPlayer.last.trace, { subtitle: _pbPlayer.last.subtitle || '', after: null, forceOpen: true });
+            }
+        }
+
+        function closeProcessTestReport() {
+            const modal = document.getElementById('process-test-report-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function _postToPlaybackFrame(msg) {
+            const frame = document.getElementById('process-playback-frame');
+            const win = frame && frame.contentWindow;
+            if (!win) return false;
+            try {
+                win.postMessage(msg, window.location.origin);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        // Listen for messages from the embedded Process Builder player
+        window.addEventListener('message', (event) => {
+            if (event.origin !== window.location.origin) return;
+            const data = event.data || {};
+            if (!data || typeof data !== 'object') return;
+
+            if (data.type === 'PB_PLAYER_READY') {
+                _pbPlayer.ready = true;
+                if (_pbPlayer.pending && _pbPlayer.pending.trace) {
+                    const p = _pbPlayer.pending;
+                    _pbPlayer.pending = null;
+                    _pbPlayer.playId = p.playId || null;
+                    _pbPlayer.last = { agentId: _pbPlayer.agentId, trace: p.trace, subtitle: p.subtitle || '' };
+                    _postToPlaybackFrame({ type: 'PB_PLAYER_PLAY_TRACE', playId: _pbPlayer.playId, trace: p.trace });
+                }
+                return;
+            }
+
+            if (data.type === 'PB_PLAYER_PLAY_DONE') {
+                const playId = data.playId || null;
+                if (_pbPlayer.playId && playId && String(_pbPlayer.playId) !== String(playId)) return;
+                const after = data.after || null;
+                // Run the queued callback (if any)
+                if (_pbPlayer._after && typeof _pbPlayer._after === 'function') {
+                    try { _pbPlayer._after(after); } catch (_) {}
+                }
+                _pbPlayer._after = null;
+                return;
+            }
+        });
+
+        function requestProcessPlayback(agentId, trace, opts = {}) {
+            const subtitle = opts.subtitle || '';
+            const after = (typeof opts.after === 'function') ? opts.after : null;
+            const forceOpen = !!opts.forceOpen;
+
+            if (!agentId || !Array.isArray(trace) || trace.length === 0) {
+                if (after) after(null);
+                return;
+            }
+
+            // Open the modal (or keep it open)
+            if (forceOpen || document.getElementById('process-playback-modal')?.classList.contains('hidden')) {
+                _openProcessPlaybackModal(agentId, subtitle);
+            } else {
+                _setPlaybackSubtitle(subtitle);
+            }
+
+            const playId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            _pbPlayer.playId = playId;
+            _pbPlayer._after = after;
+            _pbPlayer.last = { agentId, trace, subtitle };
+
+            // If iframe already ready, play immediately; otherwise queue until PB_PLAYER_READY
+            if (_pbPlayer.ready && _pbPlayer.agentId === agentId) {
+                _postToPlaybackFrame({ type: 'PB_PLAYER_PLAY_TRACE', playId, trace });
+            } else {
+                _pbPlayer.pending = { playId, trace, after: null, subtitle };
+                _openProcessPlaybackModal(agentId, subtitle);
+            }
+        }
+
+        function _parseCurrentProcessDefinition() {
+            const agent = currentProcessAgent;
+            if (!agent) return {};
+            let def = agent.process_definition;
+            if (typeof def === 'string') {
+                try { def = def ? JSON.parse(def) : {}; } catch (_) { def = {}; }
+            }
+            if (!def || typeof def !== 'object') def = {};
+            return def;
+        }
+
+        function _getProcessEdges(def) {
+            const raw = def.edges || def.connections || def.links || [];
+            if (!Array.isArray(raw)) return [];
+            return raw.map(e => ({
+                from: e.from || e.source,
+                to: e.to || e.target,
+                type: e.type || e.edge_type || e.edgeType || 'default'
+            })).filter(e => e.from && e.to);
+        }
+
+        function buildPlaybackTraceFromExecution(execution) {
+            const def = _parseCurrentProcessDefinition();
+            const edges = _getProcessEdges(def);
+            const edgeTypeByKey = new Map(edges.map(e => [`${e.from}=>${e.to}`, e.type || 'default']));
+            const lookup = getProcessNodeLookup();
+
+            const seq = [];
+            const seen = new Set();
+            const push = (id) => {
+                const s = String(id || '').trim();
+                if (!s) return;
+                if (seen.has(s)) return;
+                seen.add(s);
+                seq.push(s);
+            };
+
+            // Ensure we start from the trigger/start node when available
+            const startNode = Array.isArray(def.nodes)
+                ? def.nodes.find(n => ['trigger', 'form', 'start'].includes(String(n?.type || '').toLowerCase()))
+                : null;
+            if (startNode && startNode.id) push(startNode.id);
+
+            (execution?.completed_steps || []).forEach(push);
+            if (execution?.current_step) push(execution.current_step);
+
+            // Build trace for the player (nodeId + edgeType for correct branch highlighting)
+            const trace = seq.map((nodeId, idx) => {
+                const prevId = idx > 0 ? seq[idx - 1] : null;
+                let edgeType = null;
+                if (prevId && prevId !== nodeId) {
+                    const t = edgeTypeByKey.get(`${prevId}=>${nodeId}`);
+                    edgeType = (t && t !== 'default') ? t : null;
+                }
+                const info = lookup[nodeId] || {};
+                return {
+                    nodeId,
+                    edgeType,
+                    type: info.type || 'step',
+                    title: info.name || 'Step'
+                };
+            });
+            return trace;
+        }
+
+        function _formatMaybeDateTime(d) {
+            try {
+                const dt = new Date(d);
+                if (isNaN(dt.getTime())) return '';
+                return dt.toLocaleString();
+            } catch (_) {
+                return '';
+            }
+        }
+
+        function _renderReportValue(v) {
+            if (v == null) return '—';
+            if (typeof v === 'string') return v.trim() ? v : '—';
+            if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+            try {
+                const s = JSON.stringify(v);
+                if (!s) return '—';
+                return s.length > 240 ? (s.slice(0, 240) + '…') : s;
+            } catch (_) {
+                const s = String(v);
+                return s.length > 240 ? (s.slice(0, 240) + '…') : s;
+            }
+        }
+
+        function showProcessTestReport(execution, stepsResolved) {
+            const modal = document.getElementById('process-test-report-modal');
+            const body = document.getElementById('process-test-report-body');
+            const title = document.getElementById('process-test-report-title');
+            const subtitle = document.getElementById('process-test-report-subtitle');
+            if (!modal || !body) return;
+
+            const status = String(execution?.status || '').toLowerCase();
+            const isCompleted = status === 'completed';
+            const isFailed = status === 'failed';
+
+            const inputData = execution?.input_data ?? execution?.trigger_input ?? {};
+            const output = execution?.output ?? execution?.result ?? null;
+            const errorMsg = execution?.error?.message || execution?.error_message || (execution?.error && execution?.error.message) || '';
+
+            if (title) title.textContent = isCompleted ? 'Test report' : (isFailed ? 'Test report (failed)' : 'Test report');
+            if (subtitle) subtitle.textContent = execution?.created_at ? `Run started ${_formatMaybeDateTime(execution.created_at)}` : 'Summary of what happened in this run';
+
+            const inputs = window._processInputs || [];
+            const labelByKey = {};
+            inputs.forEach(i => { if (i && i.id) labelByKey[i.id] = i.label || humanizeFieldLabel(i.id) || i.id; });
+
+            const inputRows = Object.keys(inputData || {}).map(k => {
+                const label = labelByKey[k] || humanizeFieldLabel(k) || k;
+                const val = _renderReportValue(inputData[k]);
+                return `
+                    <div class="flex items-start justify-between gap-4 py-2 border-b border-gray-700/50">
+                        <div class="text-sm text-gray-400">${escHtml(label)}</div>
+                        <div class="text-sm text-gray-200 font-medium max-w-[60%] text-right break-words">${escHtml(val)}</div>
+                    </div>
+                `;
+            }).join('') || `<div class="text-sm text-gray-500">No inputs.</div>`;
+
+            const statusBadge = isCompleted
+                ? `<span class="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-300 border border-green-500/30 font-semibold">Completed</span>`
+                : (isFailed
+                    ? `<span class="text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-semibold">Failed</span>`
+                    : `<span class="text-xs px-2 py-1 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 font-semibold">In progress</span>`);
+
+            const stepsHtml = (stepsResolved || []).map((s, idx) => {
+                const icon = { completed: '✅', running: '🔄', pending: '⏳', failed: '❌', skipped: '⏭️' }[s.status] || '⏳';
+                const cls = {
+                    completed: 'border-green-500/30 bg-green-500/5',
+                    running: 'border-yellow-500/30 bg-yellow-500/5',
+                    pending: 'border-gray-600 bg-gray-800/50',
+                    failed: 'border-red-500/30 bg-red-500/5',
+                    skipped: 'border-gray-600 bg-gray-800/30'
+                }[s.status] || 'border-gray-600 bg-gray-800/30';
+                return `
+                    <div class="p-3 rounded-xl border ${cls}">
+                        <div class="flex items-center gap-3">
+                            <div class="text-lg">${icon}</div>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-semibold text-gray-100 truncate">${escHtml(s.name || 'Step')}</div>
+                                <div class="text-xs text-gray-500">${escHtml(s.typeLabel || s.type || 'Step')}</div>
+                            </div>
+                            <div class="text-xs text-gray-500">#${idx + 1}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('') || `<div class="text-sm text-gray-500">No steps yet.</div>`;
+
+            const outputHtml = isCompleted
+                ? (output == null
+                    ? `<div class="text-sm text-gray-500">No output was produced.</div>`
+                    : (typeof output === 'string'
+                        ? `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(output)}</div>`
+                        : (() => {
+                            const entries = (output && typeof output === 'object') ? Object.entries(output) : [];
+                            if (!entries.length) {
+                                return `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(_renderReportValue(output))}</div>`;
+                            }
+                            const rows = entries.slice(0, 24).map(([k, v]) => `
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 pr-4 text-gray-400 font-medium whitespace-nowrap">${escHtml(humanizeFieldLabel(k) || k)}</td>
+                                    <td class="py-2 text-gray-200">${escHtml(_renderReportValue(v))}</td>
+                                </tr>
+                            `).join('');
+                            return `<div class="overflow-x-auto"><table class="w-full text-sm"><tbody>${rows}</tbody></table></div>`;
+                        })()))
+                : (isFailed
+                    ? `<div class="text-sm text-red-300">${escHtml(errorMsg || 'The workflow failed. Please check configuration and try again.')}</div>`
+                    : `<div class="text-sm text-gray-500">Result will appear when the workflow completes.</div>`);
+
+            body.innerHTML = `
+                <div class="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                        <div class="text-lg font-bold text-gray-100">${escHtml(currentProcessAgent?.name || 'Workflow')}</div>
+                        <div class="text-sm text-gray-400">${escHtml(currentProcessAgent?.goal || '')}</div>
+                    </div>
+                    <div>${statusBadge}</div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="p-4 rounded-xl border border-gray-700 bg-gray-900/40">
+                        <div class="font-semibold text-gray-100 mb-3">Submitted information</div>
+                        <div>${inputRows}</div>
+                    </div>
+                    <div class="p-4 rounded-xl border border-gray-700 bg-gray-900/40">
+                        <div class="font-semibold text-gray-100 mb-3">What happened</div>
+                        <div class="space-y-2">${stepsHtml}</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 p-4 rounded-xl border border-gray-700 bg-gray-900/40">
+                    <div class="font-semibold text-gray-100 mb-2">Outcome</div>
+                    ${outputHtml}
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        async function loadInlineApprovalForExecution(executionId) {
+            const detailsEl = document.getElementById('process-inline-approval-details');
+            if (!detailsEl) return;
+            const execId = String(executionId || '').trim();
+            if (!execId) return;
+
+            // Avoid hammering the server while polling
+            const now = Date.now();
+            if (_inlineApproval._loading) return;
+            if (_inlineApproval._lastFetchAt && (now - _inlineApproval._lastFetchAt) < 1800) return;
+            if (_inlineApproval.executionId === execId && _inlineApproval.approvalId) return;
+
+            _inlineApproval._loading = true;
+            _inlineApproval._lastFetchAt = now;
+            _inlineApproval.executionId = execId;
+            _inlineApproval.approvalId = null;
+
+            detailsEl.innerHTML = `<div class="text-gray-500">Loading approval details…</div>`;
+
+            try {
+                const headers = getAuthHeaders();
+                const [approvalRes, usersRes, rolesRes, groupsRes] = await Promise.all([
+                    fetch(API + '/process/approvals?status=pending', { headers }),
+                    fetch(API + '/api/security/users', { headers }).catch(() => ({ ok: false })),
+                    fetch(API + '/api/security/roles', { headers }).catch(() => ({ ok: false })),
+                    fetch(API + '/api/security/groups', { headers }).catch(() => ({ ok: false }))
+                ]);
+
+                if (!approvalRes.ok) {
+                    detailsEl.innerHTML = `<div class="text-red-300">Could not load approval details.</div>`;
+                    return;
+                }
+
+                const data = await approvalRes.json();
+                const approvals = data.items || data.approvals || [];
+
+                const getRunId = (a) => {
+                    if (!a) return '';
+                    return String(
+                        a.process_execution_id ||
+                        a.run_id ||
+                        a.processExecutionId ||
+                        a.runId ||
+                        a.execution_id ||
+                        a.executionId ||
+                        ''
+                    );
+                };
+
+                const match = (approvals || []).find(a => getRunId(a) === execId);
+                if (!match) {
+                    detailsEl.innerHTML = `<div class="text-gray-400">Approval is pending, but the approval request is not visible yet. This can take a few seconds. Please wait…</div>`;
+                    return;
+                }
+
+                _inlineApproval.approvalId = match.id;
+
+                let usersList = [], rolesList = [], groupsList = [];
+                if (usersRes.ok) { const d = await usersRes.json(); usersList = Array.isArray(d) ? d : (d.users || []); }
+                if (rolesRes.ok) { const d = await rolesRes.json(); rolesList = Array.isArray(d) ? d : (d.roles || []); }
+                if (groupsRes.ok) { const d = await groupsRes.json(); groupsList = Array.isArray(d) ? d : (d.groups || []); }
+                const userMap = Object.fromEntries(usersList.map(u => [String(u.id), u.name || u.email || u.id]));
+                const roleMap = Object.fromEntries(rolesList.map(r => [String(r.id), r.name || r.id]));
+                const groupMap = Object.fromEntries(groupsList.map(g => [String(g.id), g.name || g.id]));
+
+                const assigneeType = String(match.assignee_type || '').toLowerCase();
+                const u = (match.assigned_user_ids || []).map(id => userMap[String(id)] || id);
+                const r = (match.assigned_role_ids || []).map(id => roleMap[String(id)] || id);
+                const g = (match.assigned_group_ids || []).map(id => groupMap[String(id)] || id);
+                let assignedTo = 'Anyone';
+                if (assigneeType === 'user' && u.length) assignedTo = u.join(', ');
+                else if (assigneeType === 'role' && r.length) assignedTo = `Role(s): ${r.join(', ')}`;
+                else if (assigneeType === 'group' && g.length) assignedTo = `Group(s): ${g.join(', ')}`;
+                else if ((u.length || r.length || g.length) && assigneeType) {
+                    assignedTo = (u.length ? u.join(', ') : r.length ? `Role(s): ${r.join(', ')}` : `Group(s): ${g.join(', ')}`);
+                }
+
+                const urgency = match.urgency || match.priority || 'normal';
+                const title = match.title || match.step_name || match.node_name || 'Approval';
+                const desc = match.description || '';
+                const reviewData = match.details_to_review || match.review_data || match.detailsToReview || {};
+
+                const renderReviewData = (rd) => {
+                    if (!rd) return '';
+                    if (typeof rd === 'string') {
+                        try { rd = JSON.parse(rd); } catch (_) { return `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(rd)}</div>`; }
+                    }
+                    if (typeof rd !== 'object' || rd === null) return '';
+                    const entries = Object.entries(rd).filter(([k, v]) => v !== undefined && v !== null && v !== '');
+                    if (!entries.length) return '';
+                    const rows = entries.slice(0, 24).map(([k, v]) => `
+                        <tr class="border-b border-gray-700/50">
+                            <td class="py-2 pr-4 text-gray-400 font-medium whitespace-nowrap">${escHtml(humanizeFieldLabel(k) || k)}</td>
+                            <td class="py-2 text-gray-200">${escHtml(_renderReportValue(v))}</td>
+                        </tr>
+                    `).join('');
+                    return `<div class="overflow-x-auto"><table class="w-full text-sm"><tbody>${rows}</tbody></table></div>`;
+                };
+
+                const reviewHtml = renderReviewData(reviewData);
+                detailsEl.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <div class="font-semibold text-gray-100">${escHtml(title)}</div>
+                            ${desc ? `<div class="text-sm text-gray-300 mt-1">${escHtml(desc)}</div>` : ''}
+                            <div class="text-xs text-gray-500 mt-2">Assigned to: <span class="text-gray-300">${escHtml(assignedTo)}</span></div>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">${escHtml(String(urgency))}</span>
+                    </div>
+                    ${reviewHtml ? `
+                        <div class="mt-4 p-4 rounded-lg bg-gray-900/40 border border-gray-700/60">
+                            <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Details to review</div>
+                            ${reviewHtml}
+                        </div>
+                    ` : ''}
+                `;
+            } catch (e) {
+                detailsEl.innerHTML = `<div class="text-red-300">Could not load approval details.</div>`;
+            } finally {
+                _inlineApproval._loading = false;
+            }
+        }
+
+        async function approveInlineApproval() {
+            const approvalId = _inlineApproval.approvalId;
+            if (!approvalId) {
+                showToast('Approval details are not ready yet. Please wait a moment.', 'warning');
+                return;
+            }
+            const comments = (document.getElementById('process-inline-approval-comments')?.value || '').trim();
+            try {
+                const response = await fetch(API + `/process/approvals/${approvalId}/decide`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    body: JSON.stringify({ decision: 'approved', comments })
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    const msg = (err && err.detail) ? (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)) : 'Could not approve';
+                    showToast(msg, 'error');
+                    return;
+                }
+                showToast('Approved. Continuing workflow…', 'success');
+                // Clear inline approval state; polling will update UI
+                _inlineApproval.approvalId = null;
+                const c = document.getElementById('process-inline-approval-comments');
+                if (c) c.value = '';
+            } catch (e) {
+                showToast('Could not approve request', 'error');
+            }
+        }
+
+        async function rejectInlineApproval() {
+            const approvalId = _inlineApproval.approvalId;
+            if (!approvalId) {
+                showToast('Approval details are not ready yet. Please wait a moment.', 'warning');
+                return;
+            }
+            const comments = (document.getElementById('process-inline-approval-comments')?.value || '').trim();
+            if (!comments) {
+                const ok = confirm('Reject without a comment?');
+                if (!ok) return;
+            }
+            try {
+                const response = await fetch(API + `/process/approvals/${approvalId}/decide`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    body: JSON.stringify({ decision: 'rejected', comments: comments || 'Rejected' })
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    const msg = (err && err.detail) ? (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)) : 'Could not reject';
+                    showToast(msg, 'error');
+                    return;
+                }
+                showToast('Rejected.', 'success');
+                _inlineApproval.approvalId = null;
+                const c = document.getElementById('process-inline-approval-comments');
+                if (c) c.value = '';
+            } catch (e) {
+                showToast('Could not reject request', 'error');
+            }
+        }
         
         // Open Process Execution Modal
         async function openProcessExecution(agentId) {
@@ -9867,6 +10451,8 @@ Option 3"></textarea>
                 document.getElementById('process-trigger-form').classList.remove('hidden');
                 document.getElementById('process-execution-status').classList.add('hidden');
                 document.getElementById('process-pending-approval').classList.add('hidden');
+                try { closeProcessTestReport(); } catch (_) {}
+                try { closeProcessPlaybackModal(); } catch (_) {}
                 
                 // Show modal
                 document.getElementById('process-execution-modal').classList.remove('hidden');
@@ -10210,6 +10796,17 @@ Option 3"></textarea>
             // Switch to execution status view
             document.getElementById('process-trigger-form').classList.add('hidden');
             document.getElementById('process-execution-status').classList.remove('hidden');
+            // Reset approval UI state (this run may or may not require approvals)
+            try {
+                _inlineApproval.approvalId = null;
+                _inlineApproval.executionId = null;
+                _inlineApproval._loading = false;
+                _inlineApproval._lastFetchAt = 0;
+                const detailsEl = document.getElementById('process-inline-approval-details');
+                if (detailsEl) detailsEl.innerHTML = `<div class="text-gray-500">Loading approval details…</div>`;
+                const c = document.getElementById('process-inline-approval-comments');
+                if (c) c.value = '';
+            } catch (_) {}
             
             // Update status badge
             updateExecutionStatus('running', 'Processing...', 'Your workflow is running');
@@ -10439,6 +11036,7 @@ Option 3"></textarea>
                     );
                     
                     // Update steps: use node_executions if present, else build from completed_steps + current_step with resolved names
+                    let resolvedStepsForReport = [];
                     if (execution.node_executions && execution.node_executions.length) {
                         const lookup = getProcessNodeLookup();
                         const resolved = execution.node_executions.map(ne => {
@@ -10452,65 +11050,98 @@ Option 3"></textarea>
                             };
                         });
                         updateExecutionSteps(resolved);
+                        resolvedStepsForReport = resolved;
                     } else if (execution.completed_steps || execution.current_step) {
                         const steps = resolveStepsFromIds(execution.completed_steps || [], execution.current_step);
                         updateExecutionSteps(steps);
+                        resolvedStepsForReport = steps;
                     }
                     
-                    // Show result and stop polling when completed
+                    // Milestones: waiting for approval / completed / failed
+                    if (execution.status === 'waiting') {
+                        if (_markMilestone(executionId, 'waiting')) {
+                            try {
+                                const trace = buildPlaybackTraceFromExecution(execution);
+                                requestProcessPlayback(
+                                    currentProcessAgent?.id,
+                                    trace,
+                                    {
+                                        subtitle: 'Stopped at: Waiting for approval',
+                                        after: () => {
+                                            try { loadInlineApprovalForExecution(executionId); } catch (_) {}
+                                            try { closeProcessPlaybackModal(); } catch (_) {}
+                                            try {
+                                                setTimeout(() => {
+                                                    const el = document.getElementById('process-pending-approval');
+                                                    if (el && !el.classList.contains('hidden')) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }, 80);
+                                            } catch (_) {}
+                                        },
+                                        forceOpen: true
+                                    }
+                                );
+                            } catch (_) {
+                                // Ignore playback errors (workflow can still be approved and resumed)
+                            }
+                        } else {
+                            // Keep trying to load approval details if not found yet (approval may be created shortly after status flips)
+                            try { loadInlineApprovalForExecution(executionId); } catch (_) {}
+                        }
+                    }
+
                     if (execution.status === 'completed') {
                         if (executionPollInterval) clearInterval(executionPollInterval);
                         executionPollInterval = null;
+
+                        // Keep the in-modal UI business-friendly (no JSON by default)
                         const outEl = document.getElementById('process-output');
                         const summaryEl = document.getElementById('process-result-summary');
                         const resultBodyEl = document.getElementById('process-result-body');
-                        const contentEl = document.getElementById('process-output-content');
                         const submittedWrap = document.getElementById('process-submitted-data-wrap');
-                        const submittedContent = document.getElementById('process-submitted-data-content');
-                        const inputData = execution.input_data ?? execution.trigger_input ?? {};
-                        const output = execution.output ?? execution.result;
-                        const outputStr = output == null ? '' : (typeof output === 'string' ? output : JSON.stringify(output, null, 2));
-                        const inputStr = Object.keys(inputData).length ? JSON.stringify(inputData, null, 2) : '';
-                        const outputSameAsInput = outputStr && inputStr && outputStr.replace(/\s/g, '') === inputStr.replace(/\s/g, '');
                         if (outEl) outEl.classList.remove('hidden');
-                        if (summaryEl) summaryEl.textContent = 'Your request was processed successfully.';
-                        if (outputSameAsInput || (!outputStr && inputStr)) {
-                            if (resultBodyEl) resultBodyEl.classList.add('hidden');
-                            if (submittedWrap) {
-                                submittedWrap.classList.remove('hidden');
-                                if (submittedContent) {
-                                    submittedContent.textContent = outputStr || inputStr;
-                                    submittedContent.classList.add('hidden');
-                                }
-                                const toggle = document.getElementById('process-submitted-data-toggle');
-                                if (toggle) {
-                                    toggle.onclick = function() {
-                                        const pre = submittedContent;
-                                        if (pre.classList.toggle('hidden')) toggle.querySelector('span').textContent = '▼';
-                                        else toggle.querySelector('span').textContent = '▲';
-                                    };
-                                }
+                        if (summaryEl) summaryEl.textContent = 'Completed successfully. A report is ready.';
+                        if (resultBodyEl) resultBodyEl.classList.add('hidden');
+                        if (submittedWrap) submittedWrap.classList.add('hidden');
+
+                        if (_markMilestone(executionId, 'completed')) {
+                            const snap = execution; // capture
+                            const stepsSnap = resolvedStepsForReport.slice();
+                            try {
+                                const trace = buildPlaybackTraceFromExecution(snap);
+                                requestProcessPlayback(
+                                    currentProcessAgent?.id,
+                                    trace,
+                                    {
+                                        subtitle: 'Completed path',
+                                        after: () => showProcessTestReport(snap, stepsSnap),
+                                        forceOpen: true
+                                    }
+                                );
+                            } catch (_) {
+                                // Fallback: show report even if playback fails
+                                try { showProcessTestReport(snap, stepsSnap); } catch (_) {}
                             }
-                        } else {
-                            if (resultBodyEl) {
-                                resultBodyEl.classList.remove('hidden');
-                                if (contentEl) contentEl.textContent = outputStr;
+                        }
+                    }
+
+                    if (execution.status === 'failed') {
+                        if (_markMilestone(executionId, 'failed')) {
+                            const snap = execution;
+                            const stepsSnap = resolvedStepsForReport.slice();
+                            try {
+                                const trace = buildPlaybackTraceFromExecution(snap);
+                                requestProcessPlayback(
+                                    currentProcessAgent?.id,
+                                    trace,
+                                    {
+                                        subtitle: 'Stopped at: Failed',
+                                        after: () => showProcessTestReport(snap, stepsSnap),
+                                        forceOpen: true
+                                    }
+                                );
+                            } catch (_) {
+                                try { showProcessTestReport(snap, stepsSnap); } catch (_) {}
                             }
-                            if (inputStr && submittedWrap) {
-                                submittedWrap.classList.remove('hidden');
-                                if (submittedContent) {
-                                    submittedContent.textContent = inputStr;
-                                    submittedContent.classList.add('hidden');
-                                }
-                                const toggle = document.getElementById('process-submitted-data-toggle');
-                                if (toggle) {
-                                    toggle.onclick = function() {
-                                        const pre = submittedContent;
-                                        if (pre.classList.toggle('hidden')) toggle.querySelector('span').textContent = '▼';
-                                        else toggle.querySelector('span').textContent = '▲';
-                                    };
-                                }
-                            } else if (submittedWrap) submittedWrap.classList.add('hidden');
                         }
                     }
                     
@@ -10532,6 +11163,17 @@ Option 3"></textarea>
             if (executionPollInterval) {
                 clearInterval(executionPollInterval);
             }
+            try { closeProcessTestReport(); } catch (_) {}
+            try { closeProcessPlaybackModal(); } catch (_) {}
+            try {
+                const frame = document.getElementById('process-playback-frame');
+                if (frame) frame.src = 'about:blank';
+                _pbPlayer.ready = false;
+                _pbPlayer.agentId = null;
+                _pbPlayer.playId = null;
+                _pbPlayer.pending = null;
+                _pbPlayer.last = null;
+            } catch (_) {}
             currentProcessAgent = null;
             currentExecutionId = null;
         }
