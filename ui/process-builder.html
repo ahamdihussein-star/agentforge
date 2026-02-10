@@ -499,10 +499,12 @@
             stroke: #fff;
             stroke-width: 2;
             cursor: grab;
-            r: 10;
+            transform-box: fill-box;
+            transform-origin: center;
+            transition: transform 0.12s ease, fill 0.12s ease, stroke 0.12s ease;
         }
         .connection-end-handle:hover,
-        .connection-start-handle:hover { r: 14; }
+        .connection-start-handle:hover { transform: scale(1.4); }
         .connection-end-handle:active,
         .connection-start-handle:active { cursor: grabbing; }
         /* عند السحب: أي shape تحت المؤشر يظهر كهدف ربط */
@@ -532,13 +534,15 @@
             stroke: #fff;
             stroke-width: 2;
             cursor: grab;
-            r: 6;
+            transform-box: fill-box;
+            transform-origin: center;
+            transition: transform 0.12s ease, fill 0.12s ease, stroke 0.12s ease;
             visibility: hidden;
         }
         .connection-handles.selected .connection-bend-handle { visibility: visible; }
         .connection-handles.yes .connection-bend-handle { fill: #22c55e; }
         .connection-handles.no .connection-bend-handle { fill: #ef4444; }
-        .connection-bend-handle:hover { r: 8; }
+        .connection-bend-handle:hover { transform: scale(1.3333); }
         .connection-bend-handle:active { cursor: grabbing; }
         
         /* تسمية Yes/No بجانب الخط – draggable مثل تسميات العقد */
@@ -1388,22 +1392,11 @@
             animation: pulse 1s infinite;
         }
         
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: #374151;
-            border-radius: 3px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: #4b5563;
+        /* Scrollbar (standards-first). WebKit pseudo-elements are intentionally avoided here to prevent
+           Firefox console warnings about unknown selectors. */
+        :root {
+            scrollbar-width: thin;
+            scrollbar-color: #374151 transparent;
         }
     </style>
 </head>
@@ -2313,15 +2306,24 @@
             
             const nodeEl = document.createElement('div');
             const shapeClass = getShapeClass(node.type);
-            const hasCustomLabel = node.labelOffset && typeof node.labelOffset.x === 'number' && typeof node.labelOffset.y === 'number';
+            // Defensive: drafts or engine-format payloads may have missing/invalid coordinates.
+            const _x = Number(node && node.x);
+            const _y = Number(node && node.y);
+            const safeX = Number.isFinite(_x) ? _x : 0;
+            const safeY = Number.isFinite(_y) ? _y : 0;
+            node.x = safeX;
+            node.y = safeY;
+
+            const hasCustomLabel = !!(node.labelOffset && Number.isFinite(Number(node.labelOffset.x)) && Number.isFinite(Number(node.labelOffset.y)));
             nodeEl.className = 'workflow-node ' + shapeClass + (hasCustomLabel ? ' label-custom' : ' label-below');
             nodeEl.id = node.id;
-            nodeEl.style.left = node.x + 'px';
-            nodeEl.style.top = node.y + 'px';
+            nodeEl.style.left = safeX + 'px';
+            nodeEl.style.top = safeY + 'px';
             
             const typeClass = getTypeClass(node.type);
             const svgIcon = getTypeSvgIcon(node.type);
-            const labelStyle = (hasCustomLabel ? `left:${node.labelOffset.x}px;top:${node.labelOffset.y}px;` : '') + (node.labelFontSize != null ? `font-size:${node.labelFontSize}px;` : '');
+            const labelFontSize = Number.isFinite(Number(node.labelFontSize)) ? Number(node.labelFontSize) : null;
+            const labelStyle = (hasCustomLabel ? `left:${Number(node.labelOffset.x)}px;top:${Number(node.labelOffset.y)}px;` : '') + (labelFontSize != null ? `font-size:${labelFontSize}px;` : '');
             const labelStyleAttr = labelStyle ? `style="${labelStyle}"` : '';
             const ports4 = ['top','right','bottom','left'].map(s => `<div class="port input input-${s}" data-side="${s}"></div>`).join('');
             /* عقدة القرار: Yes من اليسار، No من اليمين (default) – وكلاهما يدعم الأربع حواف */
