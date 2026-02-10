@@ -182,6 +182,7 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            position: relative;
         }
         .node-shape-wrap.trigger { background: linear-gradient(135deg, #22c55e, #16a34a); }
         .node-shape-wrap.action { background: linear-gradient(135deg, #3b82f6, #2563eb); }
@@ -476,6 +477,21 @@
         }
         .connection-path.yes.selected { stroke-width: 4; filter: drop-shadow(0 0 8px rgba(34,197,94,0.6)); }
         .connection-path.no.selected { stroke-width: 4; filter: drop-shadow(0 0 8px rgba(239,68,68,0.6)); }
+
+        /* Test/playback edge animation: show "flow" on the taken path */
+        @keyframes pbEdgeFlowDash {
+            from { stroke-dashoffset: 0; }
+            to { stroke-dashoffset: -44; }
+        }
+        .connection-path.play-visited {
+            stroke: #22c55e;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 6px rgba(34,197,94,0.55));
+        }
+        .connection-path.play-flow {
+            stroke-dasharray: 10 8;
+            animation: pbEdgeFlowDash 0.9s linear infinite;
+        }
         
         /* مقابض الخط – تظهر عند اختيار الخط (الطبقة التفاعلية منفصلة عن مسار الرسم) */
         .connection-handles {
@@ -1369,11 +1385,23 @@
         }
 
         /* Test/playback highlight (shows the path taken) */
-        .workflow-node.play-active {
-            box-shadow:
-                0 0 0 2px rgba(34,197,94,0.85),
-                0 0 0 8px rgba(34,197,94,0.16),
-                0 18px 28px rgba(0,0,0,0.35);
+        /* Highlight the SHAPE only (not the larger node container area) */
+        .workflow-node.play-active { box-shadow: none !important; }
+        .workflow-node.play-active .node-shape-wrap::after {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: inherit;
+            clip-path: inherit;
+            -webkit-clip-path: inherit;
+            border: 2px solid rgba(34,197,94,0.92);
+            box-shadow: 0 0 0 7px rgba(34,197,94,0.16);
+            pointer-events: none;
+        }
+        .workflow-node.play-active .node-shape-wrap {
+            filter:
+                drop-shadow(0 0 10px rgba(34,197,94,0.25))
+                drop-shadow(0 18px 28px rgba(0,0,0,0.35));
         }
         
         .connecting .port.output,
@@ -2966,16 +2994,15 @@
                 const isTwoBend = pathInfo.twoBend === true;
                 logConnectionDebug(idx, conn, pathInfo, x1, y1, x2, y2, fromSide, toSide, fromNode, toNode, canvasRect);
                 const path = document.createElementNS(ns, 'path');
-                path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
+                const t = String(conn.type || '').trim();
+                const classes = ['connection-path'];
+                if (t) classes.push(t);
+                if (stateSelectedConnIndex === idx) classes.push('selected');
+                if (conn && conn._playActive === true) classes.push('play-visited');
+                if (conn && conn._playCurrent === true) classes.push('play-flow');
+                path.setAttribute('class', classes.join(' '));
                 path.setAttribute('data-conn-index', String(idx));
                 path.setAttribute('d', pathD);
-
-                // Test/playback highlighting (business-friendly "path taken" visualization)
-                if (conn && conn._playActive === true) {
-                    path.style.stroke = '#22c55e';
-                    path.style.strokeWidth = '4';
-                    path.style.filter = 'drop-shadow(0 0 6px rgba(34,197,94,0.55))';
-                }
                 
                 svg.appendChild(path);
 
@@ -5814,10 +5841,17 @@
             };
         }
 
-        function _moveCursorToCanvasPoint(ptCanvas) {
+        function _moveCursorToCanvasPoint(ptCanvas, transitionMs = null) {
             const cur = document.getElementById('build-cursor');
             const container = document.getElementById('canvas-container');
             if (!cur || !container) return;
+            if (transitionMs != null && Number.isFinite(Number(transitionMs))) {
+                const ms = Math.max(0, Math.min(1200, Number(transitionMs)));
+                cur.style.transition = `left ${ms}ms cubic-bezier(.2,.9,.2,1), top ${ms}ms cubic-bezier(.2,.9,.2,1), opacity 160ms ease`;
+            } else {
+                // Revert to CSS defaults
+                cur.style.transition = '';
+            }
             const pt = _canvasToScreen(ptCanvas);
             cur.style.left = `${pt.x}px`;
             cur.style.top = `${pt.y}px`;
@@ -6538,6 +6572,7 @@
             // Edges
             state.connections.forEach(c => {
                 delete c._playActive;
+                delete c._playCurrent;
             });
             renderConnections();
         }
@@ -6549,14 +6584,29 @@
             });
         }
 
+        function findConnectionIndex(fromId, toId, edgeType) {
+            const f = String(fromId || '');
+            const t = String(toId || '');
+            if (!f || !t) return -1;
+            const et = edgeType == null ? null : String(edgeType);
+            let idx = state.connections.findIndex(c => c && c.from === f && c.to === t && (!et || c.type === et));
+            if (idx >= 0) return idx;
+            idx = state.connections.findIndex(c => c && c.from === f && c.to === t);
+            return idx;
+        }
+
         function setEdgePlayActive(fromId, toId, edgeType) {
-            const conn = state.connections.find(c => c.from === fromId && c.to === toId && (!edgeType || c.type === edgeType))
-                || state.connections.find(c => c.from === fromId && c.to === toId);
-            if (conn) {
-                conn._playActive = true;
-                conn._animate = true;
+            // Only one "flowing" edge at a time for clarity
+            state.connections.forEach(c => { if (c) delete c._playCurrent; });
+
+            const idx = findConnectionIndex(fromId, toId, edgeType);
+            if (idx >= 0) {
+                const conn = state.connections[idx];
+                conn._playActive = true;   // visited path
+                conn._playCurrent = true;  // animated flow
             }
             renderConnections();
+            return idx;
         }
 
         function getTestIcon(type) {
@@ -6608,6 +6658,27 @@
             }
         }
 
+        async function _moveCursorAlongConnectionIndex(connIdx, durationMs = 560) {
+            const idx = Number(connIdx);
+            if (!Number.isFinite(idx) || idx < 0) return;
+            const pathEl = document.querySelector(`#connections-svg path.connection-path[data-conn-index="${idx}"]`);
+            if (!pathEl || typeof pathEl.getTotalLength !== 'function' || typeof pathEl.getPointAtLength !== 'function') return;
+            let len = 0;
+            try { len = pathEl.getTotalLength(); } catch (_) { len = 0; }
+            if (!Number.isFinite(len) || len <= 0) return;
+
+            const steps = Math.max(14, Math.min(52, Math.round(len / 16)));
+            const total = Math.max(160, Number(durationMs) || 560);
+            const stepDelay = Math.max(10, Math.floor(total / steps));
+
+            for (let i = 0; i <= steps; i++) {
+                const p = pathEl.getPointAtLength((i / steps) * len);
+                if (!p) continue;
+                _moveCursorToCanvasPoint({ x: p.x, y: p.y }, Math.min(140, stepDelay + 30));
+                await _sleep(stepDelay);
+            }
+        }
+
         async function playTestPlayback(trace) {
             if (!Array.isArray(trace) || trace.length === 0) return;
             clearPlaybackHighlights();
@@ -6615,22 +6686,46 @@
             try { _showBuildCursor(); } catch (_) {}
             for (let i = 0; i < trace.length; i++) {
                 const step = trace[i];
-                setNodePlayActive(step.nodeId);
-                const node = state.nodes.find(n => n.id === step.nodeId);
-                if (node) {
+                if (!step || !step.nodeId) continue;
+                const nodeId = step.nodeId;
+                const node = state.nodes.find(n => n.id === nodeId);
+                if (!node) continue;
+
+                if (i === 0) {
+                    // First node: land on shape
+                    setNodePlayActive(nodeId);
                     try {
-                        const p = _nodeCanvasCenter(node);
-                        _moveCursorToCanvasPoint(p);
+                        _moveCursorToCanvasPoint(_nodeCanvasCenter(node));
+                        await _sleep(220);
                         _cursorClick();
                     } catch (_) {}
+                    await _sleep(520);
+                    continue;
                 }
-                if (i > 0) {
-                    const prev = trace[i - 1];
-                    setEdgePlayActive(prev.nodeId, step.nodeId, step.edgeType);
+
+                // Move along the connection path (more cinematic than jumping)
+                const prev = trace[i - 1] || {};
+                const prevId = prev.nodeId;
+                if (prevId && prevId !== nodeId) {
+                    const connIdx = setEdgePlayActive(prevId, nodeId, step.edgeType);
+                    try { await _moveCursorAlongConnectionIndex(connIdx, 560); } catch (_) {}
                 }
-                await _sleep(650);
+
+                // Stop on the shape itself
+                setNodePlayActive(nodeId);
+                try {
+                    _moveCursorToCanvasPoint(_nodeCanvasCenter(node), 180);
+                    await _sleep(180);
+                    _cursorClick();
+                } catch (_) {}
+                await _sleep(520);
             }
-            await _sleep(450);
+
+            // Keep visited edges highlighted, but stop the moving dash at the end
+            state.connections.forEach(c => { if (c) delete c._playCurrent; });
+            renderConnections();
+
+            await _sleep(320);
             try { _hideBuildCursor(); } catch (_) {}
         }
 
