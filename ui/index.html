@@ -13201,10 +13201,26 @@ Option 3"></textarea>
             const container = document.getElementById('available-tools-list');
             
             try {
-                // Use /api/tools/accessible to only show tools user can execute
-                const response = await fetch(API + '/api/tools/accessible', { headers: getAuthHeaders() });
-                const data = await response.json();
-                const tools = data.tools || [];
+                // Use /api/tools to show all tools the user can VIEW.
+                // The API also returns can_execute, so we can prevent selecting tools the user can't run.
+                const response = await fetch(API + '/api/tools', { headers: getAuthHeaders() });
+                let data = null;
+                try { data = await response.json(); } catch (_) { data = null; }
+                
+                if (!response.ok) {
+                    const msg = (data && (data.detail || data.message || data.error))
+                        ? (data.detail || data.message || data.error)
+                        : (response.status === 401 ? 'Please sign in to see your tools.' : (response.statusText || 'Failed to load tools'));
+                    container.innerHTML = `
+                        <div class="text-center py-6 text-red-400">
+                            <p>${escHtml(String(msg || 'Failed to load tools'))}</p>
+                            <button onclick="loadToolsForModal()" class="text-sm text-purple-400 mt-2">Retry</button>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const tools = Array.isArray(data) ? data : (data && data.tools) ? data.tools : [];
                 
                 if (tools.length === 0) {
                     container.innerHTML = `
@@ -13217,16 +13233,34 @@ Option 3"></textarea>
                     return;
                 }
                 
+                const _normToolType = (tool) => {
+                    const raw = String(tool?.type || '').toLowerCase().trim();
+                    return raw.replace(/[\s_-]+/g, '');
+                };
+                
                 // Group by type
-                const apis = tools.filter(t => t.type === 'api');
-                const kbs = tools.filter(t => t.type === 'knowledge' || t.type === 'document');
-                const emails = tools.filter(t => t.type === 'email');
-                const webhooks = tools.filter(t => t.type === 'webhook');
-                const websearches = tools.filter(t => t.type === 'websearch');
-                const slacks = tools.filter(t => t.type === 'slack');
-                const calendars = tools.filter(t => t.type === 'calendar');
-                const databases = tools.filter(t => t.type === 'database');
-                const websites = tools.filter(t => t.type === 'website');
+                const apis = tools.filter(t => _normToolType(t) === 'api');
+                const kbs = tools.filter(t => {
+                    const nt = _normToolType(t);
+                    return nt === 'knowledge' || nt === 'document' || nt === 'knowledgebase' || nt === 'kb';
+                });
+                const emails = tools.filter(t => _normToolType(t) === 'email');
+                const webhooks = tools.filter(t => _normToolType(t) === 'webhook');
+                const websearches = tools.filter(t => {
+                    const nt = _normToolType(t);
+                    return nt === 'websearch' || nt === 'search' || nt === 'websearchtool';
+                });
+                const slacks = tools.filter(t => _normToolType(t) === 'slack');
+                const calendars = tools.filter(t => _normToolType(t) === 'calendar');
+                const databases = tools.filter(t => {
+                    const nt = _normToolType(t);
+                    return nt === 'database' || nt === 'db';
+                });
+                const websites = tools.filter(t => _normToolType(t) === 'website');
+                const otherTools = tools.filter(t => {
+                    const nt = _normToolType(t);
+                    return !['api','knowledge','document','knowledgebase','kb','email','webhook','websearch','search','websearchtool','slack','calendar','database','db','website'].includes(nt);
+                });
                 
                 let html = '';
                 
@@ -13258,16 +13292,20 @@ Option 3"></textarea>
                     `;
                     
                     for (const tool of toolList) {
+                        const canExecute = (tool && Object.prototype.hasOwnProperty.call(tool, 'can_execute')) ? !!tool.can_execute : true;
                         const isSelected = (tempToolSelection[arrayKey] || []).some(t => t.id === tool.id);
+                        const disabledClass = canExecute ? '' : ' opacity-60 cursor-not-allowed';
+                        const badgeNoAccess = canExecute ? '' : `<span class="text-xs bg-gray-700/60 text-gray-300 px-2 py-0.5 rounded">No access</span>`;
                         sectionHtml += `
-                            <div class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-' + color + '-500/20 border border-' + color + '-500/50' : 'bg-gray-800/50 hover:bg-gray-800 border border-transparent'}"
+                            <div class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-' + color + '-500/20 border border-' + color + '-500/50' : 'bg-gray-800/50 hover:bg-gray-800 border border-transparent'}${disabledClass}"
                                  onclick="toggleModalToolSelection('${typeKey}', '${tool.id}', this, '${color}')" data-tool-id="${tool.id}">
-                                <input type="checkbox" class="w-4 h-4 rounded" ${isSelected ? 'checked' : ''}>
+                                <input type="checkbox" class="w-4 h-4 rounded" ${isSelected ? 'checked' : ''} ${canExecute ? '' : 'disabled'}>
                                 <span class="text-xl">${icon}</span>
                                 <div class="flex-1 min-w-0">
                                     <p class="font-medium text-sm truncate">${escHtml(tool.name)}</p>
                                     <p class="text-xs text-gray-500 truncate">${escHtml(tool.description || 'No description')}</p>
                                 </div>
+                                ${badgeNoAccess}
                                 ${tool.config?.source === 'demo_kit' ? '<span class="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">Demo</span>' : ''}
                             </div>
                         `;
@@ -13304,7 +13342,16 @@ Option 3"></textarea>
                 // Websites
                 html += renderToolSection(websites, '🌐', 'Websites', 'teal', 'website');
                 
-                container.innerHTML = html;
+                // Other tools (still selectable if can_execute=true)
+                html += renderToolSection(otherTools, '🧩', 'Other', 'gray', 'api');
+                
+                container.innerHTML = html || `
+                    <div class="text-center py-8 bg-gray-800/30 rounded-xl">
+                        <span class="text-4xl block mb-3">🔧</span>
+                        <p class="text-gray-400 mb-2">No tools matched the supported categories</p>
+                        <p class="text-sm text-gray-500">Your tools are available, but their type is not recognized by the UI yet.</p>
+                    </div>
+                `;
                 
                 // Store tool data for reference
                 container._toolsData = tools;
@@ -13326,6 +13373,16 @@ Option 3"></textarea>
             const toolsData = container._toolsData || [];
             const toolData = toolsData.find(t => t.id === toolId);
             const checkbox = element.querySelector('input[type="checkbox"]');
+            
+            // Prevent selecting tools the user can't execute
+            try {
+                if (toolData && Object.prototype.hasOwnProperty.call(toolData, 'can_execute') && toolData.can_execute === false) {
+                    showToast('You do not have permission to use this tool. Ask the tool owner to grant Execute access.', 'warning');
+                    return;
+                }
+            } catch (_) {
+                // ignore
+            }
             
             // Map type to correct array
             const typeToArray = {
