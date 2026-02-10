@@ -252,11 +252,11 @@ Node config rules:
 - For select fields, you MUST also include: optionsSource ("taxonomy:<id>" or "tool:<toolId>").
 - For derived (auto-calculated) fields, include:
   - readOnly: true
-  - derived: { "expression": "<formula>" }
+  - derived: {{ "expression": "<formula>" }}
   Use formulas like: daysBetween(startDate, endDate) or concat(firstName, " ", lastName).
 - For profile-prefilled fields, include:
   - readOnly: true
-  - prefill: { "source": "currentUser", "key": "email|name|id|roles|groups|orgId" }
+  - prefill: {{ "source": "currentUser", "key": "email|name|id|roles|groups|orgId" }}
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
