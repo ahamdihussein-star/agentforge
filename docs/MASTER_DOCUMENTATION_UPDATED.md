@@ -1,8 +1,8 @@
 # 🔥 AgentForge Master Documentation
 ## Enterprise AI Agent Builder Platform
 
-**Version:** 3.4  
-**Last Updated:** January 14, 2026  
+**Version:** 3.5  
+**Last Updated:** February 10, 2026  
 **GitHub:** https://github.com/ahamdihussein-star/agentforge  
 **Production:** https://agentforge2.up.railway.app  
 **Railway Project:** agentforge2  
@@ -10,22 +10,23 @@
 
 ---
 
-> ## ⚠️ IMPORTANT: This Document is ARCHIVED
+> ## ✅ IMPORTANT: This Document is the Canonical Source of Truth
 > 
-> **For current project state, read `PROJECT_STATUS.md` first!**
+> **For a quick snapshot, read `PROJECT_STATUS.md` first.**
 > 
-> This master documentation was last fully updated on **January 14, 2026**.
-> Many features have been added since then that are NOT reflected here.
+> This master documentation is actively maintained and reflects the **current** architecture and implementation status (including what is real vs placeholder).
 > 
 > **Quick Reference Files (Updated):**
 > - `PROJECT_STATUS.md` - Current state, recent changes, quick reference
 > - `.cursorrules` - Development rules (auto-loaded by AI)
 > - `database/COMMON_ISSUES.md` - Database patterns & issues
 > 
-> **This file remains as:**
-> - Historical reference for architecture decisions
-> - Deployment documentation
-> - Database schema reference
+> **This file covers:**
+> - Architecture, services, and implementation status (implemented vs planned)
+> - Security model and access control
+> - Database schema (models + migrations)
+> - Platform capabilities and known gaps
+> - File-by-file repository reference (what each file contains)
 
 ---
 
@@ -44,27 +45,29 @@
 8. [Knowledge Base / RAG](#-knowledge-base--rag)
 9. [Security Module](#-security-module)
 10. [Demo Lab](#-demo-lab)
+11. [Process Builder & Workflow Engine](#-process-builder--workflow-engine)
 
 ## Part 3: Technical Assessment
-11. [Platform Assessment](#-platform-assessment)
-12. [Gap Analysis](#-gap-analysis)
-13. [Code Quality](#-code-quality)
+12. [Platform Assessment](#-platform-assessment)
+13. [Gap Analysis](#-gap-analysis)
+14. [Code Quality](#-code-quality)
 
 ## Part 4: Modernization & Best Practices
-14. [Code Modernization Strategy](#-code-modernization-strategy)
-15. [Database Migration Plan](#-database-migration-plan)
-16. [UI/UX Modernization](#-uiux-modernization)
+15. [Code Modernization Strategy](#-code-modernization-strategy)
+16. [Database Migration Plan](#-database-migration-plan)
+17. [UI/UX Modernization](#-uiux-modernization)
 
 ## Part 5: Deployment & Operations
-17. [Deployment Architecture](#-deployment-architecture)
-18. [Multi-Cloud Deployment Guide](#-multi-cloud-deployment-guide)
-19. [Installation Wizard & CLI](#-installation-wizard--cli)
-20. [Multi-Tenancy Architecture](#-multi-tenancy-architecture)
+18. [Deployment Architecture](#-deployment-architecture)
+19. [Multi-Cloud Deployment Guide](#-multi-cloud-deployment-guide)
+20. [Installation Wizard & CLI](#-installation-wizard--cli)
+21. [Multi-Tenancy Architecture](#-multi-tenancy-architecture)
 
 ## Part 6: Maintenance
-21. [API Reference](#-api-reference)
-22. [Recommendations & Roadmap](#-recommendations--roadmap)
-23. [Documentation Maintenance](#-documentation-maintenance)
+22. [API Reference](#-api-reference)
+23. [Repository File Reference](#-repository-file-reference)
+24. [Recommendations & Roadmap](#-recommendations--roadmap)
+25. [Documentation Maintenance](#-documentation-maintenance)
 
 ---
 
@@ -100,11 +103,13 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 - ✅ Database-agnostic design (PostgreSQL, MySQL, SQLite, SQL Server, Oracle support)
 
 ## Critical Issues Requiring Immediate Attention
-- 🔴 **Monolithic Code** - 11,800 lines in main.py, 17,500 in index.html
+- 🔴 **Monolithic Code** - ~16,000 lines in `api/main.py`, ~32,000 lines in `ui/index.html`
 - ✅ **Database Migration** - **COMPLETED** - PostgreSQL fully operational, JSON backup only
 - 🔴 **No Containerization Strategy** - Difficult multi-cloud deployment
 - 🟡 **Multi-tenancy** - Database schema supports it, UI needs work
 - 🔴 **No CI/CD Pipeline** - Manual deployments
+- 🔴 **Access control gaps (must be verified and fixed)** - some endpoints may bypass authorization checks (see Security Module + Gap Analysis)
+- 🟡 **Process triggers & file handling gaps** - schedule/webhook automation and file upload persistence need end-to-end implementation (see Process Builder section)
 
 ---
 
@@ -219,26 +224,26 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                  CURRENT ARCHITECTURE (v3.4)                      │
+│                  CURRENT ARCHITECTURE (v3.5)                      │
 │              (Database-First Monolithic)                          │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                    ui/index.html                             │ │
-│  │                   (20,700 lines)                             │ │
-│  │    Login │ Hub │ Studio │ Tools │ KB │ Demo │ Settings      │ │
-│  │    OAuth │ MFA │ Profile │ Security Center                   │ │
+│  │  ui/index.html (Admin Portal) + ui/process-builder.html      │ │
+│  │        (~32,000 lines)           (~6,800 lines)              │ │
+│  │  Login │ Hub │ Studio │ Tools │ KB │ Demo │ Settings │ Process│ │
+│  │  OAuth │ MFA │ Profile │ Security Center │ Builder │ Test Run │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                    │
 │                              ▼                                    │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │                    api/main.py                               │ │
-│  │                   (12,100 lines)                             │ │
-│  │   Agents │ Chat │ Tools │ RAG │ Demo │ Settings │ Email     │ │
-│  │                                                                 │
+│  │                   (~16,000 lines)                            │ │
+│  │ Agents │ Chat │ Tools │ RAG │ Process │ Demo │ Settings      │ │
+│  │                                                             │ │
 │  │                    api/security.py                           │ │
-│  │                   (3,600 lines)                               │ │
-│  │   Auth │ Users │ Roles │ MFA │ OAuth │ RBAC │ Audit         │ │
+│  │                   (~3,700 lines)                             │ │
+│  │ Auth │ Users │ Roles │ MFA │ OAuth │ RBAC │ Audit            │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                    │
 │                              ▼                                    │
@@ -344,12 +349,12 @@ Benefits:
 
 | Component | Current | Target | Migration Effort |
 |-----------|---------|--------|------------------|
-| Frontend | Vanilla JS (17.5K lines) | React/Vue + TypeScript | High |
-| API | FastAPI Monolith | FastAPI Modular Services | Medium |
-| Database | JSON Files | PostgreSQL + Redis | High |
-| Vector DB | ChromaDB | ChromaDB/Pinecone/Qdrant | Low |
-| Queue | None | RabbitMQ/Redis | Medium |
-| Cache | None | Redis | Low |
+| Frontend | Vanilla JS (Admin: ~32K lines; Builder: ~6.8K lines) | React/Vue + TypeScript | High |
+| API | FastAPI monolith (`api/main.py` ~16K lines) + modular routers | Split services / clearer module boundaries | Medium |
+| Database | PostgreSQL (primary) + JSON backup | PostgreSQL + optional Redis cache/queue | Medium |
+| Vector DB | ProviderFactory-backed (optional; can fall back to keyword search) | ChromaDB/Pinecone/Qdrant (pluggable) | Low |
+| Queue | None | Redis/RabbitMQ for async jobs | Medium |
+| Cache | None | Redis (optional) | Low |
 | Container | Docker | Docker + K8s Ready | Medium |
 | CI/CD | None | GitHub Actions | Low |
 
@@ -360,22 +365,35 @@ Benefits:
 ## Current Structure
 
 ```
-agentforge/                    # ❌ Flat, monolithic
+agentforge/                               # Monolith with modular subpackages
 ├── api/
-│   ├── main.py               # ❌ 11,800 lines - too large
-│   └── security.py           # ✅ 2,200 lines - acceptable
-├── core/                     # ✅ Well structured
-│   ├── agent/
-│   ├── llm/
-│   ├── security/
-│   └── tools/
-├── ui/
-│   └── index.html            # ❌ 17,500 lines - too large
-├── data/                     # ❌ JSON file storage
-│   ├── agents.json
-│   ├── tools.json
-│   └── security/
-└── docker-compose.yml
+│   ├── main.py                          # ❌ ~16,000 lines (monolithic API)
+│   ├── security.py                      # ✅ ~3,700 lines (auth/MFA/OAuth/users/roles)
+│   ├── health.py                        # Health endpoints
+│   └── modules/                         # Modular routers/services
+│       ├── access_control/              # Delegated admin + agent ACL
+│       ├── conversations/               # Conversations API
+│       ├── lab/                         # Demo Lab (docs/images/mock APIs)
+│       └── process/                     # Process agents (wizard, publish/run, executions)
+├── core/                                # Reusable engine modules
+│   ├── agent/                           # Conversational agent engine
+│   ├── llm/                             # LLM abstractions (used by some modules)
+│   ├── process/                         # Workflow engine + wizard + node executors + KB grounding
+│   ├── security/                        # RBAC/ABAC engine + token/MFA services
+│   └── tools/                           # Tool interfaces + builtin tools (used by process engine)
+├── database/                            # SQLAlchemy models + services (DB-first)
+│   ├── models/
+│   └── services/
+├── ui/                                  # Vanilla JS admin + end-user portals
+│   ├── index.html                       # ❌ ~32,000 lines (admin portal)
+│   ├── process-builder.html             # ✅ ~6,800 lines (visual workflow builder + test playback)
+│   ├── chat.html                        # End-user portal
+│   └── lab.html                         # Demo Lab UI
+├── alembic/                             # Alembic migrations
+├── scripts/                             # Maintenance/migration scripts
+├── docs/                                # Canonical documentation + process-builder KB files
+├── data/                                # JSON backup + demo data (NOT primary storage)
+└── uploads/                             # Uploads storage (gitkept)
 ```
 
 ## Target Structure
@@ -633,26 +651,43 @@ agentforge/
 | OpenAI | ✅ | - | - |
 | Anthropic | ✅ | - | - |
 | Ollama | ✅ | - | - |
-| Google Gemini | 🔴 | High | Low |
+| Google Gemini | ✅ | - | - |
+| Azure OpenAI | ✅ | - | - |
+| Groq (OpenAI-compatible) | ✅ | - | - |
+| Mistral (OpenAI-compatible) | ✅ | - | - |
+| Perplexity (OpenAI-compatible) | ✅ | - | - |
+| Cohere | ✅ | - | - |
 | AWS Bedrock | 🔴 | High | Medium |
-| Azure OpenAI | 🔶 | High | Low |
-| Groq | 🔴 | Medium | Low |
-| Mistral | 🔴 | Medium | Low |
 
 ### Tools
 | Tool | Status | Priority | Effort |
 |------|--------|----------|--------|
 | API Tool | ✅ | - | - |
-| Database Tool | ✅ | - | - |
+| Database Tool | 🔶 | High | Medium |
 | RAG Tool | ✅ | - | - |
 | Email Tool | ✅ | - | - |
 | Website Scraping | ✅ | - | - |
-| Web Search | ✅ | - | - |
+| Web Search | 🔶 | High | Medium |
 | Slack | ✅ | - | - |
 | Webhook | ✅ | - | - |
 | Spreadsheet | 🔶 | Medium | Medium |
 | Calendar | 🔶 | Low | Medium |
 | CRM Integration | 🔶 | Low | High |
+
+### Process Agents / Workflow Builder
+| Feature | Status | Priority | Effort |
+|---------|--------|----------|--------|
+| Prompt → Visual workflow generation | ✅ | - | - |
+| Business-friendly trigger forms (labels + camelCase keys) | ✅ | - | - |
+| Derived fields (auto-calculate) | ✅ | - | - |
+| Profile prefill (current user) | ✅ | - | - |
+| Cinematic build animation | ✅ | - | - |
+| Test run + playback + business report | ✅ | - | - |
+| Auto-layout for AI drafts | ✅ | - | - |
+| Schedule/Webhook start modes (configuration) | 🔶 | High | Medium |
+| Schedule/Webhook automation end-to-end | 🔴 | High | High |
+| File upload persistence (store actual files) | 🔴 | High | Medium |
+| Output document download links (process outputs) | 🔴 | Medium | Medium |
 
 ### Security
 | Feature | Status | Priority | Effort |
@@ -673,11 +708,11 @@ agentforge/
 |---------|--------|----------|--------|
 | Docker Deployment | ✅ | - | - |
 | PostgreSQL Database | ✅ | - | - |
-| Database Migration | ✅ (Phase 1-2) | - | - |
-| Dual-Write Strategy | 🔶 | Critical | Medium |
+| Database Migration | ✅ (DB-first) | - | - |
+| Dual-Write Strategy (DB + JSON backup) | ✅ | - | - |
 | Kubernetes Ready | 🔴 | Critical | High |
 | Multi-Cloud Support | 🔴 | Critical | High |
-| Multi-Tenancy | 🔴 | Critical | High |
+| Multi-Tenancy | 🔶 | Critical | High |
 | CI/CD Pipeline | 🔴 | Critical | Medium |
 
 ---
@@ -686,27 +721,65 @@ agentforge/
 
 ## Provider Configuration
 
+AgentForge currently has **two LLM integration layers**:
+
+1) **Monolith API LLM layer** (used by the main chat runtime)
+- Location: `api/main.py`
+- Key models:
+
 ```python
+# api/main.py (simplified)
+class LLMProvider(str, Enum): ...
+
 class LLMConfig(BaseModel):
     provider: LLMProvider
     model: str
-    api_key: str
-    api_base: str
+    api_key: str = ""
+    base_url: str = ""
     temperature: float = 0.7
     max_tokens: int = 4096
+
+class LLMProviderConfig(BaseModel):
+    provider: str              # e.g. "openai", "anthropic", "google", "groq", "mistral"
+    name: str
+    api_key: str = ""
+    base_url: str = ""
+    is_active: bool = True
 ```
+
+2) **Core LLM abstraction** (used by internal engines such as the Process Wizard)
+- Location: `core/llm/`
+- Key interface: `core/llm/base.py::BaseLLM.chat()` with `Message` / `MessageRole`
 
 ## Adding New Provider
 
-1. Create file: `packages/llm-service/src/providers/{provider}.py`
-2. Implement `BaseLLM` interface
-3. Register in provider factory
-4. Add environment variables
-5. Update UI provider selection
+### A) Add provider to the monolith runtime (current path)
+1. **Implement provider** in `api/main.py` (either a new provider class or via `OpenAICompatibleLLM`).
+2. **Expose provider in UI** (`ui/index.html` provider selector + settings).
+3. **Store credentials** in system/org settings (`llm_providers` list / provider-specific config).
+
+### B) Add provider to the core LLM layer (for engines/modules)
+1. Add provider implementation in `core/llm/providers/`.
+2. Register it in `core/llm/factory.py`.
+3. Ensure `core/llm/registry.py` can list it as an active model/provider.
 
 ---
 
 # 🛠️ Tools System
+
+## Two Tool Runtimes (Important)
+
+AgentForge currently has **two tool execution paths**:
+
+1) **Chat runtime (monolith)**  
+- Location: `api/main.py` (`build_tool_definitions()`, `execute_tool()`)  
+- Tool configs live in `app_state.tools` (with DB-backed loading in some flows).  
+
+2) **Process runtime (workflow engine)**  
+- Location: `core/tools/` + `core/process/nodes/task.py::ToolCallNodeExecutor`  
+- Uses `core/tools/base.py::ToolRegistry` and builtin tool implementations under `core/tools/builtin/`.
+
+This split is intentional to document because “Tool is configured” does **not automatically** mean it is executable in both runtimes.
 
 ## Tool Interface
 
@@ -721,19 +794,18 @@ class BaseTool(ABC):
         pass
 ```
 
-## Active Tools (8 Types with Backend Support)
+## Tool Types (Implementation Status)
 
-| Tool Type | Purpose | Key Features |
-|-----------|---------|--------------|
-| `website` | Web scraping | Playwright for JS sites, httpx for static, table extraction |
-| `document` | Document RAG | PDF/DOCX/TXT/CSV support, chunking, vector search |
-| `knowledge` | Knowledge base | Same as document, alias for RAG |
-| `database` | SQL queries | PostgreSQL, MySQL, SQL Server, MongoDB, SQLite |
-| `api` | REST API calls | GET/POST/PUT/DELETE, auth types, custom headers |
-| `email` | Send emails | SMTP, SendGrid, AWS SES providers |
-| `webhook` | HTTP callbacks | POST/GET/PUT/PATCH methods |
-| `slack` | Slack messaging | Bot token, channel management |
-| `websearch` | Internet search | Tavily, Serper, Bing, DuckDuckGo providers |
+| Tool Type | Chat Runtime (`api/main.py`) | Process Runtime (`core/tools`) | Notes |
+|-----------|-----------------------------|------------------------------|------|
+| `api` | ✅ | ✅ | REST API calls |
+| `webhook` | ✅ | ✅ | HTTP callbacks |
+| `database` | 🔶 | ✅ | Chat runtime has a placeholder executor; process runtime has a real `DatabaseTool` (drivers required) |
+| `knowledge` / `document` | ✅ | 🔶 | Chat runtime has ingestion + chunking + search; core has `RAGTool` but it is not wired into the chat path |
+| `website` | ✅ | 🔴 | Implemented in monolith via scraper + chunking; no core tool wrapper |
+| `email` | 🔶 | 🔴 | Implemented in monolith; no core tool wrapper |
+| `slack` | ✅ | 🔴 | Implemented in monolith via webhook; no core tool wrapper |
+| `websearch` | 🔶 | 🔴 | Placeholder in monolith; requires real web search provider integration |
 
 ## Coming Soon Tools (12 Types - UI Only)
 
@@ -771,6 +843,29 @@ When editing a tool via the Edit Panel, the backend automatically re-processes d
 ```
 Document → Extract → Chunk → Embed → Store → Search → Retrieve
 ```
+
+## Current Implementation (What is Real)
+
+### Chat RAG (Monolith Path)
+- Location: `api/main.py`
+- Ingestion:
+  - Upload documents via `POST /api/tools/{tool_id}/documents`
+  - Extract text (PDF/DOCX/XLSX/PPTX/TXT/CSV) → chunk → store chunks in `app_state.document_chunks`
+- Retrieval:
+  - Keyword search fallback (`search_documents_keyword`) is always available
+  - Optional vector search is used when a vector DB/embedding provider is configured via `ProviderFactory`
+- Website scraping:
+  - Websites can be scraped and chunked; chunks are stored alongside document chunks (type: `website`)
+
+### Database Models (Schema Exists)
+- Location: `database/models/knowledge_base.py`
+- Entities: `KnowledgeBase`, `Document`, `DocumentChunk`, `KBQuery`
+- Status: **schema and services exist**, but the monolith RAG path primarily uses in-memory `app_state` and JSON backups; DB-first integration for KB ingestion/search is a **known gap** (see Gap Analysis).
+
+### Core RAG Tool (Process/Engine Path)
+- Location: `core/tools/builtin/rag.py`
+- Provides a vector-store based `RAGTool` implementation.
+- Status: implemented as a core tool, but it is **not the same execution path** as the monolith chat RAG.
 
 ---
 
@@ -1206,6 +1301,22 @@ ALL_PERMISSIONS = [
 | `/api/security/auth/mfa/email/verify` | POST | Verify email MFA code |
 | `/api/security/roles/reset-defaults` | POST | Reset to default roles (Super Admin only) |
 
+## Known Security Gaps (Must Be Addressed)
+
+The platform has strong RBAC/MFA/OAuth foundations, but **some non-security endpoints** currently bypass or weaken authorization and must be fixed for production hardening:
+
+- **Unauthenticated agent memory endpoints** (critical):
+  - `GET /api/agents/{agent_id}/memory`
+  - `PUT /api/agents/{agent_id}/memory/toggle`
+  - `DELETE /api/agents/{agent_id}/memory`
+- **Agent details access control**:
+  - `GET /api/agents/{agent_id}` currently authenticates the caller but does **not** enforce that the caller has access to the agent (owner/delegated/admin rules).
+- **Unauthenticated access-control “check/preview” endpoints**:
+  - `GET /api/access-control/check/{agent_id}` accepts `user_id`, `role_ids`, `group_ids` as query params without authentication.
+  - `GET /api/access-control/preview/{agent_id}` is also unauthenticated.
+
+Recommendation: require authentication and derive `user_id/roles/groups` from the session, then enforce agent ACL consistently.
+
 ## User Profile Page (UI)
 
 ### Access
@@ -1272,6 +1383,128 @@ ALL_PERMISSIONS = [
 
 ---
 
+# 🧪 Demo Lab
+
+The Demo Lab is a standalone module for generating realistic **test artifacts** (documents, mock APIs, document images) so teams can validate tools, OCR/RAG pipelines, and agent behavior.
+
+## What is implemented (verified in code)
+
+- **Document generator**: `POST /api/lab/generate/document`
+  - Formats: `docx`, `pdf`, `xlsx`, `pptx` (falls back to `txt` if optional deps are missing)
+  - Implementation: `api/modules/lab/service.py::LabService.generate_document()`
+- **Document image generator (OCR testing)**: `POST /api/lab/generate/image`
+  - Generates document-like images using PIL (not “art” image generation)
+- **Mock API generator**: `POST /api/lab/generate/api`
+  - Generates JSON datasets and serves them via a mock endpoint
+- **Download/view**:
+  - Download: `GET /api/lab/download/{item_id}`
+  - View image inline: `GET /api/lab/image/{item_id}`
+- **History (DB-backed)**:
+  - Stored in `lab_history_items` table (created by Alembic migration)
+
+## Operational notes
+- Optional Python deps are required for rich formats:
+  - Word: `python-docx`
+  - PDF: `reportlab`
+  - Excel: `openpyxl`
+  - PowerPoint: `python-pptx`
+- If deps are missing, the platform will still return a usable text file.
+
+---
+
+# 🔄 Process Builder & Workflow Engine
+
+AgentForge supports **process agents** (workflows) that are generated from a natural-language prompt and edited in a visual builder.
+
+## UX Flow (Prompt → Cinematic Build → Edit)
+
+1. User enters a prompt in the Process Wizard (`ui/index.html`).
+2. Platform immediately opens the visual builder: `ui/process-builder.html?draft=wait`.
+3. The wizard calls `POST /process/wizard/generate` with `output_format=visual_builder`.
+4. The generated workflow draft is sent to the builder via `window.postMessage` (fallback: sessionStorage polling).
+5. Builder runs a **cinematic build animation** that places nodes and connects edges.
+
+## Business-friendly inputs (Label ↔ Key mapping)
+
+Trigger/start fields support:
+- `label`: business-friendly display label (no snake_case)
+- `name`: internal `lowerCamelCase` key used in templates (e.g., `employeeEmail`)
+
+The UI exposes labels and friendly controls while keeping internal keys stable for execution and variable references.
+
+## Derived fields (auto-calculation)
+
+Trigger fields can be marked derived:
+- `readOnly: true`
+- `derived.expression`: evaluated client-side in the builder/test modal and used at runtime as a submitted value.
+
+Supported derived functions (current UI implementation):
+- `daysBetween(startDate, endDate)`
+- `concat(a, " ", b)`
+- `sum(a, b, ...)`
+- `round(value, decimals)`
+- `toNumber(value)`
+
+## Profile context / prefill (logged-in user)
+
+Workflows can avoid asking the user to retype profile data:
+- UI supports `prefill: { source: "currentUser", key: "email|name" }` and marks the field read-only.
+- Engine sets runtime variables at start:
+  - `currentUser.id`, `currentUser.name`, `currentUser.email`, `currentUser.roles`, `currentUser.groups`, `currentUser.orgId`
+  - Implementation: `core/process/nodes/flow.py::StartNodeExecutor`
+
+## Documents (Upload + Generate)
+
+### Upload (input)
+- Start form supports `type: "file"` and renders a file picker.
+- Current status: **UI collects metadata only** (name/size/type); storing file content for process executions is a known gap.
+
+### Generate (output)
+- Builder supports an **Action** step with `actionType: "generateDocument"`.
+- Normalization maps this to engine node type `file_operation` with `operation=generate_document`.
+- Engine writes a real document to disk under `data/process_outputs/{execution_id}/...` and supports:
+  - `docx`, `pdf`, `xlsx`, `pptx` (fallback `txt`)
+- Implementation: `core/process/nodes/integration.py::FileOperationNodeExecutor`
+
+## Layout & routing rules
+
+### Goals (business readability)
+- Avoid overlaps
+- Keep flow top-to-bottom
+- Avoid connections passing through shapes
+
+### Implementation
+- Connections are rendered with routing logic that attempts to avoid crossing node rectangles.
+- AI drafts get an **auto-layout pass** (layered layout + condition YES-left/NO-right preference) before the cinematic build animation.
+
+## Testing (business-friendly)
+
+The builder includes a “Test run” UX that:
+- Generates a user-friendly input form from the Start step fields
+- Simulates execution path and shows:
+  - A step-by-step timeline (“What happened”)
+  - Animated playback highlighting nodes/edges on the canvas
+  - Approval steps show “pending” state and (when authenticated) can list potential approvers
+
+## Generation grounding (anti-hallucination)
+
+The Process Wizard grounds generation using a curated platform KB:
+- Retrieval module: `core/process/platform_knowledge.py`
+- KB sources (runtime files): `docs/PROCESS_BUILDER_KB_*.md`
+- Dropdown guardrail: dropdowns are only accepted when options match safe taxonomies; otherwise they are downgraded to text fields.
+
+Tool grounding:
+- `ui/index.html` fetches configured tools from `GET /api/tools` and sends **sanitized** tool info (including input parameters) into wizard context.
+
+## What is NOT fully implemented yet (must be explicit)
+
+- **Schedule/Webhook automation end-to-end**: Start method can be configured as schedule/webhook in the builder UI, but platform-trigger execution infrastructure is not complete.
+- **File upload persistence for process runs**: file fields do not upload/store the file contents yet.
+- **Process output downloads**: generated documents exist on disk; a dedicated API/UI download link is not implemented yet.
+- **Advanced engine nodes**: the engine contains executors for additional node types (switch/parallel/transform/etc.), but they are not exposed in the builder palette and require more UI+normalization work.
+
+---
+
 # 📊 Platform Assessment
 
 ## Current State Analysis
@@ -1279,10 +1512,10 @@ ALL_PERMISSIONS = [
 | Area | Score | Issues |
 |------|-------|--------|
 | Code Organization | 4/10 | Monolithic files |
-| Scalability | 3/10 | JSON storage, single instance |
-| Deployment | 4/10 | Docker only, manual |
+| Scalability | 5/10 | DB-first, but several critical paths still rely on in-memory state (sessions/tools) |
+| Deployment | 5/10 | Docker + Railway deployment exists; CI/CD and multi-cloud are not fully standardized |
 | Testing | 2/10 | No automated tests |
-| Documentation | 5/10 | Incomplete |
+| Documentation | 6/10 | Canonical doc exists; needs continuous updates and automated checks |
 
 ---
 
@@ -1290,13 +1523,17 @@ ALL_PERMISSIONS = [
 
 ## Implementation Status Summary
 
-| Category | ✅ Done | 🔶 Partial | 🔴 Missing |
-|----------|---------|------------|------------|
-| Agent Features | 8 | 2 | 4 |
-| LLM Providers | 3 | 1 | 9 |
-| Tools | 4 | 0 | 3 |
-| Security | 10 | 2 | 4 |
-| Infrastructure | 1 | 0 | 5 |
+This is a **qualitative summary**. For the itemized, source-of-truth status, see the **Features Matrix** section above.
+
+| Category | ✅ Implemented | 🔶 Partial / Split | 🔴 Missing | Notes |
+|----------|-----------------|-------------------|-----------|------|
+| Agents (chat) | ✅ | 🔶 | 🔶 | Core CRUD/wizard works; streaming/analytics are not complete |
+| LLM Providers | ✅ | 🔶 | 🔶 | Implemented primarily in `api/main.py`; `core/llm/` supports a smaller subset |
+| Tools | ✅ | 🔶 | 🔶 | Chat vs process tool runtimes differ; some tool types are placeholders in chat runtime |
+| Knowledge/RAG | ✅ | 🔶 | 🔶 | Monolith RAG exists; DB-backed KB pipeline is not fully wired end-to-end |
+| Process Builder | ✅ | 🔶 | 🔶 | Builder UX + generation grounded; triggers/files/outputs have gaps (see Process Builder section) |
+| Security | ✅ | 🔶 | 🔶 | Strong RBAC/MFA/OAuth foundation; some endpoints may bypass authorization (must be fixed) |
+| Infrastructure | ✅ | 🔶 | 🔶 | Docker + Railway; missing tests/CI, multi-cloud, queues/caching |
 
 ---
 
@@ -1304,11 +1541,12 @@ ALL_PERMISSIONS = [
 
 ## Current Issues
 
-1. **main.py (11,800 lines)** - Violates Single Responsibility
-2. **index.html (17,500 lines)** - Unmaintainable
+1. **`api/main.py` (~16K lines)** - Violates Single Responsibility; mixes API, tool runtime, RAG, LLM routing, storage
+2. **`ui/index.html` (~32K lines)** - Unmaintainable; UI monolith makes safe iteration harder
 3. **No TypeScript** - Type safety missing
 4. **No Tests** - Zero coverage
 5. **No Linting** - Inconsistent code style
+6. **Split runtime stacks** - chat vs process engines have overlapping concepts (LLM/tools/RAG) implemented in different places
 
 ---
 
@@ -5060,33 +5298,364 @@ multi_tenancy:
 
 ## Main Endpoints
 
-### Agents
+### Agents (Chat Agents)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/agents` | List agents |
-| POST | `/api/v1/agents` | Create agent |
-| GET | `/api/v1/agents/{id}` | Get agent |
-| PUT | `/api/v1/agents/{id}` | Update agent |
-| DELETE | `/api/v1/agents/{id}` | Delete agent |
-| POST | `/api/v1/agents/{id}/chat` | Chat with agent |
-| POST | `/api/v1/agents/generate-config` | AI generate config |
+| GET | `/api/agents` | List agents (ownership + delegated access) |
+| GET | `/api/agents/accessible` | List published/accessible agents for the user |
+| POST | `/api/agents` | Create agent |
+| GET | `/api/agents/{agent_id}` | Get agent (⚠️ must enforce access control) |
+| PUT | `/api/agents/{agent_id}` | Update agent (owner/delegated admin checks) |
+| DELETE | `/api/agents/{agent_id}` | Delete agent (owner only) |
+| POST | `/api/agents/generate-config` | LLM generate agent config |
+| POST | `/api/agents/{agent_id}/start-chat` | Start end-user chat session |
+| POST | `/api/agents/{agent_id}/chat` | Chat with agent |
+| POST | `/api/agents/{agent_id}/chat/stream` | Streaming chat |
 
-### Security
+### Tools
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/auth/register` | Register |
-| POST | `/api/v1/auth/login` | Login |
-| POST | `/api/v1/auth/logout` | Logout |
-| GET | `/api/v1/auth/me` | Current user |
-| POST | `/api/v1/auth/forgot-password` | Password reset |
+| GET | `/api/tools` | List tools (with access filtering) |
+| GET | `/api/tools/accessible` | List tools accessible to user |
+| POST | `/api/tools` | Create tool |
+| GET | `/api/tools/{tool_id}` | Get tool |
+| PUT | `/api/tools/{tool_id}` | Update tool |
+| DELETE | `/api/tools/{tool_id}` | Delete tool |
+| POST | `/api/tools/{tool_id}/documents` | Upload document for KB/RAG ingestion |
+| POST | `/api/tools/{tool_id}/scrape` | Scrape website tool URL(s) |
+| POST | `/api/tools/{tool_id}/ask` | Ask a KB tool (RAG) |
+| POST | `/api/tools/{tool_id}/search` | Search KB tool |
 
-### Tenants (Multi-tenant only)
+### Settings
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/tenants` | List tenants (super admin) |
-| POST | `/api/v1/tenants` | Create tenant |
-| GET | `/api/v1/tenants/{id}` | Get tenant |
-| PUT | `/api/v1/tenants/{id}` | Update tenant |
+| GET | `/api/settings` | Get settings |
+| PUT | `/api/settings` | Update settings |
+| POST | `/api/settings/test-llm` | Test LLM providers |
+
+### Security (Auth/MFA/OAuth/RBAC)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/security/auth/login` | Login (may return MFA challenge) |
+| POST | `/api/security/auth/logout` | Logout |
+| POST | `/api/security/auth/refresh` | Refresh token |
+| GET | `/api/security/auth/me` | Current user profile |
+| POST | `/api/security/auth/register` | Register |
+| POST | `/api/security/auth/forgot-password` | Forgot password |
+| POST | `/api/security/auth/reset-password` | Reset password |
+| POST | `/api/security/mfa/enable` | Enable MFA |
+| POST | `/api/security/mfa/verify` | Verify MFA |
+| GET/POST/PUT/DELETE | `/api/security/users` | Users management (admin) |
+| GET/POST/PUT/DELETE | `/api/security/roles` | Roles management (admin) |
+| GET/POST/PUT/DELETE | `/api/security/groups` | Groups management |
+| GET/POST/PUT/DELETE | `/api/security/policies` | Policy management |
+
+### Access Control (Delegated Admin)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/PUT | `/api/access-control/agents/{agent_id}/access` | Agent ACL (users/groups/departments) |
+| GET/PUT | `/api/access-control/agents/{agent_id}/tasks` | Task permissions matrix |
+| GET/PUT | `/api/access-control/agents/{agent_id}/tools` | Tool permissions |
+
+### Demo Lab
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/lab/generate/document` | Generate document (docx/pdf/xlsx/pptx) |
+| POST | `/api/lab/generate/image` | Generate document-like image |
+| POST | `/api/lab/generate/api` | Generate mock API dataset |
+| GET | `/api/lab/download/{item_id}` | Download generated artifact |
+
+### Process Execution (Workflows)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/process/wizard/generate` | Generate visual builder workflow from prompt |
+| POST | `/process/execute` | Execute a process definition |
+| GET | `/process/executions` | List executions |
+| GET | `/process/approvals` | List approvals |
+
+---
+
+# 📚 Repository File Reference
+
+This section explains **what each tracked file does** in the current repository.
+It is grouped by directory to keep it readable.
+
+## Root (project-level files)
+
+| Path | What it is / what it contains |
+|------|-------------------------------|
+| `.cursorrules` | Cursor AI guardrails and DB rules (must-read before DB work) |
+| `.env.example` | Example environment variables for local dev |
+| `.gitignore` | Git ignore rules (note: keeps `AgentForge_Logo.png` tracked) |
+| `.redeploy-trigger` | Marker file used to trigger redeploys (ops convenience) |
+| `AgentForge_Logo.png` | Product logo (served at `/AgentForge_Logo.png`) |
+| `Dockerfile` | Container build for FastAPI server + UI assets |
+| `docker-compose.yml` | Local docker compose (app + Postgres) |
+| `requirements.txt` | Python dependencies for API/engines/UI-serving |
+| `run.py` | Convenience entrypoint to run `uvicorn api.main:app` |
+| `setup_demo_db.sh` | Shell script for bootstrapping a demo DB (local/dev ops) |
+| `alembic.ini` | Alembic configuration |
+| `PROJECT_STATUS.md` | Canonical “start here” current status + rules summary |
+| `README.md` | Repository landing page + quick start (kept intentionally short) |
+
+## `alembic/` (database migrations)
+
+| Path | Purpose |
+|------|---------|
+| `alembic/env.py` | Alembic environment setup (DB URL, metadata) |
+| `alembic/script.py.mako` | Alembic revision template |
+| `alembic/versions/001_add_website_tooltype.py` | No-op (historical): tooltype enum extension (now VARCHAR) |
+| `alembic/versions/002_add_tool_access_control.py` | Adds tool access control columns to `tools` |
+| `alembic/versions/003_add_process_agent_support.py` | Adds process-agent columns + process execution tables |
+| `alembic/versions/004_add_process_settings_tables.py` | Adds org settings + node types + templates tables |
+| `alembic/versions/005_add_approval_assigned_group_ids.py` | Adds `assigned_group_ids` to approval requests |
+| `alembic/versions/006_add_lab_history_items.py` | Adds `lab_history_items` table |
+| `alembic/versions/007_add_lab_mock_apis.py` | Adds `lab_mock_apis` table |
+
+## `api/` (FastAPI application)
+
+| Path | Purpose |
+|------|---------|
+| `api/__init__.py` | Python package marker for `api` |
+| `api/main.py` | Main FastAPI app: UI serving, agents/tools/settings endpoints, chat runtime (LLM + tools + RAG), startup/loading, misc assets |
+| `api/security.py` | Security router under `/api/security`: auth, MFA, OAuth, users/roles/groups, policies, audit |
+| `api/health.py` | Health router under `/api/health`: DB/overall health checks |
+| `api/modules/__init__.py` | Python package marker for `api.modules` |
+| `api/modules/` | Feature modules (routers + services + schemas) |
+
+### `api/modules/access_control/`
+| Path | Purpose |
+|------|---------|
+| `api/modules/access_control/__init__.py` | Package marker; exports the module router |
+| `api/modules/access_control/router.py` | HTTP API under `/api/access-control` for agent ACL + delegated admin config |
+| `api/modules/access_control/service.py` | Business logic: agent access, task/tool permissions, delegated admin rules |
+| `api/modules/access_control/schemas.py` | Pydantic request/response models for access control |
+
+### `api/modules/conversations/`
+| Path | Purpose |
+|------|---------|
+| `api/modules/conversations/__init__.py` | Package marker; exports the module router |
+| `api/modules/conversations/router.py` | HTTP API under `/api/conversations` |
+| `api/modules/conversations/service.py` | DB-backed conversation operations (list/get/create) |
+
+### `api/modules/lab/`
+| Path | Purpose |
+|------|---------|
+| `api/modules/lab/__init__.py` | Package marker |
+| `api/modules/lab/router.py` | HTTP API under `/api/lab` for lab generation + downloads |
+| `api/modules/lab/service.py` | Document/image/mock API generation (uses optional deps + LLM) |
+| `api/modules/lab/schemas.py` | Pydantic models for lab endpoints |
+
+### `api/modules/process/`
+| Path | Purpose |
+|------|---------|
+| `api/modules/process/__init__.py` | Package marker |
+| `api/modules/process/router.py` | HTTP API under `/process`: wizard generate, execute, executions, approvals, config/templates |
+| `api/modules/process/service.py` | Bridges API ↔ process engine; normalization from builder to engine; tool filtering via ACL |
+| `api/modules/process/schemas.py` | Pydantic models for process endpoints |
+
+## `core/` (engines and reusable libraries)
+
+| Path | Purpose |
+|------|---------|
+| `core/__init__.py` | Python package marker for `core` |
+| `core/feature_flags.py` | Feature flag definitions/toggles used across modules |
+
+### `core/agent/`
+| Path | Purpose |
+|------|---------|
+| `core/agent/__init__.py` | Package marker |
+| `core/agent/engine.py` | Conversational agent execution loop (messages, tools, guardrails) |
+| `core/agent/generator.py` | Agent config generation helpers |
+
+### `core/llm/`
+| Path | Purpose |
+|------|---------|
+| `core/llm/__init__.py` | Package marker |
+| `core/llm/base.py` | Core LLM interface + message schema |
+| `core/llm/factory.py` | Provider factory/registration for core LLM layer |
+| `core/llm/registry.py` | Model registry (available models/providers) |
+| `core/llm/router.py` | Model/provider routing logic |
+| `core/llm/instruction_enforcer.py` | Guardrail layer to enforce system instructions |
+| `core/llm/providers/__init__.py` | Package marker for providers |
+| `core/llm/providers/openai.py` | OpenAI + Azure OpenAI provider implementation (core layer) |
+| `core/llm/providers/anthropic.py` | Anthropic provider (core layer) |
+| `core/llm/providers/ollama.py` | Ollama provider (core layer) |
+
+### `core/security/`
+| Path | Purpose |
+|------|---------|
+| `core/security/__init__.py` | Package marker |
+| `core/security/models.py` | Pydantic models/enums for users/roles/policies |
+| `core/security/engine.py` | PolicyEngine (RBAC + ABAC evaluation) |
+| `core/security/services.py` | Token, MFA, password, OAuth services |
+| `core/security/state.py` | SecurityState cache + DB/JSON load/save + permission checks |
+
+### `core/tools/`
+| Path | Purpose |
+|------|---------|
+| `core/tools/__init__.py` | Package marker |
+| `core/tools/base.py` | Tool base classes (`ToolDefinition`, `ToolConfig`, `ToolRegistry`) |
+| `core/tools/builtin/__init__.py` | Package marker for builtin tools |
+| `core/tools/builtin/api.py` | Builtin API/GraphQL/Webhook tools (process runtime) |
+| `core/tools/builtin/database.py` | Builtin database tool (process runtime) |
+| `core/tools/builtin/rag.py` | Builtin RAG tool (process runtime, vector DB oriented) |
+
+### `core/process/` (workflow engine + wizard)
+| Path | Purpose |
+|------|---------|
+| `core/process/__init__.py` | Package marker; exports main process types |
+| `core/process/schemas.py` | Workflow definition schema (nodes/edges/settings) |
+| `core/process/engine.py` | Workflow execution engine (step runner, state, transitions) |
+| `core/process/state.py` | Process state (variables, interpolation) |
+| `core/process/result.py` | Execution result structure |
+| `core/process/messages.py` | Structured engine messages/logging |
+| `core/process/wizard.py` | LLM-driven workflow generator + validation/guardrails |
+| `core/process/platform_knowledge.py` | RAG-lite retrieval over KB markdown + safe taxonomies parsing |
+| `core/process/services/__init__.py` | Service package marker |
+| `core/process/services/approval.py` | Approval service used by approval nodes |
+| `core/process/services/notification.py` | Notification dispatch service |
+| `core/process/nodes/__init__.py` | Node executors package marker |
+| `core/process/nodes/base.py` | Base executor interfaces + registry |
+| `core/process/nodes/flow.py` | Start/End/Merge executors (flow control) |
+| `core/process/nodes/logic.py` | Condition/Switch/Loop/Parallel executors (logic control) |
+| `core/process/nodes/task.py` | AI task + tool call executors |
+| `core/process/nodes/human.py` | Approval/Notification/human-step executors |
+| `core/process/nodes/integration.py` | HTTP/database/file operation executors (incl. generate_document) |
+| `core/process/nodes/data.py` | Transform/validate/filter/map executors |
+| `core/process/nodes/timing.py` | Delay executor |
+
+## `database/` (DB layer)
+
+| Path | Purpose |
+|------|---------|
+| `database/__init__.py` | DB package entrypoint (lazy imports / convenience exports) |
+| `database/README.md` | DB usage notes (high-level) |
+| `database/base.py` | SQLAlchemy Base + engine/session + `init_db()` |
+| `database/config.py` | DB configuration loader |
+| `database/column_types.py` | DB-agnostic UUID/JSON/JSONArray types |
+| `database/enums.py` | Central enums (stored as strings) |
+| `database/init_db.py` | CLI script to initialize DB + run migrations |
+| `database/COMMON_ISSUES.md` | DB pitfalls + prevention checklist (mandatory before DB work) |
+
+### `database/models/` (SQLAlchemy models)
+| Path | What it represents |
+|------|---------------------|
+| `database/models/__init__.py` | Exports model classes |
+| `database/models/organization.py` | `organizations` table (tenants) |
+| `database/models/role.py` | `roles`, `permissions`, `role_permissions` tables |
+| `database/models/user.py` | `users`, `user_sessions`, `mfa_settings`, `password_history` |
+| `database/models/invitation.py` | `invitations` table |
+| `database/models/department.py` | `departments` table |
+| `database/models/user_group.py` | `user_groups` table |
+| `database/models/policy.py` | `policies` table (ABAC policies) |
+| `database/models/tool.py` | `tools`, `tool_executions` tables |
+| `database/models/tool_permission.py` | `tool_permissions` table |
+| `database/models/kb_permission.py` | `kb_permissions` table |
+| `database/models/db_permission.py` | `db_permissions` table |
+| `database/models/ldap_config.py` | `ldap_configs` table |
+| `database/models/oauth_config.py` | `oauth_configs` table |
+| `database/models/security_settings.py` | `security_settings` table |
+| `database/models/agent.py` | `agents` table |
+| `database/models/agent_access.py` | `agent_access_policies`, `agent_action_policies`, deployments/sessions tables |
+| `database/models/conversation.py` | `conversations`, `messages`, `conversation_shares` |
+| `database/models/knowledge_base.py` | `knowledge_bases`, `documents`, `document_chunks`, `kb_queries` |
+| `database/models/settings.py` | `system_settings`, `organization_settings`, `api_keys`, `integrations`, `user_integrations` |
+| `database/models/audit.py` | `audit_logs`, `security_events`, `data_exports`, `compliance_reports` |
+| `database/models/process_execution.py` | `process_executions`, `process_node_executions`, `process_approval_requests` |
+| `database/models/process_settings.py` | `process_org_settings`, `process_node_types`, `process_templates` |
+| `database/models/lab_history.py` | `lab_history_items` |
+| `database/models/lab_mock_api.py` | `lab_mock_apis` |
+
+### `database/services/` (service layer)
+| Path | Purpose |
+|------|---------|
+| `database/services/__init__.py` | Package marker |
+| `database/services/encryption.py` | Encryption helpers used for secrets at rest |
+| `database/services/organization_service.py` | Organization CRUD |
+| `database/services/role_service.py` | Role CRUD |
+| `database/services/user_service.py` | User CRUD + auth-related DB operations |
+| `database/services/user_group_service.py` | Group CRUD |
+| `database/services/department_service.py` | Department CRUD |
+| `database/services/invitation_service.py` | Invitation flows |
+| `database/services/security_settings_service.py` | Security settings CRUD |
+| `database/services/system_settings_service.py` | Platform/system settings CRUD |
+| `database/services/audit_service.py` | Audit logs persistence |
+| `database/services/tool_service.py` | Tool CRUD + executions persistence |
+| `database/services/agent_service.py` | Agent CRUD |
+| `database/services/conversation_service.py` | Conversation + message persistence |
+| `database/services/process_settings_service.py` | Process org settings + node types + templates |
+| `database/services/process_execution_service.py` | Process execution persistence |
+
+## `ui/` (frontend)
+
+| Path | Purpose |
+|------|---------|
+| `ui/index.html` | Admin portal (agent wizard, tools/KB setup, security center, process wizard entry) |
+| `ui/process-builder.html` | Visual workflow builder (edit, test run, playback, auto-layout, properties) |
+| `ui/chat.html` | End-user portal (auth + chat) |
+| `ui/lab.html` | Demo Lab UI |
+| `ui/theme.css` | Shared styling |
+| `ui/theme.js` | Shared theme behavior (dark/light, persistence) |
+
+## `scripts/` (maintenance)
+
+This folder contains operational scripts for DB migration/repairs and validation.
+
+| Path | Purpose |
+|------|---------|
+| `scripts/README.md` | Documentation for DB validation + migration scripts |
+| `scripts/comprehensive_db_check.sh` | Primary DB validation script (blocks commits via pre-commit hook) |
+| `scripts/migrate_to_db_complete.py` | Migrate JSON seed data into PostgreSQL (multi-entity) |
+| `scripts/create_missing_tables.py` | Bootstrap missing DB tables/columns in some environments |
+| `scripts/add_user_columns.py` | One-off migration helper (users table columns) |
+| `scripts/add_role_columns.py` | One-off migration helper (roles table columns) |
+| `scripts/add_organization_oauth_columns.py` | One-off migration helper (org OAuth columns) |
+| `scripts/add_google_oauth_credentials.py` | One-off helper to insert Google OAuth creds |
+| `scripts/fix_all_enums_to_string.py` | One-off helper to convert enums → strings (DB-agnostic) |
+| `scripts/fix_agent_status_enum.py` | One-off helper to fix agent status enum issues |
+| `scripts/fix_agent_status_to_string.py` | One-off helper: agent status conversion |
+| `scripts/fix_message_role_to_string.py` | One-off helper: message role conversion |
+| `scripts/make_password_hash_nullable.py` | One-off helper: allow NULL password hashes (migration compatibility) |
+| `scripts/auto-commit.sh` | Optional helper script for auto-commit workflow (local dev ops) |
+
+## `docs/` (documentation + runtime KB files)
+
+| Path | Purpose |
+|------|---------|
+| `docs/MASTER_DOCUMENTATION_UPDATED.md` | Canonical engineering documentation |
+| `docs/PROCESS_BUILDER_KB_SHAPES.md` | Runtime KB: supported builder nodes + field schemas |
+| `docs/PROCESS_BUILDER_KB_ROUTING.md` | Runtime KB: layout/routing rules |
+| `docs/PROCESS_BUILDER_KB_TAXONOMIES.md` | Runtime KB: safe dropdown option taxonomies |
+| `docs/PROCESS_BUILDER_KB_PROFILE_CONTEXT.md` | Runtime KB: available `currentUser.*` context |
+| `docs/PROCESS_BUILDER_KB_DOCUMENTS.md` | Runtime KB: upload/generate document guidance |
+
+## `examples/` (example assets)
+
+| Path | Purpose |
+|------|---------|
+| `examples/customer-support.yaml` | Example agent configuration/spec used as a reference/demo input |
+
+## `data/` and `uploads/` (local storage)
+
+| Path | Purpose |
+|------|---------|
+| `data/.gitkeep` | Keep empty dir in git |
+| `data/security/audit_logs.json` | JSON backup/seed: audit logs |
+| `data/security/db_permissions.json` | JSON backup/seed: DB permissions |
+| `data/security/departments.json` | JSON backup/seed: departments |
+| `data/security/groups.json` | JSON backup/seed: groups |
+| `data/security/invitations.json` | JSON backup/seed: invitations |
+| `data/security/kb_permissions.json` | JSON backup/seed: KB permissions |
+| `data/security/ldap_configs.json` | JSON backup/seed: LDAP configs |
+| `data/security/oauth_configs.json` | JSON backup/seed: OAuth configs |
+| `data/security/organizations.json` | JSON backup/seed: organizations |
+| `data/security/policies.json` | JSON backup/seed: ABAC policies |
+| `data/security/roles.json` | JSON backup/seed: roles |
+| `data/security/settings.json` | JSON backup/seed: security settings |
+| `data/security/tool_permissions.json` | JSON backup/seed: tool permissions |
+| `data/security/users.json` | JSON backup/seed: users |
+| `uploads/.gitkeep` | Keep uploads dir in git |
 
 ---
 
@@ -5162,6 +5731,24 @@ Month 7:   Documentation + Launch Preparation
 |---------|------|---------|
 | 1.0 | Jan 11, 2026 | Initial comprehensive documentation |
 | 1.1 | Jan 14, 2026 | Updated with database migration completion, OAuth MFA, database schema documentation |
+| 3.5 | Feb 10, 2026 | Process Builder documentation, grounded workflow generation (KB/RAG-lite), doc consolidation + updated file reference |
+
+## Optional: GitHub CLI Setup (for automated push workflows)
+
+If your workflow needs GitHub authentication on the machine (e.g., to enable scripted pushes), configure GitHub CLI:
+
+```bash
+# Install (macOS)
+brew install gh
+
+# Login
+gh auth login
+
+# Verify
+gh auth status
+```
+
+Then regular `git push origin main` should work without re-auth prompts (depending on your Git credential helper configuration).
 
 ---
 
@@ -5180,99 +5767,52 @@ Month 7:   Documentation + Launch Preparation
 
 ## Immediate Next Steps (Priority Order)
 
-### 1. **Complete OAuth MFA Testing** (High Priority)
-- **Status:** Implementation complete, needs comprehensive testing
+### 1. **Security Hardening (Authorization Gaps + Rate Limiting)** (Critical)
+- **Status:** Core security is strong, but some endpoints bypass authorization.
 - **Tasks:**
-  - Test OAuth login with MFA enabled for multiple users
-  - Verify MFA modal appears correctly after OAuth redirect
-  - Test MFA code resend functionality
-  - Verify MFA settings persist after logout/login
-  - Test with different OAuth providers (Google, Microsoft)
+  - Require auth + enforce agent ACL on `GET /api/agents/{agent_id}`.
+  - Protect agent memory endpoints under `/api/agents/{agent_id}/memory*` (owner/delegated checks).
+  - Secure `/api/access-control/check/{agent_id}` and `/api/access-control/preview/{agent_id}` (derive user identity from auth; avoid user_id in query).
+  - Add API rate limiting middleware (per-user/per-endpoint).
 
-### 2. **Agent & Tool Database Migration** (High Priority)
-- **Status:** Security module migrated, Agents/Tools still in JSON
+### 2. **Process Builder End-to-End Triggers + Files** (High)
+- **Status:** Visual builder + execution works for manual runs; triggers/files/outputs need completion.
 - **Tasks:**
-  - Create AgentService and ToolService
-  - Migrate agents from JSON to database
-  - Migrate tools from JSON to database
-  - Update Agent CRUD endpoints to use database services
-  - Update Tool CRUD endpoints to use database services
-  - Test agent creation, update, deletion with database
-  - Test tool creation, update, deletion with database
+  - Implement schedule trigger execution (cron runner / queue) and webhook ingestion end-to-end.
+  - Implement file upload persistence for process executions (store content, not just metadata).
+  - Add a safe download API/UI for process outputs (generated documents).
 
-### 3. **Conversation & Knowledge Base Database Migration** (Medium Priority)
-- **Status:** Not yet migrated
+### 3. **Unify Tool Runtimes (Chat vs Process)** (High)
+- **Status:** There are two tool execution paths with overlapping tool concepts.
 - **Tasks:**
-  - Create ConversationService
-  - Create KnowledgeBaseService
-  - Migrate conversations from JSON to database
-  - Migrate knowledge base documents from JSON to database
-  - Update conversation endpoints to use database services
-  - Update knowledge base endpoints to use database services
+  - Decide a single source of truth for tool execution and schemas.
+  - Replace placeholder executors in chat runtime (e.g., `database`, `websearch`) or clearly mark them as unavailable in UI.
+  - Align tool access control checks consistently in both runtimes.
 
-### 4. **Performance Optimization** (Medium Priority)
-- **Status:** Basic implementation complete, needs optimization
+### 4. **Knowledge Base DB-Backed Pipeline** (Medium)
+- **Status:** Monolith KB ingestion/search exists; DB schema exists; wiring is incomplete.
 - **Tasks:**
-  - Add database connection pooling optimization
-  - Add Redis caching for frequently accessed data (roles, permissions)
-  - Optimize database queries (add missing indexes)
-  - Add query result caching
-  - Monitor database performance metrics
+  - Persist KB documents/chunks to DB models (`knowledge_bases`, `documents`, `document_chunks`).
+  - Add background re-indexing jobs and vector store synchronization.
 
-### 5. **Error Handling & Logging Enhancement** (Medium Priority)
-- **Status:** Basic logging implemented, needs enhancement
+### 5. **Testing + CI** (Medium)
+- **Status:** No automated tests or CI gates.
 - **Tasks:**
-  - Add structured logging (JSON format)
-  - Add log levels (DEBUG, INFO, WARNING, ERROR)
-  - Add centralized log aggregation
-  - Add error tracking (Sentry integration)
-  - Add performance monitoring
+  - Add unit/integration tests for security, access control, process normalization/execution.
+  - Add formatting/linting + GitHub Actions CI workflow.
 
-### 6. **API Rate Limiting** (High Priority - Security)
-- **Status:** Not implemented
+### 6. **Observability & Reliability** (Medium)
 - **Tasks:**
-  - Implement rate limiting middleware
-  - Add per-user rate limits
-  - Add per-endpoint rate limits
-  - Add rate limit headers in responses
-  - Add rate limit configuration in SecuritySettings
+  - Structured logging (JSON), consistent error envelopes, request correlation IDs.
+  - DB backups/restore runbooks; monitoring and alerting.
 
-### 7. **Database Backup & Recovery** (Critical - Production)
-- **Status:** Not implemented
-- **Tasks:**
-  - Implement automated database backups
-  - Add backup retention policy
-  - Add backup restoration procedures
-  - Test backup/restore process
-  - Document backup procedures
+### 7. **Frontend Modernization (Long-term)** (High effort)
+- **Status:** Still monolithic (~32K lines in `ui/index.html`).
+- **Tasks:** migrate to a component-based frontend (React/Vue + TypeScript).
 
-### 8. **Multi-Tenancy UI** (Medium Priority)
-- **Status:** Database schema supports it, UI needs work
-- **Tasks:**
-  - Add organization selection in UI
-  - Add organization management page
-  - Add organization switching functionality
-  - Test multi-tenant data isolation
-
-### 9. **Frontend Modernization** (Long-term)
-- **Status:** Still monolithic (20,700 lines in index.html)
-- **Tasks:**
-  - Setup React/Vue project structure
-  - Migrate authentication pages
-  - Migrate agent management pages
-  - Migrate tool management pages
-  - Migrate knowledge base pages
-  - Add TypeScript for type safety
-
-### 10. **Backend Modularization** (Long-term)
-- **Status:** Still monolithic (12,100 lines in main.py)
-- **Tasks:**
-  - Extract Auth Service
-  - Extract Agent Service
-  - Extract LLM Service
-  - Extract RAG Service
-  - Extract Tools Service
-  - Add API Gateway
+### 8. **Backend Modularization (Long-term)** (High effort)
+- **Status:** Still monolithic (~16K lines in `api/main.py`).
+- **Tasks:** extract modules/services or move to a package-based structure.
 
 ## Code Agent Guidelines
 
@@ -5298,7 +5838,7 @@ Month 7:   Documentation + Launch Preparation
 
 4. **Model Changes:**
    - **Location:** `database/models/`
-   - **Pattern:** Use database-agnostic types from `database/types.py`
+   - **Pattern:** Use database-agnostic types from `database/column_types.py`
    - **Never:** Use PostgreSQL-specific types directly
    - **Always:** Add migration script for schema changes
 
@@ -5339,6 +5879,6 @@ Month 7:   Documentation + Launch Preparation
 
 ---
 
-*Last Updated: January 14, 2026*  
-*Document Version: 1.1*  
-*Platform Version: 3.4*
+*Last Updated: February 10, 2026*  
+*Document Version: 3.5*  
+*Platform Version: 3.5*

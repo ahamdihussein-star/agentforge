@@ -1,5 +1,5 @@
 # AgentForge Project Status
-> Last Updated: January 18, 2026
+> Last Updated: February 10, 2026
 
 ## 🎯 Current State: Production-Ready Enterprise AI Platform
 
@@ -10,6 +10,7 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 - Full MFA authentication (Email, TOTP)
 - OAuth integration (Google)
 - End User Portal with personalization
+- **AI-powered Process Builder** (generate workflows from a prompt into a visual, editable builder)
 
 ---
 
@@ -25,7 +26,7 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
   - `OrganizationService`, `DepartmentService`
   - `AuditService`, `SecuritySettingsService`
 
-### 2. Admin Portal (`/ui/index.html` - ~25,000 lines)
+### 2. Admin Portal (`/ui/index.html` - ~32,000 lines)
 
 #### Authentication & Security
 - Login/Register with validation
@@ -55,6 +56,10 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 - Clickable wizard steps
 - Auto-save functionality
 - Test chat in wizard
+- **Process Agents Wizard**:
+  - Prompt → generate a process workflow definition
+  - Opens `ui/process-builder.html` immediately for cinematic build animation
+  - Sends draft via `postMessage` + sessionStorage fallback
 
 #### Access Control System ✨
 - **Entity-based**: Users, Groups, Departments
@@ -81,6 +86,29 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 - Standalone test data generator
 - **Image Generator** - AI-powered content generation
 - API testing interface
+
+### 7. Process Agents & Visual Process Builder ✨
+
+**Goal:** enable non-technical business users to generate and edit workflows visually, then test them with a business-friendly report.
+
+**Key capabilities (implemented):**
+- **Prompt → Visual workflow** via `/process/wizard/generate` with `output_format=visual_builder`
+- **Grounded generation** (anti-hallucination) using a curated platform KB + tool context
+  - `core/process/platform_knowledge.py` retrieves relevant KB chunks
+  - Dropdowns are **only allowed** when options match safe taxonomies
+- **Business-friendly inputs**: fields have `label` (shown to user) and `name` (internal lowerCamelCase key)
+- **Derived fields**: auto-calculated trigger fields (e.g., `daysBetween(startDate, endDate)`)
+- **Profile prefill**: read-only fields can prefill from logged-in user (email/name)
+- **File inputs (UI)**: `type: "file"` supported in start form and test form (metadata collected)
+- **Document generation (engine)**: Action “Generate Document” maps to `file_operation` with `operation=generate_document` and supports docx/pdf/xlsx/pptx (fallback txt)
+- **Test UX** (builder): step-by-step trace + animated path playback on the canvas
+- **Auto-layout for AI drafts**: the builder applies a deterministic layout before the cinematic build animation
+
+**Known gaps (explicit):**
+- **Schedule/Webhook triggers**: configurable in Start node UI, but automatic scheduling/webhook trigger infrastructure is not fully implemented end-to-end yet.
+- **File uploads (persistence)**: UI collects file metadata; uploading/storing the actual file content for process runs is not implemented yet.
+- **Generated document download**: documents are written to server storage; no dedicated API/UI download link for process outputs yet.
+- **Advanced engine nodes** (switch/parallel/transform/etc.): exist in the engine, but are not exposed in the builder palette and may need additional normalization/UI work.
 
 ### 3. End User Portal (`/ui/chat.html`)
 
@@ -138,21 +166,24 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 ### Backend
 | File | Purpose |
 |------|---------|
-| `api/main.py` | Main FastAPI app (~2000 lines) |
-| `api/security.py` | Auth, MFA, Users endpoints |
+| `api/main.py` | Main FastAPI app (~16,000 lines) |
+| `api/security.py` | Auth, MFA, Users endpoints (~3,700 lines) |
+| `api/modules/process/` | Process agents API (wizard, publish/run, executions) |
 | `api/modules/access_control/` | Delegated admin permissions API |
 | `api/modules/lab/` | Lab module (test data generator) |
 | `database/models/` | All SQLAlchemy models |
 | `database/services/` | All CRUD service classes |
 | `database/enums.py` | Centralized enums |
 | `database/column_types.py` | Database-agnostic types |
+| `core/process/` | Process engine, node executors, wizard, platform knowledge |
 
 ### Frontend
 | File | Size | Purpose |
 |------|------|---------|
-| `ui/index.html` | ~25,000 lines | Admin portal (monolithic) |
+| `ui/index.html` | ~32,000 lines | Admin portal (monolithic) |
 | `ui/chat.html` | ~2,000 lines | End User portal |
 | `ui/lab.html` | ~500 lines | Lab interface |
+| `ui/process-builder.html` | ~6,800 lines | Visual workflow builder + test/playback |
 
 ### Key Frontend Components in `index.html`:
 | Component | Description |
@@ -224,7 +255,7 @@ Before starting work:
 1. [ ] Read this file completely
 2. [ ] Read `.cursorrules` for database rules
 3. [ ] Read `database/COMMON_ISSUES.md`
-4. [ ] Understand: `ui/index.html` is ~25K lines - read only needed sections
+4. [ ] Understand: `ui/index.html` is ~32K lines - read only needed sections
 5. [ ] Understand the delegated admin permission system
 6. [ ] Understand task permissions match by NAME
 
@@ -308,12 +339,14 @@ Before starting work:
 (Update this section when starting new work)
 
 ### Active Work:
-- (Add current task here)
+- Documentation consolidation: create a single canonical English documentation source of truth.
 
 ### Known Considerations:
-1. **Large UI File** - `index.html` is 25K lines
+1. **Large UI File** - `index.html` is ~32K lines
 2. **Debug Logging** - Some console.log may remain in code
 3. **Task ID vs Name** - Always use NAME for matching
+4. **Process triggers** - Schedule/Webhook start modes are configurable but not fully operational end-to-end yet
+5. **Process files** - File upload persistence + output downloads need dedicated endpoints/UI
 
 ---
 

@@ -5,7 +5,7 @@
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/agentforge)
 
 **Production:** https://agentforge2.up.railway.app  
-**Version:** 3.3  
+**Version:** 3.5  
 
 ---
 
@@ -33,15 +33,9 @@ python -m uvicorn api.main:app --reload --port 8000
 
 | Document | Purpose | Location |
 |----------|---------|----------|
-| **Master Documentation** | Complete platform reference | [`docs/MASTER_DOCUMENTATION.md`](docs/MASTER_DOCUMENTATION.md) |
-| **AI Quick Reference** | Optimized for AI code assistants | [`docs/AI_QUICK_REFERENCE.md`](docs/AI_QUICK_REFERENCE.md) |
+| **Project Status (Start Here)** | Current state + quick reference | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
+| **Master Documentation (Canonical)** | Architecture, services, security, DB schema, gaps, file reference | [`docs/MASTER_DOCUMENTATION_UPDATED.md`](docs/MASTER_DOCUMENTATION_UPDATED.md) |
 | **Cursor Rules** | Cursor AI configuration | [`.cursorrules`](.cursorrules) |
-
-### For AI Code Assistants (Cursor, Copilot, etc.)
-
-1. **Start here:** Read `docs/AI_QUICK_REFERENCE.md` for quick context
-2. **Deep dive:** Refer to `docs/MASTER_DOCUMENTATION.md` for detailed information
-3. **Rules:** Follow `.cursorrules` for project conventions
 
 ---
 
@@ -50,19 +44,25 @@ python -m uvicorn api.main:app --reload --port 8000
 ```
 agentforge/
 ├── api/
-│   ├── main.py              # FastAPI backend (~12,000 lines)
-│   └── security.py          # Security module
+│   ├── main.py              # FastAPI backend (~16,000 lines)
+│   ├── security.py          # Auth/MFA/OAuth/users/roles
+│   └── modules/             # access_control, process, lab, conversations
 ├── core/
-│   ├── llm/                  # LLM providers (OpenAI, Anthropic, Ollama)
-│   ├── security/             # RBAC, permissions (32 total)
-│   ├── tools/                # Tool base classes
-│   └── agent/                # Agent base classes
+│   ├── agent/                # Agent engine
+│   ├── llm/                  # Core LLM abstraction (used by internal engines)
+│   ├── process/              # Workflow engine + wizard + node executors
+│   ├── security/             # RBAC/ABAC + token/MFA services
+│   └── tools/                # Core tool registry + builtin tools (process runtime)
+├── database/
+│   ├── models/               # SQLAlchemy models (DB-first)
+│   └── services/             # CRUD services
 ├── ui/
-│   └── index.html            # Single-page frontend (~15,000 lines)
-├── docs/                     # 📚 Documentation
-│   ├── MASTER_DOCUMENTATION.md
-│   └── AI_QUICK_REFERENCE.md
-├── data/                     # JSON storage (auto-created)
+│   ├── index.html            # Admin portal (~32,000 lines)
+│   ├── process-builder.html  # Visual workflow builder (~6,800 lines)
+│   ├── chat.html             # End-user portal
+│   └── lab.html              # Demo Lab UI
+├── docs/                     # Canonical docs + Process Builder KB files
+├── data/                     # JSON backups/demo data (not primary storage)
 ├── .cursorrules              # AI assistant rules
 ├── Dockerfile
 ├── requirements.txt
@@ -75,7 +75,7 @@ agentforge/
 
 ### Agent System
 - ✅ AI-powered agent configuration
-- ✅ Multi-LLM support (OpenAI, Anthropic, Ollama)
+- ✅ Multi-LLM support (OpenAI/Azure OpenAI, Anthropic, Ollama, Google Gemini, Cohere, OpenAI-compatible providers)
 - ✅ Tool integration
 - ✅ Memory & conversation history
 - ✅ Guardrails (anti-hallucination, PII protection)
@@ -83,12 +83,20 @@ agentforge/
 ### Tools (8 Active Types)
 - ✅ Website Scraping (with JS rendering)
 - ✅ Document/Knowledge RAG
-- ✅ Database Queries
+- 🔶 Database Queries (process runtime implemented; chat runtime executor is currently a placeholder)
 - ✅ API Integration
 - ✅ Email Sending
 - ✅ Webhooks
 - ✅ Slack Messaging
-- ✅ Web Search
+- 🔶 Web Search (requires real search provider integration)
+
+### Process Builder (Workflows)
+- ✅ Prompt → visual workflow generation
+- ✅ Business-friendly trigger forms (labels + camelCase keys)
+- ✅ Derived fields + profile prefill
+- ✅ Cinematic build animation + auto-layout
+- ✅ Test run + animated playback
+- 🔶 Schedule/Webhook automation and file upload persistence (not fully end-to-end yet)
 
 ### Security
 - ✅ JWT Authentication
