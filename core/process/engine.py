@@ -20,6 +20,7 @@ import time
 import uuid
 import logging
 import traceback
+import inspect
 from typing import Dict, Any, List, Optional, AsyncIterator, TYPE_CHECKING
 from datetime import datetime
 
@@ -112,6 +113,11 @@ class ProcessEngine:
         self.started_at: Optional[datetime] = None
         self.total_tokens = 0
         self.nodes_executed = 0
+
+        # Optional per-node execution callbacks (for API/db audit trail)
+        self._on_node_start = None
+        self._on_node_complete = None
+        self._node_execution_order = 0
         
         # Settings from definition
         self.settings = process_definition.settings
@@ -120,6 +126,38 @@ class ProcessEngine:
         
         # Node executor cache
         self._executors: Dict[NodeType, BaseNodeExecutor] = {}
+
+    def set_node_execution_callbacks(
+        self,
+        on_node_start=None,
+        on_node_complete=None,
+        initial_execution_order: int = 0
+    ) -> None:
+        """
+        Set optional callbacks for node execution tracking.
+
+        Callbacks may be sync or async. They are invoked with keyword args:
+        - on_node_start(node, state, context, execution_order) -> any (passed to on_node_complete as handle)
+        - on_node_complete(node, state, context, result, execution_order, handle) -> None
+        """
+        self._on_node_start = on_node_start
+        self._on_node_complete = on_node_complete
+        try:
+            self._node_execution_order = int(initial_execution_order or 0)
+        except Exception:
+            self._node_execution_order = 0
+
+    async def _call_callback(self, cb, **kwargs):
+        if not cb:
+            return None
+        try:
+            res = cb(**kwargs)
+            if inspect.isawaitable(res):
+                return await res
+            return res
+        except Exception as e:
+            logger.warning("Node execution callback failed: %s", e)
+            return None
     
     def _get_initial_variables(self) -> Dict[str, Any]:
         """Get initial variable values from definition"""
@@ -198,11 +236,30 @@ class ProcessEngine:
                         execution_id=self.execution_id
                     )
                 
+                # Notify callback: node started
+                self._node_execution_order += 1
+                _cb_handle = await self._call_callback(
+                    self._on_node_start,
+                    node=current_node,
+                    state=self.state,
+                    context=self.context,
+                    execution_order=self._node_execution_order,
+                )
+
                 # Execute current node
                 result = await self._execute_node(current_node)
                 
                 # Handle result
                 if result.is_failure:
+                    await self._call_callback(
+                        self._on_node_complete,
+                        node=current_node,
+                        state=self.state,
+                        context=self.context,
+                        result=result,
+                        execution_order=self._node_execution_order,
+                        handle=_cb_handle,
+                    )
                     return ProcessResult.failure(
                         error=result.error,
                         failed_node_id=current_node.id,
@@ -212,6 +269,15 @@ class ProcessEngine:
                     )
                 
                 if result.is_waiting:
+                    await self._call_callback(
+                        self._on_node_complete,
+                        node=current_node,
+                        state=self.state,
+                        context=self.context,
+                        result=result,
+                        execution_order=self._node_execution_order,
+                        handle=_cb_handle,
+                    )
                     # Process needs to pause (e.g. approval); pass metadata so API can create DB record
                     return ProcessResult.waiting(
                         waiting_for=result.waiting_for,
@@ -226,6 +292,17 @@ class ProcessEngine:
                 self.state.mark_completed(current_node.id, result.output)
                 if result.variables_update:
                     self.state.update(result.variables_update, changed_by=current_node.id)
+
+                # Notify callback: node completed (after state is updated)
+                await self._call_callback(
+                    self._on_node_complete,
+                    node=current_node,
+                    state=self.state,
+                    context=self.context,
+                    result=result,
+                    execution_order=self._node_execution_order,
+                    handle=_cb_handle,
+                )
                 
                 self.nodes_executed += 1
                 self.total_tokens += result.tokens_used
@@ -553,9 +630,28 @@ class ProcessEngine:
                     execution_id=self.execution_id
                 )
             
+            # Notify callback: node started
+            self._node_execution_order += 1
+            _cb_handle = await self._call_callback(
+                self._on_node_start,
+                node=current_node,
+                state=self.state,
+                context=self.context,
+                execution_order=self._node_execution_order,
+            )
+
             result = await self._execute_node(current_node)
             
             if result.is_failure:
+                await self._call_callback(
+                    self._on_node_complete,
+                    node=current_node,
+                    state=self.state,
+                    context=self.context,
+                    result=result,
+                    execution_order=self._node_execution_order,
+                    handle=_cb_handle,
+                )
                 return ProcessResult.failure(
                     error=result.error,
                     failed_node_id=current_node.id,
@@ -564,6 +660,15 @@ class ProcessEngine:
                 )
             
             if result.is_waiting:
+                await self._call_callback(
+                    self._on_node_complete,
+                    node=current_node,
+                    state=self.state,
+                    context=self.context,
+                    result=result,
+                    execution_order=self._node_execution_order,
+                    handle=_cb_handle,
+                )
                 return ProcessResult.waiting(
                     waiting_for=result.waiting_for,
                     resume_node_id=current_node.id,
@@ -576,6 +681,17 @@ class ProcessEngine:
             self.state.mark_completed(current_node.id, result.output)
             if result.variables_update:
                 self.state.update(result.variables_update, changed_by=current_node.id)
+
+            # Notify callback: node completed (after state is updated)
+            await self._call_callback(
+                self._on_node_complete,
+                node=current_node,
+                state=self.state,
+                context=self.context,
+                result=result,
+                execution_order=self._node_execution_order,
+                handle=_cb_handle,
+            )
             
             self.nodes_executed += 1
             current_node = await self._get_next_node(current_node, result)

@@ -265,7 +265,12 @@ Node config rules:
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
 - notification.config must include: channel, recipient, template. Prefer recipient from form field like {{{{email}}}} if present.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
-- action.config MUST include: actionType. Prefer actionType="generateDocument" only when document output is explicitly required.
+- action.config MUST include: actionType.
+  - Use actionType="generateDocument" only when document output is explicitly required.
+  - Use actionType="extractDocumentText" when the workflow needs to read/extract text from an uploaded document (field type "file").
+    - Set action.config.sourceField to the uploaded file field name (e.g., "expenseDocument").
+    - Set node.output_variable to store extracted text (e.g., "expenseDocumentText").
+    - Then AI steps MUST reference the extracted text variable (e.g., {{expenseDocumentText}}). Do NOT assume the AI can read the raw uploaded file.
 - end.config must include: output. Use "" (empty string) to output ALL variables. If you want to output a single variable, use {{{{variable_name}}}}.
 
 Generate the workflow JSON now:"""

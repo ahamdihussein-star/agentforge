@@ -99,7 +99,9 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 - **Business-friendly inputs**: fields have `label` (shown to user) and `name` (internal lowerCamelCase key)
 - **Derived fields**: auto-calculated trigger fields (e.g., `daysBetween(startDate, endDate)`)
 - **Profile prefill**: read-only fields can prefill from logged-in user (email/name)
-- **File inputs (UI)**: `type: "file"` supported in start form and test form (metadata collected)
+- **File inputs (UI + API)**: `type: "file"` supported in Start/Form and run modals
+  - Files are uploaded via `POST /process/uploads` and stored server-side; trigger input stores a **file reference object**.
+  - Builder simulation mode still uses local metadata only; engine test mode uploads files for real.
 - **Document generation (engine)**: Action “Generate Document” maps to `file_operation` with `operation=generate_document` and supports docx/pdf/xlsx/pptx (fallback txt)
 - **Test UX** (builder): step-by-step trace + animated path playback on the canvas
 - **Test notifications** (builder): Test run is simulation by default; can optionally send real email notifications (SendGrid) via `POST /process/test/send-notification`
@@ -107,7 +109,9 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 
 **Known gaps (explicit):**
 - **Schedule/Webhook triggers**: configurable in Start node UI, but automatic scheduling/webhook trigger infrastructure is not fully implemented end-to-end yet.
-- **File uploads (persistence)**: UI collects file metadata; uploading/storing the actual file content for process runs is not implemented yet.
+- **File uploads (persistence)**: supported for process runs via `POST /process/uploads` (returns a file reference object that is embedded in `trigger_input`).
+  - **Text extraction**: supported via Action `actionType="extractDocumentText"` → engine `file_operation` `operation="extract_text"` for pdf/docx/xlsx/pptx/txt/csv.
+  - **Image OCR**: not implemented yet (image uploads are stored, but extracting text from images requires OCR/vision integration).
 - **Generated document download**: documents are written to server storage; no dedicated API/UI download link for process outputs yet.
 - **Advanced engine nodes** (switch/parallel/transform/etc.): exist in the engine, but are not exposed in the builder palette and may need additional normalization/UI work.
 

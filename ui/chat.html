@@ -2629,8 +2629,27 @@
         const API = '';
 
         // Helper function to get auth token from either storage
+        // NOTE: The platform standard is `agentforge_token` (admin portal + process builder).
+        // We still read legacy `token` for backward compatibility and migrate it forward.
         function getToken() {
-            return localStorage.getItem('token') || sessionStorage.getItem('token');
+            const primary =
+                localStorage.getItem('agentforge_token') ||
+                sessionStorage.getItem('agentforge_token');
+            if (primary) return primary;
+
+            const legacy =
+                localStorage.getItem('token') ||
+                sessionStorage.getItem('token');
+
+            // Migrate legacy key → standard key (best effort)
+            if (legacy) {
+                try {
+                    if (!localStorage.getItem('agentforge_token')) {
+                        localStorage.setItem('agentforge_token', legacy);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+            return legacy;
         }
         
         // Helper function to get auth headers
@@ -2662,8 +2681,8 @@
             if (token) {
                 validateToken(token);
             } else {
-                // Redirect to login
-                window.location.href = '/ui/';
+                // Stay on this page and show the built-in login screen (do NOT redirect to admin portal)
+                showLoginScreen();
             }
             setupMobileMenu();
         });
@@ -2678,9 +2697,22 @@
                     showChatInterface();
                     loadAgents();
                     refreshInboxBadge();
+                    return;
                 }
+                
+                // Invalid/expired token → clear and show login screen (no redirects)
+                try {
+                    localStorage.removeItem('agentforge_token');
+                    sessionStorage.removeItem('agentforge_token');
+                    localStorage.removeItem('token'); // legacy
+                    sessionStorage.removeItem('token'); // legacy
+                } catch (_) { /* ignore */ }
+                currentUser = null;
+                showLoginScreen();
             } catch (e) {
                 console.error('Token validation failed:', e);
+                // If we cannot validate, keep the login screen visible
+                try { showLoginScreen(); } catch (_) {}
             }
         }
 
@@ -2736,7 +2768,13 @@
                 }
                 
                 // Success - complete login
-                localStorage.setItem('token', data.access_token);
+                try {
+                    localStorage.setItem('agentforge_token', data.access_token);
+                    sessionStorage.setItem('agentforge_token', data.access_token);
+                    // Remove legacy key to avoid confusion
+                    localStorage.removeItem('token');
+                    sessionStorage.removeItem('token');
+                } catch (_) { /* ignore */ }
                 currentUser = data.user;
                 showChatInterface();
                 loadAgents();
@@ -2922,7 +2960,13 @@
                 
                 // Success
                 closeLoginMfaModal();
-                localStorage.setItem('token', data.access_token);
+                try {
+                    localStorage.setItem('agentforge_token', data.access_token);
+                    sessionStorage.setItem('agentforge_token', data.access_token);
+                    // Remove legacy key to avoid confusion
+                    localStorage.removeItem('token');
+                    sessionStorage.removeItem('token');
+                } catch (_) { /* ignore */ }
                 currentUser = data.user;
                 showChatInterface();
                 loadAgents();
@@ -3140,6 +3184,16 @@
                 }
             } catch (e) {
                 showToast('OAuth error: ' + e.message, 'error');
+            }
+        }
+
+        function showLoginScreen() {
+            const login = document.getElementById('login-screen');
+            const chat = document.getElementById('chat-interface');
+            if (login) login.classList.remove('hidden');
+            if (chat) {
+                chat.classList.add('hidden');
+                chat.style.display = 'none';
             }
         }
 
@@ -3762,7 +3816,11 @@
                             field.focus();
                             return;
                         }
-                        triggerData[input.id] = fileObj ? { name: fileObj.name, size: fileObj.size, type: fileObj.type } : null;
+                        if (fileObj) {
+                            triggerData[input.id] = await uploadWorkflowRunFile(fileObj);
+                        } else {
+                            triggerData[input.id] = null;
+                        }
                         continue;
                     }
 
@@ -3811,6 +3869,31 @@
                 if (statusEl) statusEl.textContent = '';
                 if (btn) { btn.disabled = false; btn.textContent = 'Start'; }
             }
+        }
+
+        async function uploadWorkflowRunFile(fileObj) {
+            const tokenHeaders = getAuthHeaders();
+            if (!tokenHeaders || !tokenHeaders.Authorization) {
+                throw new Error('You are not signed in.');
+            }
+            const fd = new FormData();
+            fd.append('file', fileObj);
+            const res = await fetch(`${API}/process/uploads`, {
+                method: 'POST',
+                headers: {
+                    ...tokenHeaders
+                },
+                body: fd
+            });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) {
+                const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to upload file');
+                throw new Error(String(msg || 'Failed to upload file'));
+            }
+            const f = (data && data.file) ? data.file : data;
+            if (!f || !f.id) throw new Error('File upload failed.');
+            return f;
         }
 
         // =============================================================================
@@ -4063,6 +4146,76 @@
             }
         }
 
+        async function downloadUploadedProcessFile(fileId, filename) {
+            const id = String(fileId || '').trim();
+            if (!id) return;
+            const name = String(filename || '').trim() || `upload-${id}`;
+            try {
+                const res = await fetch(`${API}/process/uploads/${encodeURIComponent(id)}/download`, {
+                    headers: { ...getAuthHeaders() }
+                });
+                if (!res.ok) {
+                    let msg = res.statusText || 'Failed to download file';
+                    try {
+                        const data = await res.json().catch(() => null);
+                        if (data && (data.detail || data.message || data.error)) msg = data.detail || data.message || data.error;
+                    } catch (_) {}
+                    showToast(String(msg || 'Failed to download file'), 'error');
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1500);
+            } catch (e) {
+                showToast('Unable to download file', 'error');
+            }
+        }
+
+        function _renderPortalValue(v) {
+            if (v == null) return `<span style="color: var(--text-muted);">—</span>`;
+            if (typeof v === 'string') return v.trim() ? escapeHtml(v) : `<span style="color: var(--text-muted);">—</span>`;
+            if (typeof v === 'number' || typeof v === 'boolean') return escapeHtml(String(v));
+            if (typeof v === 'object') {
+                try {
+                    if (v.kind === 'uploadedFile' && (v.id || v.name)) {
+                        const name = v.name || 'Uploaded file';
+                        const typ = v.file_type ? String(v.file_type).toUpperCase() : '';
+                        const size = (typeof v.size === 'number') ? `${Math.round(v.size / 1024)} KB` : '';
+                        const meta = [typ, size].filter(Boolean).join(' · ');
+                        const btn = v.id ? `
+                            <button type="button" class="portal-btn"
+                                style="padding:6px 10px; font-size:12px;"
+                                data-upload-file-id="${escapeHtml(String(v.id))}"
+                                data-upload-file-name="${escapeHtml(String(name))}"
+                            >Download</button>
+                        ` : '';
+                        return `<div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
+                            <div style="text-align:right;">
+                                <div style="font-weight:800;">${escapeHtml(name)}</div>
+                                ${meta ? `<div style="color: var(--text-muted); font-size: 0.85rem;">${escapeHtml(meta)}</div>` : ''}
+                            </div>
+                            ${btn}
+                        </div>`;
+                    }
+                } catch (_) {}
+            }
+            try {
+                const s = JSON.stringify(v, null, 2);
+                const t = s && s.length > 1600 ? (s.slice(0, 1600) + '…') : (s || '');
+                return t ? `<pre style="margin:0;white-space:pre-wrap;word-break:break-word;color: var(--text-muted); font-size: 0.85rem; line-height: 1.35;">${escapeHtml(t)}</pre>` : `<span style="color: var(--text-muted);">—</span>`;
+            } catch (_) {
+                const s = String(v);
+                const t = s.length > 1600 ? (s.slice(0, 1600) + '…') : s;
+                return `<pre style="margin:0;white-space:pre-wrap;word-break:break-word;color: var(--text-muted); font-size: 0.85rem; line-height: 1.35;">${escapeHtml(t)}</pre>`;
+            }
+        }
+
         function _renderRequestDetail(ex, steps) {
             const titleEl = document.getElementById('request-detail-title');
             const subEl = document.getElementById('request-detail-subtitle');
@@ -4110,8 +4263,8 @@
                 <div class="kv-grid" style="margin-top: 10px;">
                     ${inputsEntries.map(([k, v]) => `
                         <div class="kv">
-                            <div class="k">${escapeHtml(k)}</div>
-                            <div class="v">${escapeHtml(typeof v === 'string' ? v : JSON.stringify(v))}</div>
+                            <div class="k">${escapeHtml(humanizeFieldLabel(k) || k)}</div>
+                            <div class="v">${_renderPortalValue(v)}</div>
                         </div>
                     `).join('')}
                 </div>
@@ -4155,6 +4308,18 @@
                     ${stepsHtml}
                 </div>
             `;
+
+            // Wire up authenticated downloads for uploaded file buttons
+            try {
+                bodyEl.querySelectorAll('button[data-upload-file-id]').forEach(btn => {
+                    btn.addEventListener('click', async (ev) => {
+                        try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {}
+                        const id = btn.getAttribute('data-upload-file-id') || '';
+                        const name = btn.getAttribute('data-upload-file-name') || '';
+                        await downloadUploadedProcessFile(id, name);
+                    });
+                });
+            } catch (_) {}
         }
 
         // =============================================================================
@@ -4818,7 +4983,12 @@
         }
 
         function handleLogout() {
-            localStorage.removeItem('token');
+            try {
+                localStorage.removeItem('agentforge_token');
+                sessionStorage.removeItem('agentforge_token');
+                localStorage.removeItem('token'); // legacy
+                sessionStorage.removeItem('token'); // legacy
+            } catch (_) { /* ignore */ }
             currentUser = null;
             location.reload();
         }

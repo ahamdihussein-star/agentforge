@@ -1381,6 +1381,27 @@
                 drop-shadow(0 0 10px rgba(34,197,94,0.25))
                 drop-shadow(0 18px 28px rgba(0,0,0,0.35));
         }
+
+        /* Terminal states: stop point styling (matches actual execution) */
+        .workflow-node.play-waiting .node-shape-wrap::after {
+            border: 2px solid rgba(245,158,11,0.92);
+            box-shadow: 0 0 0 7px rgba(245,158,11,0.16);
+        }
+        .workflow-node.play-waiting .node-shape-wrap {
+            filter:
+                drop-shadow(0 0 10px rgba(245,158,11,0.25))
+                drop-shadow(0 18px 28px rgba(0,0,0,0.35));
+        }
+
+        .workflow-node.play-failed .node-shape-wrap::after {
+            border: 2px solid rgba(239,68,68,0.92);
+            box-shadow: 0 0 0 7px rgba(239,68,68,0.16);
+        }
+        .workflow-node.play-failed .node-shape-wrap {
+            filter:
+                drop-shadow(0 0 10px rgba(239,68,68,0.25))
+                drop-shadow(0 18px 28px rgba(0,0,0,0.35));
+        }
         
         .connecting .port.output,
         .connecting .port.output-top,
@@ -5025,6 +5046,7 @@
                             <select class="property-select" onchange="setActionType('${node.id}', this.value)">
                                 <option value="custom" ${actionType === 'custom' ? 'selected' : ''}>Custom</option>
                                 <option value="generateDocument" ${actionType === 'generateDocument' ? 'selected' : ''}>Generate Document</option>
+                                <option value="extractDocumentText" ${actionType === 'extractDocumentText' ? 'selected' : ''}>Extract Document Text</option>
                                 <option value="httpRequest" ${actionType === 'httpRequest' ? 'selected' : ''}>HTTP Request (Advanced)</option>
                                 <option value="runScript" ${actionType === 'runScript' ? 'selected' : ''}>Run Script (Advanced)</option>
                                 <option value="transformData" ${actionType === 'transformData' ? 'selected' : ''}>Transform Data (Advanced)</option>
@@ -5057,6 +5079,32 @@
                                 </div>
                             </div>
                         ` : ''}
+                        ${actionType === 'extractDocumentText' ? (() => {
+                            const fileFields = (getStartFileFieldsForAction() || []);
+                            const source = String(node.config.sourceField || '').trim();
+                            const outVar = String(node.output_variable || '').trim();
+                            return `
+                            <div class="property-group">
+                                <label class="property-label">Source document</label>
+                                <select class="property-select" onchange="setExtractDocumentSourceField('${node.id}', this.value)">
+                                    <option value="">Select…</option>
+                                    ${fileFields.map(f => `<option value="${escapeHtml(f.name)}" ${(source === f.name) ? 'selected' : ''}>${escapeHtml(f.label || f.name)}</option>`).join('')}
+                                </select>
+                                <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
+                                    Picks a file uploaded in the Start/Form step.
+                                </div>
+                            </div>
+                            <div class="property-group">
+                                <label class="property-label">Save extracted text as</label>
+                                <input type="text" class="property-input" placeholder="e.g., expenseDocumentText"
+                                       value="${escapeHtml(outVar)}"
+                                       onchange="updateNodeProperty('${node.id}', 'output_variable', this.value)">
+                                <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
+                                    Next steps can reference it like <code>{{${escapeHtml(outVar || 'yourVariable')}}}</code>.
+                                </div>
+                            </div>
+                            `;
+                        })() : ''}
                     `;
                     break;
                     
@@ -5130,6 +5178,40 @@
             if (actionType === 'generateDocument') {
                 if (!node.config.documentFormat) node.config.documentFormat = 'docx';
                 if (!node.config.documentTitle) node.config.documentTitle = node.name || 'Document';
+            } else if (actionType === 'extractDocumentText') {
+                // Default: pick first file field from Start/Form, and store text in <fieldName>Text
+                const files = getStartFileFieldsForAction() || [];
+                if (!node.config.sourceField && files.length) {
+                    node.config.sourceField = files[0].name;
+                }
+                if (node.config.sourceField) {
+                    node.config.path = `{{${node.config.sourceField}.path}}`;
+                    if (!node.output_variable) {
+                        node.output_variable = `${node.config.sourceField}Text`;
+                    }
+                }
+            }
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function getStartFileFieldsForAction() {
+            const startNode = getStartNodeForTest();
+            const fields = getStartFieldDefs(startNode) || [];
+            return fields.filter(f => String(f.type || '').toLowerCase() === 'file');
+        }
+
+        function setExtractDocumentSourceField(nodeId, fieldName) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            const f = String(fieldName || '').trim();
+            node.config.sourceField = f;
+            if (f) {
+                node.config.path = `{{${f}.path}}`;
+                if (!node.output_variable) {
+                    node.output_variable = `${f}Text`;
+                }
             }
             refreshNode(node);
             showProperties(node);
@@ -6294,11 +6376,18 @@
                             <div>
                                 <h2 style="margin:0; font-size:18px;">Test run</h2>
                                 <p style="margin:6px 0 0; color:var(--pb-muted); font-size:13px;">Fill the fields and we’ll play back the workflow path on the canvas.</p>
-                                <div style="margin-top:10px;">
+                                <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
                                     <label style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;">
                                         <input id="test-send-real-emails" type="checkbox" checked style="width:16px;height:16px;accent-color: var(--success);">
                                         Send email notifications for real (SendGrid)
                                     </label>
+                                    <label style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;">
+                                        <input id="test-run-real-engine" type="checkbox" style="width:16px;height:16px;accent-color: var(--tb-btn-primary-bg);">
+                                        Run using the real engine (shows extracted/API results)
+                                    </label>
+                                    <div style="font-size:11px;color:var(--pb-muted);margin-left:26px;">
+                                        Engine mode runs tools and steps for real (it may send real notifications).
+                                    </div>
                                 </div>
                             </div>
                             <button type="button" onclick="closeTestModal()" style="background:transparent;border:none;color:var(--pb-muted);font-size:22px;line-height:1;cursor:pointer;">×</button>
@@ -6490,11 +6579,36 @@
             const values = applyDerivedToForm(fieldDefs);
             // Basic required validation (business-friendly)
             for (const f of fieldDefs) {
-                if (f.required && !String(values[f.name] || '').trim()) {
+                if (f.required && String(f.type || '').toLowerCase() !== 'file' && !String(values[f.name] || '').trim()) {
                     alert(`Please fill in: ${f.label}`);
                     const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
                     if (el) el.focus();
                     return;
+                }
+            }
+
+            const runWithEngine = !!document.getElementById('test-run-real-engine')?.checked;
+            if (runWithEngine) {
+                // Upload file fields (so the real engine/extraction steps can use the actual document)
+                for (const f of fieldDefs) {
+                    if (!f || String(f.type || '').toLowerCase() !== 'file') continue;
+                    const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
+                    const fileObj = el && el.files && el.files[0] ? el.files[0] : null;
+                    if (f.required && !fileObj) {
+                        alert(`Please upload: ${f.label}`);
+                        if (el) el.focus();
+                        return;
+                    }
+                    if (fileObj) {
+                        try {
+                            values[f.name] = await uploadPbTestRunFile(fileObj);
+                        } catch (e) {
+                            alert(`Could not upload "${f.label}". Please try again.`);
+                            return;
+                        }
+                    } else {
+                        values[f.name] = null;
+                    }
                 }
             }
             const sendRealEmails = !!document.getElementById('test-send-real-emails')?.checked;
@@ -6515,7 +6629,553 @@
                 currentUser = null;
             }
             closeTestModal();
-            await simulateWorkflow(values, { fieldDefs, sendRealEmails, currentUser });
+            if (runWithEngine) {
+                await runWorkflowTestWithEngine(values, { fieldDefs, currentUser });
+            } else {
+                await simulateWorkflow(values, { fieldDefs, sendRealEmails, currentUser });
+            }
+        }
+
+        async function uploadPbTestRunFile(fileObj) {
+            const token = getAuthToken();
+            if (!token) throw new Error('Not signed in');
+            const fd = new FormData();
+            fd.append('file', fileObj);
+            const res = await fetch('/process/uploads', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                },
+                body: fd
+            });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) {
+                const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to upload file');
+                throw new Error(String(msg || 'Failed to upload file'));
+            }
+            const f = (data && data.file) ? data.file : data;
+            if (!f || !f.id) throw new Error('File upload failed');
+            return f;
+        }
+
+        function _engineStatusBadge(status) {
+            const s = String(status || '').toLowerCase();
+            if (s === 'completed') return `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--success) 18%, transparent);border:1px solid color-mix(in srgb, var(--success) 45%, transparent);color:var(--success);font-weight:800;font-size:12px;">Completed</span>`;
+            if (s === 'failed') return `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--danger) 18%, transparent);border:1px solid color-mix(in srgb, var(--danger) 45%, transparent);color:var(--danger);font-weight:800;font-size:12px;">Failed</span>`;
+            if (s === 'waiting') return `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--warning) 18%, transparent);border:1px solid color-mix(in srgb, var(--warning) 45%, transparent);color:var(--warning);font-weight:800;font-size:12px;">Waiting</span>`;
+            return `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--tb-btn-primary-bg) 18%, transparent);border:1px solid color-mix(in srgb, var(--tb-btn-primary-bg) 45%, transparent);color:var(--tb-btn-primary-text);font-weight:800;font-size:12px;">Running</span>`;
+        }
+
+        function _renderEngineValue(v) {
+            if (v == null) return '—';
+            if (typeof v === 'string') return v.trim() ? escapeHtml(v) : '—';
+            if (typeof v === 'number' || typeof v === 'boolean') return escapeHtml(String(v));
+            if (typeof v === 'object') {
+                if (v.kind === 'uploadedFile' && (v.name || v.id)) {
+                    const name = v.name || 'Uploaded file';
+                    const typ = v.file_type ? String(v.file_type).toUpperCase() : '';
+                    const size = (typeof v.size === 'number') ? `${Math.round(v.size / 1024)} KB` : '';
+                    const meta = [typ, size].filter(Boolean).join(' · ');
+                    const btn = v.id ? `<button type="button" class="toolbar-btn btn-secondary" style="padding:6px 10px;border-radius:10px;font-size:12px;"
+                        data-upload-file-id="${escapeHtml(String(v.id))}"
+                        data-upload-file-name="${escapeHtml(String(name))}"
+                    >Download</button>` : '';
+                    return `${escapeHtml(name)}${meta ? ` <span style="color:var(--pb-muted);font-size:12px;">(${escapeHtml(meta)})</span>` : ''}${btn ? ` <span style="margin-left:10px;display:inline-block;">${btn}</span>` : ''}`;
+                }
+            }
+            try {
+                const s = JSON.stringify(v);
+                const t = s && s.length > 1400 ? (s.slice(0, 1400) + '…') : (s || '');
+                return t ? escapeHtml(t) : '—';
+            } catch (_) {
+                const s = String(v);
+                const t = s.length > 1400 ? (s.slice(0, 1400) + '…') : s;
+                return escapeHtml(t);
+            }
+        }
+
+        async function downloadProcessUploadFile(fileId, filename) {
+            const id = String(fileId || '').trim();
+            if (!id) return;
+            const name = String(filename || '').trim() || `upload-${id}`;
+            const token = getAuthToken();
+            if (!token) {
+                alert('❌ Please sign in first.');
+                return;
+            }
+            try {
+                const res = await fetch('/process/uploads/' + encodeURIComponent(id) + '/download', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) {
+                    let msg = res.statusText || 'Failed to download file';
+                    try {
+                        const data = await res.json().catch(() => null);
+                        if (data && (data.detail || data.message || data.error)) msg = data.detail || data.message || data.error;
+                    } catch (_) {}
+                    alert('❌ ' + String(msg || 'Failed to download file'));
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1500);
+            } catch (e) {
+                alert('❌ Unable to download file. Please try again.');
+            }
+        }
+
+        function _openEngineRunModal() {
+            const modal = document.createElement('div');
+            modal.id = 'engine-test-running-modal';
+            modal.style.cssText = `
+                position: fixed; inset: 0;
+                background: rgba(0,0,0,0.78); display: flex; align-items: center;
+                justify-content: center; z-index: 10000; padding: 18px;
+            `;
+            modal.addEventListener('click', (e) => { if (e.target === modal) { /* keep open */ } });
+            modal.innerHTML = `
+                <div style="background:var(--pb-panel); color:var(--pb-text); border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); border-radius:16px; width:760px; max-width:100%; box-shadow: var(--shadow-md); overflow:hidden;">
+                    <div style="padding:16px 18px; border-bottom:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                <h2 style="margin:0; font-size:18px;">Running real test</h2>
+                                <span id="engine-test-status-badge">${_engineStatusBadge('running')}</span>
+                            </div>
+                            <div id="engine-test-status-text" style="margin-top:6px; font-size:13px; color: var(--pb-muted);">Starting…</div>
+                        </div>
+                        <button type="button" id="engine-test-close-btn" class="toolbar-btn btn-secondary" style="padding:10px 12px;border-radius:12px;">Hide</button>
+                    </div>
+                    <div id="engine-test-approval" style="display:none;padding:18px;border-bottom:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);">
+                        <div style="display:flex;gap:12px;align-items:flex-start;">
+                            <div style="width:36px;height:36px;border-radius:12px;background: color-mix(in srgb, var(--warning) 18%, transparent); border:1px solid color-mix(in srgb, var(--warning) 45%, transparent); display:flex;align-items:center;justify-content:center;font-size:18px;">⏳</div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:900;font-size:15px;">Waiting for approval</div>
+                                <div id="engine-test-approval-title" style="margin-top:4px;color:var(--pb-muted);font-size:13px;">Approval</div>
+                                <div id="engine-test-approval-desc" style="margin-top:8px;font-size:13px;line-height:1.4;color:color-mix(in srgb, var(--pb-text) 88%, var(--pb-muted));"></div>
+                                <div style="margin-top:14px;display:flex;gap:10px;">
+                                    <button type="button" id="engine-test-approve-btn" class="toolbar-btn btn-primary" style="flex:1; padding:12px 12px; border-radius:12px;">Approve & continue</button>
+                                    <button type="button" id="engine-test-reject-btn" class="toolbar-btn btn-secondary" style="flex:1; padding:12px 12px; border-radius:12px; border:1px solid color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent);">Reject</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding:18px;">
+                        <div style="display:flex;gap:10px;align-items:center;color:var(--pb-muted);font-size:13px;">
+                            <div style="width:18px;height:18px;border-radius:999px;border:2px solid color-mix(in srgb, var(--tb-btn-primary-bg) 60%, transparent);border-top-color:transparent;animation: spin 0.9s linear infinite;"></div>
+                            <div>We’ll show a full report when it finishes.</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const closeBtn = modal.querySelector('#engine-test-close-btn');
+            if (closeBtn) closeBtn.addEventListener('click', () => { try { modal.remove(); } catch (_) {} });
+            return modal;
+        }
+
+        async function _ensureWorkflowSavedSilently() {
+            const token = getAuthToken();
+            if (!token) throw new Error('Please sign in first.');
+            const name = document.getElementById('workflow-name')?.value || 'Workflow';
+            const goal = (state.goal && String(state.goal).trim()) ? String(state.goal).trim() : (name || 'Workflow automation');
+            const def = { nodes: state.nodes, edges: state.connections };
+            const method = state.agentId ? 'PUT' : 'POST';
+            const url = state.agentId ? '/api/agents/' + state.agentId : '/api/agents';
+            const body = state.agentId ? {
+                name,
+                goal,
+                process_definition: def,
+                status: 'draft'
+            } : {
+                name,
+                goal,
+                agent_type: 'process',
+                personality: {},
+                tasks: [],
+                tool_ids: [],
+                model_id: 'gpt-4o',
+                process_definition: def,
+                process_settings: {},
+                status: 'draft'
+            };
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(body)
+            });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) {
+                const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Could not save workflow');
+                throw new Error(String(msg || 'Could not save workflow'));
+            }
+            if (!state.agentId) {
+                state.agentId = data?.agent_id || data?.id || state.agentId;
+                if (state.agentId) {
+                    try { window.history.replaceState({}, '', '?agent=' + state.agentId); } catch (_) {}
+                }
+            }
+            return state.agentId;
+        }
+
+        async function _fetchExecution(executionId) {
+            const token = getAuthToken();
+            const res = await fetch('/process/executions/' + encodeURIComponent(String(executionId)), {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) return null;
+            return data;
+        }
+
+        async function _fetchStepsIo(executionId) {
+            const token = getAuthToken();
+            const res = await fetch('/process/executions/' + encodeURIComponent(String(executionId)) + '/steps?include_io=1', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) return [];
+            const steps = data?.steps || [];
+            return Array.isArray(steps) ? steps : [];
+        }
+
+        async function _fetchPendingApprovalForExecution(executionId) {
+            const token = getAuthToken();
+            const res = await fetch('/process/approvals?status=pending', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) return null;
+            const items = data?.items || data?.approvals || [];
+            const execId = String(executionId || '');
+            return (items || []).find(a => String(a?.process_execution_id || a?.run_id || a?.execution_id || a?.executionId || '') === execId) || null;
+        }
+
+        async function _decideApproval(approvalId, decision) {
+            const token = getAuthToken();
+            const res = await fetch('/process/approvals/' + encodeURIComponent(String(approvalId)) + '/decide', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ decision })
+            });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) {
+                const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to submit decision');
+                throw new Error(String(msg || 'Failed to submit decision'));
+            }
+            return data;
+        }
+
+        function _showEngineTestReport(execution, triggerInput, fieldDefs, steps) {
+            const modal = document.createElement('div');
+            modal.id = 'engine-test-report-modal';
+            modal.style.cssText = `
+                position: fixed; inset: 0;
+                background: rgba(0,0,0,0.78); display: flex; align-items: center;
+                justify-content: center; z-index: 10000; padding: 18px;
+            `;
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                    try { clearPlaybackHighlights(); } catch (_) {}
+                }
+            });
+
+            const fieldLabelByKey = {};
+            (fieldDefs || []).forEach(f => { if (f && f.name) fieldLabelByKey[f.name] = f.label || humanizeFieldLabel(f.name) || f.name; });
+
+            const inputRows = Object.keys(triggerInput || {}).map(k => {
+                const label = fieldLabelByKey[k] || humanizeFieldLabel(k) || k;
+                return `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed color-mix(in srgb, var(--pb-muted) 28%, transparent);">
+                    <div style="color:var(--pb-muted);font-size:13px;">${escapeHtml(label)}</div>
+                    <div style="color:var(--pb-text);font-size:13px;font-weight:700;max-width:62%;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_renderEngineValue(triggerInput[k])}</div>
+                </div>`;
+            }).join('') || `<div style="color:var(--pb-muted);font-size:13px;">No inputs.</div>`;
+
+            const status = String(execution?.status || '').toLowerCase();
+            const badge = _engineStatusBadge(status);
+            const headline = status === 'completed'
+                ? 'Workflow completed successfully.'
+                : status === 'failed'
+                    ? (execution?.error_message || execution?.error?.message || 'The workflow failed.')
+                    : status === 'waiting'
+                        ? 'Workflow is waiting for approval.'
+                        : 'Workflow is running.';
+
+            const stepsCards = (steps || []).slice(0, 80).map((s) => {
+                const info = (s && typeof s.status === 'object') ? s.status : {};
+                const color = String(info?.color || '').toLowerCase();
+                const stKey =
+                    (info && (info.key || info.status || info.value)) ? String(info.key || info.status || info.value).toLowerCase() :
+                    (color === 'green') ? 'completed' :
+                    (color === 'red') ? 'failed' :
+                    (color === 'yellow') ? 'waiting' :
+                    (color === 'orange') ? 'paused' :
+                    (color === 'blue') ? 'running' :
+                    '';
+                const icon = stKey === 'completed' ? '✅' : stKey === 'failed' ? '❌' : (stKey === 'waiting' || stKey === 'paused') ? '⏳' : '🔄';
+                const name = s.step_name || 'Step';
+                const out = s.output || {};
+                const outPreview = (out && typeof out === 'object' && ('variables_update' in out || 'output' in out))
+                    ? _renderEngineValue(out.variables_update && Object.keys(out.variables_update || {}).length ? out.variables_update : out.output)
+                    : _renderEngineValue(out);
+                return `
+                    <details style="padding:12px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:14px;margin-bottom:10px;">
+                        <summary style="cursor:pointer;user-select:none;display:flex;gap:12px;align-items:flex-start;">
+                            <div style="width:30px;height:30px;border-radius:10px;background:color-mix(in srgb, var(--tb-btn-primary-bg) 18%, transparent);display:flex;align-items:center;justify-content:center;color:var(--tb-btn-primary-text);font-weight:900;">
+                                ${icon}
+                            </div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                                    <div style="font-weight:800;color:var(--pb-text);">${escapeHtml(name)}</div>
+                                    <div style="font-size:12px;color:var(--pb-muted);">${escapeHtml(s.step_type || '')}</div>
+                                </div>
+                                <div style="margin-top:6px;font-size:13px;color:color-mix(in srgb, var(--pb-text) 86%, var(--pb-muted));line-height:1.35;">${outPreview}</div>
+                            </div>
+                        </summary>
+                        <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div style="padding:10px;border-radius:12px;border:1px solid color-mix(in srgb, var(--pb-muted) 18%, transparent);background:rgba(0,0,0,0.12);">
+                                <div style="font-weight:800;font-size:12px;color:var(--pb-text);margin-bottom:8px;">Inputs</div>
+                                <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:var(--pb-muted);font-size:12px;line-height:1.35;">${escapeHtml(JSON.stringify(s.input || {}, null, 2) || '')}</pre>
+                            </div>
+                            <div style="padding:10px;border-radius:12px;border:1px solid color-mix(in srgb, var(--pb-muted) 18%, transparent);background:rgba(0,0,0,0.12);">
+                                <div style="font-weight:800;font-size:12px;color:var(--pb-text);margin-bottom:8px;">Outputs</div>
+                                <pre style="margin:0;white-space:pre-wrap;word-break:break-word;color:var(--pb-muted);font-size:12px;line-height:1.35;">${escapeHtml(JSON.stringify(s.output || {}, null, 2) || '')}</pre>
+                            </div>
+                        </div>
+                    </details>
+                `;
+            }).join('') || `<div style="color:var(--pb-muted);">No steps.</div>`;
+
+            modal.innerHTML = `
+                <div style="background:var(--pb-panel); color:var(--pb-text); border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); border-radius:16px; width:1100px; max-width:100%; max-height:88vh; overflow:auto; box-shadow: var(--shadow-md);">
+                    <div style="padding:18px; border-bottom:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                <h2 style="margin:0; font-size:18px;">Test report (real run)</h2>
+                                ${badge}
+                            </div>
+                            <p style="margin:6px 0 0; color:var(--pb-muted); font-size:13px;">${escapeHtml(headline)}</p>
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:center;">
+                            <button type="button" class="toolbar-btn btn-secondary" onclick="document.getElementById('engine-test-report-modal')?.remove(); clearPlaybackHighlights();" style="padding:10px 12px;border-radius:12px;">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                    <div style="padding:18px; display:grid;grid-template-columns: 360px 1fr; gap:16px;">
+                        <div>
+                            <div style="padding:14px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;">
+                                <div style="font-weight:900;color:var(--pb-text);margin-bottom:10px;">Submitted information</div>
+                                <div>${inputRows}</div>
+                            </div>
+                            <div style="margin-top:12px;padding:14px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;">
+                                <div style="font-weight:900;color:var(--pb-text);margin-bottom:8px;">Outcome</div>
+                                <div style="color:color-mix(in srgb, var(--pb-text) 86%, var(--pb-muted));font-size:13px;line-height:1.35;">${escapeHtml(headline)}</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-weight:900;color:var(--pb-text);margin-bottom:10px;">Step inputs & outputs</div>
+                            ${stepsCards}
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Wire up authenticated downloads for uploaded file buttons
+            try {
+                modal.querySelectorAll('button[data-upload-file-id]').forEach(btn => {
+                    btn.addEventListener('click', async (ev) => {
+                        try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {}
+                        const id = btn.getAttribute('data-upload-file-id') || '';
+                        const name = btn.getAttribute('data-upload-file-name') || '';
+                        await downloadProcessUploadFile(id, name);
+                    });
+                });
+            } catch (_) {}
+        }
+
+        async function runWorkflowTestWithEngine(triggerInput, ctx) {
+            const token = getAuthToken();
+            if (!token) {
+                alert('❌ Please sign in first to run the real engine test.');
+                return;
+            }
+
+            // Save current workflow definition so the engine runs the latest canvas version
+            try {
+                await _ensureWorkflowSavedSilently();
+            } catch (e) {
+                alert('❌ ' + (e?.message || 'Could not save workflow for test.'));
+                return;
+            }
+
+            const runningModal = _openEngineRunModal();
+            const setBadge = (status) => {
+                const b = runningModal.querySelector('#engine-test-status-badge');
+                if (b) b.innerHTML = _engineStatusBadge(status);
+            };
+            const setText = (txt) => {
+                const t = runningModal.querySelector('#engine-test-status-text');
+                if (t) t.textContent = txt || '';
+            };
+
+            let executionId = null;
+            try {
+                setText('Starting workflow…');
+                const res = await fetch('/process/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({
+                        agent_id: state.agentId,
+                        trigger_input: triggerInput || {},
+                        trigger_type: 'manual'
+                    })
+                });
+                let data = null;
+                try { data = await res.json(); } catch (_) { data = null; }
+                if (!res.ok) {
+                    const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to start workflow');
+                    throw new Error(String(msg || 'Failed to start workflow'));
+                }
+                executionId = data?.id || data?.execution_id || data?.executionId;
+                if (!executionId) throw new Error('No execution id returned.');
+            } catch (e) {
+                try { runningModal.remove(); } catch (_) {}
+                alert('❌ ' + (e?.message || 'Failed to start workflow'));
+                return;
+            }
+
+            let lastStatus = 'running';
+            let finishedExecution = null;
+            let approvalHandled = false;
+            const approvalBox = runningModal.querySelector('#engine-test-approval');
+            const approveBtn = runningModal.querySelector('#engine-test-approve-btn');
+            const rejectBtn = runningModal.querySelector('#engine-test-reject-btn');
+
+            const showApproval = (approval) => {
+                if (!approvalBox) return;
+                const title = runningModal.querySelector('#engine-test-approval-title');
+                const desc = runningModal.querySelector('#engine-test-approval-desc');
+                approvalBox.style.display = '';
+                if (title) title.textContent = approval?.title || approval?.step_name || 'Approval';
+                if (desc) desc.textContent = approval?.description || 'This step requires approval to continue.';
+            };
+            const hideApproval = () => { if (approvalBox) approvalBox.style.display = 'none'; };
+
+            const decide = async (decision) => {
+                if (approvalHandled) return;
+                approvalHandled = true;
+                try {
+                    const appr = await _fetchPendingApprovalForExecution(executionId);
+                    if (!appr || !appr.id) throw new Error('Approval request not found.');
+                    setText(decision === 'approved' ? 'Approved. Continuing…' : 'Rejected. Continuing…');
+                    await _decideApproval(appr.id, decision);
+                    hideApproval();
+                } catch (e) {
+                    approvalHandled = false;
+                    alert('❌ ' + (e?.message || 'Could not submit approval decision.'));
+                }
+            };
+
+            if (approveBtn) approveBtn.addEventListener('click', () => decide('approved'));
+            if (rejectBtn) rejectBtn.addEventListener('click', () => decide('rejected'));
+
+            // Poll execution until terminal (or waiting for approval)
+            const maxMs = 4 * 60 * 1000; // 4 minutes for test runs
+            const startedAt = Date.now();
+            while (Date.now() - startedAt < maxMs) {
+                const ex = await _fetchExecution(executionId);
+                if (!ex) {
+                    setText('Could not read workflow status. Please try again.');
+                    setBadge('failed');
+                    break;
+                }
+                const st = String(ex.status || '').toLowerCase();
+                lastStatus = st || lastStatus;
+                setBadge(st);
+
+                if (st === 'waiting') {
+                    setText('Waiting for approval…');
+                    const appr = await _fetchPendingApprovalForExecution(executionId);
+                    showApproval(appr);
+                    // keep polling; decision will auto-resume via API
+                } else if (st === 'completed' || st === 'failed') {
+                    finishedExecution = ex;
+                    break;
+                } else {
+                    const cur = ex.current_node_id || ex.current_node || '';
+                    const node = cur ? state.nodes.find(n => n.id === cur) : null;
+                    setText(node ? `Running: ${node.name || 'Step'}` : 'Running…');
+                    hideApproval();
+                    approvalHandled = false;
+                }
+
+                await _sleep(1200);
+            }
+
+            try { runningModal.remove(); } catch (_) {}
+
+            if (!finishedExecution) {
+                alert('Test run is taking longer than expected. You can check it from Runs in the portal.');
+                return;
+            }
+
+            // Fetch step I/O and animate the path, then show report
+            let steps = [];
+            try { steps = await _fetchStepsIo(executionId); } catch (_) { steps = []; }
+            steps.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+            const trace = steps
+                .filter(s => s && s.node_id)
+                .map((s, idx, arr) => {
+                    const nodeId = String(s.node_id);
+                    const prevId = (idx > 0 && arr[idx - 1] && arr[idx - 1].node_id) ? String(arr[idx - 1].node_id) : null;
+                    let edgeType = null;
+                    if (prevId && prevId !== nodeId) {
+                        // Infer edge type from canvas connections (helps yes/no branch highlighting)
+                        const ci = findConnectionIndex(prevId, nodeId, null);
+                        if (ci >= 0) {
+                            const c = state.connections[ci];
+                            const t = c && c.type ? String(c.type) : '';
+                            edgeType = (t && t !== 'default') ? t : null;
+                        }
+                    }
+                    return {
+                        nodeId,
+                        edgeType,
+                        type: (s.node_type || '').toLowerCase(),
+                        title: s.step_name || 'Step',
+                        status: s.status || null,
+                        error: s.error || null
+                    };
+                });
+
+            window._lastTestTrace = trace;
+            try { await playTestPlayback(trace); } catch (_) {}
+
+            _showEngineTestReport(finishedExecution, triggerInput || {}, (ctx && ctx.fieldDefs) ? ctx.fieldDefs : [], steps);
         }
 
         function _resolveTemplatePath(values, path) {
@@ -6590,7 +7250,11 @@
             // Nodes
             state.nodes.forEach(n => {
                 const el = document.getElementById(n.id);
-                if (el) el.classList.remove('play-active');
+                if (el) {
+                    el.classList.remove('play-active');
+                    el.classList.remove('play-waiting');
+                    el.classList.remove('play-failed');
+                }
             });
             // Edges
             state.connections.forEach(c => {
@@ -6600,10 +7264,18 @@
             renderConnections();
         }
 
-        function setNodePlayActive(nodeId) {
+        function setNodePlayActive(nodeId, statusKey) {
+            const st = String(statusKey || '').toLowerCase();
+            const isFailed = st === 'failed' || st === 'error' || st === 'timed_out' || st === 'cancelled' || st === 'rejected';
+            const isWaiting = st === 'waiting' || st === 'pending' || st === 'paused' || st === 'stopped';
             state.nodes.forEach(n => {
                 const el = document.getElementById(n.id);
-                if (el) el.classList.toggle('play-active', n.id === nodeId);
+                if (el) {
+                    const active = n.id === nodeId;
+                    el.classList.toggle('play-active', active);
+                    el.classList.toggle('play-failed', active && isFailed);
+                    el.classList.toggle('play-waiting', active && !isFailed && isWaiting);
+                }
             });
         }
 
@@ -6702,6 +7374,52 @@
             }
         }
 
+        function _playbackStatusKey(step) {
+            if (!step || typeof step !== 'object') return '';
+            const raw = (
+                step.status_key ??
+                step.statusKey ??
+                step.step_status ??
+                step.stepStatus ??
+                step.status ??
+                ''
+            );
+            if (!raw) return '';
+            if (typeof raw === 'string') return raw.toLowerCase();
+            if (typeof raw === 'object') {
+                const key = raw.key || raw.status || raw.value;
+                if (key) return String(key).toLowerCase();
+                const color = raw.color ? String(raw.color).toLowerCase() : '';
+                if (color) {
+                    if (color === 'green') return 'completed';
+                    if (color === 'red') return 'failed';
+                    if (color === 'yellow') return 'waiting';
+                    if (color === 'orange') return 'paused';
+                    if (color === 'blue') return 'running';
+                    if (color === 'gray' || color === 'grey') return 'pending';
+                }
+                const label = raw.label ? String(raw.label).toLowerCase() : '';
+                if (label) {
+                    if (label.includes('error') || label.includes('fail')) return 'failed';
+                    if (label.includes('waiting')) return 'waiting';
+                    if (label.includes('paused')) return 'paused';
+                    if (label.includes('completed')) return 'completed';
+                    if (label.includes('running')) return 'running';
+                }
+            }
+            try { return String(raw).toLowerCase(); } catch (_) { return ''; }
+        }
+
+        function _isTerminalPlaybackStatus(statusKey) {
+            const s = String(statusKey || '').toLowerCase();
+            if (!s) return false;
+            if (s === 'failed' || s === 'error' || s === 'timed_out' || s === 'cancelled' || s === 'rejected') return true;
+            if (s === 'waiting' || s === 'pending' || s === 'paused' || s === 'stopped') return true;
+            // Fuzzy
+            if (s.includes('fail') || s.includes('error') || s.includes('waiting') || s.includes('paused')) return true;
+            return false;
+        }
+
         async function playTestPlayback(trace) {
             if (!Array.isArray(trace) || trace.length === 0) return;
             clearPlaybackHighlights();
@@ -6713,16 +7431,18 @@
                 const nodeId = step.nodeId;
                 const node = state.nodes.find(n => n.id === nodeId);
                 if (!node) continue;
+                const statusKey = _playbackStatusKey(step);
 
                 if (i === 0) {
                     // First node: land on shape
-                    setNodePlayActive(nodeId);
+                    setNodePlayActive(nodeId, statusKey);
                     try {
                         _moveCursorToCanvasPoint(_nodeCanvasCenter(node));
                         await _sleep(220);
                         _cursorClick();
                     } catch (_) {}
                     await _sleep(520);
+                    if (step.terminal === true || _isTerminalPlaybackStatus(statusKey)) break;
                     continue;
                 }
 
@@ -6735,13 +7455,14 @@
                 }
 
                 // Stop on the shape itself
-                setNodePlayActive(nodeId);
+                setNodePlayActive(nodeId, statusKey);
                 try {
                     _moveCursorToCanvasPoint(_nodeCanvasCenter(node), 180);
                     await _sleep(180);
                     _cursorClick();
                 } catch (_) {}
                 await _sleep(520);
+                if (step.terminal === true || _isTerminalPlaybackStatus(statusKey)) break;
             }
 
             // Keep visited edges highlighted, but stop the moving dash at the end
@@ -6767,6 +7488,7 @@
                 const nodeId = step.nodeId;
                 const node = state.nodes.find(n => n.id === nodeId);
                 if (!node) continue;
+                const statusKey = _playbackStatusKey(step);
 
                 const prev = trace[i - 1] || {};
                 const prevId = prev.nodeId;
@@ -6775,13 +7497,14 @@
                     try { await _moveCursorAlongConnectionIndex(connIdx, 560); } catch (_) {}
                 }
 
-                setNodePlayActive(nodeId);
+                setNodePlayActive(nodeId, statusKey);
                 try {
                     _moveCursorToCanvasPoint(_nodeCanvasCenter(node), 180);
                     await _sleep(180);
                     _cursorClick();
                 } catch (_) {}
                 await _sleep(520);
+                if (step.terminal === true || _isTerminalPlaybackStatus(statusKey)) break;
             }
 
             state.connections.forEach(c => { if (c) delete c._playCurrent; });
@@ -7014,7 +7737,8 @@
                             edgeType: null,
                             type: current.type,
                             title: current.name || 'Approval',
-                            message: msg
+                            message: msg,
+                            status_key: 'waiting'
                         });
                         pushedCurrent = true;
 
@@ -7031,11 +7755,13 @@
                             // Update the message for the report (no need to add a new node in the trace)
                             if (trace[approvalTraceIndex]) {
                                 trace[approvalTraceIndex].message = `Approved. Continuing the workflow.`;
+                                trace[approvalTraceIndex].status_key = 'completed';
                             }
                             // Continue normally (use the default outgoing edge)
                         } else if (decision === 'rejected') {
                             if (trace[approvalTraceIndex]) {
                                 trace[approvalTraceIndex].message = `Rejected. The workflow will stop here.`;
+                                trace[approvalTraceIndex].status_key = 'failed';
                             }
                             outcome = {
                                 status: 'failed',
@@ -7044,6 +7770,9 @@
                             break;
                         } else {
                             // User closed the approval dialog: treat as pending (test stops here)
+                            if (trace[approvalTraceIndex]) {
+                                trace[approvalTraceIndex].status_key = 'waiting';
+                            }
                             outcome = {
                                 status: 'pending',
                                 headline: `Waiting for approval at: ${current.name || 'Approval'}.`,

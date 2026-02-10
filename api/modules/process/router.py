@@ -15,7 +15,11 @@ Endpoints:
 """
 
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, UploadFile, File
+from fastapi.responses import FileResponse
+import os
+import re
+import uuid
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, EmailStr
 
@@ -138,6 +142,143 @@ def _is_approval_visible_to_user(approval: Any, user_dict: Dict[str, Any]) -> bo
     except Exception:
         return False
     return False
+
+
+# =============================================================================
+# FILE UPLOADS FOR PROCESS RUNS (Trigger "file" fields)
+# =============================================================================
+
+def _process_upload_base_dir() -> str:
+    """
+    Base directory for uploaded files.
+
+    We intentionally reuse the platform's UPLOAD_PATH convention (used by Documents/Kits),
+    but isolate process-run uploads under a dedicated subfolder.
+    """
+    base = os.environ.get("UPLOAD_PATH", "data/uploads")
+    return str(base)
+
+
+def _safe_filename(name: str) -> str:
+    n = (name or "").strip()
+    if not n:
+        return "upload"
+    # keep dots for extensions, but strip everything else unsafe
+    n = re.sub(r"[^A-Za-z0-9\.\-_]+", "_", n)
+    n = n.strip("._")
+    return n or "upload"
+
+
+@router.post("/uploads")
+async def upload_process_file(
+    file: UploadFile = File(...),
+    user: User = Depends(require_auth)
+):
+    """
+    Upload a file to be used as a trigger input for a workflow run.
+
+    Returns a **file reference object** that can be embedded inside `trigger_input`.
+    """
+    user_dict = _user_to_dict(user)
+    org_id = str(user_dict.get("org_id") or "").strip()
+    if not org_id:
+        raise HTTPException(status_code=400, detail="Organization not found for current user.")
+
+    file_id = str(uuid.uuid4())
+    original_name = file.filename or "upload"
+    safe_name = _safe_filename(original_name)
+    content_type = file.content_type or "application/octet-stream"
+    ext = safe_name.split(".")[-1].lower() if "." in safe_name else ""
+
+    base_dir = _process_upload_base_dir()
+    dest_dir = os.path.join(base_dir, "process_uploads", org_id)
+    os.makedirs(dest_dir, exist_ok=True)
+    stored_name = f"{file_id}_{safe_name}"
+    dest_path = os.path.join(dest_dir, stored_name)
+
+    size = 0
+    try:
+        # Stream to disk (avoid loading large files into memory)
+        with open(dest_path, "wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)  # 1MB
+                if not chunk:
+                    break
+                size += len(chunk)
+                out.write(chunk)
+    except Exception as e:
+        try:
+            if os.path.exists(dest_path):
+                os.remove(dest_path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="Failed to upload file.")
+
+    return {
+        "success": True,
+        "file": {
+            "kind": "uploadedFile",
+            "id": file_id,
+            "name": original_name,
+            "content_type": content_type,
+            "file_type": ext,
+            "size": size,
+            # This path is used internally by file/text extraction steps (not shown to end users)
+            "path": dest_path,
+            # Download URL for UIs (optional)
+            "download_url": f"/process/uploads/{file_id}/download",
+        }
+    }
+
+
+@router.get("/uploads/{file_id}/download")
+async def download_process_file(
+    file_id: str,
+    user: User = Depends(require_auth)
+):
+    """
+    Download a previously uploaded process-run file by id.
+
+    Security: files are scoped to the caller's org folder.
+    """
+    user_dict = _user_to_dict(user)
+    org_id = str(user_dict.get("org_id") or "").strip()
+    if not org_id:
+        raise HTTPException(status_code=400, detail="Organization not found for current user.")
+
+    try:
+        uuid.UUID(str(file_id))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid file id.")
+
+    base_dir = _process_upload_base_dir()
+    dest_dir = os.path.join(base_dir, "process_uploads", org_id)
+    if not os.path.isdir(dest_dir):
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    prefix = f"{file_id}_"
+    match = None
+    try:
+        for name in os.listdir(dest_dir):
+            if name.startswith(prefix):
+                match = name
+                break
+    except Exception:
+        match = None
+
+    if not match:
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    path = os.path.join(dest_dir, match)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    original_name = match[len(prefix):] or "download"
+    return FileResponse(
+        path,
+        filename=original_name,
+        media_type="application/octet-stream"
+    )
 
 
 # =============================================================================
@@ -437,6 +578,7 @@ async def cancel_execution(
 @router.get("/executions/{execution_id}/steps")
 async def get_step_executions(
     execution_id: str,
+    include_io: bool = Query(False, description="Include step input/output payloads (sanitized)"),
     service: ProcessAPIService = Depends(get_service),
     user: User = Depends(require_auth),
     db: Session = Depends(get_db)
@@ -467,17 +609,77 @@ async def get_step_executions(
         raise HTTPException(status_code=403, detail=format_error_for_user(ErrorCode.PERMISSION_DENIED))
     
     nodes = exec_service.get_node_executions(execution_id)
+
+    def _sanitize_io(value: Any, _depth: int = 0) -> Any:
+        if _depth >= 5:
+            return "[truncated]"
+        if value is None:
+            return None
+        if isinstance(value, (int, float, bool)):
+            return value
+        if isinstance(value, str):
+            s = value
+            if len(s) > 4000:
+                return s[:4000] + "…"
+            return s
+        if isinstance(value, list):
+            out = [_sanitize_io(v, _depth=_depth + 1) for v in value[:60]]
+            if len(value) > 60:
+                out.append("…")
+            return out
+        if isinstance(value, dict):
+            # Special-case: uploaded file reference
+            try:
+                if value.get("kind") == "uploadedFile" and value.get("id"):
+                    return {
+                        "kind": "uploadedFile",
+                        "id": value.get("id"),
+                        "name": value.get("name"),
+                        "content_type": value.get("content_type"),
+                        "file_type": value.get("file_type"),
+                        "size": value.get("size"),
+                        "download_url": value.get("download_url"),
+                    }
+            except Exception:
+                pass
+
+            out = {}
+            for k, v in list(value.items())[:80]:
+                ks = str(k)
+                kl = ks.lower()
+                # Hide server filesystem paths and other internal fields
+                if kl in ("path", "file_path", "filepath", "stored_path", "local_path"):
+                    continue
+                # Mask secrets/tokens
+                if any(t in kl for t in ("token", "authorization", "api_key", "apikey", "secret", "password")):
+                    out[ks] = "***MASKED***"
+                    continue
+                out[ks] = _sanitize_io(v, _depth=_depth + 1)
+            if len(value) > 80:
+                out["…"] = f"+{len(value) - 80} more"
+            return out
+        # Fallback: stringify
+        try:
+            return str(value)
+        except Exception:
+            return None
     
     return {
         "steps": [
             {
                 "id": str(n.id),
+                "node_id": n.node_id,
+                "node_type": n.node_type,
                 "step_name": n.node_name or get_node_type_display(n.node_type),
                 "step_type": get_node_type_display(n.node_type),
                 "order": n.execution_order,
                 "status": get_status_info(n.status),
                 "branch_taken": n.branch_taken,
                 "error": sanitize_for_user(n.error_message) if n.error_message else None,
+                **({
+                    "input": _sanitize_io(n.input_data),
+                    "output": _sanitize_io(n.output_data),
+                } if include_io else {}),
                 "started_at": n.started_at.isoformat() if n.started_at else None,
                 "completed_at": n.completed_at.isoformat() if n.completed_at else None,
                 "duration_seconds": round(n.duration_ms / 1000, 2) if n.duration_ms else None

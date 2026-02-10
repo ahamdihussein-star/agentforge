@@ -641,13 +641,28 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     context=context,
                     logs=logs,
                 )
+            # Special operation: extract text from a document (for AI extraction and review)
+            elif operation in ('extract_text', 'extract_document_text'):
+                if storage_type != 'local':
+                    return NodeResult.failure(
+                        error=ExecutionError.validation_error("extract_text currently supports storage_type=local only"),
+                        logs=logs
+                    )
+                # Interpolate path for extraction
+                path = state.interpolate_string(path_template)
+                logs.append(f"Path: {path}")
+                result = await self._execute_extract_text_local(
+                    path=path,
+                    encoding=encoding,
+                    logs=logs,
+                )
             else:
                 # Interpolate path for normal operations
                 path = state.interpolate_string(path_template)
                 logs.append(f"Path: {path}")
 
             if storage_type == 'local':
-                if operation != 'generate_document':
+                if operation not in ('generate_document', 'extract_text', 'extract_document_text'):
                     result = await self._execute_local(
                         operation, path, content, encoding, logs
                     )
@@ -694,6 +709,107 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                 error=ExecutionError.internal_error(f"File operation error: {e}"),
                 logs=logs
             )
+
+    async def _execute_extract_text_local(
+        self,
+        path: str,
+        encoding: str,
+        logs: list
+    ) -> Dict[str, Any]:
+        """
+        Extract plain text from a local document file.
+
+        Supported formats (best-effort):
+        - pdf, docx, txt/md, csv, xlsx, pptx
+
+        Security: only allows files under the platform upload directory.
+        """
+        import os
+        import csv
+
+        base_upload = os.path.abspath(os.environ.get("UPLOAD_PATH", "data/uploads"))
+        abs_path = os.path.abspath(path or "")
+
+        if not abs_path:
+            return {"success": False, "error": "No file path provided"}
+        if not abs_path.startswith(base_upload + os.sep) and abs_path != base_upload:
+            return {"success": False, "error": "File path is not allowed"}
+        if not os.path.exists(abs_path):
+            return {"success": False, "error": "File not found"}
+        if os.path.isdir(abs_path):
+            return {"success": False, "error": "Path is a directory"}
+
+        ext = os.path.splitext(abs_path)[1].lower().lstrip(".")
+        logs.append(f"Detected file type: {ext or 'unknown'}")
+
+        try:
+            text = ""
+            if ext in ("txt", "md", "text", "log", "json"):
+                with open(abs_path, "r", encoding=encoding, errors="ignore") as f:
+                    text = f.read()
+            elif ext == "csv":
+                with open(abs_path, "r", encoding=encoding, errors="ignore", newline="") as f:
+                    reader = csv.reader(f)
+                    text = "\n".join([" | ".join(row) for row in reader])
+            elif ext == "pdf":
+                try:
+                    import fitz  # PyMuPDF
+                    doc = fitz.open(abs_path)
+                    text = "".join([page.get_text() for page in doc])
+                    doc.close()
+                except Exception:
+                    return {"success": False, "error": "PDF text extraction failed"}
+            elif ext in ("docx", "doc"):
+                try:
+                    from docx import Document as DocxDocument
+                    doc = DocxDocument(abs_path)
+                    text = "\n".join([p.text for p in doc.paragraphs])
+                except Exception:
+                    return {"success": False, "error": "Word text extraction failed"}
+            elif ext in ("xlsx", "xls"):
+                try:
+                    import openpyxl
+                    wb = openpyxl.load_workbook(abs_path, read_only=True)
+                    chunks = []
+                    for sheet in wb.sheetnames:
+                        ws = wb[sheet]
+                        chunks.append(f"=== Sheet: {sheet} ===")
+                        for row in ws.iter_rows(values_only=True):
+                            chunks.append(" | ".join([str(c) if c is not None else "" for c in row]))
+                    text = "\n".join(chunks)
+                except Exception:
+                    return {"success": False, "error": "Excel text extraction failed"}
+            elif ext in ("pptx", "ppt"):
+                try:
+                    from pptx import Presentation
+                    prs = Presentation(abs_path)
+                    chunks = []
+                    for i, slide in enumerate(prs.slides):
+                        chunks.append(f"=== Slide {i + 1} ===")
+                        for shape in slide.shapes:
+                            if hasattr(shape, "text"):
+                                chunks.append(shape.text)
+                    text = "\n".join(chunks)
+                except Exception:
+                    return {"success": False, "error": "PowerPoint text extraction failed"}
+            else:
+                return {"success": False, "error": f"Unsupported file type: {ext or 'unknown'}"}
+
+            text = text or ""
+            preview = text[:800]
+            logs.append(f"Extracted {len(text)} characters")
+            return {
+                "success": True,
+                "data": text,
+                "meta": {
+                    "path": abs_path,
+                    "file_type": ext,
+                    "chars": len(text),
+                    "preview": preview,
+                }
+            }
+        except Exception as e:
+            return {"success": False, "error": f"Extraction failed: {e}"}
     
     async def _execute_local(
         self,

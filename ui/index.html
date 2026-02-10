@@ -10052,6 +10052,22 @@ Option 3"></textarea>
             const edgeTypeByKey = new Map(edges.map(e => [`${e.from}=>${e.to}`, e.type || 'default']));
             const lookup = getProcessNodeLookup();
 
+            const execStatus = String(execution?.status || '').toLowerCase();
+            const currentId = String(execution?.current_step || execution?.current_node_id || '').trim();
+            const statusById = {};
+            try {
+                (execution?.completed_steps || []).forEach(id => { if (id) statusById[String(id)] = 'completed'; });
+            } catch (_) {}
+            if (currentId) {
+                statusById[currentId] = (
+                    execStatus === 'waiting' ? 'waiting' :
+                    execStatus === 'failed' ? 'failed' :
+                    execStatus === 'paused' ? 'paused' :
+                    execStatus || 'running'
+                );
+            }
+            const execErr = execution?.error?.message || execution?.error_message || '';
+
             const seq = [];
             const seen = new Set();
             const push = (id) => {
@@ -10071,6 +10087,12 @@ Option 3"></textarea>
             (execution?.completed_steps || []).forEach(push);
             if (execution?.current_step) push(execution.current_step);
 
+            // Safety: if run stopped (waiting/failed), never animate beyond current node
+            if ((execStatus === 'waiting' || execStatus === 'failed' || execStatus === 'paused' || execStatus === 'cancelled' || execStatus === 'timed_out') && currentId) {
+                const cut = seq.indexOf(currentId);
+                if (cut >= 0) seq.splice(cut + 1);
+            }
+
             // Build trace for the player (nodeId + edgeType for correct branch highlighting)
             const trace = seq.map((nodeId, idx) => {
                 const prevId = idx > 0 ? seq[idx - 1] : null;
@@ -10084,10 +10106,57 @@ Option 3"></textarea>
                     nodeId,
                     edgeType,
                     type: info.type || 'step',
-                    title: info.name || 'Step'
+                    title: info.name || 'Step',
+                    status_key: statusById[nodeId] || '',
+                    terminal: nodeId === currentId && (statusById[nodeId] === 'failed' || statusById[nodeId] === 'waiting' || statusById[nodeId] === 'paused' || statusById[nodeId] === 'cancelled' || statusById[nodeId] === 'timed_out'),
+                    error: (nodeId === currentId && statusById[nodeId] === 'failed') ? String(execErr || '') : null
                 };
             });
             return trace;
+        }
+
+        async function buildPlaybackTraceForExecution(executionId, execution) {
+            const execId = String(executionId || execution?.id || execution?.execution_id || '').trim();
+            if (!execId) return buildPlaybackTraceFromExecution(execution);
+            try {
+                const headers = getAuthHeaders();
+                const res = await fetch(API + `/process/executions/${encodeURIComponent(execId)}/steps`, { headers });
+                let data = null;
+                try { data = await res.json(); } catch (_) { data = null; }
+                const steps = (data && Array.isArray(data.steps)) ? data.steps : [];
+                if (res.ok && steps.length) {
+                    const def = _parseCurrentProcessDefinition();
+                    const edges = _getProcessEdges(def);
+                    const edgeTypeByKey = new Map(edges.map(e => [`${e.from}=>${e.to}`, e.type || 'default']));
+                    const lookup = getProcessNodeLookup();
+                    const sorted = steps
+                        .filter(s => s && s.node_id)
+                        .slice()
+                        .sort((a, b) => (a.order || 0) - (b.order || 0));
+                    const trace = sorted.map((s, idx) => {
+                        const nodeId = String(s.node_id || '').trim();
+                        const prevId = (idx > 0 && sorted[idx - 1] && sorted[idx - 1].node_id) ? String(sorted[idx - 1].node_id) : null;
+                        let edgeType = null;
+                        if (prevId && prevId !== nodeId) {
+                            const t = edgeTypeByKey.get(`${prevId}=>${nodeId}`);
+                            edgeType = (t && t !== 'default') ? t : null;
+                        }
+                        const info = lookup[nodeId] || {};
+                        return {
+                            nodeId,
+                            edgeType,
+                            type: info.type || String(s.node_type || 'step').toLowerCase(),
+                            title: info.name || s.step_name || 'Step',
+                            status: s.status || null,
+                            error: s.error || null
+                        };
+                    });
+                    return trace;
+                }
+            } catch (_) {
+                // ignore and fall back
+            }
+            return buildPlaybackTraceFromExecution(execution);
         }
 
         function _formatMaybeDateTime(d) {
@@ -10104,6 +10173,18 @@ Option 3"></textarea>
             if (v == null) return '—';
             if (typeof v === 'string') return v.trim() ? v : '—';
             if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+            if (typeof v === 'object') {
+                // Uploaded file reference (hide server path; show name only)
+                try {
+                    if (v && v.kind === 'uploadedFile' && (v.name || v.id)) {
+                        const name = v.name || 'Uploaded file';
+                        const size = (typeof v.size === 'number') ? `${Math.round(v.size / 1024)} KB` : '';
+                        const typ = v.file_type ? String(v.file_type).toUpperCase() : '';
+                        const meta = [typ, size].filter(Boolean).join(' · ');
+                        return meta ? `${name} (${meta})` : name;
+                    }
+                } catch (_) {}
+            }
             try {
                 const s = JSON.stringify(v);
                 if (!s) return '—';
@@ -10112,6 +10193,171 @@ Option 3"></textarea>
                 const s = String(v);
                 return s.length > 240 ? (s.slice(0, 240) + '…') : s;
             }
+        }
+
+        function _renderIoValue(v) {
+            if (v == null) return '—';
+            if (typeof v === 'string') return v.trim() ? escHtml(v) : '—';
+            if (typeof v === 'number' || typeof v === 'boolean') return escHtml(String(v));
+            if (typeof v === 'object') {
+                // Uploaded file reference (sanitized by API)
+                if (v.kind === 'uploadedFile' && (v.name || v.id)) {
+                    const name = v.name || 'Uploaded file';
+                    const size = (typeof v.size === 'number') ? `${Math.round(v.size / 1024)} KB` : '';
+                    const typ = v.file_type ? String(v.file_type).toUpperCase() : '';
+                    const meta = [typ, size].filter(Boolean).join(' · ');
+                    const btn = v.id ? `
+                        <button
+                            type="button"
+                            class="text-xs px-2 py-1 rounded-lg border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-200"
+                            data-upload-file-id="${escHtml(String(v.id))}"
+                            data-upload-file-name="${escHtml(String(name))}"
+                        >Download</button>
+                    ` : '';
+                    return `${escHtml(name)}${meta ? ` <span class="text-xs text-gray-500">(${escHtml(meta)})</span>` : ''}${btn ? ` <span class="ml-2 inline-block">${btn}</span>` : ''}`;
+                }
+            }
+            try {
+                const s = JSON.stringify(v);
+                if (!s) return '—';
+                const t = s.length > 1800 ? (s.slice(0, 1800) + '…') : s;
+                return escHtml(t);
+            } catch (_) {
+                const s = String(v);
+                const t = s.length > 1800 ? (s.slice(0, 1800) + '…') : s;
+                return escHtml(t);
+            }
+        }
+
+        async function downloadProcessUploadFile(fileId, filename) {
+            const id = String(fileId || '').trim();
+            if (!id) return;
+            const name = String(filename || '').trim() || `upload-${id}`;
+            try {
+                const headers = getAuthHeaders();
+                const res = await fetch(API + `/process/uploads/${encodeURIComponent(id)}/download`, { headers });
+                if (!res.ok) {
+                    let msg = res.statusText || 'Failed to download file';
+                    try {
+                        const data = await res.json().catch(() => null);
+                        if (data && (data.detail || data.message || data.error)) msg = data.detail || data.message || data.error;
+                    } catch (_) {}
+                    try { showToast(String(msg || 'Failed to download file'), 'error'); } catch (_) {}
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1500);
+            } catch (e) {
+                try { showToast('Unable to download file', 'error'); } catch (_) {}
+            }
+        }
+
+        async function _fetchExecutionStepsIo(executionId) {
+            const execId = String(executionId || '').trim();
+            if (!execId) return [];
+            const headers = getAuthHeaders();
+            const res = await fetch(API + `/process/executions/${encodeURIComponent(execId)}/steps?include_io=1`, { headers });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) return [];
+            const steps = data?.steps || [];
+            return Array.isArray(steps) ? steps : [];
+        }
+
+        function _renderIoTable(obj) {
+            const o = (obj && typeof obj === 'object') ? obj : {};
+            const entries = Object.entries(o || {});
+            if (!entries.length) return `<div class="text-sm text-gray-500">—</div>`;
+            const rows = entries.slice(0, 28).map(([k, v]) => `
+                <div class="flex items-start justify-between gap-4 py-2 border-b border-gray-700/50">
+                    <div class="text-sm text-gray-400">${escHtml(humanizeFieldLabel(k) || k)}</div>
+                    <div class="text-sm text-gray-200 font-medium max-w-[66%] text-right break-words">${_renderIoValue(v)}</div>
+                </div>
+            `).join('');
+            return `<div>${rows}</div>`;
+        }
+
+        async function _loadAndRenderStepIo(executionId) {
+            const el = document.getElementById('process-test-report-stepio');
+            if (!el) return;
+            el.innerHTML = `<div class="text-sm text-gray-500 py-4">Loading step inputs & outputs…</div>`;
+            let steps = [];
+            try { steps = await _fetchExecutionStepsIo(executionId); } catch (_) { steps = []; }
+            if (!steps.length) {
+                el.innerHTML = `<div class="text-sm text-gray-500">No step details available for this run.</div>`;
+                return;
+            }
+            steps.sort((a, b) => (a.order || 0) - (b.order || 0));
+            const cards = steps.slice(0, 80).map((s) => {
+                const info = (s && typeof s.status === 'object') ? s.status : {};
+                const color = String(info?.color || '').toLowerCase();
+                const stKey =
+                    (info && (info.key || info.status || info.value)) ? String(info.key || info.status || info.value).toLowerCase() :
+                    (color === 'green') ? 'completed' :
+                    (color === 'red') ? 'failed' :
+                    (color === 'yellow') ? 'waiting' :
+                    (color === 'orange') ? 'paused' :
+                    (color === 'blue') ? 'running' :
+                    '';
+                const icon = stKey === 'completed' ? '✅' : stKey === 'failed' ? '❌' : (stKey === 'waiting' || stKey === 'paused') ? '⏳' : '🔄';
+                const badge = stKey === 'completed'
+                    ? `<span class="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30 font-semibold">Completed</span>`
+                    : stKey === 'failed'
+                        ? `<span class="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-semibold">Failed</span>`
+                        : (stKey === 'waiting' || stKey === 'paused')
+                            ? `<span class="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 font-semibold">Waiting</span>`
+                            : `<span class="text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 font-semibold">Running</span>`;
+                const name = s.step_name || s.step_type || 'Step';
+                const dur = s.duration_seconds != null ? `${s.duration_seconds}s` : '';
+                const inputs = (s && s.input) ? s.input : {};
+                const outputs = (s && s.output) ? s.output : {};
+                return `
+                    <details class="p-4 rounded-xl border border-gray-700 bg-gray-900/40">
+                        <summary class="cursor-pointer select-none">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <div class="text-lg">${icon}</div>
+                                    <div class="min-w-0">
+                                        <div class="font-semibold text-gray-100 truncate">${escHtml(name)}</div>
+                                        <div class="text-xs text-gray-500">${escHtml(s.step_type || '')}${dur ? ` · ${escHtml(dur)}` : ''}</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 flex-shrink-0">${badge}</div>
+                            </div>
+                        </summary>
+                        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="p-3 rounded-lg border border-gray-700/70 bg-black/20">
+                                <div class="text-sm font-semibold text-gray-100 mb-2">Inputs</div>
+                                ${_renderIoTable(inputs)}
+                            </div>
+                            <div class="p-3 rounded-lg border border-gray-700/70 bg-black/20">
+                                <div class="text-sm font-semibold text-gray-100 mb-2">Outputs</div>
+                                ${_renderIoTable(outputs)}
+                            </div>
+                        </div>
+                    </details>
+                `;
+            }).join('');
+            el.innerHTML = `<div class="space-y-3">${cards}</div>`;
+
+            // Wire up authenticated downloads for uploaded file buttons
+            try {
+                el.querySelectorAll('button[data-upload-file-id]').forEach(btn => {
+                    btn.addEventListener('click', async (ev) => {
+                        try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {}
+                        const id = btn.getAttribute('data-upload-file-id') || '';
+                        const name = btn.getAttribute('data-upload-file-name') || '';
+                        await downloadProcessUploadFile(id, name);
+                    });
+                });
+            } catch (_) {}
         }
 
         function showProcessTestReport(execution, stepsResolved) {
@@ -10222,9 +10468,23 @@ Option 3"></textarea>
                     <div class="font-semibold text-gray-100 mb-2">Outcome</div>
                     ${outputHtml}
                 </div>
+
+                <div class="mt-4 p-4 rounded-xl border border-gray-700 bg-gray-900/40">
+                    <div class="font-semibold text-gray-100 mb-3">Step inputs & outputs</div>
+                    <div id="process-test-report-stepio" class="text-sm text-gray-500">Loading…</div>
+                </div>
             `;
 
             modal.classList.remove('hidden');
+
+            // Load step I/O asynchronously (keeps UI snappy)
+            const execId = execution?.id || execution?.execution_id || execution?.executionId;
+            if (execId) {
+                try { _loadAndRenderStepIo(execId); } catch (_) {}
+            } else {
+                const el = document.getElementById('process-test-report-stepio');
+                if (el) el.innerHTML = `<div class="text-sm text-gray-500">Step details are not available.</div>`;
+            }
         }
 
         async function loadInlineApprovalForExecution(executionId) {
@@ -10756,6 +11016,31 @@ Option 3"></textarea>
             window._processInputs = triggerInputs;
         }
         
+        async function uploadProcessRunFile(fileObj) {
+            const tokenHeaders = getAuthHeaders();
+            if (!tokenHeaders || !tokenHeaders.Authorization) {
+                throw new Error('You are not signed in.');
+            }
+            const fd = new FormData();
+            fd.append('file', fileObj);
+            const res = await fetch(API + '/process/uploads', {
+                method: 'POST',
+                headers: {
+                    ...tokenHeaders
+                },
+                body: fd
+            });
+            let data = null;
+            try { data = await res.json(); } catch (_) { data = null; }
+            if (!res.ok) {
+                const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to upload file');
+                throw new Error(String(msg || 'Failed to upload file'));
+            }
+            const f = (data && data.file) ? data.file : data;
+            if (!f || !f.id) throw new Error('File upload failed.');
+            return f;
+        }
+
         // Execute the Process
         async function executeProcess() {
             if (!currentProcessAgent) {
@@ -10780,7 +11065,14 @@ Option 3"></textarea>
                             field.focus();
                             return;
                         }
-                        triggerData[input.id] = fileObj ? { name: fileObj.name, size: fileObj.size, type: fileObj.type } : null;
+                        if (fileObj) {
+                            try {
+                                showToast(`Uploading: ${input.label}`, 'info');
+                            } catch (_) {}
+                            triggerData[input.id] = await uploadProcessRunFile(fileObj);
+                        } else {
+                            triggerData[input.id] = null;
+                        }
                         continue;
                     }
                     const value = (field.value || '').trim();
@@ -11061,12 +11353,15 @@ Option 3"></textarea>
                     if (execution.status === 'waiting') {
                         if (_markMilestone(executionId, 'waiting')) {
                             try {
-                                const trace = buildPlaybackTraceFromExecution(execution);
+                                const lookup = getProcessNodeLookup();
+                                const curId = execution?.current_step || execution?.current_node_id || '';
+                                const curName = (curId && lookup[curId] && lookup[curId].name) ? lookup[curId].name : 'Approval';
+                                const trace = await buildPlaybackTraceForExecution(executionId, execution);
                                 requestProcessPlayback(
                                     currentProcessAgent?.id,
                                     trace,
                                     {
-                                        subtitle: 'Stopped at: Waiting for approval',
+                                        subtitle: `Stopped at: ${curName} (Waiting for approval)`,
                                         after: () => {
                                             try { loadInlineApprovalForExecution(executionId); } catch (_) {}
                                             try { closeProcessPlaybackModal(); } catch (_) {}
@@ -11107,7 +11402,7 @@ Option 3"></textarea>
                             const snap = execution; // capture
                             const stepsSnap = resolvedStepsForReport.slice();
                             try {
-                                const trace = buildPlaybackTraceFromExecution(snap);
+                                const trace = await buildPlaybackTraceForExecution(executionId, snap);
                                 requestProcessPlayback(
                                     currentProcessAgent?.id,
                                     trace,
@@ -11129,12 +11424,15 @@ Option 3"></textarea>
                             const snap = execution;
                             const stepsSnap = resolvedStepsForReport.slice();
                             try {
-                                const trace = buildPlaybackTraceFromExecution(snap);
+                                const lookup = getProcessNodeLookup();
+                                const curId = snap?.current_step || snap?.current_node_id || '';
+                                const curName = (curId && lookup[curId] && lookup[curId].name) ? lookup[curId].name : 'Step';
+                                const trace = await buildPlaybackTraceForExecution(executionId, snap);
                                 requestProcessPlayback(
                                     currentProcessAgent?.id,
                                     trace,
                                     {
-                                        subtitle: 'Stopped at: Failed',
+                                        subtitle: `Stopped at: ${curName} (Error)`,
                                         after: () => showProcessTestReport(snap, stepsSnap),
                                         forceOpen: true
                                     }

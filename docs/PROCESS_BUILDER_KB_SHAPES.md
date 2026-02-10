@@ -115,8 +115,15 @@ Purpose: represent an advanced engine capability while keeping UI business-frien
 Use only when needed and keep it editable via friendly properties (no raw JSON).
 
 Properties (`action.config`):
-- `actionType` (string): `httpRequest` | `runScript` | `transformData` | `fileOperation` | `generateDocument`
+- `actionType` (string): `httpRequest` | `runScript` | `transformData` | `fileOperation` | `generateDocument` | `extractDocumentText`
 - Additional properties depend on `actionType` (see other KB docs).
+
+**File uploads best practice**
+- If the Start/Form includes a field with `type: "file"` and later steps need the document content, add an Action step with:
+  - `actionType: "extractDocumentText"`
+  - `sourceField: "<the file field name>"` (example: `expenseDocument`)
+  - Set the step `output_variable` to store extracted text (example: `expenseDocumentText`)
+- AI steps should use the extracted text variable (example: `{{expenseDocumentText}}`) rather than trying to read the raw uploaded file directly.
 
 ## Notes on tools and dropdown options
 - Use dropdown fields only when options are known from:
