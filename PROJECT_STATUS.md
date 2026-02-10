@@ -102,6 +102,7 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 - **File inputs (UI)**: `type: "file"` supported in start form and test form (metadata collected)
 - **Document generation (engine)**: Action “Generate Document” maps to `file_operation` with `operation=generate_document` and supports docx/pdf/xlsx/pptx (fallback txt)
 - **Test UX** (builder): step-by-step trace + animated path playback on the canvas
+- **Test notifications** (builder): Test run is simulation by default; can optionally send real email notifications (SendGrid) via `POST /process/test/send-notification`
 - **Auto-layout for AI drafts**: the builder applies a deterministic layout before the cinematic build animation
 
 **Known gaps (explicit):**

@@ -1486,6 +1486,39 @@ The builder includes a “Test run” UX that:
   - Animated playback highlighting nodes/edges on the canvas
   - Approval steps show “pending” state and (when authenticated) can list potential approvers
 
+### Testing modes (Simulation vs Real Engine)
+
+It’s important to distinguish between **builder testing** and **engine execution**:
+
+- **Builder “Test run”** (`ui/process-builder.html`)
+  - This is a **client-side simulation** designed for UX (timeline + playback).
+  - **By default**, steps that cause external side-effects (notifications, tool calls, etc.) are **simulated**.
+  - The Test modal includes an option **“Send email notifications for real (SendGrid)”**:
+    - When enabled, **email** notification steps will call `POST /process/test/send-notification` to send real emails.
+    - Current limitations: **email-only**, **max 10 recipients**, requires authentication (Bearer token).
+    - Failures are surfaced in the **test report** (so you know if SendGrid is configured or not).
+
+- **Real execution (backend engine)** (`POST /process/execute`)
+  - This runs the actual workflow engine (`core/process/engine.py`) and executors (e.g., `core/process/nodes/human.py::NotificationNodeExecutor`).
+  - Email delivery uses `core/process/services/notification.py::NotificationService` with the platform email sender `core/security/services.py::EmailService`
+    - Requires `SENDGRID_API_KEY` (and related env vars like `EMAIL_FROM`) to actually deliver messages.
+
+### Notification templates (what variables resolve)
+
+- **Builder Test interpolation** supports:
+  - `{{fieldName}}`
+  - dot-paths like `{{currentUser.email}}` and `{{trigger_input.employeeEmail}}`
+  - Note: The builder test uses a simplified interpolator (not the full engine expression system).
+
+- **Engine interpolation** uses `core/process/state.py::ProcessState` and resolves nested paths using the same `{{...}}` syntax at runtime.
+
+### Troubleshooting: “Notification doesn’t send during Test”
+
+If you expected a real email during builder Test:
+- Ensure **“Send email notifications for real (SendGrid)”** is enabled in the Test modal
+- Ensure the Notification step has a non-empty **recipient** and **message**
+- Ensure SendGrid is configured (env `SENDGRID_API_KEY`; see `docker-compose.yml`)
+
 ## Generation grounding (anti-hallucination)
 
 The Process Wizard grounds generation using a curated platform KB:
@@ -5370,6 +5403,7 @@ multi_tenancy:
 |--------|----------|-------------|
 | POST | `/process/wizard/generate` | Generate visual builder workflow from prompt |
 | POST | `/process/execute` | Execute a process definition |
+| POST | `/process/test/send-notification` | Send real email notifications during Process Builder Test (authenticated, email-only) |
 | GET | `/process/executions` | List executions |
 | GET | `/process/approvals` | List approvals |
 
@@ -5514,7 +5548,7 @@ It is grouped by directory to keep it readable.
 | `core/process/platform_knowledge.py` | RAG-lite retrieval over KB markdown + safe taxonomies parsing |
 | `core/process/services/__init__.py` | Service package marker |
 | `core/process/services/approval.py` | Approval service used by approval nodes |
-| `core/process/services/notification.py` | Notification dispatch service |
+| `core/process/services/notification.py` | Notification dispatch service (email uses platform `core/security/services.py::EmailService` when provided; SendGrid via `SENDGRID_API_KEY`) |
 | `core/process/nodes/__init__.py` | Node executors package marker |
 | `core/process/nodes/base.py` | Base executor interfaces + registry |
 | `core/process/nodes/flow.py` | Start/End/Merge executors (flow control) |
