@@ -7956,7 +7956,7 @@ Option 3"></textarea>
                     <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
                     <div>
                         <h3 id="process-modal-title" class="text-lg font-bold">Workflow Execution</h3>
-                        <p id="process-modal-subtitle" class="text-sm text-gray-400">Submit data to run this workflow</p>
+                        <p id="process-modal-subtitle" class="text-sm" style="color: var(--text-secondary);">Submit data to run this workflow</p>
                     </div>
                 </div>
                 <button onclick="closeProcessModal()" class="text-gray-400 hover:text-white text-2xl px-2">✕</button>
@@ -7964,7 +7964,7 @@ Option 3"></textarea>
             
             <!-- How it works (short) -->
             <div class="px-6 pt-2 pb-0">
-                <p class="text-xs text-gray-500">
+                <p class="text-xs" style="color: var(--text-muted);">
                     <strong>How it works:</strong> Fill the form → Run → You'll see each step by name (Processing / Waiting for Approval if needed) → When <strong>Completed</strong>, the <strong>Result</strong> and summary appear below. Notifications use the same email service as password reset &amp; MFA.
                 </p>
             </div>
@@ -7974,7 +7974,7 @@ Option 3"></textarea>
                 <!-- Trigger Form Section -->
                 <div id="process-trigger-form">
                     <h4 class="font-semibold mb-4 flex items-center gap-2">📝 Input Data</h4>
-                    <p class="text-sm text-gray-400 mb-4">Enter the data to trigger this workflow:</p>
+                    <p class="text-sm mb-4" style="color: var(--text-secondary);">Enter the data to trigger this workflow:</p>
                     
                     <!-- Dynamic Form Fields (populated by JS) -->
                     <div id="process-form-fields" class="space-y-4">
@@ -10124,9 +10124,9 @@ Option 3"></textarea>
             
             // Build form HTML (with optional description from LLM)
             formContainer.innerHTML = triggerInputs.map(input => {
-                const required = input.required ? '<span class="text-red-400">*</span>' : '';
+                const required = input.required ? '<span style="color: var(--danger);">*</span>' : '';
                 const fieldId = `pf-${input.id}`;
-                const descHtml = input.description ? `<p class="text-xs text-gray-500 mt-0.5 mb-1">${input.description}</p>` : '';
+                const descHtml = input.description ? `<p class="text-xs mt-0.5 mb-1" style="color: var(--text-muted);">${input.description}</p>` : '';
                 
                 let fieldHtml = '';
                 switch(input.type) {
@@ -10157,7 +10157,7 @@ Option 3"></textarea>
                 
                 return `
                     <div>
-                        <label class="text-sm text-gray-400 mb-1 block">${input.label} ${required}</label>
+                        <label class="text-sm mb-1 block" style="color: var(--text-secondary);">${input.label} ${required}</label>
                         ${descHtml}
                         ${fieldHtml}
                     </div>
