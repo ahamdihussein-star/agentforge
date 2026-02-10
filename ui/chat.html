@@ -2351,7 +2351,7 @@
                 </div>
                 <div class="nav-item" data-view="requests" onclick="switchView('requests')">
                     <span class="nav-icon">📄</span>
-                    <span class="nav-label">My Requests</span>
+                    <span class="nav-label">Runs</span>
                 </div>
                 <div class="nav-item" data-view="inbox" onclick="switchView('inbox')">
                     <span class="nav-icon">✅</span>
@@ -2530,8 +2530,8 @@
             <div id="view-requests" class="portal-view hidden">
                 <div class="portal-header">
                     <div class="portal-header-left">
-                        <div class="portal-title">My Requests</div>
-                        <div class="portal-subtitle">Track runs you started, including approvals and outcomes.</div>
+                        <div class="portal-title">Runs</div>
+                        <div class="portal-subtitle">Monitor workflow runs and automation outcomes (approvals only if the workflow uses them).</div>
                     </div>
                     <div class="portal-toolbar">
                         <input id="requests-search" class="search-input" placeholder="Search requests…" oninput="renderRequests()">
@@ -2539,10 +2539,12 @@
                     </div>
                 </div>
                 <div class="portal-content">
+                    <div class="chip-row" id="requests-scope-chips"></div>
+                    <div class="chip-row" id="requests-filter-chips"></div>
                     <div class="split-layout">
                         <div class="list-panel">
                             <div class="list-panel-header">
-                                <span style="font-weight: 750;">Requests</span>
+                                <span style="font-weight: 750;">Runs</span>
                                 <span style="margin-left:auto; color: var(--text-muted); font-size: 0.8rem;" id="requests-count"></span>
                             </div>
                             <div class="list-panel-body" id="requests-list"></div>
@@ -2618,8 +2620,10 @@
         let workflowCategoryFilter = 'All';
         let currentWorkflowAgent = null;
         let workflowRunInputs = [];
-        let myRequests = [];
+        let myRequests = []; // workflow runs list (UI label: Runs)
         let myApprovals = [];
+        let requestsScope = 'mine'; // mine | org
+        let requestsWorkflowFilterId = null; // workflow id filter for runs
         let selectedExecutionId = null;
         let selectedApprovalId = null;
         const API = '';
@@ -3157,6 +3161,12 @@
             return t || 'conversational';
         }
 
+        function isPortalAdmin() {
+            const perms = (currentUser && Array.isArray(currentUser.permissions)) ? currentUser.permissions : [];
+            const set = new Set(perms.map(p => String(p || '').trim().toLowerCase()).filter(Boolean));
+            return set.has('system:admin') || set.has('users:view') || set.has('users:edit');
+        }
+
         function _setInboxBadge(count) {
             const el = document.getElementById('nav-inbox-badge');
             if (!el) return;
@@ -3194,6 +3204,7 @@
             if (v === 'workflows') {
                 renderWorkflows();
             } else if (v === 'requests') {
+                renderRequestsScopeAndFilterChips();
                 refreshRequests();
             } else if (v === 'inbox') {
                 refreshInbox();
@@ -3262,6 +3273,85 @@
             return c || 'General';
         }
 
+        function _parseProcessDefinition(agent) {
+            let def = agent?.process_definition;
+            if (typeof def === 'string') {
+                try { def = def ? JSON.parse(def) : null; } catch (_) { def = null; }
+            }
+            if (!def || typeof def !== 'object') def = {};
+            return def;
+        }
+
+        function _getWorkflowTriggerInfo(agent) {
+            const def = _parseProcessDefinition(agent);
+            const nodes = Array.isArray(def.nodes) ? def.nodes : [];
+            const triggerNode =
+                nodes.find(n => n && (n.type === 'trigger' || n.type === 'form' || n.type === 'start')) ||
+                nodes.find(n => n && (n.type === 'schedule' || n.type === 'webhook'));
+
+            let triggerType = 'manual';
+            let cfg = {};
+            if (triggerNode) {
+                cfg = triggerNode.config || {};
+                const typeCfg = cfg.type_config || cfg;
+                if (triggerNode.type === 'schedule') triggerType = 'schedule';
+                else if (triggerNode.type === 'webhook') triggerType = 'webhook';
+                else triggerType = String(typeCfg.triggerType || cfg.triggerType || 'manual').trim().toLowerCase();
+                cfg = { ...cfg, ...typeCfg };
+            }
+            if (!['manual', 'schedule', 'webhook'].includes(triggerType)) triggerType = 'manual';
+
+            let label = 'Manual (Form)';
+            let detail = '';
+            if (triggerType === 'schedule') {
+                label = 'Automation (Schedule)';
+                const cron = cfg.cron || cfg.cron_expression || cfg.cronExpression || '';
+                const tz = cfg.timezone || 'UTC';
+                detail = cron ? `${cron} • ${tz}` : tz;
+            } else if (triggerType === 'webhook') {
+                label = 'Integration (Webhook)';
+                const method = String(cfg.method || 'POST').toUpperCase();
+                const path = cfg.path || '/trigger';
+                detail = `${method} ${path}`;
+            }
+            return { triggerType, label, detail, raw: cfg };
+        }
+
+        function _getWorkflowApprovalInfo(agent) {
+            const def = _parseProcessDefinition(agent);
+            const nodes = Array.isArray(def.nodes) ? def.nodes : [];
+            const types = nodes.map(n => String(n?.type || '').trim().toLowerCase()).filter(Boolean);
+            const hasApproval = types.includes('approval');
+            const hasHumanTask = types.includes('human_task') || types.includes('human-task') || types.includes('human');
+            const label = hasApproval ? 'Approvals' : (hasHumanTask ? 'Human step' : 'No approvals');
+            return { hasApproval, hasHumanTask, label };
+        }
+
+        function viewWorkflowRuns(agentId) {
+            const id = String(agentId || '').trim();
+            if (!id) return;
+            requestsWorkflowFilterId = id;
+            selectedExecutionId = null;
+
+            const t = _getWorkflowTriggerInfo((workflowAgents || []).find(a => a.id === id));
+            if (isPortalAdmin() && t && t.triggerType !== 'manual') {
+                // Automations often run under system/service context → default to org runs for admins.
+                requestsScope = 'org';
+            }
+
+            try {
+                const s = document.getElementById('requests-search');
+                if (s) s.value = '';
+            } catch (_) { /* ignore */ }
+            switchView('requests');
+        }
+
+        function clearRequestsWorkflowFilter() {
+            requestsWorkflowFilterId = null;
+            selectedExecutionId = null;
+            refreshRequests();
+        }
+
         function setWorkflowCategoryFilter(category) {
             workflowCategoryFilter = category || 'All';
             renderWorkflows();
@@ -3318,6 +3408,14 @@
                 const name = escapeHtml(a.name || 'Workflow');
                 const desc = escapeHtml(a.description || a.goal || '');
                 const category = escapeHtml(_getWorkflowCategory(a));
+                const trig = _getWorkflowTriggerInfo(a);
+                const appr = _getWorkflowApprovalInfo(a);
+                const triggerLabel = escapeHtml(trig.label);
+                const triggerDetail = escapeHtml(trig.detail || '');
+                const approvalLabel = escapeHtml(appr.label);
+                const statusCls = (trig.triggerType === 'manual') ? 'muted' : 'warning';
+                const canRunNow = (trig.triggerType === 'manual') || isPortalAdmin();
+                const runNowLabel = (trig.triggerType === 'manual') ? 'Start' : 'Run now';
                 return `
                     <div class="wf-card">
                         <div class="wf-card-top">
@@ -3327,12 +3425,17 @@
                                 <div class="wf-card-desc">${desc}</div>
                                 <div style="margin-top: 10px;">
                                     <span class="chip" style="cursor: default; pointer-events: none;">${category}</span>
+                                    <span class="chip" style="cursor: default; pointer-events: none;" title="${triggerDetail}">${triggerLabel}</span>
+                                    <span class="chip" style="cursor: default; pointer-events: none;">${approvalLabel}</span>
                                 </div>
                             </div>
                         </div>
                         <div class="wf-card-actions">
-                            <span class="status-pill muted"><span class="dot"></span>Published</span>
-                            <button class="portal-btn portal-btn-primary" onclick="openWorkflowRunModal('${a.id}')">Start</button>
+                            <span class="status-pill ${statusCls}"><span class="dot"></span>${triggerLabel}</span>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                                <button class="portal-btn" onclick="viewWorkflowRuns('${a.id}')">View Runs</button>
+                                ${canRunNow ? `<button class="portal-btn portal-btn-primary" onclick="openWorkflowRunModal('${a.id}')">${runNowLabel}</button>` : ``}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -3764,12 +3867,19 @@
             const listEl = document.getElementById('requests-list');
             if (listEl) listEl.innerHTML = `<div style="padding: 14px; color: var(--text-muted);">Loading…</div>`;
             try {
-                const res = await fetch(`${API}/process/executions?scope=mine&limit=100&offset=0`, {
+                const params = new URLSearchParams();
+                params.set('scope', requestsScope || 'mine');
+                params.set('limit', '100');
+                params.set('offset', '0');
+                if (requestsWorkflowFilterId) params.set('agent_id', String(requestsWorkflowFilterId));
+
+                const res = await fetch(`${API}/process/executions?${params.toString()}`, {
                     headers: { ...getAuthHeaders() }
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error((data && (data.detail || data.message)) ? (data.detail || data.message) : 'Failed to load requests');
                 myRequests = Array.isArray(data) ? data : (data.items || []);
+                renderRequestsScopeAndFilterChips();
                 renderRequests();
                 if (selectedExecutionId) {
                     // Keep the detail pane in sync (e.g., after starting a workflow)
@@ -3779,9 +3889,52 @@
             } catch (e) {
                 console.error('refreshRequests error:', e);
                 myRequests = [];
+                renderRequestsScopeAndFilterChips();
                 renderRequests();
                 showToast(e?.message || 'Failed to load requests', 'error');
                 return [];
+            }
+        }
+
+        function renderRequestsScopeAndFilterChips() {
+            // Scope chips
+            const scopeEl = document.getElementById('requests-scope-chips');
+            if (scopeEl) {
+                const admin = isPortalAdmin();
+                const scopes = admin ? [
+                    { id: 'mine', label: 'My runs', hint: 'Runs you started' },
+                    { id: 'org', label: 'Org runs', hint: 'All runs in your organization (admin)' }
+                ] : [
+                    { id: 'mine', label: 'My runs', hint: 'Runs you started' }
+                ];
+                scopeEl.innerHTML = '';
+                scopes.forEach(s => {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip' + ((requestsScope || 'mine') === s.id ? ' active' : '');
+                    chip.textContent = s.label;
+                    chip.title = s.hint || '';
+                    chip.onclick = () => {
+                        requestsScope = s.id;
+                        selectedExecutionId = null;
+                        refreshRequests();
+                    };
+                    scopeEl.appendChild(chip);
+                });
+            }
+
+            // Filter chips
+            const filterEl = document.getElementById('requests-filter-chips');
+            if (filterEl) {
+                filterEl.innerHTML = '';
+                if (requestsWorkflowFilterId) {
+                    const wfName = _getWorkflowNameById(requestsWorkflowFilterId);
+                    const chip = document.createElement('div');
+                    chip.className = 'chip active';
+                    chip.textContent = `Filtered: ${wfName} ✕`;
+                    chip.title = 'Click to clear filter';
+                    chip.onclick = () => clearRequestsWorkflowFilter();
+                    filterEl.appendChild(chip);
+                }
             }
         }
 
@@ -3794,6 +3947,10 @@
             const items = Array.isArray(myRequests) ? myRequests.slice() : [];
 
             const filtered = items.filter(ex => {
+                if (requestsWorkflowFilterId) {
+                    const aid = String(_executionAgentId(ex) || '').trim();
+                    if (aid && aid !== String(requestsWorkflowFilterId)) return false;
+                }
                 const name = _getWorkflowNameById(_executionAgentId(ex));
                 const statusLabel = ex?.status_info?.label || ex?.status || '';
                 const hay = `${name} ${statusLabel} ${ex?.id || ''}`.toLowerCase();
