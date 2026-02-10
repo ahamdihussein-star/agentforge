@@ -623,19 +623,34 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         storage_config = self.get_config_value(node, 'storage_config', {})
         
         logs = [f"File {operation} on {storage_type}"]
-        
-        # Interpolate path
-        path = state.interpolate_string(path_template)
-        logs.append(f"Path: {path}")
-        
+
         # Execute based on storage type
         start_time = time.time()
         
         try:
-            if storage_type == 'local':
-                result = await self._execute_local(
-                    operation, path, content, encoding, logs
+            # Special operation: document generation (writes an actual file)
+            if operation == 'generate_document':
+                if storage_type != 'local':
+                    return NodeResult.failure(
+                        error=ExecutionError.validation_error("generate_document currently supports storage_type=local only"),
+                        logs=logs
+                    )
+                result = await self._execute_generate_document_local(
+                    node=node,
+                    state=state,
+                    context=context,
+                    logs=logs,
                 )
+            else:
+                # Interpolate path for normal operations
+                path = state.interpolate_string(path_template)
+                logs.append(f"Path: {path}")
+
+            if storage_type == 'local':
+                if operation != 'generate_document':
+                    result = await self._execute_local(
+                        operation, path, content, encoding, logs
+                    )
             elif storage_type == 's3':
                 result = await self._execute_s3(
                     operation, path, content, storage_config, logs
@@ -770,6 +785,256 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
             return {'success': True, 'bytes_written': len(write_content)}
             
         return {'success': False, 'error': f'Operation {operation} not supported in sync mode'}
+
+    async def _execute_generate_document_local(
+        self,
+        node: ProcessNode,
+        state: ProcessState,
+        context: ProcessContext,
+        logs: list
+    ) -> Dict[str, Any]:
+        """
+        Generate a professional document and write it to local storage.
+
+        Config (type_config):
+            title: Document title
+            format: docx|pdf|xlsx|pptx|txt (fallback)
+            instructions: what the document should contain (supports {{var}} interpolation)
+            output_dir: optional base output dir (default: env PROCESS_OUTPUT_PATH or data/process_outputs)
+        """
+        import os
+        import re
+
+        title = self.get_config_value(node, 'title') or node.name or 'Document'
+        fmt = self.get_config_value(node, 'format') or 'docx'
+        fmt = str(fmt).strip().lower().lstrip('.')
+
+        instructions = self.get_config_value(node, 'instructions') or ''
+        instructions = state.interpolate_string(str(instructions))
+
+        base_dir = self.get_config_value(node, 'output_dir') or os.environ.get('PROCESS_OUTPUT_PATH', 'data/process_outputs')
+        exec_dir = os.path.join(base_dir, str(context.execution_id))
+        os.makedirs(exec_dir, exist_ok=True)
+
+        safe_base = re.sub(r'[^A-Za-z0-9]+', '_', str(title)).strip('_') or 'document'
+        filename = f"{safe_base}_{node.id}.{fmt}"
+        filepath = os.path.join(exec_dir, filename)
+
+        logs.append(f"Generating document: {title} ({fmt})")
+
+        content_md = await self._generate_document_markdown(title=title, instructions=instructions, state=state, logs=logs)
+
+        actual_format = fmt
+        try:
+            if fmt == 'docx':
+                size = self._create_docx(filepath, title, content_md)
+            elif fmt == 'pdf':
+                size = self._create_pdf(filepath, title, content_md)
+            elif fmt == 'xlsx':
+                size = self._create_xlsx(filepath, title, content_md)
+            elif fmt == 'pptx':
+                size = self._create_pptx(filepath, title, content_md)
+            else:
+                actual_format = 'txt'
+                filepath = os.path.join(exec_dir, f"{safe_base}_{node.id}.txt")
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(f"# {title}\n\n{content_md}\n")
+                size = os.path.getsize(filepath)
+        except Exception as e:
+            # Safe fallback
+            logs.append(f"Document generation fallback: {e}")
+            actual_format = 'txt'
+            filepath = os.path.join(exec_dir, f"{safe_base}_{node.id}.txt")
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(f"# {title}\n\n{content_md}\n")
+            size = os.path.getsize(filepath)
+
+        logs.append(f"Document saved: {filepath}")
+        return {
+            'success': True,
+            'data': {
+                'title': title,
+                'format': actual_format,
+                'path': filepath,
+                'filename': os.path.basename(filepath),
+                'size': size,
+            }
+        }
+
+    async def _generate_document_markdown(
+        self,
+        title: str,
+        instructions: str,
+        state: ProcessState,
+        logs: list
+    ) -> str:
+        """Generate document content as markdown using the platform LLM (if available)."""
+        llm = getattr(self.deps, 'llm', None)
+        if not llm:
+            return f"## Overview\n{instructions}\n\n## Details\n(LLM not configured)\n"
+
+        # Limit variable context to avoid huge prompts; sensitive values are masked.
+        try:
+            variables = state.get_masked_variables()
+            trimmed = {}
+            for k in list(variables.keys())[:60]:
+                trimmed[k] = variables.get(k)
+            variables_json = json.dumps(trimmed, ensure_ascii=False, indent=2)
+        except Exception:
+            variables_json = "{}"
+
+        system_prompt = (
+            "You are a professional document writer. "
+            "Write clear, well-structured content for business users. "
+            "Use markdown headings and bullet lists. "
+            "Do NOT invent company-specific facts; only use provided data."
+        )
+        user_prompt = (
+            f"Document title: {title}\n\n"
+            f"Instructions:\n{instructions}\n\n"
+            f"Available data (JSON, sensitive masked):\n{variables_json}\n\n"
+            "Write the document content now."
+        )
+
+        try:
+            from core.llm.base import Message, MessageRole
+            resp = await llm.chat(
+                messages=[
+                    Message(role=MessageRole.SYSTEM, content=system_prompt),
+                    Message(role=MessageRole.USER, content=user_prompt),
+                ],
+                temperature=0.4,
+                max_tokens=2500,
+            )
+            text = (resp.content or "").strip() if resp else ""
+            if text:
+                return text
+        except Exception as e:
+            logs.append(f"LLM document content generation failed: {e}")
+
+        return f"# {title}\n\n## Overview\n{instructions}\n\n## Notes\n(Generated without LLM)\n"
+
+    def _create_docx(self, filepath: str, title: str, content: str) -> int:
+        """Create a Word document from markdown-ish content."""
+        import os
+        import re
+        from docx import Document
+
+        doc = Document()
+        doc.add_heading(title, 0)
+
+        for raw in (content or "").split('\n'):
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith('# '):
+                doc.add_heading(line[2:], 1)
+            elif line.startswith('## '):
+                doc.add_heading(line[3:], 2)
+            elif line.startswith('### '):
+                doc.add_heading(line[4:], 3)
+            elif line.startswith('- ') or line.startswith('* '):
+                doc.add_paragraph(line[2:], style='List Bullet')
+            elif re.match(r'^\d+\.\s+', line):
+                doc.add_paragraph(re.sub(r'^\d+\.\s+', '', line), style='List Number')
+            else:
+                doc.add_paragraph(line)
+
+        doc.save(filepath)
+        return os.path.getsize(filepath)
+
+    def _create_pdf(self, filepath: str, title: str, content: str) -> int:
+        """Create a PDF document from markdown-ish content (requires reportlab)."""
+        import os
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import ParagraphStyle
+
+        doc = SimpleDocTemplate(filepath, pagesize=A4)
+        styles = getSampleStyleSheet()
+        story = []
+
+        title_style = ParagraphStyle(
+            'DocTitle',
+            parent=styles['Heading1'],
+            fontSize=22,
+            spaceAfter=18
+        )
+        story.append(Paragraph(title, title_style))
+        story.append(Spacer(1, 12))
+
+        for raw in (content or "").split('\n'):
+            line = raw.strip()
+            if not line:
+                story.append(Spacer(1, 10))
+                continue
+            if line.startswith('# '):
+                story.append(Paragraph(line[2:], styles['Heading1']))
+            elif line.startswith('## '):
+                story.append(Paragraph(line[3:], styles['Heading2']))
+            elif line.startswith('### '):
+                story.append(Paragraph(line[4:], styles['Heading3']))
+            else:
+                story.append(Paragraph(line, styles['Normal']))
+
+        doc.build(story)
+        return os.path.getsize(filepath)
+
+    def _create_xlsx(self, filepath: str, title: str, content: str) -> int:
+        """Create an Excel file (simple sheet) from content (requires openpyxl)."""
+        import os
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = (title or 'Sheet')[:31]
+
+        ws['A1'] = title
+        ws['A1'].font = Font(bold=True, size=16)
+        ws.merge_cells('A1:E1')
+
+        row = 3
+        for raw in (content or "").split('\n'):
+            line = raw.strip()
+            if not line:
+                continue
+            ws.cell(row=row, column=1, value=line)
+            row += 1
+
+        wb.save(filepath)
+        return os.path.getsize(filepath)
+
+    def _create_pptx(self, filepath: str, title: str, content: str) -> int:
+        """Create a PPTX with a title slide + bullets (requires python-pptx)."""
+        import os
+        from pptx import Presentation
+
+        prs = Presentation()
+        title_slide_layout = prs.slide_layouts[0]
+        slide = prs.slides.add_slide(title_slide_layout)
+        slide.shapes.title.text = title
+        if slide.placeholders and len(slide.placeholders) > 1:
+            slide.placeholders[1].text = ""
+
+        bullet_layout = prs.slide_layouts[1]
+        slide2 = prs.slides.add_slide(bullet_layout)
+        slide2.shapes.title.text = "Summary"
+        tf = slide2.shapes.placeholders[1].text_frame
+        tf.clear()
+        for raw in (content or "").split('\n'):
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith('#'):
+                continue
+            p = tf.add_paragraph()
+            p.text = line[:200]
+            p.level = 0
+
+        prs.save(filepath)
+        return os.path.getsize(filepath)
     
     async def _execute_s3(
         self,

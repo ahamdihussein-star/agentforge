@@ -1102,14 +1102,14 @@ class ProcessAPIService:
         for n in nodes:
             node = dict(n)
             node_type = (node.get('type') or '').strip().lower()
-            if node_type in ('trigger', 'form'):
+            if node_type in ('trigger', 'form', 'schedule', 'webhook'):
                 node['type'] = 'start'
             elif node_type == 'ai':
                 node['type'] = 'ai_task'
             elif node_type == 'tool':
                 node['type'] = 'tool_call'
             elif node_type == 'action':
-                node['type'] = 'ai_task'  # generic action as AI task
+                node['type'] = 'ai_task'  # default; may be remapped based on actionType
             config = node.get('config')
             if config is not None and isinstance(config, dict) and 'type_config' not in config:
                 config = dict(config)
@@ -1161,6 +1161,37 @@ class ProcessAPIService:
                     type_cfg['tool_id'] = type_cfg['toolId']
                 if type_cfg.get('arguments') is None and type_cfg.get('params') is not None:
                     type_cfg['arguments'] = type_cfg.get('params') or {}
+
+            # Action node: remap advanced action types into engine node types where supported
+            if node_type == 'action':
+                at = str(type_cfg.get('actionType') or type_cfg.get('action_type') or '').strip()
+                at_norm = at.lower().replace('-', '_')
+                if at_norm in ('generatedocument', 'generate_document'):
+                    node['type'] = 'file_operation'
+                    # Map business-friendly config into file operation "generate_document"
+                    title = type_cfg.get('documentTitle') or node.get('name') or 'Document'
+                    fmt = type_cfg.get('documentFormat') or type_cfg.get('format') or 'docx'
+                    instr = type_cfg.get('documentInstructions') or type_cfg.get('instructions') or type_cfg.get('description') or ''
+                    type_cfg['operation'] = 'generate_document'
+                    type_cfg['storage_type'] = type_cfg.get('storage_type') or 'local'
+                    type_cfg['title'] = title
+                    type_cfg['format'] = fmt
+                    type_cfg['instructions'] = instr
+
+            # Schedule/Webhook legacy nodes: map into START triggerType config
+            if node_type in ('schedule', 'webhook'):
+                if node_type == 'schedule':
+                    type_cfg['triggerType'] = 'schedule'
+                    if type_cfg.get('cron') is None and node.get('config', {}).get('cron') is not None:
+                        type_cfg['cron'] = node.get('config', {}).get('cron')
+                    if type_cfg.get('timezone') is None and node.get('config', {}).get('timezone') is not None:
+                        type_cfg['timezone'] = node.get('config', {}).get('timezone')
+                else:
+                    type_cfg['triggerType'] = 'webhook'
+                    if type_cfg.get('method') is None and node.get('config', {}).get('method') is not None:
+                        type_cfg['method'] = node.get('config', {}).get('method')
+                    if type_cfg.get('path') is None and node.get('config', {}).get('path') is not None:
+                        type_cfg['path'] = node.get('config', {}).get('path')
             # Delay node: UI uses {duration, unit}; engine expects {delay_type, duration}
             if node_type == 'delay':
                 unit = type_cfg.get('unit')

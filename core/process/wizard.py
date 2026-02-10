@@ -24,6 +24,8 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+from .platform_knowledge import retrieve_platform_knowledge, load_safe_taxonomies
+
 try:
     # Prefer the platform LLM interface (chat-based)
     from core.llm.base import Message, MessageRole
@@ -182,11 +184,14 @@ Analysis (for context):
 Available platform tools (optional; if empty, avoid tool nodes):
 {tools_json}
 
+Platform Knowledge Base (ground truth about platform capabilities, rules, and safe option lists):
+{platform_knowledge}
+
 IMPORTANT:
 - Output ONLY valid JSON. No markdown. No extra keys outside the schema.
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
-  - trigger, condition, ai, tool, approval, notification, delay, end
+  - trigger, condition, ai, tool, approval, notification, delay, action, end
 - Always include exactly ONE start node of type "trigger".
 - Always include at least ONE "end" node.
 - If you include a "condition" node, you MUST create exactly two outgoing edges from it:
@@ -195,6 +200,11 @@ IMPORTANT:
 - In prompts/templates, reference form fields using double braces like {{{{amount}}}} or {{{{email}}}}.
 - This platform is for business users: ALL labels shown to users must be business-friendly and human readable (no snake_case, no internal IDs).
 - For internal field keys, ALWAYS use lowerCamelCase (no underscores). Example: employeeEmail, startDate, endDate, numberOfDays.
+- Be conservative to avoid hallucination:
+  - Only use dropdowns when you have a safe option list from the Knowledge Base or from a tool. Otherwise use a text field.
+  - Do NOT invent company-specific lists (e.g., departments). If unsure, use free text.
+  - Only use derived fields when the formula is clearly supported (see Knowledge Base).
+- Scheduling and webhooks are configured on the Start node via `trigger.config.triggerType` (do NOT create separate schedule/webhook nodes).
 
 Schema to output:
 {{
@@ -231,18 +241,22 @@ Schema to output:
 }}
 
 Node config rules:
-- trigger.config.fields is REQUIRED and must be a non-empty array.
+- trigger.config.fields is REQUIRED and must be a non-empty array when triggerType is "manual".
 - Each field MUST include:
   - name (lowerCamelCase internal key; used in {{name}} references)
   - label (business-friendly label shown to users)
-  - type (text | textarea | number | date | email | select)
+  - type (text | textarea | number | date | email | select | file)
   - required (true/false)
   - placeholder (business-friendly hint)
 - For select fields, include: options (array of strings).
+- For select fields, you MUST also include: optionsSource ("taxonomy:<id>" or "tool:<toolId>").
 - For derived (auto-calculated) fields, include:
   - readOnly: true
   - derived: { "expression": "<formula>" }
   Use formulas like: daysBetween(startDate, endDate) or concat(firstName, " ", lastName).
+- For profile-prefilled fields, include:
+  - readOnly: true
+  - prefill: { "source": "currentUser", "key": "email|name|id|roles|groups|orgId" }
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
@@ -251,6 +265,7 @@ Node config rules:
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
 - notification.config must include: channel, recipient, template. Prefer recipient from form field like {{{{email}}}} if present.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
+- action.config MUST include: actionType. Prefer actionType="generateDocument" only when document output is explicitly required.
 - end.config must include: output. Use "" (empty string) to output ALL variables. If you want to output a single variable, use {{{{variable_name}}}}.
 
 Generate the workflow JSON now:"""
@@ -451,20 +466,40 @@ class ProcessWizard:
                             "name": t.get("name"),
                             "type": t.get("type"),
                             "description": t.get("description"),
+                            "input_parameters": t.get("input_parameters") or t.get("inputParameters") or t.get("parameters"),
                         })
         tools_json = json.dumps(tools[:30], ensure_ascii=False, indent=2) if tools else "[]"
+
+        # Retrieve platform knowledge (RAG-lite) to ground generation and avoid hallucination.
+        try:
+            tool_names = " ".join([t.get("name") or "" for t in tools if isinstance(t, dict)])
+            query = f"{goal}\n\n{(analysis or {}).get('summary') or ''}\n\n{tool_names}".strip()
+            platform_knowledge = retrieve_platform_knowledge(query, top_k=6, max_chars=5000)
+        except Exception:
+            platform_knowledge = ""
 
         user_prompt = VISUAL_BUILDER_GENERATION_PROMPT.format(
             goal=goal,
             analysis=json.dumps(analysis or {}, ensure_ascii=False, indent=2),
             tools_json=tools_json,
+            platform_knowledge=platform_knowledge or "(no KB matches)",
         )
         system_prompt = (
             "You are a workflow designer. "
             "Return ONLY valid JSON that matches the schema exactly. "
             "No markdown, no explanation."
         )
-        data = await self._chat_json(system_prompt, user_prompt, temperature=0.25, max_tokens=3500)
+        try:
+            data = await self._chat_json(system_prompt, user_prompt, temperature=0.25, max_tokens=3500)
+        except Exception as e:
+            # Repair pass: ask again with stricter instruction (avoid falling back to templates)
+            repair_prompt = (
+                user_prompt
+                + "\n\nYour previous output was invalid or could not be parsed as JSON. "
+                + "Return ONLY valid JSON now (no markdown, no commentary)."
+            )
+            logger.warning("Visual builder JSON parse failed, running repair pass: %s", e)
+            data = await self._chat_json(system_prompt, repair_prompt, temperature=0.1, max_tokens=3500)
         if not isinstance(data, dict):
             raise ValueError("Visual builder process definition must be a JSON object")
         return data
@@ -534,6 +569,50 @@ class ProcessWizard:
             if not re.match(r"^[A-Za-z]", key):
                 key = "field" + key
             return key
+
+        def _replace_refs_in_str(s: Any, mapping: Dict[str, str]) -> Any:
+            if not mapping or not isinstance(s, str):
+                return s
+            out_s = s
+            for old, new in mapping.items():
+                if not old or not new or old == new:
+                    continue
+                out_s = out_s.replace(f"{{{{{old}}}}}", f"{{{{{new}}}}}")
+            return out_s
+
+        def _rewrite_obj(obj: Any, mapping: Dict[str, str]) -> Any:
+            """Recursively rewrite {{old}} -> {{new}} references in strings."""
+            if isinstance(obj, str):
+                return _replace_refs_in_str(obj, mapping)
+            if isinstance(obj, list):
+                return [_rewrite_obj(x, mapping) for x in obj]
+            if isinstance(obj, dict):
+                return {k: _rewrite_obj(v, mapping) for k, v in obj.items()}
+            return obj
+
+        def _rewrite_expr(expr: Any, mapping: Dict[str, str]) -> Any:
+            if not mapping or not isinstance(expr, str):
+                return expr
+            out_expr = expr
+            for old, new in mapping.items():
+                if not old or not new or old == new:
+                    continue
+                out_expr = re.sub(rf"\b{re.escape(old)}\b", new, out_expr)
+            return out_expr
+
+        allowed_derived_functions = {"daysBetween", "concat", "sum", "round", "toNumber"}
+
+        def _is_allowed_derived_expression(expr: str) -> bool:
+            if not isinstance(expr, str):
+                return False
+            s = expr.strip()
+            if not s:
+                return False
+            # Direct ref: numberOfDays
+            if re.match(r"^[A-Za-z][A-Za-z0-9]*$", s):
+                return True
+            m = re.match(r"^([A-Za-z][A-Za-z0-9]*)\s*\(", s)
+            return bool(m and m.group(1) in allowed_derived_functions)
 
         # Normalize nodes
         normalized_nodes: List[Dict[str, Any]] = []
@@ -641,24 +720,160 @@ class ProcessWizard:
             start = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
             if start:
                 cfg = start.get("config") if isinstance(start.get("config"), dict) else {}
+                # triggerType: manual (default), schedule, webhook
+                ttype = str(cfg.get("triggerType") or "manual").strip().lower()
+                if ttype not in ("manual", "schedule", "webhook"):
+                    ttype = "manual"
+                cfg["triggerType"] = ttype
+
                 fields = cfg.get("fields")
-                if not isinstance(fields, list) or len(fields) == 0:
-                    cfg["fields"] = [{"name": "details", "label": "Details", "type": "text", "required": True, "placeholder": "Enter details..."}]
+                if ttype == "manual":
+                    if not isinstance(fields, list) or len(fields) == 0:
+                        cfg["fields"] = [{"name": "details", "label": "Details", "type": "text", "required": True, "placeholder": "Enter details..."}]
+                    else:
+                        # Ensure business-friendly labels and sane defaults
+                        for f in fields:
+                            if not isinstance(f, dict):
+                                continue
+                            fname = str(f.get("name") or f.get("id") or "").strip()
+                            if fname and not f.get("label"):
+                                f["label"] = _humanize_label(fname) or fname
+                            ftype = str(f.get("type") or "text").strip().lower()
+                            if ftype == "select" and "options" not in f:
+                                f["options"] = []
+                            if not f.get("placeholder") and f.get("label"):
+                                f["placeholder"] = f"Enter {f.get('label')}"
                 else:
-                    # Ensure business-friendly labels and sane defaults
-                    for f in fields:
-                        if not isinstance(f, dict):
-                            continue
-                        fname = str(f.get("name") or f.get("id") or "").strip()
-                        if fname and not f.get("label"):
-                            f["label"] = _humanize_label(fname) or fname
-                        if f.get("type") == "select" and "options" not in f:
-                            f["options"] = []
-                        if not f.get("placeholder") and f.get("label"):
-                            f["placeholder"] = f"Enter {f.get('label')}"
+                    # For schedule/webhook, form fields are optional
+                    if not isinstance(fields, list):
+                        cfg["fields"] = []
+                    if ttype == "schedule":
+                        if not cfg.get("cron"):
+                            cfg["cron"] = "0 9 * * *"
+                        if not cfg.get("timezone"):
+                            cfg["timezone"] = "UTC"
+                    if ttype == "webhook":
+                        if not cfg.get("method"):
+                            cfg["method"] = "POST"
+                        if not cfg.get("path"):
+                            cfg["path"] = "/trigger"
                 if not cfg.get("triggerType"):
                     cfg["triggerType"] = "manual"
                 start["config"] = cfg
+
+        # Normalize trigger field keys to lowerCamelCase and rewrite {{refs}} across nodes
+        start = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
+        if start and isinstance(start.get("config"), dict):
+            cfg = start["config"]
+            fields = cfg.get("fields") if isinstance(cfg.get("fields"), list) else []
+            used = set()
+            mapping: Dict[str, str] = {}
+            allowed_prefill_keys = {"id", "name", "email", "roles", "groups", "orgId"}
+            safe_taxonomies = load_safe_taxonomies()
+
+            for f in fields:
+                if not isinstance(f, dict):
+                    continue
+                old_name = str(f.get("name") or f.get("id") or "").strip()
+                label = str(f.get("label") or "").strip()
+                # Generate key from label if name missing
+                desired = _to_camel_key(old_name) or _to_camel_key(label) or old_name or "field"
+                # Ensure uniqueness
+                key = desired
+                if key in used:
+                    i = 2
+                    while f"{key}{i}" in used:
+                        i += 1
+                    key = f"{key}{i}"
+                used.add(key)
+                if old_name and old_name != key:
+                    mapping[old_name] = key
+                f["name"] = key
+                if not label:
+                    f["label"] = _humanize_label(key) or key
+
+                ftype = str(f.get("type") or "text").strip().lower()
+                # Validate/normalize select options
+                if ftype == "select":
+                    opts = f.get("options")
+                    opts_list = [str(o).strip() for o in (opts or [])] if isinstance(opts, list) else []
+                    opts_list = [o for o in opts_list if o]
+                    options_source = str(f.get("optionsSource") or "").strip()
+
+                    # If no options, we can't keep it as a dropdown
+                    if not opts_list:
+                        f["type"] = "text"
+                        f.pop("options", None)
+                        f.pop("optionsSource", None)
+                    else:
+                        # Infer taxonomy source if missing (only if fully grounded)
+                        if not options_source and safe_taxonomies:
+                            for tax_id, allowed in safe_taxonomies.items():
+                                if allowed and all(o in allowed for o in opts_list):
+                                    options_source = f"taxonomy:{tax_id}"
+                                    break
+
+                        # Enforce optionsSource to prevent hallucinated dropdowns
+                        if not options_source:
+                            f["type"] = "text"
+                            f.pop("options", None)
+                            f.pop("optionsSource", None)
+                        elif options_source.startswith("taxonomy:"):
+                            tax_id = options_source.split(":", 1)[1].strip()
+                            allowed = safe_taxonomies.get(tax_id) if isinstance(safe_taxonomies, dict) else None
+                            if not allowed or any(o not in allowed for o in opts_list):
+                                # Not grounded in safe taxonomy → downgrade
+                                f["type"] = "text"
+                                f.pop("options", None)
+                                f.pop("optionsSource", None)
+                            else:
+                                f["options"] = opts_list
+                                f["optionsSource"] = f"taxonomy:{tax_id}"
+                        else:
+                            # Tool-sourced dropdowns are not supported yet in the UI/runtime
+                            f["type"] = "text"
+                            f.pop("options", None)
+                            f.pop("optionsSource", None)
+
+                # Validate derived fields
+                derived = f.get("derived")
+                if isinstance(derived, dict):
+                    expr = derived.get("expression")
+                    expr = _rewrite_expr(expr, mapping)
+                    if isinstance(expr, str):
+                        derived["expression"] = expr
+                    if not isinstance(expr, str) or not _is_allowed_derived_expression(expr):
+                        f.pop("derived", None)
+                        f["readOnly"] = False
+                elif f.get("readOnly") is True and "prefill" not in f:
+                    # Read-only without derived/prefill is usually unintended
+                    f["readOnly"] = False
+
+                # Validate prefill
+                prefill = f.get("prefill")
+                if isinstance(prefill, dict):
+                    src = str(prefill.get("source") or "").strip()
+                    k = str(prefill.get("key") or "").strip()
+                    if src != "currentUser" or k not in allowed_prefill_keys:
+                        f.pop("prefill", None)
+
+                # Placeholder
+                if not f.get("placeholder") and f.get("label"):
+                    f["placeholder"] = f"Enter {f.get('label')}"
+
+            # Rewrite references across all nodes
+            if mapping:
+                for n in normalized_nodes:
+                    if not isinstance(n, dict):
+                        continue
+                    ncfg = n.get("config")
+                    if isinstance(ncfg, dict):
+                        n["config"] = _rewrite_obj(ncfg, mapping)
+                    # Condition nodes may store raw field key outside {{ }}
+                    if n.get("type") == "condition" and isinstance(n.get("config"), dict):
+                        cf = n["config"].get("field")
+                        if isinstance(cf, str) and cf in mapping:
+                            n["config"]["field"] = mapping[cf]
 
         # Ensure at least one end node
         if not any(n.get("type") == "end" for n in normalized_nodes):

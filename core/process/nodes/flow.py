@@ -50,6 +50,25 @@ class StartNodeExecutor(BaseNodeExecutor):
             for key, value in context.trigger_input.items():
                 state.set(key, value, changed_by=node.id)
                 logs.append(f"Set {key} from trigger input")
+
+        # Add current user context as variables (business workflows often need this)
+        # This avoids asking users to re-type profile information like email/name.
+        try:
+            state.set("currentUser.id", context.user_id, changed_by=node.id)
+            if context.user_name:
+                state.set("currentUser.name", context.user_name, changed_by=node.id)
+            if context.user_email:
+                state.set("currentUser.email", context.user_email, changed_by=node.id)
+            if context.user_roles:
+                state.set("currentUser.roles", context.user_roles, changed_by=node.id)
+            if context.user_groups:
+                state.set("currentUser.groups", context.user_groups, changed_by=node.id)
+            if context.org_id:
+                state.set("currentUser.orgId", context.org_id, changed_by=node.id)
+            logs.append("Set currentUser context variables")
+        except Exception:
+            # Non-fatal: context injection should never break execution
+            pass
         
         # Log context info
         logs.append(f"Trigger type: {context.trigger_type}")

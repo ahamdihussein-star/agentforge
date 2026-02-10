@@ -9590,6 +9590,33 @@ Option 3"></textarea>
             document.getElementById('generating-status').textContent = 'Creating your workflow...';
             
             try {
+                // Provide available tools context to the wizard (sanitized: no secrets)
+                let toolsForContext = [];
+                try {
+                    const toolsRes = await fetch('/api/tools', {
+                        headers: { 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token')) }
+                    });
+                    const toolsJson = await toolsRes.json();
+                    const tools = Array.isArray(toolsJson?.tools) ? toolsJson.tools : [];
+                    toolsForContext = tools.slice(0, 40).map(t => {
+                        const apiParams = t?.api_config?.input_parameters || t?.api_config?.inputParameters || [];
+                        const safeParams = Array.isArray(apiParams) ? apiParams.map(p => ({
+                            name: p?.name,
+                            description: p?.description,
+                            data_type: p?.data_type || p?.type,
+                            required: !!p?.required,
+                            location: p?.location
+                        })) : [];
+                        return {
+                            id: t?.id,
+                            name: t?.name,
+                            type: t?.type,
+                            description: t?.description || '',
+                            input_parameters: safeParams
+                        };
+                    }).filter(t => t.id && t.name);
+                } catch (_) { /* ignore */ }
+
                 const response = await fetch('/process/wizard/generate', {
                     method: 'POST',
                     headers: { 
@@ -9598,7 +9625,10 @@ Option 3"></textarea>
                     },
                     body: JSON.stringify({
                         goal: goal,
-                        output_format: 'visual_builder'
+                        output_format: 'visual_builder',
+                        context: {
+                            tools: toolsForContext
+                        }
                     })
                 });
                 
@@ -9942,28 +9972,57 @@ Option 3"></textarea>
             return values;
         }
 
+        function recomputeProcessDerivedFields(triggerInputs) {
+            const derivedInputs = (triggerInputs || []).filter(i => i && i.derived && i.derived.expression);
+            if (!derivedInputs.length) return;
+            const values = collectProcessFormValues(triggerInputs);
+            derivedInputs.forEach(di => {
+                const el = document.getElementById(`pf-${di.id}`);
+                if (!el) return;
+                const v = evaluateDerivedExpression(di.derived.expression, values);
+                const text = (v == null) ? '' : String(v);
+                el.value = text;
+                values[di.id] = text;
+            });
+        }
+
+        function getCurrentUserPrefillValue(key) {
+            const k = String(key || '').trim();
+            if (!currentUser) return '';
+            if (k === 'email') return currentUser.email || '';
+            if (k === 'name') return currentUser.name || currentUser.display_name || currentUser.profile?.name || '';
+            if (k === 'id') return currentUser.id || '';
+            if (k === 'orgId') return currentUser.org_id || '';
+            if (k === 'roles') return Array.isArray(currentUser.roles) ? currentUser.roles.map(r => r?.name || r?.id || r).filter(Boolean).join(', ') : '';
+            if (k === 'groups') return Array.isArray(currentUser.groups) ? currentUser.groups.map(g => g?.name || g?.id || g).filter(Boolean).join(', ') : '';
+            return '';
+        }
+
+        function applyProcessPrefill(triggerInputs) {
+            (triggerInputs || []).forEach(input => {
+                if (!input || !input.prefill || input.prefill.source !== 'currentUser') return;
+                const el = document.getElementById(`pf-${input.id}`);
+                if (!el) return;
+                const v = getCurrentUserPrefillValue(input.prefill.key);
+                if (v !== '') el.value = v;
+            });
+        }
+
         function setupProcessDerivedFields(triggerInputs) {
             const derivedInputs = (triggerInputs || []).filter(i => i && i.derived && i.derived.expression);
             if (!derivedInputs.length) return;
 
-            const recompute = () => {
-                const values = collectProcessFormValues(triggerInputs);
-                derivedInputs.forEach(di => {
-                    const el = document.getElementById(`pf-${di.id}`);
-                    if (!el) return;
-                    const v = evaluateDerivedExpression(di.derived.expression, values);
-                    const text = (v == null) ? '' : String(v);
-                    el.value = text;
-                    values[di.id] = text;
-                });
-            };
+            const recompute = () => recomputeProcessDerivedFields(triggerInputs);
 
             (triggerInputs || []).forEach(input => {
                 if (!input || (input.derived && input.derived.expression) || input.readOnly) return;
                 const el = document.getElementById(`pf-${input.id}`);
                 if (!el) return;
+                // Avoid duplicate listeners if this is called multiple times
+                if (el.dataset && el.dataset.pbDerivedWired === '1') return;
                 el.addEventListener('input', recompute);
                 el.addEventListener('change', recompute);
+                if (el.dataset) el.dataset.pbDerivedWired = '1';
             });
 
             recompute();
@@ -9995,7 +10054,10 @@ Option 3"></textarea>
                                 const id = f.name || f.id;
                                 const label = f.label || humanizeFieldLabel(id) || id;
                                 const derived = (f.derived && f.derived.expression) ? { expression: String(f.derived.expression).trim() } : null;
-                                const readOnly = !!f.readOnly || !!derived;
+                                const prefill = (f.prefill && f.prefill.source === 'currentUser' && f.prefill.key)
+                                    ? { source: 'currentUser', key: String(f.prefill.key).trim() }
+                                    : null;
+                                const readOnly = !!f.readOnly || !!derived || !!prefill;
                                 const required = !!f.required && !readOnly;
                                 const options = Array.isArray(f.options) ? f.options : undefined;
                                 const placeholder = f.placeholder || (label ? `Enter ${label}...` : '');
@@ -10008,6 +10070,7 @@ Option 3"></textarea>
                                     options,
                                     description: f.description,
                                     derived,
+                                    prefill,
                                     readOnly
                                 };
                                 startFieldMap[id] = out;
@@ -10076,6 +10139,9 @@ Option 3"></textarea>
                             ${(input.options || []).map(opt => `<option value="${opt}">${opt}</option>`).join('')}
                         </select>`;
                         break;
+                    case 'file':
+                        fieldHtml = `<input type="file" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''}>`;
+                        break;
                     case 'number':
                         fieldHtml = `<input type="number" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
                         break;
@@ -10099,6 +10165,7 @@ Option 3"></textarea>
             }).join('');
             
             // Wire derived fields (auto-calculated) and store input config for later
+            applyProcessPrefill(triggerInputs);
             setupProcessDerivedFields(triggerInputs);
             window._processInputs = triggerInputs;
         }
@@ -10113,17 +10180,30 @@ Option 3"></textarea>
             // Collect form data
             const triggerData = {};
             const inputs = window._processInputs || [];
+
+            // Ensure derived fields are up to date before collecting values
+            recomputeProcessDerivedFields(inputs);
             
             for (const input of inputs) {
                 const field = document.getElementById(`pf-${input.id}`);
                 if (field) {
-                    const value = field.value.trim();
+                    if (input.type === 'file') {
+                        const fileObj = field.files && field.files[0] ? field.files[0] : null;
+                        if (input.required && !fileObj) {
+                            showToast(`Please upload: ${input.label}`, 'error');
+                            field.focus();
+                            return;
+                        }
+                        triggerData[input.id] = fileObj ? { name: fileObj.name, size: fileObj.size, type: fileObj.type } : null;
+                        continue;
+                    }
+                    const value = (field.value || '').trim();
                     if (input.required && !value) {
                         showToast(`Please fill in: ${input.label}`, 'error');
                         field.focus();
                         return;
                     }
-                    triggerData[input.id] = input.type === 'number' ? parseFloat(value) || 0 : value;
+                    triggerData[input.id] = input.type === 'number' ? (parseFloat(value) || 0) : value;
                 }
             }
             

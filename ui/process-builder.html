@@ -1486,21 +1486,7 @@
                 <div class="palette-icon trigger">🎯</div>
                 <div class="palette-info">
                     <div class="palette-name">Start Trigger</div>
-                    <div class="palette-desc">When workflow begins</div>
-                </div>
-            </div>
-            <div class="palette-item" draggable="true" data-type="schedule">
-                <div class="palette-icon trigger">⏰</div>
-                <div class="palette-info">
-                    <div class="palette-name">Schedule</div>
-                    <div class="palette-desc">Run on a schedule</div>
-                </div>
-            </div>
-            <div class="palette-item" draggable="true" data-type="webhook">
-                <div class="palette-icon trigger">🔗</div>
-                <div class="palette-info">
-                    <div class="palette-name">Webhook</div>
-                    <div class="palette-desc">Triggered by API call</div>
+                    <div class="palette-desc">How the workflow starts (manual / schedule / webhook)</div>
                 </div>
             </div>
         </div>
@@ -1512,13 +1498,6 @@
                 <div class="palette-info">
                     <div class="palette-name">Condition</div>
                     <div class="palette-desc">If/else branching</div>
-                </div>
-            </div>
-            <div class="palette-item" draggable="true" data-type="loop">
-                <div class="palette-icon loop">🔁</div>
-                <div class="palette-info">
-                    <div class="palette-name">Loop</div>
-                    <div class="palette-desc">Repeat for each item</div>
                 </div>
             </div>
             <div class="palette-item" draggable="true" data-type="delay">
@@ -2296,10 +2275,10 @@
         
         function getNodeConfig(type, toolId = null) {
             const configs = {
-                trigger: { name: 'Start', config: { triggerType: 'manual' } },
+                trigger: { name: 'Start', config: { triggerType: 'manual', formTitle: 'Request details', submitText: 'Submit', fields: [] } },
                 schedule: { name: 'Schedule', config: { cron: '0 9 * * *', timezone: 'UTC' } },
                 webhook: { name: 'Webhook', config: { method: 'POST', path: '/trigger' } },
-                action: { name: 'Action', config: { description: '' } },
+                action: { name: 'Action', config: { description: '', actionType: 'custom' } },
                 condition: { name: 'Condition', config: { field: '', operator: 'equals', value: '' } },
                 loop: { name: 'For Each', config: { collection: '', itemVar: 'item' } },
                 delay: { name: 'Wait', config: { duration: 5, unit: 'minutes' } },
@@ -4645,9 +4624,63 @@
                 case 'trigger':
                     // Form fields editor
                     const fields = node.config.fields || [];
+                    const triggerType = (node.config.triggerType || 'manual');
                     html += `
                         <div class="property-group">
-                            <label class="property-label">Form Title</label>
+                            <label class="property-label">Start method</label>
+                            <select class="property-select" onchange="setTriggerType('${node.id}', this.value)">
+                                <option value="manual" ${triggerType === 'manual' ? 'selected' : ''}>Manual (Form)</option>
+                                <option value="schedule" ${triggerType === 'schedule' ? 'selected' : ''}>Schedule</option>
+                                <option value="webhook" ${triggerType === 'webhook' ? 'selected' : ''}>Webhook</option>
+                            </select>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                Choose how this workflow starts. Manual uses a form; Schedule runs automatically; Webhook starts from an API call.
+                            </div>
+                        </div>
+                        
+                        ${triggerType === 'schedule' ? `
+                            <div class="property-group">
+                                <label class="property-label">Schedule (Cron)</label>
+                                <input type="text" class="property-input" placeholder="0 9 * * *"
+                                       value="${escapeHtml(node.config.cron || '0 9 * * *')}"
+                                       onchange="updateNodeConfig('${node.id}', 'cron', this.value)">
+                                <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                    Example: <code>0 9 * * *</code> runs every day at 9:00
+                                </div>
+                            </div>
+                            <div class="property-group">
+                                <label class="property-label">Timezone</label>
+                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'timezone', this.value)">
+                                    <option value="UTC" ${(node.config.timezone || 'UTC') === 'UTC' ? 'selected' : ''}>UTC</option>
+                                    <option value="Africa/Cairo" ${(node.config.timezone || '') === 'Africa/Cairo' ? 'selected' : ''}>Cairo</option>
+                                    <option value="Asia/Dubai" ${(node.config.timezone || '') === 'Asia/Dubai' ? 'selected' : ''}>Dubai</option>
+                                    <option value="Europe/London" ${(node.config.timezone || '') === 'Europe/London' ? 'selected' : ''}>London</option>
+                                </select>
+                            </div>
+                        ` : ''}
+                        
+                        ${triggerType === 'webhook' ? `
+                            <div class="property-group">
+                                <label class="property-label">HTTP Method</label>
+                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'method', this.value)">
+                                    <option value="POST" ${(node.config.method || 'POST') === 'POST' ? 'selected' : ''}>POST</option>
+                                    <option value="GET" ${(node.config.method || '') === 'GET' ? 'selected' : ''}>GET</option>
+                                </select>
+                            </div>
+                            <div class="property-group">
+                                <label class="property-label">Webhook path</label>
+                                <input type="text" class="property-input" placeholder="/trigger"
+                                       value="${escapeHtml(node.config.path || '/trigger')}"
+                                       onchange="updateNodeConfig('${node.id}', 'path', this.value)">
+                                <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                    The platform will expose a webhook endpoint for this workflow.
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        ${triggerType === 'manual' ? `
+                        <div class="property-group">
+                            <label class="property-label">Form title</label>
                             <input type="text" class="property-input" placeholder="e.g., Submit Expense Report" 
                                    value="${escapeHtml(node.config.formTitle || node.config.title || '')}"
                                    onchange="updateNodeConfig('${node.id}', 'formTitle', this.value)">
@@ -4681,6 +4714,7 @@
                                                     <option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option>
                                                     <option value="textarea" ${f.type === 'textarea' ? 'selected' : ''}>Long Text</option>
                                                     <option value="select" ${f.type === 'select' ? 'selected' : ''}>Dropdown</option>
+                                                    <option value="file" ${f.type === 'file' ? 'selected' : ''}>File Upload</option>
                                                 </select>
                                             </div>
                                             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--pb-muted);white-space:nowrap;">
@@ -4694,6 +4728,18 @@
                                         <input type="text" class="property-input" placeholder="e.g., Enter your email"
                                                value="${escapeHtml(f.placeholder || '')}"
                                                onchange="updateFormField('${node.id}', ${idx}, 'placeholder', this.value)">
+
+                                        <div style="margin-top:10px;">
+                                            <label class="property-label">Prefill from user profile</label>
+                                            <select class="property-select" onchange="setFieldPrefill('${node.id}', ${idx}, this.value)">
+                                                <option value="" ${!f.prefill ? 'selected' : ''}>None</option>
+                                                <option value="email" ${(f.prefill && f.prefill.source === 'currentUser' && f.prefill.key === 'email') ? 'selected' : ''}>Email</option>
+                                                <option value="name" ${(f.prefill && f.prefill.source === 'currentUser' && f.prefill.key === 'name') ? 'selected' : ''}>Name</option>
+                                            </select>
+                                            <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                                This saves time by auto-filling known information for the logged-in user.
+                                            </div>
+                                        </div>
                                         
                                         ${(f.type === 'select') ? `
                                             <div style="margin-top:10px;">
@@ -4749,6 +4795,7 @@
                                    value="${node.config.submitText || 'Submit'}"
                                    onchange="updateNodeConfig('${node.id}', 'submitText', this.value)">
                         </div>
+                        ` : ''}
                     `;
                     break;
                 
@@ -4879,6 +4926,7 @@
                     break;
                 
                 case 'action':
+                    const actionType = (node.config.actionType || 'custom');
                     html += `
                         <div class="property-group">
                             <label class="property-label">Action Description</label>
@@ -4887,13 +4935,41 @@
                         </div>
                         <div class="property-group">
                             <label class="property-label">Action Type</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'actionType', this.value)">
-                                <option value="custom" ${node.config.actionType === 'custom' ? 'selected' : ''}>Custom Action</option>
-                                <option value="http" ${node.config.actionType === 'http' ? 'selected' : ''}>HTTP Request</option>
-                                <option value="script" ${node.config.actionType === 'script' ? 'selected' : ''}>Run Script</option>
-                                <option value="transform" ${node.config.actionType === 'transform' ? 'selected' : ''}>Transform Data</option>
+                            <select class="property-select" onchange="setActionType('${node.id}', this.value)">
+                                <option value="custom" ${actionType === 'custom' ? 'selected' : ''}>Custom</option>
+                                <option value="generateDocument" ${actionType === 'generateDocument' ? 'selected' : ''}>Generate Document</option>
+                                <option value="httpRequest" ${actionType === 'httpRequest' ? 'selected' : ''}>HTTP Request (Advanced)</option>
+                                <option value="runScript" ${actionType === 'runScript' ? 'selected' : ''}>Run Script (Advanced)</option>
+                                <option value="transformData" ${actionType === 'transformData' ? 'selected' : ''}>Transform Data (Advanced)</option>
+                                <option value="fileOperation" ${actionType === 'fileOperation' ? 'selected' : ''}>File Operation (Advanced)</option>
                             </select>
                         </div>
+                        ${actionType === 'generateDocument' ? `
+                            <div class="property-group">
+                                <label class="property-label">Document title</label>
+                                <input type="text" class="property-input" placeholder="e.g., Leave Request Summary"
+                                       value="${escapeHtml(node.config.documentTitle || '')}"
+                                       onchange="updateNodeConfig('${node.id}', 'documentTitle', this.value)">
+                            </div>
+                            <div class="property-group">
+                                <label class="property-label">Format</label>
+                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'documentFormat', this.value)">
+                                    <option value="docx" ${(node.config.documentFormat || 'docx') === 'docx' ? 'selected' : ''}>Word (.docx)</option>
+                                    <option value="pdf" ${(node.config.documentFormat || '') === 'pdf' ? 'selected' : ''}>PDF (.pdf)</option>
+                                    <option value="xlsx" ${(node.config.documentFormat || '') === 'xlsx' ? 'selected' : ''}>Excel (.xlsx)</option>
+                                    <option value="pptx" ${(node.config.documentFormat || '') === 'pptx' ? 'selected' : ''}>PowerPoint (.pptx)</option>
+                                    <option value="txt" ${(node.config.documentFormat || '') === 'txt' ? 'selected' : ''}>Text (.txt)</option>
+                                </select>
+                            </div>
+                            <div class="property-group">
+                                <label class="property-label">Content instructions</label>
+                                <textarea class="property-textarea" placeholder="What should this document contain?"
+                                          onchange="updateNodeConfig('${node.id}', 'documentInstructions', this.value)">${escapeHtml(node.config.documentInstructions || '')}</textarea>
+                                <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
+                                    You can reference form fields like <code>{{employeeName}}</code> or <code>{{startDate}}</code>.
+                                </div>
+                            </div>
+                        ` : ''}
                     `;
                     break;
                     
@@ -4938,6 +5014,39 @@
                 refreshNode(node);
                 saveToUndo();
             }
+        }
+
+        function setTriggerType(nodeId, triggerType) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            node.config.triggerType = triggerType;
+            if (triggerType === 'schedule') {
+                if (!node.config.cron) node.config.cron = '0 9 * * *';
+                if (!node.config.timezone) node.config.timezone = 'UTC';
+            } else if (triggerType === 'webhook') {
+                if (!node.config.method) node.config.method = 'POST';
+                if (!node.config.path) node.config.path = '/trigger';
+            } else {
+                // manual
+                if (!node.config.fields) node.config.fields = [];
+                if (!node.config.submitText) node.config.submitText = 'Submit';
+            }
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function setActionType(nodeId, actionType) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            node.config.actionType = actionType;
+            if (actionType === 'generateDocument') {
+                if (!node.config.documentFormat) node.config.documentFormat = 'docx';
+                if (!node.config.documentTitle) node.config.documentTitle = node.name || 'Document';
+            }
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
         }
         
         function selectTool(nodeId, toolId) {
@@ -5157,6 +5266,26 @@
             } else {
                 f.readOnly = false;
                 f.derived = null;
+            }
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function setFieldPrefill(nodeId, fieldIndex, key) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !node.config.fields || !node.config.fields[fieldIndex]) return;
+            const f = node.config.fields[fieldIndex];
+            const k = String(key || '').trim();
+            if (!k) {
+                delete f.prefill;
+                if (!f.derived) f.readOnly = false;
+            } else {
+                f.prefill = { source: 'currentUser', key: k };
+                f.readOnly = true;
+                // Prefill and derived should not conflict; prefer prefill
+                f.derived = null;
+                if (k === 'email' && (!f.type || f.type === 'text')) f.type = 'email';
             }
             refreshNode(node);
             showProperties(node);
@@ -5713,9 +5842,108 @@
             });
         }
 
+        // Auto-layout for AI-generated drafts (keeps diagrams readable for business users)
+        function autoLayoutWorkflowDefinition(def, opts = {}) {
+            const nodes = Array.isArray(def?.nodes) ? def.nodes : [];
+            const edges = Array.isArray(def?.edges) ? def.edges : (Array.isArray(def?.connections) ? def.connections : []);
+            if (!nodes.length) return def;
+
+            const nodeById = new Map(nodes.map(n => [String(n.id), n]));
+            const out = new Map();
+            const inDeg = new Map();
+            nodes.forEach(n => { out.set(String(n.id), []); inDeg.set(String(n.id), 0); });
+            edges.forEach(e => {
+                const from = String(e.from || e.source || '');
+                const to = String(e.to || e.target || '');
+                if (!from || !to) return;
+                if (!out.has(from)) out.set(from, []);
+                out.get(from).push({ to, type: e.type || e.edge_type || 'default' });
+                inDeg.set(to, (inDeg.get(to) || 0) + 1);
+            });
+
+            const start = nodes.find(n => n.type === 'trigger' || n.type === 'form')
+                || nodes.find(n => (inDeg.get(String(n.id)) || 0) === 0)
+                || nodes[0];
+
+            const depth = new Map();
+            const q = [String(start.id)];
+            depth.set(String(start.id), 0);
+            while (q.length) {
+                const id = q.shift();
+                const d = depth.get(id) || 0;
+                (out.get(id) || []).forEach(ed => {
+                    const next = String(ed.to);
+                    if (!nodeById.has(next)) return;
+                    if (!depth.has(next)) {
+                        depth.set(next, d + 1);
+                        q.push(next);
+                    }
+                });
+            }
+
+            let maxDepth = 0;
+            depth.forEach(v => { if (v > maxDepth) maxDepth = v; });
+            nodes.forEach(n => {
+                const id = String(n.id);
+                if (!depth.has(id)) { maxDepth += 1; depth.set(id, maxDepth); }
+            });
+
+            const layers = new Map();
+            nodes.forEach(n => {
+                const d = depth.get(String(n.id)) || 0;
+                if (!layers.has(d)) layers.set(d, []);
+                layers.get(d).push(n);
+            });
+
+            // Preserve any existing left-to-right intent
+            layers.forEach(layer => layer.sort((a, b) => ((a?.x ?? 0) - (b?.x ?? 0))));
+
+            // Condition: keep YES on the left, NO on the right when in same layer
+            nodes.filter(n => n.type === 'condition').forEach(cond => {
+                const cid = String(cond.id);
+                const outs = out.get(cid) || [];
+                const yes = outs.find(e => e.type === 'yes');
+                const no = outs.find(e => e.type === 'no');
+                if (!yes || !no) return;
+                const dy = depth.get(String(yes.to));
+                const dn = depth.get(String(no.to));
+                if (dy == null || dn == null || dy !== dn) return;
+                const layer = layers.get(dy);
+                if (!layer) return;
+                const yi = layer.findIndex(n => String(n.id) === String(yes.to));
+                const ni = layer.findIndex(n => String(n.id) === String(no.to));
+                if (yi > -1 && ni > -1 && yi > ni) {
+                    const tmp = layer[yi]; layer[yi] = layer[ni]; layer[ni] = tmp;
+                }
+            });
+
+            const centerX = (typeof opts.centerX === 'number') ? opts.centerX : 420;
+            const topY = (typeof opts.topY === 'number') ? opts.topY : 120;
+            const vGap = (typeof opts.vGap === 'number') ? opts.vGap : 160;
+            const hGap = (typeof opts.hGap === 'number') ? opts.hGap : 260;
+
+            const newNodes = nodes.map(n => ({ ...n }));
+            const newById = new Map(newNodes.map(n => [String(n.id), n]));
+
+            Array.from(layers.keys()).sort((a, b) => a - b).forEach(d => {
+                const layer = layers.get(d) || [];
+                const count = layer.length || 1;
+                layer.forEach((orig, i) => {
+                    const nn = newById.get(String(orig.id));
+                    if (!nn) return;
+                    const offset = i - (count - 1) / 2;
+                    nn.x = Math.round((centerX + offset * hGap) / 20) * 20;
+                    nn.y = Math.round((topY + d * vGap) / 20) * 20;
+                });
+            });
+
+            return { ...def, nodes: newNodes, edges: edges.map(e => ({ ...e })) };
+        }
+
         async function startBuildAnimation(def, opts = {}) {
             const token = ++buildAnim.token;
             buildAnim.running = true;
+            def = autoLayoutWorkflowDefinition(def);
             buildAnim.lastDefinition = def;
             buildAnim.lastMeta = opts || {};
 
@@ -6005,15 +6233,53 @@
                     const derived = (f.derived && typeof f.derived === 'object' && String(f.derived.expression || '').trim())
                         ? { expression: String(f.derived.expression || '').trim() }
                         : null;
-                    const readOnly = !!f.readOnly || !!derived;
+                    const prefill = (f.prefill && typeof f.prefill === 'object' && String(f.prefill.source || '').trim() === 'currentUser' && String(f.prefill.key || '').trim())
+                        ? { source: 'currentUser', key: String(f.prefill.key || '').trim() }
+                        : null;
+                    const readOnly = !!f.readOnly || !!derived || !!prefill;
                     const required = !!f.required && !readOnly;
                     const placeholder = String(f.placeholder || (label ? `Enter ${label}...` : '')).trim();
-                    return { name: key, label, type, required, placeholder, options, derived, readOnly };
+                    return { name: key, label, type, required, placeholder, options, derived, prefill, readOnly };
                 })
                 .filter(Boolean);
         }
 
-        function testWorkflow() {
+        let _pbMeCache = null;
+        async function getCurrentUserProfile() {
+            if (_pbMeCache) return _pbMeCache;
+            const token = getAuthToken();
+            if (!token) return null;
+            try {
+                const res = await fetch('/api/security/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+                if (!res.ok) return null;
+                const data = await res.json();
+                _pbMeCache = data;
+                return data;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        async function applyPrefillToTestForm(fieldDefs) {
+            const me = await getCurrentUserProfile();
+            if (!me) return;
+            const lookup = {
+                id: me.id,
+                name: me.name,
+                email: me.email,
+                orgId: me.org_id,
+                roles: Array.isArray(me.roles) ? me.roles.map(r => r?.name || r?.id || r).filter(Boolean).join(', ') : '',
+                groups: Array.isArray(me.groups) ? me.groups.map(g => g?.name || g?.id || g).filter(Boolean).join(', ') : ''
+            };
+            (fieldDefs || []).forEach(f => {
+                if (!f || !f.prefill || f.prefill.source !== 'currentUser') return;
+                const val = lookup[f.prefill.key];
+                const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
+                if (el && val != null) el.value = String(val);
+            });
+        }
+
+        async function testWorkflow() {
             const startNode = getStartNodeForTest();
             if (!startNode) {
                 alert('No start node found. Add a Start/Form node first.');
@@ -6053,7 +6319,9 @@
                                     const required = f.required ? '<span style="color:#ef4444;">*</span>' : '';
                                     const ro = f.readOnly ? 'readonly' : '';
                                     const dis = f.readOnly ? 'disabled' : '';
-                                    const hint = f.readOnly ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px;">Auto-calculated</div>` : '';
+                                    const hint = f.prefill
+                                        ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px;">Auto-filled from profile</div>`
+                                        : (f.derived ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px;">Auto-calculated</div>` : (f.readOnly ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px;">Read-only</div>` : ''));
                                     const baseStyle = `width:100%; padding:10px; background:#0b1220; border:1px solid rgba(148,163,184,0.22); border-radius:10px; color:white;`;
                                     const labelHtml = `<label style="display:block; margin-bottom:7px; font-size:13px; color:#e5e7eb;">${escapeHtml(f.label)} ${required}</label>`;
                                     let inputHtml = '';
@@ -6066,6 +6334,8 @@
                                                 ${(f.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
                                             </select>
                                         `;
+                                    } else if (f.type === 'file') {
+                                        inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="file" name="${escapeHtml(f.name)}" style="${baseStyle}" ${f.required ? 'required' : ''}>`;
                                     } else {
                                         const inputType = (f.type === 'number') ? 'number' : (f.type === 'email') ? 'email' : (f.type === 'date') ? 'date' : 'text';
                                         inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="${inputType}" name="${escapeHtml(f.name)}" style="${baseStyle}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required ? 'required' : ''} ${ro}>`;
@@ -6095,6 +6365,8 @@
             document.body.appendChild(modal);
             window._testRunContext = { startNodeId: startNode.id, fieldDefs };
             setupTestFormDerived(fieldDefs);
+            await applyPrefillToTestForm(fieldDefs);
+            applyDerivedToForm(fieldDefs);
         }
         
         function closeTestModal() {
