@@ -99,6 +99,47 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
     }
 
 
+def _is_platform_admin(user: User) -> bool:
+    """
+    Determine if the current user should be treated as a platform/org admin for portal-scoped visibility.
+
+    We intentionally keep this check lightweight and aligned with existing approvals behavior.
+    """
+    try:
+        return (
+            security_state.check_permission(user, Permission.SYSTEM_ADMIN.value) or
+            security_state.check_permission(user, Permission.USERS_VIEW.value) or
+            security_state.check_permission(user, Permission.USERS_EDIT.value)
+        )
+    except Exception:
+        return False
+
+
+def _is_approval_visible_to_user(approval: Any, user_dict: Dict[str, Any]) -> bool:
+    """Check whether an approval request should be visible/actionable for a user."""
+    if not approval or not user_dict:
+        return False
+    try:
+        assignee_type = str(getattr(approval, "assignee_type", "") or "").strip().lower()
+        if assignee_type == "any":
+            return True
+        user_id = str(user_dict.get("id") or "")
+        role_ids = set(str(x) for x in (user_dict.get("role_ids") or []) if x)
+        group_ids = set(str(x) for x in (user_dict.get("group_ids") or []) if x)
+        assigned_user_ids = set(str(x) for x in (getattr(approval, "assigned_user_ids", None) or []) if x)
+        assigned_role_ids = set(str(x) for x in (getattr(approval, "assigned_role_ids", None) or []) if x)
+        assigned_group_ids = set(str(x) for x in (getattr(approval, "assigned_group_ids", None) or []) if x)
+        if user_id and user_id in assigned_user_ids:
+            return True
+        if role_ids and assigned_role_ids and role_ids.intersection(assigned_role_ids):
+            return True
+        if group_ids and assigned_group_ids and group_ids.intersection(assigned_group_ids):
+            return True
+    except Exception:
+        return False
+    return False
+
+
 # =============================================================================
 # BUILDER TEST UTILITIES
 # =============================================================================
@@ -246,6 +287,10 @@ async def enrich_form_fields(
 async def list_executions(
     agent_id: Optional[str] = Query(None, description="Filter by workflow"),
     status: Optional[str] = Query(None, description="Filter by status"),
+    scope: Optional[str] = Query(
+        "auto",
+        description="Visibility scope: mine (only your runs), org (all org runs, admins only), auto (admins=org, others=mine)",
+    ),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     service: ProcessAPIService = Depends(get_service),
@@ -258,10 +303,21 @@ async def list_executions(
     """
     user_dict = _user_to_dict(user)
     try:
+        scope_norm = (scope or "auto").strip().lower()
+        is_platform_admin = _is_platform_admin(user)
+        created_by = None
+        if scope_norm in ("mine", "my", "me"):
+            created_by = user_dict["id"]
+        elif scope_norm in ("org", "all"):
+            created_by = None if is_platform_admin else user_dict["id"]
+        else:
+            # auto / unknown → admins see org, others see mine
+            created_by = None if is_platform_admin else user_dict["id"]
         items, total = service.list_executions(
             org_id=user_dict["org_id"],
             agent_id=agent_id,
             status=status,
+            created_by=created_by,
             limit=limit,
             offset=offset
         )
@@ -291,10 +347,17 @@ async def get_execution(
     """
     user_dict = _user_to_dict(user)
     try:
-        return service.get_execution(
-            execution_id=execution_id,
-            org_id=user_dict["org_id"]
-        )
+        execution = service.exec_service.get_execution(execution_id)
+        if not execution or str(execution.org_id) != user_dict["org_id"]:
+            raise ValueError("not found")
+        is_platform_admin = _is_platform_admin(user)
+        is_creator = str(getattr(execution, "created_by", "")) == user_dict["id"]
+        if not is_creator and not is_platform_admin:
+            raise HTTPException(
+                status_code=403,
+                detail=format_error_for_user(ErrorCode.PERMISSION_DENIED),
+            )
+        return service._to_response(execution)
     except ValueError as e:
         raise HTTPException(
             status_code=404, 
@@ -396,6 +459,12 @@ async def get_step_executions(
             status_code=404, 
             detail=format_error_for_user(ErrorCode.EXECUTION_NOT_FOUND)
         )
+
+    # End-user privacy: only creator can view steps unless platform admin
+    is_platform_admin = _is_platform_admin(user)
+    is_creator = str(getattr(execution, "created_by", "")) == user_dict["id"]
+    if not is_creator and not is_platform_admin:
+        raise HTTPException(status_code=403, detail=format_error_for_user(ErrorCode.PERMISSION_DENIED))
     
     nodes = exec_service.get_node_executions(execution_id)
     
@@ -475,6 +544,11 @@ async def get_approval(
             status_code=404, 
             detail=format_error_for_user(ErrorCode.APPROVAL_NOT_FOUND)
         )
+
+    # Only assignees (or platform admins) can view the approval details
+    is_platform_admin = _is_platform_admin(user)
+    if not is_platform_admin and not _is_approval_visible_to_user(approval, user_dict):
+        raise HTTPException(status_code=403, detail=format_error_for_user(ErrorCode.PERMISSION_DENIED))
     
     return service._approval_to_response(approval)
 
@@ -499,6 +573,14 @@ async def decide_approval(
         )
     
     try:
+        # Ensure user is allowed to decide this approval (assignee or platform admin)
+        user_dict = _user_to_dict(user)
+        approval = service.exec_service.get_approval_request(approval_id)
+        if not approval or str(getattr(approval, "org_id", "")) != user_dict["org_id"]:
+            raise HTTPException(status_code=404, detail=format_error_for_user(ErrorCode.APPROVAL_NOT_FOUND))
+        is_platform_admin = _is_platform_admin(user)
+        if not is_platform_admin and not _is_approval_visible_to_user(approval, user_dict):
+            raise HTTPException(status_code=403, detail=format_error_for_user(ErrorCode.PERMISSION_DENIED))
         return await service.handle_approval_decision(
             approval_id=approval_id,
             user_id=user_dict["id"],

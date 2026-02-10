@@ -681,6 +681,7 @@ class ProcessAPIService:
         org_id: str,
         agent_id: str = None,
         status: str = None,
+        created_by: str = None,
         limit: int = 50,
         offset: int = 0
     ) -> tuple:
@@ -689,6 +690,7 @@ class ProcessAPIService:
             org_id=org_id,
             agent_id=agent_id,
             status=status,
+            created_by=created_by,
             limit=limit,
             offset=offset
         )
