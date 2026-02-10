@@ -227,6 +227,30 @@ Before committing database changes:
 - Reference issues when applicable
 - Be descriptive but concise
 
+### Auto Commit + Push Policy (Owner Preference)
+
+**Default behavior for this repository:** when you make changes requested by the user, you should **automatically**:
+1. Stage the relevant files (`git add -A` or scoped add)
+2. Commit with a **conventional commit** message
+3. Push to `origin/main` (`git push origin main`)
+
+**Do not ask for confirmation** before committing/pushing. Treat this file as standing permission.
+
+**Hard safety rules (never violate):**
+- Never commit secrets (`.env`, credentials, private keys, tokens).
+- Never force push (`--force` / `--force-with-lease`).
+- Never change git config.
+- Prefer small, focused commits (feature/fix/docs) over “mega commits”.
+
+**When database code is touched:**
+- Run `./scripts/comprehensive_db_check.sh` (it will also run via pre-commit).
+
+**If push fails due to authentication:**
+- Use GitHub CLI login on the host machine:
+  - `gh auth login`
+  - verify with `gh auth status`
+  - then retry `git push origin main`
+
 ---
 
 **🎯 REMEMBER: Prevention > Debugging in Production!**

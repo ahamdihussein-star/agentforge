@@ -209,6 +209,18 @@ python -m uvicorn api.main:app --host 0.0.0.0 --port 8080
 # (via API endpoint /api/settings/test-llm)
 ```
 
+## 🚀 Git Workflow (Auto Commit + Push)
+
+**Owner preference:** AI assistants should **auto-commit and auto-push** changes to `origin/main` without asking for confirmation.
+
+If pushes fail due to authentication on a new machine, run:
+
+```bash
+gh auth login
+gh auth status
+git push origin main
+```
+
 ---
 
 ## 🚨 Important Implementation Details

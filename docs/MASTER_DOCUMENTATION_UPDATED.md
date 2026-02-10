@@ -5750,6 +5750,17 @@ gh auth status
 
 Then regular `git push origin main` should work without re-auth prompts (depending on your Git credential helper configuration).
 
+## AI Auto Push Policy (Project Preference)
+
+For this repository, the owner prefers an “always push” workflow:
+- When the user asks for a change and the assistant makes code/doc updates, the assistant should **stage → commit → push** to `origin/main` automatically.
+- The assistant should not ask “do you want me to commit/push?” every time.
+
+Safety constraints:
+- Do not commit secrets (`.env`, private keys, tokens).
+- Do not force push.
+- Keep commits small and conventional (`feat:`, `fix:`, `docs:`).
+
 ---
 
 # 👥 Support
