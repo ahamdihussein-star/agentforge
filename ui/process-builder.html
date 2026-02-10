@@ -1330,28 +1330,6 @@
             background: linear-gradient(90deg, #22c55e 0%, #14b8a6 35%, #6366f1 100%);
             transition: width 220ms ease;
         }
-        .build-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-            justify-content: flex-end;
-        }
-        .build-actions button {
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(148,163,184,0.25);
-            color: var(--pb-text);
-            padding: 7px 10px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: transform 0.12s ease, background 0.12s ease;
-        }
-        .build-actions button:hover { background: rgba(255,255,255,0.10); transform: translateY(-1px); }
-        .build-actions button:active { transform: translateY(0); }
-        .build-actions button.primary {
-            background: rgba(99,102,241,0.16);
-            border-color: rgba(99,102,241,0.35);
-        }
 
         /* Build cursor (director pointer) */
         #build-cursor {
@@ -1621,10 +1599,6 @@
             </div>
             <div class="build-progress">
                 <div class="build-progress-bar" id="build-progress-bar"></div>
-            </div>
-            <div class="build-actions">
-                <button type="button" onclick="skipBuildAnimation()">Skip</button>
-                <button type="button" class="primary" onclick="replayBuildAnimation()">Replay</button>
             </div>
         </div>
     </div>
@@ -5990,27 +5964,6 @@
             setTimeout(_hideBuildOverlay, 2200);
         }
 
-        function skipBuildAnimation() {
-            if (!buildAnim.running) return;
-            const def = buildAnim.lastDefinition;
-            const meta = buildAnim.lastMeta || {};
-            buildAnim.token++; // cancels any running loop
-            buildAnim.running = false;
-            _hideBuildCursor();
-            _hideBuildOverlay();
-            if (def) {
-                state.goal = (meta.goal || state.goal || '').trim();
-                applyWorkflowDefinition(def, { goal: state.goal, name: meta.name || def.name || 'My Workflow' });
-            }
-        }
-
-        function replayBuildAnimation() {
-            const def = buildAnim.lastDefinition;
-            const meta = buildAnim.lastMeta || {};
-            if (!def) return;
-            startBuildAnimation(def, meta);
-        }
-        
         async function loadWorkflow(agentId) {
             try {
                 const token = getAuthToken();
