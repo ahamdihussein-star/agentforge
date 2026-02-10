@@ -9,6 +9,7 @@ Integrates with the platform's security module for access control.
 import json
 import uuid
 import logging
+import re
 from typing import Dict, Any, List, Optional, AsyncIterator
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -1160,6 +1161,14 @@ class ProcessAPIService:
                     type_cfg['tool_id'] = type_cfg['toolId']
                 if type_cfg.get('arguments') is None and type_cfg.get('params') is not None:
                     type_cfg['arguments'] = type_cfg.get('params') or {}
+            # Delay node: UI uses {duration, unit}; engine expects {delay_type, duration}
+            if node_type == 'delay':
+                unit = type_cfg.get('unit')
+                if unit and not type_cfg.get('delay_type'):
+                    type_cfg['delay_type'] = str(unit).strip().lower()
+                if type_cfg.get('duration') is None and type_cfg.get('duration_seconds') is not None:
+                    type_cfg['delay_type'] = type_cfg.get('delay_type') or 'seconds'
+                    type_cfg['duration'] = type_cfg.get('duration_seconds')
             # Approval / human_task: Process Builder uses 'approvers' (UI) or 'assignee'/'assignee_id' (single); engine expects 'assignee_ids' (list)
             if node_type in ('approval', 'human_task', 'human'):
                 aids = type_cfg.get('assignee_ids')
@@ -1176,6 +1185,20 @@ class ProcessAPIService:
                             type_cfg['assignee_ids'] = [single] if isinstance(single, str) else list(single) if hasattr(single, '__iter__') and not isinstance(single, (str, bytes)) else [str(single)]
                 elif not isinstance(aids, list):
                     type_cfg['assignee_ids'] = [aids] if aids is not None else []
+                # Map UI-friendly "message" to engine "description" when missing
+                if type_cfg.get('message') and not type_cfg.get('description'):
+                    type_cfg['description'] = type_cfg.get('message')
+                if not type_cfg.get('title'):
+                    # Keep title short; defaults also exist in executor
+                    type_cfg['title'] = node.get('name') or 'Approval Required'
+            # End node: treat plain output string as variable reference (e.g. "result" -> "{{result}}")
+            if node_type == 'end':
+                out_val = type_cfg.get('output')
+                if isinstance(out_val, str):
+                    s = out_val.strip()
+                    if s and ('{{' not in s and '}}' not in s):
+                        if re.match(r'^[A-Za-z_][A-Za-z0-9_\.\[\]]*$', s):
+                            type_cfg['output'] = f"{{{{{s}}}}}"
             config['type_config'] = type_cfg
             node['config'] = config
             normalized_nodes.append(node)

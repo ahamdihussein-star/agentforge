@@ -9698,7 +9698,22 @@ Option 3"></textarea>
         
         // Open Visual Editor
         function openVisualEditor(agentId = null) {
-            // Open process builder with agent ID if editing
+            // If we have a freshly generated workflow (not yet saved), pass it as a draft to the builder
+            try {
+                if (!agentId && wizard && wizard.processDefinition) {
+                    sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(wizard.processDefinition));
+                    sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                        goal: wizard.originalGoal || wizard.config?.goal || '',
+                        animate: true
+                    }));
+                    window.open('/ui/process-builder.html?draft=1', '_blank');
+                    return;
+                }
+            } catch (e) {
+                console.warn('Could not store draft for builder:', e);
+            }
+            
+            // Open process builder with agent ID if editing an existing workflow
             const url = agentId ? `/ui/process-builder.html?agent=${agentId}` : '/ui/process-builder.html';
             window.open(url, '_blank');
         }

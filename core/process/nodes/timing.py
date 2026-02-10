@@ -69,6 +69,12 @@ class DelayNodeExecutor(BaseNodeExecutor):
                 duration = state.evaluate(duration)
             wait_seconds = float(duration) * 3600
             logs.append(f"Waiting {duration} hours")
+        
+        elif delay_type == 'days':
+            if isinstance(duration, str):
+                duration = state.evaluate(duration)
+            wait_seconds = float(duration) * 86400
+            logs.append(f"Waiting {duration} days")
             
         elif delay_type == 'until_time':
             # Wait until a specific time today (or tomorrow if time has passed)

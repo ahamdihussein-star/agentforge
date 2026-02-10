@@ -714,7 +714,11 @@ async def generate_workflow_from_goal(
     from database.services.process_settings_service import ProcessSettingsService
     
     user_dict = _user_to_dict(user)
-    goal = request.get('goal', '')
+    goal = (request.get('goal') or '').strip()
+    output_format = request.get('output_format') or request.get('format') or 'visual_builder'
+    context = request.get('context') or {}
+    if not isinstance(context, dict):
+        context = {}
     
     if not goal:
         raise HTTPException(
@@ -728,11 +732,14 @@ async def generate_workflow_from_goal(
     
     # Get LLM if available
     llm = None
-    if _llm_registry:
-        models = _llm_registry.list_all()
+    try:
+        registry = _get_llm_registry()
+        models = registry.list_all(active_only=True)
         if models:
             from core.llm.factory import LLMFactory
             llm = LLMFactory.create(models[0])
+    except Exception:
+        llm = None
     
     # Generate process
     wizard = ProcessWizard(llm=llm, org_settings=org_settings)
@@ -740,7 +747,8 @@ async def generate_workflow_from_goal(
     try:
         process_def = await wizard.generate_from_goal(
             goal=goal,
-            additional_context=request.get('context')
+            additional_context=context,
+            output_format=output_format
         )
         
         return {
@@ -785,11 +793,14 @@ async def suggest_step_settings(
     
     # Get LLM if available
     llm = None
-    if _llm_registry:
-        models = _llm_registry.list_all()
+    try:
+        registry = _get_llm_registry()
+        models = registry.list_all(active_only=True)
         if models:
             from core.llm.factory import LLMFactory
             llm = LLMFactory.create(models[0])
+    except Exception:
+        llm = None
     
     wizard = ProcessWizard(llm=llm, org_settings=org_settings)
     

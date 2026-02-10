@@ -1244,6 +1244,125 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+
+        /* =========================================================
+           AI "Build Video" Experience (Animated workflow creation)
+           ========================================================= */
+        #build-overlay {
+            position: fixed;
+            top: 72px;
+            left: 50%;
+            display: none;
+            transform: translateX(-50%) translateY(-8px);
+            z-index: 12000;
+            width: min(720px, calc(100vw - 24px));
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+        #build-overlay.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+        .build-card {
+            background: rgba(17, 24, 39, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: color-mix(in srgb, var(--pb-panel) 82%, transparent);
+            border: 1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);
+            border-radius: 14px;
+            padding: 12px 14px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+        }
+        .build-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .build-title {
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--pb-text);
+            letter-spacing: 0.2px;
+        }
+        .build-subtitle {
+            margin-top: 3px;
+            font-size: 12px;
+            color: var(--pb-muted);
+            line-height: 1.35;
+            min-height: 16px;
+        }
+        .build-progress {
+            height: 8px;
+            background: rgba(148, 163, 184, 0.18);
+            background: color-mix(in srgb, var(--pb-muted) 18%, transparent);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .build-progress-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #22c55e 0%, #14b8a6 35%, #6366f1 100%);
+            transition: width 220ms ease;
+        }
+        .build-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            justify-content: flex-end;
+        }
+        .build-actions button {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(148,163,184,0.25);
+            color: var(--pb-text);
+            padding: 7px 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: transform 0.12s ease, background 0.12s ease;
+        }
+        .build-actions button:hover { background: rgba(255,255,255,0.10); transform: translateY(-1px); }
+        .build-actions button:active { transform: translateY(0); }
+        .build-actions button.primary {
+            background: rgba(99,102,241,0.16);
+            border-color: rgba(99,102,241,0.35);
+        }
+
+        /* Build cursor (director pointer) */
+        #build-cursor {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            background: #a5b4fc;
+            box-shadow: 0 0 0 10px rgba(99,102,241,0.18), 0 10px 24px rgba(0,0,0,0.25);
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            z-index: 60;
+            pointer-events: none;
+            transition: left 260ms cubic-bezier(.2,.9,.2,1), top 260ms cubic-bezier(.2,.9,.2,1), opacity 160ms ease;
+        }
+        #build-cursor.show { opacity: 1; }
+        #build-cursor.click { animation: buildCursorClick 180ms ease; }
+        @keyframes buildCursorClick {
+            0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 10px rgba(99,102,241,0.18), 0 10px 24px rgba(0,0,0,0.25); }
+            50% { transform: translate(-50%, -50%) scale(0.85); box-shadow: 0 0 0 14px rgba(99,102,241,0.12), 0 10px 24px rgba(0,0,0,0.22); }
+            100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 10px rgba(99,102,241,0.18), 0 10px 24px rgba(0,0,0,0.25); }
+        }
+
+        /* Node appear animation */
+        .workflow-node.build-node-enter {
+            animation: buildNodeEnter 260ms ease-out both;
+        }
+        @keyframes buildNodeEnter {
+            from { opacity: 0; transform: translateY(8px) scale(0.98); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
+            to   { opacity: 1; transform: translateY(0) scale(1); filter: drop-shadow(0 10px 18px rgba(0,0,0,0.25)); }
+        }
         
         .connecting .port.output,
         .connecting .port.output-top,
@@ -1318,6 +1437,9 @@
             <button class="toolbar-btn btn-secondary" onclick="testWorkflow()">
                 <span>▶</span> Test
             </button>
+            <button class="toolbar-btn btn-secondary" onclick="openAIGenerateModal()" title="Build workflow from a prompt">
+                <span>✨</span> AI Build
+            </button>
             <button class="toolbar-btn btn-primary" onclick="saveWorkflow()">
                 <span>💾</span> Save
             </button>
@@ -1330,6 +1452,7 @@
     <!-- Canvas Container -->
     <div id="canvas-container">
         <div id="selection-box" style="display:none;position:absolute;border:2px dashed rgba(99,102,241,0.9);background:rgba(99,102,241,0.08);pointer-events:none;z-index:20;border-radius:4px;"></div>
+        <div id="build-cursor" aria-hidden="true"></div>
         <!-- SVG for connection paths only (behind nodes) -->
         <svg id="connections-svg"></svg>
         <!-- SVG for handles + Yes/No labels only (on top, clickable) -->
@@ -1479,6 +1602,54 @@
         </div>
     </div>
     
+    <!-- AI Generate Workflow modal -->
+    <div id="ai-generate-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.65);display:none;align-items:center;justify-content:center;z-index:110;" onclick="if(event.target===this)closeAIGenerateModal()">
+        <div class="card rounded-xl w-full max-w-2xl mx-4 p-6" style="background:#0f172a;border-radius:14px;border:1px solid rgba(148,163,184,0.18);" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                <div>
+                    <h3 class="text-lg font-bold mb-1" style="margin:0;">✨ Build a Workflow from a Prompt</h3>
+                    <div style="font-size:12px;color:#94a3b8;margin-top:4px;">
+                        Describe what you want. We'll generate a clean, editable workflow layout in the builder.
+                    </div>
+                </div>
+                <button type="button" onclick="closeAIGenerateModal()" style="background:transparent;border:none;color:#94a3b8;font-size:22px;line-height:1;cursor:pointer;">×</button>
+            </div>
+            <div style="margin-top:14px;">
+                <label class="block text-sm text-gray-400 mb-1">Workflow prompt</label>
+                <textarea id="ai-generate-goal" class="property-textarea" style="width:100%;min-height:130px;background:#0b1220;border:1px solid #1f2937;color:#e5e7eb;border-radius:10px;padding:12px;resize:vertical;" placeholder="Example: Create an approval workflow for expense requests over 500. Collect requester email, amount, and description. If amount > 500, require manager approval, then notify the requester."></textarea>
+                <div id="ai-generate-status" style="margin-top:10px;font-size:12px;color:#94a3b8;display:none;"></div>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+                <button type="button" onclick="closeAIGenerateModal()" class="toolbar-btn btn-secondary" style="padding:10px 14px;">Cancel</button>
+                <button type="button" onclick="generateWorkflowFromPrompt()" class="toolbar-btn btn-success" style="padding:10px 14px;">
+                    <span>⚡</span> Generate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Build overlay (shows animated progress while workflow appears) -->
+    <div id="build-overlay" aria-live="polite">
+        <div class="build-card">
+            <div class="build-top">
+                <div>
+                    <div class="build-title">Building your workflow</div>
+                    <div class="build-subtitle" id="build-subtitle">Preparing…</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <span id="build-step-counter" style="font-size:12px;color:var(--pb-muted);white-space:nowrap;"></span>
+                </div>
+            </div>
+            <div class="build-progress">
+                <div class="build-progress-bar" id="build-progress-bar"></div>
+            </div>
+            <div class="build-actions">
+                <button type="button" onclick="skipBuildAnimation()">Skip</button>
+                <button type="button" class="primary" onclick="replayBuildAnimation()">Replay</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Approval step config modal (Approvers from Platform User / Role / Group / Tool) -->
     <div id="approval-config-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:100;" onclick="if(event.target===this)closeApprovalConfigModal()">
         <div class="card rounded-xl w-full max-w-lg mx-4 p-6" style="background:#1f2937;border-radius:12px;" onclick="event.stopPropagation()">
@@ -1536,6 +1707,7 @@
             selectedNode: null,
             selectedLabelNodeId: null,
             selectedNodeIds: [],
+            goal: '',
             zoom: 1,
             panX: 0,
             panY: 0,
@@ -2740,6 +2912,22 @@
                 path.setAttribute('d', pathD);
                 
                 svg.appendChild(path);
+
+                /* Cinematic build: animate newly added edges (stroke draw) */
+                if (conn && conn._animate === true) {
+                    try {
+                        const len = path.getTotalLength();
+                        path.style.strokeDasharray = String(len);
+                        path.style.strokeDashoffset = String(len);
+                        path.style.transition = 'stroke-dashoffset 650ms ease';
+                        path.style.willChange = 'stroke-dashoffset';
+                        requestAnimationFrame(() => {
+                            path.style.strokeDashoffset = '0';
+                        });
+                    } catch (_) { /* ignore */ }
+                    // Mark as done so re-renders don't re-animate
+                    conn._animate = false;
+                }
                 
                 /* مسار شفاف في الطبقة التفاعلية لتحديد الخط بالنقر عليه */
                 const hitPath = document.createElementNS(ns, 'path');
@@ -4966,14 +5154,431 @@
         function loadWorkflowFromUrl() {
             const params = new URLSearchParams(window.location.search);
             const agentId = params.get('agent');
+            const draft = params.get('draft');
             
             if (agentId) {
                 state.agentId = agentId;
                 loadWorkflow(agentId);
+            } else if (draft) {
+                // Load a generated draft passed from the main wizard (sessionStorage/localStorage)
+                const ok = loadDraftWorkflowFromStorage();
+                if (!ok) {
+                    // Fallback to a new workflow
+                    createNode('trigger', 400, 100);
+                }
             } else {
                 // New workflow - add start node
                 createNode('trigger', 400, 100);
             }
+        }
+
+        const PROCESS_BUILDER_DRAFT_KEY = 'agentforge_process_builder_draft';
+        const PROCESS_BUILDER_DRAFT_META_KEY = 'agentforge_process_builder_draft_meta';
+
+        function loadDraftWorkflowFromStorage() {
+            try {
+                const raw = sessionStorage.getItem(PROCESS_BUILDER_DRAFT_KEY) || localStorage.getItem(PROCESS_BUILDER_DRAFT_KEY);
+                if (!raw) return false;
+                const draft = JSON.parse(raw);
+                const metaRaw = sessionStorage.getItem(PROCESS_BUILDER_DRAFT_META_KEY) || localStorage.getItem(PROCESS_BUILDER_DRAFT_META_KEY);
+                let meta = {};
+                try { meta = metaRaw ? JSON.parse(metaRaw) : {}; } catch(_) { meta = {}; }
+                const goal = meta.goal || draft.description || '';
+                const name = draft.name || meta.name || 'My Workflow';
+                const shouldAnimate = meta.animate === true || /[?&]animate=1/.test(window.location.search || '');
+                if (shouldAnimate) {
+                    // One-time cinematic build: clear draft keys so reload doesn't re-play automatically
+                    try {
+                        sessionStorage.removeItem(PROCESS_BUILDER_DRAFT_KEY);
+                        sessionStorage.removeItem(PROCESS_BUILDER_DRAFT_META_KEY);
+                        localStorage.removeItem(PROCESS_BUILDER_DRAFT_KEY);
+                        localStorage.removeItem(PROCESS_BUILDER_DRAFT_META_KEY);
+                    } catch (_) {}
+                    startBuildAnimation(draft, { goal, name });
+                } else {
+                    applyWorkflowDefinition(draft, { goal, name });
+                }
+                return true;
+            } catch (e) {
+                console.error('Draft load error:', e);
+                return false;
+            }
+        }
+
+        function applyWorkflowDefinition(def, opts = {}) {
+            const name = opts.name || def?.name || 'My Workflow';
+            const goal = opts.goal || opts.originalGoal || '';
+            document.getElementById('workflow-name').value = name;
+            if (goal) state.goal = goal;
+
+            const nodes = def?.nodes || [];
+            const edges = def?.edges || def?.connections || [];
+            state.nodes = Array.isArray(nodes) ? nodes : [];
+            state.connections = Array.isArray(edges) ? edges : [];
+
+            // Avoid node ID collisions for new nodes
+            let maxNum = 0;
+            state.nodes.forEach(n => {
+                const m = (n.id || '').match(/^node_(\d+)$/);
+                if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+            });
+            nodeIdCounter = maxNum + 1;
+
+            // Clear and re-render
+            document.getElementById('canvas').innerHTML = '';
+            state.nodes.forEach(n => renderNode(n));
+            renderConnections();
+            updateEmptyState();
+
+            // Reset undo history to this as baseline
+            state.undoStack = [JSON.stringify({ nodes: state.nodes, connections: state.connections })];
+            state.redoStack = [];
+
+            // Make it look organized and visible
+            try { alignProcess(); } catch (_) {}
+            try { zoomFit(); } catch (_) {}
+        }
+
+        function openAIGenerateModal() {
+            const token = getAuthToken();
+            if (!token) {
+                alert('❌ Please sign in first. AI generation requires authentication.\n\nTip: open the Workflow Builder from the main app after signing in.');
+                return;
+            }
+            const modal = document.getElementById('ai-generate-modal');
+            const input = document.getElementById('ai-generate-goal');
+            if (input && state.goal && !input.value.trim()) {
+                input.value = String(state.goal).trim();
+            }
+            setAIGenerateStatus('', false, true);
+            if (modal) {
+                modal.style.display = 'flex';
+                setTimeout(() => input?.focus(), 50);
+            }
+        }
+
+        function closeAIGenerateModal() {
+            const modal = document.getElementById('ai-generate-modal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function setAIGenerateStatus(text, isError = false, hide = false) {
+            const el = document.getElementById('ai-generate-status');
+            if (!el) return;
+            if (hide || !text) {
+                el.style.display = 'none';
+                el.textContent = '';
+                return;
+            }
+            el.style.display = 'block';
+            el.style.color = isError ? '#fca5a5' : '#94a3b8';
+            el.textContent = text;
+        }
+
+        async function generateWorkflowFromPrompt() {
+            const token = getAuthToken();
+            if (!token) {
+                alert('❌ Please sign in first.');
+                return;
+            }
+            const goal = (document.getElementById('ai-generate-goal')?.value || '').trim();
+            if (!goal || goal.length < 10) {
+                setAIGenerateStatus('Please enter a more detailed prompt (at least 10 characters).', true);
+                return;
+            }
+
+            setAIGenerateStatus('Generating workflow…', false);
+
+            // Keep tool context small and safe
+            const toolsForContext = (state.tools || []).slice(0, 30).map(t => ({
+                id: t.id,
+                name: t.name,
+                type: t.type,
+                description: t.description
+            }));
+
+            try {
+                const res = await fetch('/process/wizard/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({
+                        goal,
+                        output_format: 'visual_builder',
+                        context: { tools: toolsForContext }
+                    })
+                });
+
+                let data = null;
+                try { data = await res.json(); } catch (_) { data = null; }
+
+                if (!res.ok) {
+                    const msg = (data && (data.detail || data.message)) ? (data.detail || data.message) : (res.statusText || 'Failed to generate workflow');
+                    setAIGenerateStatus(msg, true);
+                    return;
+                }
+
+                if (!data || !data.success || !data.workflow) {
+                    setAIGenerateStatus('Could not generate workflow. Try rephrasing the prompt.', true);
+                    return;
+                }
+
+                // Cinematic build: show the workflow appearing step-by-step (like a video)
+                closeAIGenerateModal();
+                startBuildAnimation(data.workflow, { goal, name: data.workflow.name || 'My Workflow' });
+            } catch (e) {
+                console.error('AI generate error:', e);
+                setAIGenerateStatus('Could not connect to the server. Please try again.', true);
+            }
+        }
+
+        // =========================================================================
+        // CINEMATIC BUILD (ANIMATED WORKFLOW CONSTRUCTION)
+        // =========================================================================
+
+        const buildAnim = {
+            running: false,
+            token: 0,
+            lastDefinition: null,
+            lastMeta: null,
+        };
+
+        function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function _showBuildOverlay(subtitle, progress = 0, stepText = '') {
+            const overlay = document.getElementById('build-overlay');
+            const sub = document.getElementById('build-subtitle');
+            const bar = document.getElementById('build-progress-bar');
+            const counter = document.getElementById('build-step-counter');
+            if (sub) sub.textContent = subtitle || '';
+            if (bar) bar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+            if (counter) counter.textContent = stepText || '';
+            if (overlay) {
+                overlay.style.display = 'block';
+                requestAnimationFrame(() => overlay.classList.add('show'));
+            }
+        }
+
+        function _hideBuildOverlay() {
+            const overlay = document.getElementById('build-overlay');
+            if (!overlay) return;
+            overlay.classList.remove('show');
+            setTimeout(() => { overlay.style.display = 'none'; }, 220);
+        }
+
+        function _showBuildCursor() {
+            const cur = document.getElementById('build-cursor');
+            if (!cur) return;
+            cur.classList.add('show');
+        }
+
+        function _hideBuildCursor() {
+            const cur = document.getElementById('build-cursor');
+            if (!cur) return;
+            cur.classList.remove('show');
+        }
+
+        function _cursorClick() {
+            const cur = document.getElementById('build-cursor');
+            if (!cur) return;
+            cur.classList.remove('click');
+            // force reflow
+            void cur.offsetWidth;
+            cur.classList.add('click');
+        }
+
+        function _resetViewForBuild() {
+            state.zoom = 1;
+            state.panX = 0;
+            state.panY = 0;
+            updateCanvasTransform();
+            const zl = document.getElementById('zoom-level');
+            if (zl) zl.textContent = '100%';
+        }
+
+        function _nodeCanvasCenter(node) {
+            const x = (typeof node.x === 'number' ? node.x : 400) + 36;
+            const y = (typeof node.y === 'number' ? node.y : 100) + 28;
+            return { x, y };
+        }
+
+        function _canvasToScreen(pt) {
+            // Convert canvas coords to container coords based on current pan/zoom
+            return {
+                x: state.panX + pt.x * state.zoom,
+                y: state.panY + pt.y * state.zoom
+            };
+        }
+
+        function _moveCursorToCanvasPoint(ptCanvas) {
+            const cur = document.getElementById('build-cursor');
+            const container = document.getElementById('canvas-container');
+            if (!cur || !container) return;
+            const pt = _canvasToScreen(ptCanvas);
+            cur.style.left = `${pt.x}px`;
+            cur.style.top = `${pt.y}px`;
+        }
+
+        function _clearCanvasState() {
+            state.selectedNode = null;
+            state.selectedLabelNodeId = null;
+            state.selectedNodeIds = [];
+            state.nodes = [];
+            state.connections = [];
+            state.undoStack = [];
+            state.redoStack = [];
+            closeProperties();
+            document.getElementById('canvas').innerHTML = '';
+            renderConnections();
+            updateEmptyState();
+        }
+
+        function _sortNodesForBuild(nodes) {
+            const weight = (t) => (t === 'trigger' || t === 'form') ? -100 : (t === 'end') ? 100 : 0;
+            return [...nodes].sort((a, b) => {
+                const wa = weight(String(a.type || '').toLowerCase());
+                const wb = weight(String(b.type || '').toLowerCase());
+                if (wa !== wb) return wa - wb;
+                const ay = (typeof a.y === 'number') ? a.y : 0;
+                const by = (typeof b.y === 'number') ? b.y : 0;
+                if (ay !== by) return ay - by;
+                const ax = (typeof a.x === 'number') ? a.x : 0;
+                const bx = (typeof b.x === 'number') ? b.x : 0;
+                return ax - bx;
+            });
+        }
+
+        async function startBuildAnimation(def, opts = {}) {
+            const token = ++buildAnim.token;
+            buildAnim.running = true;
+            buildAnim.lastDefinition = def;
+            buildAnim.lastMeta = opts || {};
+
+            const nodes = Array.isArray(def?.nodes) ? def.nodes : [];
+            const edges = Array.isArray(def?.edges) ? def.edges : (Array.isArray(def?.connections) ? def.connections : []);
+            const orderedNodes = _sortNodesForBuild(nodes);
+            
+            // Avoid ID collisions for new nodes after animation
+            let maxNum = 0;
+            orderedNodes.forEach(n => {
+                const m = String(n?.id || '').match(/^node_(\d+)$/);
+                if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+            });
+            nodeIdCounter = maxNum + 1;
+
+            state.goal = (opts.goal || state.goal || '').trim();
+            document.getElementById('workflow-name').value = (opts.name || def?.name || 'My Workflow');
+
+            _resetViewForBuild();
+            _clearCanvasState();
+            _showBuildCursor();
+            _moveCursorToCanvasPoint({ x: 420, y: 120 });
+
+            const totalSteps = Math.max(1, orderedNodes.length + edges.length + 2);
+            let done = 0;
+            _showBuildOverlay('Preparing canvas…', 0, '');
+            await _sleep(220);
+
+            // Place nodes
+            for (let i = 0; i < orderedNodes.length; i++) {
+                if (token !== buildAnim.token) return;
+                const n = orderedNodes[i];
+                const label = n?.name || n?.type || `Step ${i + 1}`;
+                done++;
+                _showBuildOverlay(`Placing: ${label}`, Math.round((done / totalSteps) * 100), `${i + 1}/${orderedNodes.length}`);
+                _moveCursorToCanvasPoint(_nodeCanvasCenter(n));
+                await _sleep(240);
+                _cursorClick();
+
+                state.nodes.push(n);
+                renderNode(n);
+                const el = document.getElementById(n.id);
+                if (el) {
+                    el.classList.add('build-node-enter');
+                    setTimeout(() => el.classList.remove('build-node-enter'), 300);
+                }
+                updateEmptyState();
+                await _sleep(160);
+            }
+
+            // Connect edges
+            done++;
+            _showBuildOverlay('Connecting steps…', Math.round((done / totalSteps) * 100), '');
+            await _sleep(220);
+
+            for (let i = 0; i < edges.length; i++) {
+                if (token !== buildAnim.token) return;
+                const e = edges[i] || {};
+                const from = e.from || e.source;
+                const to = e.to || e.target;
+                if (!from || !to) continue;
+                const conn = {
+                    from: String(from),
+                    to: String(to),
+                    type: e.type,
+                    fromPort: e.fromPort,
+                    toPort: e.toPort,
+                    _animate: true
+                };
+                const fromNode = state.nodes.find(n => n.id === conn.from);
+                const toNode = state.nodes.find(n => n.id === conn.to);
+                const edgeLabel = (conn.type === 'yes' ? 'YES' : conn.type === 'no' ? 'NO' : '→');
+
+                done++;
+                _showBuildOverlay(
+                    `Connecting: ${(fromNode?.name || conn.from)} ${edgeLabel} ${(toNode?.name || conn.to)}`,
+                    Math.round((done / totalSteps) * 100),
+                    `${i + 1}/${edges.length}`
+                );
+
+                if (fromNode) _moveCursorToCanvasPoint(_nodeCanvasCenter(fromNode));
+                await _sleep(140);
+                if (toNode) _moveCursorToCanvasPoint(_nodeCanvasCenter(toNode));
+                await _sleep(140);
+                _cursorClick();
+
+                state.connections.push(conn);
+                renderConnections();
+                await _sleep(220);
+            }
+
+            // Finishing touches
+            done++;
+            _showBuildOverlay('Finishing touches…', Math.round((done / totalSteps) * 100), '');
+            try { zoomFit(); } catch (_) {}
+            await _sleep(260);
+
+            // Reset undo baseline after build
+            state.undoStack = [JSON.stringify({ nodes: state.nodes, connections: state.connections })];
+            state.redoStack = [];
+
+            buildAnim.running = false;
+            _hideBuildCursor();
+            _showBuildOverlay('Done. You can edit any step now.', 100, '');
+            setTimeout(_hideBuildOverlay, 2200);
+        }
+
+        function skipBuildAnimation() {
+            if (!buildAnim.running) return;
+            const def = buildAnim.lastDefinition;
+            const meta = buildAnim.lastMeta || {};
+            buildAnim.token++; // cancels any running loop
+            buildAnim.running = false;
+            _hideBuildCursor();
+            _hideBuildOverlay();
+            if (def) {
+                state.goal = (meta.goal || state.goal || '').trim();
+                applyWorkflowDefinition(def, { goal: state.goal, name: meta.name || def.name || 'My Workflow' });
+            }
+        }
+
+        function replayBuildAnimation() {
+            const def = buildAnim.lastDefinition;
+            const meta = buildAnim.lastMeta || {};
+            if (!def) return;
+            startBuildAnimation(def, meta);
         }
         
         async function loadWorkflow(agentId) {
@@ -4987,23 +5592,13 @@
                 
                 const agent = await response.json();
                 document.getElementById('workflow-name').value = agent.name || 'My Workflow';
+                if (agent.goal) state.goal = agent.goal;
                 
                 if (agent.process_definition) {
-                    const def = agent.process_definition;
-                    state.nodes = def.nodes || [];
-                    state.connections = def.edges || [];
-                    
-                    // تجنب تكرار الـ id: أي عقدة جديدة تأخذ id أكبر من كل العقد المحملة
-                    let maxNum = 0;
-                    state.nodes.forEach(n => {
-                        const m = (n.id || '').match(/^node_(\d+)$/);
-                        if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+                    applyWorkflowDefinition(agent.process_definition, {
+                        name: agent.name || 'My Workflow',
+                        goal: agent.goal || state.goal || ''
                     });
-                    nodeIdCounter = maxNum + 1;
-                    
-                    state.nodes.forEach(n => renderNode(n));
-                    renderConnections();
-                    updateEmptyState();
                 }
             } catch (e) {
                 console.error('Load error:', e);
@@ -5013,6 +5608,7 @@
         
         async function saveWorkflow() {
             const name = document.getElementById('workflow-name').value;
+            const goal = (state.goal && String(state.goal).trim()) ? String(state.goal).trim() : (name || 'Workflow automation');
             const def = {
                 nodes: state.nodes,
                 edges: state.connections
@@ -5030,12 +5626,12 @@
                 
                 const body = state.agentId ? {
                     name,
-                    goal: 'Workflow automation',
+                    goal,
                     process_definition: def,
                     status: 'draft'
                 } : {
                     name,
-                    goal: 'Workflow automation',
+                    goal,
                     agent_type: 'process',
                     personality: {},
                     tasks: [],
