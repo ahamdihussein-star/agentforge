@@ -1363,6 +1363,14 @@
             from { opacity: 0; transform: translateY(8px) scale(0.98); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
             to   { opacity: 1; transform: translateY(0) scale(1); filter: drop-shadow(0 10px 18px rgba(0,0,0,0.25)); }
         }
+
+        /* Test/playback highlight (shows the path taken) */
+        .workflow-node.play-active {
+            box-shadow:
+                0 0 0 2px rgba(34,197,94,0.85),
+                0 0 0 8px rgba(34,197,94,0.16),
+                0 18px 28px rgba(0,0,0,0.35);
+        }
         
         .connecting .port.output,
         .connecting .port.output-top,
@@ -1746,6 +1754,46 @@
             div.textContent = String(s);
             return div.innerHTML;
         }
+
+        // ===== BUSINESS-FRIENDLY LABELS & FIELD KEYS =====
+        function humanizeFieldLabel(key) {
+            if (!key) return '';
+            let s = String(key);
+            // snake_case -> spaces
+            s = s.replace(/_/g, ' ');
+            // camelCase -> spaces
+            s = s.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+            // cleanup
+            s = s.replace(/\s+/g, ' ').trim();
+            if (!s) return '';
+            // Title Case
+            return s.split(' ').map(w => w ? (w[0].toUpperCase() + w.slice(1)) : '').join(' ');
+        }
+
+        function toFieldKey(label) {
+            if (!label) return '';
+            let s = String(label).trim();
+            if (!s) return '';
+            // Keep alphanumerics and spaces only
+            s = s.replace(/[^A-Za-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+            if (!s) return '';
+            const parts = s.split(' ').filter(Boolean);
+            const first = parts.shift() || 'field';
+            let key = first[0].toLowerCase() + first.slice(1);
+            key += parts.map(p => p ? (p[0].toUpperCase() + p.slice(1)) : '').join('');
+            // Ensure starts with a letter
+            if (!/^[A-Za-z]/.test(key)) key = 'field' + key;
+            return key;
+        }
+
+        function ensureUniqueKey(fields, desiredKey, fieldIndex) {
+            const base = desiredKey || 'field';
+            const used = new Set((fields || []).map((f, idx) => idx !== fieldIndex ? (f && (f.name || f.id)) : null).filter(Boolean));
+            if (!used.has(base)) return base;
+            let i = 2;
+            while (used.has(`${base}${i}`)) i++;
+            return `${base}${i}`;
+        }
         
         // ===== INITIALIZATION =====
         document.addEventListener('DOMContentLoaded', () => {
@@ -1753,12 +1801,42 @@
             initCanvas();
             initPalette();
             initPaletteShapes();
+            initDraftMessaging();
             loadTools();
             loadWorkflowFromUrl();
             updateFlowButtons();
             applyLabelFontSize();
             updateLabelFontSizeDisplay(state.labelFontSize);
         });
+
+        // Receive generated workflows from the main app (prevents popup blockers + enables instant cinematic build)
+        function initDraftMessaging() {
+            window.addEventListener('message', (event) => {
+                try {
+                    if (event.origin !== window.location.origin) return;
+                } catch (_) { /* ignore origin mismatch in some environments */ }
+                const data = event.data || {};
+                if (!data || data.type !== 'agentforge.workflow_draft') return;
+                const workflow = data.workflow;
+                const meta = data.meta || {};
+                if (!workflow || typeof workflow !== 'object') return;
+                try { stopDraftWaitPolling(); } catch (_) {}
+                // Persist as a fallback (refresh-safe)
+                try {
+                    sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(workflow));
+                    sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                        goal: meta.goal || '',
+                        name: meta.name || workflow.name || 'My Workflow',
+                        animate: true
+                    }));
+                } catch (_) { /* ignore */ }
+                // Start cinematic build immediately
+                try { startBuildAnimation(workflow, { goal: meta.goal || '', name: meta.name || workflow.name || 'My Workflow' }); } catch (e) {
+                    // Fallback: just apply definition
+                    try { applyWorkflowDefinition(workflow, { goal: meta.goal || '', name: meta.name || workflow.name || 'My Workflow' }); } catch (_) {}
+                }
+            });
+        }
         
         function setLabelFontSize(delta) {
             const clamp = (v) => Math.min(24, Math.max(9, v));
@@ -2910,6 +2988,13 @@
                 path.setAttribute('class', `connection-path ${conn.type}${stateSelectedConnIndex === idx ? ' selected' : ''}`);
                 path.setAttribute('data-conn-index', String(idx));
                 path.setAttribute('d', pathD);
+
+                // Test/playback highlighting (business-friendly "path taken" visualization)
+                if (conn && conn._playActive === true) {
+                    path.style.stroke = '#22c55e';
+                    path.style.strokeWidth = '4';
+                    path.style.filter = 'drop-shadow(0 0 6px rgba(34,197,94,0.55))';
+                }
                 
                 svg.appendChild(path);
 
@@ -4258,9 +4343,12 @@
             state.nodes.forEach(n => {
                 if ((n.type === 'trigger' || n.type === 'form') && n.config.fields) {
                     n.config.fields.forEach(f => {
-                        if (f.name) {
+                        const key = f.name || f.id;
+                        const label = f.label || humanizeFieldLabel(key);
+                        if (key) {
                             fields.push({
-                                name: f.name,
+                                name: key,
+                                label: label || key,
                                 type: f.type,
                                 required: f.required || false,
                                 source: n.name
@@ -4277,7 +4365,7 @@
             const sources = [];
             const availableFields = getAvailableFields();
             availableFields.forEach(f => {
-                sources.push({ label: `From form: ${f.name}`, value: `{{${f.name}}}`, group: 'form' });
+                sources.push({ label: `From form: ${f.label || f.name}`, value: `{{${f.name}}}`, group: 'form' });
             });
             state.nodes.forEach(n => {
                 if (n.id === currentNodeId || n.type === 'end') return;
@@ -4311,7 +4399,7 @@
                                     <option value="">-- Select Field --</option>
                                     ${availableFields.map(f => `
                                         <option value="${f.name}" ${node.config.field === f.name ? 'selected' : ''}>
-                                            ${f.name} (${f.type}) - from ${f.source}
+                                            ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
                                         </option>
                                     `).join('')}
                                     <option value="_custom" ${node.config.field && !availableFields.find(f => f.name === node.config.field) ? 'selected' : ''}>
@@ -4456,7 +4544,7 @@
                                     <span class="field-chips-label">Insert from form:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${f.name}}}')" class="field-chip">{{${f.name}}}</button>
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
                                         `).join('')}
                                     </div>
                                 </div>
@@ -4495,7 +4583,7 @@
                                     <option value="">-- Select Field --</option>
                                     ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
                                         <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
-                                            ${f.name} (${f.type})
+                                            ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
                                         </option>
                                     `).join('')}
                                     <option value="_custom">✏️ Custom...</option>
@@ -4515,7 +4603,7 @@
                                     <span class="field-chips-label">Insert from form:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'template', '{{${f.name}}}')" class="field-chip">{{${f.name}}}</button>
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'template', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
                                         `).join('')}
                                     </div>
                                 </div>
@@ -4536,7 +4624,7 @@
                                     <span class="field-chips-label">Insert from form:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'prompt', '{{${f.name}}}')" class="field-chip">{{${f.name}}}</button>
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'prompt', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
                                         `).join('')}
                                     </div>
                                 </div>
@@ -4561,35 +4649,92 @@
                         <div class="property-group">
                             <label class="property-label">Form Title</label>
                             <input type="text" class="property-input" placeholder="e.g., Submit Expense Report" 
-                                   value="${node.config.title || ''}"
-                                   onchange="updateNodeConfig('${node.id}', 'title', this.value)">
+                                   value="${escapeHtml(node.config.formTitle || node.config.title || '')}"
+                                   onchange="updateNodeConfig('${node.id}', 'formTitle', this.value)">
                         </div>
                         <div class="property-group">
                             <label class="property-label">Input Fields</label>
                             <div id="form-fields-list" style="margin-bottom:12px;">
                                 ${fields.length === 0 ? '<div style="color:#6b7280;font-size:12px;padding:8px;">No fields yet. Add some below.</div>' : ''}
                                 ${fields.map((f, idx) => `
-                                    <div class="form-field-item" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;padding:8px;background:#1a1f2e;border-radius:6px;">
-                                        <input type="text" class="property-input" style="flex:1;margin:0;" placeholder="Field name"
-                                               value="${f.name || ''}"
-                                               onchange="updateFormField('${node.id}', ${idx}, 'name', this.value)">
-                                        <select class="property-select" style="width:100px;margin:0;"
-                                                onchange="updateFormField('${node.id}', ${idx}, 'type', this.value)">
-                                            <option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option>
-                                            <option value="number" ${f.type === 'number' ? 'selected' : ''}>Number</option>
-                                            <option value="email" ${f.type === 'email' ? 'selected' : ''}>Email</option>
-                                            <option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option>
-                                            <option value="textarea" ${f.type === 'textarea' ? 'selected' : ''}>Long Text</option>
-                                            <option value="select" ${f.type === 'select' ? 'selected' : ''}>Dropdown</option>
-                                            <option value="file" ${f.type === 'file' ? 'selected' : ''}>File</option>
-                                        </select>
-                                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#9ca3af;">
-                                            <input type="checkbox" ${f.required ? 'checked' : ''} 
-                                                   onchange="updateFormField('${node.id}', ${idx}, 'required', this.checked)">
-                                            Req
-                                        </label>
-                                        <button onclick="removeFormField('${node.id}', ${idx})" 
-                                                style="background:#ef4444;border:none;color:white;width:24px;height:24px;border-radius:4px;cursor:pointer;">×</button>
+                                    <div class="tool-param-card" style="padding:10px;margin-bottom:10px;">
+                                        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                                            <div class="param-name">Field</div>
+                                            <button type="button" onclick="removeFormField('${node.id}', ${idx})"
+                                                style="background:#ef4444;border:none;color:white;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;">
+                                                Remove
+                                            </button>
+                                        </div>
+                                        
+                                        <label class="property-label" style="margin-top:8px;">Label</label>
+                                        <input type="text" class="property-input" placeholder="e.g., Employee Email"
+                                               value="${escapeHtml(f.label || humanizeFieldLabel(f.name || f.id) || '')}"
+                                               onchange="updateFormFieldLabel('${node.id}', ${idx}, this.value)">
+                                        
+                                        <div style="display:flex;gap:10px;align-items:flex-end;margin-top:10px;">
+                                            <div style="flex:1;">
+                                                <label class="property-label">Type</label>
+                                                <select class="property-select" onchange="updateFormField('${node.id}', ${idx}, 'type', this.value)">
+                                                    <option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option>
+                                                    <option value="number" ${f.type === 'number' ? 'selected' : ''}>Number</option>
+                                                    <option value="email" ${f.type === 'email' ? 'selected' : ''}>Email</option>
+                                                    <option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option>
+                                                    <option value="textarea" ${f.type === 'textarea' ? 'selected' : ''}>Long Text</option>
+                                                    <option value="select" ${f.type === 'select' ? 'selected' : ''}>Dropdown</option>
+                                                </select>
+                                            </div>
+                                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--pb-muted);white-space:nowrap;">
+                                                <input type="checkbox" ${f.required ? 'checked' : ''} 
+                                                       onchange="updateFormField('${node.id}', ${idx}, 'required', this.checked)">
+                                                Required
+                                            </label>
+                                        </div>
+                                        
+                                        <label class="property-label" style="margin-top:10px;">Placeholder</label>
+                                        <input type="text" class="property-input" placeholder="e.g., Enter your email"
+                                               value="${escapeHtml(f.placeholder || '')}"
+                                               onchange="updateFormField('${node.id}', ${idx}, 'placeholder', this.value)">
+                                        
+                                        ${(f.type === 'select') ? `
+                                            <div style="margin-top:10px;">
+                                                <label class="property-label">Dropdown Options</label>
+                                                <div style="display:flex;flex-direction:column;gap:8px;">
+                                                    ${(Array.isArray(f.options) ? f.options : []).map((opt, oIdx) => `
+                                                        <div style="display:flex;gap:8px;align-items:center;">
+                                                            <input type="text" class="property-input" style="flex:1;margin:0;" placeholder="Option"
+                                                                value="${escapeHtml(opt || '')}"
+                                                                onchange="updateSelectOption('${node.id}', ${idx}, ${oIdx}, this.value)">
+                                                            <button type="button" onclick="removeSelectOption('${node.id}', ${idx}, ${oIdx})"
+                                                                style="background:#334155;border:none;color:white;width:34px;height:34px;border-radius:10px;cursor:pointer;">×</button>
+                                                        </div>
+                                                    `).join('')}
+                                                    <button type="button" onclick="addSelectOption('${node.id}', ${idx})"
+                                                        style="width:100%;padding:9px;background:#334155;border:none;border-radius:10px;color:white;cursor:pointer;font-size:12px;">
+                                                        + Add option
+                                                    </button>
+                                                </div>
+                                                <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
+                                                    These options will appear to end users when running the workflow.
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                        
+                                        <div style="margin-top:12px;padding-top:10px;border-top:1px dashed rgba(148,163,184,0.22);">
+                                            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--pb-muted);">
+                                                <input type="checkbox" ${(f.derived && f.derived.expression) || f.readOnly ? 'checked' : ''} 
+                                                       onchange="toggleDerivedField('${node.id}', ${idx}, this.checked)">
+                                                Auto-calculate this field (derived)
+                                            </label>
+                                            ${(f.derived || f.readOnly) ? `
+                                                <label class="property-label" style="margin-top:10px;">Formula</label>
+                                                <input type="text" class="property-input" placeholder="e.g., daysBetween(startDate, endDate)"
+                                                    value="${escapeHtml((f.derived && f.derived.expression) ? f.derived.expression : '')}"
+                                                    onchange="updateDerivedExpression('${node.id}', ${idx}, this.value)">
+                                                <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
+                                                    Supported examples: <code>daysBetween(startDate, endDate)</code>, <code>concat(firstName, ' ', lastName)</code>
+                                                </div>
+                                            ` : ''}
+                                        </div>
                                     </div>
                                 `).join('')}
                             </div>
@@ -4675,7 +4820,7 @@
                                     <option value="">-- Select Field --</option>
                                     ${availableFields.map(f => `
                                         <option value="${f.name}" ${node.config.collection === f.name ? 'selected' : ''}>
-                                            ${f.name} (${f.type}) - from ${f.source}
+                                            ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
                                         </option>
                                     `).join('')}
                                     <option value="_custom" ${node.config.collection && !availableFields.find(f => f.name === node.config.collection) ? 'selected' : ''}>
@@ -4921,9 +5066,14 @@
                 if (!node.config.fields) node.config.fields = [];
                 node.config.fields.push({
                     name: '',
+                    label: '',
                     type: 'text',
                     required: false,
-                    placeholder: ''
+                    placeholder: '',
+                    options: [],
+                    readOnly: false,
+                    derived: null,
+                    _autoKey: true
                 });
                 refreshNode(node);
                 showProperties(node);
@@ -4935,9 +5085,92 @@
             const node = state.nodes.find(n => n.id === nodeId);
             if (node && node.config.fields && node.config.fields[fieldIndex]) {
                 node.config.fields[fieldIndex][key] = value;
+                if (key === 'type') {
+                    const f = node.config.fields[fieldIndex];
+                    if (String(value).toLowerCase() === 'select' && !Array.isArray(f.options)) {
+                        f.options = [];
+                    }
+                }
                 refreshNode(node);
                 saveToUndo();
             }
+        }
+
+        function updateFormFieldLabel(nodeId, fieldIndex, labelValue) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !node.config.fields || !node.config.fields[fieldIndex]) return;
+            const f = node.config.fields[fieldIndex];
+            f.label = String(labelValue || '').trim();
+            const desiredKey = toFieldKey(f.label || '');
+            if (!f.name || f._autoKey === true) {
+                f.name = ensureUniqueKey(node.config.fields, desiredKey, fieldIndex);
+                f._autoKey = true;
+            }
+            // Auto-placeholder if empty (business-friendly)
+            if (!f.placeholder && f.label) {
+                f.placeholder = `Enter ${f.label}...`;
+            }
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function addSelectOption(nodeId, fieldIndex) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !node.config.fields || !node.config.fields[fieldIndex]) return;
+            const f = node.config.fields[fieldIndex];
+            if (!Array.isArray(f.options)) f.options = [];
+            f.options.push('');
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function updateSelectOption(nodeId, fieldIndex, optionIndex, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !node.config.fields || !node.config.fields[fieldIndex]) return;
+            const f = node.config.fields[fieldIndex];
+            if (!Array.isArray(f.options)) f.options = [];
+            f.options[optionIndex] = String(value || '');
+            saveToUndo();
+        }
+
+        function removeSelectOption(nodeId, fieldIndex, optionIndex) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !node.config.fields || !node.config.fields[fieldIndex]) return;
+            const f = node.config.fields[fieldIndex];
+            if (!Array.isArray(f.options)) f.options = [];
+            f.options.splice(optionIndex, 1);
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function toggleDerivedField(nodeId, fieldIndex, enabled) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !node.config.fields || !node.config.fields[fieldIndex]) return;
+            const f = node.config.fields[fieldIndex];
+            if (enabled) {
+                f.readOnly = true;
+                if (!f.derived || typeof f.derived !== 'object') f.derived = {};
+                if (!f.derived.expression) f.derived.expression = '';
+            } else {
+                f.readOnly = false;
+                f.derived = null;
+            }
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function updateDerivedExpression(nodeId, fieldIndex, expr) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !node.config.fields || !node.config.fields[fieldIndex]) return;
+            const f = node.config.fields[fieldIndex];
+            f.readOnly = true;
+            if (!f.derived || typeof f.derived !== 'object') f.derived = {};
+            f.derived.expression = String(expr || '').trim();
+            saveToUndo();
         }
         
         function removeFormField(nodeId, fieldIndex) {
@@ -5163,7 +5396,15 @@
                 // Load a generated draft passed from the main wizard (sessionStorage/localStorage)
                 const ok = loadDraftWorkflowFromStorage();
                 if (!ok) {
-                    // Fallback to a new workflow
+                    // If we're in "wait" mode, don't create a default workflow (we'll receive it via postMessage)
+                    if (String(draft).toLowerCase() === 'wait') {
+                        // Keep canvas empty and show a friendly waiting overlay
+                        try { _clearCanvasState(); } catch (_) {}
+                        try { _showBuildOverlay('Generating your workflow…', 8, ''); } catch (_) {}
+                        try { startDraftWaitPolling(); } catch (_) {}
+                        return;
+                    }
+                    // Otherwise fallback to a new workflow
                     createNode('trigger', 400, 100);
                 }
             } else {
@@ -5174,6 +5415,28 @@
 
         const PROCESS_BUILDER_DRAFT_KEY = 'agentforge_process_builder_draft';
         const PROCESS_BUILDER_DRAFT_META_KEY = 'agentforge_process_builder_draft_meta';
+        let _draftWaitInterval = null;
+
+        function startDraftWaitPolling() {
+            stopDraftWaitPolling();
+            const startedAt = Date.now();
+            _draftWaitInterval = setInterval(() => {
+                // Give the opener a moment to store the draft / send postMessage
+                if (Date.now() - startedAt > 30000) {
+                    stopDraftWaitPolling();
+                    return;
+                }
+                const ok = loadDraftWorkflowFromStorage();
+                if (ok) stopDraftWaitPolling();
+            }, 300);
+        }
+
+        function stopDraftWaitPolling() {
+            if (_draftWaitInterval) {
+                clearInterval(_draftWaitInterval);
+                _draftWaitInterval = null;
+            }
+        }
 
         function loadDraftWorkflowFromStorage() {
             try {
@@ -5719,132 +5982,427 @@
             }
         }
         
+        // ===== TEST (BUSINESS-FRIENDLY, WITH PATH PLAYBACK) =====
+        function getStartNodeForTest() {
+            return state.nodes.find(n => n.type === 'trigger' || n.type === 'form')
+                || state.nodes.find(n => n.type === 'schedule' || n.type === 'webhook')
+                || null;
+        }
+
+        function getStartFieldDefs(startNode) {
+            if (!startNode || typeof startNode !== 'object') return [];
+            const cfg = (startNode.config && typeof startNode.config === 'object') ? startNode.config : {};
+            const rawFields = cfg.fields || (cfg.type_config && cfg.type_config.fields) || [];
+            if (!Array.isArray(rawFields)) return [];
+            return rawFields
+                .filter(f => f && typeof f === 'object')
+                .map(f => {
+                    const key = String(f.name || f.id || '').trim();
+                    if (!key) return null;
+                    const label = String(f.label || humanizeFieldLabel(key) || key).trim();
+                    const type = String(f.type || 'text').toLowerCase();
+                    const options = Array.isArray(f.options) ? f.options : [];
+                    const derived = (f.derived && typeof f.derived === 'object' && String(f.derived.expression || '').trim())
+                        ? { expression: String(f.derived.expression || '').trim() }
+                        : null;
+                    const readOnly = !!f.readOnly || !!derived;
+                    const required = !!f.required && !readOnly;
+                    const placeholder = String(f.placeholder || (label ? `Enter ${label}...` : '')).trim();
+                    return { name: key, label, type, required, placeholder, options, derived, readOnly };
+                })
+                .filter(Boolean);
+        }
+
         function testWorkflow() {
-            // Get available input fields
-            const fields = getAvailableFields();
-            
-            if (fields.length === 0) {
+            const startNode = getStartNodeForTest();
+            if (!startNode) {
+                alert('No start node found. Add a Start/Form node first.');
+                return;
+            }
+            const fieldDefs = getStartFieldDefs(startNode);
+            if (!fieldDefs.length) {
                 alert('No input fields found. Add fields to your Start/Form node first.');
                 return;
             }
             
-            // Create test modal
+            // Create test modal (business-friendly)
             const modal = document.createElement('div');
             modal.id = 'test-workflow-modal';
             modal.style.cssText = `
-                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(0,0,0,0.8); display: flex; align-items: center; 
-                justify-content: center; z-index: 10000;
+                position: fixed; inset: 0;
+                background: rgba(0,0,0,0.78); display: flex; align-items: center; 
+                justify-content: center; z-index: 10000; padding: 18px;
             `;
+            modal.addEventListener('click', (e) => { if (e.target === modal) closeTestModal(); });
             
             modal.innerHTML = `
-                <div style="background:#1f2937; border-radius:12px; width:500px; max-width:90%; max-height:80vh; overflow:auto;">
-                    <div style="padding:20px; border-bottom:1px solid #374151;">
-                        <h2 style="margin:0; font-size:18px;">▶️ Test Workflow</h2>
-                        <p style="margin:8px 0 0; color:#9ca3af; font-size:13px;">Fill in the input values to simulate the workflow</p>
+                <div style="background:#0f172a; border:1px solid rgba(148,163,184,0.18); border-radius:16px; width:720px; max-width:100%; max-height:86vh; overflow:auto;">
+                    <div style="padding:18px 18px 14px; border-bottom:1px solid rgba(148,163,184,0.16);">
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                            <div>
+                                <h2 style="margin:0; font-size:18px;">Test run</h2>
+                                <p style="margin:6px 0 0; color:#94a3b8; font-size:13px;">Fill the fields and we’ll simulate the workflow path with a visual playback.</p>
+                            </div>
+                            <button type="button" onclick="closeTestModal()" style="background:transparent;border:none;color:#94a3b8;font-size:22px;line-height:1;cursor:pointer;">×</button>
+                        </div>
                     </div>
-                    <div style="padding:20px;">
-                        <form id="test-workflow-form">
-                            ${fields.map(f => `
-                                <div style="margin-bottom:16px;">
-                                    <label style="display:block; margin-bottom:6px; font-size:13px; color:#d1d5db;">
-                                        ${f.name} ${f.required ? '<span style="color:#ef4444;">*</span>' : ''}
-                                        <span style="color:#6b7280; font-size:11px;">(${f.type})</span>
-                                    </label>
-                                    ${f.type === 'textarea' ? `
-                                        <textarea name="${f.name}" style="width:100%; padding:10px; background:#111827; border:1px solid #374151; border-radius:6px; color:white; min-height:80px;" 
-                                                  placeholder="Enter ${f.name}..." ${f.required ? 'required' : ''}></textarea>
-                                    ` : `
-                                        <input type="${f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : f.type === 'date' ? 'date' : 'text'}" 
-                                               name="${f.name}" 
-                                               style="width:100%; padding:10px; background:#111827; border:1px solid #374151; border-radius:6px; color:white;" 
-                                               placeholder="Enter ${f.name}..." ${f.required ? 'required' : ''}>
-                                    `}
-                                </div>
-                            `).join('')}
+                    <div style="padding:18px;">
+                        <form id="test-workflow-form" onsubmit="event.preventDefault(); runWorkflowTest();">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                                ${fieldDefs.map(f => {
+                                    const required = f.required ? '<span style="color:#ef4444;">*</span>' : '';
+                                    const ro = f.readOnly ? 'readonly' : '';
+                                    const dis = f.readOnly ? 'disabled' : '';
+                                    const hint = f.readOnly ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px;">Auto-calculated</div>` : '';
+                                    const baseStyle = `width:100%; padding:10px; background:#0b1220; border:1px solid rgba(148,163,184,0.22); border-radius:10px; color:white;`;
+                                    const labelHtml = `<label style="display:block; margin-bottom:7px; font-size:13px; color:#e5e7eb;">${escapeHtml(f.label)} ${required}</label>`;
+                                    let inputHtml = '';
+                                    if (f.type === 'textarea') {
+                                        inputHtml = `<textarea data-field-key="${escapeHtml(f.name)}" name="${escapeHtml(f.name)}" style="${baseStyle} min-height:90px;" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required ? 'required' : ''} ${ro}></textarea>`;
+                                    } else if (f.type === 'select') {
+                                        inputHtml = `
+                                            <select data-field-key="${escapeHtml(f.name)}" name="${escapeHtml(f.name)}" style="${baseStyle}" ${f.required ? 'required' : ''} ${dis}>
+                                                <option value="">Select…</option>
+                                                ${(f.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+                                            </select>
+                                        `;
+                                    } else {
+                                        const inputType = (f.type === 'number') ? 'number' : (f.type === 'email') ? 'email' : (f.type === 'date') ? 'date' : 'text';
+                                        inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="${inputType}" name="${escapeHtml(f.name)}" style="${baseStyle}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required ? 'required' : ''} ${ro}>`;
+                                    }
+                                    return `
+                                        <div style="min-width:0;">
+                                            ${labelHtml}
+                                            ${inputHtml}
+                                            ${hint}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                            <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;padding-top:16px;border-top:1px solid rgba(148,163,184,0.16);">
+                                <button type="button" onclick="closeTestModal()" style="padding:10px 16px; background:#334155; border:none; border-radius:10px; color:white; cursor:pointer;">
+                                    Cancel
+                                </button>
+                                <button type="submit" style="padding:10px 16px; background:#22c55e; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600;">
+                                    Run test
+                                </button>
+                            </div>
                         </form>
-                    </div>
-                    <div style="padding:20px; border-top:1px solid #374151; display:flex; gap:12px; justify-content:flex-end;">
-                        <button onclick="closeTestModal()" style="padding:10px 20px; background:#374151; border:none; border-radius:6px; color:white; cursor:pointer;">
-                            Cancel
-                        </button>
-                        <button onclick="runWorkflowTest()" style="padding:10px 20px; background:#22c55e; border:none; border-radius:6px; color:white; cursor:pointer; font-weight:500;">
-                            ▶️ Run Test
-                        </button>
                     </div>
                 </div>
             `;
             
             document.body.appendChild(modal);
+            window._testRunContext = { startNodeId: startNode.id, fieldDefs };
+            setupTestFormDerived(fieldDefs);
         }
         
         function closeTestModal() {
             const modal = document.getElementById('test-workflow-modal');
             if (modal) modal.remove();
         }
-        
-        function runWorkflowTest() {
-            const form = document.getElementById('test-workflow-form');
-            const formData = new FormData(form);
-            const inputData = {};
-            
-            for (let [key, value] of formData.entries()) {
-                inputData[key] = value;
+
+        function _splitArgs(argStr) {
+            const s = String(argStr || '');
+            const out = [];
+            let cur = '';
+            let q = null;
+            for (let i = 0; i < s.length; i++) {
+                const ch = s[i];
+                if (q) {
+                    if (ch === q) { q = null; cur += ch; continue; }
+                    cur += ch;
+                    continue;
+                }
+                if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
+                if (ch === ',') { out.push(cur.trim()); cur = ''; continue; }
+                cur += ch;
             }
-            
-            // Simulate workflow execution
-            simulateWorkflow(inputData);
+            if (cur.trim()) out.push(cur.trim());
+            return out;
         }
-        
-        function simulateWorkflow(inputData) {
-            closeTestModal();
-            
-            // Create results modal
-            const modal = document.createElement('div');
-            modal.id = 'test-results-modal';
-            modal.style.cssText = `
-                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(0,0,0,0.8); display: flex; align-items: center; 
-                justify-content: center; z-index: 10000;
-            `;
-            
-            // Trace through the workflow
-            const trace = [];
-            let currentNode = state.nodes.find(n => n.type === 'trigger' || n.type === 'form');
-            
-            if (!currentNode) {
-                currentNode = state.nodes.find(n => n.type === 'schedule' || n.type === 'webhook');
+
+        function _resolveArgToken(token, values) {
+            const t = String(token || '').trim();
+            if (!t) return '';
+            // quoted string
+            if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+                return t.slice(1, -1);
             }
+            // number literal
+            if (/^-?\d+(\.\d+)?$/.test(t)) return parseFloat(t);
+            // field ref (allow {{key}} or key)
+            const key = t.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
+            return (values && key in values) ? values[key] : '';
+        }
+
+        function evaluateDerivedExpression(expression, values) {
+            const expr = String(expression || '').trim();
+            if (!expr) return '';
+            // direct ref
+            if (/^[A-Za-z][A-Za-z0-9_]*$/.test(expr)) return (values && expr in values) ? values[expr] : '';
+            const m = expr.match(/^([A-Za-z][A-Za-z0-9_]*)\s*\((.*)\)\s*$/);
+            if (!m) return '';
+            const fn = m[1];
+            const args = _splitArgs(m[2]).map(a => _resolveArgToken(a, values));
+            const toNum = (v) => {
+                if (typeof v === 'number') return v;
+                const n = parseFloat(String(v || '').trim());
+                return Number.isFinite(n) ? n : 0;
+            };
+            const toStr = (v) => (v == null ? '' : String(v));
+            const toDate = (v) => {
+                const s = String(v || '').trim();
+                if (!s) return null;
+                const d = new Date(s);
+                return isNaN(d.getTime()) ? null : d;
+            };
+            switch (fn) {
+                case 'daysBetween': {
+                    const d1 = toDate(args[0]);
+                    const d2 = toDate(args[1]);
+                    if (!d1 || !d2) return '';
+                    const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
+                    const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
+                    const diff = Math.floor((utc2 - utc1) / 86400000) + 1;
+                    return diff;
+                }
+                case 'concat':
+                    return args.map(toStr).join('');
+                case 'sum':
+                    return args.reduce((acc, v) => acc + toNum(v), 0);
+                case 'round': {
+                    const n = toNum(args[0]);
+                    const p = Math.max(0, Math.min(8, Math.floor(toNum(args[1] ?? 0))));
+                    const f = Math.pow(10, p);
+                    return Math.round(n * f) / f;
+                }
+                case 'toNumber':
+                    return toNum(args[0]);
+                default:
+                    return '';
+            }
+        }
+
+        function collectTestFormValues(fieldDefs) {
+            const values = {};
+            (fieldDefs || []).forEach(f => {
+                const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
+                values[f.name] = el ? el.value : '';
+            });
+            return values;
+        }
+
+        function applyDerivedToForm(fieldDefs) {
+            const values = collectTestFormValues(fieldDefs);
+            // Evaluate derived fields
+            (fieldDefs || []).forEach(f => {
+                if (f && f.derived && f.derived.expression) {
+                    const v = evaluateDerivedExpression(f.derived.expression, values);
+                    values[f.name] = (v == null) ? '' : String(v);
+                    const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
+                    if (el) el.value = values[f.name];
+                }
+            });
+            return values;
+        }
+
+        function setupTestFormDerived(fieldDefs) {
+            // Attach listeners to recompute derived fields
+            (fieldDefs || []).forEach(f => {
+                if (!f || f.readOnly) return;
+                const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
+                if (!el) return;
+                el.addEventListener('input', () => applyDerivedToForm(fieldDefs));
+                el.addEventListener('change', () => applyDerivedToForm(fieldDefs));
+            });
+            // Initial compute
+            applyDerivedToForm(fieldDefs);
+        }
+
+        async function runWorkflowTest() {
+            const ctx = window._testRunContext || {};
+            const fieldDefs = ctx.fieldDefs || [];
+            const values = applyDerivedToForm(fieldDefs);
+            // Basic required validation (business-friendly)
+            for (const f of fieldDefs) {
+                if (f.required && !String(values[f.name] || '').trim()) {
+                    alert(`Please fill in: ${f.label}`);
+                    const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
+                    if (el) el.focus();
+                    return;
+                }
+            }
+            closeTestModal();
+            await simulateWorkflow(values, { fieldDefs });
+        }
+
+        function interpolateTemplate(template, values) {
+            let t = String(template || '');
+            t = t.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_, key) => {
+                const k = String(key || '').trim();
+                const v = values && (k in values) ? values[k] : '';
+                return v == null ? '' : String(v);
+            });
+            return t;
+        }
+
+        function clearPlaybackHighlights() {
+            // Nodes
+            state.nodes.forEach(n => {
+                const el = document.getElementById(n.id);
+                if (el) el.classList.remove('play-active');
+            });
+            // Edges
+            state.connections.forEach(c => {
+                delete c._playActive;
+            });
+            renderConnections();
+        }
+
+        function setNodePlayActive(nodeId) {
+            state.nodes.forEach(n => {
+                const el = document.getElementById(n.id);
+                if (el) el.classList.toggle('play-active', n.id === nodeId);
+            });
+        }
+
+        function setEdgePlayActive(fromId, toId, edgeType) {
+            const conn = state.connections.find(c => c.from === fromId && c.to === toId && (!edgeType || c.type === edgeType))
+                || state.connections.find(c => c.from === fromId && c.to === toId);
+            if (conn) {
+                conn._playActive = true;
+                conn._animate = true;
+            }
+            renderConnections();
+        }
+
+        function getTestIcon(type) {
+            const t = String(type || '').toLowerCase();
+            if (t === 'trigger' || t === 'form') return '▶';
+            if (t === 'condition') return '◆';
+            if (t === 'approval') return '✔';
+            if (t === 'notification') return '✉';
+            if (t === 'delay') return '⏳';
+            if (t === 'tool') return '🔧';
+            if (t === 'ai') return '✨';
+            if (t === 'end') return '🏁';
+            return '•';
+        }
+
+        function prettyOperator(op) {
+            const o = String(op || '').toLowerCase();
+            const map = {
+                equals: 'equals',
+                not_equals: 'does not equal',
+                greater_than: 'is greater than',
+                less_than: 'is less than',
+                contains: 'contains',
+                is_empty: 'is empty'
+            };
+            return map[o] || o || 'equals';
+        }
+
+        async function getUserLookup() {
+            if (window._pbUserLookup) return window._pbUserLookup;
+            const token = getAuthToken();
+            if (!token) return {};
+            try {
+                const res = await fetch('/api/security/users', { headers: { 'Authorization': 'Bearer ' + token } });
+                if (!res.ok) return {};
+                const data = await res.json();
+                const users = Array.isArray(data.users) ? data.users : (Array.isArray(data) ? data : []);
+                const map = {};
+                users.forEach(u => {
+                    if (!u) return;
+                    const id = u.id || u.user_id;
+                    if (!id) return;
+                    map[id] = u.name || u.full_name || u.email || u.username || String(id);
+                });
+                window._pbUserLookup = map;
+                return map;
+            } catch (_) {
+                return {};
+            }
+        }
+
+        async function playTestPlayback(trace) {
+            if (!Array.isArray(trace) || trace.length === 0) return;
+            clearPlaybackHighlights();
+            try { _resetViewForBuild(); } catch (_) {}
+            try { _showBuildCursor(); } catch (_) {}
+            for (let i = 0; i < trace.length; i++) {
+                const step = trace[i];
+                setNodePlayActive(step.nodeId);
+                const node = state.nodes.find(n => n.id === step.nodeId);
+                if (node) {
+                    try {
+                        const p = _nodeCanvasCenter(node);
+                        await _moveCursorToCanvasPoint(p.x, p.y, 320);
+                        await _cursorClick();
+                    } catch (_) {}
+                }
+                if (i > 0) {
+                    const prev = trace[i - 1];
+                    setEdgePlayActive(prev.nodeId, step.nodeId, step.edgeType);
+                }
+                await _sleep(650);
+            }
+            await _sleep(450);
+            try { _hideBuildCursor(); } catch (_) {}
+        }
+
+        async function simulateWorkflow(inputData, ctx) {
+            // Build label lookup for nicer explanations
+            const fieldDefs = (ctx && ctx.fieldDefs) ? ctx.fieldDefs : [];
+            const fieldLabelByKey = {};
+            fieldDefs.forEach(f => { if (f && f.name) fieldLabelByKey[f.name] = f.label || humanizeFieldLabel(f.name) || f.name; });
             
-            if (!currentNode) {
+            const startNode = getStartNodeForTest();
+            if (!startNode) {
                 alert('No start node found');
                 return;
             }
             
-            trace.push({ node: currentNode, status: 'completed', message: 'Workflow started with input data' });
+            const trace = [];
+            const nodeById = {};
+            state.nodes.forEach(n => { nodeById[n.id] = n; });
             
-            // Follow the workflow path
-            let maxSteps = 20; // Prevent infinite loops
-            while (currentNode && maxSteps > 0) {
-                maxSteps--;
+            const outgoing = {};
+            state.connections.forEach(c => {
+                if (!outgoing[c.from]) outgoing[c.from] = [];
+                outgoing[c.from].push(c);
+            });
+            
+            const maxSteps = 30;
+            let steps = 0;
+            let current = startNode;
+            let outcome = { status: 'completed', headline: 'Workflow completed successfully.' };
+            
+            // Start
+            trace.push({
+                nodeId: current.id,
+                edgeType: null,
+                type: current.type,
+                title: current.name || 'Start',
+                message: 'Started with the provided information.'
+            });
+            
+            while (current && steps < maxSteps) {
+                steps++;
+                if (current.type === 'end') break;
+                const conns = outgoing[current.id] || [];
+                if (!conns.length) break;
                 
-                // Find outgoing connection
-                const connections = state.connections.filter(c => c.from === currentNode.id);
+                // Decide next
+                let nextConn = conns[0];
                 
-                if (connections.length === 0) {
-                    // End node or no connections
-                    if (currentNode.type === 'end') {
-                        trace.push({ node: currentNode, status: 'completed', message: 'Workflow completed' });
-                    }
-                    break;
-                }
-                
-                // Handle condition nodes
-                if (currentNode.type === 'condition') {
-                    const field = currentNode.config.field;
-                    const operator = currentNode.config.operator;
-                    const compareValue = currentNode.config.value;
-                    const inputValue = inputData[field];
+                if (current.type === 'condition') {
+                    const cfg = current.config || {};
+                    const fieldKey = String(cfg.field || '').trim();
+                    const operator = String(cfg.operator || 'equals').trim();
+                    const compareValue = cfg.value;
+                    const inputValue = (fieldKey && fieldKey in inputData) ? inputData[fieldKey] : '';
                     
                     let result = false;
                     switch (operator) {
@@ -5852,94 +6410,174 @@
                         case 'not_equals': result = inputValue != compareValue; break;
                         case 'greater_than': result = parseFloat(inputValue) > parseFloat(compareValue); break;
                         case 'less_than': result = parseFloat(inputValue) < parseFloat(compareValue); break;
-                        case 'contains': result = String(inputValue).includes(compareValue); break;
-                        case 'is_empty': result = !inputValue || inputValue === ''; break;
+                        case 'contains': result = String(inputValue || '').includes(String(compareValue || '')); break;
+                        case 'is_empty': result = !inputValue || String(inputValue).trim() === ''; break;
+                        default: result = inputValue == compareValue;
                     }
+                    nextConn = conns.find(c => c.type === (result ? 'yes' : 'no')) || conns[0];
                     
-                    trace.push({ 
-                        node: currentNode, 
-                        status: 'completed', 
-                        message: `Checked: ${field} (${inputValue}) ${operator} ${compareValue} → ${result ? 'YES' : 'NO'}` 
+                    const label = fieldLabelByKey[fieldKey] || humanizeFieldLabel(fieldKey) || fieldKey || 'Field';
+                    trace.push({
+                        nodeId: current.id,
+                        edgeType: null,
+                        type: current.type,
+                        title: current.name || 'Decision',
+                        message: `${label} ${prettyOperator(operator)} ${compareValue != null && String(compareValue) !== '' ? `"${String(compareValue)}"` : ''} → ${result ? 'Yes' : 'No'}`
                     });
-                    
-                    // Find the correct path (yes or no) - connections use .type not .output
-                    const nextConnection = connections.find(c => c.type === (result ? 'yes' : 'no'));
-                    if (nextConnection) {
-                        currentNode = state.nodes.find(n => n.id === nextConnection.to);
-                    } else {
-                        // Fallback - take first connection
-                        currentNode = state.nodes.find(n => n.id === connections[0].to);
+                } else if (current.type !== 'trigger' && current.type !== 'form') {
+                    // Regular step summary
+                    const cfg = current.config || {};
+                    let msg = 'Step executed.';
+                    if (current.type === 'notification') {
+                        const channel = cfg.channel || 'email';
+                        const recipient = interpolateTemplate(cfg.recipient || '', inputData);
+                        const text = interpolateTemplate(cfg.template || '', inputData);
+                        msg = `${channel.toUpperCase()} notification sent to ${recipient || 'recipient'}.`;
+                        if (text) msg += ` Message: “${text.length > 80 ? (text.slice(0, 80) + '…') : text}”`;
+                    } else if (current.type === 'delay') {
+                        msg = `Waited ${cfg.duration || 0} ${cfg.unit || 'minutes'}.`;
+                    } else if (current.type === 'ai') {
+                        msg = `AI step will generate an output based on your inputs.`;
+                    } else if (current.type === 'tool') {
+                        const tool = (state.tools || []).find(t => t.id === cfg.toolId);
+                        msg = `Ran tool: ${tool ? tool.name : 'Tool'}.`;
+                    } else if (current.type === 'approval') {
+                        // Approvals typically pause the process
+                        const ac = cfg || {};
+                        const src = ac.assignee_source || (ac.approvers && ac.approvers.length ? 'platform_user' : '');
+                        const ids = ac.assignee_ids || ac.approvers || [];
+                        let who = '';
+                        if (src === 'platform_user') {
+                            const lookup = await getUserLookup();
+                            const names = ids.map(id => lookup[id] || id).filter(Boolean);
+                            who = names.length ? names.join(', ') : (ids.length ? ids.join(', ') : '');
+                        } else if (src) {
+                            who = ids.length ? `${ids.length} selected` : '';
+                        }
+                        msg = `Waiting for approval${who ? ` (${who})` : ''}.`;
+                        trace.push({
+                            nodeId: current.id,
+                            edgeType: null,
+                            type: current.type,
+                            title: current.name || 'Approval',
+                            message: msg
+                        });
+                        outcome = {
+                            status: 'pending',
+                            headline: `Waiting for approval at: ${current.name || 'Approval'}.`,
+                            detail: who ? `Approver(s): ${who}` : ''
+                        };
+                        break;
                     }
-                } else {
-                    // Regular node - add to trace and follow first connection
-                    let message = '';
-                    switch (currentNode.type) {
-                        case 'approval':
-                            const ac = currentNode.config || {};
-                            const aSrc = ac.assignee_source || (ac.approvers && ac.approvers.length ? 'platform_user' : '');
-                            const aIds = ac.assignee_ids || ac.approvers || [];
-                            message = aSrc ? `Approval requested from: ${aSrc.replace('platform_','')} (${aIds.length} selected)` : 'Approval requested (not configured)';
-                            break;
-                        case 'notification':
-                            let template = currentNode.config.template || '';
-                            Object.keys(inputData).forEach(key => {
-                                template = template.replace(new RegExp('\\{\\{' + key + '\\}\\}', 'g'), inputData[key]);
-                            });
-                            message = `Notification sent: "${template.substring(0, 50)}..."`;
-                            break;
-                        case 'ai':
-                            message = `AI processed with model: ${currentNode.config.model || 'gpt-4o'}`;
-                            break;
-                        case 'delay':
-                            message = `Waiting ${currentNode.config.duration} ${currentNode.config.unit}`;
-                            break;
-                        default:
-                            message = `Executed: ${currentNode.name}`;
-                    }
-                    
-                    if (currentNode.type !== 'trigger' && currentNode.type !== 'form') {
-                        trace.push({ node: currentNode, status: 'completed', message });
-                    }
-                    
-                    currentNode = state.nodes.find(n => n.id === connections[0].to);
+                    trace.push({
+                        nodeId: current.id,
+                        edgeType: null,
+                        type: current.type,
+                        title: current.name || 'Step',
+                        message: msg
+                    });
                 }
+                
+                const next = nodeById[nextConn.to];
+                if (!next) break;
+                trace.push({
+                    nodeId: next.id,
+                    edgeType: nextConn.type || null,
+                    type: next.type,
+                    title: next.name || 'Step',
+                    message: (next.type === 'end') ? 'Reached the end of the workflow.' : ''
+                });
+                current = next;
+                if (current.type === 'end') break;
             }
             
-            // Display results
-            modal.innerHTML = `
-                <div style="background:#1f2937; border-radius:12px; width:600px; max-width:90%; max-height:80vh; overflow:auto;">
-                    <div style="padding:20px; border-bottom:1px solid #374151;">
-                        <h2 style="margin:0; font-size:18px;">📊 Test Results</h2>
-                    </div>
-                    <div style="padding:20px;">
-                        <div style="margin-bottom:16px; padding:12px; background:#111827; border-radius:8px;">
-                            <div style="font-size:12px; color:#6b7280; margin-bottom:8px;">INPUT DATA:</div>
-                            <pre style="margin:0; color:#a5b4fc; font-size:12px;">${JSON.stringify(inputData, null, 2)}</pre>
+            // Build results modal (business-friendly report)
+            const modal = document.createElement('div');
+            modal.id = 'test-results-modal';
+            modal.style.cssText = `
+                position: fixed; inset: 0;
+                background: rgba(0,0,0,0.78); display: flex; align-items: center; 
+                justify-content: center; z-index: 10000; padding: 18px;
+            `;
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+            
+            const inputRows = Object.keys(inputData || {}).map(k => {
+                const label = fieldLabelByKey[k] || humanizeFieldLabel(k) || k;
+                const v = inputData[k];
+                const text = (v == null || String(v).trim() === '') ? '—' : String(v);
+                return `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed rgba(148,163,184,0.18);">
+                    <div style="color:#cbd5e1;font-size:13px;">${escapeHtml(label)}</div>
+                    <div style="color:#e2e8f0;font-size:13px;font-weight:600;max-width:60%;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(text)}</div>
+                </div>`;
+            }).join('');
+            
+            const traceCards = trace
+                .filter((t, idx) => idx === 0 || t.message) // keep start + meaningful messages
+                .map((t, idx) => `
+                    <div style="display:flex;gap:12px;padding:12px;background:#0b1220;border:1px solid rgba(148,163,184,0.16);border-radius:14px;margin-bottom:10px;">
+                        <div style="width:30px;height:30px;border-radius:10px;background:rgba(99,102,241,0.12);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;">
+                            ${getTestIcon(t.type)}
                         </div>
-                        
-                        <div style="font-size:12px; color:#6b7280; margin-bottom:12px;">EXECUTION TRACE:</div>
-                        ${trace.map((t, i) => `
-                            <div style="display:flex; gap:12px; margin-bottom:12px;">
-                                <div style="width:24px; height:24px; border-radius:50%; background:${t.status === 'completed' ? '#22c55e' : '#ef4444'}; display:flex; align-items:center; justify-content:center; font-size:12px;">
-                                    ${t.status === 'completed' ? '✓' : '✗'}
-                                </div>
-                                <div style="flex:1;">
-                                    <div style="font-weight:500;">${t.node.name}</div>
-                                    <div style="font-size:12px; color:#9ca3af;">${t.message}</div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                                <div style="font-weight:700;color:#e2e8f0;">${escapeHtml(t.title || 'Step')}</div>
+                                <div style="font-size:12px;color:#94a3b8;">${escapeHtml(String(t.type || '').toUpperCase())}</div>
+                            </div>
+                            <div style="margin-top:6px;font-size:13px;color:#cbd5e1;line-height:1.35;">${escapeHtml(t.message || '')}</div>
+                        </div>
+                    </div>
+                `).join('');
+            
+            const statusBadge = outcome.status === 'pending'
+                ? `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.35);color:#fbbf24;font-weight:700;font-size:12px;">Pending</span>`
+                : `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.35);color:#22c55e;font-weight:700;font-size:12px;">Completed</span>`;
+            
+            modal.innerHTML = `
+                <div style="background:#0f172a; border:1px solid rgba(148,163,184,0.18); border-radius:16px; width:980px; max-width:100%; max-height:88vh; overflow:auto;">
+                    <div style="padding:18px; border-bottom:1px solid rgba(148,163,184,0.16); display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                <h2 style="margin:0; font-size:18px;">Test report</h2>
+                                ${statusBadge}
+                            </div>
+                            <p style="margin:6px 0 0; color:#94a3b8; font-size:13px;">${escapeHtml(outcome.headline || '')}${outcome.detail ? ' ' + escapeHtml(outcome.detail) : ''}</p>
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:center;">
+                            <button type="button" onclick="(async()=>{ try{ await playTestPlayback(window._lastTestTrace || []);}catch(_){}})()" style="padding:10px 12px;background:#6366f1;border:none;border-radius:12px;color:white;cursor:pointer;font-weight:700;">
+                                Play path
+                            </button>
+                            <button type="button" onclick="document.getElementById('test-results-modal')?.remove(); clearPlaybackHighlights();" style="padding:10px 12px;background:#334155;border:none;border-radius:12px;color:white;cursor:pointer;">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                    <div style="padding:18px; display:grid;grid-template-columns: 340px 1fr; gap:16px;">
+                        <div>
+                            <div style="padding:14px;background:#0b1220;border:1px solid rgba(148,163,184,0.16);border-radius:16px;">
+                                <div style="font-weight:800;color:#e2e8f0;margin-bottom:10px;">Submitted information</div>
+                                <div>${inputRows || '<div style="color:#94a3b8;font-size:13px;">No inputs.</div>'}</div>
+                            </div>
+                            <div style="margin-top:12px;padding:14px;background:#0b1220;border:1px solid rgba(148,163,184,0.16);border-radius:16px;">
+                                <div style="font-weight:800;color:#e2e8f0;margin-bottom:8px;">Outcome</div>
+                                <div style="color:#cbd5e1;font-size:13px;line-height:1.35;">
+                                    ${escapeHtml(outcome.headline || '')}
+                                    ${outcome.detail ? `<div style="margin-top:6px;color:#94a3b8;">${escapeHtml(outcome.detail)}</div>` : ''}
                                 </div>
                             </div>
-                        `).join('')}
-                    </div>
-                    <div style="padding:20px; border-top:1px solid #374151; display:flex; justify-content:flex-end;">
-                        <button onclick="document.getElementById('test-results-modal').remove()" 
-                                style="padding:10px 20px; background:#6366f1; border:none; border-radius:6px; color:white; cursor:pointer;">
-                            Close
-                        </button>
+                        </div>
+                        <div>
+                            <div style="font-weight:800;color:#e2e8f0;margin-bottom:10px;">What happened (step-by-step)</div>
+                            ${traceCards || '<div style="color:#94a3b8;">No steps.</div>'}
+                        </div>
                     </div>
                 </div>
             `;
             
+            window._lastTestTrace = trace;
             document.body.appendChild(modal);
+            
+            // Auto-play once
+            try { await playTestPlayback(trace); } catch (_) {}
         }
         
         function updateEmptyState() {

@@ -193,6 +193,8 @@ IMPORTANT:
   - one with type "yes"
   - one with type "no"
 - In prompts/templates, reference form fields using double braces like {{{{amount}}}} or {{{{email}}}}.
+- This platform is for business users: ALL labels shown to users must be business-friendly and human readable (no snake_case, no internal IDs).
+- For internal field keys, ALWAYS use lowerCamelCase (no underscores). Example: employeeEmail, startDate, endDate, numberOfDays.
 
 Schema to output:
 {{
@@ -210,7 +212,13 @@ Schema to output:
         "formTitle": "Request details",
         "submitText": "Submit",
         "fields": [
-          {{"name":"amount","type":"number","required":true,"placeholder":"Enter amount"}}
+          {{
+            "name": "amount",
+            "label": "Amount",
+            "type": "number",
+            "required": true,
+            "placeholder": "Enter the amount"
+          }}
         ]
       }}
     }}
@@ -223,7 +231,18 @@ Schema to output:
 }}
 
 Node config rules:
-- trigger.config.fields is REQUIRED and must be a non-empty array. Use types: text, textarea, number, date, email, select.
+- trigger.config.fields is REQUIRED and must be a non-empty array.
+- Each field MUST include:
+  - name (lowerCamelCase internal key; used in {{name}} references)
+  - label (business-friendly label shown to users)
+  - type (text | textarea | number | date | email | select)
+  - required (true/false)
+  - placeholder (business-friendly hint)
+- For select fields, include: options (array of strings).
+- For derived (auto-calculated) fields, include:
+  - readOnly: true
+  - derived: { "expression": "<formula>" }
+  Use formulas like: daysBetween(startDate, endDate) or concat(firstName, " ", lastName).
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
@@ -487,6 +506,35 @@ class ProcessWizard:
             "end": "End",
         }
 
+        def _humanize_label(s: str) -> str:
+            s = (s or "").strip()
+            if not s:
+                return ""
+            s = s.replace("_", " ")
+            s = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", s)
+            s = re.sub(r"\s+", " ", s).strip()
+            return " ".join(w[:1].upper() + w[1:] for w in s.split(" ") if w)
+
+        def _to_camel_key(s: str) -> str:
+            s = (s or "").strip()
+            if not s:
+                return ""
+            # Keep letters/numbers/spaces/underscores only
+            s = re.sub(r"[^A-Za-z0-9 _]", " ", s)
+            s = re.sub(r"\s+", " ", s).strip()
+            if not s:
+                return ""
+            parts = re.split(r"[_\s]+", s)
+            parts = [p for p in parts if p]
+            if not parts:
+                return ""
+            first = parts[0].lower()
+            rest = "".join(p[:1].upper() + p[1:].lower() for p in parts[1:])
+            key = first + rest
+            if not re.match(r"^[A-Za-z]", key):
+                key = "field" + key
+            return key
+
         # Normalize nodes
         normalized_nodes: List[Dict[str, Any]] = []
         seen_ids = set()
@@ -547,6 +595,8 @@ class ProcessWizard:
                     if not vname:
                         continue
                     vtype = str(v.get("type") or "text").lower()
+                    key_name = _to_camel_key(vname) or vname
+                    label = _humanize_label(v.get("label") or vname) or vname
                     ui_type = "text"
                     if vtype in ("number", "int", "float"):
                         ui_type = "number"
@@ -557,13 +607,14 @@ class ProcessWizard:
                     elif vtype in ("object", "array"):
                         ui_type = "textarea"
                     fields.append({
-                        "name": vname,
+                        "name": key_name,
+                        "label": label,
                         "type": ui_type,
                         "required": False,
-                        "placeholder": f"Enter {vname.replace('_', ' ')}",
+                        "placeholder": f"Enter {label}",
                     })
             if not fields:
-                fields = [{"name": "input", "type": "text", "required": True, "placeholder": "Enter details..."}]
+                fields = [{"name": "details", "label": "Details", "type": "text", "required": True, "placeholder": "Enter details..."}]
             normalized_nodes.insert(0, {
                 "id": "node_start",
                 "type": "trigger",
@@ -592,7 +643,19 @@ class ProcessWizard:
                 cfg = start.get("config") if isinstance(start.get("config"), dict) else {}
                 fields = cfg.get("fields")
                 if not isinstance(fields, list) or len(fields) == 0:
-                    cfg["fields"] = [{"name": "input", "type": "text", "required": True, "placeholder": "Enter details..."}]
+                    cfg["fields"] = [{"name": "details", "label": "Details", "type": "text", "required": True, "placeholder": "Enter details..."}]
+                else:
+                    # Ensure business-friendly labels and sane defaults
+                    for f in fields:
+                        if not isinstance(f, dict):
+                            continue
+                        fname = str(f.get("name") or f.get("id") or "").strip()
+                        if fname and not f.get("label"):
+                            f["label"] = _humanize_label(fname) or fname
+                        if f.get("type") == "select" and "options" not in f:
+                            f["options"] = []
+                        if not f.get("placeholder") and f.get("label"):
+                            f["placeholder"] = f"Enter {f.get('label')}"
                 if not cfg.get("triggerType"):
                     cfg["triggerType"] = "manual"
                 start["config"] = cfg

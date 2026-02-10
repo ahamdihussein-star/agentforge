@@ -9574,6 +9574,15 @@ Option 3"></textarea>
             
             wizard.originalGoal = goal;
             wizard.agentType = 'process';
+
+            // Open the visual builder immediately (prevents popup blockers) and show "waiting" state there.
+            // We'll send the generated workflow via postMessage once the API returns.
+            let builderWin = null;
+            try {
+                builderWin = window.open('/ui/process-builder.html?draft=wait', '_blank');
+            } catch (_) {
+                builderWin = null;
+            }
             
             // Show generating animation
             document.getElementById('wizard-step-0').classList.add('hidden');
@@ -9587,7 +9596,10 @@ Option 3"></textarea>
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token'))
                     },
-                    body: JSON.stringify({ goal: goal })
+                    body: JSON.stringify({
+                        goal: goal,
+                        output_format: 'visual_builder'
+                    })
                 });
                 
                 const data = await response.json();
@@ -9596,19 +9608,41 @@ Option 3"></textarea>
                     // Store the workflow definition
                     wizard.processDefinition = data.workflow;
                     
-                    // Navigate to process builder/editor
-                    // For now, show success and navigate to step 1 with process mode
-                    wizard.config = {
-                        name: data.workflow.name || 'My Workflow',
-                        goal: goal,
-                        agent_type: 'process',
-                        process_definition: data.workflow
-                    };
+                    // Store draft for builder fallback (if postMessage is blocked or tab was closed)
+                    try {
+                        sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(data.workflow));
+                        sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                            goal: goal,
+                            name: data.workflow.name || 'My Workflow',
+                            animate: true
+                        }));
+                    } catch (_) { /* ignore */ }
                     
                     document.getElementById('wizard-generating').classList.add('hidden');
+                    document.getElementById('wizard-step-0').classList.remove('hidden');
                     
-                    // Show a simplified workflow preview/editor
-                    showProcessEditor(data.workflow);
+                    // Send the workflow to the builder (cinematic build starts there immediately)
+                    const payload = {
+                        type: 'agentforge.workflow_draft',
+                        workflow: data.workflow,
+                        meta: {
+                            goal: goal,
+                            name: data.workflow.name || 'My Workflow',
+                            animate: true
+                        }
+                    };
+                    try {
+                        if (builderWin && !builderWin.closed) {
+                            builderWin.postMessage(payload, window.location.origin);
+                            showToast('Opening the visual builder…', 'success');
+                        } else {
+                            // Popup was blocked or closed → open builder using stored draft
+                            openVisualEditor();
+                        }
+                    } catch (e) {
+                        // Fallback
+                        openVisualEditor();
+                    }
                 } else {
                     alert(data.detail || 'Could not create workflow. Please try again.');
                     document.getElementById('wizard-generating').classList.add('hidden');
@@ -9814,15 +9848,185 @@ Option 3"></textarea>
         }
         
         // Build Dynamic Form from Process Definition (optionally with LLM-enriched labels)
+        function humanizeFieldLabel(key) {
+            if (!key) return '';
+            let s = String(key);
+            s = s.replace(/_/g, ' ');
+            s = s.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+            s = s.replace(/\s+/g, ' ').trim();
+            if (!s) return '';
+            return s.split(' ').map(w => w ? (w[0].toUpperCase() + w.slice(1)) : '').join(' ');
+        }
+
+        function _splitArgs(argStr) {
+            const s = String(argStr || '');
+            const out = [];
+            let cur = '';
+            let q = null;
+            for (let i = 0; i < s.length; i++) {
+                const ch = s[i];
+                if (q) {
+                    if (ch === q) { q = null; cur += ch; continue; }
+                    cur += ch;
+                    continue;
+                }
+                if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
+                if (ch === ',') { out.push(cur.trim()); cur = ''; continue; }
+                cur += ch;
+            }
+            if (cur.trim()) out.push(cur.trim());
+            return out;
+        }
+
+        function _resolveArgToken(token, values) {
+            const t = String(token || '').trim();
+            if (!t) return '';
+            if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) return t.slice(1, -1);
+            if (/^-?\d+(\.\d+)?$/.test(t)) return parseFloat(t);
+            const key = t.replace(/^\{\{/, '').replace(/\}\}$/, '').trim();
+            return (values && key in values) ? values[key] : '';
+        }
+
+        function evaluateDerivedExpression(expression, values) {
+            const expr = String(expression || '').trim();
+            if (!expr) return '';
+            if (/^[A-Za-z][A-Za-z0-9_]*$/.test(expr)) return (values && expr in values) ? values[expr] : '';
+            const m = expr.match(/^([A-Za-z][A-Za-z0-9_]*)\s*\((.*)\)\s*$/);
+            if (!m) return '';
+            const fn = m[1];
+            const args = _splitArgs(m[2]).map(a => _resolveArgToken(a, values));
+            const toNum = (v) => {
+                if (typeof v === 'number') return v;
+                const n = parseFloat(String(v || '').trim());
+                return Number.isFinite(n) ? n : 0;
+            };
+            const toStr = (v) => (v == null ? '' : String(v));
+            const toDate = (v) => {
+                const s = String(v || '').trim();
+                if (!s) return null;
+                const d = new Date(s);
+                return isNaN(d.getTime()) ? null : d;
+            };
+            switch (fn) {
+                case 'daysBetween': {
+                    const d1 = toDate(args[0]);
+                    const d2 = toDate(args[1]);
+                    if (!d1 || !d2) return '';
+                    const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
+                    const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
+                    return Math.floor((utc2 - utc1) / 86400000) + 1;
+                }
+                case 'concat':
+                    return args.map(toStr).join('');
+                case 'sum':
+                    return args.reduce((acc, v) => acc + toNum(v), 0);
+                case 'round': {
+                    const n = toNum(args[0]);
+                    const p = Math.max(0, Math.min(8, Math.floor(toNum(args[1] ?? 0))));
+                    const f = Math.pow(10, p);
+                    return Math.round(n * f) / f;
+                }
+                case 'toNumber':
+                    return toNum(args[0]);
+                default:
+                    return '';
+            }
+        }
+
+        function collectProcessFormValues(triggerInputs) {
+            const values = {};
+            (triggerInputs || []).forEach(input => {
+                const el = document.getElementById(`pf-${input.id}`);
+                values[input.id] = el ? el.value : '';
+            });
+            return values;
+        }
+
+        function setupProcessDerivedFields(triggerInputs) {
+            const derivedInputs = (triggerInputs || []).filter(i => i && i.derived && i.derived.expression);
+            if (!derivedInputs.length) return;
+
+            const recompute = () => {
+                const values = collectProcessFormValues(triggerInputs);
+                derivedInputs.forEach(di => {
+                    const el = document.getElementById(`pf-${di.id}`);
+                    if (!el) return;
+                    const v = evaluateDerivedExpression(di.derived.expression, values);
+                    const text = (v == null) ? '' : String(v);
+                    el.value = text;
+                    values[di.id] = text;
+                });
+            };
+
+            (triggerInputs || []).forEach(input => {
+                if (!input || (input.derived && input.derived.expression) || input.readOnly) return;
+                const el = document.getElementById(`pf-${input.id}`);
+                if (!el) return;
+                el.addEventListener('input', recompute);
+                el.addEventListener('change', recompute);
+            });
+
+            recompute();
+        }
+
         function buildProcessForm(agent, enrichedFields) {
             const formContainer = document.getElementById('process-form-fields');
             let triggerInputs = [];
-            
-            // Use LLM-enriched fields when available (professional, business-friendly labels)
-            if (enrichedFields && enrichedFields.length) {
+            const startFieldMap = {};
+
+            // Normalize: API may return process_definition as JSON string (e.g. from DB)
+            let processDef = agent.process_definition;
+            if (typeof processDef === 'string') {
+                try { processDef = processDef ? JSON.parse(processDef) : null; } catch (_) { processDef = null; }
+            }
+            if (!processDef || typeof processDef !== 'object') processDef = {};
+
+            // Process Builder: trigger or form node with config.fields (source of truth for ordering + derived fields)
+            if (processDef.nodes && Array.isArray(processDef.nodes)) {
+                const triggerNode = processDef.nodes.find(n => (n.type === 'trigger' || n.type === 'form' || n.type === 'start'));
+                if (triggerNode) {
+                    const config = triggerNode.config || {};
+                    const typeConfig = config.type_config || config;
+                    const fields = typeConfig.fields || config.fields || [];
+                    if (Array.isArray(fields) && fields.length) {
+                        triggerInputs = fields
+                            .filter(f => f && (f.name || f.id))
+                            .map(f => {
+                                const id = f.name || f.id;
+                                const label = f.label || humanizeFieldLabel(id) || id;
+                                const derived = (f.derived && f.derived.expression) ? { expression: String(f.derived.expression).trim() } : null;
+                                const readOnly = !!f.readOnly || !!derived;
+                                const required = !!f.required && !readOnly;
+                                const options = Array.isArray(f.options) ? f.options : undefined;
+                                const placeholder = f.placeholder || (label ? `Enter ${label}...` : '');
+                                const out = {
+                                    id,
+                                    label,
+                                    type: f.type || 'text',
+                                    required,
+                                    placeholder,
+                                    options,
+                                    description: f.description,
+                                    derived,
+                                    readOnly
+                                };
+                                startFieldMap[id] = out;
+                                return out;
+                            });
+                    }
+                }
+            }
+
+            // Legacy: processDef.trigger.inputs
+            if (!triggerInputs.length && processDef && processDef.trigger && processDef.trigger.inputs) {
+                triggerInputs = processDef.trigger.inputs;
+            }
+
+            // Fallback: Use LLM-enriched fields when available (business-friendly labels)
+            if (!triggerInputs.length && enrichedFields && enrichedFields.length) {
                 triggerInputs = enrichedFields.map(f => ({
                     id: f.id,
-                    label: f.label || f.id,
+                    label: f.label || humanizeFieldLabel(f.id) || f.id,
                     type: f.type || 'text',
                     required: !!f.required,
                     placeholder: f.placeholder || '',
@@ -9830,71 +10034,29 @@ Option 3"></textarea>
                     description: f.description
                 }));
             }
-            
-            if (!triggerInputs.length) {
-                // Normalize: API may return process_definition as JSON string (e.g. from DB)
-                let processDef = agent.process_definition;
-                if (typeof processDef === 'string') {
-                    try {
-                        processDef = processDef ? JSON.parse(processDef) : null;
-                    } catch (_) {
-                        processDef = null;
-                    }
-                }
-                if (!processDef || typeof processDef !== 'object') processDef = {};
-                
-                if (processDef.nodes && Array.isArray(processDef.nodes)) {
-                // Process Builder: trigger or form node with config.fields (or config.type_config.fields)
-                const triggerNode = processDef.nodes.find(n => 
-                    (n.type === 'trigger' || n.type === 'form' || n.type === 'start')
-                );
-                if (triggerNode) {
-                    const config = triggerNode.config || {};
-                    const typeConfig = config.type_config || config;
-                    const fields = typeConfig.fields || config.fields || [];
-                    if (fields.length) {
-                        triggerInputs = fields.filter(f => f && f.name).map(f => ({
-                            id: f.name,
-                            label: (f.label || f.name).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-                            type: f.type || 'text',
-                            required: !!f.required,
-                            placeholder: f.placeholder || `Enter ${(f.name || '').replace(/_/g, ' ')}...`,
-                            options: f.options
-                        }));
-                    }
-                }
+
+            // Overlay enriched labels/descriptions while preserving derived/readOnly from definition
+            if (enrichedFields && enrichedFields.length && triggerInputs.length) {
+                const enrichedById = new Map(enrichedFields.map(f => [f.id, f]));
+                triggerInputs = triggerInputs.map(base => {
+                    const e = enrichedById.get(base.id);
+                    if (!e) return base;
+                    return {
+                        ...base,
+                        label: e.label || base.label || humanizeFieldLabel(base.id) || base.id,
+                        placeholder: e.placeholder || base.placeholder || '',
+                        description: e.description || base.description,
+                        required: (e.required != null) ? (!!e.required && !(base.readOnly || (base.derived && base.derived.expression))) : base.required,
+                        options: e.options || base.options
+                    };
+                });
             }
             
-                // Legacy: processDef.trigger.inputs
-                if (!triggerInputs.length && processDef && processDef.trigger && processDef.trigger.inputs) {
-                    triggerInputs = processDef.trigger.inputs;
-                }
-            }
-            
-            // If no inputs defined, create generic form based on goal
+            // If no inputs defined, create a minimal business-friendly form (no hard-coded patterns)
             if (!triggerInputs.length) {
-                const goal = agent.goal || '';
-                // Parse common patterns from goal
-                if (goal.toLowerCase().includes('expense')) {
-                    triggerInputs = [
-                        { id: 'amount', label: 'Amount ($)', type: 'number', required: true },
-                        { id: 'description', label: 'Description', type: 'text', required: true },
-                        { id: 'category', label: 'Category', type: 'select', options: ['Travel', 'Meals', 'Office Supplies', 'Equipment', 'Other'] },
-                        { id: 'notes', label: 'Additional Notes', type: 'textarea', required: false }
-                    ];
-                } else if (goal.toLowerCase().includes('leave') || goal.toLowerCase().includes('vacation')) {
-                    triggerInputs = [
-                        { id: 'start_date', label: 'Start Date', type: 'date', required: true },
-                        { id: 'end_date', label: 'End Date', type: 'date', required: true },
-                        { id: 'leave_type', label: 'Leave Type', type: 'select', options: ['Annual', 'Sick', 'Personal', 'Unpaid'] },
-                        { id: 'reason', label: 'Reason', type: 'textarea', required: false }
-                    ];
-                } else {
-                    // Generic input form
-                    triggerInputs = [
-                        { id: 'input_data', label: 'Input Data', type: 'textarea', required: true, placeholder: 'Enter your data here...' }
-                    ];
-                }
+                triggerInputs = [
+                    { id: 'details', label: 'Details', type: 'textarea', required: true, placeholder: 'Enter details…' }
+                ];
             }
             
             // Build form HTML (with optional description from LLM)
@@ -9906,25 +10068,25 @@ Option 3"></textarea>
                 let fieldHtml = '';
                 switch(input.type) {
                     case 'textarea':
-                        fieldHtml = `<textarea id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" rows="3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}></textarea>`;
+                        fieldHtml = `<textarea id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" rows="3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}></textarea>`;
                         break;
                     case 'select':
-                        fieldHtml = `<select id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''}>
+                        fieldHtml = `<select id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'disabled' : ''}>
                             <option value="">Select...</option>
                             ${(input.options || []).map(opt => `<option value="${opt}">${opt}</option>`).join('')}
                         </select>`;
                         break;
                     case 'number':
-                        fieldHtml = `<input type="number" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}>`;
+                        fieldHtml = `<input type="number" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
                         break;
                     case 'date':
-                        fieldHtml = `<input type="date" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''}>`;
+                        fieldHtml = `<input type="date" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
                         break;
                     case 'email':
-                        fieldHtml = `<input type="email" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}>`;
+                        fieldHtml = `<input type="email" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
                         break;
                     default:
-                        fieldHtml = `<input type="text" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''}>`;
+                        fieldHtml = `<input type="text" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
                 }
                 
                 return `
@@ -9936,7 +10098,8 @@ Option 3"></textarea>
                 `;
             }).join('');
             
-            // Store input config for later
+            // Wire derived fields (auto-calculated) and store input config for later
+            setupProcessDerivedFields(triggerInputs);
             window._processInputs = triggerInputs;
         }
         
