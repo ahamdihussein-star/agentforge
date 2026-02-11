@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy import text
 
 # revision identifiers
-revision = '008'
-down_revision = '007'
+revision = '008_identity_fields'
+down_revision = '007_lab_mock_apis'
 branch_labels = None
 depends_on = None
 
