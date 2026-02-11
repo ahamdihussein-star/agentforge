@@ -164,6 +164,25 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 - **Anti-hallucination** for denied tasks
 - **Owner priority** - Creator always has full access
 
+### 8. Identity & User Directory ✨ (NEW)
+
+- **User Directory Service** - Unified identity resolution from any source
+- **Built-in Org Chart** - Manager/employee hierarchy management
+  - `manager_id` and `employee_id` on User model
+  - Department hierarchy with manager assignments
+  - Org chart tree visualization API
+- **Identity Provider Support**:
+  - Internal (built-in org chart)
+  - LDAP / Active Directory
+  - External HR API (SAP, Workday, BambooHR, etc.)
+  - Hybrid (internal + external enrichment)
+- **Process Identity Integration**:
+  - Auto-enrichment of process context with user directory data
+  - Dynamic approval assignee resolution (manager, department head, etc.)
+  - Management chain resolution for multi-level approvals
+- **Org Chart API** - Full CRUD for departments, manager assignments, bulk updates
+- **Process Permissions** - `process:execute`, `process:view_executions`, `process:cancel`, `process:manage_approvals`
+
 ---
 
 ## 📁 Key Files Reference
@@ -357,6 +376,7 @@ Before starting work:
 
 ### Active Work:
 - Documentation consolidation: create a single canonical English documentation source of truth.
+- **Identity & Org Chart System**: User Directory Service, org chart management, process identity integration (completed).
 
 ### Known Considerations:
 1. **Large UI File** - `index.html` is ~32K lines
@@ -364,6 +384,8 @@ Before starting work:
 3. **Task ID vs Name** - Always use NAME for matching
 4. **Process triggers** - Schedule/Webhook start modes are configurable but not fully operational end-to-end yet
 5. **Process files** - File upload persistence + output downloads need dedicated endpoints/UI
+6. **Identity UI** - Org chart management UI in admin portal needs frontend implementation
+7. **SAML/OIDC** - Models exist but service implementation pending
 
 ---
 

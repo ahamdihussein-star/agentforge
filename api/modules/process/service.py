@@ -39,7 +39,13 @@ from core.process.services import NotificationService, ApprovalService
 # Import Access Control for security integration
 from api.modules.access_control.service import AccessControlService
 
+# Import User Directory for identity resolution in processes
+from core.identity.service import UserDirectoryService
+
 logger = logging.getLogger(__name__)
+
+# Singleton User Directory Service for process identity resolution
+_user_directory = UserDirectoryService()
 
 
 def _approvers_to_ids(value: Any) -> List[str]:
@@ -264,17 +270,44 @@ class ProcessAPIService:
             # Log count only; do not log user_id or trigger_input (may contain PII)
             logger.info("Filtered %s denied tools for execution %s", len(denied_tool_ids), str(execution.id))
         
+        # =========================================================
+        # ENRICH: User Directory Integration
+        # =========================================================
+        # Enrich the process context with user directory data
+        # (manager, department, employee_id, etc.) so process nodes
+        # can use dynamic assignees like {{ context.manager_id }}
+        user_context = {}
+        try:
+            user_context = _user_directory.enrich_process_context(user_id, org_id)
+            logger.info(
+                "[ProcessIdentity] Enriched context for user %s: keys=%s",
+                user_id[:8] + "..." if user_id else "None",
+                list(user_context.keys())
+            )
+        except Exception as e:
+            logger.warning("[ProcessIdentity] Failed to enrich user context: %s", e)
+        
+        # Merge user directory data into trigger_input so process nodes can access it
+        enriched_trigger = self._ensure_dict(trigger_input or {})
+        if user_context:
+            # Add user context under a standard key that process nodes can reference
+            enriched_trigger["_user_context"] = user_context
+            # Also set common fields at top level if not already provided
+            for key in ["manager_id", "department_id", "employee_id"]:
+                if key not in enriched_trigger and user_context.get(key):
+                    enriched_trigger[key] = user_context[key]
+        
         # Build context with filtered tools (ensure dicts; DB may return JSON strings)
         context = ProcessContext(
             execution_id=str(execution.id),
             agent_id=agent_id,
             org_id=org_id,
             trigger_type=trigger_type,
-            trigger_input=self._ensure_dict(trigger_input or {}),
+            trigger_input=enriched_trigger,
             conversation_id=conversation_id,
             user_id=user_id,
-            user_name=user_info.get('name') if user_info else None,
-            user_email=user_info.get('email') if user_info else None,
+            user_name=user_context.get('display_name') or (user_info.get('name') if user_info else None),
+            user_email=user_context.get('email') or (user_info.get('email') if user_info else None),
             user_roles=user_info.get('roles', []) if user_info else [],
             user_groups=user_info.get('groups', []) if user_info else [],
             available_tool_ids=filtered_tool_ids,  # Filtered based on access control
@@ -1285,7 +1318,8 @@ class ProcessAPIService:
             llm=llm,
             tools=tools,
             notification_service=notification_service,
-            approval_service=approval_service
+            approval_service=approval_service,
+            user_directory=_user_directory,
         )
     
     def _to_response(self, execution) -> ProcessExecutionResponse:

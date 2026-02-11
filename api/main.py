@@ -4362,6 +4362,16 @@ except ImportError as e:
     import traceback
     traceback.print_exc()
 
+# Identity & Org Chart module
+try:
+    from api.modules.identity.router import router as identity_router
+    app.include_router(identity_router, prefix="/api")
+    print("✅ Identity & Org Chart module registered")
+except ImportError as e:
+    print(f"⚠️ Identity & Org Chart module not available: {e}")
+    import traceback
+    traceback.print_exc()
+
 # Fallback endpoints if process module not available
 if not PROCESS_MODULE_AVAILABLE:
     @app.post("/process/execute")

@@ -79,8 +79,39 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         assignee_ids_raw = self.get_config_value(node, 'assignee_ids', [])
         if not assignee_ids_raw:
             assignee_ids_raw = self.get_config_value(node, 'approvers', [])
-        # Resolve assignees: from tool (run tool to get approver IDs) or from platform (user/role/group) with optional interpolation
-        if assignee_source == 'tool':
+        # Resolve assignees: from User Directory, tool, or platform (user/role/group)
+        if assignee_source == 'user_directory' and self.deps and self.deps.user_directory:
+            # Use User Directory Service for dynamic assignee resolution
+            # This enables: dynamic_manager, department_manager, management_chain, role, group
+            logs.append(f"Resolving assignees via User Directory")
+            try:
+                directory_config = {
+                    "type": self.get_config_value(node, 'directory_assignee_type', 'dynamic_manager'),
+                    "user_ids": assignee_ids_raw if isinstance(assignee_ids_raw, list) else [],
+                    "role_ids": self.get_config_value(node, 'assignee_role_ids', []),
+                    "group_ids": self.get_config_value(node, 'assignee_group_ids', []),
+                    "department_id": self.get_config_value(node, 'assignee_department_id'),
+                    "level": self.get_config_value(node, 'management_level', 1),
+                    "expression": self.get_config_value(node, 'assignee_expression', ''),
+                }
+                process_context = {
+                    "user_id": context.user_id,
+                    "trigger_input": state.trigger_input or {},
+                    "variables": state.get_all(),
+                }
+                assignee_ids = self.deps.user_directory.resolve_process_assignee(
+                    directory_config, process_context, context.org_id
+                )
+                if assignee_ids:
+                    assignee_type = 'user'
+                    logs.append(f"Resolved {len(assignee_ids)} assignees from User Directory")
+                else:
+                    logs.append("Warning: User Directory resolved 0 assignees, falling back to 'any'")
+                    assignee_type = 'any'
+            except Exception as e:
+                logs.append(f"Warning: User Directory resolution failed: {e}, falling back")
+                assignee_ids = _to_assignee_id_list(assignee_ids_raw)
+        elif assignee_source == 'tool':
             tool_id = self.get_config_value(node, 'assignee_tool_id') or ''
             if not tool_id:
                 logs_early = [f"Creating approval request: {title}"]

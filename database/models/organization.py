@@ -41,6 +41,46 @@ class Organization(Base):
     # LDAP/AD settings
     ldap_config_id = Column(UUID, nullable=True)
     
+    # ==========================================================================
+    # USER DIRECTORY / IDENTITY SETTINGS
+    # ==========================================================================
+    # Determines where user attributes (manager, employee_id, department, etc.)
+    # are resolved from. This is critical for process automation (approvals, etc.)
+    #
+    # Values: "internal" (default), "ldap", "hr_api", "hybrid"
+    #  - internal: Use built-in org chart (users.manager_id, departments)
+    #  - ldap: Resolve from LDAP/AD (uses ldap_config_id)
+    #  - hr_api: Resolve from external HR system API
+    #  - hybrid: Use internal as primary, fall back to external
+    directory_source = Column(String(20), default="internal")
+    
+    # HR API Configuration (when directory_source = "hr_api" or "hybrid")
+    # Stored as JSON: {
+    #   "base_url": "https://hr-api.company.com/v1",
+    #   "auth_type": "bearer" | "api_key" | "oauth2",
+    #   "auth_config": { "token": "..." } | { "api_key": "..." } | { "client_id": "...", "client_secret": "..." },
+    #   "endpoints": {
+    #     "get_user": "/employees/{employee_id}",
+    #     "get_manager": "/employees/{employee_id}/manager",
+    #     "get_department_members": "/departments/{department_id}/members",
+    #     "get_direct_reports": "/employees/{employee_id}/direct-reports",
+    #     "search_users": "/employees/search"
+    #   },
+    #   "attribute_mapping": {
+    #     "employee_id": "employeeId",
+    #     "email": "workEmail",
+    #     "first_name": "firstName",
+    #     "last_name": "lastName",
+    #     "manager_id": "managerId",
+    #     "department": "departmentName",
+    #     "job_title": "jobTitle"
+    #   },
+    #   "sync_enabled": true,
+    #   "sync_interval_hours": 24,
+    #   "cache_ttl_minutes": 60
+    # }
+    hr_api_config = Column(JSON, default=None)
+    
     # Limits
     max_users = Column(String(10), default="100")  # Integer as string
     max_agents = Column(String(10), default="50")

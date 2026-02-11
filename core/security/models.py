@@ -92,6 +92,13 @@ class Permission(str, Enum):
     CHAT_VIEW_ALL = "chat:view_all"
     CHAT_DELETE = "chat:delete"
     
+    # Process permissions
+    PROCESS_EXECUTE = "process:execute"
+    PROCESS_VIEW_EXECUTIONS = "process:view_executions"
+    PROCESS_VIEW_ALL_EXECUTIONS = "process:view_all_executions"
+    PROCESS_CANCEL = "process:cancel"
+    PROCESS_MANAGE_APPROVALS = "process:manage_approvals"
+    
     # ============================================
     # ANALYTICS & AUDIT CATEGORY
     # ============================================
@@ -143,6 +150,9 @@ AI_AGENT_PERMISSIONS = [
     "tools:view", "tools:create", "tools:edit", "tools:delete", "tools:execute",
     # Chat
     "chat:use", "chat:view_all", "chat:delete",
+    # Process
+    "process:execute", "process:view_executions", "process:view_all_executions",
+    "process:cancel", "process:manage_approvals",
 ]
 
 # 3. Analytics & Audit Permissions
@@ -291,6 +301,10 @@ class Organization(BaseModel):
     # LDAP/AD settings
     ldap_config_id: Optional[str] = None
     
+    # User Directory / Identity Settings
+    directory_source: str = "internal"  # internal, ldap, hr_api, hybrid
+    hr_api_config: Optional[Dict[str, Any]] = None  # HR API configuration
+    
     # Limits
     max_users: int = 100
     max_agents: int = 50
@@ -382,6 +396,10 @@ class User(BaseModel):
     department_id: Optional[str] = None
     group_ids: List[str] = []
     role_ids: List[str] = []
+    
+    # Organizational Hierarchy
+    manager_id: Optional[str] = None  # Direct reporting manager (User ID)
+    employee_id: Optional[str] = None  # HR system employee identifier
     
     # Portal Access
     has_admin_access: bool = False    # Can access Admin Portal (/ui)
@@ -525,6 +543,9 @@ DEFAULT_ROLES = [
             Permission.TOOLS_VIEW.value, Permission.TOOLS_CREATE.value, Permission.TOOLS_EDIT.value,
             Permission.TOOLS_DELETE.value, Permission.TOOLS_EXECUTE.value,
             Permission.CHAT_USE.value, Permission.CHAT_VIEW_ALL.value, Permission.CHAT_DELETE.value,
+            Permission.PROCESS_EXECUTE.value, Permission.PROCESS_VIEW_EXECUTIONS.value,
+            Permission.PROCESS_VIEW_ALL_EXECUTIONS.value, Permission.PROCESS_CANCEL.value,
+            Permission.PROCESS_MANAGE_APPROVALS.value,
             Permission.AUDIT_VIEW.value, Permission.AUDIT_EXPORT.value,
             Permission.ANALYTICS_VIEW.value, Permission.REPORTS_GENERATE.value,
             Permission.DEMO_ACCESS.value, Permission.DEMO_CREATE.value, Permission.DEMO_SHARE.value,

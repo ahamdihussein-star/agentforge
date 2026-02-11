@@ -63,6 +63,10 @@ class User(Base):
     department_id = Column(UUID, nullable=True, index=True)
     group_ids = Column(JSONArray, default=list)  # List of group UUIDs
     
+    # Organizational Hierarchy
+    manager_id = Column(UUID, nullable=True, index=True)  # Direct reporting manager (User ID)
+    employee_id = Column(String(100), nullable=True, index=True)  # HR system employee identifier
+    
     # External Auth
     auth_provider = Column(String(50), default='local')  # local, ldap, oauth, saml
     external_id = Column(String(255), index=True)  # External system user ID
@@ -102,6 +106,10 @@ class User(Base):
             'status': self.status,
             'email_verified': self.email_verified,
             'mfa_enabled': self.mfa_enabled,
+            'manager_id': str(self.manager_id) if self.manager_id else None,
+            'employee_id': self.employee_id,
+            'department_id': str(self.department_id) if self.department_id else None,
+            'job_title': self.job_title,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 

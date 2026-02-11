@@ -41,6 +41,7 @@ class ExecutorDependencies:
         db_connections: Optional[Dict[str, Any]] = None,
         notification_service: Optional[Any] = None,
         approval_service: Optional[Any] = None,
+        user_directory: Optional[Any] = None,
     ):
         """
         Initialize dependencies
@@ -52,6 +53,7 @@ class ExecutorDependencies:
             db_connections: Map of connection_id -> database connections
             notification_service: Service for sending notifications
             approval_service: Service for handling approvals
+            user_directory: User Directory Service for identity resolution
         """
         self.llm = llm
         self.tools = tools or {}
@@ -59,6 +61,7 @@ class ExecutorDependencies:
         self.db_connections = db_connections or {}
         self.notification_service = notification_service
         self.approval_service = approval_service
+        self.user_directory = user_directory
     
     def get_tool(self, tool_id: str) -> Optional['BaseTool']:
         """Get a tool by ID"""
