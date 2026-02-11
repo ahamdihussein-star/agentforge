@@ -1818,10 +1818,13 @@
                 </div>
             </div>
             <nav class="flex-1 p-3 space-y-1">
+                <button onclick="navigate('dashboard')" id="nav-dashboard" class="sidebar-item active w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
+                    <span>🏠</span><span>Dashboard</span>
+                </button>
                 <button onclick="navigate('chat')" id="nav-chat" data-permission="chat:use" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <span>💬</span><span>Chat</span>
                 </button>
-                <button onclick="navigate('agents')" id="nav-agents" data-permission="agents:view" class="sidebar-item active w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
+                <button onclick="navigate('agents')" id="nav-agents" data-permission="agents:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <img src="data:image/png;base64,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" alt="" class="w-5 h-5 nav-icon"><span>Agent Hub</span>
                 </button>
                 <button onclick="navigate('tools')" id="nav-tools" data-permission="tools:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
@@ -1834,10 +1837,7 @@
                     <span>🧪</span><span>Lab</span>
                     <span class="ml-auto text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">New</span>
                 </button>
-                <button onclick="openApprovalDashboard()" id="nav-approvals" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
-                    <span>📋</span><span>Approvals</span>
-                    <span id="approval-badge" class="ml-auto text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded hidden">0</span>
-                </button>
+                <!-- Approvals removed from main nav - accessible via agent workflow pages -->
                 <button onclick="navigate('settings')" id="nav-settings" data-permission="system:settings" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <span>⚙️</span><span>Settings</span>
                 </button>
@@ -1878,8 +1878,105 @@
         <!-- Main Content -->
         <main class="flex-1 flex flex-col" style="min-width:0;height:100%;max-height:100%;padding-top:0;" id="main-content">
             
+            <!-- Dashboard Landing Page -->
+            <section id="page-dashboard" class="flex-1 overflow-y-auto overflow-x-hidden">
+                <style>
+                    .dash-hero { position:relative; padding:60px 40px 50px; overflow:hidden; background:linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%); }
+                    .dash-hero::before { content:''; position:absolute; top:-40%; right:-20%; width:600px; height:600px; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--accent-primary) 12%, transparent), transparent 70%); animation:dashPulse 6s ease-in-out infinite; }
+                    .dash-hero::after { content:''; position:absolute; bottom:-30%; left:-10%; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--accent-secondary) 10%, transparent), transparent 70%); animation:dashPulse 8s ease-in-out infinite reverse; }
+                    @keyframes dashPulse { 0%,100%{transform:scale(1);opacity:0.6} 50%{transform:scale(1.15);opacity:1} }
+                    @keyframes dashFadeUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+                    @keyframes dashFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+                    @keyframes dashGlow { 0%,100%{box-shadow:0 0 20px color-mix(in srgb, var(--accent-primary) 20%, transparent)} 50%{box-shadow:0 0 40px color-mix(in srgb, var(--accent-primary) 40%, transparent)} }
+                    .dash-title { position:relative; z-index:1; animation:dashFadeUp 0.8s ease both; }
+                    .dash-subtitle { position:relative; z-index:1; animation:dashFadeUp 0.8s ease 0.15s both; }
+                    .dash-stats { position:relative; z-index:1; animation:dashFadeUp 0.8s ease 0.3s both; }
+                    .dash-grid { padding:30px 40px 60px; animation:dashFadeUp 0.8s ease 0.45s both; }
+                    .dash-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:20px; padding:28px; transition:all 0.3s cubic-bezier(.4,0,.2,1); cursor:pointer; position:relative; overflow:hidden; }
+                    .dash-card:hover { transform:translateY(-6px); box-shadow:var(--shadow-md); border-color:var(--accent-primary); }
+                    .dash-card::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; border-radius:20px 20px 0 0; background:var(--accent-gradient); opacity:0; transition:opacity 0.3s; }
+                    .dash-card:hover::before { opacity:1; }
+                    .dash-card-icon { width:56px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:1.6rem; margin-bottom:18px; animation:dashFloat 4s ease-in-out infinite; }
+                    .dash-stat-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:16px; padding:20px 24px; display:flex; align-items:center; gap:16px; min-width:180px; animation:dashGlow 4s ease-in-out infinite; }
+                    .dash-stat-num { font-size:2rem; font-weight:800; background:var(--accent-gradient); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; line-height:1; }
+                    .dash-node { position:absolute; border-radius:50%; opacity:0.08; animation:dashFloat 5s ease-in-out infinite; }
+                </style>
+                
+                <!-- Hero Section -->
+                <div class="dash-hero">
+                    <!-- Floating decorative nodes -->
+                    <div class="dash-node" style="width:12px;height:12px;background:var(--accent-primary);top:20%;left:15%;animation-delay:0s;"></div>
+                    <div class="dash-node" style="width:8px;height:8px;background:var(--success);top:60%;left:80%;animation-delay:1s;"></div>
+                    <div class="dash-node" style="width:16px;height:16px;background:var(--accent-secondary);top:30%;right:25%;animation-delay:2s;"></div>
+                    <div class="dash-node" style="width:10px;height:10px;background:var(--warning);bottom:25%;left:40%;animation-delay:0.5s;"></div>
+                    
+                    <div class="dash-title" style="margin-bottom:8px;">
+                        <div style="font-size:0.8rem; color:var(--accent-primary); font-weight:600; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:12px;">Welcome to</div>
+                        <h1 style="font-size:2.8rem; font-weight:800; color:var(--text-primary); line-height:1.1; margin:0;">
+                            Agent<span style="background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Forge</span>
+                        </h1>
+                    </div>
+                    <p class="dash-subtitle" style="font-size:1.1rem; color:var(--text-secondary); max-width:500px; margin-top:12px; line-height:1.6;">
+                        Build, deploy, and manage intelligent AI agents that transform how your organization works.
+                    </p>
+                    
+                    <!-- Quick Stats -->
+                    <div class="dash-stats" style="display:flex; gap:16px; margin-top:32px; flex-wrap:wrap;">
+                        <div class="dash-stat-card">
+                            <div class="dash-stat-num" id="dash-stat-agents">0</div>
+                            <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Agents</div><div style="font-size:0.7rem; color:var(--text-muted);">Published</div></div>
+                        </div>
+                        <div class="dash-stat-card">
+                            <div class="dash-stat-num" id="dash-stat-tools">0</div>
+                            <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Tools</div><div style="font-size:0.7rem; color:var(--text-muted);">Connected</div></div>
+                        </div>
+                        <div class="dash-stat-card">
+                            <div class="dash-stat-num" id="dash-stat-users">0</div>
+                            <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Users</div><div style="font-size:0.7rem; color:var(--text-muted);">Active</div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Quick Actions Grid -->
+                <div class="dash-grid">
+                    <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:20px;">Quick Actions</h2>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:20px;">
+                        <div class="dash-card" onclick="navigate('create')">
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 15%, transparent);"><span>🤖</span></div>
+                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Create Agent</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Design a new AI assistant or workflow automation with our visual builder.</div>
+                        </div>
+                        <div class="dash-card" onclick="navigate('agents')">
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-secondary) 15%, transparent); animation-delay:0.5s;"><span>🔗</span></div>
+                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Agent Hub</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Manage, configure, and monitor all your published AI agents.</div>
+                        </div>
+                        <div class="dash-card" onclick="navigate('chat')">
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--success) 15%, transparent); animation-delay:1s;"><span>💬</span></div>
+                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Chat</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Test and interact with your agents in real-time conversations.</div>
+                        </div>
+                        <div class="dash-card" onclick="navigate('tools')">
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--warning) 15%, transparent); animation-delay:1.5s;"><span>🔧</span></div>
+                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Tools</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Create APIs, webhooks, and knowledge bases to empower your agents.</div>
+                        </div>
+                        <div class="dash-card" onclick="window.location.href='/lab'">
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--danger) 15%, transparent); animation-delay:2s;"><span>🧪</span></div>
+                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Lab</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Experiment with agents in a sandbox environment before going live.</div>
+                        </div>
+                        <div class="dash-card" onclick="navigate('security')">
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 10%, transparent); animation-delay:2.5s;"><span>🔐</span></div>
+                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Security</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Manage users, roles, groups, and enterprise security settings.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
             <!-- Agents Page -->
-            <section id="page-agents" class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6">
+            <section id="page-agents" class="hidden flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <h2 class="text-xl md:text-2xl font-bold flex items-center gap-3">
                         <img src="data:image/png;base64,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" alt="" class="w-7 h-7">
@@ -4881,8 +4978,9 @@ Example: I need an HR agent that can:
 
     <!-- Mobile Bottom Navigation -->
     <nav class="mobile-nav">
+        <button onclick="navigate('dashboard')" id="mob-dashboard" class="active"><span>🏠</span><span>Home</span></button>
         <button onclick="navigate('chat')" id="mob-chat" data-permission="chat:use" class=""><span>💬</span><span>Chat</span></button>
-        <button onclick="navigate('agents')" id="mob-agents" data-permission="agents:view" class="active"><span>🔗</span><span>Hub</span></button>
+        <button onclick="navigate('agents')" id="mob-agents" data-permission="agents:view" class=""><span>🔗</span><span>Hub</span></button>
         <button onclick="navigate('create')" id="mob-create" data-permission="agents:create" class=""><span>🔨</span><span>Studio</span></button>
         <button onclick="navigate('tools')" id="mob-tools" data-permission="tools:view" class=""><span>🧩</span><span>Tools</span></button>
         <button onclick="navigate('settings')" id="mob-settings" data-permission="system:settings" class=""><span>⚙️</span><span>Settings</span></button>
@@ -8228,6 +8326,7 @@ Option 3"></textarea>
             if (updateHash) window.location.hash = p;
             
             // Page-specific initialization
+            if(p==='dashboard') loadDashboardStats();
             if(p==='agents')loadAgents();
             if(p==='tools')loadTools();
             if(p==='chat') { if (!window._skipChatAgentLoad) loadChatAgents(); window._skipChatAgentLoad = false; }
@@ -8245,6 +8344,32 @@ Option 3"></textarea>
             if(p==='settings'){ loadSettings(); updateThemeButtons(localStorage.getItem('agentforge-theme') || 'dark'); }
             if(p==='profile') loadProfileInfo();
             if(p==='demo')initDemoLab();
+        }
+        
+        // Load dashboard statistics
+        async function loadDashboardStats() {
+            try {
+                const headers = getAuthHeaders();
+                // Fetch stats in parallel
+                const [agentsRes, toolsRes, usersRes] = await Promise.allSettled([
+                    fetch(API + '/api/agents?status=published', { headers }).then(r => r.ok ? r.json() : { agents: [] }),
+                    fetch(API + '/api/tools', { headers }).then(r => r.ok ? r.json() : { tools: [] }),
+                    fetch(API + '/api/security/users', { headers }).then(r => r.ok ? r.json() : [])
+                ]);
+                
+                const agents = agentsRes.status === 'fulfilled' ? (agentsRes.value.agents || agentsRes.value || []) : [];
+                const tools = toolsRes.status === 'fulfilled' ? (toolsRes.value.tools || toolsRes.value || []) : [];
+                const users = usersRes.status === 'fulfilled' ? (Array.isArray(usersRes.value) ? usersRes.value : usersRes.value.users || []) : [];
+                
+                const agentEl = document.getElementById('dash-stat-agents');
+                const toolEl = document.getElementById('dash-stat-tools');
+                const userEl = document.getElementById('dash-stat-users');
+                if (agentEl) agentEl.textContent = Array.isArray(agents) ? agents.length : 0;
+                if (toolEl) toolEl.textContent = Array.isArray(tools) ? tools.length : 0;
+                if (userEl) userEl.textContent = Array.isArray(users) ? users.length : 0;
+            } catch (e) {
+                console.error('Dashboard stats error:', e);
+            }
         }
         
         // Handle browser back/forward buttons
