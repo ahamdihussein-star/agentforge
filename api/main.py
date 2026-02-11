@@ -11884,6 +11884,10 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             
             # Send conversation ID
             yield f"data: {json.dumps({'type': 'conversation_id', 'content': conversation.id})}\n\n"
+
+            # Always send an immediate progress signal so the UI doesn't look stuck
+            # (SSE can appear silent until the first yield)
+            yield f"data: {json.dumps({'type': 'thinking', 'content': msgs.get('preparing', 'Preparing response...')})}\n\n"
             
             # Add user message
             user_msg = ConversationMessage(role="user", content=request.message)
@@ -12063,13 +12067,16 @@ If user asks "مين مدير فادي" respond:
 سأعرض اسم المدير"""
 
             try:
-                thinking_result = await call_llm_with_tools(
-                    [
-                        {"role": "system", "content": thinking_system},
-                        {"role": "user", "content": request.message}
-                    ],
-                    [],  # no tools
-                    agent.model_id
+                thinking_result = await asyncio.wait_for(
+                    call_llm_with_tools(
+                        [
+                            {"role": "system", "content": thinking_system},
+                            {"role": "user", "content": request.message}
+                        ],
+                        [],  # no tools
+                        agent.model_id
+                    ),
+                    timeout=12.0
                 )
                 thinking_text = thinking_result.get("content", "").strip()
                 if thinking_text:
@@ -12102,11 +12109,19 @@ If user asks "مين مدير فادي" respond:
                     yield f"data: {json.dumps({'type': 'thinking', 'content': msgs['processing']})}\n\n"
                 
                 # Call LLM using the existing function (messages, tools, model_id)
-                llm_result = await call_llm_with_tools(
-                    messages, 
-                    tool_definitions if action_tools else [],
-                    agent.model_id
-                )
+                try:
+                    llm_result = await asyncio.wait_for(
+                        call_llm_with_tools(
+                            messages,
+                            tool_definitions if action_tools else [],
+                            agent.model_id
+                        ),
+                        timeout=90.0
+                    )
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'type': 'error', 'content': 'LLM request timed out. Please try again in a moment.'})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    return
                 
                 content = llm_result.get("content", "")
                 tool_calls = llm_result.get("tool_calls", [])
