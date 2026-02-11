@@ -79,6 +79,10 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         assignee_ids_raw = self.get_config_value(node, 'assignee_ids', [])
         if not assignee_ids_raw:
             assignee_ids_raw = self.get_config_value(node, 'approvers', [])
+
+        # Initialize logs early so all resolution branches can append to it
+        logs = [f"Creating approval request: {title}"]
+
         # Resolve assignees: from User Directory, tool, or platform (user/role/group)
         if assignee_source == 'user_directory' and self.deps and self.deps.user_directory:
             # Use User Directory Service for dynamic assignee resolution
@@ -195,8 +199,6 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         review_data_expr = self.get_config_value(node, 'review_data_expression')
         form_fields = self.get_config_value(node, 'form_fields', [])
         priority = self.get_config_value(node, 'priority', 'normal')
-        
-        logs = [f"Creating approval request: {title}"]
         
         # Interpolate text fields
         title = state.interpolate_string(title)

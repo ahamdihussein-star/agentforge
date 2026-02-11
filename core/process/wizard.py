@@ -256,13 +256,20 @@ Node config rules:
   Use formulas like: daysBetween(startDate, endDate) or concat(firstName, " ", lastName).
 - For profile-prefilled fields, include:
   - readOnly: true
-  - prefill: {{ "source": "currentUser", "key": "email|name|id|roles|groups|orgId" }}
+  - prefill: {{ "source": "currentUser", "key": "<key>" }}
+  - Basic keys: email, name, id, roles, groups, orgId
+  - Extended identity keys: managerId, managerName, managerEmail, departmentId, departmentName, jobTitle, employeeId
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
+  - For **manager approvals** (e.g., leave, expenses, any process mentioning "manager", "supervisor"):
+    use assignee_source: "user_directory", directory_assignee_type: "dynamic_manager", assignee_ids: [].
+  - For **department head approvals**: use assignee_source: "user_directory", directory_assignee_type: "department_manager".
+  - For **static assignees** (specific named users): use assignee_source: "platform_user".
+  - For role/group-based: use assignee_source: "role" or "group".
 - notification.config must include: channel, recipient, template. Prefer recipient from form field like {{{{email}}}} if present.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
 - action.config MUST include: actionType.
@@ -773,7 +780,12 @@ class ProcessWizard:
             fields = cfg.get("fields") if isinstance(cfg.get("fields"), list) else []
             used = set()
             mapping: Dict[str, str] = {}
-            allowed_prefill_keys = {"id", "name", "email", "roles", "groups", "orgId"}
+            allowed_prefill_keys = {
+                "id", "name", "email", "roles", "groups", "orgId",
+                # Extended identity keys (from User Directory)
+                "managerId", "managerName", "managerEmail",
+                "departmentId", "departmentName", "jobTitle", "employeeId",
+            }
             safe_taxonomies = load_safe_taxonomies()
 
             for f in fields:
@@ -1145,19 +1157,32 @@ class ProcessWizard:
 
         # Approval-oriented fallback
         if any(w in goal_lower for w in ["approval", "approve", "review", "manager"]):
-            nodes.append({
-                "id": "node_2",
-                "type": "approval",
-                "name": "Approval",
-                "x": 400,
-                "y": 240,
-                "config": {
-                    "message": "Please review and approve this request.",
+            # Use user_directory for manager-related goals; platform_user otherwise
+            is_manager_approval = any(w in goal_lower for w in ["manager", "supervisor", "مدير", "موافقة المدير"])
+            approval_config = {
+                "message": "Please review and approve this request.",
+                "timeout_hours": 24,
+            }
+            if is_manager_approval:
+                approval_config.update({
+                    "assignee_source": "user_directory",
+                    "directory_assignee_type": "dynamic_manager",
+                    "assignee_type": "user",
+                    "assignee_ids": [],
+                })
+            else:
+                approval_config.update({
                     "assignee_source": "platform_user",
                     "assignee_type": "user",
                     "assignee_ids": [],
-                    "timeout_hours": 24,
-                },
+                })
+            nodes.append({
+                "id": "node_2",
+                "type": "approval",
+                "name": "Manager Approval" if is_manager_approval else "Approval",
+                "x": 400,
+                "y": 240,
+                "config": approval_config,
             })
             edges.append({"from": "node_1", "to": "node_2"})
             nodes.append({

@@ -84,10 +84,16 @@ Purpose: pause until an approver approves/rejects.
 
 Properties (`approval.config`):
 - `message` (string): what needs approval (business-friendly)
-- `assignee_source` (string): `platform_user` | `role` | `group` | `tool`
+- `assignee_source` (string): `platform_user` | `role` | `group` | `tool` | `user_directory`
 - `assignee_type` (string): `user` | `role` | `group`
-- `assignee_ids` (array of strings): user/role/group ids (can be empty if source=tool)
+- `assignee_ids` (array of strings): user/role/group ids (can be empty if source=tool or user_directory)
 - `timeout_hours` (number)
+
+When `assignee_source` is `user_directory` (recommended for manager/department approvals):
+- `directory_assignee_type` (string): `dynamic_manager` | `department_manager` | `management_chain` | `role` | `group` | `department_members`
+- `management_level` (number): only for `management_chain`, default 1
+- `assignee_ids` can be empty — the engine resolves assignees automatically from the organization's configured identity source.
+See **PROCESS_BUILDER_KB_IDENTITY.md** for full details.
 
 ### 6) Notification — `notification`
 Purpose: send message to user (email/slack/teams/sms).
