@@ -3057,12 +3057,99 @@
         function humanizeFieldLabel(id) {
             const raw = String(id || '').trim();
             if (!raw) return '';
+            // Map well-known technical keys to business-friendly labels
+            const knownLabels = {
+                'trigger_input': 'Submitted Information',
+                'requested_by': 'Requested By',
+                'requester_email': 'Requester Email',
+                'requester_name': 'Requester Name',
+                'requester_id': 'Requester',
+                'manager_id': 'Manager',
+                'manager_name': 'Manager Name',
+                'manager_email': 'Manager Email',
+                'department_id': 'Department',
+                'department_name': 'Department',
+                'employee_id': 'Employee ID',
+                'job_title': 'Job Title',
+                'org_id': 'Organization',
+                'user_id': 'User',
+                'created_at': 'Submitted On',
+                'updated_at': 'Last Updated',
+                'start_date': 'Start Date',
+                'end_date': 'End Date',
+                'due_date': 'Due Date',
+                'total_amount': 'Total Amount',
+                'is_manager': 'Is Manager',
+                'group_ids': 'Groups',
+                'role_ids': 'Roles',
+                '_user_context': null, // Hide internal context
+            };
+            const lower = raw.toLowerCase();
+            if (lower in knownLabels) {
+                return knownLabels[lower] === null ? '' : knownLabels[lower];
+            }
             return raw
                 .replace(/[_-]+/g, ' ')
                 .replace(/([a-z])([A-Z])/g, '$1 $2')
                 .replace(/\s+/g, ' ')
                 .trim()
-                .replace(/^./, c => c.toUpperCase());
+                .split(' ')
+                .map(w => w ? (w[0].toUpperCase() + w.slice(1)) : '')
+                .join(' ');
+        }
+
+        /** Map technical node/step types to business-friendly labels */
+        function humanizeNodeType(type) {
+            const map = {
+                'human_task': 'Task',
+                'approval': 'Approval',
+                'condition': 'Decision',
+                'notification': 'Notification',
+                'email': 'Email',
+                'trigger': 'Start',
+                'form': 'Form',
+                'start': 'Start',
+                'end': 'Complete',
+                'tool': 'Automated Action',
+                'script': 'Automated Action',
+                'api_call': 'Integration',
+                'webhook': 'Integration',
+                'delay': 'Wait',
+                'timer': 'Scheduled',
+                'parallel': 'Parallel Steps',
+                'loop': 'Repeated Step',
+                'subprocess': 'Sub-Process',
+            };
+            const key = String(type || '').toLowerCase().trim();
+            return map[key] || humanizeFieldLabel(key) || 'Step';
+        }
+
+        /** Map technical urgency values to business-friendly labels */
+        function humanizeUrgency(urgency) {
+            const map = {
+                'high': 'Urgent',
+                'critical': 'Critical',
+                'normal': 'Normal',
+                'medium': 'Normal',
+                'low': 'Low Priority',
+            };
+            const key = String(urgency || '').toLowerCase().trim();
+            return map[key] || urgency || 'Normal';
+        }
+
+        /** Sanitize error messages — hide technical details from business users */
+        function friendlyErrorMessage(rawMsg, fallback) {
+            const msg = String(rawMsg || '').trim();
+            const fb = fallback || 'Something went wrong. Please try again.';
+            if (!msg) return fb;
+            // Hide internal/technical error patterns
+            if (/traceback|stack trace|internal server/i.test(msg)) return fb;
+            if (/sqlalchemy|database|sql|connection refused|errno/i.test(msg)) return 'A system error occurred. Please try again or contact support.';
+            if (/500|502|503|504/.test(msg) && msg.length < 20) return fb;
+            if (/keyerror|typeerror|attributeerror|valueerror|importerror/i.test(msg)) return fb;
+            if (/null|undefined|NoneType/i.test(msg) && msg.length < 50) return fb;
+            // Let through business-friendly messages
+            return msg;
         }
 
         // Check authentication on load
@@ -3860,8 +3947,8 @@
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (response.statusText || 'Failed to start workflow');
-                    throw new Error(String(msg || 'Failed to start workflow'));
+                    const rawMsg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : '';
+                    throw new Error(friendlyErrorMessage(rawMsg, 'Failed to start this process. Please try again.'));
                 }
                 const executionId = data?.id || data?.execution_id || data?.executionId;
                 showToast('Workflow started', 'success');
@@ -4326,14 +4413,17 @@
                 const fieldId = _wfElId(input.id);
                 const descHtml = input.description ? `<p class="text-xs mt-0.5 mb-1" style="color: var(--text-muted);">${escapeHtml(input.description)}</p>` : '';
                 const readOnly = !!input.readOnly || (input.derived && input.derived.expression);
+                const isPrefilled = !!input.prefill;
+                const isDerived = !!(input.derived && input.derived.expression);
+                const readOnlyStyle = readOnly ? 'style="opacity: 0.7; cursor: not-allowed; background: rgba(255,255,255,0.03);"' : '';
 
                 let fieldHtml = '';
                 switch (input.type) {
                     case 'textarea':
-                        fieldHtml = `<textarea id="${fieldId}" class="modal-form-input" rows="3" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''}></textarea>`;
+                        fieldHtml = `<textarea id="${fieldId}" class="modal-form-input" rows="3" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''} ${readOnlyStyle}></textarea>`;
                         break;
                     case 'select':
-                        fieldHtml = `<select id="${fieldId}" class="modal-form-input" ${input.required ? 'required' : ''} ${readOnly ? 'disabled' : ''}>
+                        fieldHtml = `<select id="${fieldId}" class="modal-form-input" ${input.required ? 'required' : ''} ${readOnly ? 'disabled' : ''} ${readOnlyStyle}>
                             <option value="">Select…</option>
                             ${(input.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
                         </select>`;
@@ -4342,16 +4432,24 @@
                         fieldHtml = `<input type="file" id="${fieldId}" class="modal-form-input" ${input.required ? 'required' : ''}>`;
                         break;
                     case 'number':
-                        fieldHtml = `<input type="number" id="${fieldId}" class="modal-form-input" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''}>`;
+                        fieldHtml = `<input type="number" id="${fieldId}" class="modal-form-input" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''} ${readOnlyStyle}>`;
                         break;
                     case 'date':
-                        fieldHtml = `<input type="date" id="${fieldId}" class="modal-form-input" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''}>`;
+                        fieldHtml = `<input type="date" id="${fieldId}" class="modal-form-input" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''} ${readOnlyStyle}>`;
                         break;
                     case 'email':
-                        fieldHtml = `<input type="email" id="${fieldId}" class="modal-form-input" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''}>`;
+                        fieldHtml = `<input type="email" id="${fieldId}" class="modal-form-input" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''} ${readOnlyStyle}>`;
                         break;
                     default:
-                        fieldHtml = `<input type="text" id="${fieldId}" class="modal-form-input" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''}>`;
+                        fieldHtml = `<input type="text" id="${fieldId}" class="modal-form-input" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''} ${readOnlyStyle}>`;
+                }
+
+                // Helper text for read-only fields
+                let readOnlyHint = '';
+                if (isPrefilled) {
+                    readOnlyHint = `<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.75rem; color:var(--text-muted); margin-top:3px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Auto-filled from your profile</span>`;
+                } else if (isDerived) {
+                    readOnlyHint = `<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.75rem; color:var(--text-muted); margin-top:3px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Automatically calculated</span>`;
                 }
 
                 return `
@@ -4359,6 +4457,7 @@
                         <label class="modal-form-label">${escapeHtml(input.label || input.id)} ${required}</label>
                         ${descHtml}
                         ${fieldHtml}
+                        ${readOnlyHint}
                     </div>
                 `;
             }).join('');
@@ -4430,8 +4529,8 @@
                 try { data = await response.json(); } catch (_) { data = null; }
 
                 if (!response.ok) {
-                    const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (response.statusText || 'Failed to start workflow');
-                    throw new Error(String(msg || 'Failed to start workflow'));
+                    const rawMsg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : '';
+                    throw new Error(friendlyErrorMessage(rawMsg, 'Failed to start this process. Please try again.'));
                 }
 
                 const executionId = data?.id || data?.execution_id || data?.executionId;
@@ -4467,8 +4566,8 @@
             let data = null;
             try { data = await res.json(); } catch (_) { data = null; }
             if (!res.ok) {
-                const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to upload file');
-                throw new Error(String(msg || 'Failed to upload file'));
+                const rawMsg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : '';
+                throw new Error(friendlyErrorMessage(rawMsg, 'Failed to upload file. Please try again.'));
             }
             const f = (data && data.file) ? data.file : data;
             if (!f || !f.id) throw new Error('File upload failed.');
@@ -4734,12 +4833,12 @@
                     headers: { ...getAuthHeaders() }
                 });
                 if (!res.ok) {
-                    let msg = res.statusText || 'Failed to download file';
+                    let rawMsg = '';
                     try {
                         const data = await res.json().catch(() => null);
-                        if (data && (data.detail || data.message || data.error)) msg = data.detail || data.message || data.error;
+                        if (data && (data.detail || data.message || data.error)) rawMsg = data.detail || data.message || data.error;
                     } catch (_) {}
-                    showToast(String(msg || 'Failed to download file'), 'error');
+                    showToast(friendlyErrorMessage(rawMsg, 'Failed to download file. Please try again.'), 'error');
                     return;
                 }
                 const blob = await res.blob();
@@ -4827,12 +4926,12 @@
                 const stCls = _statusPillClass(stColor || stLabel);
                 return `
                     <div class="kv" style="margin-bottom: 10px;">
-                        <div class="k">${escapeHtml(s.step_type || s.node_type || 'Step')} • #${escapeHtml(s.order ?? s.execution_order ?? '')}</div>
+                        <div class="k">${escapeHtml(humanizeNodeType(s.step_type || s.node_type))} • Step ${escapeHtml(s.order ?? s.execution_order ?? '')}</div>
                         <div class="v" style="font-weight: 750;">${escapeHtml(s.step_name || s.node_name || 'Step')}</div>
                         <div style="margin-top: 8px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                             <span class="status-pill ${stCls}"><span class="dot"></span>${escapeHtml(stLabel || 'Status')}</span>
                             ${s.duration_display ? `<span style="color: var(--text-muted); font-size: 0.85rem;">${escapeHtml(s.duration_display)}</span>` : ''}
-                            ${s.error ? `<span style="color: var(--error); font-size: 0.85rem;">${escapeHtml(String(s.error))}</span>` : ''}
+                            ${s.error ? `<span style="color: var(--error); font-size: 0.85rem;">${escapeHtml(friendlyErrorMessage(String(s.error), 'An error occurred at this step.'))}</span>` : ''}
                         </div>
                     </div>
                 `;
@@ -5056,9 +5155,12 @@
 
             const detailsHtml = detailEntries.length ? `
                 <div class="kv-grid" style="margin-top: 10px;">
-                    ${detailEntries.map(([k, v]) => `
+                    ${detailEntries.filter(([k]) => {
+                        const lk = k.toLowerCase();
+                        return lk !== '_user_context' && !lk.startsWith('_');
+                    }).map(([k, v]) => `
                         <div class="kv">
-                            <div class="k">${escapeHtml(k)}</div>
+                            <div class="k">${escapeHtml(humanizeFieldLabel(k) || k)}</div>
                             <div class="v">${escapeHtml(typeof v === 'string' ? v : JSON.stringify(v))}</div>
                         </div>
                     `).join('')}
@@ -5067,7 +5169,7 @@
 
             bodyEl.innerHTML = `
                 <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                    <span class="status-pill warning"><span class="dot"></span>${escapeHtml(String(urgency))}</span>
+                    <span class="status-pill warning"><span class="dot"></span>${escapeHtml(humanizeUrgency(urgency))}</span>
                     ${dueBy ? `<span class="status-pill muted"><span class="dot"></span>Due ${escapeHtml(dueBy)}</span>` : `<span class="status-pill muted"><span class="dot"></span>Pending</span>`}
                 </div>
 

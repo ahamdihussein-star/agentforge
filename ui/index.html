@@ -10534,7 +10534,7 @@ Option 3"></textarea>
                     execStatus || 'running'
                 );
             }
-            const execErr = execution?.error?.message || execution?.error_message || '';
+            const execErr = friendlyErrorMessage(execution?.error?.message || execution?.error_message || '', '');
 
             const seq = [];
             const seen = new Set();
@@ -10794,7 +10794,7 @@ Option 3"></textarea>
                                     <div class="text-lg">${icon}</div>
                                     <div class="min-w-0">
                                         <div class="font-semibold text-gray-100 truncate">${escHtml(name)}</div>
-                                        <div class="text-xs text-gray-500">${escHtml(s.step_type || '')}${dur ? ` · ${escHtml(dur)}` : ''}</div>
+                                        <div class="text-xs text-gray-500">${escHtml(humanizeNodeType(s.step_type))}${dur ? ` · ${escHtml(dur)}` : ''}</div>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2 flex-shrink-0">${badge}</div>
@@ -10841,7 +10841,7 @@ Option 3"></textarea>
 
             const inputData = execution?.input_data ?? execution?.trigger_input ?? {};
             const output = execution?.output ?? execution?.result ?? null;
-            const errorMsg = execution?.error?.message || execution?.error_message || (execution?.error && execution?.error.message) || '';
+            const errorMsg = friendlyErrorMessage(execution?.error?.message || execution?.error_message || (execution?.error && execution?.error.message) || '', '');
 
             if (title) title.textContent = isCompleted ? 'Test report' : (isFailed ? 'Test report (failed)' : 'Test report');
             if (subtitle) subtitle.textContent = execution?.created_at ? `Run started ${_formatMaybeDateTime(execution.created_at)}` : 'Summary of what happened in this run';
@@ -10882,7 +10882,7 @@ Option 3"></textarea>
                             <div class="text-lg">${icon}</div>
                             <div class="flex-1 min-w-0">
                                 <div class="font-semibold text-gray-100 truncate">${escHtml(s.name || 'Step')}</div>
-                                <div class="text-xs text-gray-500">${escHtml(s.typeLabel || s.type || 'Step')}</div>
+                                <div class="text-xs text-gray-500">${escHtml(s.typeLabel || humanizeNodeType(s.type))}</div>
                             </div>
                             <div class="text-xs text-gray-500">#${idx + 1}</div>
                         </div>
@@ -11062,7 +11062,7 @@ Option 3"></textarea>
                             ${desc ? `<div class="text-sm text-gray-300 mt-1">${escHtml(desc)}</div>` : ''}
                             <div class="text-xs text-gray-500 mt-2">Assigned to: <span class="text-gray-300">${escHtml(assignedTo)}</span></div>
                         </div>
-                        <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">${escHtml(String(urgency))}</span>
+                        <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">${escHtml(humanizeUrgency(urgency))}</span>
                     </div>
                     ${reviewHtml ? `
                         <div class="mt-4 p-4 rounded-lg bg-gray-900/40 border border-gray-700/60">
@@ -11093,8 +11093,8 @@ Option 3"></textarea>
                 });
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
-                    const msg = (err && err.detail) ? (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)) : 'Could not approve';
-                    showToast(msg, 'error');
+                    const rawMsg = (err && err.detail) ? (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)) : '';
+                    showToast(friendlyErrorMessage(rawMsg, 'Could not approve this request. Please try again.'), 'error');
                     return;
                 }
                 showToast('Approved. Continuing workflow…', 'success');
@@ -11126,8 +11126,8 @@ Option 3"></textarea>
                 });
                 if (!response.ok) {
                     const err = await response.json().catch(() => ({}));
-                    const msg = (err && err.detail) ? (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)) : 'Could not reject';
-                    showToast(msg, 'error');
+                    const rawMsg = (err && err.detail) ? (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)) : '';
+                    showToast(friendlyErrorMessage(rawMsg, 'Could not reject this request. Please try again.'), 'error');
                     return;
                 }
                 showToast('Rejected.', 'success');
@@ -11194,12 +11194,97 @@ Option 3"></textarea>
         // Build Dynamic Form from Process Definition (optionally with LLM-enriched labels)
         function humanizeFieldLabel(key) {
             if (!key) return '';
-            let s = String(key);
+            const raw = String(key).trim();
+            if (!raw) return '';
+            // Map well-known technical keys to business-friendly labels
+            const knownLabels = {
+                'trigger_input': 'Submitted Information',
+                'requested_by': 'Requested By',
+                'requester_email': 'Requester Email',
+                'requester_name': 'Requester Name',
+                'requester_id': 'Requester',
+                'manager_id': 'Manager',
+                'manager_name': 'Manager Name',
+                'manager_email': 'Manager Email',
+                'department_id': 'Department',
+                'department_name': 'Department',
+                'employee_id': 'Employee ID',
+                'job_title': 'Job Title',
+                'org_id': 'Organization',
+                'user_id': 'User',
+                'created_at': 'Submitted On',
+                'updated_at': 'Last Updated',
+                'start_date': 'Start Date',
+                'end_date': 'End Date',
+                'due_date': 'Due Date',
+                'total_amount': 'Total Amount',
+                'is_manager': 'Is Manager',
+                'group_ids': 'Groups',
+                'role_ids': 'Roles',
+                '_user_context': null,
+            };
+            const lower = raw.toLowerCase();
+            if (lower in knownLabels) {
+                return knownLabels[lower] === null ? '' : knownLabels[lower];
+            }
+            let s = raw;
             s = s.replace(/_/g, ' ');
             s = s.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
             s = s.replace(/\s+/g, ' ').trim();
             if (!s) return '';
             return s.split(' ').map(w => w ? (w[0].toUpperCase() + w.slice(1)) : '').join(' ');
+        }
+
+        /** Map technical node/step types to business-friendly labels */
+        function humanizeNodeType(type) {
+            const map = {
+                'human_task': 'Task',
+                'approval': 'Approval',
+                'condition': 'Decision',
+                'notification': 'Notification',
+                'email': 'Email',
+                'trigger': 'Start',
+                'form': 'Form',
+                'start': 'Start',
+                'end': 'Complete',
+                'tool': 'Automated Action',
+                'script': 'Automated Action',
+                'api_call': 'Integration',
+                'webhook': 'Integration',
+                'delay': 'Wait',
+                'timer': 'Scheduled',
+                'parallel': 'Parallel Steps',
+                'loop': 'Repeated Step',
+                'subprocess': 'Sub-Process',
+            };
+            const key = String(type || '').toLowerCase().trim();
+            return map[key] || humanizeFieldLabel(key) || 'Step';
+        }
+
+        /** Map technical urgency values to business-friendly labels */
+        function humanizeUrgency(urgency) {
+            const map = {
+                'high': 'Urgent',
+                'critical': 'Critical',
+                'normal': 'Normal',
+                'medium': 'Normal',
+                'low': 'Low Priority',
+            };
+            const key = String(urgency || '').toLowerCase().trim();
+            return map[key] || urgency || 'Normal';
+        }
+
+        /** Sanitize error messages — hide technical details from business users */
+        function friendlyErrorMessage(rawMsg, fallback) {
+            const msg = String(rawMsg || '').trim();
+            const fb = fallback || 'Something went wrong. Please try again.';
+            if (!msg) return fb;
+            if (/traceback|stack trace|internal server/i.test(msg)) return fb;
+            if (/sqlalchemy|database|sql|connection refused|errno/i.test(msg)) return 'A system error occurred. Please try again or contact support.';
+            if (/500|502|503|504/.test(msg) && msg.length < 20) return fb;
+            if (/keyerror|typeerror|attributeerror|valueerror|importerror/i.test(msg)) return fb;
+            if (/null|undefined|NoneType/i.test(msg) && msg.length < 50) return fb;
+            return msg;
         }
 
         function _splitArgs(argStr) {
@@ -11457,14 +11542,18 @@ Option 3"></textarea>
                 const required = input.required ? '<span style="color: var(--danger);">*</span>' : '';
                 const fieldId = `pf-${input.id}`;
                 const descHtml = input.description ? `<p class="text-xs mt-0.5 mb-1" style="color: var(--text-muted);">${input.description}</p>` : '';
+                const isReadOnly = !!(input.readOnly || (input.derived && input.derived.expression));
+                const isPrefilled = !!input.prefill;
+                const isDerived = !!(input.derived && input.derived.expression);
+                const roStyle = isReadOnly ? 'style="opacity: 0.7; cursor: not-allowed; background: rgba(255,255,255,0.03);"' : '';
                 
                 let fieldHtml = '';
                 switch(input.type) {
                     case 'textarea':
-                        fieldHtml = `<textarea id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" rows="3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}></textarea>`;
+                        fieldHtml = `<textarea id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" rows="3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${isReadOnly ? 'readonly' : ''} ${roStyle}></textarea>`;
                         break;
                     case 'select':
-                        fieldHtml = `<select id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'disabled' : ''}>
+                        fieldHtml = `<select id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''} ${isReadOnly ? 'disabled' : ''} ${roStyle}>
                             <option value="">Select...</option>
                             ${(input.options || []).map(opt => `<option value="${opt}">${opt}</option>`).join('')}
                         </select>`;
@@ -11473,16 +11562,24 @@ Option 3"></textarea>
                         fieldHtml = `<input type="file" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''}>`;
                         break;
                     case 'number':
-                        fieldHtml = `<input type="number" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
+                        fieldHtml = `<input type="number" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${isReadOnly ? 'readonly' : ''} ${roStyle}>`;
                         break;
                     case 'date':
-                        fieldHtml = `<input type="date" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
+                        fieldHtml = `<input type="date" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''} ${isReadOnly ? 'readonly' : ''} ${roStyle}>`;
                         break;
                     case 'email':
-                        fieldHtml = `<input type="email" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
+                        fieldHtml = `<input type="email" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${isReadOnly ? 'readonly' : ''} ${roStyle}>`;
                         break;
                     default:
-                        fieldHtml = `<input type="text" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${(input.readOnly || (input.derived && input.derived.expression)) ? 'readonly' : ''}>`;
+                        fieldHtml = `<input type="text" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${isReadOnly ? 'readonly' : ''} ${roStyle}>`;
+                }
+
+                // Helper text for read-only fields
+                let readOnlyHint = '';
+                if (isPrefilled) {
+                    readOnlyHint = `<span class="flex items-center gap-1 text-xs mt-1" style="color: var(--text-muted);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Auto-filled from your profile</span>`;
+                } else if (isDerived) {
+                    readOnlyHint = `<span class="flex items-center gap-1 text-xs mt-1" style="color: var(--text-muted);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Automatically calculated</span>`;
                 }
                 
                 return `
@@ -11490,6 +11587,7 @@ Option 3"></textarea>
                         <label class="text-sm mb-1 block" style="color: var(--text-secondary);">${input.label} ${required}</label>
                         ${descHtml}
                         ${fieldHtml}
+                        ${readOnlyHint}
                     </div>
                 `;
             }).join('');
@@ -11741,8 +11839,8 @@ Option 3"></textarea>
                     skipped: 'border-gray-600 bg-gray-800/30'
                 }[node.status] || 'border-gray-600';
                 
-                const displayName = node.name || node.type || 'Step';
-                const displayType = node.typeLabel != null ? node.typeLabel : (node.type || 'Step');
+                const displayName = node.name || humanizeNodeType(node.type);
+                const displayType = node.typeLabel != null ? node.typeLabel : humanizeNodeType(node.type);
                 
                 return `
                     <div class="p-3 rounded-lg border ${statusClass} transition-all">
@@ -11801,9 +11899,9 @@ Option 3"></textarea>
                     const displayStatus = execution.status === 'waiting' ? 'pending_approval' : execution.status;
                     let subtitle = execution.current_step || execution.current_node_name || '';
                     if (execution.status === 'failed' && (execution.error && execution.error.message)) {
-                        subtitle = execution.error.message;
+                        subtitle = friendlyErrorMessage(execution.error.message, 'Process encountered an error.');
                     } else if (execution.status === 'failed' && execution.error_message) {
-                        subtitle = execution.error_message;
+                        subtitle = friendlyErrorMessage(execution.error_message, 'Process encountered an error.');
                     }
                     updateExecutionStatus(
                         displayStatus,
@@ -11819,7 +11917,7 @@ Option 3"></textarea>
                             const info = lookup[ne.node_id || ne.id];
                             return {
                                 name: info ? info.name : (ne.node_name || ne.node_id || ne.id || 'Step'),
-                                typeLabel: info ? info.typeLabel : (ne.type || 'Step'),
+                                typeLabel: info ? info.typeLabel : humanizeNodeType(ne.type),
                                 type: ne.type,
                                 status: ne.status || 'completed',
                                 duration_ms: ne.duration_ms
@@ -12041,9 +12139,7 @@ Option 3"></textarea>
                     return div.innerHTML;
                 }
                 function friendlyLabel(key) {
-                    return String(key)
-                        .replace(/_/g, ' ')
-                        .replace(/\b\w/g, c => c.toUpperCase());
+                    return humanizeFieldLabel(key) || String(key).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                 }
                 function renderReviewData(rd) {
                     if (!rd) return '';
@@ -12051,7 +12147,11 @@ Option 3"></textarea>
                         try { rd = JSON.parse(rd); } catch (_) { return `<div class="text-gray-300 text-sm">${escapeHtml(rd)}</div>`; }
                     }
                     if (typeof rd !== 'object' || rd === null) return '';
-                    const entries = Object.entries(rd).filter(([k, v]) => v !== undefined && v !== null && v !== '');
+                    const entries = Object.entries(rd).filter(([k, v]) => {
+                        if (v === undefined || v === null || v === '') return false;
+                        const lk = k.toLowerCase();
+                        return lk !== '_user_context' && !lk.startsWith('_');
+                    });
                     if (entries.length === 0) return '';
                     const rows = entries.map(([k, v]) => {
                         const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -12081,7 +12181,7 @@ Option 3"></textarea>
                                     <p class="text-sm text-gray-400">${approval.description || ''}</p>
                                     <p class="text-xs text-gray-500 mt-1">${assigneeDisplay(approval)}</p>
                                 </div>
-                                <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">${approval.priority || 'normal'}</span>
+                                <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">${humanizeUrgency(approval.priority || approval.urgency)}</span>
                             </div>
                             
                             ${(() => { const html = renderReviewData(approval.review_data || approval.details_to_review); return html ? `
