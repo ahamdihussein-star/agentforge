@@ -1147,65 +1147,69 @@
             color: #ffffff !important;
         }
         
-        /* Access Search Box - dark gray background with visible text */
+        /* Access Search Box - white bg, black text for light/ocean themes */
         [data-theme="light"] #wizard-access-search,
         [data-theme="ocean"] #wizard-access-search {
-            background: #6b7280 !important;
-            color: #000000 !important;
-            border-color: #4b5563 !important;
+            background: #ffffff !important;
+            color: #1e293b !important;
+            border-color: var(--input-border) !important;
         }
         [data-theme="light"] #wizard-access-search::placeholder,
         [data-theme="ocean"] #wizard-access-search::placeholder {
-            color: #d1d5db !important;
+            color: #94a3b8 !important;
         }
         
-        /* Access Search Results - lighter gray with black text */
+        /* Access Search Results */
         [data-theme="light"] #wizard-access-search-results,
         [data-theme="ocean"] #wizard-access-search-results {
-            background: #d1d5db !important;
-            border-color: #9ca3af !important;
+            background: #ffffff !important;
+            border-color: var(--input-border) !important;
         }
         [data-theme="light"] #wizard-access-search-results > div,
         [data-theme="ocean"] #wizard-access-search-results > div {
-            color: #000000 !important;
+            color: #1e293b !important;
         }
         [data-theme="light"] #wizard-access-search-results .text-white,
         [data-theme="ocean"] #wizard-access-search-results .text-white {
-            color: #000000 !important;
+            color: #1e293b !important;
         }
         [data-theme="light"] #wizard-access-search-results .text-gray-400,
         [data-theme="ocean"] #wizard-access-search-results .text-gray-400 {
-            color: #4b5563 !important;
+            color: #64748b !important;
         }
         [data-theme="light"] #wizard-access-search-results .bg-gray-600,
         [data-theme="ocean"] #wizard-access-search-results .bg-gray-600 {
-            background: #9ca3af !important;
-            color: #1f2937 !important;
+            background: #e2e8f0 !important;
+            color: #1e293b !important;
         }
         [data-theme="light"] #wizard-access-search-results > div:hover,
         [data-theme="ocean"] #wizard-access-search-results > div:hover {
-            background: #c0c4cc !important;
+            background: #f1f5f9 !important;
         }
         
-        /* Admin Search - same fixes */
+        /* Admin Search - white bg, black text */
         [data-theme="light"] #wizard-admin-search,
         [data-theme="ocean"] #wizard-admin-search {
-            background: #6b7280 !important;
-            color: #000000 !important;
-            border-color: #4b5563 !important;
+            background: #ffffff !important;
+            color: #1e293b !important;
+            border-color: var(--input-border) !important;
+        }
+        [data-theme="light"] #wizard-admin-search::placeholder,
+        [data-theme="ocean"] #wizard-admin-search::placeholder {
+            color: #94a3b8 !important;
         }
         [data-theme="light"] #wizard-admin-search-results,
         [data-theme="ocean"] #wizard-admin-search-results {
-            background: #d1d5db !important;
-            border-color: #9ca3af !important;
+            background: #ffffff !important;
+            border-color: var(--input-border) !important;
         }
         [data-theme="light"] #wizard-admin-search-results > div,
         [data-theme="ocean"] #wizard-admin-search-results > div {
-            color: #000000 !important;
+            color: #1e293b !important;
         }
         [data-theme="light"] #wizard-admin-search-results .text-white,
         [data-theme="ocean"] #wizard-admin-search-results .text-white {
-            color: #000000 !important;
+            color: #1e293b !important;
         }
         
         /* Info/Alert boxes */
@@ -3870,8 +3874,8 @@
                                             </svg>
                                         </div>
                                         <input type="text" id="wizard-access-search" 
-                                               class="w-full rounded-xl px-12 py-4 placeholder-gray-400 transition-all focus:ring-2 focus:ring-blue-500/50" 
-                                               style="background: #1f2937; border: 2px solid #374151; color: #f3f4f6;"
+                                               class="w-full rounded-xl px-12 py-4 transition-all focus:ring-2 focus:ring-blue-500/50" 
+                                               style="background: var(--bg-input); border: 2px solid var(--input-border); color: var(--text-primary);"
                                                placeholder="Search by name, email, or group...">
                                         <div class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400 hidden md:block">
                                             Press <kbd class="px-1.5 py-0.5 rounded bg-gray-600 text-gray-200">Enter</kbd> to add
@@ -3879,7 +3883,7 @@
                                     </div>
                                     
                                     <!-- Search Results Dropdown -->
-                                    <div id="wizard-access-search-results" class="hidden mt-2 rounded-xl overflow-hidden shadow-xl" style="background: #1f2937; border: 2px solid #374151;">
+                                    <div id="wizard-access-search-results" class="hidden mt-2 rounded-xl overflow-hidden shadow-xl" style="background: var(--bg-card); border: 2px solid var(--input-border);">
                                         <!-- Results will be populated dynamically -->
                                     </div>
                                     
@@ -3945,11 +3949,11 @@
                                                     </svg>
                                                 </div>
                                                 <input type="text" id="wizard-admin-search" 
-                                                       class="w-full rounded-xl px-12 py-3 placeholder-gray-400 transition-all focus:ring-2 focus:ring-amber-500/50" 
-                                                       style="background: #1f2937; border: 2px solid #374151; color: #f3f4f6;"
+                                                       class="w-full rounded-xl px-12 py-3 transition-all focus:ring-2 focus:ring-amber-500/50" 
+                                                       style="background: var(--bg-input); border: 2px solid var(--input-border); color: var(--text-primary);"
                                                        placeholder="Search users or groups to add as admin...">
                                             </div>
-                                            <div id="wizard-admin-search-results" class="hidden mt-2 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-xl" style="background: #1f2937; border: 2px solid #374151;">
+                                            <div id="wizard-admin-search-results" class="hidden mt-2 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-xl" style="background: var(--bg-card); border: 2px solid var(--input-border);">
                                             </div>
                                         </div>
                                         
