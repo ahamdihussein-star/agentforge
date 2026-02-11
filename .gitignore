@@ -39,6 +39,9 @@ venv/
 # === Logs ===
 *.log
 
+# === UI build/legacy artifacts ===
+ui/index.legacy.html
+
 # === Broken folders ===
 core_backup/
 
