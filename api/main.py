@@ -4574,21 +4574,30 @@ async def list_accessible_agents(current_user: User = Depends(get_current_user))
             print(f"   ⚠️ [ACCESSIBLE] Access Control not available")
         # If no access control configured, agent remains private (not shown)
     
+    def _agent_payload(a):
+        """Build agent payload for accessible endpoint, including type + process info."""
+        atype = getattr(a, 'agent_type', None) or 'conversational'
+        payload = {
+            "id": a.id,
+            "name": a.name,
+            "icon": a.icon,
+            "goal": a.goal[:100] + "..." if len(a.goal) > 100 else a.goal,
+            "description": a.goal[:150] if a.goal else "",
+            "agent_type": atype,
+            "tasks_count": len(a.tasks),
+            "tools_count": len(a.tool_ids),
+            "status": a.status,
+            "created_at": a.created_at,
+            "extra_metadata": getattr(a, 'extra_metadata', None),
+        }
+        # Include process_definition for process agents (needed for trigger/form detection)
+        if atype == 'process':
+            pdef = getattr(a, 'process_definition', None)
+            payload["process_definition"] = pdef
+        return payload
+
     return {
-        "agents": [
-            {
-                "id": a.id,
-                "name": a.name,
-                "icon": a.icon,
-                "goal": a.goal[:100] + "..." if len(a.goal) > 100 else a.goal,
-                "description": a.goal[:150] if a.goal else "",
-                "tasks_count": len(a.tasks),
-                "tools_count": len(a.tool_ids),
-                "status": a.status,
-                "created_at": a.created_at
-            }
-            for a in accessible_agents
-        ]
+        "agents": [_agent_payload(a) for a in accessible_agents]
     }
 
 

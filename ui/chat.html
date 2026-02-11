@@ -214,122 +214,123 @@
             display: inline-flex;
         }
 
-        /* Home (Landing) */
-        .home-hero {
-            padding: 26px 28px;
-            border-bottom: 1px solid var(--border);
-            background: var(--gradient-2);
+        /* =========== HOME DASHBOARD =========== */
+        .home-view { overflow-y: auto; }
+        .home-banner {
+            padding: 36px 32px 28px;
+            background: var(--gradient-1);
+            position: relative;
+            overflow: hidden;
         }
-
-        .home-hero-inner {
-            max-width: 980px;
-            margin: 0 auto;
+        .home-banner::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: radial-gradient(circle at 80% 30%, rgba(255,255,255,0.12) 0%, transparent 60%);
+            pointer-events: none;
         }
-
-        .home-title {
-            font-size: 1.65rem;
-            letter-spacing: -0.02em;
-            font-weight: 850;
+        .home-banner-inner { max-width: 1080px; margin: 0 auto; position: relative; z-index: 1; }
+        .home-greeting { font-size: 1.85rem; font-weight: 850; color: #fff; letter-spacing: -0.02em; }
+        .home-tagline { margin-top: 6px; font-size: 1rem; color: rgba(255,255,255,0.82); }
+        .home-stats {
+            display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap;
         }
-
-        .home-subtitle {
-            margin-top: 8px;
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            line-height: 1.35;
+        .home-stat {
+            background: rgba(255,255,255,0.14);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 14px; padding: 14px 20px;
+            display: flex; flex-direction: column; gap: 2px;
+            min-width: 130px;
         }
-
-        .home-actions {
-            max-width: 980px;
-            margin: 18px auto 0;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-        }
-
+        .home-stat-value { font-size: 1.4rem; font-weight: 850; color: #fff; }
+        .home-stat-label { font-size: 0.78rem; color: rgba(255,255,255,0.72); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+        .home-body { max-width: 1080px; margin: 0 auto; padding: 24px 32px 40px; }
+        .home-section-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 14px; }
+        .home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
         .home-card {
             border: 1px solid var(--border);
             background: var(--bg-card);
             border-radius: 18px;
-            padding: 18px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            padding: 22px;
             cursor: pointer;
-            transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+            transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+            position: relative;
+            overflow: hidden;
         }
-
-        .home-card:hover {
-            transform: translateY(-1px);
-            border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
-            box-shadow: var(--shadow-md);
-        }
-
-        .home-card-top {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .home-card-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 14px;
+        .home-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 4px;
             background: var(--gradient-1);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.25rem;
-            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.18s;
         }
-
-        .home-card-title {
-            font-weight: 850;
-            font-size: 1.05rem;
-            letter-spacing: -0.01em;
+        .home-card:hover {
+            transform: translateY(-2px);
+            border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+            box-shadow: 0 8px 28px color-mix(in srgb, var(--primary) 16%, transparent);
         }
-
-        .home-card-desc {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            line-height: 1.35;
+        .home-card:hover::before { opacity: 1; }
+        .home-card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+        .home-card-icon {
+            width: 48px; height: 48px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.35rem; flex-shrink: 0;
         }
-
-        .home-card-cta {
-            margin-top: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .home-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 10px;
-            border-radius: 999px;
+        .home-card-icon.chat { background: linear-gradient(135deg, #6D5EF7 0%, #00D4FF 100%); color: #fff; }
+        .home-card-icon.process { background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%); color: #fff; }
+        .home-card-title { font-weight: 800; font-size: 1.1rem; letter-spacing: -0.01em; }
+        .home-card-count { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+        .home-card-desc { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4; margin-bottom: 14px; }
+        .home-card-footer { display: flex; align-items: center; justify-content: space-between; }
+        .home-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border-radius: 999px;
+            font-size: 0.78rem; font-weight: 600;
             border: 1px solid var(--border);
             color: var(--text-muted);
-            font-size: 0.82rem;
-            background: color-mix(in srgb, var(--bg-card) 82%, var(--bg-primary));
+            background: color-mix(in srgb, var(--bg-card) 80%, var(--bg-primary));
         }
-
-        .home-arrow {
-            width: 34px;
-            height: 34px;
-            border-radius: 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+        .home-card-arrow {
+            width: 36px; height: 36px; border-radius: 12px;
+            display: inline-flex; align-items: center; justify-content: center;
             background: color-mix(in srgb, var(--primary) 14%, transparent);
-            border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
-            color: var(--text-primary);
+            border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+            color: var(--text-primary); font-size: 1.1rem;
+            transition: transform 0.15s;
         }
+        .home-card:hover .home-card-arrow { transform: translateX(2px); }
+        .home-recent { display: flex; flex-direction: column; gap: 8px; }
+        .home-recent-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: 12px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            transition: border-color 0.12s; cursor: pointer;
+        }
+        .home-recent-item:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+        .home-recent-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+        .home-recent-icon.chat-type { background: color-mix(in srgb, #6D5EF7 14%, transparent); }
+        .home-recent-icon.process-type { background: color-mix(in srgb, #10B981 14%, transparent); }
+        .home-recent-info { flex: 1; min-width: 0; }
+        .home-recent-name { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .home-recent-meta { font-size: 0.78rem; color: var(--text-muted); }
+        .home-empty { color: var(--text-muted); font-size: 0.9rem; padding: 18px; border: 1px dashed var(--border); border-radius: 14px; text-align: center; }
+
+        /* Branding file upload */
+        .brand-upload-zone {
+            border: 2px dashed var(--border); border-radius: 14px; padding: 18px;
+            text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+            position: relative;
+        }
+        .brand-upload-zone:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, transparent); }
+        .brand-upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .brand-upload-zone .upload-label { font-size: 0.85rem; color: var(--text-muted); }
+        .brand-upload-zone .upload-label strong { color: var(--primary); }
+        .brand-preview { margin-top: 8px; max-height: 48px; border-radius: 8px; }
 
         @media (max-width: 820px) {
-            .home-actions { grid-template-columns: 1fr; }
+            .home-grid { grid-template-columns: 1fr; }
+            .home-banner { padding: 24px 18px 20px; }
+            .home-body { padding: 18px 16px 32px; }
         }
 
         /* Agent Selector */
@@ -2618,44 +2619,63 @@
         <!-- Main Chat -->
         <div class="main-chat">
             <!-- Home View -->
-            <div id="view-home" class="portal-view hidden">
-                <div class="home-hero">
-                    <div class="home-hero-inner">
-                        <div class="home-title" id="home-title">Welcome</div>
-                        <div class="home-subtitle" id="home-subtitle">Choose what you want to do: chat with an assistant or run a business process.</div>
-                        <div class="home-actions">
-                            <div class="home-card" onclick="switchView('chat')">
-                                <div class="home-card-top">
-                                    <div class="home-card-icon">💬</div>
-                                    <div style="min-width:0;">
-                                        <div class="home-card-title">Chat with an Assistant</div>
-                                        <div class="home-card-desc">Ask questions, draft content, analyze files, and collaborate in real time.</div>
-                                    </div>
-                                </div>
-                                <div class="home-card-cta">
-                                    <span class="home-pill">Conversational AI</span>
-                                    <span class="home-arrow">→</span>
-                                </div>
+            <div id="view-home" class="portal-view home-view hidden">
+                <div class="home-banner" id="home-banner">
+                    <div class="home-banner-inner">
+                        <div class="home-greeting" id="home-greeting">Welcome</div>
+                        <div class="home-tagline" id="home-tagline">Your AI workspace — chat with assistants or run business processes.</div>
+                        <div class="home-stats" id="home-stats">
+                            <div class="home-stat">
+                                <div class="home-stat-value" id="home-stat-assistants">0</div>
+                                <div class="home-stat-label">Assistants</div>
                             </div>
-                            <div class="home-card" onclick="switchView('workflows')">
-                                <div class="home-card-top">
-                                    <div class="home-card-icon">🧩</div>
-                                    <div style="min-width:0;">
-                                        <div class="home-card-title">Run a Process</div>
-                                        <div class="home-card-desc">Start guided workflows, submit inputs, and track execution history.</div>
-                                    </div>
-                                </div>
-                                <div class="home-card-cta">
-                                    <span class="home-pill">Process / Automation</span>
-                                    <span class="home-arrow">→</span>
-                                </div>
+                            <div class="home-stat">
+                                <div class="home-stat-value" id="home-stat-processes">0</div>
+                                <div class="home-stat-label">Processes</div>
+                            </div>
+                            <div class="home-stat">
+                                <div class="home-stat-value" id="home-stat-inbox">0</div>
+                                <div class="home-stat-label">Pending</div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="portal-content" style="padding-top: 18px;">
-                    <div style="max-width: 980px; margin: 0 auto; color: var(--text-muted); font-size: 0.9rem;">
-                        Tip: You can customize your organization branding from Settings (admins only).
+                <div class="home-body">
+                    <div class="home-section-title">Get Started</div>
+                    <div class="home-grid">
+                        <div class="home-card" onclick="switchView('chat')">
+                            <div class="home-card-header">
+                                <div class="home-card-icon chat">💬</div>
+                                <div>
+                                    <div class="home-card-title">AI Assistants</div>
+                                    <div class="home-card-count" id="home-assistants-label">Conversational AI</div>
+                                </div>
+                            </div>
+                            <div class="home-card-desc">Ask questions, draft content, analyze documents, and collaborate with your AI assistants in real time.</div>
+                            <div class="home-card-footer">
+                                <span class="home-badge">Chat &bull; Real-time</span>
+                                <span class="home-card-arrow">&rarr;</span>
+                            </div>
+                        </div>
+                        <div class="home-card" onclick="switchView('workflows')">
+                            <div class="home-card-header">
+                                <div class="home-card-icon process">🧩</div>
+                                <div>
+                                    <div class="home-card-title">Processes</div>
+                                    <div class="home-card-count" id="home-processes-label">Workflows &amp; Automation</div>
+                                </div>
+                            </div>
+                            <div class="home-card-desc">Start guided workflows, submit forms, track execution progress, and manage approvals — all in one place.</div>
+                            <div class="home-card-footer">
+                                <span class="home-badge">Forms &bull; Approvals &bull; Automation</span>
+                                <span class="home-card-arrow">&rarr;</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="home-section-title">Quick Access</div>
+                    <div class="home-recent" id="home-recent">
+                        <div class="home-empty">Your recent activity will appear here once you start chatting or running processes.</div>
                     </div>
                 </div>
             </div>
@@ -3439,8 +3459,8 @@
             // Default landing is Home (better first impression than chat)
             try {
                 const nm = (currentUser && (currentUser.full_name || currentUser.email)) ? String(currentUser.full_name || currentUser.email) : '';
-                const title = document.getElementById('home-title');
-                if (title) title.textContent = nm ? `Welcome, ${nm.split(' ')[0]}` : 'Welcome';
+                const el = document.getElementById('home-greeting');
+                if (el) el.textContent = nm ? `Welcome back, ${nm.split(' ')[0]}` : 'Welcome';
             } catch (_) { /* ignore */ }
             switchView('home');
         }
@@ -3519,7 +3539,9 @@
             try { closeSidebar(); } catch (_) { /* ignore */ }
 
             // Lazy load data
-            if (v === 'workflows') {
+            if (v === 'home') {
+                renderHomeDashboard();
+            } else if (v === 'workflows') {
                 openNavGroup('processes');
                 renderWorkflows();
             } else if (v === 'requests') {
@@ -3529,6 +3551,58 @@
             } else if (v === 'inbox') {
                 openNavGroup('processes');
                 refreshInbox();
+            }
+        }
+
+        function renderHomeDashboard() {
+            // Stats
+            const aCount = Array.isArray(agents) ? agents.length : 0;
+            const pCount = Array.isArray(workflowAgents) ? workflowAgents.length : 0;
+            const iCount = Array.isArray(myApprovals) ? myApprovals.length : 0;
+            const sA = document.getElementById('home-stat-assistants');
+            const sP = document.getElementById('home-stat-processes');
+            const sI = document.getElementById('home-stat-inbox');
+            if (sA) sA.textContent = String(aCount);
+            if (sP) sP.textContent = String(pCount);
+            if (sI) sI.textContent = String(iCount);
+
+            const aLabel = document.getElementById('home-assistants-label');
+            const pLabel = document.getElementById('home-processes-label');
+            if (aLabel) aLabel.textContent = aCount ? `${aCount} assistant${aCount > 1 ? 's' : ''} available` : 'Conversational AI';
+            if (pLabel) pLabel.textContent = pCount ? `${pCount} process${pCount > 1 ? 'es' : ''} available` : 'Workflows & Automation';
+
+            // Quick access: show recent conversational agents + process agents
+            const container = document.getElementById('home-recent');
+            if (!container) return;
+            const items = [];
+            // Recent conversational agents (up to 3)
+            (agents || []).slice(0, 3).forEach(a => {
+                items.push(`
+                    <div class="home-recent-item" onclick="switchView('chat'); setTimeout(() => selectAgent('${a.id}'), 120);">
+                        <div class="home-recent-icon chat-type">${a.icon || '💬'}</div>
+                        <div class="home-recent-info">
+                            <div class="home-recent-name">${escapeHtml(a.name)}</div>
+                            <div class="home-recent-meta">AI Assistant</div>
+                        </div>
+                    </div>
+                `);
+            });
+            // Recent processes (up to 3)
+            (workflowAgents || []).slice(0, 3).forEach(a => {
+                items.push(`
+                    <div class="home-recent-item" onclick="selectProcessAgent('${a.id}')">
+                        <div class="home-recent-icon process-type">${a.icon || '🧩'}</div>
+                        <div class="home-recent-info">
+                            <div class="home-recent-name">${escapeHtml(a.name)}</div>
+                            <div class="home-recent-meta">Process</div>
+                        </div>
+                    </div>
+                `);
+            });
+            if (items.length === 0) {
+                container.innerHTML = '<div class="home-empty">Your recent activity will appear here once you start chatting or running processes.</div>';
+            } else {
+                container.innerHTML = items.join('');
             }
         }
 
@@ -3555,6 +3629,7 @@
                 agents = (allAccessibleAgents || []).filter(a => _getAgentType(a) !== 'process');
                 renderAgents();
                 renderWorkflows();
+                renderHomeDashboard();
             } catch (e) {
                 console.error('Failed to load agents:', e);
                 allAccessibleAgents = [];
@@ -3562,6 +3637,7 @@
                 agents = [];
                 renderAgents();
                 renderWorkflows();
+                renderHomeDashboard();
             }
         }
 
@@ -3584,37 +3660,7 @@
             `).join('');
         }
 
-        function switchAssistantTab(tab) {
-            assistantTab = String(tab || 'assistants').trim().toLowerCase();
-            if (assistantTab !== 'assistants' && assistantTab !== 'processes') assistantTab = 'assistants';
-
-            document.querySelectorAll('.assistant-tab').forEach(btn => {
-                btn.classList.toggle('active', (btn.dataset.tab || '').toLowerCase() === assistantTab);
-            });
-            const assistantsList = document.getElementById('assistants-list');
-            const processesList = document.getElementById('processes-list');
-            if (assistantsList) assistantsList.classList.toggle('visible', assistantTab === 'assistants');
-            if (processesList) processesList.classList.toggle('visible', assistantTab === 'processes');
-        }
-
-        function renderProcessAgents() {
-            const container = document.getElementById('process-list');
-            if (!container) return;
-            const items = Array.isArray(workflowAgents) ? workflowAgents : [];
-            if (items.length === 0) {
-                container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No processes available</p>';
-                return;
-            }
-            container.innerHTML = items.map(agent => `
-                <div class="process-card" onclick="selectProcessAgent('${agent.id}')">
-                    <div class="agent-icon">${agent.icon || '🧩'}</div>
-                    <div class="agent-info">
-                        <div class="agent-name">${agent.name}</div>
-                        <div class="agent-desc">${agent.description || agent.goal || 'Process'}</div>
-                    </div>
-                </div>
-            `).join('');
-        }
+        /* switchAssistantTab and renderProcessAgents removed — processes live in their own Processes section now */
 
         function selectProcessAgent(agentId) {
             const agent = (workflowAgents || []).find(a => a.id === agentId);
@@ -5958,11 +6004,75 @@
             _setValue('brand-chat-message', b.chat_welcome_message || '');
             _setValue('brand-custom-css', b.custom_css || '');
 
+            // Sync color pickers with text inputs
+            try {
+                const pc = (b.primary_color || '').trim();
+                const sc = (b.secondary_color || '').trim();
+                if (pc && pc.startsWith('#')) document.getElementById('brand-primary-picker').value = pc;
+                if (sc && sc.startsWith('#')) document.getElementById('brand-secondary-picker').value = sc;
+                const bbg = (b.banner_bg_color || '').trim();
+                const btc = (b.banner_text_color || '').trim();
+                if (bbg && bbg.startsWith('#')) document.getElementById('brand-banner-bg-picker').value = bbg;
+                if (btc && btc.startsWith('#')) document.getElementById('brand-banner-tc-picker').value = btc;
+            } catch (_) { /* ignore */ }
+
+            // Show logo/favicon previews
+            _showBrandPreview('logo', b.logo_url || '');
+            _showBrandPreview('favicon', b.favicon_url || '');
+
             const bannerToggle = document.getElementById('brand-banner-enabled');
             if (bannerToggle) bannerToggle.classList.toggle('active', !!b.banner_enabled);
 
             const status = document.getElementById('brand-save-status');
             if (status) status.textContent = '';
+        }
+
+        function _showBrandPreview(type, url) {
+            const preview = document.getElementById(`brand-${type}-preview`);
+            const label = document.getElementById(`brand-${type}-label`);
+            if (!preview) return;
+            if (url) {
+                preview.src = url;
+                preview.style.display = 'inline-block';
+                if (label) label.innerHTML = '<strong>Uploaded</strong> — click to replace';
+            } else {
+                preview.style.display = 'none';
+                if (label) label.innerHTML = `<strong>Click or drop</strong> to upload ${type}`;
+            }
+        }
+
+        function handleBrandFileUpload(event, type) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            if (file.size > 2 * 1024 * 1024) {
+                showToast('File too large (max 2 MB)', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                const hiddenInput = document.getElementById(`brand-${type}-url`);
+                if (hiddenInput) hiddenInput.value = dataUrl;
+                _showBrandPreview(type, dataUrl);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleBrandCSSUpload(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            if (file.size > 500 * 1024) {
+                showToast('CSS file too large (max 500 KB)', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const cssText = e.target.result;
+                const el = document.getElementById('brand-custom-css');
+                if (el) el.value = cssText;
+                showToast('CSS file loaded', 'success');
+            };
+            reader.readAsText(file);
         }
 
         async function saveBrandingSettings() {
@@ -6459,14 +6569,10 @@
                 if (subEl) subEl.textContent = String(branding.chat_welcome_message);
             }
 
-            // Apply Home copy (light touch, keep generic if not provided)
+            // Apply Home dashboard branding
             if (brandName) {
-                const homeTitle = document.getElementById('home-title');
-                if (homeTitle && (!homeTitle.textContent || homeTitle.textContent.trim().toLowerCase() === 'welcome')) {
-                    homeTitle.textContent = 'Welcome';
-                }
-                const homeSub = document.getElementById('home-subtitle');
-                if (homeSub) homeSub.textContent = `Welcome to ${brandName}. Choose Assistants or Processes to get started.`;
+                const homeTagline = document.getElementById('home-tagline');
+                if (homeTagline) homeTagline.textContent = `Your ${brandName} AI workspace — chat with assistants or run business processes.`;
             }
         }
 
@@ -6631,8 +6737,8 @@
 
                 <div class="modal-section" id="branding-settings-section" style="display:none;">
                     <div class="modal-section-title">Branding (Organization)</div>
-                    <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: -6px; margin-bottom: 12px;">
-                        Customize logo, banner, and colors for your organization portal. Visible to admins only.
+                    <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: -6px; margin-bottom: 14px;">
+                        Customize the portal appearance for your organization. Changes apply to all users.
                     </div>
 
                     <div class="modal-form-group">
@@ -6640,70 +6746,104 @@
                         <input type="text" id="brand-org-name" class="modal-form-input" placeholder="Company name">
                     </div>
 
+                    <!-- Logo Upload -->
                     <div class="modal-form-group">
-                        <label class="modal-form-label">Logo URL (or Data URL)</label>
-                        <input type="text" id="brand-logo-url" class="modal-form-input" placeholder="https://… or data:image/png;base64,…">
+                        <label class="modal-form-label">Logo</label>
+                        <div class="brand-upload-zone" id="brand-logo-zone">
+                            <input type="file" accept="image/*" onchange="handleBrandFileUpload(event, 'logo')">
+                            <div class="upload-label" id="brand-logo-label">
+                                <strong>Click or drop</strong> to upload logo (PNG, SVG, JPG)
+                            </div>
+                            <img id="brand-logo-preview" class="brand-preview" style="display:none;">
+                        </div>
+                        <input type="hidden" id="brand-logo-url">
                     </div>
 
+                    <!-- Favicon Upload -->
                     <div class="modal-form-group">
-                        <label class="modal-form-label">Favicon URL</label>
-                        <input type="text" id="brand-favicon-url" class="modal-form-input" placeholder="https://…">
+                        <label class="modal-form-label">Favicon</label>
+                        <div class="brand-upload-zone" id="brand-favicon-zone">
+                            <input type="file" accept="image/*" onchange="handleBrandFileUpload(event, 'favicon')">
+                            <div class="upload-label" id="brand-favicon-label">
+                                <strong>Click or drop</strong> to upload favicon (ICO, PNG, SVG)
+                            </div>
+                            <img id="brand-favicon-preview" class="brand-preview" style="display:none; max-height: 32px;">
+                        </div>
+                        <input type="hidden" id="brand-favicon-url">
                     </div>
 
+                    <!-- Colors -->
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                         <div class="modal-form-group" style="margin-bottom: 0;">
                             <label class="modal-form-label">Primary Color</label>
-                            <input type="text" id="brand-primary" class="modal-form-input" placeholder="#6D5EF7">
+                            <div style="display:flex; gap: 8px; align-items: center;">
+                                <input type="color" id="brand-primary-picker" value="#6D5EF7" style="width:36px; height:36px; border:none; background:none; cursor:pointer; padding:0;" onchange="document.getElementById('brand-primary').value=this.value">
+                                <input type="text" id="brand-primary" class="modal-form-input" placeholder="#6D5EF7" style="flex:1;" oninput="try{document.getElementById('brand-primary-picker').value=this.value}catch(_){}">
+                            </div>
                         </div>
                         <div class="modal-form-group" style="margin-bottom: 0;">
                             <label class="modal-form-label">Secondary Color</label>
-                            <input type="text" id="brand-secondary" class="modal-form-input" placeholder="#00D4FF">
+                            <div style="display:flex; gap: 8px; align-items: center;">
+                                <input type="color" id="brand-secondary-picker" value="#00D4FF" style="width:36px; height:36px; border:none; background:none; cursor:pointer; padding:0;" onchange="document.getElementById('brand-secondary').value=this.value">
+                                <input type="text" id="brand-secondary" class="modal-form-input" placeholder="#00D4FF" style="flex:1;" oninput="try{document.getElementById('brand-secondary-picker').value=this.value}catch(_){}">
+                            </div>
                         </div>
                     </div>
 
-                    <div class="modal-form-group" style="margin-top: 12px;">
+                    <!-- Banner -->
+                    <div class="modal-form-group" style="margin-top: 14px;">
                         <label class="modal-form-label">Portal Banner</label>
                         <div class="setting-item" style="margin-top: 8px;">
                             <div>
                                 <div class="setting-label">Enable Banner</div>
-                                <div class="setting-desc">Show a small banner at the top of the portal</div>
+                                <div class="setting-desc">Announcement banner at the top of the portal</div>
                             </div>
                             <div class="toggle" id="brand-banner-enabled" onclick="this.classList.toggle('active')"></div>
                         </div>
                     </div>
-
                     <div class="modal-form-group">
-                        <label class="modal-form-label">Banner Text</label>
+                        <label class="modal-form-label">Banner Text (HTML supported)</label>
                         <input type="text" id="brand-banner-text" class="modal-form-input" placeholder="e.g., Welcome to ACME Portal">
                     </div>
-
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                         <div class="modal-form-group" style="margin-bottom: 0;">
                             <label class="modal-form-label">Banner Background</label>
-                            <input type="text" id="brand-banner-bg" class="modal-form-input" placeholder="var(--gradient-1) or #111827">
+                            <div style="display:flex; gap: 8px; align-items: center;">
+                                <input type="color" id="brand-banner-bg-picker" value="#111827" style="width:36px; height:36px; border:none; background:none; cursor:pointer; padding:0;" onchange="document.getElementById('brand-banner-bg').value=this.value">
+                                <input type="text" id="brand-banner-bg" class="modal-form-input" placeholder="#111827 or gradient" style="flex:1;">
+                            </div>
                         </div>
                         <div class="modal-form-group" style="margin-bottom: 0;">
                             <label class="modal-form-label">Banner Text Color</label>
-                            <input type="text" id="brand-banner-text-color" class="modal-form-input" placeholder="#FFFFFF">
+                            <div style="display:flex; gap: 8px; align-items: center;">
+                                <input type="color" id="brand-banner-tc-picker" value="#FFFFFF" style="width:36px; height:36px; border:none; background:none; cursor:pointer; padding:0;" onchange="document.getElementById('brand-banner-text-color').value=this.value">
+                                <input type="text" id="brand-banner-text-color" class="modal-form-input" placeholder="#FFFFFF" style="flex:1;">
+                            </div>
                         </div>
                     </div>
 
-                    <div class="modal-form-group" style="margin-top: 12px;">
-                        <label class="modal-form-label">Assistant Welcome Title</label>
+                    <!-- Welcome Copy -->
+                    <div class="modal-form-group" style="margin-top: 14px;">
+                        <label class="modal-form-label">Chat Welcome Title</label>
                         <input type="text" id="brand-chat-title" class="modal-form-input" placeholder="How can I help you today?">
                     </div>
                     <div class="modal-form-group">
-                        <label class="modal-form-label">Assistant Welcome Message</label>
-                        <input type="text" id="brand-chat-message" class="modal-form-input" placeholder="Select an assistant from the sidebar and start a conversation.">
+                        <label class="modal-form-label">Chat Welcome Message</label>
+                        <input type="text" id="brand-chat-message" class="modal-form-input" placeholder="Select an assistant and start a conversation.">
                     </div>
 
+                    <!-- CSS: paste or upload -->
                     <div class="modal-form-group">
-                        <label class="modal-form-label">Custom CSS (optional)</label>
-                        <textarea id="brand-custom-css" class="modal-form-input" rows="4" placeholder="/* Advanced: add your CSS overrides here */"></textarea>
+                        <label class="modal-form-label">Custom CSS</label>
+                        <div class="brand-upload-zone" style="margin-bottom:8px;">
+                            <input type="file" accept=".css,text/css" onchange="handleBrandCSSUpload(event)">
+                            <div class="upload-label"><strong>Upload a .css file</strong> or paste below</div>
+                        </div>
+                        <textarea id="brand-custom-css" class="modal-form-input" rows="4" placeholder="/* Custom CSS overrides */"></textarea>
                     </div>
 
-                    <div class="modal-actions" style="margin-top: 12px;">
-                        <button class="modal-btn" onclick="resetBrandingSettings()">Reset</button>
+                    <div class="modal-actions" style="margin-top: 14px;">
+                        <button class="modal-btn" onclick="resetBrandingSettings()">Reset to Defaults</button>
                         <button class="modal-btn modal-btn-primary" onclick="saveBrandingSettings()">Save Branding</button>
                     </div>
                     <div id="brand-save-status" style="margin-top: 10px; color: var(--text-muted); font-size: 0.85rem;"></div>
