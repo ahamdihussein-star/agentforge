@@ -526,11 +526,33 @@ class ProcessWizard:
         except Exception:
             platform_knowledge = ""
 
+        # Build dynamic user attributes context for AI auto-detection
+        user_attrs_context = ""
+        if additional_context and isinstance(additional_context, dict):
+            available_attrs = additional_context.get("available_user_attributes")
+            if available_attrs and isinstance(available_attrs, dict):
+                standard = available_attrs.get("standard", [])
+                custom = available_attrs.get("custom", [])
+                attr_lines = []
+                for a in standard:
+                    attr_lines.append(f"  - {a['key']} ({a.get('type', 'string')}): {a.get('label', '')}")
+                if custom:
+                    attr_lines.append("\n  Custom fields configured for this organization:")
+                    for a in custom:
+                        attr_lines.append(f"  - {a['key']} ({a.get('type', 'string')}): {a.get('label', '')}")
+                user_attrs_context = (
+                    "\n\nAVAILABLE USER PROFILE ATTRIBUTES (for this organization):\n"
+                    "These fields are available for auto-fill via prefill. "
+                    "If any field in the process matches one of these, use prefill with readOnly:true "
+                    "instead of asking the user to type it.\n"
+                    + "\n".join(attr_lines)
+                )
+
         user_prompt = VISUAL_BUILDER_GENERATION_PROMPT.format(
             goal=goal,
             analysis=json.dumps(analysis or {}, ensure_ascii=False, indent=2),
             tools_json=tools_json,
-            platform_knowledge=platform_knowledge or "(no KB matches)",
+            platform_knowledge=(platform_knowledge or "(no KB matches)") + user_attrs_context,
         )
         system_prompt = (
             "You are a workflow designer. "

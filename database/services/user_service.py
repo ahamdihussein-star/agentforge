@@ -301,6 +301,15 @@ class UserService:
                 if user.mfa.last_used:
                     user_metadata['mfa_last_used'] = user.mfa.last_used
             
+            # Merge custom profile fields from user.profile.custom_attributes
+            if hasattr(user, 'profile') and user.profile and hasattr(user.profile, 'custom_attributes'):
+                custom_attrs = user.profile.custom_attributes
+                if isinstance(custom_attrs, dict) and custom_attrs:
+                    for k, v in custom_attrs.items():
+                        # Don't let custom fields overwrite MFA keys
+                        if not k.startswith('mfa_'):
+                            user_metadata[k] = v
+            
             # Update fields
             db_user.email = user.email.lower()
             if org_uuid:

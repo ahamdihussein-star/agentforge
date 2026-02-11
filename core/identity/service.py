@@ -712,6 +712,75 @@ class UserDirectoryService:
             logger.warning(f"Unknown assignee type: {assignee_type}")
             return assignee_config.get("user_ids", [])
     
+    def discover_available_attributes(self, org_id: str) -> Dict[str, Any]:
+        """
+        Discover ALL user attributes available for this organization.
+        
+        Returns standard attributes + any custom attributes found across users.
+        Used by the AI wizard to know exactly what fields can be pre-filled.
+        
+        Args:
+            org_id: Organization ID
+            
+        Returns:
+            Dict with 'standard' (always available) and 'custom' (org-specific) attribute lists
+        """
+        standard_attrs = [
+            {"key": "email", "label": "Email", "type": "string"},
+            {"key": "name", "label": "Full Name", "type": "string"},
+            {"key": "firstName", "label": "First Name", "type": "string"},
+            {"key": "lastName", "label": "Last Name", "type": "string"},
+            {"key": "phone", "label": "Phone", "type": "string"},
+            {"key": "jobTitle", "label": "Job Title", "type": "string"},
+            {"key": "employeeId", "label": "Employee ID", "type": "string"},
+            {"key": "departmentName", "label": "Department", "type": "string"},
+            {"key": "managerId", "label": "Manager ID", "type": "string"},
+            {"key": "managerName", "label": "Manager Name", "type": "string"},
+            {"key": "managerEmail", "label": "Manager Email", "type": "string"},
+            {"key": "roles", "label": "Roles", "type": "array"},
+            {"key": "groups", "label": "Groups", "type": "array"},
+            {"key": "isManager", "label": "Is Manager", "type": "boolean"},
+        ]
+        
+        # Discover custom attributes by scanning users in this org
+        custom_attrs_found = {}
+        try:
+            from database.base import get_session
+            from database.models.user import User
+            
+            with get_session() as session:
+                users = session.query(User).filter(
+                    User.org_id == org_id,
+                    User.status == "active"
+                ).limit(100).all()
+                
+                for u in users:
+                    if hasattr(u, 'user_metadata') and isinstance(u.user_metadata, dict):
+                        for k, v in u.user_metadata.items():
+                            if k not in custom_attrs_found and v is not None:
+                                # Infer type from first non-None value
+                                val_type = "string"
+                                if isinstance(v, bool):
+                                    val_type = "boolean"
+                                elif isinstance(v, (int, float)):
+                                    val_type = "number"
+                                elif isinstance(v, list):
+                                    val_type = "array"
+                                custom_attrs_found[k] = {
+                                    "key": k,
+                                    "label": k.replace("_", " ").replace("-", " ").title(),
+                                    "type": val_type,
+                                    "source": "custom"
+                                }
+        except Exception as e:
+            logger.warning(f"Failed to discover custom attributes: {e}")
+        
+        return {
+            "standard": standard_attrs,
+            "custom": list(custom_attrs_found.values()),
+            "all_keys": [a["key"] for a in standard_attrs] + list(custom_attrs_found.keys())
+        }
+    
     def enrich_process_context(self, user_id: str, org_id: str) -> Dict[str, Any]:
         """
         Enrich process context with ALL available user directory information.
@@ -851,6 +920,21 @@ class UserDirectoryService:
                 ).all()
                 role_names = [r.name for r in roles]
             
+            # Merge custom attributes from user_metadata (dynamic custom fields)
+            # These are set by admins via the UI and are org-specific
+            # Filter out internal keys (mfa_*, system keys)
+            custom_attrs = {}
+            raw_meta = None
+            if hasattr(user, 'user_metadata') and isinstance(user.user_metadata, dict):
+                raw_meta = user.user_metadata
+            elif hasattr(user, 'profile') and hasattr(user.profile, 'custom_attributes') and isinstance(getattr(user.profile, 'custom_attributes', None), dict):
+                raw_meta = user.profile.custom_attributes
+            if raw_meta:
+                custom_attrs = {
+                    k: v for k, v in raw_meta.items()
+                    if v is not None and not k.startswith('mfa_') and not k.startswith('_')
+                }
+            
             return UserAttributes(
                 user_id=str(user.id),
                 email=user.email,
@@ -871,6 +955,7 @@ class UserDirectoryService:
                 role_names=role_names,
                 is_manager=report_count > 0,
                 direct_report_count=report_count,
+                custom_attributes=custom_attrs,
                 source="internal",
             )
         finally:

@@ -1079,6 +1079,16 @@ async def generate_workflow_from_goal(
     except Exception:
         llm = None
     
+    # Discover available user attributes for this org (standard + custom)
+    # This lets the AI know exactly what fields can be auto-filled
+    try:
+        from core.identity.service import UserDirectoryService
+        _dir_svc = UserDirectoryService()
+        available_attrs = _dir_svc.discover_available_attributes(user_dict["org_id"])
+        context["available_user_attributes"] = available_attrs
+    except Exception as e:
+        print(f"⚠️  [Wizard] Failed to discover user attributes: {e}")
+    
     # Generate process
     wizard = ProcessWizard(llm=llm, org_settings=org_settings)
     

@@ -159,6 +159,7 @@ class UpdateUserRequest(BaseModel):
     role_ids: Optional[List[str]] = None
     group_ids: Optional[List[str]] = None
     status: Optional[UserStatus] = None
+    user_metadata: Optional[Dict[str, Any]] = None  # Custom profile fields (dynamic)
 
 class InviteUserRequest(BaseModel):
     email: EmailStr
@@ -1063,9 +1064,18 @@ async def get_current_user_info(user: User = Depends(require_auth)):
     for k, v in identity_data.items():
         if v is not None:
             response[k] = v
-    # Include custom_attributes dict (from HR/LDAP) for dynamic frontend access
+    # Include custom_attributes dict for dynamic frontend access
+    # This includes: HR/LDAP custom fields + built-in user_metadata fields
     if custom_attributes:
         response["custom_attributes"] = custom_attributes
+    # Also include profile.custom_attributes for admin edit form
+    if hasattr(user, 'profile') and hasattr(user.profile, 'custom_attributes') and user.profile.custom_attributes:
+        if "custom_attributes" not in response:
+            response["custom_attributes"] = {}
+        # Merge (profile custom_attributes may overlap with identity custom_attributes)
+        for k, v in user.profile.custom_attributes.items():
+            if not k.startswith('mfa_') and not k.startswith('_') and k not in response.get("custom_attributes", {}):
+                response.setdefault("custom_attributes", {})[k] = v
     return response
 
 @router.post("/auth/change-password")
@@ -1881,6 +1891,15 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
         if request.status is not None:
             changes["status"] = {"old": target_user.status.value, "new": request.status.value}
             target_user.status = request.status
+    
+    # Custom profile fields (user_metadata) — available to both self and admin
+    if request.user_metadata is not None:
+        # Merge with existing metadata (so partial updates work)
+        if not hasattr(target_user.profile, 'custom_attributes'):
+            target_user.profile.custom_attributes = {}
+        target_user.profile.custom_attributes = request.user_metadata
+        changes["user_metadata"] = {"updated": True}
+        print(f"   ✅ Updated custom profile fields: {list(request.user_metadata.keys())}")
     
     target_user.updated_at = datetime.utcnow().isoformat()
     

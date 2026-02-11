@@ -32435,6 +32435,28 @@ function editSecurityUser(userId) {
                         `).join('')}
                     </div>
                 </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Custom Profile Fields</label>
+                    <p class="text-xs text-gray-500 mb-2">Add any custom attributes (e.g., National ID, Badge Number, Office Location). These are automatically available for process forms and AI-generated workflows.</p>
+                    <div id="edit-user-custom-fields" class="space-y-2">
+                        ${(() => {
+                            const meta = user.user_metadata || user.custom_attributes || {};
+                            const entries = Object.entries(meta).filter(([k,v]) => v !== null && v !== undefined);
+                            if (!entries.length) return '<div class="text-xs text-gray-500 italic" id="no-custom-fields-msg">No custom fields yet.</div>';
+                            return entries.map(([k, v], i) => `
+                                <div class="flex gap-2 items-center" data-custom-row="${i}">
+                                    <input type="text" value="${escapeHtml(k)}" placeholder="Field name" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 custom-field-key">
+                                    <input type="text" value="${escapeHtml(String(v))}" placeholder="Value" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 custom-field-val">
+                                    <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300 text-lg px-1" title="Remove">&times;</button>
+                                </div>
+                            `).join('');
+                        })()}
+                    </div>
+                    <button onclick="addCustomFieldRow()" class="mt-2 text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add Custom Field
+                    </button>
+                </div>
                 <div class="flex gap-3 mt-6">
                     <button onclick="document.getElementById('edit-user-modal').remove()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
                     <button onclick="saveUserEdit('${userId}')" class="btn-primary flex-1 py-2 rounded-lg">Save Changes</button>
@@ -32445,6 +32467,47 @@ function editSecurityUser(userId) {
     document.body.appendChild(modal);
 }
 
+// Add a new custom field row in the edit user modal
+function addCustomFieldRow() {
+    const container = document.getElementById('edit-user-custom-fields');
+    if (!container) return;
+    const noMsg = document.getElementById('no-custom-fields-msg');
+    if (noMsg) noMsg.remove();
+    const row = document.createElement('div');
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+        <input type="text" placeholder="Field name (e.g., national_id)" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 custom-field-key">
+        <input type="text" placeholder="Value" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 custom-field-val">
+        <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300 text-lg px-1" title="Remove">&times;</button>
+    `;
+    container.appendChild(row);
+    row.querySelector('.custom-field-key').focus();
+}
+
+// Collect custom fields from the edit user modal
+function collectCustomFields() {
+    const container = document.getElementById('edit-user-custom-fields');
+    if (!container) return {};
+    const rows = container.querySelectorAll('.flex.gap-2');
+    const result = {};
+    rows.forEach(row => {
+        const keyEl = row.querySelector('.custom-field-key');
+        const valEl = row.querySelector('.custom-field-val');
+        if (!keyEl || !valEl) return;
+        const k = (keyEl.value || '').trim().replace(/\s+/g, '_').toLowerCase();
+        const v = (valEl.value || '').trim();
+        if (k && v) {
+            // Auto-detect types for common patterns
+            if (v === 'true') result[k] = true;
+            else if (v === 'false') result[k] = false;
+            else if (/^\d+$/.test(v)) result[k] = parseInt(v, 10);
+            else if (/^\d+\.\d+$/.test(v)) result[k] = parseFloat(v);
+            else result[k] = v;
+        }
+    });
+    return result;
+}
+
 // Save user edit
 async function saveUserEdit(userId) {
     const firstName = document.getElementById('edit-user-firstname').value?.trim() || '';
@@ -32453,17 +32516,19 @@ async function saveUserEdit(userId) {
     const roleCheckboxes = document.querySelectorAll('#edit-user-roles input[type="checkbox"]:checked');
     const roleIds = Array.from(roleCheckboxes).map(cb => cb.value);
     
-    console.log('📝 Saving user edit:', { firstName, lastName, status, roleIds });
+    const customFields = collectCustomFields();
+    console.log('📝 Saving user edit:', { firstName, lastName, status, roleIds, customFields });
     
     try {
         const res = await fetch('/api/security/users/' + userId, {
             method: 'PUT',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                first_name: firstName,  // ✅ Top-level, not nested in profile
-                last_name: lastName,    // ✅ Top-level, not nested in profile
+                first_name: firstName,
+                last_name: lastName,
                 status: status,
-                role_ids: roleIds
+                role_ids: roleIds,
+                user_metadata: customFields
             })
         });
         
