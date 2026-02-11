@@ -40,6 +40,10 @@
         .step-done{background:var(--success);color:white}
         .step-pending{background:var(--bg-input);color:var(--text-muted)}
         
+        /* Identity Source Selection */
+        .identity-src-btn { cursor: pointer; }
+        .identity-src-btn:hover { background: rgba(168, 85, 247, 0.05); }
+
         /* Org Chart Tree Styles */
         .org-chart-container { text-align: center; padding: 16px 0; }
         .org-tree-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; position: relative; }
@@ -2189,6 +2193,123 @@
                         </p>
                     </div>
                     
+                    <!-- Identity & User Directory -->
+                    <div class="card rounded-xl p-4 md:p-6" id="settings-identity-card">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-lg font-semibold flex items-center gap-2">🏢 Identity & User Directory</h3>
+                                <p class="text-sm text-gray-400 mt-1">Choose how user identities, managers, and organizational hierarchy are managed</p>
+                            </div>
+                            <span id="settings-identity-status" class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-600/20 text-yellow-400">⚙️ Setup Required</span>
+                        </div>
+
+                        <div class="space-y-4">
+                            <!-- Source Selector -->
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Identity Source</label>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="settings-identity-sources">
+                                    <button onclick="selectIdentitySource('internal')" id="id-src-internal" class="identity-src-btn card rounded-xl p-4 text-left border-2 border-transparent hover:border-purple-500/50 transition-all">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="w-10 h-10 rounded-lg bg-purple-600/20 flex items-center justify-center text-xl">📋</div>
+                                            <div>
+                                                <div class="font-semibold">Built-in Org Chart</div>
+                                                <div class="text-xs text-gray-400">Manage hierarchy within the platform</div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-gray-500">Define departments, assign managers, and employee IDs directly in the platform. Best for small-to-medium organizations or those without an external HR system.</p>
+                                    </button>
+                                    <button onclick="selectIdentitySource('ldap')" id="id-src-ldap" class="identity-src-btn card rounded-xl p-4 text-left border-2 border-transparent hover:border-purple-500/50 transition-all">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center text-xl">🔗</div>
+                                            <div>
+                                                <div class="font-semibold">LDAP / Active Directory</div>
+                                                <div class="text-xs text-gray-400">Azure AD, AD, OpenLDAP</div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-gray-500">Users and their hierarchy are automatically synced from your directory service. Manager relationships and department info come from LDAP attributes.</p>
+                                    </button>
+                                    <button onclick="selectIdentitySource('hr_api')" id="id-src-hr_api" class="identity-src-btn card rounded-xl p-4 text-left border-2 border-transparent hover:border-purple-500/50 transition-all">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="w-10 h-10 rounded-lg bg-green-600/20 flex items-center justify-center text-xl">🏗️</div>
+                                            <div>
+                                                <div class="font-semibold">HR System API</div>
+                                                <div class="text-xs text-gray-400">SAP, Oracle HCM, Workday, BambooHR</div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-gray-500">Connect to your HR system's REST API to fetch employee data, organizational structure, and reporting hierarchy in real-time.</p>
+                                    </button>
+                                    <button onclick="selectIdentitySource('hybrid')" id="id-src-hybrid" class="identity-src-btn card rounded-xl p-4 text-left border-2 border-transparent hover:border-purple-500/50 transition-all">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="w-10 h-10 rounded-lg bg-orange-600/20 flex items-center justify-center text-xl">🔀</div>
+                                            <div>
+                                                <div class="font-semibold">Hybrid</div>
+                                                <div class="text-xs text-gray-400">Internal + External source</div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-gray-500">Use the built-in org chart as primary, enriched with data from LDAP or HR API. Override external data locally when needed.</p>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- LDAP Info (shown when LDAP selected) -->
+                            <div id="settings-id-ldap-info" class="hidden card rounded-lg p-4 bg-blue-600/5 border border-blue-500/20">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-blue-400">ℹ️</span>
+                                    <span class="font-medium text-sm">LDAP Configuration</span>
+                                </div>
+                                <p class="text-sm text-gray-400 mb-3">LDAP/Active Directory connection is configured in <strong>Security → Settings</strong>. User hierarchy (manager, department) will be resolved from LDAP attributes automatically.</p>
+                                <button onclick="navigate('security'); setTimeout(()=>switchSecurityTab('settings'), 200)" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm">Go to Security Settings →</button>
+                            </div>
+
+                            <!-- HR API Config (shown when HR API or Hybrid selected) -->
+                            <div id="settings-id-hr-config" class="hidden space-y-3">
+                                <div class="card rounded-lg p-4 bg-green-600/5 border border-green-500/20">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <span class="text-green-400">🏗️</span>
+                                        <span class="font-medium text-sm">HR System API Configuration</span>
+                                    </div>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <label class="block text-xs font-medium mb-1">Base URL</label>
+                                            <input type="url" id="settings-hr-api-url" class="w-full input-field rounded-lg px-3 py-2 text-sm" placeholder="https://api.hrprovider.com/v1">
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-medium mb-1">Auth Type</label>
+                                                <select id="settings-hr-api-auth" class="w-full input-field rounded-lg px-3 py-2 text-sm">
+                                                    <option value="bearer">Bearer Token</option>
+                                                    <option value="api_key">API Key</option>
+                                                    <option value="oauth2">OAuth 2.0</option>
+                                                    <option value="basic">Basic Auth</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium mb-1">API Key / Token</label>
+                                                <input type="password" id="settings-hr-api-key" class="w-full input-field rounded-lg px-3 py-2 text-sm" placeholder="Enter API key or token">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Internal Info (shown when internal selected) -->
+                            <div id="settings-id-internal-info" class="hidden card rounded-lg p-4 bg-purple-600/5 border border-purple-500/20">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-purple-400">📋</span>
+                                    <span class="font-medium text-sm">Built-in Organization Management</span>
+                                </div>
+                                <p class="text-sm text-gray-400 mb-3">Manage departments, assign managers, and set employee IDs in <strong>Security → Organization</strong> tab.</p>
+                                <button onclick="navigate('security'); setTimeout(()=>switchSecurityTab('org'), 200)" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm">Manage Organization →</button>
+                            </div>
+
+                            <!-- Save Button -->
+                            <div class="flex items-center gap-3 pt-2">
+                                <button onclick="saveIdentitySettings()" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium">Save Identity Settings</button>
+                                <span id="settings-identity-saved" class="text-green-400 text-sm hidden">✅ Saved!</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- LLM Providers Management -->
                     <div class="card rounded-xl p-4 md:p-6">
                         <div class="flex items-center justify-between mb-4">
@@ -2904,6 +3025,9 @@
                             <div class="mb-4">
                                 <h3 class="text-lg font-semibold">Identity Directory Configuration</h3>
                                 <p class="text-sm text-gray-400">Configure how user identities and organizational data are resolved</p>
+                                <div class="mt-2 p-3 rounded-lg bg-purple-600/10 border border-purple-500/20 text-sm">
+                                    💡 <strong>Tip:</strong> This setting is also available in <button onclick="navigate('settings')" class="text-purple-400 underline hover:text-purple-300">Settings → Identity & User Directory</button> for easier access during initial setup.
+                                </div>
                             </div>
                             <div class="card rounded-xl p-6 space-y-4 max-w-2xl">
                                 <div>
@@ -8559,7 +8683,7 @@ Option 3"></textarea>
                     console.error('🎯 [CREATE] ERROR in resetWizardNew():', e);
                 }
             }
-            if(p==='settings'){ loadSettings(); updateThemeButtons(localStorage.getItem('agentforge-theme') || 'dark'); }
+            if(p==='settings'){ loadSettings(); updateThemeButtons(localStorage.getItem('agentforge-theme') || 'dark'); loadIdentitySettings(); }
             if(p==='profile') loadProfileInfo();
             if(p==='demo')initDemoLab();
             if(p==='approvals') loadApprovals();
@@ -31860,6 +31984,87 @@ async function saveDirectoryConfig() {
         } else {
             const data = await res.json().catch(() => ({}));
             showToast(data.detail || 'Failed to save configuration', 'error');
+        }
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ============================================================
+// IDENTITY SETTINGS (Settings Page - prominent config)
+// ============================================================
+let selectedIdentitySource = 'internal';
+
+function selectIdentitySource(source) {
+    selectedIdentitySource = source;
+    // Update visual selection
+    document.querySelectorAll('.identity-src-btn').forEach(btn => {
+        btn.classList.remove('border-purple-500', 'bg-purple-600/10');
+        btn.classList.add('border-transparent');
+    });
+    const activeBtn = document.getElementById('id-src-' + source);
+    if (activeBtn) {
+        activeBtn.classList.add('border-purple-500', 'bg-purple-600/10');
+        activeBtn.classList.remove('border-transparent');
+    }
+    // Show/hide config panels
+    document.getElementById('settings-id-ldap-info').classList.toggle('hidden', source !== 'ldap');
+    document.getElementById('settings-id-hr-config').classList.toggle('hidden', source !== 'hr_api' && source !== 'hybrid');
+    document.getElementById('settings-id-internal-info').classList.toggle('hidden', source !== 'internal' && source !== 'hybrid');
+}
+
+async function loadIdentitySettings() {
+    try {
+        const res = await fetch('/api/identity/directory-config', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            const source = data.directory_source || 'internal';
+            selectIdentitySource(source);
+            // Update status badge
+            const badge = document.getElementById('settings-identity-status');
+            if (badge) {
+                badge.textContent = '✅ Configured';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-green-600/20 text-green-400';
+            }
+            // Fill HR API config if present
+            if (data.hr_api_config) {
+                const cfg = typeof data.hr_api_config === 'string' ? JSON.parse(data.hr_api_config) : data.hr_api_config;
+                document.getElementById('settings-hr-api-url').value = cfg.base_url || '';
+                document.getElementById('settings-hr-api-auth').value = cfg.auth_type || 'bearer';
+                document.getElementById('settings-hr-api-key').value = cfg.api_key || '';
+            }
+        }
+    } catch (e) {
+        console.log('Identity settings load:', e);
+    }
+}
+
+async function saveIdentitySettings() {
+    const source = selectedIdentitySource;
+    const hrApiConfig = (source === 'hr_api' || source === 'hybrid') ? {
+        base_url: document.getElementById('settings-hr-api-url').value,
+        auth_type: document.getElementById('settings-hr-api-auth').value,
+        api_key: document.getElementById('settings-hr-api-key').value
+    } : null;
+    try {
+        const res = await fetch('/api/identity/directory-config', {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ directory_source: source, hr_api_config: hrApiConfig })
+        });
+        if (res.ok) {
+            showToast('Identity settings saved!', 'success');
+            const badge = document.getElementById('settings-identity-status');
+            if (badge) {
+                badge.textContent = '✅ Configured';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-green-600/20 text-green-400';
+            }
+            const savedEl = document.getElementById('settings-identity-saved');
+            if (savedEl) { savedEl.classList.remove('hidden'); setTimeout(() => savedEl.classList.add('hidden'), 3000); }
+            // Also sync to org tab if loaded
+            const orgSelect = document.getElementById('org-directory-source');
+            if (orgSelect) orgSelect.value = source;
+        } else {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.detail || 'Failed to save identity settings', 'error');
         }
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
