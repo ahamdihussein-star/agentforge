@@ -40,6 +40,15 @@
         .step-done{background:var(--success);color:white}
         .step-pending{background:var(--bg-input);color:var(--text-muted)}
         
+        /* Org Chart Tree Styles */
+        .org-chart-container { text-align: center; padding: 16px 0; }
+        .org-tree-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; position: relative; }
+        .org-tree-item { display: flex; flex-direction: column; align-items: center; position: relative; }
+        .org-tree-item > .org-tree-list { margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--border-color); }
+        .org-tree-node { transition: transform 0.15s, box-shadow 0.15s; cursor: default; }
+        .org-tree-node:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .org-tree-root { border: 2px solid rgba(168, 85, 247, 0.4); }
+
         /* New Wizard Progress Styles */
         .wizard-progress-step{display:flex;flex-direction:column;align-items:center;gap:4px}
         .wizard-step-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;background:#374151;color:#9ca3af;border:2px solid transparent}
@@ -1841,7 +1850,10 @@
                     <span>🧪</span><span>Lab</span>
                     <span class="ml-auto text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">New</span>
                 </button>
-                <!-- Approvals removed from main nav - accessible via agent workflow pages -->
+                <button onclick="navigate('approvals')" id="nav-approvals" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
+                    <span>📋</span><span>Approvals</span>
+                    <span id="nav-approvals-badge" class="ml-auto text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded hidden">0</span>
+                </button>
                 <button onclick="navigate('settings')" id="nav-settings" data-permission="system:settings" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <span>⚙️</span><span>Settings</span>
                 </button>
@@ -2644,6 +2656,36 @@
                     </div>
             </section>
 
+            <!-- Approvals Page -->
+            <section id="page-approvals" class="hidden flex-1 overflow-y-auto p-4 md:p-6">
+                <div class="max-w-6xl mx-auto">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold">Approvals</h2>
+                        <p class="text-gray-400 mt-1">Review and act on pending approval requests</p>
+                    </div>
+
+                    <!-- Approval Filters -->
+                    <div class="flex gap-3 mb-4 flex-wrap">
+                        <button onclick="filterApprovals('pending')" id="appr-filter-pending" class="px-4 py-2 rounded-lg bg-yellow-600/20 text-yellow-400 text-sm font-medium">⏳ Pending</button>
+                        <button onclick="filterApprovals('approved')" id="appr-filter-approved" class="px-4 py-2 rounded-lg hover:bg-gray-700 text-sm">✅ Approved</button>
+                        <button onclick="filterApprovals('rejected')" id="appr-filter-rejected" class="px-4 py-2 rounded-lg hover:bg-gray-700 text-sm">❌ Rejected</button>
+                        <button onclick="filterApprovals('all')" id="appr-filter-all" class="px-4 py-2 rounded-lg hover:bg-gray-700 text-sm">📋 All</button>
+                    </div>
+
+                    <!-- Approvals List -->
+                    <div id="approvals-list" class="space-y-3">
+                        <div class="card rounded-xl p-8 text-center text-gray-500">Loading approvals...</div>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="approvals-empty" class="hidden card rounded-xl p-12 text-center">
+                        <div class="text-5xl mb-4">✅</div>
+                        <h3 class="text-xl font-semibold mb-2">No Pending Approvals</h3>
+                        <p class="text-gray-400">You're all caught up! No approvals need your attention right now.</p>
+                    </div>
+                </div>
+            </section>
+
             <!-- Security Center Page -->
             <section id="page-security" class="hidden flex-1 overflow-y-auto p-4 md:p-6">
                 <div class="max-w-7xl mx-auto">
@@ -2685,6 +2727,7 @@
                         <button data-permission="users:view" onclick="switchSecurityTab('users')" id="sec-tab-users" class="px-4 py-2 rounded-t-lg bg-purple-600 text-white whitespace-nowrap">👥 Users</button>
                         <button data-permission="roles:view" onclick="switchSecurityTab('roles')" id="sec-tab-roles" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">🎭 Roles</button>
                         <button data-permission="users:view" onclick="switchSecurityTab('groups')" id="sec-tab-groups" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">👥 Groups</button>
+                        <button data-permission="users:view" onclick="switchSecurityTab('org')" id="sec-tab-org" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">🏢 Organization</button>
                         <button data-permission="audit:view" onclick="switchSecurityTab('audit')" id="sec-tab-audit" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">📋 Audit Log</button>
                         <button onclick="switchSecurityTab('mfa')" id="sec-tab-mfa" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">🔑 My MFA</button>
                         <button data-permission="security:settings" onclick="switchSecurityTab('settings')" id="sec-tab-settings" class="px-4 py-2 rounded-t-lg hover:bg-gray-700 whitespace-nowrap">⚙️ Settings</button>
@@ -2787,6 +2830,177 @@
                             <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
                                 <button onclick="closeAddGroupModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
                                 <button onclick="saveGroup()" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700">Create Group</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Organization Tab (Departments, Managers, Org Chart) -->
+                    <div id="sec-content-org" class="hidden" data-permission="users:view">
+                        <!-- Sub-tabs for Organization -->
+                        <div class="flex gap-2 mb-4">
+                            <button onclick="switchOrgSubTab('departments')" id="org-sub-departments" class="px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-400 text-sm font-medium">🏢 Departments</button>
+                            <button onclick="switchOrgSubTab('managers')" id="org-sub-managers" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">👤 Manager Assignment</button>
+                            <button onclick="switchOrgSubTab('orgchart')" id="org-sub-orgchart" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">🌳 Org Chart</button>
+                            <button onclick="switchOrgSubTab('directory')" id="org-sub-directory" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">⚙️ Directory Config</button>
+                        </div>
+
+                        <!-- Departments Sub-Tab -->
+                        <div id="org-content-departments">
+                            <div class="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 class="text-lg font-semibold">Departments</h3>
+                                    <p class="text-sm text-gray-400">Manage organizational departments and hierarchy</p>
+                                </div>
+                                <button onclick="showCreateDepartmentModal()" class="btn-primary px-4 py-2 rounded-lg">+ Create Department</button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="org-departments-grid">
+                                <div class="card rounded-xl p-4 text-center text-gray-500">Loading departments...</div>
+                            </div>
+                        </div>
+
+                        <!-- Manager Assignment Sub-Tab -->
+                        <div id="org-content-managers" class="hidden">
+                            <div class="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 class="text-lg font-semibold">Manager Assignment</h3>
+                                    <p class="text-sm text-gray-400">Assign direct managers and employee IDs to users</p>
+                                </div>
+                            </div>
+                            <div class="card rounded-xl overflow-hidden">
+                                <div class="p-3 flex gap-3">
+                                    <input type="text" id="org-manager-search" class="flex-1 input-field rounded-lg px-4 py-2 text-sm" placeholder="🔍 Search users..." oninput="renderOrgManagerTable()">
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full">
+                                        <thead class="bg-gray-800/50">
+                                            <tr>
+                                                <th class="text-left p-3 text-sm">Employee</th>
+                                                <th class="text-left p-3 text-sm">Employee ID</th>
+                                                <th class="text-left p-3 text-sm">Department</th>
+                                                <th class="text-left p-3 text-sm">Manager</th>
+                                                <th class="text-left p-3 text-sm">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="org-manager-table">
+                                            <tr><td colspan="5" class="p-8 text-center text-gray-500">Loading...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Org Chart Sub-Tab -->
+                        <div id="org-content-orgchart" class="hidden">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-semibold">Organization Chart</h3>
+                            </div>
+                            <div id="org-chart-tree" class="card rounded-xl p-6 min-h-[300px]">
+                                <div class="text-center text-gray-500">Loading org chart...</div>
+                            </div>
+                        </div>
+
+                        <!-- Directory Config Sub-Tab -->
+                        <div id="org-content-directory" class="hidden">
+                            <div class="mb-4">
+                                <h3 class="text-lg font-semibold">Identity Directory Configuration</h3>
+                                <p class="text-sm text-gray-400">Configure how user identities and organizational data are resolved</p>
+                            </div>
+                            <div class="card rounded-xl p-6 space-y-4 max-w-2xl">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">Directory Source</label>
+                                    <select id="org-directory-source" class="w-full input-field rounded-lg px-4 py-2" onchange="onDirectorySourceChange()">
+                                        <option value="internal">Internal (Built-in Org Chart)</option>
+                                        <option value="ldap">LDAP / Active Directory</option>
+                                        <option value="hr_api">External HR System API</option>
+                                        <option value="hybrid">Hybrid (Internal + External)</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1" id="org-directory-desc">User hierarchy managed within the platform.</p>
+                                </div>
+                                <div id="org-hr-api-config" class="hidden space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium mb-1">HR API Base URL</label>
+                                        <input type="url" id="org-hr-api-url" class="w-full input-field rounded-lg px-4 py-2" placeholder="https://api.hrprovider.com/v1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-1">Authentication Type</label>
+                                        <select id="org-hr-api-auth" class="w-full input-field rounded-lg px-4 py-2">
+                                            <option value="bearer">Bearer Token</option>
+                                            <option value="api_key">API Key</option>
+                                            <option value="oauth2">OAuth 2.0</option>
+                                            <option value="basic">Basic Auth</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-1">API Key / Token</label>
+                                        <input type="password" id="org-hr-api-key" class="w-full input-field rounded-lg px-4 py-2" placeholder="Enter API key or token">
+                                    </div>
+                                </div>
+                                <button onclick="saveDirectoryConfig()" class="btn-primary px-6 py-2 rounded-lg">Save Configuration</button>
+                            </div>
+                        </div>
+
+                        <!-- Create Department Modal -->
+                        <div id="create-dept-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+                            <div class="modal-content-box rounded-2xl w-full max-w-lg mx-4">
+                                <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                                    <h3 class="font-bold text-lg" id="dept-modal-title">🏢 Create Department</h3>
+                                    <button onclick="closeDeptModal()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
+                                </div>
+                                <div class="p-6 space-y-4">
+                                    <input type="hidden" id="dept-edit-id" value="">
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Department Name *</label>
+                                        <input type="text" id="dept-name" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Engineering, HR, Finance">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Description</label>
+                                        <textarea id="dept-description" class="w-full input-field rounded-lg px-4 py-2 h-20" placeholder="What does this department do?"></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Department Head</label>
+                                        <select id="dept-manager" class="w-full input-field rounded-lg px-4 py-2">
+                                            <option value="">— None —</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Parent Department</label>
+                                        <select id="dept-parent" class="w-full input-field rounded-lg px-4 py-2">
+                                            <option value="">— None (Top Level) —</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
+                                    <button onclick="closeDeptModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
+                                    <button onclick="saveDepartment()" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700" id="dept-save-btn">Create</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Assign Manager Modal -->
+                        <div id="assign-manager-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+                            <div class="modal-content-box rounded-2xl w-full max-w-md mx-4">
+                                <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                                    <h3 class="font-bold text-lg">👤 Assign Manager</h3>
+                                    <button onclick="closeManagerModal()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
+                                </div>
+                                <div class="p-6 space-y-4">
+                                    <input type="hidden" id="mgr-user-id" value="">
+                                    <p class="text-sm text-gray-400">Assigning manager for: <strong id="mgr-user-name"></strong></p>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Direct Manager</label>
+                                        <select id="mgr-select" class="w-full input-field rounded-lg px-4 py-2">
+                                            <option value="">— No Manager —</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Employee ID</label>
+                                        <input type="text" id="mgr-employee-id" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., EMP-001">
+                                    </div>
+                                </div>
+                                <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
+                                    <button onclick="closeManagerModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
+                                    <button onclick="saveManagerAssignment()" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700">Save</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -8348,6 +8562,7 @@ Option 3"></textarea>
             if(p==='settings'){ loadSettings(); updateThemeButtons(localStorage.getItem('agentforge-theme') || 'dark'); }
             if(p==='profile') loadProfileInfo();
             if(p==='demo')initDemoLab();
+            if(p==='approvals') loadApprovals();
         }
         
         // Load dashboard statistics
@@ -29528,6 +29743,10 @@ function showApp() {
     if (typeof initAppData === 'function') {
         initAppData();
     }
+    // Start polling for pending approvals badge
+    if (typeof startApprovalPolling === 'function') {
+        startApprovalPolling();
+    }
 }
 
 // Handle login
@@ -31249,6 +31468,555 @@ async function updateGroup(id) {
 // END GROUP MANAGEMENT
 // ============================================================
 
+// ============================================================
+// ORGANIZATION TAB (Departments, Manager Assignment, Org Chart)
+// ============================================================
+let orgDepartments = [];
+let orgUsersCache = [];
+
+async function loadOrgTab() {
+    await Promise.all([loadOrgDepartments(), loadOrgUsers()]);
+    renderOrgManagerTable();
+}
+
+function switchOrgSubTab(sub) {
+    const subs = ['departments', 'managers', 'orgchart', 'directory'];
+    subs.forEach(s => {
+        const el = document.getElementById('org-content-' + s);
+        if (el) el.classList.toggle('hidden', s !== sub);
+        const btn = document.getElementById('org-sub-' + s);
+        if (btn) {
+            btn.classList.toggle('bg-purple-600/20', s === sub);
+            btn.classList.toggle('text-purple-400', s === sub);
+            btn.classList.toggle('hover:bg-gray-700', s !== sub);
+        }
+    });
+    if (sub === 'orgchart') renderOrgChart();
+    if (sub === 'directory') loadDirectoryConfig();
+    if (sub === 'managers') renderOrgManagerTable();
+    if (sub === 'departments') renderOrgDepartments();
+}
+
+// --- Departments ---
+async function loadOrgDepartments() {
+    try {
+        const res = await fetch('/api/identity/departments', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            orgDepartments = Array.isArray(data) ? data : (data.departments || []);
+        } else {
+            orgDepartments = [];
+        }
+    } catch (e) {
+        console.log('Departments API:', e);
+        orgDepartments = [];
+    }
+    renderOrgDepartments();
+}
+
+function renderOrgDepartments() {
+    const container = document.getElementById('org-departments-grid');
+    if (!container) return;
+    if (orgDepartments.length === 0) {
+        container.innerHTML = `
+            <div class="card rounded-xl p-8 text-center col-span-full">
+                <div class="text-4xl mb-3">🏢</div>
+                <h4 class="font-semibold mb-2">No Departments Yet</h4>
+                <p class="text-gray-400 text-sm mb-4">Create departments to define your organizational structure</p>
+                <button onclick="showCreateDepartmentModal()" class="btn-primary px-4 py-2 rounded-lg">+ Create First Department</button>
+            </div>`;
+        return;
+    }
+    container.innerHTML = orgDepartments.map(d => {
+        const manager = orgUsersCache.find(u => u.id === d.manager_id);
+        const managerName = manager ? (manager.name || manager.email) : '';
+        const memberCount = d.member_count || 0;
+        return `
+        <div class="card rounded-xl p-4">
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-xl">🏢</div>
+                    <div>
+                        <h4 class="font-semibold">${escHtml(d.name)}</h4>
+                        <p class="text-xs text-gray-400">${memberCount} member${memberCount !== 1 ? 's' : ''}</p>
+                    </div>
+                </div>
+                <div class="flex gap-1">
+                    <button onclick="editDepartment('${d.id}')" class="p-1 hover:bg-gray-700 rounded" title="Edit">✏️</button>
+                    <button onclick="deleteDepartment('${d.id}')" class="p-1 hover:bg-gray-700 rounded text-red-400" title="Delete">🗑️</button>
+                </div>
+            </div>
+            ${managerName ? `<p class="text-xs text-gray-400 mb-1">👤 Head: ${escHtml(managerName)}</p>` : ''}
+            <p class="text-sm text-gray-400 line-clamp-2">${escHtml(d.description || 'No description')}</p>
+        </div>`;
+    }).join('');
+}
+
+function showCreateDepartmentModal() {
+    ensureModalInBody('create-dept-modal');
+    document.getElementById('dept-edit-id').value = '';
+    document.getElementById('dept-modal-title').textContent = '🏢 Create Department';
+    document.getElementById('dept-save-btn').textContent = 'Create';
+    document.getElementById('dept-name').value = '';
+    document.getElementById('dept-description').value = '';
+    // Populate manager dropdown
+    const mgrSelect = document.getElementById('dept-manager');
+    mgrSelect.innerHTML = '<option value="">— None —</option>' +
+        orgUsersCache.map(u => `<option value="${u.id}">${escHtml(u.name || u.email)}</option>`).join('');
+    // Populate parent dropdown
+    const parentSelect = document.getElementById('dept-parent');
+    parentSelect.innerHTML = '<option value="">— None (Top Level) —</option>' +
+        orgDepartments.map(d => `<option value="${d.id}">${escHtml(d.name)}</option>`).join('');
+    document.getElementById('create-dept-modal').classList.remove('hidden');
+    document.getElementById('create-dept-modal').classList.add('flex');
+}
+
+function closeDeptModal() {
+    document.getElementById('create-dept-modal').classList.add('hidden');
+    document.getElementById('create-dept-modal').classList.remove('flex');
+}
+
+async function saveDepartment() {
+    const editId = document.getElementById('dept-edit-id').value;
+    const name = document.getElementById('dept-name').value.trim();
+    const description = document.getElementById('dept-description').value.trim();
+    const managerId = document.getElementById('dept-manager').value || null;
+    const parentId = document.getElementById('dept-parent').value || null;
+    if (!name) { showToast('Department name is required', 'error'); return; }
+    try {
+        const url = editId ? `/api/identity/departments/${editId}` : '/api/identity/departments';
+        const method = editId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method, headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description, manager_id: managerId, parent_id: parentId })
+        });
+        if (res.ok) {
+            showToast(editId ? 'Department updated!' : 'Department created!', 'success');
+            closeDeptModal();
+            await loadOrgDepartments();
+        } else {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.detail || 'Failed to save department', 'error');
+        }
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function editDepartment(id) {
+    const dept = orgDepartments.find(d => d.id === id);
+    if (!dept) return;
+    showCreateDepartmentModal();
+    document.getElementById('dept-edit-id').value = id;
+    document.getElementById('dept-modal-title').textContent = '✏️ Edit Department';
+    document.getElementById('dept-save-btn').textContent = 'Save';
+    document.getElementById('dept-name').value = dept.name || '';
+    document.getElementById('dept-description').value = dept.description || '';
+    document.getElementById('dept-manager').value = dept.manager_id || '';
+    document.getElementById('dept-parent').value = dept.parent_id || '';
+}
+
+async function deleteDepartment(id) {
+    if (!confirm('Delete this department?')) return;
+    try {
+        const res = await fetch(`/api/identity/departments/${id}`, {
+            method: 'DELETE', headers: getAuthHeaders()
+        });
+        if (res.ok) {
+            showToast('Department deleted', 'success');
+            await loadOrgDepartments();
+        } else {
+            showToast('Failed to delete department', 'error');
+        }
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// --- Manager Assignment ---
+async function loadOrgUsers() {
+    try {
+        const res = await fetch('/api/security/users', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            const raw = Array.isArray(data) ? data : (data.users || []);
+            orgUsersCache = raw.map(u => ({
+                id: u.id,
+                name: u.name || ((u.profile?.first_name || '') + ' ' + (u.profile?.last_name || '')).trim() || u.email,
+                email: u.email,
+                manager_id: u.manager_id || null,
+                employee_id: u.employee_id || null,
+                department_id: u.department_id || null,
+                job_title: u.job_title || u.profile?.job_title || ''
+            }));
+        }
+    } catch (e) { console.log('Failed to load users for org:', e); }
+}
+
+function renderOrgManagerTable() {
+    const tbody = document.getElementById('org-manager-table');
+    if (!tbody) return;
+    const filter = (document.getElementById('org-manager-search')?.value || '').toLowerCase();
+    const users = orgUsersCache.filter(u => {
+        if (!filter) return true;
+        return u.name.toLowerCase().includes(filter) || u.email.toLowerCase().includes(filter) || (u.employee_id || '').toLowerCase().includes(filter);
+    });
+    if (!users.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500">No users found</td></tr>';
+        return;
+    }
+    tbody.innerHTML = users.map(u => {
+        const mgr = u.manager_id ? orgUsersCache.find(m => m.id === u.manager_id) : null;
+        const dept = u.department_id ? orgDepartments.find(d => d.id === u.department_id) : null;
+        return `
+        <tr class="border-t border-gray-700 hover:bg-gray-800/50">
+            <td class="p-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center font-bold text-white text-xs">${(u.name || u.email)[0].toUpperCase()}</div>
+                    <div>
+                        <div class="font-medium text-sm">${escHtml(u.name)}</div>
+                        <div class="text-xs text-gray-400">${escHtml(u.email)}</div>
+                    </div>
+                </div>
+            </td>
+            <td class="p-3 text-sm">${u.employee_id ? `<span class="px-2 py-0.5 bg-gray-700 rounded text-xs">${escHtml(u.employee_id)}</span>` : '<span class="text-gray-500 text-xs">—</span>'}</td>
+            <td class="p-3 text-sm">${dept ? `<span class="text-purple-400 text-xs">${escHtml(dept.name)}</span>` : '<span class="text-gray-500 text-xs">—</span>'}</td>
+            <td class="p-3 text-sm">${mgr ? `<span class="text-blue-400 text-xs">${escHtml(mgr.name)}</span>` : '<span class="text-gray-500 text-xs">Not assigned</span>'}</td>
+            <td class="p-3">
+                <button onclick="openManagerModal('${u.id}')" class="text-blue-400 hover:text-blue-300 text-sm" title="Assign Manager">✏️ Edit</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function openManagerModal(userId) {
+    const user = orgUsersCache.find(u => u.id === userId);
+    if (!user) return;
+    ensureModalInBody('assign-manager-modal');
+    document.getElementById('mgr-user-id').value = userId;
+    document.getElementById('mgr-user-name').textContent = user.name || user.email;
+    document.getElementById('mgr-employee-id').value = user.employee_id || '';
+    const mgrSelect = document.getElementById('mgr-select');
+    mgrSelect.innerHTML = '<option value="">— No Manager —</option>' +
+        orgUsersCache.filter(u => u.id !== userId).map(u =>
+            `<option value="${u.id}" ${u.id === user.manager_id ? 'selected' : ''}>${escHtml(u.name || u.email)}</option>`
+        ).join('');
+    document.getElementById('assign-manager-modal').classList.remove('hidden');
+    document.getElementById('assign-manager-modal').classList.add('flex');
+}
+
+function closeManagerModal() {
+    document.getElementById('assign-manager-modal').classList.add('hidden');
+    document.getElementById('assign-manager-modal').classList.remove('flex');
+}
+
+async function saveManagerAssignment() {
+    const userId = document.getElementById('mgr-user-id').value;
+    const managerId = document.getElementById('mgr-select').value || null;
+    const employeeId = document.getElementById('mgr-employee-id').value.trim() || null;
+    try {
+        // Save manager
+        const mgrRes = await fetch(`/api/identity/users/${userId}/manager`, {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ manager_id: managerId })
+        });
+        // Save employee ID
+        if (employeeId !== null) {
+            await fetch(`/api/identity/users/${userId}/employee-id`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ employee_id: employeeId })
+            });
+        }
+        if (mgrRes.ok) {
+            showToast('Manager assignment saved!', 'success');
+            // Update cache
+            const idx = orgUsersCache.findIndex(u => u.id === userId);
+            if (idx >= 0) {
+                orgUsersCache[idx].manager_id = managerId;
+                orgUsersCache[idx].employee_id = employeeId;
+            }
+            renderOrgManagerTable();
+            closeManagerModal();
+        } else {
+            const data = await mgrRes.json().catch(() => ({}));
+            showToast(data.detail || 'Failed to save', 'error');
+        }
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// --- Org Chart ---
+function renderOrgChart() {
+    const container = document.getElementById('org-chart-tree');
+    if (!container) return;
+    // Build hierarchy from users with managers
+    const roots = orgUsersCache.filter(u => !u.manager_id);
+    if (roots.length === 0 && orgUsersCache.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <div class="text-4xl mb-3">🌳</div>
+                <p class="text-gray-400">No users found. Add users and assign managers to see the org chart.</p>
+            </div>`;
+        return;
+    }
+    function buildTree(parentId) {
+        const children = orgUsersCache.filter(u => u.manager_id === parentId);
+        if (!children.length) return '';
+        return `<ul class="org-tree-list">${children.map(c => {
+            const dept = c.department_id ? orgDepartments.find(d => d.id === c.department_id) : null;
+            const childHtml = buildTree(c.id);
+            return `<li class="org-tree-item">
+                <div class="org-tree-node card rounded-lg p-3 inline-block mb-2" style="min-width:180px">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center font-bold text-white text-xs">${(c.name||c.email)[0].toUpperCase()}</div>
+                        <div>
+                            <div class="font-medium text-sm">${escHtml(c.name)}</div>
+                            <div class="text-xs text-gray-400">${c.job_title ? escHtml(c.job_title) : (dept ? escHtml(dept.name) : '')}</div>
+                        </div>
+                    </div>
+                </div>
+                ${childHtml}
+            </li>`;
+        }).join('')}</ul>`;
+    }
+    let html = '<div class="org-chart-container overflow-x-auto">';
+    // Render top-level users (no manager)
+    html += '<ul class="org-tree-list">';
+    roots.forEach(r => {
+        const dept = r.department_id ? orgDepartments.find(d => d.id === r.department_id) : null;
+        const childHtml = buildTree(r.id);
+        html += `<li class="org-tree-item">
+            <div class="org-tree-node org-tree-root card rounded-lg p-3 inline-block mb-2 border-purple-500/50" style="min-width:200px">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center font-bold text-white text-sm">${(r.name||r.email)[0].toUpperCase()}</div>
+                    <div>
+                        <div class="font-semibold">${escHtml(r.name)}</div>
+                        <div class="text-xs text-gray-400">${r.job_title ? escHtml(r.job_title) : (dept ? escHtml(dept.name) : 'Top Level')}</div>
+                    </div>
+                </div>
+            </div>
+            ${childHtml}
+        </li>`;
+    });
+    // Users with no manager and who are not roots (orphans - assigned to a manager that doesn't exist)
+    const orphans = orgUsersCache.filter(u => u.manager_id && !orgUsersCache.find(m => m.id === u.manager_id));
+    if (orphans.length) {
+        html += `<li class="org-tree-item"><div class="text-gray-500 text-sm mb-2">Unlinked Users</div><ul class="org-tree-list">${
+            orphans.map(o => `<li class="org-tree-item"><div class="org-tree-node card rounded-lg p-3 inline-block mb-2 opacity-60" style="min-width:160px">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-xs">${(o.name||o.email)[0].toUpperCase()}</div>
+                    <div class="text-sm">${escHtml(o.name)}</div>
+                </div>
+            </div></li>`).join('')
+        }</ul></li>`;
+    }
+    html += '</ul></div>';
+    container.innerHTML = html;
+}
+
+// --- Directory Config ---
+async function loadDirectoryConfig() {
+    try {
+        const res = await fetch('/api/identity/directory-config', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('org-directory-source').value = data.directory_source || 'internal';
+            if (data.hr_api_config) {
+                document.getElementById('org-hr-api-url').value = data.hr_api_config.base_url || '';
+                document.getElementById('org-hr-api-auth').value = data.hr_api_config.auth_type || 'bearer';
+                document.getElementById('org-hr-api-key').value = data.hr_api_config.api_key || '';
+            }
+            onDirectorySourceChange();
+        }
+    } catch (e) { console.log('Directory config:', e); }
+}
+
+function onDirectorySourceChange() {
+    const source = document.getElementById('org-directory-source').value;
+    const hrSection = document.getElementById('org-hr-api-config');
+    const desc = document.getElementById('org-directory-desc');
+    hrSection.classList.toggle('hidden', source !== 'hr_api' && source !== 'hybrid');
+    const descs = {
+        internal: 'User hierarchy managed within the platform.',
+        ldap: 'Users and hierarchy resolved from LDAP / Active Directory.',
+        hr_api: 'Users and hierarchy fetched from an external HR system API.',
+        hybrid: 'Internal org chart enriched with external HR system data.'
+    };
+    desc.textContent = descs[source] || '';
+}
+
+async function saveDirectoryConfig() {
+    const source = document.getElementById('org-directory-source').value;
+    const hrApiConfig = (source === 'hr_api' || source === 'hybrid') ? {
+        base_url: document.getElementById('org-hr-api-url').value,
+        auth_type: document.getElementById('org-hr-api-auth').value,
+        api_key: document.getElementById('org-hr-api-key').value
+    } : null;
+    try {
+        const res = await fetch('/api/identity/directory-config', {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ directory_source: source, hr_api_config: hrApiConfig })
+        });
+        if (res.ok) {
+            showToast('Directory configuration saved!', 'success');
+        } else {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.detail || 'Failed to save configuration', 'error');
+        }
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ============================================================
+// APPROVALS PAGE
+// ============================================================
+let approvalsCache = [];
+let approvalsFilter = 'pending';
+
+async function loadApprovals() {
+    const list = document.getElementById('approvals-list');
+    const empty = document.getElementById('approvals-empty');
+    if (list) list.innerHTML = '<div class="card rounded-xl p-8 text-center text-gray-500">Loading approvals...</div>';
+    if (empty) empty.classList.add('hidden');
+    try {
+        const res = await fetch('/api/process/approvals', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            approvalsCache = Array.isArray(data) ? data : (data.items || data.approvals || []);
+            renderApprovals();
+            updateApprovalsBadge();
+        } else {
+            approvalsCache = [];
+            renderApprovals();
+        }
+    } catch (e) {
+        console.error('Load approvals:', e);
+        approvalsCache = [];
+        renderApprovals();
+    }
+}
+
+function filterApprovals(f) {
+    approvalsFilter = f;
+    ['pending', 'approved', 'rejected', 'all'].forEach(s => {
+        const btn = document.getElementById('appr-filter-' + s);
+        if (btn) {
+            const isActive = s === f;
+            btn.classList.toggle('bg-yellow-600/20', isActive && s === 'pending');
+            btn.classList.toggle('text-yellow-400', isActive && s === 'pending');
+            btn.classList.toggle('bg-green-600/20', isActive && s === 'approved');
+            btn.classList.toggle('text-green-400', isActive && s === 'approved');
+            btn.classList.toggle('bg-red-600/20', isActive && s === 'rejected');
+            btn.classList.toggle('text-red-400', isActive && s === 'rejected');
+            btn.classList.toggle('bg-purple-600/20', isActive && s === 'all');
+            btn.classList.toggle('text-purple-400', isActive && s === 'all');
+            btn.classList.toggle('hover:bg-gray-700', !isActive);
+        }
+    });
+    renderApprovals();
+}
+
+function renderApprovals() {
+    const list = document.getElementById('approvals-list');
+    const empty = document.getElementById('approvals-empty');
+    if (!list) return;
+    let items = approvalsCache;
+    if (approvalsFilter !== 'all') {
+        items = items.filter(a => (a.status || 'pending') === approvalsFilter);
+    }
+    if (!items.length) {
+        list.innerHTML = '';
+        if (empty) empty.classList.remove('hidden');
+        return;
+    }
+    if (empty) empty.classList.add('hidden');
+    list.innerHTML = items.map(a => {
+        const status = a.status || 'pending';
+        const statusIcon = status === 'approved' ? '✅' : status === 'rejected' ? '❌' : '⏳';
+        const statusClass = status === 'approved' ? 'bg-green-600/20 text-green-400' : status === 'rejected' ? 'bg-red-600/20 text-red-400' : 'bg-yellow-600/20 text-yellow-400';
+        const createdAt = a.created_at ? new Date(a.created_at).toLocaleString() : '';
+        const title = a.title || a.question || 'Approval Request';
+        const processName = a.process_name || a.agent_name || '';
+        const requestedBy = a.requested_by_name || a.requested_by || '';
+        return `
+        <div class="card rounded-xl p-4">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-lg">${statusIcon}</span>
+                        <h4 class="font-semibold">${escHtml(title)}</h4>
+                        <span class="px-2 py-0.5 rounded text-xs ${statusClass}">${status}</span>
+                    </div>
+                    ${processName ? `<p class="text-sm text-purple-400 mb-1">📋 ${escHtml(processName)}</p>` : ''}
+                    ${requestedBy ? `<p class="text-sm text-gray-400">Requested by: ${escHtml(requestedBy)}</p>` : ''}
+                    ${a.message ? `<p class="text-sm text-gray-300 mt-2">${escHtml(a.message)}</p>` : ''}
+                    <p class="text-xs text-gray-500 mt-1">${createdAt}</p>
+                </div>
+                ${status === 'pending' ? `
+                <div class="flex gap-2 ml-4">
+                    <button onclick="handleApproval('${a.id}', 'approved')" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium">✅ Approve</button>
+                    <button onclick="handleApproval('${a.id}', 'rejected')" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium">❌ Reject</button>
+                </div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function handleApproval(approvalId, decision) {
+    const comment = prompt(decision === 'approved' ? 'Add a comment (optional):' : 'Reason for rejection (optional):') || '';
+    try {
+        const res = await fetch(`/api/process/approvals/${approvalId}/decide`, {
+            method: 'POST',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ decision, comment })
+        });
+        if (res.ok) {
+            showToast(`Request ${decision}!`, 'success');
+            await loadApprovals();
+        } else {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.detail || 'Failed to submit decision', 'error');
+        }
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+function updateApprovalsBadge() {
+    const pendingCount = approvalsCache.filter(a => (a.status || 'pending') === 'pending').length;
+    const badge = document.getElementById('nav-approvals-badge');
+    if (badge) {
+        badge.textContent = pendingCount;
+        badge.classList.toggle('hidden', pendingCount === 0);
+    }
+}
+
+// Poll approvals badge on login
+function startApprovalPolling() {
+    // Initial load for badge
+    (async () => {
+        try {
+            const res = await fetch('/api/process/approvals', { headers: getAuthHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                approvalsCache = Array.isArray(data) ? data : (data.items || data.approvals || []);
+                updateApprovalsBadge();
+            }
+        } catch (e) { /* silent */ }
+    })();
+    // Poll every 60 seconds
+    setInterval(async () => {
+        if (!authToken) return;
+        try {
+            const res = await fetch('/api/process/approvals', { headers: getAuthHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                approvalsCache = Array.isArray(data) ? data : (data.items || data.approvals || []);
+                updateApprovalsBadge();
+            }
+        } catch (e) { /* silent */ }
+    }, 60000);
+}
+
+// ============================================================
+// END APPROVALS + ORGANIZATION
+// ============================================================
+
 // Edit security user
 function editSecurityUser(userId) {
     const user = securityUsers.find(u => u.id === userId);
@@ -31838,7 +32606,7 @@ function renderSecurityRoles() {
 
 // Switch security tab
 function switchSecurityTab(tab) {
-    const tabs = ['users', 'roles', 'groups', 'audit', 'mfa', 'settings'];
+    const tabs = ['users', 'roles', 'groups', 'org', 'audit', 'mfa', 'settings'];
     
     // Check if requested tab is visible (has permission)
     const requestedTabBtn = document.getElementById('sec-tab-' + tab);
@@ -31876,6 +32644,7 @@ function switchSecurityTab(tab) {
     if (tab === 'mfa') checkMfaStatus();
     if (tab === 'settings') loadSecuritySettings();
     if (tab === 'groups') loadGroups();
+    if (tab === 'org') loadOrgTab();
 }
 
 // Initialize security page

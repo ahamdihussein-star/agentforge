@@ -1660,6 +1660,7 @@
                         <option value="platform_user">Platform User</option>
                         <option value="platform_role">Platform Role</option>
                         <option value="platform_group">Platform Group</option>
+                        <option value="user_directory">User Directory (Auto)</option>
                         <option value="tool">Tool</option>
                     </select>
                 </div>
@@ -1674,6 +1675,19 @@
                 <div id="approval-config-platform-group-wrap" class="hidden">
                     <label class="block text-sm text-gray-400 mb-1">Select groups</label>
                     <select id="approval-config-group-list" multiple class="property-input w-full rounded-lg px-4 py-2" style="height:120px;width:100%;background:#111827;color:#fff;"></select>
+                </div>
+                <div id="approval-config-user-directory-wrap" class="hidden">
+                    <label class="block text-sm text-gray-400 mb-1">Resolve approver from</label>
+                    <select id="approval-config-directory-type" class="property-select w-full rounded-lg px-4 py-2" style="width:100%;background:#111827;color:#fff;border:1px solid #374151;">
+                        <option value="dynamic_manager">Direct Manager</option>
+                        <option value="department_manager">Department Head</option>
+                        <option value="management_chain">Management Chain (Nth Level)</option>
+                    </select>
+                    <div id="approval-config-mgmt-level-wrap" class="hidden mt-3">
+                        <label class="block text-sm text-gray-400 mb-1">Management level</label>
+                        <input type="number" id="approval-config-mgmt-level" min="1" max="10" value="2" class="property-input w-full rounded-lg px-4 py-2" style="width:100%;background:#111827;color:#fff;" placeholder="e.g. 2 = manager's manager">
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">The engine automatically resolves the approver from the organization's identity source (Internal Org Chart, LDAP, or HR System).</p>
                 </div>
                 <div id="approval-config-tool-wrap" class="hidden">
                     <label class="block text-sm text-gray-400 mb-1">Select tool</label>
@@ -2652,8 +2666,9 @@
                     const src = cfg.assignee_source || (cfg.approvers && cfg.approvers.length ? 'platform_user' : '');
                     const cnt = (cfg.assignee_ids || cfg.approvers || []).length;
                     const toolName = (cfg.assignee_source === 'tool' && cfg.assignee_tool_id && state.tools) ? (state.tools.find(t => t.id === cfg.assignee_tool_id) || {}).name : '';
-                    const approverSummary = src === 'tool' ? (toolName ? 'Tool: ' + toolName : 'Tool') : (src ? (cnt + ' selected') : 'Not set');
-                    html = `<div class="node-config-item"><span class="config-label">Approvers</span><span class="config-value">${src ? (src.replace('platform_','') + ': ' + approverSummary) : approverSummary}</span></div>`;
+                    const dirLabel = {'dynamic_manager':'Direct Manager','department_manager':'Dept Head','management_chain':'Mgmt Chain'}[cfg.directory_assignee_type] || '';
+                    const approverSummary = src === 'user_directory' ? ('Auto: ' + (dirLabel || 'Directory')) : src === 'tool' ? (toolName ? 'Tool: ' + toolName : 'Tool') : (src ? (cnt + ' selected') : 'Not set');
+                    html = `<div class="node-config-item"><span class="config-label">Approvers</span><span class="config-value">${src === 'user_directory' ? approverSummary : (src ? (src.replace('platform_','') + ': ' + approverSummary) : approverSummary)}</span></div>`;
                     break;
                 case 'tool':
                     const tool = state.tools.find(t => t.id === cfg.toolId);
@@ -4620,7 +4635,8 @@
                     const aIds = aCfg.assignee_ids || aCfg.approvers || [];
                     const aToolId = aCfg.assignee_tool_id || '';
                     const timeoutVal = aCfg.timeout_hours != null ? aCfg.timeout_hours : (aCfg.timeout != null ? aCfg.timeout : 24);
-                    const approverLabel = aSrc === 'tool' ? (state.tools.find(t => t.id === aToolId) || {}).name || 'Tool' : (aSrc.replace('platform_','') + ': ' + aIds.length + ' selected');
+                    const dirTypeLabel = {'dynamic_manager':'Direct Manager','department_manager':'Dept Head','management_chain':'Mgmt Chain'}[aCfg.directory_assignee_type] || '';
+                    const approverLabel = aSrc === 'user_directory' ? ('Auto: ' + (dirTypeLabel || 'Directory')) : aSrc === 'tool' ? (state.tools.find(t => t.id === aToolId) || {}).name || 'Tool' : (aSrc.replace('platform_','') + ': ' + aIds.length + ' selected');
                     html += `
                         <div class="property-group">
                             <label class="property-label">Approval Message</label>
@@ -5297,6 +5313,15 @@
             document.getElementById('approval-config-group-list').innerHTML = groupOpts;
             document.getElementById('approval-config-tool').innerHTML = '<option value="">— None —</option>' + toolOpts;
             document.getElementById('approval-config-tool').value = assigneeToolId;
+            // Restore user_directory config
+            if (source === 'user_directory') {
+                document.getElementById('approval-config-directory-type').value = cfg.directory_assignee_type || 'dynamic_manager';
+                document.getElementById('approval-config-mgmt-level').value = cfg.management_level || 2;
+            }
+            // Add change listener for directory type to toggle management level
+            document.getElementById('approval-config-directory-type').onchange = function() {
+                document.getElementById('approval-config-mgmt-level-wrap').classList.toggle('hidden', this.value !== 'management_chain');
+            };
             onApprovalConfigSourceChange();
             modal.classList.add('show');
         }
@@ -5305,7 +5330,13 @@
             document.getElementById('approval-config-platform-user-wrap').classList.toggle('hidden', v !== 'platform_user');
             document.getElementById('approval-config-platform-role-wrap').classList.toggle('hidden', v !== 'platform_role');
             document.getElementById('approval-config-platform-group-wrap').classList.toggle('hidden', v !== 'platform_group');
+            document.getElementById('approval-config-user-directory-wrap').classList.toggle('hidden', v !== 'user_directory');
             document.getElementById('approval-config-tool-wrap').classList.toggle('hidden', v !== 'tool');
+            // Show management level input only for management_chain type
+            if (v === 'user_directory') {
+                const dirType = document.getElementById('approval-config-directory-type').value;
+                document.getElementById('approval-config-mgmt-level-wrap').classList.toggle('hidden', dirType !== 'management_chain');
+            }
         }
         function saveApprovalConfig() {
             if (!approvalConfigNodeId) return;
@@ -5325,6 +5356,14 @@
             node.config.assignee_type = assigneeType;
             node.config.assignee_ids = assigneeIds;
             node.config.assignee_tool_id = source === 'tool' ? (toolSelect.value || '') : undefined;
+            // User Directory config
+            if (source === 'user_directory') {
+                node.config.directory_assignee_type = document.getElementById('approval-config-directory-type').value || 'dynamic_manager';
+                node.config.management_level = node.config.directory_assignee_type === 'management_chain' ? parseInt(document.getElementById('approval-config-mgmt-level').value) || 2 : undefined;
+            } else {
+                delete node.config.directory_assignee_type;
+                delete node.config.management_level;
+            }
             if (node.config.approvers !== undefined) delete node.config.approvers;
             document.getElementById('approval-config-modal').classList.remove('show');
             approvalConfigNodeId = null;

@@ -376,7 +376,7 @@ Before starting work:
 
 ### Active Work:
 - Documentation consolidation: create a single canonical English documentation source of truth.
-- **Identity & Org Chart System**: User Directory Service, org chart management, process identity integration (completed).
+- **Identity & Org Chart System**: User Directory Service, org chart management, process identity integration, admin UI, approval dashboard (completed).
 
 ### Known Considerations:
 1. **Large UI File** - `index.html` is ~32K lines
@@ -384,8 +384,7 @@ Before starting work:
 3. **Task ID vs Name** - Always use NAME for matching
 4. **Process triggers** - Schedule/Webhook start modes are configurable but not fully operational end-to-end yet
 5. **Process files** - File upload persistence + output downloads need dedicated endpoints/UI
-6. **Identity UI** - Org chart management UI in admin portal needs frontend implementation
-7. **SAML/OIDC** - Models exist but service implementation pending
+6. **SAML/OIDC** - Models exist but service implementation pending
 
 ---
 

@@ -1696,6 +1696,9 @@ async def list_users(
             "roles": [security_state.roles[r].name for r in u.role_ids if r in security_state.roles],
             "department_id": u.department_id,
             "department": security_state.departments.get(u.department_id, {}).name if u.department_id else None,
+            "manager_id": getattr(u, 'manager_id', None),
+            "employee_id": getattr(u, 'employee_id', None),
+            "job_title": getattr(u.profile, 'job_title', None) if u.profile else None,
             "mfa_enabled": u.mfa.enabled,
             "last_login": u.last_login,
             "created_at": u.created_at
