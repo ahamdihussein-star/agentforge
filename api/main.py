@@ -346,19 +346,28 @@ class AnthropicLLM(BaseLLMProvider):
         try:
             print(f"[AnthropicLLM] Calling with {len(messages)} messages, model: {kwargs.get('model', self.config.model)}")
             import anthropic
+            if not self.api_key:
+                raise Exception("Missing ANTHROPIC_API_KEY")
             client = anthropic.AsyncAnthropic(api_key=self.api_key)
-            # Convert messages format
-            system = ""
-            msgs = []
-            for m in messages:
-                if m["role"] == "system":
-                    system = m["content"]
-                elif m["role"] == "tool":
-                    # Convert OpenAI tool response to Anthropic tool_result format
-                    # Anthropic uses "user" role with tool_result content blocks
-                    tool_call_id = m.get("tool_call_id", "")
-                    tool_content = m.get("content", "")
-                    msgs.append({
+            # Convert messages to Anthropic Messages API format.
+            # - `system` is a separate top-level param (list of content blocks)
+            # - `messages` must be non-empty and each item uses block content
+            system_text = ""
+            anthropic_messages: List[Dict[str, Any]] = []
+
+            for m in messages or []:
+                role = m.get("role")
+                content = m.get("content", "")
+
+                if role == "system":
+                    system_text = str(content or "")
+                    continue
+
+                if role == "tool":
+                    # Convert OpenAI tool response to Anthropic tool_result blocks.
+                    tool_call_id = m.get("tool_call_id") or m.get("id") or ""
+                    tool_content = "" if content is None else str(content)
+                    anthropic_messages.append({
                         "role": "user",
                         "content": [{
                             "type": "tool_result",
@@ -366,25 +375,35 @@ class AnthropicLLM(BaseLLMProvider):
                             "content": tool_content
                         }]
                     })
-                elif m["role"] in ["user", "assistant"]:
-                    # Handle both string and list content (for Anthropic block format)
-                    content = m.get("content", "")
+                    continue
+
+                if role in ("user", "assistant"):
                     if isinstance(content, list):
-                        # Already in Anthropic block format
-                        msgs.append({"role": m["role"], "content": content})
-                else:
-                        # String content
-                        msgs.append({"role": m["role"], "content": content})
+                        blocks = content
+                    else:
+                        blocks = [{"type": "text", "text": "" if content is None else str(content)}]
+                    anthropic_messages.append({"role": role, "content": blocks})
+                    continue
+
+                # Unknown roles -> treat as user text
+                anthropic_messages.append({
+                    "role": "user",
+                    "content": [{"type": "text", "text": "" if content is None else str(content)}]
+                })
+
+            # Anthropic requires at least one message.
+            if not anthropic_messages:
+                anthropic_messages = [{"role": "user", "content": [{"type": "text", "text": "Hi"}]}]
             
             # Build request kwargs - system must be a list for new Anthropic SDK
             request_kwargs = {
                 "model": kwargs.get("model", self.config.model),
                 "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
-                "messages": msgs
+                "messages": anthropic_messages
             }
             # Only add system if we have one (as a list of content blocks)
-            if system:
-                request_kwargs["system"] = [{"type": "text", "text": system}]
+            if system_text.strip():
+                request_kwargs["system"] = [{"type": "text", "text": system_text}]
             
             response = await client.messages.create(**request_kwargs)
             text = response.content[0].text
@@ -533,6 +552,8 @@ class GoogleLLM(BaseLLMProvider):
     async def generate(self, messages: List[Dict], **kwargs) -> str:
         """Generate response using Google Gemini REST API"""
         import httpx
+        if not self.api_key:
+            raise Exception("Missing GOOGLE_API_KEY")
         
         # Build the prompt from messages
         contents = []
@@ -558,18 +579,16 @@ class GoogleLLM(BaseLLMProvider):
         if not contents:
             contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
         
-        # Fix model name format - Google API uses specific names
-        model_name = self.config.model or "gemini-1.5-flash"
-        # Map common names to actual API model names that support function calling
+        # Prefer explicit model passed by caller, then config default.
+        model_name = kwargs.get("model") or self.config.model or "gemini-1.5-flash"
+        # Map a couple of legacy aliases only (avoid silently downgrading user-selected models).
         model_mapping = {
-            "gemini-1.5-pro": "gemini-1.5-flash",  # 1.5-pro requires specific version
-            "gemini-1.5-flash": "gemini-1.5-flash", 
-            "gemini-pro": "gemini-1.5-flash",
-            "gemini-2.0-flash": "gemini-1.5-flash",  # 2.0 not stable yet
+            "gemini-pro": "gemini-1.5-pro",
         }
-        api_model = model_mapping.get(model_name, "gemini-1.5-flash")
+        api_model = model_mapping.get(model_name, model_name)
         print(f"[GoogleLLM] Using API model: {api_model}")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent"
+        # v1beta has caused model-not-found issues in some deployments; prefer v1.
+        url = f"https://generativelanguage.googleapis.com/v1/models/{api_model}:generateContent"
         
         payload = {
             "contents": contents,
@@ -592,7 +611,7 @@ class GoogleLLM(BaseLLMProvider):
                 if response.status_code != 200:
                     error_text = response.text
                     print(f"[GoogleLLM] ❌ API error {response.status_code}: {error_text[:200]}")
-                    return f"Error: Google API returned {response.status_code}"
+                    raise Exception(f"Google API error {response.status_code}: {error_text[:200]}")
                 
                 result = response.json()
                 
@@ -617,12 +636,12 @@ class GoogleLLM(BaseLLMProvider):
                 
         except httpx.TimeoutException:
             print(f"[GoogleLLM] ❌ Request timeout")
-            return "Error: Request timed out"
+            raise Exception("Google API request timed out")
         except Exception as e:
             print(f"[GoogleLLM] ❌ Error: {e}")
             import traceback
             traceback.print_exc()
-            return f"Error: {str(e)}"
+            raise
     
     def get_available_models(self) -> List[str]:
         return ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
@@ -4609,6 +4628,10 @@ async def list_agents(status: Optional[str] = None, current_user: User = Depends
     - Users only see agents they OWN or have been GRANTED access to
     - Agents are private by default until owner grants access
     """
+    # Anonymous requests should not run management checks (will error in AccessControlService).
+    # The portal is authenticated; returning an empty list keeps the login screen clean.
+    if not current_user:
+        return {"agents": []}
     # Get user info for filtering
     user_id = str(current_user.id) if current_user else None
     org_id = current_user.org_id if current_user else "org_default"
