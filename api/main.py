@@ -10682,6 +10682,7 @@ async def list_conversations(agent_id: str, current_user: User = Depends(get_cur
     Even the agent owner cannot see other users' conversations.
     """
     user_id = str(current_user.id) if current_user else None
+    org_id = current_user.org_id if current_user else None
     
     if not user_id:
         return {"conversations": []}  # No user = no conversations
@@ -10689,7 +10690,7 @@ async def list_conversations(agent_id: str, current_user: User = Depends(get_cur
     # Try database first
     try:
         from database.services import ConversationService
-        convs = ConversationService.get_all_conversations()
+        convs = ConversationService.get_all_conversations(org_id=org_id, user_id=user_id)
         # Filter by agent_id AND user_id (PRIVACY!)
         agent_convs = [
             c for c in convs 
@@ -11495,25 +11496,70 @@ async def chat(agent_id: str, request: ChatRequest, current_user: User = Depends
     access_result = None
     use_cached = False
     
-    # Check if we have an existing conversation with cached permissions
-    if request.conversation_id and request.conversation_id in app_state.conversations:
-        conversation = app_state.conversations[request.conversation_id]
-        
-        # Use cached permissions if available and from same user
-        if conversation.access_cache and conversation.access_cache.user_id == user_id:
-            use_cached = True
-            print(f"🔐 Using CACHED permissions for user {user_id[:8]}...")
-            print(f"   Cached denied tasks: {conversation.access_cache.denied_task_names}")
-            
-            # Create access_result from cache
-            from api.modules.access_control.schemas import AccessCheckResult
-            access_result = AccessCheckResult(
-                has_access=True,
-                denied_tasks=conversation.access_cache.denied_task_names,
-                denied_tools=conversation.access_cache.denied_tool_ids
-            )
-    else:
-        conversation = None
+    # Load conversation:
+    # - Prefer in-memory (fast)
+    # - If conversation_id provided but missing in memory (restart/scale), load from DB
+    conversation = None
+    if request.conversation_id:
+        if request.conversation_id in app_state.conversations:
+            conversation = app_state.conversations[request.conversation_id]
+        else:
+            try:
+                from database.services import ConversationService
+                db_conv = ConversationService.get_conversation_by_id(request.conversation_id)
+                if db_conv:
+                    # Privacy + integrity checks
+                    if db_conv.get("user_id") and db_conv.get("user_id") != user_id:
+                        raise HTTPException(403, "You don't have access to this conversation")
+                    if db_conv.get("agent_id") and db_conv.get("agent_id") != agent_id:
+                        raise HTTPException(400, "Conversation does not belong to this agent")
+
+                    # Hydrate an in-memory Conversation so subsequent messages append to the same ID
+                    db_msgs = db_conv.get("messages") or []
+                    hydrated_msgs = []
+                    for m in db_msgs[-50:]:
+                        try:
+                            hydrated_msgs.append(ConversationMessage(
+                                id=m.get("id") or str(uuid.uuid4()),
+                                role=m.get("role") or "user",
+                                content=m.get("content") or "",
+                                timestamp=m.get("timestamp") or datetime.utcnow().isoformat(),
+                                tool_calls=m.get("tool_calls") or [],
+                                sources=m.get("sources") or [],
+                            ))
+                        except Exception:
+                            continue
+
+                    conversation = Conversation(
+                        id=db_conv.get("id") or request.conversation_id,
+                        agent_id=db_conv.get("agent_id") or agent_id,
+                        user_id=db_conv.get("user_id") or user_id,
+                        title=db_conv.get("title") or "Conversation",
+                        messages=hydrated_msgs,
+                        created_at=db_conv.get("created_at") or datetime.utcnow().isoformat(),
+                        updated_at=db_conv.get("updated_at") or datetime.utcnow().isoformat(),
+                        access_cache=None,  # not persisted; access will be re-checked
+                    )
+                    app_state.conversations[conversation.id] = conversation
+                    print(f"💾 [CHAT] Hydrated conversation from DB: {conversation.id[:8]}... msgs={len(hydrated_msgs)}")
+            except HTTPException:
+                raise
+            except Exception as e:
+                print(f"⚠️ [CHAT] Failed to hydrate conversation from DB: {e}")
+
+    # Use cached permissions if available and from same user
+    if conversation and conversation.access_cache and conversation.access_cache.user_id == user_id:
+        use_cached = True
+        print(f"🔐 Using CACHED permissions for user {user_id[:8]}...")
+        print(f"   Cached denied tasks: {conversation.access_cache.denied_task_names}")
+
+        # Create access_result from cache
+        from api.modules.access_control.schemas import AccessCheckResult
+        access_result = AccessCheckResult(
+            has_access=True,
+            denied_tasks=conversation.access_cache.denied_task_names,
+            denied_tools=conversation.access_cache.denied_tool_ids
+        )
     
     # Check if user is the OWNER - owners always have full access
     is_owner = False
@@ -11858,9 +11904,57 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             is_new_conversation = False
             is_first_message = False
             print(f"🔍 [STREAM] Checking conversation: request.conversation_id={request.conversation_id}")
-            if request.conversation_id and request.conversation_id in app_state.conversations:
-                conversation = app_state.conversations[request.conversation_id]
-                print(f"🔍 [STREAM] Found existing conversation in memory: {conversation.id[:8]}")
+            conversation = None
+            if request.conversation_id:
+                if request.conversation_id in app_state.conversations:
+                    conversation = app_state.conversations[request.conversation_id]
+                    print(f"🔍 [STREAM] Found existing conversation in memory: {conversation.id[:8]}")
+                else:
+                    # Hydrate from DB if server restarted/scaled
+                    try:
+                        from database.services import ConversationService
+                        db_conv = ConversationService.get_conversation_by_id(request.conversation_id)
+                        if db_conv:
+                            if db_conv.get("user_id") and db_conv.get("user_id") != user_id:
+                                yield f"data: {json.dumps({'type': 'error', 'content': msgs['access_denied']})}\n\n"
+                                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                                return
+                            if db_conv.get("agent_id") and db_conv.get("agent_id") != agent_id:
+                                yield f"data: {json.dumps({'type': 'error', 'content': 'Conversation does not belong to this agent.'})}\n\n"
+                                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                                return
+
+                            db_msgs = db_conv.get("messages") or []
+                            hydrated_msgs = []
+                            for m in db_msgs[-50:]:
+                                try:
+                                    hydrated_msgs.append(ConversationMessage(
+                                        id=m.get("id") or str(uuid.uuid4()),
+                                        role=m.get("role") or "user",
+                                        content=m.get("content") or "",
+                                        timestamp=m.get("timestamp") or datetime.utcnow().isoformat(),
+                                        tool_calls=m.get("tool_calls") or [],
+                                        sources=m.get("sources") or [],
+                                    ))
+                                except Exception:
+                                    continue
+
+                            conversation = Conversation(
+                                id=db_conv.get("id") or request.conversation_id,
+                                agent_id=db_conv.get("agent_id") or agent_id,
+                                user_id=db_conv.get("user_id") or user_id,
+                                title=db_conv.get("title") or "Conversation",
+                                messages=hydrated_msgs,
+                                created_at=db_conv.get("created_at") or datetime.utcnow().isoformat(),
+                                updated_at=db_conv.get("updated_at") or datetime.utcnow().isoformat(),
+                                access_cache=None,
+                            )
+                            app_state.conversations[conversation.id] = conversation
+                            print(f"💾 [STREAM] Hydrated conversation from DB: {conversation.id[:8]}... msgs={len(hydrated_msgs)}")
+                    except Exception as e:
+                        print(f"⚠️ [STREAM] Failed to hydrate conversation from DB: {e}")
+
+            if conversation:
                 # Check if this is the first message (no messages yet)
                 if len(conversation.messages) == 0:
                     is_first_message = True
@@ -11871,10 +11965,16 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 print(f"🔍 [STREAM] Creating NEW conversation (is_new={is_new_conversation})")
                 # Start with temporary title - LLM will update it
                 title = "New conversation"
-                
-                conversation = Conversation(agent_id=agent_id, user_id=user_id, title=title)
+
+                # Reuse provided conversation_id if present (keeps frontend state consistent)
+                conversation = Conversation(
+                    id=request.conversation_id or str(uuid.uuid4()),
+                    agent_id=agent_id,
+                    user_id=user_id,
+                    title=title
+                )
                 app_state.conversations[conversation.id] = conversation
-                
+
                 # Save to database with temporary title
                 try:
                     from database.services import ConversationService

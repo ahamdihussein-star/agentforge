@@ -24399,13 +24399,20 @@ async function saveToolEdit() {
                 } else if (d && Array.isArray(d.agents)) {
                     agents = d.agents;
                 }
+
+                // Chat UI should only show conversational agents.
+                // Process agents are handled via Processes UI (runs/forms), not chat.
+                const chatAgents = (agents || []).filter(a => {
+                    const t = (a && (a.agent_type || a.type)) ? String(a.agent_type || a.type).toLowerCase() : 'conversational';
+                    return t !== 'process';
+                });
                 
                 const agentSelect = document.getElementById('chat-agent');
                 if (agentSelect) {
-                    agentSelect.innerHTML='<option value="">Select Agent...</option>'+agents.map(a=>`<option value="${a.id}">${a.icon || '🤖'} ${a.name}</option>`).join('');
+                    agentSelect.innerHTML='<option value="">Select Agent...</option>'+chatAgents.map(a=>`<option value="${a.id}">${a.icon || '🤖'} ${a.name}</option>`).join('');
                 }
                 
-                return agents; // Return agents for verification
+                return chatAgents; // Return agents for verification
             } catch (err) {
                 console.error('loadChatAgents error:', err);
                 return [];
@@ -24793,9 +24800,10 @@ async function saveToolEdit() {
                                         finishThinkingUI(true);
                                         break;
                                     case 'error':
-                                        setThinkingText(data.content);
+                                        // IMPORTANT: show the error to the user (don't remove the bubble silently)
                                         finishThinkingUI(false);
-                                        break;
+                                        addMsg('error', data.content || 'Error: failed to get a response.');
+                                        return;
                                 }
                             } catch (e) { 
                                 // Invalid JSON, skip
@@ -24808,12 +24816,15 @@ async function saveToolEdit() {
                 if (fullContent) {
                     addMsg('assistant', fullContent, sources);
                     updateConvDropdown(conv, message);
+                } else {
+                    // Stream finished but no content was received (avoid silent failure UX)
+                    addMsg('error', 'No response received. Please try again.');
                 }
                 
             } catch (e) {
                 console.error('Streaming error:', e);
-                setThinkingText('Connection error. Please try again.');
                 finishThinkingUI(false);
+                addMsg('error', 'Connection error. Please try again.');
             }
         }
         
