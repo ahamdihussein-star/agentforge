@@ -2246,16 +2246,34 @@
             box-shadow: 0 4px 12px color-mix(in srgb, var(--error) 35%, transparent);
         }
 
-        /* Organization Banner */
+        /* Organization Banner (thin top bar; not part of flex layout) */
+        :root { --org-banner-height: 0px; }
         .org-banner {
-            background: var(--gradient-1);
-            padding: 8px 24px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 34px;
+            padding: 0 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
-            font-size: 0.875rem;
-            font-weight: 500;
+            gap: 10px;
+            font-size: 0.82rem;
+            font-weight: 650;
+            letter-spacing: 0.01em;
+            z-index: 100000;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+            user-select: none;
+        }
+        .org-banner a { color: inherit; text-decoration: underline; }
+        .org-banner strong { font-weight: 800; }
+
+        /* Offset app surfaces when banner is enabled */
+        #login-screen,
+        #chat-interface {
+            padding-top: var(--org-banner-height);
         }
 
         .org-banner-logo {
@@ -2538,17 +2556,25 @@
             color: var(--error);
         }
 
-        /* Organization Banner */
+        /* Organization Banner (legacy duplicate; keep aligned with main definition) */
         .org-banner {
-            background: var(--gradient-1);
-            padding: 10px 20px;
-            text-align: center;
-            font-size: 0.9rem;
-            font-weight: 500;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 34px;
+            padding: 0 16px;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
+            font-size: 0.82rem;
+            font-weight: 650;
+            letter-spacing: 0.01em;
+            z-index: 100000;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+            user-select: none;
         }
 
     </style>
@@ -6203,6 +6229,17 @@
                 if (btc && btc.startsWith('#')) document.getElementById('brand-banner-tc-picker').value = btc;
             } catch (_) { /* ignore */ }
 
+            // Friendly defaults for banner colors
+            try {
+                const bannerEnabled = !!b.banner_enabled;
+                const tcEl = document.getElementById('brand-banner-text-color');
+                if (bannerEnabled && tcEl && !(tcEl.value || '').trim()) {
+                    tcEl.value = '#FFFFFF';
+                    const pick = document.getElementById('brand-banner-tc-picker');
+                    if (pick) pick.value = '#FFFFFF';
+                }
+            } catch (_) { /* ignore */ }
+
             // Show logo/favicon previews
             _showBrandPreview('logo', b.logo_url || '');
             _showBrandPreview('favicon', b.favicon_url || '');
@@ -6291,6 +6328,8 @@
                 if (typeof payload[k] === 'boolean') return;
                 if (payload[k] === '') payload[k] = null;
             });
+            // If banner is enabled but text color is missing, default to white
+            if (payload.banner_enabled && !payload.banner_text_color) payload.banner_text_color = '#FFFFFF';
             console.log('📦 Saving branding payload:', JSON.stringify(payload).substring(0, 500));
 
             try {
@@ -6724,18 +6763,23 @@
                 if (a && b) document.documentElement.style.setProperty('--accent-gradient', `linear-gradient(135deg, ${a} 0%, ${b} 100%)`);
             }
 
-            // Apply banner
+            // Apply banner (thin top bar)
             // Remove existing banners to avoid duplicates when re-applying branding
             document.querySelectorAll('.org-banner').forEach(el => {
                 try { el.remove(); } catch (_) { /* ignore */ }
             });
+            // Default to no offset; enable only if banner is enabled
+            try { document.documentElement.style.setProperty('--org-banner-height', '0px'); } catch (_) { /* ignore */ }
+
             if (branding.banner_enabled && branding.banner_text) {
                 const banner = document.createElement('div');
                 banner.className = 'org-banner';
                 banner.style.background = branding.banner_bg_color || 'var(--gradient-1)';
-                banner.style.color = branding.banner_text_color || 'var(--text-primary)';
+                // Default text color to white if not provided
+                banner.style.color = branding.banner_text_color || '#FFFFFF';
                 banner.innerHTML = branding.banner_text;
-                document.body.insertBefore(banner, document.body.firstChild);
+                document.body.appendChild(banner);
+                try { document.documentElement.style.setProperty('--org-banner-height', '34px'); } catch (_) { /* ignore */ }
             }
 
             // Apply custom CSS (org-configurable)
