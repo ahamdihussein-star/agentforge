@@ -83,6 +83,9 @@ else\n\
       echo "🔧 Adding OAuth & Auth settings columns to organizations table..."\n\
       python scripts/add_organization_oauth_columns.py 2>&1 || echo "⚠️  OAuth columns script had issues (may already exist)"\n\
       echo ""\n\
+      echo "🔧 Adding Identity & Org Chart columns..."\n\
+      python scripts/add_identity_columns.py 2>&1 || echo "⚠️  Identity columns script had issues (may already exist)"\n\
+      echo ""\n\
       echo "📦 Migrating data from JSON to Database..."\n\
       python scripts/migrate_to_db_complete.py 2>&1\n\
       echo ""\n\
