@@ -14002,126 +14002,206 @@ Option 3"></textarea>
             const container = document.getElementById('wizard-delegated-admins-list');
             if (!container) return;
             
-            if (agentAdminState.delegatedAdmins.length === 0) {
+            const admins = agentAdminState.delegatedAdmins;
+            
+            if (admins.length === 0) {
                 container.innerHTML = `
-                    <div class="text-sm text-gray-500 italic text-center py-4 px-6 rounded-lg" style="background: rgba(0,0,0,0.2);">
-                        <p>You are the only admin.</p>
-                        <p class="text-xs mt-1">Search above to add users or groups as delegated admins.</p>
+                    <div style="text-align:center; padding:24px 16px; border-radius:12px; background:rgba(0,0,0,0.2);">
+                        <div style="font-size:2rem; margin-bottom:8px;">👤</div>
+                        <p style="color:#9ca3af; font-size:0.875rem;">You are the only admin.</p>
+                        <p style="color:#6b7280; font-size:0.75rem; margin-top:4px;">Search above to add users or groups as delegated admins.</p>
                     </div>`;
                 return;
             }
             
-            // Get tasks from wizard
             const tasks = wizard.tasks || [];
             
-            container.innerHTML = agentAdminState.delegatedAdmins.map((admin, index) => {
-                const icon = admin.entity_type === 'user' ? '👤' : '👥';
-                const hasFullAdmin = admin.permissions?.includes('full_admin');
-                const deniedTasks = admin.denied_task_names || [];
-                const hasChatRestrictions = deniedTasks.length > 0;
-                
-                return `
-                <div class="rounded-xl p-4 space-y-3" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <span class="text-xl">${icon}</span>
-                            <div>
-                                <div class="font-medium text-white">${admin.entity_name}</div>
-                                <div class="text-xs text-gray-500">${admin.entity_type === 'user' ? 'User' : 'Group'}</div>
-                            </div>
+            // Track selected admin for detail panel
+            const selIdx = window._daSelectedIdx != null && window._daSelectedIdx < admins.length ? window._daSelectedIdx : 0;
+            const selAdmin = admins[selIdx];
+            
+            // ===================================================================
+            // Master-Detail Split Panel for Delegated Admins
+            // ===================================================================
+            container.innerHTML = `
+                <div style="display:flex; gap:12px; min-height:380px;">
+                    <!-- LEFT: Admin List -->
+                    <div style="width:240px; flex-shrink:0; display:flex; flex-direction:column; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); border-radius:16px; overflow:hidden;">
+                        <div style="padding:10px; border-bottom:1px solid rgba(255,255,255,0.06);">
+                            <input type="text" id="da-filter" oninput="daFilterAdmins(this.value)"
+                                   placeholder="Filter admins..."
+                                   style="width:100%; padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#f1f5f9; font-size:0.8rem; outline:none;">
                         </div>
-                        <button onclick="removeAgentAdmin('${admin.entity_id}')" 
-                                class="px-3 py-1 text-xs rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all">
-                            Remove
-                        </button>
-                    </div>
-                    
-                    <!-- Quick Permission Toggle -->
-                    <div class="flex items-center gap-2 pt-2 border-t border-gray-700/50">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" 
-                                   onchange="toggleFullAdmin(${index}, this.checked)"
-                                   ${hasFullAdmin ? 'checked' : ''}
-                                   class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-amber-500 focus:ring-amber-500">
-                            <span class="text-sm text-amber-400 font-medium">⭐ Full Admin</span>
-                            <span class="text-xs text-gray-500">(all except delete)</span>
-                        </label>
-                    </div>
-                    
-                    <!-- Granular Permissions (collapsed if full admin) -->
-                    <div id="admin-perms-${index}" class="${hasFullAdmin ? 'hidden' : ''} pt-2">
-                        <div class="text-xs text-gray-400 mb-2">Or select specific permissions:</div>
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            ${AGENT_PERMISSIONS.filter(p => p.id !== 'full_admin').map(perm => {
-                                const checked = admin.permissions?.includes(perm.id);
-                                const isDanger = perm.category === 'Danger';
+                        <div id="da-admin-list" style="flex:1; overflow-y:auto; padding:6px;">
+                            ${admins.map((a, idx) => {
+                                const icon = a.entity_type === 'user' ? '👤' : '👥';
+                                const isActive = idx === selIdx;
+                                const hasFA = a.permissions?.includes('full_admin');
+                                const deniedCount = (a.denied_task_names || []).length;
+                                const permCount = (a.permissions || []).length;
+                                const activeBg = isActive ? 'rgba(245,158,11,0.2)' : 'transparent';
+                                const activeBorder = isActive ? '2px solid rgba(245,158,11,0.5)' : '2px solid transparent';
+                                
                                 return `
-                                <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-white/5 ${isDanger ? 'border border-red-500/30' : ''}">
-                                    <input type="checkbox" 
-                                           onchange="toggleAdminPermission(${index}, '${perm.id}', this.checked)"
-                                           ${checked ? 'checked' : ''}
-                                           class="w-3 h-3 rounded bg-gray-700 border-gray-600 ${isDanger ? 'text-red-500' : 'text-blue-500'}">
-                                    <span class="text-xs ${isDanger ? 'text-red-400' : 'text-gray-300'}">${perm.icon} ${perm.name}</span>
-                                </label>
-                            `;
+                                <div class="da-admin-item" data-name="${(a.entity_name || '').toLowerCase()}"
+                                     style="display:flex; align-items:center; gap:8px; padding:10px; border-radius:12px; cursor:pointer; margin-bottom:4px; background:${activeBg}; border:${activeBorder}; transition:all 0.15s;"
+                                     onmouseenter="this.style.background='rgba(255,255,255,0.06)'"
+                                     onmouseleave="this.style.background='${activeBg}'"
+                                     onclick="daSelectAdmin(${idx})">
+                                    <span style="font-size:1.1rem;">${icon}</span>
+                                    <div style="flex:1; min-width:0;">
+                                        <div style="font-size:0.8rem; font-weight:500; color:#f1f5f9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${a.entity_name || ''}">${a.entity_name || 'Unknown'}</div>
+                                        <div style="display:flex; gap:4px; margin-top:2px; flex-wrap:wrap;">
+                                            ${hasFA ? '<span style="font-size:0.6rem; padding:1px 6px; border-radius:8px; background:rgba(245,158,11,0.2); color:#fbbf24;">Full Admin</span>' : `<span style="font-size:0.6rem; padding:1px 6px; border-radius:8px; background:rgba(139,92,246,0.15); color:#a78bfa;">${permCount} perms</span>`}
+                                            ${deniedCount > 0 ? `<span style="font-size:0.6rem; padding:1px 6px; border-radius:8px; background:rgba(239,68,68,0.15); color:#f87171;">${deniedCount} denied</span>` : ''}
+                                        </div>
+                                    </div>
+                                    ${isActive ? '<div style="width:4px; height:24px; border-radius:2px; background:#f59e0b; flex-shrink:0;"></div>' : ''}
+                                </div>`;
                             }).join('')}
                         </div>
+                        <div style="padding:8px 10px; border-top:1px solid rgba(255,255,255,0.06); text-align:center;">
+                            <span style="font-size:0.7rem; color:#6b7280;">${admins.length} admin${admins.length !== 1 ? 's' : ''}</span>
+                        </div>
                     </div>
                     
-                    <!-- Chat Permissions (Task Access) -->
-                    <div class="pt-3 border-t border-gray-700/50">
-                        <button type="button" onclick="toggleAdminChatPerms(${index})" 
-                                class="flex items-center justify-between w-full text-left">
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-medium text-purple-400">💬 Chat Permissions</span>
-                                ${hasChatRestrictions ? `<span class="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">${deniedTasks.length} restricted</span>` : ''}
-                            </div>
-                            <svg id="admin-chat-arrow-${index}" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </button>
-                        
-                        <div id="admin-chat-perms-${index}" class="hidden mt-3 space-y-2">
-                            <p class="text-xs text-gray-500">Which tasks can this admin use when chatting with the agent?</p>
-                            ${tasks.length > 0 ? `
-                                <div class="space-y-2 max-h-48 overflow-y-auto pr-2">
-                                    ${tasks.map(task => {
-                                        const taskName = task.name || 'Unnamed Task';
-                                        const isDenied = deniedTasks.includes(taskName);
-                                        return `
-                                        <label class="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-white/5 ${isDenied ? 'bg-red-500/10 border border-red-500/30' : 'bg-green-500/10 border border-green-500/20'}">
-                                            <input type="checkbox" 
-                                                   onchange="toggleAdminTaskAccess(${index}, '${escHtml(taskName)}', this.checked)"
-                                                   ${!isDenied ? 'checked' : ''}
-                                                   class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-green-500 focus:ring-green-500">
-                                            <div class="flex-1">
-                                                <span class="text-sm ${isDenied ? 'text-red-400 line-through' : 'text-white'}">${escHtml(taskName)}</span>
-                                                ${isDenied ? '<span class="text-xs text-red-400 ml-2">🚫 Denied</span>' : '<span class="text-xs text-green-400 ml-2">✅ Allowed</span>'}
-                                            </div>
-                                        </label>
-                                    `;
-                                    }).join('')}
+                    <!-- RIGHT: Detail Panel -->
+                    <div style="flex:1; display:flex; flex-direction:column; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.08); border-radius:16px; overflow:hidden;">
+                        ${selAdmin ? (() => {
+                            const sa = selAdmin;
+                            const icon = sa.entity_type === 'user' ? '👤' : '👥';
+                            const hasFA = sa.permissions?.includes('full_admin');
+                            const denied = sa.denied_task_names || [];
+                            
+                            return `
+                            <!-- Header -->
+                            <div style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between;">
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <div style="width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; background:rgba(245,158,11,0.15);">${icon}</div>
+                                    <div>
+                                        <div style="font-weight:600; color:#f1f5f9; font-size:0.95rem;">${sa.entity_name || 'Unknown'}</div>
+                                        <div style="font-size:0.75rem; color:#6b7280;">${sa.entity_type === 'user' ? 'User' : 'Group'}</div>
+                                    </div>
                                 </div>
-                            ` : `
-                                <p class="text-xs text-gray-500 italic text-center py-2">No tasks defined yet. Add tasks in the Tasks step.</p>
-                            `}
-                        </div>
+                                <button onclick="removeAgentAdmin('${sa.entity_id}')" style="padding:6px 14px; border-radius:10px; border:1px solid rgba(239,68,68,0.4); background:rgba(239,68,68,0.1); color:#f87171; font-size:0.75rem; cursor:pointer;">Remove</button>
+                            </div>
+                            
+                            <!-- Scrollable content -->
+                            <div style="flex:1; overflow-y:auto; padding:16px 20px;">
+                                <!-- Section 1: Management Permissions -->
+                                <div style="margin-bottom:20px;">
+                                    <div style="font-size:0.8rem; font-weight:600; color:#fbbf24; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                                        <span>🔧</span> Management Permissions
+                                    </div>
+                                    
+                                    <!-- Full Admin Toggle -->
+                                    <label style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:12px; cursor:pointer; margin-bottom:10px; background:${hasFA ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.03)'}; border:1px solid ${hasFA ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.08)'}; transition:all 0.15s;">
+                                        <input type="checkbox" onchange="toggleFullAdmin(${selIdx}, this.checked)" ${hasFA ? 'checked' : ''}
+                                               style="width:18px; height:18px; border-radius:5px; accent-color:#f59e0b; cursor:pointer;">
+                                        <div>
+                                            <div style="font-size:0.875rem; font-weight:600; color:#fbbf24;">⭐ Full Admin</div>
+                                            <div style="font-size:0.7rem; color:#6b7280;">All permissions except delete</div>
+                                        </div>
+                                    </label>
+                                    
+                                    <!-- Granular Permissions -->
+                                    ${!hasFA ? `
+                                    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
+                                        ${AGENT_PERMISSIONS.filter(p => p.id !== 'full_admin').map(perm => {
+                                            const checked = sa.permissions?.includes(perm.id);
+                                            const isDanger = perm.category === 'Danger';
+                                            const bg = checked ? (isDanger ? 'rgba(239,68,68,0.08)' : 'rgba(139,92,246,0.08)') : 'rgba(255,255,255,0.02)';
+                                            const border = checked ? (isDanger ? 'rgba(239,68,68,0.3)' : 'rgba(139,92,246,0.25)') : 'rgba(255,255,255,0.06)';
+                                            
+                                            return `
+                                            <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:10px; cursor:pointer; background:${bg}; border:1px solid ${border}; transition:all 0.15s;"
+                                                   onmouseenter="this.style.background='rgba(255,255,255,0.05)'" onmouseleave="this.style.background='${bg}'">
+                                                <input type="checkbox" onchange="toggleAdminPermission(${selIdx}, '${perm.id}', this.checked)" ${checked ? 'checked' : ''}
+                                                       style="width:16px; height:16px; border-radius:4px; accent-color:${isDanger ? '#ef4444' : '#8b5cf6'}; cursor:pointer;">
+                                                <div style="min-width:0;">
+                                                    <div style="font-size:0.8rem; color:${isDanger ? '#f87171' : '#e2e8f0'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${perm.icon} ${perm.name}</div>
+                                                    <div style="font-size:0.65rem; color:#6b7280;">${perm.desc}</div>
+                                                </div>
+                                            </label>`;
+                                        }).join('')}
+                                    </div>
+                                    ` : '<div style="font-size:0.75rem; color:#6b7280; padding:8px 0;">All management permissions are granted. Uncheck Full Admin to customize.</div>'}
+                                </div>
+                                
+                                <!-- Section 2: Chat / Task Permissions -->
+                                <div>
+                                    <div style="font-size:0.8rem; font-weight:600; color:#a78bfa; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
+                                        <span style="display:flex; align-items:center; gap:6px;"><span>💬</span> Chat Task Permissions</span>
+                                        ${tasks.length > 0 ? `
+                                        <div style="display:flex; gap:6px;">
+                                            <button onclick="daSetAllTasks(${selIdx}, true)" style="padding:4px 10px; border-radius:8px; border:1px solid rgba(34,197,94,0.3); background:rgba(34,197,94,0.1); color:#4ade80; font-size:0.7rem; cursor:pointer;">Allow All</button>
+                                            <button onclick="daSetAllTasks(${selIdx}, false)" style="padding:4px 10px; border-radius:8px; border:1px solid rgba(239,68,68,0.3); background:rgba(239,68,68,0.1); color:#f87171; font-size:0.7rem; cursor:pointer;">Deny All</button>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                    
+                                    ${tasks.length > 0 ? `
+                                    <div style="display:flex; flex-direction:column; gap:6px;">
+                                        ${tasks.map(task => {
+                                            const taskName = task.name || 'Unnamed Task';
+                                            const isDenied = denied.includes(taskName);
+                                            const bg = isDenied ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)';
+                                            const border = isDenied ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(34,197,94,0.2)';
+                                            
+                                            return `
+                                            <label style="display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:10px; cursor:pointer; background:${bg}; border:${border}; transition:all 0.15s;">
+                                                <input type="checkbox" onchange="toggleAdminTaskAccess(${selIdx}, '${escHtml(taskName)}', this.checked)" ${!isDenied ? 'checked' : ''}
+                                                       style="width:18px; height:18px; border-radius:5px; accent-color:#22c55e; cursor:pointer; flex-shrink:0;">
+                                                <div style="flex:1; min-width:0;">
+                                                    <div style="font-size:0.85rem; color:${isDenied ? '#f87171' : '#f1f5f9'}; ${isDenied ? 'text-decoration:line-through;' : ''}">${escHtml(taskName)}</div>
+                                                    ${task.description ? '<div style="font-size:0.7rem; color:#6b7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + (task.description || '').slice(0, 70) + '</div>' : ''}
+                                                </div>
+                                                <span style="font-size:0.7rem; padding:3px 10px; border-radius:8px; font-weight:500; flex-shrink:0; background:${isDenied ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}; color:${isDenied ? '#f87171' : '#4ade80'};">${isDenied ? 'Denied' : 'Allowed'}</span>
+                                            </label>`;
+                                        }).join('')}
+                                    </div>
+                                    ` : '<div style="font-size:0.75rem; color:#6b7280; text-align:center; padding:16px;">No tasks defined yet. Add tasks in the Tasks step.</div>'}
+                                </div>
+                            </div>
+                            `;
+                        })() : `
+                            <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#6b7280; font-size:0.875rem;">
+                                Select an admin from the list
+                            </div>
+                        `}
                     </div>
                 </div>
             `;
-            }).join('');
         }
         
-        // Toggle chat permissions visibility
-        function toggleAdminChatPerms(index) {
-            const section = document.getElementById(`admin-chat-perms-${index}`);
-            const arrow = document.getElementById(`admin-chat-arrow-${index}`);
-            if (section) {
-                section.classList.toggle('hidden');
-                if (arrow) {
-                    arrow.classList.toggle('rotate-180');
-                }
+        // Select admin in master-detail panel
+        function daSelectAdmin(idx) {
+            window._daSelectedIdx = idx;
+            renderDelegatedAdmins();
+        }
+        
+        // Filter admin list
+        function daFilterAdmins(query) {
+            const items = document.querySelectorAll('.da-admin-item');
+            const q = (query || '').toLowerCase();
+            items.forEach(item => {
+                const name = item.getAttribute('data-name') || '';
+                item.style.display = !q || name.includes(q) ? 'flex' : 'none';
+            });
+        }
+        
+        // Allow/Deny all tasks for a delegated admin
+        function daSetAllTasks(index, allowed) {
+            const admin = agentAdminState.delegatedAdmins[index];
+            if (!admin) return;
+            const tasks = wizard.tasks || [];
+            if (allowed) {
+                admin.denied_task_names = [];
+            } else {
+                admin.denied_task_names = tasks.map(t => t.name || 'Unnamed Task');
             }
+            saveAgentManagement();
+            renderDelegatedAdmins();
         }
         
         // Toggle task access for admin
@@ -14132,10 +14212,8 @@ Option 3"></textarea>
             admin.denied_task_names = admin.denied_task_names || [];
             
             if (allowed) {
-                // Remove from denied list
                 admin.denied_task_names = admin.denied_task_names.filter(t => t !== taskName);
             } else {
-                // Add to denied list
                 if (!admin.denied_task_names.includes(taskName)) {
                     admin.denied_task_names.push(taskName);
                 }
@@ -14166,8 +14244,6 @@ Option 3"></textarea>
             if (!admin) return;
             
             admin.permissions = admin.permissions || [];
-            
-            // Remove full_admin if setting individual perms
             admin.permissions = admin.permissions.filter(p => p !== 'full_admin');
             
             if (checked) {
@@ -14179,6 +14255,7 @@ Option 3"></textarea>
             }
             
             saveAgentManagement();
+            renderDelegatedAdmins();
         }
         
         // Save management config to backend
@@ -14680,13 +14757,13 @@ Option 3"></textarea>
             }
             
             if (entities.length === 0) {
-                // No specific entities - show simple allow/deny per task
+                // No specific entities - show simple allow/deny per task (global default)
                 container.innerHTML = `
                     <div class="flex items-center gap-3 p-4 rounded-xl mb-4" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%); border: 1px solid rgba(59, 130, 246, 0.3);">
                         <svg class="w-5 h-5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <p class="text-sm text-blue-300">Select specific users or groups above to configure per-entity permissions</p>
+                        <p class="text-sm text-blue-300">These permissions apply to all authenticated users. Select "Specific Users" above to configure per-user permissions.</p>
                     </div>
                     <div class="space-y-3">
                         ${tasks.map((task, i) => {
@@ -14730,75 +14807,150 @@ Option 3"></textarea>
                 return;
             }
             
-            // Matrix view: Tasks x Entities
+            // ===================================================================
+            // Master-Detail Split Panel (Enterprise IAM pattern)
+            // Left: searchable entity list   Right: selected entity's permissions
+            // Scales to 100+ users/groups with search, filter, bulk actions.
+            // ===================================================================
+            
+            // Track which entity is selected for detail view
+            const selId = window._acSelectedEntityId || entities[0]?.id || null;
+            const selEntity = entities.find(e => e.id === selId) || entities[0];
+            
+            // Pre-compute per-entity stats
+            const entityStats = {};
+            entities.forEach(e => {
+                let denied = 0;
+                tasks.forEach((t, i) => {
+                    if (getTaskPermission(t.id || `task-${i}`, e.id) === false) denied++;
+                });
+                entityStats[e.id] = { denied, allowed: tasks.length - denied };
+            });
+            
+            // --- Bulk selection state ---
+            const bulkSel = window._acBulkSelected || new Set();
+            const hasBulk = bulkSel.size > 0;
+            
             container.innerHTML = `
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="border-b border-gray-700">
-                                <th class="text-left p-3 font-medium min-w-[200px]">Task</th>
-                                ${entities.map(e => `
-                                    <th class="p-3 text-center min-w-[100px]">
-                                        <div class="flex flex-col items-center gap-1">
-                                            <span class="text-lg">${e.icon || (e.type === 'user' ? '👤' : '👥')}</span>
-                                            <span class="text-xs font-normal truncate max-w-[80px]" title="${e.name}">${e.name?.split(' ')[0] || 'Unknown'}</span>
-                                        </div>
-                                    </th>
-                                `).join('')}
-                                <th class="p-3 text-center min-w-[80px]">
-                                    <div class="flex flex-col items-center gap-1">
-                                        <span class="text-lg">🌐</span>
-                                        <span class="text-xs font-normal">All</span>
-                                    </div>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${tasks.map((task, tIdx) => {
-                                const taskId = task.id || `task-${tIdx}`;
-                                return `
-                                <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
-                                    <td class="p-3">
-                                        <div class="flex items-center gap-2">
-                                            <span>📋</span>
-                                            <div>
-                                                <div class="font-medium">${task.name || 'Unnamed'}</div>
-                                                <div class="text-xs text-gray-500 truncate max-w-[180px]">${(task.description || '').slice(0, 40)}...</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    ${entities.map(e => {
-                                        const isAllowed = getTaskPermission(taskId, e.id) !== false;
-                                        return `
-                                        <td class="p-3 text-center">
-                                            <button onclick="toggleWizardTaskPermission('${taskId}', '${e.id}', ${!isAllowed}); renderWizardTaskPermissions();"
-                                                    class="w-12 h-12 rounded-lg transition-all flex items-center justify-center text-xl
-                                                           ${isAllowed 
-                                                               ? 'bg-green-500/20 hover:bg-green-500/40 text-green-400 border border-green-500/50' 
-                                                               : 'bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/50'}">
-                                                ${isAllowed ? '✅' : '❌'}
-                                            </button>
-                                        </td>
-                                    `}).join('')}
-                                    <td class="p-3 text-center">
-                                        <button onclick="toggleAllEntitiesForTask('${taskId}')"
-                                                class="px-3 py-2 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-400 hover:bg-purple-500/40 border border-purple-500/50">
-                                            Toggle All
-                                        </button>
-                                    </td>
-                                </tr>
-                            `}).join('')}
-                        </tbody>
-                    </table>
+                <!-- Bulk Actions Bar -->
+                ${hasBulk ? `
+                <div class="flex items-center justify-between p-3 rounded-xl mb-3" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4);">
+                    <span class="text-sm text-purple-300"><strong>${bulkSel.size}</strong> selected</span>
+                    <div class="flex gap-2">
+                        <button onclick="acBulkApply(true)" class="px-3 py-1.5 text-xs rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 font-medium">Allow All Tasks</button>
+                        <button onclick="acBulkApply(false)" class="px-3 py-1.5 text-xs rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 font-medium">Deny All Tasks</button>
+                        <button onclick="acBulkClear()" class="px-3 py-1.5 text-xs rounded-lg bg-gray-500/20 text-gray-400 hover:bg-gray-500/30">Clear</button>
+                    </div>
                 </div>
+                ` : ''}
                 
-                <div class="mt-4 flex gap-2">
-                    <button onclick="allowAllTasks()" class="flex-1 px-4 py-2 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-sm font-medium border border-green-500/50">
-                        ✅ Allow All Tasks
-                    </button>
-                    <button onclick="denyAllTasks()" class="flex-1 px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm font-medium border border-red-500/50">
-                        ❌ Deny All Tasks
-                    </button>
+                <div style="display:flex; gap:12px; min-height:340px;">
+                    <!-- LEFT: Entity List -->
+                    <div style="width:260px; flex-shrink:0; display:flex; flex-direction:column; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); border-radius:16px; overflow:hidden;">
+                        <!-- Search -->
+                        <div style="padding:10px; border-bottom:1px solid rgba(255,255,255,0.06);">
+                            <input type="text" id="ac-entity-filter" oninput="acFilterEntities(this.value)"
+                                   placeholder="Filter users/groups..."
+                                   style="width:100%; padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#f1f5f9; font-size:0.8rem; outline:none;">
+                        </div>
+                        <!-- Scrollable list -->
+                        <div id="ac-entity-list" style="flex:1; overflow-y:auto; padding:6px;">
+                            ${entities.map(e => {
+                                const isUser = e.type === 'user';
+                                const st = entityStats[e.id] || { allowed: tasks.length, denied: 0 };
+                                const isActive = selEntity && e.id === selEntity.id;
+                                const isBulkChecked = bulkSel.has(e.id);
+                                const activeBg = isActive ? 'rgba(139, 92, 246, 0.25)' : 'transparent';
+                                const activeBorder = isActive ? '2px solid rgba(139, 92, 246, 0.6)' : '2px solid transparent';
+                                
+                                return `
+                                <div class="ac-entity-item" data-name="${(e.name || '').toLowerCase()}" data-type="${e.type}"
+                                     style="display:flex; align-items:center; gap:8px; padding:10px; border-radius:12px; cursor:pointer; margin-bottom:4px; background:${activeBg}; border:${activeBorder}; transition:all 0.15s;"
+                                     onmouseenter="this.style.background='rgba(255,255,255,0.06)'"
+                                     onmouseleave="this.style.background='${activeBg}'"
+                                     onclick="acSelectEntity('${e.id}')">
+                                    <input type="checkbox" ${isBulkChecked ? 'checked' : ''} 
+                                           onclick="event.stopPropagation(); acToggleBulk('${e.id}', this.checked)"
+                                           style="width:16px; height:16px; border-radius:4px; flex-shrink:0; accent-color:#8b5cf6; cursor:pointer;">
+                                    <div style="flex:1; min-width:0;">
+                                        <div style="display:flex; align-items:center; gap:6px;">
+                                            <span style="font-size:1rem;">${isUser ? '👤' : '👥'}</span>
+                                            <span style="font-size:0.8rem; font-weight:500; color:#f1f5f9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${e.name || ''}">${e.name || 'Unknown'}</span>
+                                        </div>
+                                        <div style="display:flex; gap:6px; margin-top:3px;">
+                                            <span style="font-size:0.65rem; padding:1px 6px; border-radius:8px; background:rgba(34,197,94,0.15); color:#4ade80;">${st.allowed}</span>
+                                            ${st.denied > 0 ? `<span style="font-size:0.65rem; padding:1px 6px; border-radius:8px; background:rgba(239,68,68,0.15); color:#f87171;">${st.denied}</span>` : ''}
+                                        </div>
+                                    </div>
+                                    ${isActive ? '<div style="width:4px; height:24px; border-radius:2px; background:#8b5cf6; flex-shrink:0;"></div>' : ''}
+                                </div>`;
+                            }).join('')}
+                        </div>
+                        <div style="padding:8px 10px; border-top:1px solid rgba(255,255,255,0.06); text-align:center;">
+                            <span style="font-size:0.7rem; color:#6b7280;">${entities.length} entities</span>
+                        </div>
+                    </div>
+                    
+                    <!-- RIGHT: Detail Panel -->
+                    <div style="flex:1; display:flex; flex-direction:column; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.08); border-radius:16px; overflow:hidden;">
+                        ${selEntity ? (() => {
+                            const se = selEntity;
+                            const isUser = se.type === 'user';
+                            const st = entityStats[se.id] || { allowed: tasks.length, denied: 0 };
+                            
+                            return `
+                            <!-- Detail Header -->
+                            <div style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between;">
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <div style="width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; background:${isUser ? 'rgba(139,92,246,0.2)' : 'rgba(59,130,246,0.2)'};">
+                                        ${isUser ? '👤' : '👥'}
+                                    </div>
+                                    <div>
+                                        <div style="font-weight:600; color:#f1f5f9; font-size:0.95rem;">${se.name || 'Unknown'}</div>
+                                        <div style="font-size:0.75rem; color:#6b7280;">${isUser ? 'User' : 'Group'} &middot; ${st.allowed} allowed, ${st.denied} denied</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:8px;">
+                                    <button onclick="setAllEntityTasks('${se.id}', true)" style="padding:6px 14px; border-radius:10px; border:1px solid rgba(34,197,94,0.4); background:rgba(34,197,94,0.15); color:#4ade80; font-size:0.75rem; font-weight:600; cursor:pointer;">Allow All</button>
+                                    <button onclick="setAllEntityTasks('${se.id}', false)" style="padding:6px 14px; border-radius:10px; border:1px solid rgba(239,68,68,0.4); background:rgba(239,68,68,0.15); color:#f87171; font-size:0.75rem; font-weight:600; cursor:pointer;">Deny All</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Task List (scrollable) -->
+                            <div style="flex:1; overflow-y:auto; padding:12px 16px;">
+                                <div style="display:flex; flex-direction:column; gap:8px;">
+                                    ${tasks.map((task, tIdx) => {
+                                        const taskId = task.id || 'task-' + tIdx;
+                                        const isAllowed = getTaskPermission(taskId, se.id) !== false;
+                                        const bg = isAllowed ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)';
+                                        const border = isAllowed ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)';
+                                        
+                                        return `
+                                        <label style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:12px; cursor:pointer; background:${bg}; border:${border}; transition:all 0.15s;"
+                                               onmouseenter="this.style.background='rgba(255,255,255,0.04)'"
+                                               onmouseleave="this.style.background='${bg}'">
+                                            <input type="checkbox"
+                                                   onchange="toggleWizardTaskPermission('${taskId}', '${se.id}', this.checked); renderWizardTaskPermissions();"
+                                                   ${isAllowed ? 'checked' : ''}
+                                                   style="width:18px; height:18px; border-radius:5px; accent-color:#22c55e; cursor:pointer; flex-shrink:0;">
+                                            <div style="flex:1; min-width:0;">
+                                                <div style="font-size:0.875rem; font-weight:500; color:${isAllowed ? '#f1f5f9' : '#f87171'}; ${isAllowed ? '' : 'text-decoration:line-through;'}">${task.name || 'Unnamed Task'}</div>
+                                                ${task.description ? `<div style="font-size:0.7rem; color:#6b7280; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${(task.description || '').slice(0, 80)}</div>` : ''}
+                                            </div>
+                                            <span style="font-size:0.7rem; padding:3px 10px; border-radius:8px; font-weight:500; flex-shrink:0;
+                                                         background:${isAllowed ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; 
+                                                         color:${isAllowed ? '#4ade80' : '#f87171'};">${isAllowed ? 'Allowed' : 'Denied'}</span>
+                                        </label>`;
+                                    }).join('')}
+                                </div>
+                            </div>
+                            `;
+                        })() : `
+                            <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#6b7280; font-size:0.875rem;">
+                                Select a user or group from the list
+                            </div>
+                        `}
+                    </div>
                 </div>
             `;
         }
@@ -14819,6 +14971,67 @@ Option 3"></textarea>
             
             // Save immediately like delegated admins do
             saveUserTaskPermissions();
+        }
+        
+        // Select an entity in the master-detail panel
+        function acSelectEntity(entityId) {
+            window._acSelectedEntityId = entityId;
+            renderWizardTaskPermissions();
+        }
+        
+        // Filter entity list by search query
+        function acFilterEntities(query) {
+            const items = document.querySelectorAll('.ac-entity-item');
+            const q = (query || '').toLowerCase();
+            items.forEach(item => {
+                const name = item.getAttribute('data-name') || '';
+                const type = item.getAttribute('data-type') || '';
+                const match = !q || name.includes(q) || type.includes(q);
+                item.style.display = match ? 'flex' : 'none';
+            });
+        }
+        
+        // Bulk selection
+        function acToggleBulk(entityId, checked) {
+            if (!window._acBulkSelected) window._acBulkSelected = new Set();
+            if (checked) {
+                window._acBulkSelected.add(entityId);
+            } else {
+                window._acBulkSelected.delete(entityId);
+            }
+            renderWizardTaskPermissions();
+        }
+        
+        function acBulkClear() {
+            window._acBulkSelected = new Set();
+            renderWizardTaskPermissions();
+        }
+        
+        // Apply permissions in bulk to all selected entities
+        function acBulkApply(allowed) {
+            const sel = window._acBulkSelected || new Set();
+            const tasks = wizard.tasks || [];
+            sel.forEach(entityId => {
+                tasks.forEach((task, i) => {
+                    const taskId = task.id || `task-${i}`;
+                    wizardAccessState.taskPermissions[`${taskId}:${entityId}`] = allowed;
+                });
+            });
+            saveUserTaskPermissions();
+            window._acBulkSelected = new Set();
+            renderWizardTaskPermissions();
+        }
+        
+        // Allow or deny all tasks for a specific entity
+        function setAllEntityTasks(entityId, allowed) {
+            const tasks = wizard.tasks || [];
+            tasks.forEach((task, i) => {
+                const taskId = task.id || `task-${i}`;
+                const key = `${taskId}:${entityId}`;
+                wizardAccessState.taskPermissions[key] = allowed;
+            });
+            saveUserTaskPermissions();
+            renderWizardTaskPermissions();
         }
         
         // Save user task permissions immediately (same pattern as saveAgentManagement)
