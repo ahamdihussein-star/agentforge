@@ -718,7 +718,7 @@
             display: flex;
             flex-direction: column;
             background: var(--bg-dark);
-            height: 100vh;
+            height: 100%;
             min-height: 0; /* Important for flex children to respect overflow */
             overflow: hidden;
         }
@@ -2631,7 +2631,7 @@
     </div>
 
     <!-- Main Chat Interface -->
-    <div id="chat-interface" class="hidden" style="display: none; width: 100%; height: 100vh;">
+    <div id="chat-interface" class="hidden" style="display: none; width: 100%; height: calc(100vh - var(--org-banner-height, 0px));">
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -5836,8 +5836,14 @@
                 
             } catch (e) {
                 console.error('Streaming error:', e);
-                addThinkingStep('error', 'Connection error. Please try again.');
+                addThinkingStep('error', `Connection error: ${e?.message || 'Unknown error'}. Please try again.`);
                 finishThinking(false);
+                // If streaming-content has no content, show error as a message
+                const contentDiv = document.getElementById('streaming-content');
+                if (contentDiv && !fullContent) {
+                    contentDiv.style.display = 'block';
+                    contentDiv.innerHTML = `<p style="color: var(--error);">Failed to get a response. Please try again.</p>`;
+                }
             }
         }
         
