@@ -730,20 +730,32 @@ class UserDirectoryService:
             return {"user_id": user_id}
         
         context = {
+            # Core identity
             "user_id": user.user_id,
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "display_name": user.full_name,
+            "display_name": user.display_name or f"{user.first_name or ''} {user.last_name or ''}".strip(),
+            "phone": user.phone,
+            # Professional
             "job_title": user.job_title,
             "employee_id": user.employee_id,
+            # Organizational
             "department_id": user.department_id,
             "department_name": user.department_name,
             "manager_id": user.manager_id,
             "manager_email": user.manager_email,
             "manager_name": user.manager_name,
+            # Groups & Roles (IDs and names for both programmatic and display use)
             "group_ids": user.group_ids,
+            "group_names": user.group_names,
             "role_ids": user.role_ids,
+            "role_names": user.role_names,
+            # Hierarchy info
+            "is_manager": user.is_manager,
+            "direct_report_count": user.direct_report_count,
+            # Custom/extended attributes from HR/LDAP
+            "custom_attributes": user.custom_attributes if user.custom_attributes else None,
         }
         
         return {k: v for k, v in context.items() if v is not None}

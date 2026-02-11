@@ -257,24 +257,35 @@ Node config rules:
 - For profile-prefilled fields (auto-filled from the logged-in user's profile — the user does NOT need to enter these), include:
   - readOnly: true
   - prefill: {{ "source": "currentUser", "key": "<key>" }}
-  - Basic keys: email, name, id, roles, groups, orgId
-  - Extended identity keys: managerId, managerName, managerEmail, departmentId, departmentName, jobTitle, employeeId
-  BEST PRACTICE: For any HR/employee process, ALWAYS include prefilled read-only fields for the employee's name, email, department, and employee ID. This eliminates manual entry and ensures accuracy.
+  - Basic keys: email, name, firstName, lastName, phone, id, roles, groups, orgId
+  - Identity keys: managerId, managerName, managerEmail, departmentId, departmentName, jobTitle, employeeId
+  - Display keys: groupNames, roleNames, isManager
+  The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime.
+  BEST PRACTICE: For any HR/employee process, ALWAYS include prefilled read-only fields for the employee's name, email, department, employee ID, and phone. This eliminates manual entry and ensures accuracy.
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
-  IMPORTANT — Identity-aware approvals:
-  - For **manager approvals** (e.g., leave, expenses, any process mentioning "manager", "supervisor", "boss"):
-    use assignee_source: "user_directory", directory_assignee_type: "dynamic_manager", assignee_ids: [].
-    The platform automatically resolves the logged-in user's direct manager at runtime from the configured identity source (Built-in Org Chart, LDAP, or HR System).
-  - For **department head approvals**: use assignee_source: "user_directory", directory_assignee_type: "department_manager".
-  - For **escalation / skip-level approvals**: use assignee_source: "user_directory", directory_assignee_type: "management_chain", management_level: 2.
-  - For **static assignees** (specific named users): use assignee_source: "platform_user".
-  - For role/group-based: use assignee_source: "platform_role" or "platform_group".
-  - ALWAYS prefer "user_directory" over "platform_user" when the approval should go to the requester's manager or department head.
+  IMPORTANT — Identity-aware approvals (the engine resolves assignees automatically at runtime):
+  - **Manager approval** (leave, expenses, any "manager"/"supervisor"/"boss"):
+    assignee_source: "user_directory", directory_assignee_type: "dynamic_manager", assignee_ids: [].
+  - **Department head approval** (budget, dept-level decisions):
+    assignee_source: "user_directory", directory_assignee_type: "department_manager".
+  - **Escalation / skip-level** (VP, director, senior management):
+    assignee_source: "user_directory", directory_assignee_type: "management_chain", management_level: 2 (or 3, etc.).
+  - **Role-based approval** (e.g., all users with "Finance" role):
+    assignee_source: "user_directory", directory_assignee_type: "role", role_ids: ["<role_id>"].
+  - **Group-based approval** (e.g., IT team, compliance committee):
+    assignee_source: "user_directory", directory_assignee_type: "group", group_ids: ["<group_id>"].
+  - **Entire department** as assignees:
+    assignee_source: "user_directory", directory_assignee_type: "department_members", department_id: "<dept_id>".
+  - **Dynamic from form field** (user selects their approver in the form):
+    assignee_source: "user_directory", directory_assignee_type: "expression", expression: "{{{{ trigger_input.approver_id }}}}".
+  - **Static assignees** (specific named user IDs): assignee_source: "platform_user".
+  - ALWAYS prefer "user_directory" over "platform_user" when the approval should go to the requester's manager, department head, or any organizational role.
+  - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence (e.g., manager → director → VP).
 - notification.config must include: channel, recipient, template. Prefer recipient from form field like {{{{email}}}} if present.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
 - action.config MUST include: actionType.
@@ -796,10 +807,17 @@ class ProcessWizard:
             used = set()
             mapping: Dict[str, str] = {}
             allowed_prefill_keys = {
-                "id", "name", "email", "roles", "groups", "orgId",
+                # Basic profile
+                "id", "name", "email", "firstName", "lastName", "phone",
+                "roles", "groups", "orgId",
                 # Extended identity keys (from User Directory)
                 "managerId", "managerName", "managerEmail",
-                "departmentId", "departmentName", "jobTitle", "employeeId",
+                "departmentId", "departmentName",
+                "jobTitle", "employeeId",
+                # Group & Role names (human-readable)
+                "groupNames", "roleNames",
+                # Hierarchy
+                "isManager",
             }
             safe_taxonomies = load_safe_taxonomies()
 

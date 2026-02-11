@@ -1004,10 +1004,35 @@ async def get_current_user_info(user: User = Depends(require_auth)):
     if user.mfa and user.mfa.methods:
         mfa_method = user.mfa.methods[0].value if hasattr(user.mfa.methods[0], 'value') else str(user.mfa.methods[0])
     
-    return {
+    # Resolve identity data (manager, employee_id, etc.) from User Directory
+    identity_data = {}
+    try:
+        from core.identity.service import UserDirectoryService
+        _dir_service = UserDirectoryService()
+        user_attrs = _dir_service.get_user(user.id, user.org_id)
+        if user_attrs:
+            identity_data = {
+                "manager_id": user_attrs.manager_id,
+                "manager_name": user_attrs.manager_name,
+                "manager_email": user_attrs.manager_email,
+                "employee_id": user_attrs.employee_id,
+                "department_name": user_attrs.department_name,
+                "job_title": user_attrs.job_title,
+                "phone": user_attrs.phone,
+                "first_name": user_attrs.first_name,
+                "last_name": user_attrs.last_name,
+                "is_manager": user_attrs.is_manager,
+                "group_names": user_attrs.group_names,
+                "role_names": user_attrs.role_names,
+            }
+    except Exception as e:
+        print(f"⚠️  [API] Failed to load identity data: {e}")
+
+    response = {
         "id": user.id,
         "email": user.email,
         "name": user.get_display_name(),
+        "full_name": user.get_display_name(),
         "profile": user.profile.dict(),
         "status": user.status.value,
         "role_ids": user.role_ids,
@@ -1029,6 +1054,11 @@ async def get_current_user_info(user: User = Depends(require_auth)):
         "last_login": user.last_login,
         "created_at": user.created_at
     }
+    # Merge identity data (only non-None values)
+    for k, v in identity_data.items():
+        if v is not None:
+            response[k] = v
+    return response
 
 @router.post("/auth/change-password")
 async def change_password(request: ChangePasswordRequest, user: User = Depends(require_auth)):

@@ -101,25 +101,79 @@ Escalate to Nth-level manager (e.g., manager's manager):
 ```
 
 ### 5) Available directory_assignee_type options
-| Type | Description | When to use |
-|------|-------------|-------------|
-| `dynamic_manager` | User's direct manager | Leave requests, expense reports, any manager approval |
-| `department_manager` | Head of user's department | Budget approvals, department-level decisions |
-| `management_chain` | Nth-level manager (set `management_level`) | Senior/executive approval |
-| `role` | Users with specific platform roles | Cross-department approval by role |
-| `group` | Users in specific platform groups | Committee or team approvals |
-| `department_members` | All members of a department | Department-wide notifications |
+| Type | Description | Config needed | When to use |
+|------|-------------|---------------|-------------|
+| `dynamic_manager` | User's direct manager | (none) | Leave requests, expense reports, any manager approval |
+| `department_manager` | Head of user's department | (none) or `department_id` | Budget approvals, department-level decisions |
+| `management_chain` | Nth-level manager | `management_level: N` | Senior/executive approval (2=director, 3=VP) |
+| `role` | Users with specific platform roles | `role_ids: ["id"]` | Cross-department approval by role (e.g., Finance role) |
+| `group` | Users in specific platform groups | `group_ids: ["id"]` | Committee or team approvals (e.g., IT Team) |
+| `department_members` | All members of a department | `department_id: "id"` | Department-wide notifications/tasks |
+| `expression` | Dynamic from form field or variable | `expression: "{{ trigger_input.field }}"` | When the user selects their approver in the form |
+| `static` | Fixed user IDs | `user_ids: ["id1", "id2"]` | Known, specific approvers |
+
+### 6) Expression-based dynamic routing
+When a form field determines who should approve (e.g., user picks a reviewer), use:
+```json
+{
+  "assignee_source": "user_directory",
+  "directory_assignee_type": "expression",
+  "expression": "{{ trigger_input.selectedApproverId }}"
+}
+```
+Supported expression paths:
+- `{{ trigger_input.<fieldName> }}` — from form field value
+- `{{ variables.<varName> }}` — from process variable
+- `{{ context.user_id }}` — the triggering user (for self-routing/acknowledgment)
+
+### 7) Sequential multi-level approvals
+For processes requiring multiple approval levels, use separate approval nodes in sequence:
+- Node 1: `dynamic_manager` (immediate manager)
+- Node 2: `management_chain` with `management_level: 2` (director)
+- Node 3: `management_chain` with `management_level: 3` (VP)
+
+Or use a condition node to decide which level based on form data:
+- If amount > 5000 → route to `management_chain` level 2
+- Else → route to `dynamic_manager`
+
+### 8) All available prefill keys
+| Key | Description |
+|-----|-------------|
+| `email` | User's email |
+| `name` | Full display name |
+| `firstName` | First name |
+| `lastName` | Last name |
+| `phone` | Phone number |
+| `id` | User ID |
+| `orgId` | Organization ID |
+| `roles` | Role IDs |
+| `roleNames` | Human-readable role names |
+| `groups` | Group IDs |
+| `groupNames` | Human-readable group names |
+| `managerId` | Direct manager user ID |
+| `managerName` | Manager display name |
+| `managerEmail` | Manager email |
+| `departmentId` | Department ID |
+| `departmentName` | Department name |
+| `jobTitle` | Job title |
+| `employeeId` | HR employee identifier |
+| `isManager` | Whether the user is a manager (true/false) |
 
 ## Best Practices for Identity-Aware Workflows
 
 1. **DO** use `assignee_source: "user_directory"` with `directory_assignee_type: "dynamic_manager"` when the process goal mentions "manager approval" or "supervisor review".
-2. **DO** use prefill with `readOnly: true` for user attributes like email, name, employee ID — never ask the user to re-enter information the system already knows.
+2. **DO** use prefill with `readOnly: true` for user attributes like email, name, employee ID, phone, department — never ask the user to re-enter information the system already knows.
 3. **DO NOT** ask the user to manually enter their manager's name or ID — use the dynamic manager resolution instead.
 4. **DO NOT** hardcode specific manager user IDs in approval nodes for HR processes — use `user_directory` so it works for any employee.
 5. **If** the process mentions "department head approval" or "department manager", use `directory_assignee_type: "department_manager"`.
 6. **If** the process mentions "VP approval" or "senior management approval", use `directory_assignee_type: "management_chain"` with an appropriate `management_level`.
+7. **If** the process has a form field where the user selects an approver, use `directory_assignee_type: "expression"`.
+8. **For** multi-level approval chains (manager → director → VP), use sequential approval nodes.
+9. **For** group/committee approvals (e.g., "needs IT team sign-off"), use `directory_assignee_type: "group"`.
+10. **For** role-based approvals (e.g., "anyone with Finance role"), use `directory_assignee_type: "role"`.
 
 ## Anti-hallucination note
-- Only use `directory_assignee_type` values listed above.
-- Only use extended prefill keys listed above.
+- Only use `directory_assignee_type` values listed in the table above.
+- Only use prefill keys listed in the table above.
 - The engine resolves identity automatically — do NOT generate nodes that "call HR API" or "look up manager" unless the user specifically asks for custom integration steps.
+- Expression paths must match the exact syntax: `{{ trigger_input.fieldName }}`, `{{ variables.varName }}`, `{{ context.user_id }}`.

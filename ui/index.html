@@ -11303,12 +11303,28 @@ Option 3"></textarea>
         function getCurrentUserPrefillValue(key) {
             const k = String(key || '').trim();
             if (!currentUser) return '';
+            // Basic profile
             if (k === 'email') return currentUser.email || '';
-            if (k === 'name') return currentUser.name || currentUser.display_name || currentUser.profile?.name || '';
+            if (k === 'name') return currentUser.name || currentUser.full_name || currentUser.display_name || currentUser.profile?.name || '';
+            if (k === 'firstName') return currentUser.first_name || currentUser.profile?.first_name || '';
+            if (k === 'lastName') return currentUser.last_name || currentUser.profile?.last_name || '';
+            if (k === 'phone') return currentUser.phone || currentUser.profile?.phone || '';
             if (k === 'id') return currentUser.id || '';
             if (k === 'orgId') return currentUser.org_id || '';
+            // Roles & Groups
             if (k === 'roles') return Array.isArray(currentUser.roles) ? currentUser.roles.map(r => r?.name || r?.id || r).filter(Boolean).join(', ') : '';
+            if (k === 'roleNames') return Array.isArray(currentUser.role_names) ? currentUser.role_names.join(', ') : (Array.isArray(currentUser.roles) ? currentUser.roles.map(r => r?.name || r).filter(Boolean).join(', ') : '');
             if (k === 'groups') return Array.isArray(currentUser.groups) ? currentUser.groups.map(g => g?.name || g?.id || g).filter(Boolean).join(', ') : '';
+            if (k === 'groupNames') return Array.isArray(currentUser.group_names) ? currentUser.group_names.join(', ') : (Array.isArray(currentUser.groups) ? currentUser.groups.map(g => g?.name || g).filter(Boolean).join(', ') : '');
+            // Identity / Organizational
+            if (k === 'managerId') return currentUser.manager_id || '';
+            if (k === 'managerName') return currentUser.manager_name || '';
+            if (k === 'managerEmail') return currentUser.manager_email || '';
+            if (k === 'departmentId') return currentUser.department_id || '';
+            if (k === 'departmentName') return currentUser.department_name || (currentUser.department?.name) || '';
+            if (k === 'jobTitle') return currentUser.job_title || currentUser.profile?.job_title || '';
+            if (k === 'employeeId') return currentUser.employee_id || '';
+            if (k === 'isManager') return currentUser.is_manager != null ? String(currentUser.is_manager) : '';
             return '';
         }
 
