@@ -36,6 +36,15 @@ INDEX_JS = UI_DIR / "index.js"
 INDEX_HTML = UI_DIR / "index.html"
 PARTS_DIR = UI_DIR / "index_parts"
 
+# Stable, descriptive file names (loaded in this exact order)
+PART_FILE_NAMES = [
+    "app-core.js",
+    "process-playback.js",
+    "approvals.js",
+    "agent-wizard.js",
+    "app-features.js",
+]
+
 
 @dataclass
 class ScanState:
@@ -310,7 +319,7 @@ def _choose_splits_validated(text: str, safe_points: list[int], target_bytes: in
 def _write_parts(text: str, split_points: list[int]) -> list[Path]:
     PARTS_DIR.mkdir(parents=True, exist_ok=True)
     # Clean old parts
-    for old in PARTS_DIR.glob("part-*.js"):
+    for old in PARTS_DIR.glob("*.js"):
         old.unlink(missing_ok=True)
 
     points = [0] + split_points + [len(text)]
@@ -338,12 +347,16 @@ def _write_parts(text: str, split_points: list[int]) -> list[Path]:
         start_line = _line_at(a)
         end_line = _line_at(b)
 
-        part_name = f"part-{i+1:03d}.js"
+        if i < len(PART_FILE_NAMES):
+            part_name = PART_FILE_NAMES[i]
+        else:
+            # Safety fallback (avoid numeric names; keep deterministic)
+            part_name = f"extra-{chr(ord('a') + (i - len(PART_FILE_NAMES)))}.js"
         out_path = PARTS_DIR / part_name
         header = (
             f"// Auto-generated from ui/index.js\n"
-            f"// Part {i+1:03d}: lines {start_line}-{end_line}\n"
-            f"// DO NOT reorder parts.\n\n"
+            f"// Chunk: {part_name} (lines {start_line}-{end_line})\n"
+            f"// DO NOT reorder chunks.\n\n"
         )
         out_path.write_text(header + part_text.lstrip("\n"), encoding="utf-8")
         part_paths.append(out_path)
@@ -365,7 +378,7 @@ def _rewrite_index_html(parts: list[Path]) -> None:
 
     # 2) Already split: replace existing consecutive parts block
     parts_block_re = re.compile(
-        r'(?:\s*<script\s+src="/ui/index_parts/part-\d{3}\.js"\s+defer></script>\s*\n)+',
+        r'(?:\s*<script\s+src="/ui/index_parts/[^"]+"\s+defer></script>\s*\n)+',
         re.MULTILINE,
     )
     if not parts_block_re.search(html):
@@ -377,7 +390,7 @@ def _rewrite_index_html(parts: list[Path]) -> None:
 
 
 def _write_index_js_stub(parts: list[Path]) -> None:
-    manifest = "\n".join(f"- /ui/index_parts/{p.name}" for p in parts)
+    manifest = "\n".join(f"// - /ui/index_parts/{p.name}" for p in parts)
     stub = f"""// ui/index.js (stub)
 // This file was split into multiple deferred scripts for easier maintenance.
 // If you need to edit the Admin UI, update the appropriate file in `ui/index_parts/`.
