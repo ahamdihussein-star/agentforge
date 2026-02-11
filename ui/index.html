@@ -29494,10 +29494,12 @@ function checkAuth() {
             updateUserDisplay();
             updateUIByPermissions();
             
-            // Navigate to hash if present
+            // Navigate to hash if present, otherwise go to dashboard
             const pageHash = window.location.hash.slice(1);
             if (pageHash && !pageHash.includes('token') && document.getElementById('page-' + pageHash)) {
                 navigate(pageHash, false);
+            } else {
+                navigate('dashboard', false);
             }
         }
     }).catch((err) => {
@@ -29712,7 +29714,7 @@ async function handleLogin(event) {
         showApp();
         updateUserDisplay();
         updateUIByPermissions();
-        navigate('agents');
+        navigate('dashboard');
         showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
         
     } catch (e) {
@@ -30152,7 +30154,7 @@ async function verifyLoginMfa() {
             showApp();
             updateUserDisplay();
             updateUIByPermissions();
-            navigate('agents');
+            navigate('dashboard');
             showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
         } else {
             console.log("🔐 [FRONTEND] Verifying regular login MFA");
@@ -30209,7 +30211,7 @@ async function verifyLoginMfa() {
             showApp();
             updateUserDisplay();
             updateUIByPermissions();
-            navigate('agents');
+            navigate('dashboard');
             showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
         }
         
@@ -30252,7 +30254,7 @@ async function handleFirstLoginPasswordChange(event) {
         if (!res.ok) { errorDiv.textContent = data.detail.message || data.detail; errorDiv.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Change Password'; return; }
         document.getElementById('first-login-password-modal').remove();
         currentUser.must_change_password = false;
-        showApp(); updateUserDisplay(); navigate('agents'); showToast('Password changed successfully!', 'success');
+        showApp(); updateUserDisplay(); navigate('dashboard'); showToast('Password changed successfully!', 'success');
     } catch (e) { errorDiv.textContent = 'Error: ' + e.message; errorDiv.classList.remove('hidden'); }
     btn.disabled = false; btn.textContent = 'Change Password';
 }
