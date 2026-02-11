@@ -254,22 +254,27 @@ Node config rules:
   - readOnly: true
   - derived: {{ "expression": "<formula>" }}
   Use formulas like: daysBetween(startDate, endDate) or concat(firstName, " ", lastName).
-- For profile-prefilled fields, include:
+- For profile-prefilled fields (auto-filled from the logged-in user's profile — the user does NOT need to enter these), include:
   - readOnly: true
   - prefill: {{ "source": "currentUser", "key": "<key>" }}
   - Basic keys: email, name, id, roles, groups, orgId
   - Extended identity keys: managerId, managerName, managerEmail, departmentId, departmentName, jobTitle, employeeId
+  BEST PRACTICE: For any HR/employee process, ALWAYS include prefilled read-only fields for the employee's name, email, department, and employee ID. This eliminates manual entry and ensures accuracy.
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
-  - For **manager approvals** (e.g., leave, expenses, any process mentioning "manager", "supervisor"):
+  IMPORTANT — Identity-aware approvals:
+  - For **manager approvals** (e.g., leave, expenses, any process mentioning "manager", "supervisor", "boss"):
     use assignee_source: "user_directory", directory_assignee_type: "dynamic_manager", assignee_ids: [].
+    The platform automatically resolves the logged-in user's direct manager at runtime from the configured identity source (Built-in Org Chart, LDAP, or HR System).
   - For **department head approvals**: use assignee_source: "user_directory", directory_assignee_type: "department_manager".
+  - For **escalation / skip-level approvals**: use assignee_source: "user_directory", directory_assignee_type: "management_chain", management_level: 2.
   - For **static assignees** (specific named users): use assignee_source: "platform_user".
-  - For role/group-based: use assignee_source: "role" or "group".
+  - For role/group-based: use assignee_source: "platform_role" or "platform_group".
+  - ALWAYS prefer "user_directory" over "platform_user" when the approval should go to the requester's manager or department head.
 - notification.config must include: channel, recipient, template. Prefer recipient from form field like {{{{email}}}} if present.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
 - action.config MUST include: actionType.
@@ -486,6 +491,16 @@ class ProcessWizard:
         try:
             tool_names = " ".join([t.get("name") or "" for t in tools if isinstance(t, dict)])
             query = f"{goal}\n\n{(analysis or {}).get('summary') or ''}\n\n{tool_names}".strip()
+
+            # Boost query with identity/approval keywords so the identity KB is always retrieved
+            # when the process might involve approvals or user-related workflows.
+            _approval_signals = ["approv", "manager", "supervisor", "request", "leave",
+                                 "vacation", "expense", "hr", "employee", "department",
+                                 "review", "escalat", "hierarchy", "direct report"]
+            goal_lower = (goal or "").lower()
+            if any(sig in goal_lower for sig in _approval_signals):
+                query += "\n\nidentity user_directory dynamic_manager approval assignee manager department employee hierarchy"
+
             platform_knowledge = retrieve_platform_knowledge(query, top_k=6, max_chars=5000)
         except Exception:
             platform_knowledge = ""
@@ -1156,9 +1171,26 @@ class ProcessWizard:
         })
 
         # Approval-oriented fallback
-        if any(w in goal_lower for w in ["approval", "approve", "review", "manager"]):
+        _approval_keywords = ["approval", "approve", "review", "manager", "vacation", "leave",
+                              "expense", "request", "إجازة", "مصروفات", "طلب"]
+        _is_hr_process = any(w in goal_lower for w in [
+            "vacation", "leave", "expense", "hr", "employee", "إجازة", "مصروفات", "موظف"
+        ])
+        # If HR process, replace the basic trigger with identity-prefilled fields
+        if _is_hr_process and any(w in goal_lower for w in _approval_keywords):
+            nodes[0]["config"]["fields"] = [
+                {"name": "employeeName", "label": "Employee Name", "type": "text", "required": True, "readOnly": True, "prefill": {"source": "currentUser", "key": "name"}},
+                {"name": "employeeEmail", "label": "Email", "type": "email", "required": True, "readOnly": True, "prefill": {"source": "currentUser", "key": "email"}},
+                {"name": "department", "label": "Department", "type": "text", "required": False, "readOnly": True, "prefill": {"source": "currentUser", "key": "departmentName"}},
+                {"name": "employeeId", "label": "Employee ID", "type": "text", "required": False, "readOnly": True, "prefill": {"source": "currentUser", "key": "employeeId"}},
+                {"name": "details", "label": "Details", "type": "textarea", "required": True, "placeholder": "Enter request details..."},
+            ]
+        if any(w in goal_lower for w in _approval_keywords):
             # Use user_directory for manager-related goals; platform_user otherwise
-            is_manager_approval = any(w in goal_lower for w in ["manager", "supervisor", "مدير", "موافقة المدير"])
+            is_manager_approval = any(w in goal_lower for w in [
+                "manager", "supervisor", "boss", "مدير", "موافقة المدير",
+                "vacation", "leave", "expense", "إجازة", "مصروفات",
+            ])
             approval_config = {
                 "message": "Please review and approve this request.",
                 "timeout_hours": 24,
