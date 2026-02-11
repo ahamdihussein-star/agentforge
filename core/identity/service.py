@@ -714,21 +714,26 @@ class UserDirectoryService:
     
     def enrich_process_context(self, user_id: str, org_id: str) -> Dict[str, Any]:
         """
-        Enrich process context with user directory information.
+        Enrich process context with ALL available user directory information.
         
         Called when a process starts to provide user context to all nodes.
+        This is FULLY DYNAMIC — every attribute from the identity source
+        (Built-in, LDAP, HR System) is included, including custom_attributes
+        which are flattened into the top level so any field is accessible
+        via {{ trigger_input._user_context.<field> }}.
         
         Args:
             user_id: The user who triggered the process
             org_id: Organization ID
             
         Returns:
-            Dict of user context data for process variables
+            Dict of ALL user context data for process variables
         """
         user = self.get_user(user_id, org_id)
         if not user:
             return {"user_id": user_id}
         
+        # Start with ALL standard attributes from UserAttributes
         context = {
             # Core identity
             "user_id": user.user_id,
@@ -754,9 +759,20 @@ class UserDirectoryService:
             # Hierarchy info
             "is_manager": user.is_manager,
             "direct_report_count": user.direct_report_count,
-            # Custom/extended attributes from HR/LDAP
-            "custom_attributes": user.custom_attributes if user.custom_attributes else None,
+            # Identity source metadata
+            "identity_source": user.source,
         }
+        
+        # FLATTEN custom_attributes into the context so ANY HR/LDAP field
+        # is directly accessible (e.g., national_id, hire_date, office_location, 
+        # cost_center, badge_number, etc.)
+        if user.custom_attributes and isinstance(user.custom_attributes, dict):
+            for attr_key, attr_val in user.custom_attributes.items():
+                # Don't overwrite standard fields
+                if attr_key not in context:
+                    context[attr_key] = attr_val
+            # Also keep the original dict for structured access
+            context["custom_attributes"] = user.custom_attributes
         
         return {k: v for k, v in context.items() if v is not None}
     

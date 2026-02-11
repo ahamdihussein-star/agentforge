@@ -1004,8 +1004,9 @@ async def get_current_user_info(user: User = Depends(require_auth)):
     if user.mfa and user.mfa.methods:
         mfa_method = user.mfa.methods[0].value if hasattr(user.mfa.methods[0], 'value') else str(user.mfa.methods[0])
     
-    # Resolve identity data (manager, employee_id, etc.) from User Directory
+    # Resolve ALL identity data from User Directory (DYNAMIC — includes custom attributes)
     identity_data = {}
+    custom_attributes = {}
     try:
         from core.identity.service import UserDirectoryService
         _dir_service = UserDirectoryService()
@@ -1022,9 +1023,13 @@ async def get_current_user_info(user: User = Depends(require_auth)):
                 "first_name": user_attrs.first_name,
                 "last_name": user_attrs.last_name,
                 "is_manager": user_attrs.is_manager,
+                "direct_report_count": user_attrs.direct_report_count,
                 "group_names": user_attrs.group_names,
                 "role_names": user_attrs.role_names,
             }
+            # Include ALL custom attributes from HR/LDAP (national_id, hire_date, etc.)
+            if user_attrs.custom_attributes and isinstance(user_attrs.custom_attributes, dict):
+                custom_attributes = user_attrs.custom_attributes
     except Exception as e:
         print(f"⚠️  [API] Failed to load identity data: {e}")
 
@@ -1058,6 +1063,9 @@ async def get_current_user_info(user: User = Depends(require_auth)):
     for k, v in identity_data.items():
         if v is not None:
             response[k] = v
+    # Include custom_attributes dict (from HR/LDAP) for dynamic frontend access
+    if custom_attributes:
+        response["custom_attributes"] = custom_attributes
     return response
 
 @router.post("/auth/change-password")

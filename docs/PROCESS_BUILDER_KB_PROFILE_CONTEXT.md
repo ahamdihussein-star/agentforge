@@ -33,11 +33,12 @@ For user-entered fields that are already known from the profile (like email, nam
 - a read-only field with `prefill: { "source": "currentUser", "key": "email" }`, OR
 - omit the field entirely and use `currentUser.email` in notifications.
 
-All available prefill keys:
+The prefill system is **fully dynamic** — ANY user attribute is available as a prefill key:
 - Basic: `email`, `name`, `firstName`, `lastName`, `phone`, `id`, `orgId`
 - Roles/Groups: `roles`, `roleNames`, `groups`, `groupNames`
 - Identity: `managerId`, `managerName`, `managerEmail`, `departmentId`, `departmentName`, `jobTitle`, `employeeId`
-- Hierarchy: `isManager`
+- Hierarchy: `isManager`, `directReportCount`
+- **Custom attributes** (from HR/LDAP): `nationalId`, `hireDate`, `officeLocation`, `costCenter`, `badgeNumber`, or ANY field configured in the organization's identity source — the system resolves them dynamically.
 
 ### 2) Avoid asking the user to re-type profile information
 If a field can be inferred from the logged-in user (email, name, phone, employee ID, department, manager, job title), do not make it required input unless business rules require confirmation. Use prefill with `readOnly: true` instead.
@@ -46,4 +47,4 @@ If a field can be inferred from the logged-in user (email, name, phone, employee
 When the process needs manager approval, use `assignee_source: "user_directory"` with `directory_assignee_type: "dynamic_manager"` instead of asking the user to enter their manager's ID. See **PROCESS_BUILDER_KB_IDENTITY.md** for full details on all routing types (manager, department head, management chain, role, group, expression, etc.).
 
 ## Anti-hallucination note
-Do NOT invent profile keys. Only use the keys listed above (basic + extended).
+The prefill system is dynamic — any camelCase key that maps to a snake_case attribute in the user's profile or custom_attributes will work. Standard keys are listed above, but custom HR/LDAP attributes are also available.

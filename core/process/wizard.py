@@ -257,11 +257,13 @@ Node config rules:
 - For profile-prefilled fields (auto-filled from the logged-in user's profile — the user does NOT need to enter these), include:
   - readOnly: true
   - prefill: {{ "source": "currentUser", "key": "<key>" }}
-  - Basic keys: email, name, firstName, lastName, phone, id, roles, groups, orgId
-  - Identity keys: managerId, managerName, managerEmail, departmentId, departmentName, jobTitle, employeeId
-  - Display keys: groupNames, roleNames, isManager
-  The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime.
-  BEST PRACTICE: For any HR/employee process, ALWAYS include prefilled read-only fields for the employee's name, email, department, employee ID, and phone. This eliminates manual entry and ensures accuracy.
+  The prefill system is FULLY DYNAMIC — you can use ANY attribute available from the user's identity source.
+  Common keys: email, name, firstName, lastName, phone, id, roles, groups, orgId,
+    managerId, managerName, managerEmail, departmentId, departmentName, jobTitle, employeeId,
+    groupNames, roleNames, isManager, directReportCount.
+  Custom keys (from HR/LDAP): nationalId, hireDate, officeLocation, costCenter, badgeNumber, or ANY field the organization has configured in their HR system or LDAP directory.
+  The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime. If a custom attribute exists in the directory, it will be available for prefill.
+  BEST PRACTICE: For any process, ALWAYS prefill every piece of information the system already knows about the user (name, email, department, employee ID, phone, job title, manager, etc.). NEVER ask the user to manually enter data that is available from their profile. This eliminates manual entry and ensures accuracy.
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
@@ -286,7 +288,15 @@ Node config rules:
   - **Static assignees** (specific named user IDs): assignee_source: "platform_user".
   - ALWAYS prefer "user_directory" over "platform_user" when the approval should go to the requester's manager, department head, or any organizational role.
   - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence (e.g., manager → director → VP).
-- notification.config must include: channel, recipient, template. Prefer recipient from form field like {{{{email}}}} if present.
+- notification.config must include: channel, recipients (array), title, message.
+  SMART RECIPIENTS — the engine auto-resolves recipients at runtime:
+  - "requester" → automatically sends to the person who submitted the form (no email needed)
+  - "manager" → automatically sends to the requester's direct manager (email auto-resolved)
+  - "{{{{ trigger_input._user_context.email }}}}" → requester's email from context
+  - "{{{{ trigger_input._user_context.manager_email }}}}" → manager's email from context
+  - "user-id-here" → if a UUID user ID, the engine resolves it to an email automatically
+  - "someone@example.com" → direct email address
+  BEST PRACTICE: Use "requester" and "manager" shortcuts whenever possible. NEVER ask users to enter an email for notifications when the system can resolve it automatically.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
 - action.config MUST include: actionType.
   - Use actionType="generateDocument" only when document output is explicitly required.
@@ -806,19 +816,12 @@ class ProcessWizard:
             fields = cfg.get("fields") if isinstance(cfg.get("fields"), list) else []
             used = set()
             mapping: Dict[str, str] = {}
-            allowed_prefill_keys = {
-                # Basic profile
-                "id", "name", "email", "firstName", "lastName", "phone",
-                "roles", "groups", "orgId",
-                # Extended identity keys (from User Directory)
-                "managerId", "managerName", "managerEmail",
-                "departmentId", "departmentName",
-                "jobTitle", "employeeId",
-                # Group & Role names (human-readable)
-                "groupNames", "roleNames",
-                # Hierarchy
-                "isManager",
-            }
+            # DYNAMIC: Accept ANY prefill key — the frontend resolver handles
+            # all standard keys + custom_attributes from HR/LDAP dynamically.
+            # We only validate that the source is "currentUser", not the key itself,
+            # because organizations can have unlimited custom attributes
+            # (national_id, hire_date, office_location, cost_center, etc.)
+            allowed_prefill_keys = None  # None = accept any key
             safe_taxonomies = load_safe_taxonomies()
 
             for f in fields:
@@ -904,7 +907,7 @@ class ProcessWizard:
                 if isinstance(prefill, dict):
                     src = str(prefill.get("source") or "").strip()
                     k = str(prefill.get("key") or "").strip()
-                    if src != "currentUser" or k not in allowed_prefill_keys:
+                    if src != "currentUser" or not k:
                         f.pop("prefill", None)
 
                 # Placeholder

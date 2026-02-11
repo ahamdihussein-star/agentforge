@@ -429,6 +429,59 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             else:
                 interpolated_recipients.append(recipient)
         
+        # SMART RECIPIENT RESOLUTION:
+        # 1. Resolve shortcuts ("requester", "manager", "department") to actual emails
+        # 2. Resolve user IDs (UUIDs) to email addresses via User Directory
+        # 3. Pass through anything that looks like an email as-is
+        resolved_recipients = []
+        user_context = (state.trigger_input or {}).get("_user_context", {})
+        
+        for r in interpolated_recipients:
+            r_str = str(r).strip() if r else ""
+            if not r_str:
+                continue
+            r_lower = r_str.lower()
+            
+            # Shortcut: "requester" → the user who started the process
+            if r_lower in ("requester", "submitter", "initiator", "self"):
+                email = user_context.get("email") or ""
+                if email:
+                    resolved_recipients.append(email)
+                    logs.append(f"Resolved '{r_str}' → {email}")
+                else:
+                    logs.append(f"Warning: Could not resolve '{r_str}' — no email in user context")
+                continue
+            
+            # Shortcut: "manager" → the requester's manager
+            if r_lower in ("manager", "supervisor", "direct_manager"):
+                email = user_context.get("manager_email") or ""
+                if email:
+                    resolved_recipients.append(email)
+                    logs.append(f"Resolved '{r_str}' → {email}")
+                else:
+                    logs.append(f"Warning: Could not resolve '{r_str}' — no manager email in user context")
+                continue
+            
+            # Looks like an email → pass through
+            if "@" in r_str:
+                resolved_recipients.append(r_str)
+                continue
+            
+            # Looks like a UUID (user ID) → resolve via User Directory
+            if self.deps and self.deps.user_directory and len(r_str) >= 20 and "-" in r_str:
+                try:
+                    user_attrs = self.deps.user_directory.get_user(r_str, context.org_id)
+                    if user_attrs and user_attrs.email:
+                        resolved_recipients.append(user_attrs.email)
+                        logs.append(f"Resolved user ID {r_str[:8]}… → {user_attrs.email}")
+                        continue
+                except Exception as e:
+                    logs.append(f"Warning: Failed to resolve user ID {r_str[:8]}…: {e}")
+            
+            # Fallback: use as-is (might be an email without @, a name, etc.)
+            resolved_recipients.append(r_str)
+        
+        interpolated_recipients = resolved_recipients
         logs.append(f"Recipients: {interpolated_recipients}")
         logs.append(f"Title: {title}")
         

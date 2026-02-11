@@ -4288,32 +4288,91 @@
             });
         }
 
+        /**
+         * DYNAMIC user prefill resolver — works with ANY attribute.
+         * Instead of a hardcoded list, this searches through:
+         *   1. Direct properties on currentUser (from /auth/me)
+         *   2. currentUser.profile (nested profile data)
+         *   3. currentUser.custom_attributes (HR/LDAP custom fields)
+         *   4. currentUser.department (nested department object)
+         * Supports camelCase keys (from AI) mapped to snake_case data.
+         * Arrays are auto-joined as comma-separated strings for display.
+         */
         function getCurrentUserPrefillValue(key) {
             const k = String(key || '').trim();
             if (!currentUser) return '';
-            // Basic profile
-            if (k === 'email') return currentUser.email || '';
-            if (k === 'name') return currentUser.full_name || currentUser.name || currentUser.display_name || currentUser.profile?.name || '';
-            if (k === 'firstName') return currentUser.first_name || currentUser.profile?.first_name || '';
-            if (k === 'lastName') return currentUser.last_name || currentUser.profile?.last_name || '';
-            if (k === 'phone') return currentUser.phone || currentUser.profile?.phone || '';
-            if (k === 'id') return currentUser.id || '';
-            if (k === 'orgId') return currentUser.org_id || currentUser.orgId || '';
-            // Roles & Groups
-            if (k === 'roles') return Array.isArray(currentUser.roles) ? currentUser.roles.map(r => r?.name || r?.id || r).filter(Boolean).join(', ') : '';
-            if (k === 'roleNames') return Array.isArray(currentUser.role_names) ? currentUser.role_names.join(', ') : (Array.isArray(currentUser.roles) ? currentUser.roles.map(r => r?.name || r).filter(Boolean).join(', ') : '');
-            if (k === 'groups') return Array.isArray(currentUser.groups) ? currentUser.groups.map(g => g?.name || g?.id || g).filter(Boolean).join(', ') : '';
-            if (k === 'groupNames') return Array.isArray(currentUser.group_names) ? currentUser.group_names.join(', ') : (Array.isArray(currentUser.groups) ? currentUser.groups.map(g => g?.name || g).filter(Boolean).join(', ') : '');
-            // Identity / Organizational (from _user_context injected at process start)
-            if (k === 'managerId') return currentUser.manager_id || currentUser._user_context?.manager_id || '';
-            if (k === 'managerName') return currentUser.manager_name || currentUser._user_context?.manager_name || '';
-            if (k === 'managerEmail') return currentUser.manager_email || currentUser._user_context?.manager_email || '';
-            if (k === 'departmentId') return currentUser.department_id || currentUser._user_context?.department_id || '';
-            if (k === 'departmentName') return currentUser.department_name || currentUser._user_context?.department_name || '';
-            if (k === 'jobTitle') return currentUser.job_title || currentUser.profile?.job_title || currentUser._user_context?.job_title || '';
-            if (k === 'employeeId') return currentUser.employee_id || currentUser._user_context?.employee_id || '';
-            if (k === 'isManager') return currentUser.is_manager != null ? String(currentUser.is_manager) : '';
+
+            // --- Convenience aliases for common keys ---
+            const aliases = {
+                'name': ['full_name', 'name', 'display_name'],
+                'firstName': ['first_name'],
+                'lastName': ['last_name'],
+                'orgId': ['org_id'],
+                'managerId': ['manager_id'],
+                'managerName': ['manager_name'],
+                'managerEmail': ['manager_email'],
+                'departmentId': ['department_id'],
+                'departmentName': ['department_name'],
+                'jobTitle': ['job_title'],
+                'employeeId': ['employee_id'],
+                'isManager': ['is_manager'],
+                'roleNames': ['role_names'],
+                'groupNames': ['group_names'],
+                'groupIds': ['group_ids'],
+                'roleIds': ['role_ids'],
+                'directReportCount': ['direct_report_count'],
+                'hireDate': ['hire_date'],
+                'officeLocation': ['office_location'],
+                'costCenter': ['cost_center'],
+                'nationalId': ['national_id'],
+                'badgeNumber': ['badge_number'],
+            };
+
+            // Convert camelCase key to snake_case for data lookup
+            const toSnake = s => s.replace(/([A-Z])/g, '_$1').toLowerCase();
+            const snakeKey = toSnake(k);
+
+            // Build a list of candidate keys to try
+            const candidates = [k, snakeKey, ...(aliases[k] || [])];
+
+            // --- Search layers (ordered by priority) ---
+            const layers = [
+                currentUser,                        // Direct props (email, manager_id, etc.)
+                currentUser.profile || {},           // Nested profile
+                currentUser.custom_attributes || {}, // HR/LDAP custom attributes
+                currentUser.department || {},        // Department object
+            ];
+
+            for (const candidate of candidates) {
+                for (const layer of layers) {
+                    const val = layer[candidate];
+                    if (val !== undefined && val !== null && val !== '') {
+                        return _formatPrefillValue(val);
+                    }
+                }
+            }
+
+            // Special: for 'roles' / 'groups', handle the complex array-of-objects case
+            if (k === 'roles' || k === 'roleNames') {
+                const arr = currentUser.role_names || currentUser.roles;
+                if (Array.isArray(arr)) return arr.map(r => r?.name || r?.id || r).filter(Boolean).join(', ');
+            }
+            if (k === 'groups' || k === 'groupNames') {
+                const arr = currentUser.group_names || currentUser.groups;
+                if (Array.isArray(arr)) return arr.map(g => g?.name || g?.id || g).filter(Boolean).join(', ');
+            }
+
             return '';
+        }
+
+        /** Format a value for display in a form field */
+        function _formatPrefillValue(val) {
+            if (val === null || val === undefined) return '';
+            if (typeof val === 'boolean') return String(val);
+            if (typeof val === 'number') return String(val);
+            if (Array.isArray(val)) return val.map(v => (typeof v === 'object' && v !== null) ? (v.name || v.label || v.id || JSON.stringify(v)) : String(v)).filter(Boolean).join(', ');
+            if (typeof val === 'object') return val.name || val.label || val.id || JSON.stringify(val);
+            return String(val);
         }
 
         function applyWorkflowPrefill(inputs) {

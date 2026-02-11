@@ -136,7 +136,8 @@ Or use a condition node to decide which level based on form data:
 - If amount > 5000 → route to `management_chain` level 2
 - Else → route to `dynamic_manager`
 
-### 8) All available prefill keys
+### 8) Prefill keys — FULLY DYNAMIC
+The prefill system accepts ANY key. Common built-in keys:
 | Key | Description |
 |-----|-------------|
 | `email` | User's email |
@@ -158,22 +159,40 @@ Or use a condition node to decide which level based on form data:
 | `jobTitle` | Job title |
 | `employeeId` | HR employee identifier |
 | `isManager` | Whether the user is a manager (true/false) |
+| `directReportCount` | Number of direct reports |
+
+**Custom attributes** (from HR/LDAP) are also available as prefill keys:
+- `nationalId`, `hireDate`, `officeLocation`, `costCenter`, `badgeNumber`, or ANY field configured in the organization's identity source.
+- The engine resolves these dynamically — if the attribute exists in the directory, it's available for prefill.
+
+### 9) Smart notification recipients
+Notification nodes auto-resolve recipients:
+| Recipient value | What happens |
+|----------------|-------------|
+| `"requester"` | Auto-resolves to the submitter's email |
+| `"manager"` | Auto-resolves to the submitter's manager email |
+| `"user-uuid-here"` | Resolves user ID to email via directory |
+| `"user@example.com"` | Sent directly as email |
+| `"{{ trigger_input._user_context.email }}"` | Resolved from context |
+| `"{{ trigger_input._user_context.manager_email }}"` | Manager email from context |
 
 ## Best Practices for Identity-Aware Workflows
 
 1. **DO** use `assignee_source: "user_directory"` with `directory_assignee_type: "dynamic_manager"` when the process goal mentions "manager approval" or "supervisor review".
-2. **DO** use prefill with `readOnly: true` for user attributes like email, name, employee ID, phone, department — never ask the user to re-enter information the system already knows.
+2. **DO** prefill with `readOnly: true` for EVERY piece of information the system already knows — never ask the user to re-enter data available from their profile.
 3. **DO NOT** ask the user to manually enter their manager's name or ID — use the dynamic manager resolution instead.
 4. **DO NOT** hardcode specific manager user IDs in approval nodes for HR processes — use `user_directory` so it works for any employee.
-5. **If** the process mentions "department head approval" or "department manager", use `directory_assignee_type: "department_manager"`.
-6. **If** the process mentions "VP approval" or "senior management approval", use `directory_assignee_type: "management_chain"` with an appropriate `management_level`.
-7. **If** the process has a form field where the user selects an approver, use `directory_assignee_type: "expression"`.
-8. **For** multi-level approval chains (manager → director → VP), use sequential approval nodes.
-9. **For** group/committee approvals (e.g., "needs IT team sign-off"), use `directory_assignee_type: "group"`.
-10. **For** role-based approvals (e.g., "anyone with Finance role"), use `directory_assignee_type: "role"`.
+5. **DO NOT** ask users to enter email addresses for notifications — use "requester" or "manager" shortcuts or `{{ trigger_input._user_context.email }}`.
+6. **If** the process mentions "department head approval" or "department manager", use `directory_assignee_type: "department_manager"`.
+7. **If** the process mentions "VP approval" or "senior management approval", use `directory_assignee_type: "management_chain"` with an appropriate `management_level`.
+8. **If** the process has a form field where the user selects an approver, use `directory_assignee_type: "expression"`.
+9. **For** multi-level approval chains (manager → director → VP), use sequential approval nodes.
+10. **For** group/committee approvals (e.g., "needs IT team sign-off"), use `directory_assignee_type: "group"`.
+11. **For** role-based approvals (e.g., "anyone with Finance role"), use `directory_assignee_type: "role"`.
+12. **For** notifications, prefer smart shortcuts: `recipients: ["requester"]` instead of `recipients: ["{{ trigger_input._user_context.email }}"]`.
 
 ## Anti-hallucination note
 - Only use `directory_assignee_type` values listed in the table above.
-- Only use prefill keys listed in the table above.
+- Prefill keys are DYNAMIC — any camelCase key that maps to a snake_case attribute in the user's profile or custom_attributes will work.
 - The engine resolves identity automatically — do NOT generate nodes that "call HR API" or "look up manager" unless the user specifically asks for custom integration steps.
 - Expression paths must match the exact syntax: `{{ trigger_input.fieldName }}`, `{{ variables.varName }}`, `{{ context.user_id }}`.
