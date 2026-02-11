@@ -171,6 +171,75 @@
             border-bottom: 1px solid var(--border);
         }
 
+        .assistant-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+
+        .assistant-tab {
+            flex: 1;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: transparent;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .assistant-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .assistant-tab.active {
+            color: var(--primary);
+            background: color-mix(in srgb, var(--primary) 14%, transparent);
+            border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+        }
+
+        .assistant-list {
+            display: none;
+        }
+
+        .assistant-list.visible {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .process-card {
+            padding: 12px;
+            background: var(--bg-hover);
+            border: 1px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .process-card:hover {
+            border-color: var(--primary);
+            background: color-mix(in srgb, var(--primary) 12%, transparent);
+        }
+
+        .process-card .agent-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--bg-card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
         .section-label {
             font-size: 0.75rem;
             font-weight: 600;
@@ -2364,8 +2433,19 @@
                 <!-- Agent Selector -->
                 <div class="agent-section">
                     <div class="section-label">Your Assistants</div>
-                    <div class="agent-selector" id="agent-list">
-                        <!-- Agents loaded dynamically -->
+                    <div class="assistant-tabs">
+                        <button class="assistant-tab active" data-tab="assistants" onclick="switchAssistantTab('assistants')">Assistants</button>
+                        <button class="assistant-tab" data-tab="processes" onclick="switchAssistantTab('processes')">Processes</button>
+                    </div>
+                    <div class="assistant-list visible" id="assistants-list">
+                        <div class="agent-selector" id="agent-list">
+                            <!-- Conversational agents loaded dynamically -->
+                        </div>
+                    </div>
+                    <div class="assistant-list" id="processes-list">
+                        <div class="agent-selector" id="process-list">
+                            <!-- Process agents loaded dynamically -->
+                        </div>
                     </div>
                 </div>
 
@@ -2617,6 +2697,7 @@
         
         // Portal view state
         let currentView = 'chat';
+        let assistantTab = 'assistants'; // assistants | processes (sidebar sub-tab)
         let workflowCategoryFilter = 'All';
         let currentWorkflowAgent = null;
         let workflowRunInputs = [];
@@ -3287,6 +3368,7 @@
                 workflowAgents = (allAccessibleAgents || []).filter(a => _getAgentType(a) === 'process');
                 agents = (allAccessibleAgents || []).filter(a => _getAgentType(a) !== 'process');
                 renderAgents();
+                renderProcessAgents();
                 renderWorkflows();
             } catch (e) {
                 console.error('Failed to load agents:', e);
@@ -3294,12 +3376,14 @@
                 workflowAgents = [];
                 agents = [];
                 renderAgents();
+                renderProcessAgents();
                 renderWorkflows();
             }
         }
 
         function renderAgents() {
             const container = document.getElementById('agent-list');
+            if (!container) return;
             if (agents.length === 0) {
                 container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No assistants available</p>';
                 return;
@@ -3314,6 +3398,100 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        function switchAssistantTab(tab) {
+            assistantTab = String(tab || 'assistants').trim().toLowerCase();
+            if (assistantTab !== 'assistants' && assistantTab !== 'processes') assistantTab = 'assistants';
+
+            document.querySelectorAll('.assistant-tab').forEach(btn => {
+                btn.classList.toggle('active', (btn.dataset.tab || '').toLowerCase() === assistantTab);
+            });
+            const assistantsList = document.getElementById('assistants-list');
+            const processesList = document.getElementById('processes-list');
+            if (assistantsList) assistantsList.classList.toggle('visible', assistantTab === 'assistants');
+            if (processesList) processesList.classList.toggle('visible', assistantTab === 'processes');
+        }
+
+        function renderProcessAgents() {
+            const container = document.getElementById('process-list');
+            if (!container) return;
+            const items = Array.isArray(workflowAgents) ? workflowAgents : [];
+            if (items.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No processes available</p>';
+                return;
+            }
+            container.innerHTML = items.map(agent => `
+                <div class="process-card" onclick="selectProcessAgent('${agent.id}')">
+                    <div class="agent-icon">${agent.icon || '🧩'}</div>
+                    <div class="agent-info">
+                        <div class="agent-name">${agent.name}</div>
+                        <div class="agent-desc">${agent.description || agent.goal || 'Process'}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function selectProcessAgent(agentId) {
+            const agent = (workflowAgents || []).find(a => a.id === agentId);
+            if (!agent) {
+                showToast('Process not found', 'error');
+                return;
+            }
+            const trig = _getWorkflowTriggerInfo(agent);
+            // Manual (form) → open modal with inputs
+            if (trig.triggerType === 'manual') {
+                openWorkflowRunModal(agentId);
+                return;
+            }
+            // Schedule/webhook (automation) → admins can run now; others go to Workflows/Runs
+            if (trig.triggerType === 'schedule' || trig.triggerType === 'webhook') {
+                if (isPortalAdmin()) {
+                    runWorkflowDirectly(agentId);
+                } else {
+                    showToast('Automation workflows run on schedule. Use Workflows tab to view runs.', 'info');
+                    switchView('workflows');
+                }
+                return;
+            }
+            openWorkflowRunModal(agentId);
+        }
+
+        async function runWorkflowDirectly(agentId) {
+            const agent = (workflowAgents || []).find(a => a.id === agentId);
+            if (!agent) {
+                showToast('Process not found', 'error');
+                return;
+            }
+            try {
+                showToast('Starting workflow…', 'info', { duration: 1500 });
+                const response = await fetch(`${API}/process/execute`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        agent_id: agent.id,
+                        trigger_input: {},
+                        trigger_type: 'manual'
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (response.statusText || 'Failed to start workflow');
+                    throw new Error(String(msg || 'Failed to start workflow'));
+                }
+                const executionId = data?.id || data?.execution_id || data?.executionId;
+                showToast('Workflow started', 'success');
+                if (executionId) {
+                    selectedExecutionId = String(executionId);
+                    switchView('requests');
+                }
+            } catch (e) {
+                console.error('runWorkflowDirectly error:', e);
+                showToast(e?.message || 'Failed to start workflow', 'error');
+            }
         }
 
         // =============================================================================
