@@ -7750,8 +7750,24 @@ async def update_organization_branding(
     current_user: User = Depends(get_current_user)
 ):
     """Update organization branding settings (Admin only)"""
-    # Check if user has admin permissions
-    if not current_user or not any(r in ['super_admin', 'admin', 'org_admin'] for r in (current_user.roles or [])):
+    # Check if user has admin permissions by resolving role_ids to names
+    if not current_user:
+        raise HTTPException(403, "Admin access required")
+    
+    _is_admin = False
+    _role_ids = getattr(current_user, 'role_ids', None) or []
+    if _role_ids and SECURITY_AVAILABLE and security_state:
+        for rid in _role_ids:
+            role = security_state.roles.get(rid)
+            if role and role.name.lower().replace(' ', '_') in ['super_admin', 'admin', 'org_admin']:
+                _is_admin = True
+                break
+    # Fallback: check portal_access or permissions
+    if not _is_admin:
+        _portal = getattr(current_user, 'portal_access', '')
+        if _portal and str(_portal).lower() == 'admin':
+            _is_admin = True
+    if not _is_admin:
         raise HTTPException(403, "Admin access required")
     
     try:
