@@ -7731,9 +7731,12 @@ async def get_organization_branding(current_user: User = Depends(get_current_use
                 org = db.query(Organization).filter(Organization.id == org_id).first()
                 if org:
                     branding = org.branding or {}
+                    # Support data URLs stored in branding JSON to avoid VARCHAR(500) limits
+                    logo_url = org.logo_url or branding.get("logo_data_url")
+                    favicon_url = getattr(org, 'favicon_url', None) or branding.get("favicon_data_url")
                     return {
-                        "logo_url": org.logo_url,
-                        "favicon_url": getattr(org, 'favicon_url', None),
+                        "logo_url": logo_url,
+                        "favicon_url": favicon_url,
                         "name": org.name,
                         **branding
                     }
@@ -7782,15 +7785,42 @@ async def update_organization_branding(
                 raise HTTPException(404, "Organization not found")
             
             # Update direct fields
+            branding = org.branding or {}
+
+            def _is_data_url(v: Any) -> bool:
+                return isinstance(v, str) and v.strip().lower().startswith("data:")
+
+            def _safe_str(v: Any) -> Optional[str]:
+                if v is None:
+                    return None
+                s = str(v).strip()
+                return s if s != "" else None
+
+            # logo_url / favicon_url can be either URL or data URL (base64).
+            # NOTE: organizations.logo_url/favicon_url are VARCHAR(500) in many deployments.
+            # Store data URLs in branding JSON to avoid truncation.
             if 'logo_url' in request:
-                org.logo_url = request['logo_url']
+                v = _safe_str(request.get('logo_url'))
+                if _is_data_url(v) or (isinstance(v, str) and len(v) > 480):
+                    branding["logo_data_url"] = v
+                    org.logo_url = None
+                else:
+                    org.logo_url = v
+                    branding.pop("logo_data_url", None)
+
             if 'favicon_url' in request:
-                org.favicon_url = request['favicon_url']
+                v = _safe_str(request.get('favicon_url'))
+                if _is_data_url(v) or (isinstance(v, str) and len(v) > 480):
+                    branding["favicon_data_url"] = v
+                    org.favicon_url = None
+                else:
+                    org.favicon_url = v
+                    branding.pop("favicon_data_url", None)
+
             if 'name' in request:
                 org.name = request['name']
             
-            # Update branding JSON
-            branding = org.branding or {}
+            # Update branding JSON (merge)
             branding_fields = [
                 'primary_color', 'secondary_color',
                 'banner_enabled', 'banner_text', 'banner_bg_color', 'banner_text_color',
