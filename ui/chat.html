@@ -3355,42 +3355,46 @@
                 if (this.container) return;
                 this.container = document.createElement('div');
                 this.container.id = 'notification-container';
-                this.container.className = 'fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-md w-full pointer-events-none';
-                this.container.style.cssText = 'max-height: calc(100vh - 2rem); overflow: hidden;';
+                Object.assign(this.container.style, {
+                    position: 'fixed', top: '16px', right: '16px', zIndex: '99999',
+                    display: 'flex', flexDirection: 'column', gap: '10px',
+                    maxWidth: '400px', width: '100%', pointerEvents: 'none',
+                    maxHeight: 'calc(100vh - 2rem)', overflow: 'hidden'
+                });
                 document.body.appendChild(this.container);
             },
             
             getConfig(type) {
                 const configs = {
                     success: {
-                        icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`,
-                        bgClass: 'bg-gradient-to-r from-emerald-500/95 to-green-600/95',
-                        borderClass: 'border-emerald-400/30',
-                        iconBg: 'bg-emerald-400/20',
+                        icon: `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`,
+                        bg: 'linear-gradient(135deg, rgba(16,185,129,0.95), rgba(5,150,105,0.95))',
+                        border: 'rgba(52,211,153,0.3)',
+                        iconBg: 'rgba(52,211,153,0.2)',
                         title: 'Success',
                         duration: 4000
                     },
                     error: {
-                        icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`,
-                        bgClass: 'bg-gradient-to-r from-red-500/95 to-rose-600/95',
-                        borderClass: 'border-red-400/30',
-                        iconBg: 'bg-red-400/20',
+                        icon: `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`,
+                        bg: 'linear-gradient(135deg, rgba(239,68,68,0.95), rgba(225,29,72,0.95))',
+                        border: 'rgba(252,165,165,0.3)',
+                        iconBg: 'rgba(252,165,165,0.2)',
                         title: 'Error',
                         duration: 8000
                     },
                     warning: {
-                        icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`,
-                        bgClass: 'bg-gradient-to-r from-amber-500/95 to-orange-600/95',
-                        borderClass: 'border-amber-400/30',
-                        iconBg: 'bg-amber-400/20',
+                        icon: `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`,
+                        bg: 'linear-gradient(135deg, rgba(245,158,11,0.95), rgba(234,88,12,0.95))',
+                        border: 'rgba(252,211,77,0.3)',
+                        iconBg: 'rgba(252,211,77,0.2)',
                         title: 'Warning',
                         duration: 6000
                     },
                     info: {
-                        icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
-                        bgClass: 'bg-gradient-to-r from-blue-500/95 to-indigo-600/95',
-                        borderClass: 'border-blue-400/30',
-                        iconBg: 'bg-blue-400/20',
+                        icon: `<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+                        bg: 'linear-gradient(135deg, rgba(59,130,246,0.95), rgba(79,70,229,0.95))',
+                        border: 'rgba(147,197,253,0.3)',
+                        iconBg: 'rgba(147,197,253,0.2)',
                         title: 'Info',
                         duration: 4000
                     }
@@ -3409,49 +3413,47 @@
                 
                 const notification = document.createElement('div');
                 notification.id = id;
-                notification.className = `
-                    ${config.bgClass} ${config.borderClass}
-                    backdrop-blur-xl border rounded-xl shadow-2xl
-                    transform translate-x-full opacity-0
-                    transition-all duration-300 ease-out
-                    pointer-events-auto overflow-hidden
-                `;
-                notification.style.cssText = 'box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);';
+                Object.assign(notification.style, {
+                    background: config.bg,
+                    border: `1px solid ${config.border}`,
+                    backdropFilter: 'blur(12px)',
+                    borderRadius: '14px',
+                    boxShadow: '0 20px 40px -8px rgba(0,0,0,0.35)',
+                    transform: 'translateX(110%)',
+                    opacity: '0',
+                    transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)',
+                    pointerEvents: 'auto',
+                    overflow: 'hidden',
+                    color: '#fff'
+                });
                 
                 notification.innerHTML = `
-                    <div class="p-4">
-                        <div class="flex items-start gap-3">
-                            <div class="${config.iconBg} rounded-full p-2 flex-shrink-0">
-                                ${config.icon}
-                            </div>
-                            <div class="flex-1 min-w-0 pt-0.5">
-                                <p class="text-sm font-semibold text-white/90">${config.title}</p>
-                                <p class="text-sm text-white/80 mt-0.5 break-words">${this.escapeHtml(cleanMessage)}</p>
-                            </div>
-                            <button onclick="NotificationSystem.dismiss('${id}')" 
-                                class="flex-shrink-0 p-1 rounded-lg hover:bg-white/20 transition-colors text-white/60 hover:text-white">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                            </button>
+                    <div style="padding: 14px 16px; display: flex; align-items: flex-start; gap: 12px;">
+                        <div style="background: ${config.iconBg}; border-radius: 50%; padding: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                            ${config.icon}
                         </div>
+                        <div style="flex: 1; min-width: 0; padding-top: 2px;">
+                            <div style="font-size: 0.85rem; font-weight: 700; color: rgba(255,255,255,0.95);">${config.title}</div>
+                            <div style="font-size: 0.85rem; color: rgba(255,255,255,0.82); margin-top: 2px; word-break: break-word;">${this.escapeHtml(cleanMessage)}</div>
+                        </div>
+                        <button onclick="NotificationSystem.dismiss('${id}')" style="flex-shrink: 0; padding: 4px; border-radius: 8px; border: none; background: transparent; color: rgba(255,255,255,0.5); cursor: pointer; transition: color 0.15s;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
                     </div>
-                    ${showProgress ? `<div class="h-1 bg-white/20"><div class="notif-progress h-full bg-white/40 rounded-full" style="width: 100%; transition: width ${duration}ms linear;"></div></div>` : ''}
+                    ${showProgress ? `<div style="height: 3px; background: rgba(255,255,255,0.15);"><div class="notif-progress" style="height: 100%; background: rgba(255,255,255,0.35); border-radius: 99px; width: 100%; transition: width ${duration}ms linear;"></div></div>` : ''}
                 `;
                 
                 this.container.insertBefore(notification, this.container.firstChild);
                 this.notifications.push({ id, element: notification, timeout: null });
                 
                 requestAnimationFrame(() => {
-                    notification.classList.remove('translate-x-full', 'opacity-0');
-                    notification.classList.add('translate-x-0', 'opacity-100');
+                    notification.style.transform = 'translateX(0)';
+                    notification.style.opacity = '1';
                     
                     if (showProgress) {
                         const progressBar = notification.querySelector('.notif-progress');
                         if (progressBar) {
-                            requestAnimationFrame(() => {
-                                progressBar.style.width = '0%';
-                            });
+                            requestAnimationFrame(() => { progressBar.style.width = '0%'; });
                         }
                     }
                 });
@@ -3471,8 +3473,9 @@
                 const { element, timeout } = this.notifications[index];
                 if (timeout) clearTimeout(timeout);
                 
-                element.classList.add('translate-x-full', 'opacity-0');
-                element.style.marginTop = `-${element.offsetHeight + 12}px`;
+                element.style.transform = 'translateX(110%)';
+                element.style.opacity = '0';
+                element.style.marginTop = `-${element.offsetHeight + 10}px`;
                 
                 setTimeout(() => {
                     element.remove();
@@ -3575,9 +3578,14 @@
 
             // Default landing is Home (better first impression than chat)
             try {
-                const nm = (currentUser && (currentUser.full_name || currentUser.email)) ? String(currentUser.full_name || currentUser.email) : '';
+                const u = currentUser || {};
+                const firstName = u.first_name || u.profile?.first_name || '';
+                const lastName = u.last_name || u.profile?.last_name || '';
+                const fullName = u.full_name || `${firstName} ${lastName}`.trim() || u.name || u.display_name || '';
+                const displayName = fullName || (u.email ? u.email.split('@')[0] : '');
+                const greeting = displayName ? `Welcome back, ${displayName.split(' ')[0]}` : 'Welcome';
                 const el = document.getElementById('home-greeting');
-                if (el) el.textContent = nm ? `Welcome back, ${nm.split(' ')[0]}` : 'Welcome';
+                if (el) el.textContent = greeting;
             } catch (_) { /* ignore */ }
             switchView('home');
         }
@@ -5483,6 +5491,7 @@
                 // Add assistant response
                 container.innerHTML += createMessageHTML('assistant', data.response || data.content || 'I apologize, but I was unable to generate a response.');
                 container.scrollTop = container.scrollHeight;
+                playNotificationSound();
                 
                 // Reload conversations list
                 loadConversations();
@@ -5759,6 +5768,7 @@
                                         
                                     case 'done':
                                         finishThinking(true);
+                                        playNotificationSound();
                                         
                                         // Add sources if any
                                         if (sources && sources.length > 0) {
@@ -6033,6 +6043,7 @@
             toggleUserMenu();
             document.getElementById('settings-modal').classList.add('open');
             loadThemeSettings();
+            loadSoundSetting();
             loadBrandingSettingsUI();
         }
 
@@ -6075,9 +6086,61 @@
             else document.documentElement.setAttribute('data-theme', t);
         }
 
+        // =========== SOUND EFFECTS ===========
+        let soundEnabled = localStorage.getItem('agentforge-sound') !== 'off';
+        const _notifSoundCtx = { ctx: null, ready: false };
+
+        function _ensureAudioCtx() {
+            if (_notifSoundCtx.ctx) return _notifSoundCtx.ctx;
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                _notifSoundCtx.ctx = new AC();
+                _notifSoundCtx.ready = true;
+            } catch (_) { _notifSoundCtx.ready = false; }
+            return _notifSoundCtx.ctx;
+        }
+
+        function playNotificationSound() {
+            if (!soundEnabled) return;
+            try {
+                const ctx = _ensureAudioCtx();
+                if (!ctx) return;
+                // Simple pleasant two-tone chime
+                const now = ctx.currentTime;
+                [523.25, 659.25].forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0, now + i * 0.12);
+                    gain.gain.linearRampToValueAtTime(0.12, now + i * 0.12 + 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.35);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + i * 0.12);
+                    osc.stop(now + i * 0.12 + 0.4);
+                });
+            } catch (_) { /* ignore */ }
+        }
+
+        function toggleSoundEffects() {
+            soundEnabled = !soundEnabled;
+            localStorage.setItem('agentforge-sound', soundEnabled ? 'on' : 'off');
+            const toggle = document.getElementById('sound-toggle');
+            if (toggle) toggle.classList.toggle('active', soundEnabled);
+            if (soundEnabled) playNotificationSound(); // Demo
+        }
+
+        function loadSoundSetting() {
+            soundEnabled = localStorage.getItem('agentforge-sound') !== 'off';
+            const toggle = document.getElementById('sound-toggle');
+            if (toggle) toggle.classList.toggle('active', soundEnabled);
+        }
+
         // Sync UI state on load (theme is applied early by theme.js)
         document.addEventListener('DOMContentLoaded', () => {
             loadThemeSettings();
+            loadSoundSetting();
         });
 
         function _roleNames(u) {
@@ -6092,8 +6155,11 @@
 
         function isOrgBrandingAdmin() {
             // Backend enforcement exists; this only controls UI visibility.
+            if (!currentUser) return false;
             const roles = _roleNames(currentUser);
             if (roles.includes('super_admin') || roles.includes('admin') || roles.includes('org_admin')) return true;
+            // Also check portal_access or is_admin flags from backend
+            if (currentUser.portal_access === 'admin' || currentUser.is_admin === true) return true;
             return isPortalAdmin();
         }
 
@@ -6220,9 +6286,12 @@
             };
 
             // Normalize empty strings to null (backend stores only provided values)
+            // Keep booleans as-is
             Object.keys(payload).forEach(k => {
+                if (typeof payload[k] === 'boolean') return;
                 if (payload[k] === '') payload[k] = null;
             });
+            console.log('📦 Saving branding payload:', JSON.stringify(payload).substring(0, 500));
 
             try {
                 const res = await fetch(`${API}/api/organization/branding`, {
@@ -6975,9 +7044,9 @@
                     <div class="setting-item">
                         <div>
                             <div class="setting-label">Sound Effects</div>
-                            <div class="setting-desc">Play sound on new messages</div>
+                            <div class="setting-desc">Play a subtle sound when new messages arrive</div>
                         </div>
-                        <div class="toggle" onclick="this.classList.toggle('active')"></div>
+                        <div class="toggle" id="sound-toggle" onclick="toggleSoundEffects()"></div>
                     </div>
                 </div>
             </div>
