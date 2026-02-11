@@ -1,0 +1,1787 @@
+// Auto-generated from ui/index.js
+// Part 001: lines 1-1784
+// DO NOT reorder parts.
+
+const API='';
+        
+        // Debug logging: ON so you can see navigate/modal logs. Set to false to silence.
+        const DEBUG_MODE = true;
+        const _originalLog = console.log;
+        const _originalWarn = console.warn;
+        if (!DEBUG_MODE) {
+            console.log = function() {};
+            console.warn = function() {};
+        } else {
+            _originalLog('🔧 [AgentForge] Debug logs ON');
+        }
+        // This always shows (never silenced) so you know the app script loaded
+        console.info('[AgentForge] App script loaded. DEBUG_MODE=' + DEBUG_MODE);
+        
+        // Utility function - define early
+        function escHtml(text) {
+            if(text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+        
+        let step=0,wizard={name:'',icon:'',goal:'',originalGoal:'',personality:null,tasks:[],tool_ids:[],suggestedTools:[],guardrails:{},model:'',modelReason:'',editId:null,deployTarget:'cloud',cloudProvider:''},allTools=[],toolType=null,uploadedFiles=[],agentTab='published',conv=null,testAgent=null,apiStep=1,apiParams=[],configMode='manual',chatAttachments=[],testAttachments=[];
+        
+        // Track current page to prevent duplicate navigation from hashchange
+        let _currentPage = '';
+
+        // Ensure modal is direct child of body so it's visible when opened from any page
+        function ensureModalInBody(modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return false;
+            if (modal.parentElement !== document.body) document.body.appendChild(modal);
+            return true;
+        }
+
+        function navigate(p, updateHash = true){
+            // DEBUG: Log only create navigation
+            if (p === 'create') {
+                console.log('🎯 [CREATE] navigate("create") called', { from: _currentPage, stack: new Error().stack?.split('\n').slice(1, 4).join(' <- ') });
+            }
+            
+            // Track current page
+            _currentPage = p;
+            
+            // Hide all sections
+            document.querySelectorAll('main>section').forEach(s => s.classList.add('hidden'));
+            
+            // Show target page
+            const targetPage = document.getElementById('page-'+p);
+            if (targetPage) {
+                targetPage.classList.remove('hidden');
+                // DEBUG: Check create page visibility
+                if (p === 'create') {
+                    console.log('🎯 [CREATE] page-create shown', { 
+                        display: window.getComputedStyle(targetPage).display,
+                        step0Visible: !document.getElementById('wizard-step-0')?.classList.contains('hidden'),
+                        goalInputExists: !!document.getElementById('w-initial-goal')
+                    });
+                }
+            }
+            
+            // Update nav
+            document.querySelectorAll('.sidebar-item').forEach(b=>b.classList.remove('active'));
+            document.getElementById('nav-'+p)?.classList.add('active');
+            document.querySelectorAll('.mobile-nav button').forEach(b=>b.classList.remove('active'));
+            document.getElementById('mob-'+p)?.classList.add('active');
+            
+            // Update URL hash
+            if (updateHash) window.location.hash = p;
+            
+            // Page-specific initialization
+            if(p==='dashboard') loadDashboardStats();
+            if(p==='agents')loadAgents();
+            if(p==='tools')loadTools();
+            if(p==='chat') { if (!window._skipChatAgentLoad) loadChatAgents(); window._skipChatAgentLoad = false; }
+            if(p==='create'){
+                console.log('🎯 [CREATE] Calling resetWizardNew()...');
+                try {
+                    resetWizardNew();
+                    step=0;
+                    updateStepsNew();
+                    console.log('🎯 [CREATE] resetWizardNew() completed successfully');
+                } catch(e) {
+                    console.error('🎯 [CREATE] ERROR in resetWizardNew():', e);
+                }
+            }
+            if(p==='settings'){ loadSettings(); updateThemeButtons(localStorage.getItem('agentforge-theme') || 'dark'); loadIdentitySettings(); }
+            if(p==='profile') loadProfileInfo();
+            if(p==='demo')initDemoLab();
+            if(p==='approvals') loadApprovals();
+        }
+        
+        // Load dashboard statistics
+        async function loadDashboardStats() {
+            try {
+                const headers = getAuthHeaders();
+                // Fetch stats in parallel
+                const [agentsRes, toolsRes, usersRes] = await Promise.allSettled([
+                    fetch(API + '/api/agents?status=published', { headers }).then(r => r.ok ? r.json() : { agents: [] }),
+                    fetch(API + '/api/tools', { headers }).then(r => r.ok ? r.json() : { tools: [] }),
+                    fetch(API + '/api/security/users', { headers }).then(r => r.ok ? r.json() : [])
+                ]);
+                
+                const agents = agentsRes.status === 'fulfilled' ? (agentsRes.value.agents || agentsRes.value || []) : [];
+                const tools = toolsRes.status === 'fulfilled' ? (toolsRes.value.tools || toolsRes.value || []) : [];
+                const users = usersRes.status === 'fulfilled' ? (Array.isArray(usersRes.value) ? usersRes.value : usersRes.value.users || []) : [];
+                
+                const agentEl = document.getElementById('dash-stat-agents');
+                const toolEl = document.getElementById('dash-stat-tools');
+                const userEl = document.getElementById('dash-stat-users');
+                if (agentEl) agentEl.textContent = Array.isArray(agents) ? agents.length : 0;
+                if (toolEl) toolEl.textContent = Array.isArray(tools) ? tools.length : 0;
+                if (userEl) userEl.textContent = Array.isArray(users) ? users.length : 0;
+            } catch (e) {
+                console.error('Dashboard stats error:', e);
+            }
+        }
+        
+        // Handle browser back/forward buttons
+        window.addEventListener('hashchange', function() {
+            const hash = window.location.hash.slice(1); // Remove the '#'
+            // Only navigate if hash changed and page exists
+            // Skip if we're already on this page (prevents duplicate loading)
+            if (hash && hash !== _currentPage && document.getElementById('page-' + hash)) {
+                navigate(hash, false);
+            }
+        });
+        
+        // ============================================================================
+        // PERSONALITY SLIDER FUNCTIONS
+        // ============================================================================
+        
+        // Store API-provided personality descriptions (100% dynamic from LLM)
+        let apiPersonalityDescriptions = {};
+        
+        // Update a personality slider - descriptions come from API only
+        function updatePersonalitySlider(trait, value) {
+            value = Math.min(10, Math.max(1, parseInt(value) || 5));
+            
+            // Update number input
+            const numInput = document.getElementById(`p-${trait}-num`);
+            const slider = document.getElementById(`p-${trait}`);
+            if (numInput) numInput.value = value;
+            if (slider) slider.value = value;
+            
+            // Update wizard personality
+            if (!wizard.personality) wizard.personality = {};
+            wizard.personality[trait] = value;
+            
+            // Update description - ONLY use API description (no fallback)
+            const descEl = document.getElementById(`p-${trait}-desc`);
+            if (descEl) {
+                const apiDesc = apiPersonalityDescriptions[trait + 'Desc'];
+                if (apiDesc) {
+                    descEl.textContent = apiDesc;
+                }
+                // If no API description, leave as is (will be updated on next API call)
+            }
+            
+            // Update overall preview
+            updatePersonalityPreview();
+        }
+        
+        // Sync slider from number input
+        function syncSlider(trait, value) {
+            value = Math.min(10, Math.max(1, parseInt(value) || 5));
+            document.getElementById(`p-${trait}`).value = value;
+            updatePersonalitySlider(trait, value);
+        }
+        
+        // Update the personality preview text - uses API-provided reason
+        function updatePersonalityPreview() {
+            const previewEl = document.getElementById('personality-preview-text');
+            if (!previewEl) return;
+            
+            // If we have an API-provided personality reason, use it
+            if (wizard.personalityReason) {
+                previewEl.textContent = wizard.personalityReason;
+                return;
+            }
+            
+            // Otherwise show a simple dynamic message
+            const name = wizard.name || 'Your agent';
+            previewEl.textContent = `${name}'s personality is configured above. Generate from a goal to get AI recommendations.`;
+        }
+        
+        // Reset personality - just clears values, user must regenerate
+        function resetPersonalityDefaults() {
+            const traits = ['creativity', 'length', 'formality', 'empathy', 'proactivity', 'confidence'];
+            traits.forEach(trait => {
+                const slider = document.getElementById(`p-${trait}`);
+                const numInput = document.getElementById(`p-${trait}-num`);
+                const descEl = document.getElementById(`p-${trait}-desc`);
+                if (slider) slider.value = 5;
+                if (numInput) numInput.value = 5;
+                if (descEl) descEl.textContent = 'Generate from goal to get AI recommendation';
+            });
+            wizard.personality = null;
+            wizard.personalityReason = null;
+            apiPersonalityDescriptions = {};
+            updatePersonalityPreview();
+        }
+        
+        // Initialize personality sliders from wizard state
+        function initPersonalitySliders() {
+            if (!wizard.personality) return;
+            
+            const traits = ['creativity', 'length', 'formality', 'empathy', 'proactivity', 'confidence'];
+            traits.forEach(trait => {
+                const val = wizard.personality[trait];
+                if (val !== undefined) {
+                    const slider = document.getElementById(`p-${trait}`);
+                    const numInput = document.getElementById(`p-${trait}-num`);
+                    if (slider) slider.value = val;
+                    if (numInput) numInput.value = val;
+                }
+            });
+            
+            updatePersonalityPreview();
+        }
+        
+        // Update all personality descriptions when agent name changes
+        function updateAgentNameInPersonality() {
+            wizard.name = document.getElementById('w-name')?.value || '';
+            const traits = ['creativity', 'length', 'formality', 'empathy', 'proactivity', 'confidence'];
+            traits.forEach(trait => {
+                const slider = document.getElementById(`p-${trait}`);
+                if (slider) {
+                    updatePersonalitySlider(trait, slider.value);
+                }
+            });
+            updatePersonalityPreview();
+        }
+        
+        // ============================================================================
+        // GOAL CHANGE - REAL-TIME RECOMMENDATIONS
+        // ============================================================================
+        
+        let goalDebounceTimer = null;
+        let lastGoalText = '';
+        
+        // Called when goal text changes
+        function onGoalChange() {
+            const goal = document.getElementById('w-goal')?.value?.trim() || '';
+            
+            // Don't update if goal is too short or hasn't changed significantly
+            if (goal.length < 20 || goal === lastGoalText) {
+                return;
+            }
+            
+            // Clear previous timer
+            if (goalDebounceTimer) {
+                clearTimeout(goalDebounceTimer);
+            }
+            
+            // Show hint that we're waiting
+            const hint = document.getElementById('goal-hint');
+            if (hint) {
+                hint.textContent = 'Keep typing... recommendations will update automatically';
+                hint.className = 'text-[10px] text-purple-400 mt-1';
+            }
+            
+            // Debounce: wait 1.5 seconds after user stops typing
+            goalDebounceTimer = setTimeout(() => {
+                lastGoalText = goal;
+                updateRecommendationsFromGoal(goal);
+            }, 1500);
+        }
+        
+        // Fetch new recommendations from API based on goal
+        async function updateRecommendationsFromGoal(goal) {
+            const indicator = document.getElementById('goal-update-indicator');
+            const hint = document.getElementById('goal-hint');
+            
+            // Show loading indicator
+            if (indicator) indicator.classList.remove('hidden');
+            if (hint) {
+                hint.textContent = 'AI is analyzing your goal...';
+                hint.className = 'text-[10px] text-purple-400 mt-1';
+            }
+            
+            try {
+                const response = await fetch(API + '/api/agents/generate-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        goal: goal,
+                        update_mode: true  // Flag to indicate this is an update, not initial creation
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to get recommendations');
+                
+                const config = await response.json();
+                
+                // Apply recommendations with animation
+                applyRecommendationsWithAnimation(config);
+                
+                // Show success
+                if (hint) {
+                    hint.textContent = '✨ Recommendations updated based on your goal';
+                    hint.className = 'text-[10px] text-green-400 mt-1';
+                    
+                    // Reset hint after 3 seconds
+                    setTimeout(() => {
+                        hint.textContent = 'Edit your goal anytime - recommendations will update automatically';
+                        hint.className = 'text-[10px] text-gray-500 mt-1';
+                    }, 3000);
+                }
+                
+                // Show toast
+                showToast('✨ AI recommendations updated!', 'success');
+                
+            } catch (error) {
+                console.error('Error updating recommendations:', error);
+                if (hint) {
+                    hint.textContent = 'Could not update recommendations. Try again.';
+                    hint.className = 'text-[10px] text-red-400 mt-1';
+                }
+            } finally {
+                // Hide loading indicator
+                if (indicator) indicator.classList.add('hidden');
+            }
+        }
+        
+        // Apply recommendations with smooth animation
+        function applyRecommendationsWithAnimation(config) {
+            // 1. Update Model with animation
+            if (config.model) {
+                wizard.model = config.model;
+                wizard.modelReason = config.modelReason;  // Store the reason
+                
+                const modelContainer = document.getElementById('llm-models-list');
+                if (modelContainer) {
+                    modelContainer.classList.add('animate-pulse');
+                    setTimeout(() => {
+                        loadLLMModels();  // This will highlight the new recommended model
+                        modelContainer.classList.remove('animate-pulse');
+                    }, 300);
+                }
+                
+                // Update model reason
+                const modelWhyEl = document.getElementById('model-why-text');
+                if (modelWhyEl && config.modelReason) {
+                    modelWhyEl.textContent = config.modelReason;
+                }
+            }
+            
+            // 2. Store personality descriptions from API
+            if (config.personalityDescriptions) {
+                apiPersonalityDescriptions = config.personalityDescriptions;
+            }
+            
+            // 3. Update Personality sliders with animation
+            if (config.personality) {
+                const slidersContainer = document.getElementById('personality-sliders');
+                if (slidersContainer) {
+                    slidersContainer.classList.add('animate-pulse');
+                }
+                
+                // Update personality reason
+                if (config.personalityReason) {
+                    const previewEl = document.getElementById('personality-preview-text');
+                    if (previewEl) {
+                        previewEl.textContent = config.personalityReason;
+                    }
+                }
+                
+                setTimeout(() => {
+                    // Apply each personality value
+                    const traits = ['creativity', 'length', 'formality', 'empathy', 'proactivity', 'confidence'];
+                    traits.forEach((trait, index) => {
+                        const value = config.personality[trait];
+                        if (value !== undefined) {
+                            // Animate slider update with slight delay for each
+                            setTimeout(() => {
+                                animateSliderTo(trait, value);
+                                
+                                // Update description from API
+                                const desc = apiPersonalityDescriptions[trait + 'Desc'];
+                                const descEl = document.getElementById(`p-${trait}-desc`);
+                                if (desc && descEl) {
+                                    descEl.textContent = desc;
+                                }
+                            }, index * 100);
+                        }
+                    });
+                    
+                    if (slidersContainer) {
+                        slidersContainer.classList.remove('animate-pulse');
+                    }
+                }, 300);
+                
+                // Update wizard personality
+                wizard.personality = { ...wizard.personality, ...config.personality };
+            }
+            
+            // 3. Update Agent Name if provided
+            if (config.name && !wizard.name) {
+                const nameEl = document.getElementById('w-name');
+                if (nameEl && !nameEl.value) {
+                    nameEl.value = config.name;
+                    wizard.name = config.name;
+                }
+            }
+            
+            // 4. Store suggested tasks for later
+            if (config.tasks) {
+                wizard.tasks = config.tasks;
+            }
+            
+            // 5. Store guardrails recommendations
+            if (config.guardrails) {
+                wizard.guardrails = { ...wizard.guardrails, ...config.guardrails };
+            }
+            
+            // 6. Store suggested tools
+            if (config.suggestedTools) {
+                wizard.suggestedTools = config.suggestedTools;
+            }
+            
+            // Update preview text
+            updatePersonalityPreview();
+        }
+        
+        // Animate slider from current value to target value
+        function animateSliderTo(trait, targetValue) {
+            const slider = document.getElementById(`p-${trait}`);
+            const numInput = document.getElementById(`p-${trait}-num`);
+            
+            if (!slider) return;
+            
+            const currentValue = parseInt(slider.value) || 5;
+            const steps = Math.abs(targetValue - currentValue);
+            const direction = targetValue > currentValue ? 1 : -1;
+            
+            if (steps === 0) return;
+            
+            let currentStep = 0;
+            const interval = setInterval(() => {
+                currentStep++;
+                const newValue = currentValue + (direction * currentStep);
+                
+                slider.value = newValue;
+                if (numInput) numInput.value = newValue;
+                
+                // Update description
+                updatePersonalitySlider(trait, newValue);
+                
+                if (currentStep >= steps) {
+                    clearInterval(interval);
+                }
+            }, 50);
+        }
+        
+        // ============================================================================
+        // NEW AI-POWERED WIZARD FUNCTIONS
+        // ============================================================================
+        
+        function resetWizardNew() {
+            step = 0;
+            wizard = {
+                name: '',
+                icon: '',
+                goal: '',
+                originalGoal: '',
+                personality: null,
+                personalityReason: '',
+                tasks: [],
+                tool_ids: [],
+                suggestedTools: [],
+                guardrails: {},
+                model: '',
+                modelReason: '',
+                editId: null,
+                deployTarget: 'cloud',
+                cloudProvider: '',
+                accessControl: null,  // Will be set when user visits Access Control step
+                userPermissions: { is_owner: true, permissions: ['full_admin'] }  // New agent = user is owner
+            };
+            
+            // Clear API descriptions
+            apiPersonalityDescriptions = {};
+            lastGoalText = '';
+            
+            // Reset UI
+            document.getElementById('wizard-step-0')?.classList.remove('hidden');
+            document.getElementById('wizard-generating')?.classList.add('hidden');
+            document.getElementById('wizard-progress')?.classList.add('hidden');
+            for(let i=1; i<=8; i++) {
+                document.getElementById('wizard-step-'+i)?.classList.add('hidden');
+            }
+            
+            // Check if step-0 content was replaced (e.g., by showProcessEditor)
+            // If so, restore the original content
+            const goalInput = document.getElementById('w-initial-goal');
+            if (!goalInput) {
+                // Content was replaced, need to restore wizard-step-0
+                restoreWizardStep0();
+            } else {
+                goalInput.value = '';
+            }
+            
+            // Reset agent type selection to default
+            selectedAgentType = 'conversational';
+            const convCard = document.getElementById('type-card-conversational');
+            const procCard = document.getElementById('type-card-process');
+            const convSection = document.getElementById('section-conversational');
+            const procSection = document.getElementById('section-process');
+            
+            if (convCard && procCard && convSection && procSection) {
+                convCard.classList.add('border-purple-500');
+                convCard.classList.remove('border-transparent');
+                procCard.classList.remove('border-green-500');
+                procCard.classList.add('border-transparent');
+                convSection.classList.remove('hidden');
+                procSection.classList.add('hidden');
+                convCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
+                convCard.querySelector('.text-sm:last-child').className = 'text-sm text-purple-400 font-medium';
+                procCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
+                procCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
+            }
+        }
+        
+        // Restore wizard step 0 original content if it was replaced
+        function restoreWizardStep0() {
+            const step0 = document.getElementById('wizard-step-0');
+            if (!step0) return;
+            
+            step0.innerHTML = `
+                <div class="text-center mb-8">
+                    <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-4">
+                        <img src="/AgentForge_Logo.png" alt="" class="w-12 h-12">
+                    </div>
+                    <h2 class="text-2xl md:text-3xl font-bold mb-2">What would you like to create?</h2>
+                    <p class="text-gray-400">Choose the type of AI solution for your needs</p>
+                </div>
+                
+                <!-- Agent Type Selection Cards -->
+                <div class="grid md:grid-cols-2 gap-4 mb-6">
+                    <!-- Conversational AI Card -->
+                    <div id="type-card-conversational" onclick="selectAgentType('conversational')" 
+                         class="card rounded-xl p-5 cursor-pointer border-2 border-purple-500 hover:border-purple-400 transition-all">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">💬</div>
+                            <div>
+                                <h3 class="font-bold">Conversational AI</h3>
+                                <p class="text-xs text-gray-400">Chat & assist users</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-300 mb-3">An AI assistant that chats with users and helps with tasks through conversation.</p>
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Chat</span>
+                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Q&A</span>
+                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Support</span>
+                        </div>
+                        <div class="text-sm text-purple-400 font-medium">✓ Selected</div>
+                    </div>
+                    
+                    <!-- Workflow Automation Card -->
+                    <div id="type-card-process" onclick="selectAgentType('process')" 
+                         class="card rounded-xl p-5 cursor-pointer border-2 border-transparent hover:border-green-500 transition-all">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
+                            <div>
+                                <h3 class="font-bold">Workflow Automation</h3>
+                                <p class="text-xs text-gray-400">Automate processes</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-300 mb-3">Automated workflows with approvals, integrations, and step-by-step processes.</p>
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Approvals</span>
+                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Integrations</span>
+                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Automation</span>
+                        </div>
+                        <div class="text-sm text-gray-500">Click to select</div>
+                    </div>
+                </div>
+                
+                <!-- Conversational AI Section -->
+                <div id="section-conversational" class="card rounded-xl p-6 md:p-8">
+                    <label class="text-sm text-gray-400 mb-2 block">What should your assistant do? *</label>
+                    <textarea id="w-initial-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4 text-lg" placeholder="Example: Help customers track their orders, answer product questions, and process returns..."></textarea>
+                    
+                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                        <button onclick="generateAgentConfig()" id="btn-generate-config" class="btn-primary px-8 py-3 rounded-lg flex-1 flex items-center justify-center gap-2 text-lg">
+                            <span>✨</span> Create My Assistant
+                        </button>
+                    </div>
+                    
+                    <div class="mt-6 pt-6 border-t border-gray-700">
+                        <p class="text-sm text-gray-500 mb-3">Or start with a template:</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="useAgentTemplate('customer_support')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🎧 Customer Support</button>
+                            <button onclick="useAgentTemplate('sales')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">💼 Sales Assistant</button>
+                            <button onclick="useAgentTemplate('hr')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">👥 HR Helper</button>
+                            <button onclick="useAgentTemplate('research')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔬 Research Analyst</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Workflow Automation Section (Hidden by default) -->
+                <div id="section-process" class="hidden card rounded-xl p-6 md:p-8" style="background: linear-gradient(135deg, rgba(34,197,94,0.05), rgba(20,184,166,0.05)); border: 1px solid rgba(34,197,94,0.2);">
+                    <div class="text-center mb-6">
+                        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-3xl mb-4">🔄</div>
+                        <h3 class="text-xl font-bold mb-2">Visual Workflow Builder</h3>
+                        <p class="text-gray-400">Design powerful automations with drag & drop</p>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-2 gap-4 mb-6">
+                        <!-- Option 1: Visual Builder -->
+                        <div onclick="openVisualBuilder()" class="p-5 rounded-xl bg-gradient-to-br from-green-500/10 to-teal-500/10 border border-green-500/30 cursor-pointer hover:border-green-400 transition-all group">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-xl">🎨</div>
+                                <div class="font-semibold">Visual Builder</div>
+                                <span class="ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">Recommended</span>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-3">Drag & drop nodes, connect steps visually, configure with forms - no coding required.</p>
+                            <div class="flex items-center gap-2 text-green-400 text-sm group-hover:translate-x-1 transition-transform">
+                                <span>Open Builder</span>
+                                <span>→</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Option 2: AI Generate -->
+                        <div onclick="showAIWorkflowInput()" class="p-5 rounded-xl bg-gray-800/50 border border-gray-700 cursor-pointer hover:border-purple-500 transition-all group">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-xl">🤖</div>
+                                <div class="font-semibold">AI Generate</div>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-3">Describe what you need in plain English, AI creates the workflow for you.</p>
+                            <div class="flex items-center gap-2 text-purple-400 text-sm group-hover:translate-x-1 transition-transform">
+                                <span>Generate with AI</span>
+                                <span>→</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Input (Hidden by default) -->
+                    <div id="ai-workflow-input" class="hidden">
+                        <label class="text-sm text-gray-400 mb-2 block">Describe your workflow *</label>
+                        <textarea id="w-process-goal" rows="3" class="input-field w-full rounded-lg px-4 py-3" placeholder="When an expense over $500 is submitted, send to manager for approval..."></textarea>
+                        <div class="mt-4 flex gap-3">
+                            <button onclick="generateProcessConfig()" class="flex-1 px-6 py-3 rounded-lg text-white font-medium flex items-center justify-center gap-2" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">
+                                <span>✨</span> Generate Workflow
+                            </button>
+                            <button onclick="hideAIWorkflowInput()" class="px-4 py-3 rounded-lg bg-gray-700 text-gray-300">Cancel</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Templates -->
+                    <div id="workflow-templates" class="mt-4 pt-4 border-t border-gray-700/50">
+                        <p class="text-sm text-gray-500 mb-3">Quick start templates:</p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <button onclick="openBuilderWithTemplate('approval')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                <span class="text-lg">✅</span>
+                                <div class="text-sm font-medium mt-1">Approval</div>
+                            </button>
+                            <button onclick="openBuilderWithTemplate('onboarding')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                <span class="text-lg">👋</span>
+                                <div class="text-sm font-medium mt-1">Onboarding</div>
+                            </button>
+                            <button onclick="openBuilderWithTemplate('notification')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                <span class="text-lg">🔔</span>
+                                <div class="text-sm font-medium mt-1">Notifications</div>
+                            </button>
+                            <button onclick="openBuilderWithTemplate('integration')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
+                                <span class="text-lg">🔗</span>
+                                <div class="text-sm font-medium mt-1">Integration</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function updateStepsNew() {
+            console.log('=== updateStepsNew called, step:', step);
+            
+            // Show/hide step 0 vs other steps
+            if(step === 0) {
+                document.getElementById('wizard-step-0')?.classList.remove('hidden');
+                document.getElementById('wizard-generating')?.classList.add('hidden');
+                document.getElementById('wizard-progress')?.classList.add('hidden');
+                document.getElementById('wizard-sticky-header')?.classList.add('hidden');
+                for(let i=1; i<=8; i++) {
+                    document.getElementById('wizard-step-'+i)?.classList.add('hidden');
+                }
+                return;
+            }
+            
+            // Show progress bar and sticky header for steps 1+
+            document.getElementById('wizard-step-0')?.classList.add('hidden');
+            document.getElementById('wizard-generating')?.classList.add('hidden');
+            // Keep old progress bar hidden - we use sticky header now
+            document.getElementById('wizard-progress')?.classList.add('hidden');
+            document.getElementById('wizard-sticky-header')?.classList.remove('hidden');
+            
+            // Update NEW sticky header
+            updateWizardStickyHeader();
+            
+            // Update step indicators (old system)
+            for(let i=1; i<=8; i++) {
+                const el = document.getElementById('step-'+i);
+                const content = document.getElementById('wizard-step-'+i);
+                if(el) {
+                    el.className = 'w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center cursor-pointer text-xs md:text-sm ' + 
+                        (i < step ? 'step-done' : i === step ? 'step-active' : 'step-pending');
+                }
+                if(content) {
+                    content.classList.toggle('hidden', i !== step);
+                    console.log('Step', i, 'visibility:', i === step ? 'visible' : 'hidden');
+                }
+            }
+            
+            // Load step-specific content
+            console.log('Loading content for step:', step);
+            if(step === 1) {
+                console.log('Loading LLM models');
+                loadLLMModels();
+                initPersonalitySliders();
+            }
+            if(step === 3) {
+                console.log('Loading Demo Kit Tools for selection');
+                loadDemoKitToolsForSelection();
+            }
+            if(step === 4) {
+                console.log('🟢🟢🟢 STEP 4: ACCESS CONTROL LOADING 🟢🟢🟢');
+                console.log('🟢 wizard.accessControl BEFORE load:', JSON.stringify(wizard.accessControl, null, 2));
+                // Collect tasks from previous step to ensure they're available
+                collectTasksNew();
+                console.log('🟢 Tasks collected, now loading wizard access control...');
+                // ✅ IMPORTANT: Load saved access control data FIRST
+                await loadWizardAccessControl();
+                console.log('🟢 loadWizardAccessControl completed');
+                console.log('🟢 wizardAccessState.selectedEntities:', JSON.stringify(wizardAccessState.selectedEntities, null, 2));
+                console.log('🟢 wizardAccessState.taskPermissions:', JSON.stringify(wizardAccessState.taskPermissions, null, 2));
+                // Sync task permissions
+                syncTaskPermissions();
+                // Update access control UI
+                updateWizardAccessUI();
+                // Initialize access control (async - will check ownership)
+                initWizardAccessControl();
+                console.log('🟢🟢🟢 STEP 4 LOADING COMPLETE 🟢🟢🟢');
+            }
+            if(step === 5) {
+                console.log('Loading Guardrails');
+                // Load guardrails values from wizard object if editing
+                loadGuardrailsToForm();
+            }
+            if(step === 6) {
+                console.log('Calling showPreviewNew');
+                // Ensure tools are collected before preview
+                collectToolsNew();
+                // Reload access control to ensure task IDs match current tasks
+                await loadWizardAccessControl();
+                showPreviewNew();
+            }
+            if(step === 7) {
+                console.log('Calling prepareTestSuggestions');
+                prepareTestSuggestions();
+                // Reset test conversation when entering test step
+                resetTestConversation();
+            }
+            
+            // ⚠️ CRITICAL: Re-apply permission restrictions after step content is rendered
+            // This ensures restrictions work on dynamically loaded elements
+            console.log('🔐🔐🔐 STEP CHANGE CHECK 🔐🔐🔐');
+            console.log('🔐 step:', step);
+            console.log('🔐 wizard.editId:', wizard.editId);
+            console.log('🔐 wizard.userPermissions:', wizard.userPermissions);
+            console.log('🔐 wizard.id:', wizard.id);
+            
+            // Apply restrictions for delegated admins who are editing
+            const isEditing = wizard.editId || wizard.id;
+            const hasPerms = wizard.userPermissions;
+            
+            if (hasPerms && isEditing) {
+                console.log('🔐✅ Will apply permission restrictions for step', step);
+                // Small delay to ensure DOM is updated
+                setTimeout(() => {
+                    applyPermissionRestrictions(wizard.userPermissions);
+                }, 100);
+            } else {
+                console.log('🔐❌ NOT applying restrictions - editId/id:', isEditing, 'perms:', !!hasPerms);
+            }
+        }
+        
+        // Reset test conversation
+        async function resetTestConversation() {
+            const messagesDiv = document.getElementById('test-messages');
+            messagesDiv.innerHTML = '';
+            
+            // Only reset conversation, keep agent ID to prevent duplicates
+            if(testAgent) {
+                testAgent.convId = null; // Reset conversation but keep agent
+            }
+            testAttachments = [];
+            renderTestAttachments();
+            console.log('Test conversation reset (agent preserved)');
+            
+            // Show personalized welcome message
+            const userName = currentUser?.first_name || currentUser?.display_name || 
+                           currentUser?.email?.split('@')[0]?.replace('.', ' ') || 'there';
+            const agentName = wizard.name || 'your agent';
+            
+            const welcomeHtml = `
+                <div class="animate-fade-in">
+                    <div class="text-center py-4">
+                        <div class="text-4xl mb-2">👋</div>
+                        <h3 class="text-lg font-semibold text-white">Hi ${userName}!</h3>
+                        <p class="text-sm text-gray-400 mt-1">I'm ${agentName}. Try asking me something!</p>
+                        ${wizard.tasks && wizard.tasks.length > 0 ? `
+                            <div class="mt-3 text-xs text-gray-500">
+                                <p>Available tasks: ${wizard.tasks.map(t => t.name).slice(0, 3).join(', ')}${wizard.tasks.length > 3 ? '...' : ''}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            messagesDiv.innerHTML = welcomeHtml;
+        }
+        
+        function goStep(s) {
+            // In edit mode, allow jumping to any step
+            // In create mode, only allow going back to previous steps
+            const isEditing = wizard.editId || wizard.id;
+            
+            if (s >= 1 && s <= 7) {
+                if (isEditing || s <= step) {
+                    step = s;
+                    updateStepsNew();
+                }
+            }
+        }
+        
+        async function nextStep() {
+            // Validate and collect data based on current step
+            if(step === 1) {
+                wizard.name = document.getElementById('w-name').value;
+                wizard.icon = document.getElementById('w-icon').value || '🤖';
+                wizard.iconType = document.getElementById('w-icon-type')?.value || 'emoji';
+                wizard.iconData = document.getElementById('w-icon-data')?.value || '';
+                wizard.goal = document.getElementById('w-goal').value;
+                
+                // Collect personality slider values (must be set by AI generation)
+                const creativity = parseInt(document.getElementById('p-creativity')?.value);
+                const length = parseInt(document.getElementById('p-length')?.value);
+                const formality = parseInt(document.getElementById('p-formality')?.value);
+                const empathy = parseInt(document.getElementById('p-empathy')?.value);
+                const proactivity = parseInt(document.getElementById('p-proactivity')?.value);
+                const confidence = parseInt(document.getElementById('p-confidence')?.value);
+                
+                // Check if personality was configured
+                if (!creativity || !length || !formality || !empathy || !proactivity || !confidence) {
+                    alert('Personality not configured. Please generate agent configuration first.');
+                    return;
+                }
+                
+                wizard.personality = { creativity, length, formality, empathy, proactivity, confidence };
+                
+                if(!wizard.name || !wizard.goal) {
+                    alert('Please fill in Name and Goal');
+                    return;
+                }
+            }
+            if(step === 2) collectTasksNew();
+            if(step === 3) collectToolsNew();
+            if(step === 4 && typeof collectWizardAccessControl === 'function') collectWizardAccessControl();
+            if(step === 5) collectGuardrails();
+            
+            // Auto-save to database before moving to next step
+            await autoSaveWizardStep();
+            
+            // Also save Access Control when leaving step 4
+            if(step === 4 && typeof saveAgentAccessControl === 'function') {
+                const agentId = testAgent?.id || wizard.editId || wizard.id;
+                if(agentId) {
+                    console.log('💾 Auto-saving Access Control for step 4...');
+                    await saveAgentAccessControl(agentId);
+                }
+            }
+            
+            step++;
+            if(step > 7) step = 7;  // 7 steps total - Test & Deploy is final
+            console.log('➡️ Moving to step:', step);
+            updateStepsNew();
+        }
+        
+        // Auto-save wizard configuration to database
+        async function autoSaveWizardStep() {
+            // Only save if we have at least a goal (minimum to create draft)
+            if (!wizard.goal) {
+                console.log('⏭️ Skipping auto-save: no goal yet');
+                return; // Skip if no goal
+            }
+            
+            // Ensure we have minimum data
+            const agentName = wizard.name || 'Untitled Agent';
+            const agentGoal = wizard.goal;
+            
+            try {
+                const agentData = {
+                    name: agentName,
+                    icon: wizard.icon || '🤖',
+                    goal: agentGoal,
+                    personality: wizard.personality || {tone: 'professional', voice: 'balanced', languages: ['English']},
+                    personality_reason: wizard.personalityReason || '',
+                    guardrails: wizard.guardrails || {},
+                    tasks: wizard.tasks || [],
+                    tool_ids: wizard.tool_ids || [],
+                    model_id: wizard.model || 'gpt-4o',
+                    model_reason: wizard.modelReason || '',
+                    status: 'draft' // Always save as draft during wizard
+                };
+                
+                console.log('📝 Auto-saving wizard step, editId:', wizard.editId, 'testAgent:', testAgent?.id);
+                
+                let response;
+                const agentId = testAgent?.id || wizard.editId;
+                const hasValidId = agentId && agentId !== 'undefined' && agentId.length > 0;
+                
+                if(hasValidId){
+                    // Update existing agent
+                    response = await fetch(API+'/api/agents/'+agentId, {
+                        method: 'PUT',
+                        headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+                        body: JSON.stringify(agentData)
+                    });
+                } else {
+                    // Create new agent - MUST send auth headers for ownership
+                    response = await fetch(API+'/api/agents', {
+                        method: 'POST',
+                        headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+                        body: JSON.stringify(agentData)
+                    });
+                }
+                
+                if(response.ok) {
+                    const data = await response.json();
+                    // Store agent ID for future updates
+                    if(data.agent_id) {
+                        wizard.editId = data.agent_id;
+                        if(!testAgent) testAgent = {id: data.agent_id};
+                    } else if(data.agent && data.agent.id) {
+                        wizard.editId = data.agent.id;
+                        if(!testAgent) testAgent = {id: data.agent.id};
+                    } else if(data.agent_id === undefined && !wizard.editId) {
+                        // If creating new agent, extract ID from agent object if present
+                        const agentObj = data.agent || data;
+                        if(agentObj && agentObj.id) {
+                            wizard.editId = agentObj.id;
+                            if(!testAgent) testAgent = {id: agentObj.id};
+                        }
+                    }
+                    
+                    // ✨ CRITICAL: Save owner_id when creating new agent
+                    // This is returned from POST /api/agents and is essential for access control
+                    if(data.owner_id && !wizard.owner_id) {
+                        wizard.owner_id = data.owner_id;
+                        wizard.created_by = data.created_by || data.owner_id;
+                        console.log('👤 Agent owner set:', wizard.owner_id);
+                    } else if(!wizard.owner_id && currentUser?.id) {
+                        // Fallback: current user is the owner since they created it
+                        wizard.owner_id = currentUser.id;
+                        wizard.created_by = currentUser.id;
+                        console.log('👤 Agent owner set from currentUser:', wizard.owner_id);
+                    }
+                    
+                    // ✨ ALSO set wizard.id (needed for access control checks)
+                    if (!wizard.id && wizard.editId) {
+                        wizard.id = wizard.editId;
+                        console.log('🔗 wizard.id synced from editId:', wizard.id);
+                    }
+                    
+                    console.log('✅ Wizard step auto-saved to database, agent ID:', wizard.editId || testAgent?.id);
+                } else {
+                    console.warn('⚠️  Failed to auto-save wizard step:', await response.text());
+                }
+            } catch(e) {
+                console.warn('⚠️  Auto-save error (non-blocking):', e);
+                // Don't block wizard flow if save fails
+            }
+        }
+        
+        function prevStep() {
+            if(step > 1) {
+                step--;
+                updateStepsNew();
+            }
+        }
+        
+        // Update the sticky header with current step info
+        function updateWizardStickyHeader() {
+            const stepNames = {
+                1: 'Setup',
+                2: 'Tasks',
+                3: 'Tools',
+                4: 'Access Control',
+                5: 'Safety',
+                6: 'Preview',
+                7: 'Test & Deploy'
+            };
+            
+            // 7 steps total
+            const totalSteps = 7;
+            const isEditing = wizard.editId || wizard.id;
+            
+            // Update title
+            const titleEl = document.getElementById('wizard-header-title');
+            if (titleEl) {
+                titleEl.textContent = isEditing ? `Edit: ${wizard.name || 'Agent'}` : 'Create Agent';
+            }
+            
+            // Update step info
+            const stepEl = document.getElementById('wizard-header-step');
+            if (stepEl) {
+                stepEl.textContent = `Step ${step} of ${totalSteps}: ${stepNames[step] || ''}`;
+            }
+            
+            // Update back button state
+            const backBtn = document.getElementById('wizard-btn-back');
+            if (backBtn) {
+                backBtn.disabled = step <= 1;
+            }
+            
+            // Update next/deploy button visibility
+            // Step 7 (Test & Deploy) is the final step - show Deploy, hide Next
+            const nextBtn = document.getElementById('wizard-btn-next');
+            const deployBtn = document.getElementById('wizard-btn-deploy');
+            if (nextBtn && deployBtn) {
+                if (step >= 7) {
+                    // Final step - hide Next, show Deploy
+                    nextBtn.classList.add('hidden');
+                    deployBtn.classList.remove('hidden');
+                } else {
+                    nextBtn.classList.remove('hidden');
+                    deployBtn.classList.add('hidden');
+                }
+            }
+            
+            // Update progress dots
+            const progressSteps = document.querySelectorAll('.wizard-progress-step');
+            progressSteps.forEach((stepDiv) => {
+                const dataStep = parseInt(stepDiv.dataset.step);
+                const dot = stepDiv.querySelector('.wizard-step-dot');
+                if (dot) {
+                    dot.classList.remove('active', 'completed', 'clickable');
+                    
+                    // In edit mode, make all steps clickable
+                    if (isEditing && dataStep !== step) {
+                        dot.classList.add('clickable');
+                    }
+                    
+                    // Handle step states
+                    if (step === dataStep) {
+                        dot.classList.add('active');
+                    } else if (step > dataStep) {
+                        dot.classList.add('completed');
+                    }
+                }
+            });
+            
+            // Update progress lines
+            const progressLines = document.querySelectorAll('.wizard-progress-line');
+            progressLines.forEach((line, idx) => {
+                line.classList.toggle('completed', idx < step - 1);
+            });
+        }
+        
+        // Cancel edit and restore agent to original state
+        async function cancelEdit() {
+            // Confirm with user
+            const confirmMsg = wizard.originalStatus === 'published' 
+                ? 'Are you sure you want to cancel? The agent will be restored to published state.'
+                : 'Are you sure you want to cancel editing?';
+            
+            if (!confirm(confirmMsg)) return;
+            
+            // If this was a published agent being edited, restore it to published status
+            const agentId = wizard.editId || wizard.id;
+            if (agentId && wizard.originalStatus === 'published') {
+                try {
+                    // Restore to published status using PUT
+                    const response = await fetch(API + '/api/agents/' + agentId, {
+                        method: 'PUT',
+                        headers: {...getAuthHeaders(), 'Content-Type': 'application/json'},
+                        body: JSON.stringify({ status: 'published' })
+                    });
+                    
+                    if (response.ok) {
+                        showToast('Edit cancelled - agent restored to published state', 'info');
+                    } else {
+                        const error = await response.json();
+                        console.warn('Could not restore agent status:', error);
+                        showToast('Edit cancelled but could not restore status', 'warning');
+                    }
+                } catch (e) {
+                    console.error('Error restoring agent status:', e);
+                    showToast('Edit cancelled', 'info');
+                }
+            } else {
+                showToast('Edit cancelled', 'info');
+            }
+            
+            // Clear wizard state
+            wizard.editId = null;
+            wizard.id = null;
+            wizard.originalStatus = null;
+            testAgent = null;
+            
+            // Navigate back to agents list
+            navigate('agents');
+            loadAgents();
+        }
+        
+        // Go to specific step (for clickable step indicators)
+        async function goToStep(targetStep) {
+            // Collect data from current step before navigating
+            if(step === 1) {
+                wizard.name = document.getElementById('w-name')?.value || wizard.name;
+                wizard.icon = document.getElementById('w-icon')?.value || wizard.icon || '🤖';
+                wizard.goal = document.getElementById('w-goal')?.value || wizard.goal;
+            }
+            if(step === 2) collectTasksNew();
+            if(step === 3) collectToolsNew();
+            if(step === 4 && typeof collectWizardAccessControl === 'function') collectWizardAccessControl();
+            if(step === 5) collectGuardrails();
+            
+            // Navigate to target step
+            step = targetStep;
+            updateStepsNew();
+        }
+        
+        // Manual save button for wizard
+        async function saveWizardProgress() {
+            // Collect current step data
+            if(step === 1) {
+                wizard.name = document.getElementById('w-name')?.value || wizard.name;
+                wizard.icon = document.getElementById('w-icon')?.value || wizard.icon || '🤖';
+                wizard.goal = document.getElementById('w-goal')?.value || wizard.goal;
+                
+                // Collect personality if available
+                const creativity = parseInt(document.getElementById('p-creativity')?.value);
+                const length = parseInt(document.getElementById('p-length')?.value);
+                const formality = parseInt(document.getElementById('p-formality')?.value);
+                const empathy = parseInt(document.getElementById('p-empathy')?.value);
+                const proactivity = parseInt(document.getElementById('p-proactivity')?.value);
+                const confidence = parseInt(document.getElementById('p-confidence')?.value);
+                if(creativity && length && formality && empathy && proactivity && confidence) {
+                    wizard.personality = { creativity, length, formality, empathy, proactivity, confidence };
+                }
+            }
+            if(step === 2) collectTasksNew();
+            if(step === 3) collectToolsNew();
+            if(step === 4 && typeof collectWizardAccessControl === 'function') collectWizardAccessControl();
+            if(step === 5) collectGuardrails();
+            
+            // Save to database
+            await autoSaveWizardStep();
+            
+            // Show confirmation
+            showToast('✅ Progress saved!', 'success');
+        }
+        
+        // ========== MODERN NOTIFICATION SYSTEM ==========
+        const NotificationSystem = {
+            container: null,
+            notifications: [],
+            maxVisible: 5,
+            
+            init() {
+                if (this.container) return;
+                this.container = document.createElement('div');
+                this.container.id = 'notification-container';
+                this.container.className = 'fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-md w-full pointer-events-none';
+                this.container.style.cssText = 'max-height: calc(100vh - 2rem); overflow: hidden;';
+                document.body.appendChild(this.container);
+            },
+            
+            getConfig(type) {
+                const configs = {
+                    success: {
+                        icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`,
+                        bgClass: 'bg-gradient-to-r from-emerald-500/95 to-green-600/95',
+                        borderClass: 'border-emerald-400/30',
+                        iconBg: 'bg-emerald-400/20',
+                        title: 'Success',
+                        duration: 4000
+                    },
+                    error: {
+                        icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`,
+                        bgClass: 'bg-gradient-to-r from-red-500/95 to-rose-600/95',
+                        borderClass: 'border-red-400/30',
+                        iconBg: 'bg-red-400/20',
+                        title: 'Error',
+                        duration: 8000
+                    },
+                    warning: {
+                        icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`,
+                        bgClass: 'bg-gradient-to-r from-amber-500/95 to-orange-600/95',
+                        borderClass: 'border-amber-400/30',
+                        iconBg: 'bg-amber-400/20',
+                        title: 'Warning',
+                        duration: 6000
+                    },
+                    info: {
+                        icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+                        bgClass: 'bg-gradient-to-r from-blue-500/95 to-indigo-600/95',
+                        borderClass: 'border-blue-400/30',
+                        iconBg: 'bg-blue-400/20',
+                        title: 'Info',
+                        duration: 4000
+                    }
+                };
+                return configs[type] || configs.info;
+            },
+            
+            show(message, type = 'info', options = {}) {
+                this.init();
+                const config = this.getConfig(type);
+                const id = 'notif-' + Date.now() + Math.random().toString(36).substr(2, 9);
+                const duration = options.duration || config.duration;
+                const showProgress = options.showProgress !== false;
+                
+                // Clean message - remove emoji prefixes if they exist
+                const cleanMessage = message.replace(/^[✅❌⚠️ℹ️✨🎉💡🔔]\s*/, '');
+                
+                const notification = document.createElement('div');
+                notification.id = id;
+                notification.className = `
+                    ${config.bgClass} ${config.borderClass}
+                    backdrop-blur-xl border rounded-xl shadow-2xl
+                    transform translate-x-full opacity-0
+                    transition-all duration-300 ease-out
+                    pointer-events-auto overflow-hidden
+                `;
+                notification.style.cssText = 'box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);';
+                
+                notification.innerHTML = `
+                    <div class="p-4">
+                        <div class="flex items-start gap-3">
+                            <div class="${config.iconBg} rounded-full p-2 flex-shrink-0">
+                                ${config.icon}
+                            </div>
+                            <div class="flex-1 min-w-0 pt-0.5">
+                                <p class="text-sm font-semibold text-white/90">${config.title}</p>
+                                <p class="text-sm text-white/80 mt-0.5 break-words">${this.escapeHtml(cleanMessage)}</p>
+                            </div>
+                            <button onclick="NotificationSystem.dismiss('${id}')" 
+                                class="flex-shrink-0 p-1 rounded-lg hover:bg-white/20 transition-colors text-white/60 hover:text-white">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    ${showProgress ? `<div class="h-1 bg-white/20"><div class="notif-progress h-full bg-white/40 rounded-full" style="width: 100%; transition: width ${duration}ms linear;"></div></div>` : ''}
+                `;
+                
+                // Add to container
+                this.container.insertBefore(notification, this.container.firstChild);
+                this.notifications.push({ id, element: notification, timeout: null });
+                
+                // Animate in
+                requestAnimationFrame(() => {
+                    notification.classList.remove('translate-x-full', 'opacity-0');
+                    notification.classList.add('translate-x-0', 'opacity-100');
+                    
+                    // Start progress bar animation
+                    if (showProgress) {
+                        const progressBar = notification.querySelector('.notif-progress');
+                        if (progressBar) {
+                            requestAnimationFrame(() => {
+                                progressBar.style.width = '0%';
+                            });
+                        }
+                    }
+                });
+                
+                // Auto dismiss
+                const timeout = setTimeout(() => this.dismiss(id), duration);
+                const notifRecord = this.notifications.find(n => n.id === id);
+                if (notifRecord) notifRecord.timeout = timeout;
+                
+                // Limit visible notifications
+                this.enforceLimit();
+                
+                return id;
+            },
+            
+            dismiss(id) {
+                const index = this.notifications.findIndex(n => n.id === id);
+                if (index === -1) return;
+                
+                const { element, timeout } = this.notifications[index];
+                if (timeout) clearTimeout(timeout);
+                
+                // Animate out
+                element.classList.add('translate-x-full', 'opacity-0');
+                element.style.marginTop = `-${element.offsetHeight + 12}px`;
+                
+                setTimeout(() => {
+                    element.remove();
+                    this.notifications.splice(index, 1);
+                }, 300);
+            },
+            
+            dismissAll() {
+                [...this.notifications].forEach(n => this.dismiss(n.id));
+            },
+            
+            enforceLimit() {
+                while (this.notifications.length > this.maxVisible) {
+                    const oldest = this.notifications[this.notifications.length - 1];
+                    this.dismiss(oldest.id);
+                }
+            },
+            
+            escapeHtml(str) {
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            },
+            
+            // ========== EASY-TO-USE HELPER METHODS ==========
+            success(message, options = {}) {
+                return this.show(message, 'success', options);
+            },
+            
+            error(message, options = {}) {
+                return this.show(message, 'error', options);
+            },
+            
+            warning(message, options = {}) {
+                return this.show(message, 'warning', options);
+            },
+            
+            info(message, options = {}) {
+                return this.show(message, 'info', options);
+            },
+            
+            // Promise-based notification (shows loading, then success/error)
+            async promise(promise, messages = {}) {
+                const loadingMsg = messages.loading || 'Loading...';
+                const successMsg = messages.success || 'Success!';
+                const errorMsg = messages.error || 'Something went wrong';
+                
+                const id = this.show(loadingMsg, 'info', { duration: 60000, showProgress: false });
+                
+                try {
+                    const result = await promise;
+                    this.dismiss(id);
+                    this.success(typeof successMsg === 'function' ? successMsg(result) : successMsg);
+                    return result;
+                } catch (err) {
+                    this.dismiss(id);
+                    this.error(typeof errorMsg === 'function' ? errorMsg(err) : (err.message || errorMsg));
+                    throw err;
+                }
+            },
+            
+            // Confirmation notification with action button
+            confirm(message, onConfirm, options = {}) {
+                const id = 'notif-confirm-' + Date.now();
+                const config = this.getConfig('warning');
+                
+                this.init();
+                
+                const notification = document.createElement('div');
+                notification.id = id;
+                notification.className = `
+                    ${config.bgClass} ${config.borderClass}
+                    backdrop-blur-xl border rounded-xl shadow-2xl
+                    transform translate-x-full opacity-0
+                    transition-all duration-300 ease-out
+                    pointer-events-auto overflow-hidden
+                `;
+                notification.style.cssText = 'box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);';
+                
+                notification.innerHTML = `
+                    <div class="p-4">
+                        <div class="flex items-start gap-3">
+                            <div class="${config.iconBg} rounded-full p-2 flex-shrink-0">
+                                ${config.icon}
+                            </div>
+                            <div class="flex-1 min-w-0 pt-0.5">
+                                <p class="text-sm font-semibold text-white/90">${options.title || 'Confirm'}</p>
+                                <p class="text-sm text-white/80 mt-0.5">${this.escapeHtml(message)}</p>
+                                <div class="flex gap-2 mt-3">
+                                    <button onclick="NotificationSystem.handleConfirm('${id}', true)" 
+                                        class="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors">
+                                        ${options.confirmText || 'Confirm'}
+                                    </button>
+                                    <button onclick="NotificationSystem.handleConfirm('${id}', false)" 
+                                        class="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors">
+                                        ${options.cancelText || 'Cancel'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Store callback
+                this._confirmCallbacks = this._confirmCallbacks || {};
+                this._confirmCallbacks[id] = onConfirm;
+                
+                this.container.insertBefore(notification, this.container.firstChild);
+                this.notifications.push({ id, element: notification, timeout: null });
+                
+                requestAnimationFrame(() => {
+                    notification.classList.remove('translate-x-full', 'opacity-0');
+                    notification.classList.add('translate-x-0', 'opacity-100');
+                });
+                
+                return id;
+            },
+            
+            handleConfirm(id, confirmed) {
+                const callback = this._confirmCallbacks?.[id];
+                if (callback && confirmed) callback();
+                delete this._confirmCallbacks?.[id];
+                this.dismiss(id);
+            }
+        };
+        
+        // ========== GLOBAL SHORTHAND: notify ==========
+        // Usage: notify.success('Saved!'), notify.error('Failed'), etc.
+        const notify = {
+            success: (msg, opts) => NotificationSystem.success(msg, opts),
+            error: (msg, opts) => NotificationSystem.error(msg, opts),
+            warning: (msg, opts) => NotificationSystem.warning(msg, opts),
+            info: (msg, opts) => NotificationSystem.info(msg, opts),
+            promise: (p, msgs) => NotificationSystem.promise(p, msgs),
+            confirm: (msg, cb, opts) => NotificationSystem.confirm(msg, cb, opts),
+            dismiss: (id) => NotificationSystem.dismiss(id),
+            dismissAll: () => NotificationSystem.dismissAll()
+        };
+        
+        // Backward compatible showToast function
+        function showToast(message, type = 'info', options = {}) {
+            return NotificationSystem.show(message, type, options);
+        }
+        
+        // Agent Templates
+        function useAgentTemplate(template) {
+            const templates = {
+                customer_support: "Help customers with their inquiries about orders, products, returns, and general support questions. Provide accurate information, track order status, and escalate complex issues when needed.",
+                sales: "Assist potential customers in finding the right products, answer pricing questions, provide product comparisons, and help close sales. Be persuasive but honest.",
+                hr: "Help employees with HR-related questions about policies, benefits, leave requests, and company procedures. Maintain confidentiality and direct sensitive matters to HR staff.",
+                research: "Research topics thoroughly, analyze information from multiple sources, summarize findings, and provide well-structured reports with citations.",
+                coding: "Help developers write, debug, and improve code. Explain programming concepts, suggest best practices, and assist with technical documentation."
+            };
+            
+            document.getElementById('w-initial-goal').value = templates[template] || '';
+        }
+        
+        // =========================================================================
+        // AGENT TYPE SELECTION (Conversational vs Workflow)
+        // =========================================================================
+        
+        let selectedAgentType = 'conversational'; // Default
+        
+        function selectAgentType(type) {
+            console.log('🎯 [CREATE] selectAgentType() called with type:', type);
+            selectedAgentType = type;
+            
+            // Update card styles
+            const convCard = document.getElementById('type-card-conversational');
+            const procCard = document.getElementById('type-card-process');
+            const convSection = document.getElementById('section-conversational');
+            const procSection = document.getElementById('section-process');
+            
+            if (type === 'conversational') {
+                convCard?.classList.add('border-purple-500');
+                convCard?.classList.remove('border-transparent');
+                procCard?.classList.remove('border-green-500');
+                procCard?.classList.add('border-transparent');
+                convSection?.classList.remove('hidden');
+                procSection?.classList.add('hidden');
+                // Update selection text
+                if (convCard) convCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
+                if (procCard) procCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
+                if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-purple-400 font-medium';
+                if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
+            } else {
+                procCard?.classList.add('border-green-500');
+                procCard?.classList.remove('border-transparent');
+                convCard?.classList.remove('border-purple-500');
+                convCard?.classList.add('border-transparent');
+                procSection?.classList.remove('hidden');
+                convSection?.classList.add('hidden');
+                // Update selection text
+                if (procCard) procCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
+                if (convCard) convCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
+                if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-green-400 font-medium';
+                if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
+            }
+        }
+        
+        // Generate Process/Workflow Configuration using AI
+        async function generateProcessConfig() {
+            const goal = document.getElementById('w-process-goal')?.value.trim();
+            if(!goal) {
+                alert('Please describe what your workflow should do');
+                return;
+            }
+            
+            wizard.originalGoal = goal;
+            wizard.agentType = 'process';
+
+            // Open the visual builder immediately (prevents popup blockers) and show "waiting" state there.
+            // We'll send the generated workflow via postMessage once the API returns.
+            let builderWin = null;
+            try {
+                builderWin = window.open('/ui/process-builder.html?draft=wait', '_blank');
+            } catch (_) {
+                builderWin = null;
+            }
+            
+            // Show generating animation
+            document.getElementById('wizard-step-0').classList.add('hidden');
+            document.getElementById('wizard-generating').classList.remove('hidden');
+            document.getElementById('generating-status').textContent = 'Creating your workflow...';
+            
+            try {
+                // Provide available tools context to the wizard (sanitized: no secrets)
+                let toolsForContext = [];
+                try {
+                    const toolsRes = await fetch('/api/tools', {
+                        headers: { 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token')) }
+                    });
+                    const toolsJson = await toolsRes.json();
+                    const tools = Array.isArray(toolsJson?.tools) ? toolsJson.tools : [];
+                    toolsForContext = tools.slice(0, 40).map(t => {
+                        const apiParams = t?.api_config?.input_parameters || t?.api_config?.inputParameters || [];
+                        const safeParams = Array.isArray(apiParams) ? apiParams.map(p => ({
+                            name: p?.name,
+                            description: p?.description,
+                            data_type: p?.data_type || p?.type,
+                            required: !!p?.required,
+                            location: p?.location
+                        })) : [];
+                        return {
+                            id: t?.id,
+                            name: t?.name,
+                            type: t?.type,
+                            description: t?.description || '',
+                            input_parameters: safeParams
+                        };
+                    }).filter(t => t.id && t.name);
+                } catch (_) { /* ignore */ }
+
+                const response = await fetch('/process/wizard/generate', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token'))
+                    },
+                    body: JSON.stringify({
+                        goal: goal,
+                        output_format: 'visual_builder',
+                        context: {
+                            tools: toolsForContext
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.workflow) {
+                    // Store the workflow definition
+                    wizard.processDefinition = data.workflow;
+                    
+                    // Store draft for builder fallback (if postMessage is blocked or tab was closed)
+                    try {
+                        sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(data.workflow));
+                        sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                            goal: goal,
+                            name: data.workflow.name || 'My Workflow',
+                            animate: true
+                        }));
+                    } catch (_) { /* ignore */ }
+                    
+                    document.getElementById('wizard-generating').classList.add('hidden');
+                    document.getElementById('wizard-step-0').classList.remove('hidden');
+                    
+                    // Send the workflow to the builder (cinematic build starts there immediately)
+                    const payload = {
+                        type: 'agentforge.workflow_draft',
+                        workflow: data.workflow,
+                        meta: {
+                            goal: goal,
+                            name: data.workflow.name || 'My Workflow',
+                            animate: true
+                        }
+                    };
+                    try {
+                        if (builderWin && !builderWin.closed) {
+                            builderWin.postMessage(payload, window.location.origin);
+                            showToast('Opening the visual builder…', 'success');
+                        } else {
+                            // Popup was blocked or closed → open builder using stored draft
+                            openVisualEditor();
+                        }
+                    } catch (e) {
+                        // Fallback
+                        openVisualEditor();
+                    }
+                } else {
+                    alert(data.detail || 'Could not create workflow. Please try again.');
+                    document.getElementById('wizard-generating').classList.add('hidden');
+                    document.getElementById('wizard-step-0').classList.remove('hidden');
+                }
+            } catch(e) {
+                console.error('Process generation error:', e);
+                alert('Could not connect to the server. Please try again.');
+                document.getElementById('wizard-generating').classList.add('hidden');
+                document.getElementById('wizard-step-0').classList.remove('hidden');
+            }
+        }
+        
+        // Show Process Editor (using modal instead of replacing content)
+        function showProcessEditor(workflow) {
+            // Hide the generating state and show step 0
+            document.getElementById('wizard-generating')?.classList.add('hidden');
+            document.getElementById('wizard-step-0')?.classList.remove('hidden');
+            
+            // Create or get the process editor modal
+            let modal = document.getElementById('process-editor-preview-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'process-editor-preview-modal';
+                modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center p-4';
+                document.body.appendChild(modal);
+            }
+            
+            const nodesHtml = (workflow.nodes || []).map((node, i) => `
+                <div class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg">
+                    <div class="w-8 h-8 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-sm font-bold">${i+1}</div>
+                    <div>
+                        <div class="font-medium">${node.name || node.type}</div>
+                        <div class="text-xs text-gray-400">${node.type}</div>
+                    </div>
+                </div>
+            `).join('');
+            
+            modal.innerHTML = `
+                <div class="absolute inset-0 bg-black/70" onclick="closeProcessEditorPreview()"></div>
+                <div class="relative bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                    <button onclick="closeProcessEditorPreview()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+                    
+                    <div class="p-8">
+                        <div class="text-center mb-8">
+                            <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center mb-4 text-4xl">
+                                ✅
+                            </div>
+                            <h2 class="text-2xl font-bold mb-2">Your Workflow is Ready!</h2>
+                            <p class="text-gray-400">${workflow.name || 'Workflow'} has been created with ${workflow.nodes?.length || 0} steps</p>
+                        </div>
+                        
+                        <div class="card rounded-xl p-6 mb-6 bg-gray-800/50">
+                            <h3 class="font-semibold mb-4">Workflow Steps:</h3>
+                            <div class="space-y-3">
+                                ${nodesHtml || '<p class="text-gray-500">No steps defined</p>'}
+                            </div>
+                        </div>
+                        
+                        <div class="card rounded-xl p-6 mb-6 bg-gray-800/50">
+                            <label class="text-sm text-gray-400 mb-2 block">Workflow Name</label>
+                            <input type="text" id="process-name" class="input-field w-full rounded-lg px-4 py-3 bg-gray-700 border border-gray-600" value="${workflow.name || 'My Workflow'}">
+                        </div>
+                        
+                        <div class="flex gap-4">
+                            <button onclick="closeProcessEditorPreview(); openVisualEditor();" class="flex-1 px-6 py-3 rounded-lg border border-gray-600 hover:bg-gray-700 transition">
+                                ✏️ Edit Visually
+                            </button>
+                            <button onclick="saveProcess()" class="flex-1 px-6 py-3 rounded-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
+                                💾 Save & Activate
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+        }
+        
+        // Close the process editor preview modal
+        function closeProcessEditorPreview() {
+            const modal = document.getElementById('process-editor-preview-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        }
+        
+        // Open Visual Editor
+        function openVisualEditor(agentId = null) {
+            // If we have a freshly generated workflow (not yet saved), pass it as a draft to the builder
+            try {
+                if (!agentId && wizard && wizard.processDefinition) {
+                    sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(wizard.processDefinition));
+                    sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                        goal: wizard.originalGoal || wizard.config?.goal || '',
+                        animate: true
+                    }));
+                    window.open('/ui/process-builder.html?draft=1', '_blank');
+                    return;
+                }
+            } catch (e) {
+                console.warn('Could not store draft for builder:', e);
+            }
+            
+            // Open process builder with agent ID if editing an existing workflow
+            const url = agentId ? `/ui/process-builder.html?agent=${agentId}` : '/ui/process-builder.html';
+            window.open(url, '_blank');
+        }
+        
+        // Save Process
+        async function saveProcess() {
+            const name = document.getElementById('process-name')?.value || 'My Workflow';
+            const workflow = wizard.processDefinition;
+            workflow.name = name;
+            
+            try {
+                const response = await fetch('/api/agents', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token'))
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        goal: wizard.originalGoal,
+                        agent_type: 'process',
+                        process_definition: workflow,
+                        is_published: true
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    closeProcessEditorPreview(); // Close the modal
+                    showToast('Workflow saved successfully!', 'success');
+                    navigate('agents'); // Go to agents list
+                } else {
+                    const error = await response.json();
+                    showToast('Could not save: ' + (error.detail || 'Unknown error'), 'error');
+                }
+            } catch(e) {
+                showToast('Could not save workflow. Please try again.', 'error');
+            }
+        }
+        
+        // ============================================================================
+        // PROCESS EXECUTION FUNCTIONS
+        // ============================================================================
+        
+        let currentProcessAgent = null;
+        let currentExecutionId = null;
+        let executionPollInterval = null;
+        let executionPollStopped = false;  // stop loop on 401 so we don't keep hitting the server
+
+        // Process playback (visual animation) + test report (business-friendly)
+        const _execMilestones = {}; // { [executionId]: { waiting?: true, completed?: true, failed?: true } }
+        let _pbPlayer = {
+            agentId: null,
+            ready: false,
+            playId: null,
+            pending: null, // { playId, trace, after, subtitle }
+            last: null // { agentId, trace, subtitle }
+        };
+        let _inlineApproval = { approvalId: null, executionId: null };
+
+        function _markMilestone(executionId, milestone) {
+            if (!executionId) return false;
+            if (!_execMilestones[executionId]) _execMilestones[executionId] = {};
+            if (_execMilestones[executionId][milestone]) return false;
+            _execMilestones[executionId][milestone] = true;
+            return true;
+        }
