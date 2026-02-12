@@ -277,6 +277,14 @@
                 });
             }
             state.nodes.forEach(n => { if (levels[n.id] === undefined) levels[n.id] = 0; });
+            // ENFORCE: End nodes always on the deepest level
+            let maxNonEndLevel = 0;
+            state.nodes.forEach(n => {
+                if (n.type !== 'end' && (levels[n.id] || 0) > maxNonEndLevel) maxNonEndLevel = levels[n.id];
+            });
+            state.nodes.forEach(n => {
+                if (n.type === 'end') levels[n.id] = maxNonEndLevel + 1;
+            });
             const byLevel = {};
             state.nodes.forEach(n => {
                 const L = levels[n.id];
@@ -4292,6 +4300,21 @@
                 const id = String(n.id);
                 if (!depth.has(id)) { maxDepth += 1; depth.set(id, maxDepth); }
             });
+
+            // ENFORCE: End nodes must always be on the deepest layer (below everything).
+            // Recalculate maxDepth excluding end nodes, then place end nodes at max+1.
+            let maxNonEndDepth = 0;
+            depth.forEach((v, id) => {
+                const nd = nodeById.get(id);
+                if (nd && nd.type !== 'end' && v > maxNonEndDepth) maxNonEndDepth = v;
+            });
+            nodes.forEach(n => {
+                if (n.type === 'end') {
+                    depth.set(String(n.id), maxNonEndDepth + 1);
+                }
+            });
+            // Update maxDepth after moving end nodes
+            maxDepth = maxNonEndDepth + 1;
 
             const layers = new Map();
             nodes.forEach(n => {
