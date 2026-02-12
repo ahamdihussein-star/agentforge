@@ -318,9 +318,13 @@ def _choose_splits_validated(text: str, safe_points: list[int], target_bytes: in
 
 def _write_parts(text: str, split_points: list[int]) -> list[Path]:
     PARTS_DIR.mkdir(parents=True, exist_ok=True)
-    # Clean old parts
-    for old in PARTS_DIR.glob("*.js"):
+    # Clean only the parts this script manages (do NOT delete other ui/index_parts assets)
+    managed = set(PART_FILE_NAMES)
+    # also remove any previous fallback extra-* chunks
+    for old in PARTS_DIR.glob("extra-*.js"):
         old.unlink(missing_ok=True)
+    for name in managed:
+        (PARTS_DIR / name).unlink(missing_ok=True)
 
     points = [0] + split_points + [len(text)]
     part_paths: list[Path] = []
