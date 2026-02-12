@@ -5359,6 +5359,8 @@
                 `;
             }).join('') || `<div style="color:var(--pb-muted);">No steps.</div>`;
 
+            const executionId = execution?.id || execution?.execution_id || '';
+
             modal.innerHTML = `
                 <div style="background:var(--pb-panel); color:var(--pb-text); border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); border-radius:16px; width:1100px; max-width:100%; max-height:88vh; overflow:auto; box-shadow: var(--shadow-md);">
                     <div style="padding:18px; border-bottom:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent); display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
@@ -5370,12 +5372,44 @@
                             <p style="margin:6px 0 0; color:var(--pb-muted); font-size:13px;">${escapeHtml(headline)}</p>
                         </div>
                         <div style="display:flex;gap:10px;align-items:center;">
+                            <!-- Business / Technical toggle -->
+                            <div id="report-view-toggle" style="display:inline-flex;border-radius:12px;border:1px solid color-mix(in srgb, var(--pb-muted) 32%, transparent);overflow:hidden;font-size:13px;">
+                                <button id="report-view-business" type="button" style="padding:8px 16px;border:none;cursor:pointer;font-weight:700;background:var(--tb-btn-primary-bg);color:var(--tb-btn-primary-text);transition:all .2s;">Business</button>
+                                <button id="report-view-technical" type="button" style="padding:8px 16px;border:none;cursor:pointer;font-weight:600;background:transparent;color:var(--pb-muted);transition:all .2s;">Technical</button>
+                            </div>
                             <button type="button" class="toolbar-btn btn-secondary" onclick="document.getElementById('engine-test-report-modal')?.remove(); clearPlaybackHighlights();" style="padding:10px 12px;border-radius:12px;">
                                 Close
                             </button>
                         </div>
                     </div>
-                    <div style="padding:18px; display:grid;grid-template-columns: 360px 1fr; gap:16px;">
+                    <!-- BUSINESS VIEW (default) -->
+                    <div id="report-business-view" style="padding:18px; display:grid;grid-template-columns: 360px 1fr; gap:16px;">
+                        <div>
+                            <div style="padding:14px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;">
+                                <div style="font-weight:900;color:var(--pb-text);margin-bottom:10px;">Submitted information</div>
+                                <div>${inputRows}</div>
+                            </div>
+                            <div style="margin-top:12px;padding:14px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;">
+                                <div style="font-weight:900;color:var(--pb-text);margin-bottom:8px;">Outcome</div>
+                                <div style="color:color-mix(in srgb, var(--pb-text) 86%, var(--pb-muted));font-size:13px;line-height:1.35;">${escapeHtml(headline)}</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div id="business-summary-content" style="padding:18px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;min-height:120px;">
+                                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                                    <div style="font-weight:900;color:var(--pb-text);font-size:15px;">What happened</div>
+                                </div>
+                                <div id="business-summary-body" style="color:color-mix(in srgb, var(--pb-text) 92%, var(--pb-muted));font-size:14px;line-height:1.6;">
+                                    <div style="display:flex;align-items:center;gap:10px;padding:24px 0;justify-content:center;color:var(--pb-muted);">
+                                        <div class="spinner" style="width:20px;height:20px;border:2px solid color-mix(in srgb, var(--pb-muted) 40%, transparent);border-top-color:var(--tb-btn-primary-bg);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+                                        Generating business summary...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- TECHNICAL VIEW (hidden by default) -->
+                    <div id="report-technical-view" style="padding:18px; display:none; grid-template-columns: 360px 1fr; gap:16px;">
                         <div>
                             <div style="padding:14px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;">
                                 <div style="font-weight:900;color:var(--pb-text);margin-bottom:10px;">Submitted information</div>
@@ -5395,6 +5429,36 @@
             `;
             document.body.appendChild(modal);
 
+            // Toggle logic
+            const businessBtn = modal.querySelector('#report-view-business');
+            const technicalBtn = modal.querySelector('#report-view-technical');
+            const businessView = modal.querySelector('#report-business-view');
+            const technicalView = modal.querySelector('#report-technical-view');
+            const activeBtnStyle = 'padding:8px 16px;border:none;cursor:pointer;font-weight:700;background:var(--tb-btn-primary-bg);color:var(--tb-btn-primary-text);transition:all .2s;';
+            const inactiveBtnStyle = 'padding:8px 16px;border:none;cursor:pointer;font-weight:600;background:transparent;color:var(--pb-muted);transition:all .2s;';
+
+            if (businessBtn) businessBtn.addEventListener('click', () => {
+                businessBtn.style.cssText = activeBtnStyle;
+                technicalBtn.style.cssText = inactiveBtnStyle;
+                businessView.style.display = 'grid';
+                technicalView.style.display = 'none';
+            });
+            if (technicalBtn) technicalBtn.addEventListener('click', () => {
+                technicalBtn.style.cssText = activeBtnStyle;
+                businessBtn.style.cssText = inactiveBtnStyle;
+                technicalView.style.display = 'grid';
+                businessView.style.display = 'none';
+            });
+
+            // Fetch business summary from LLM
+            if (executionId) {
+                _fetchBusinessSummary(executionId, modal);
+            } else {
+                // No execution ID — show a fallback in the business view
+                const body = modal.querySelector('#business-summary-body');
+                if (body) body.innerHTML = `<div style="color:var(--pb-muted);font-size:13px;">${escapeHtml(headline)}</div>`;
+            }
+
             // Wire up authenticated downloads for uploaded file buttons
             try {
                 modal.querySelectorAll('button[data-upload-file-id]').forEach(btn => {
@@ -5406,6 +5470,84 @@
                     });
                 });
             } catch (_) {}
+        }
+
+        /**
+         * Fetch business-friendly summary from LLM and render it in the report modal.
+         */
+        async function _fetchBusinessSummary(executionId, modal) {
+            const body = modal.querySelector('#business-summary-body');
+            if (!body) return;
+            try {
+                const token = getAuthToken();
+                const res = await fetch(`/process/executions/${encodeURIComponent(executionId)}/business-summary`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? ('Bearer ' + token) : ''
+                    }
+                });
+                const data = await res.json();
+                if (data && data.success && data.summary) {
+                    body.innerHTML = _formatBusinessSummary(data.summary);
+                } else {
+                    // LLM unavailable or error — show fallback
+                    const errMsg = (data && data.error) ? data.error : 'Could not generate business summary.';
+                    body.innerHTML = `<div style="color:var(--pb-muted);font-size:13px;">${escapeHtml(errMsg)}<br><span style="font-size:12px;">Switch to the <b>Technical</b> view for full details.</span></div>`;
+                }
+            } catch (e) {
+                body.innerHTML = `<div style="color:var(--pb-muted);font-size:13px;">Could not load summary. Switch to the <b>Technical</b> view for full details.</div>`;
+            }
+        }
+
+        /**
+         * Format the LLM's plain-text business summary into styled HTML.
+         * Handles OUTCOME:, SUMMARY:, KEY DETAILS: sections and bullet points.
+         */
+        function _formatBusinessSummary(text) {
+            if (!text) return '';
+            let html = '';
+            const lines = String(text).split('\n');
+            let currentSection = '';
+            const sectionIcons = { 'OUTCOME': '🎯', 'SUMMARY': '📋', 'KEY DETAILS': '📊' };
+            const sectionColors = { 'OUTCOME': 'var(--tb-btn-primary-bg)', 'SUMMARY': 'var(--pb-text)', 'KEY DETAILS': 'var(--pb-text)' };
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                // Section headers
+                const sectionMatch = trimmed.match(/^(OUTCOME|SUMMARY|KEY DETAILS)\s*:\s*(.*)/i);
+                if (sectionMatch) {
+                    const sectionKey = sectionMatch[1].toUpperCase();
+                    const afterColon = (sectionMatch[2] || '').trim();
+                    currentSection = sectionKey;
+                    const icon = sectionIcons[sectionKey] || '';
+                    if (sectionKey === 'OUTCOME' && afterColon) {
+                        html += `<div style="padding:12px 16px;background:color-mix(in srgb, var(--tb-btn-primary-bg) 12%, transparent);border:1px solid color-mix(in srgb, var(--tb-btn-primary-bg) 30%, transparent);border-radius:12px;margin-bottom:16px;font-size:15px;font-weight:700;color:var(--pb-text);line-height:1.4;">${icon} ${escapeHtml(afterColon)}</div>`;
+                    } else {
+                        html += `<div style="font-weight:800;font-size:13px;color:var(--pb-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:14px;margin-bottom:8px;">${icon} ${escapeHtml(sectionKey)}</div>`;
+                        if (afterColon) {
+                            html += `<div style="font-size:14px;color:var(--pb-text);line-height:1.5;margin-bottom:4px;">${escapeHtml(afterColon)}</div>`;
+                        }
+                    }
+                    continue;
+                }
+
+                // Bullet points
+                const bulletMatch = trimmed.match(/^[•\-\*]\s+(.*)/);
+                if (bulletMatch) {
+                    html += `<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;font-size:14px;line-height:1.5;color:color-mix(in srgb, var(--pb-text) 92%, var(--pb-muted));">
+                        <span style="color:var(--tb-btn-primary-bg);font-weight:700;flex-shrink:0;">●</span>
+                        <span>${escapeHtml(bulletMatch[1])}</span>
+                    </div>`;
+                    continue;
+                }
+
+                // Regular text
+                html += `<div style="font-size:14px;color:color-mix(in srgb, var(--pb-text) 92%, var(--pb-muted));line-height:1.5;margin-bottom:4px;">${escapeHtml(trimmed)}</div>`;
+            }
+            return html;
         }
 
         async function runWorkflowTestWithEngine(triggerInput, ctx) {

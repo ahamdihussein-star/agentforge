@@ -1176,3 +1176,185 @@ async def suggest_step_settings(
             "step_type_name": get_node_type_display(step_type),
             "message": "Here are the default settings for this step type."
         }
+
+
+# =============================================================================
+# BUSINESS SUMMARY — LLM-powered test report translation
+# =============================================================================
+
+@router.post("/executions/{execution_id}/business-summary")
+async def generate_business_summary(
+    execution_id: str,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a business-friendly summary of a process execution using LLM.
+    
+    Takes the technical execution steps and asks the LLM to translate them
+    into clear, business-friendly language that non-technical users can understand.
+    """
+    from database.services.process_execution_service import ProcessExecutionService
+    from core.process.messages import get_node_type_display, get_status_info
+    
+    user_dict = _user_to_dict(user)
+    exec_service = ProcessExecutionService(db)
+    
+    # Fetch execution
+    execution = exec_service.get_execution(execution_id)
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Fetch steps with I/O
+    nodes = exec_service.get_step_executions(execution_id)
+    
+    # Build a compact representation of steps for the LLM
+    steps_for_llm = []
+    for n in nodes:
+        step = {
+            "step_name": n.node_name or get_node_type_display(n.node_type),
+            "step_type": n.node_type,
+            "status": n.status,
+            "error": n.error_message if n.error_message else None,
+        }
+        # Include key output data (compact)
+        if n.output_data:
+            out = n.output_data if isinstance(n.output_data, dict) else {}
+            # Include relevant output fields but keep it small
+            compact_out = {}
+            for k in ("output", "data", "branch", "condition_result", "status"):
+                if k in out:
+                    v = out[k]
+                    # Truncate long strings
+                    if isinstance(v, str) and len(v) > 300:
+                        v = v[:300] + "..."
+                    compact_out[k] = v
+            if out.get("variables_update"):
+                compact_out["variables_update"] = out["variables_update"]
+            if compact_out:
+                step["output"] = compact_out
+        # Include key input config (node name/type context)
+        if n.input_data and isinstance(n.input_data, dict):
+            cfg = n.input_data.get("config") or {}
+            if n.node_type == "condition":
+                step["condition"] = {
+                    "field": cfg.get("field", ""),
+                    "operator": cfg.get("operator", ""),
+                    "value": cfg.get("value", ""),
+                }
+                resolved = n.input_data.get("resolved") or {}
+                if resolved.get("expression"):
+                    step["condition"]["resolved_expression"] = resolved["expression"]
+            elif n.node_type == "notification":
+                step["notification"] = {
+                    "channel": cfg.get("channel", "email"),
+                    "recipient": cfg.get("recipient", ""),
+                    "message_preview": (cfg.get("message") or "")[:200],
+                }
+            elif n.node_type == "approval":
+                step["approval_title"] = cfg.get("title") or cfg.get("message") or ""
+        if n.branch_taken:
+            step["branch_taken"] = n.branch_taken
+        steps_for_llm.append(step)
+    
+    # Build trigger input summary
+    trigger_input = {}
+    if execution.input_data and isinstance(execution.input_data, dict):
+        for k, v in execution.input_data.items():
+            if k.startswith("_"):
+                continue  # skip internal fields
+            if isinstance(v, dict) and v.get("kind") == "uploadedFile":
+                trigger_input[k] = f"[File: {v.get('name', 'uploaded file')}]"
+            elif isinstance(v, str) and len(v) > 200:
+                trigger_input[k] = v[:200] + "..."
+            else:
+                trigger_input[k] = v
+    
+    # Get LLM
+    llm = None
+    try:
+        registry = _get_llm_registry()
+        models = registry.list_all(active_only=True)
+        if models:
+            from core.llm.factory import LLMFactory
+            llm = LLMFactory.create(models[0])
+    except Exception:
+        llm = None
+    
+    if not llm:
+        return {
+            "success": False,
+            "error": "No LLM available to generate summary",
+            "fallback": "technical"
+        }
+    
+    import json as _json
+    
+    system_prompt = """You are a business process analyst. Your job is to explain what happened during a workflow execution in clear, simple business language.
+
+Rules:
+- Write for a non-technical business user (manager, HR, finance, etc.)
+- Use plain English, no code, no JSON, no variable names
+- Explain what happened at each step in 1-2 sentences
+- If something failed, explain what went wrong and what it means for the business
+- Use bullet points for the step-by-step summary
+- Start with a one-line overall outcome (success/failure and what it means)
+- Include any key data points (amounts, names, dates, decisions)
+- If a condition was evaluated, explain the business rule in plain language
+- For approvals, explain who approved/rejected and why it matters
+- For notifications, mention who was notified and about what
+- Keep the total summary concise (under 300 words)
+
+Response format (plain text, NOT JSON):
+OUTCOME: <one-line business outcome>
+
+SUMMARY:
+• <step 1 explanation>
+• <step 2 explanation>
+...
+
+KEY DETAILS:
+- <any important data points, amounts, decisions>
+"""
+    
+    user_prompt = f"""Here is a workflow execution result. Please explain what happened in business-friendly language.
+
+Workflow: {execution.process_name or 'Workflow'}
+Status: {execution.status}
+{f'Error: {execution.error_message}' if execution.error_message else ''}
+
+Submitted information:
+{_json.dumps(trigger_input, indent=2, default=str)}
+
+Steps executed:
+{_json.dumps(steps_for_llm, indent=2, default=str)}
+"""
+    
+    try:
+        from core.llm.models import Message, MessageRole
+        messages = [
+            Message(role=MessageRole.SYSTEM, content=system_prompt),
+            Message(role=MessageRole.USER, content=user_prompt),
+        ]
+    except ImportError:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+    
+    try:
+        response = await llm.chat(messages=messages, temperature=0.3, max_tokens=1500)
+        content = getattr(response, "content", None) or str(response)
+        
+        return {
+            "success": True,
+            "summary": content,
+            "execution_status": execution.status,
+            "process_name": execution.process_name or "Workflow"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to generate summary: {str(e)}",
+            "fallback": "technical"
+        }
