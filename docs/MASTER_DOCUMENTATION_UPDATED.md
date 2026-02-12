@@ -86,17 +86,21 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 - Multi-LLM support (OpenAI, Anthropic, Ollama, and more)
 - Enterprise security (RBAC, MFA, OAuth, audit logging)
 
-## Assessment Scores
+## Assessment Scores (Updated February 2026)
 
-| Category | Current | Target | Gap |
-|----------|---------|--------|-----|
-| **Core Features** | 7/10 | 9/10 | Minor |
-| **Security** | 7/10 | 9/10 | Minor |
-| **Code Quality** | 5/10 | 9/10 | **Major** |
-| **UI/UX** | 6/10 | 9/10 | Significant |
-| **Enterprise Ready** | 5/10 | 9/10 | Significant |
-| **Scalability** | 4/10 | 9/10 | **Critical** |
-| **Deployment Flexibility** | 4/10 | 9/10 | **Critical** |
+| Category | Score | Target | Gap | Notes |
+|----------|-------|--------|-----|-------|
+| **Core Features** | 7/10 | 9/10 | Minor | Conversational + process agents functional; schedule/webhook triggers incomplete |
+| **Security Architecture** | 8/10 | 9/10 | Minor | RBAC/ABAC/MFA/OAuth solid; PolicyEngine handles inheritance + deny-overrides |
+| **Security Enforcement** | 4/10 | 9/10 | **Critical** | Many `api/main.py` endpoints lack authentication; rate limiting configured but not enforced |
+| **LLM Agnosticism** | 10/10 | 10/10 | None | Factory pattern + BaseLLM abstraction; providers isolated in `core/llm/providers/` |
+| **DB Agnosticism** | 9/10 | 10/10 | Minor | `column_types.py` abstracts dialects; ORM-only queries; no raw SQL |
+| **Code Quality** | 5/10 | 9/10 | **Major** | `api/main.py` is 16K lines; no tests; no CI |
+| **UI/UX** | 6/10 | 9/10 | Significant | Good visual design + wizard UX; poor accessibility (WCAG), limited mobile, no component framework |
+| **Scalability** | 5/10 | 9/10 | **Major** | Process engine is stateless (good), but no job queue, synchronous execution, in-process BackgroundTasks |
+| **Process Engine Reliability** | 5/10 | 9/10 | **Major** | No concurrency locking, no approval timeout enforcement, state not persisted atomically |
+| **Deployment Flexibility** | 5/10 | 9/10 | Significant | Docker + Railway works; no K8s/Helm/Terraform in repo; some hardcoded localhost URLs |
+| **Enterprise Readiness** | 5/10 | 9/10 | Significant | Needs auth enforcement, rate limiting, accessibility, job queue before enterprise deployment |
 
 ## Key Strengths
 - ✅ **Database-First Architecture** - PostgreSQL fully operational, enterprise-grade persistence
