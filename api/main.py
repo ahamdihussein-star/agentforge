@@ -3329,12 +3329,35 @@ async def update_agent_memory(agent: AgentData, conversation: 'Conversation') ->
 
 
 def get_language_instruction(language_setting: str = 'user') -> str:
-    """Get language/dialect matching instruction for system prompt"""
+    """Get language/dialect matching instruction for system prompt.
+    
+    Supports dynamic dialect matching - the agent mirrors the user's exact
+    dialect and tone rather than defaulting to formal language.
+    """
+    
+    # Shared dialect-matching directive (reused across modes)
+    dialect_directive = """You MUST match the user's EXACT dialect and tone:
+• If they write in Egyptian Arabic (مصري) → respond in Egyptian Arabic (e.g., إزيك، عايز، كده، ازاي)
+• If they write in Gulf/Saudi Arabic (خليجي) → respond in Gulf Arabic (e.g., كيفك، أبي، وش، حلو)
+• If they write in Levantine Arabic (شامي) → respond in Levantine Arabic (e.g., كيفك، بدي، هيك، شو)
+• If they write in Maghrebi Arabic (مغربي) → respond in Maghrebi Arabic
+• If they write in Modern Standard Arabic (فصحى) → respond in فصحى
+• If they write in any other language → respond in that same language
+• Detect dialect from the USER'S message, NOT from attached documents/images/files
+• Mirror their conversational style: formal if they're formal, casual if they're casual"""
+
     lang_map = {
-        'user': 'RESPOND IN THE USER\'S LANGUAGE AND DIALECT. Detect the language from the user\'s message, not from attached documents/images. Mirror their exact dialect, tone, and style.',
-        'en': 'Respond in English only',
-        'ar': 'Respond in Modern Standard Arabic (فصحى) only', 
-        'multi': 'Match the language and dialect the user writes in'
+        'user': f"""RESPOND IN THE USER'S LANGUAGE AND DIALECT.
+{dialect_directive}""",
+
+        'en': 'Respond in English only. Match the user\'s tone: formal if they\'re formal, casual if they\'re casual.',
+
+        'ar': f"""RESPOND IN ARABIC - matching the user's exact Arabic dialect.
+{dialect_directive}
+NOTE: Do NOT default to فصحى unless the user writes in فصحى.""",
+
+        'multi': f"""Match the language and dialect the user writes in.
+{dialect_directive}"""
     }
     return lang_map.get(language_setting, lang_map['user'])
 
