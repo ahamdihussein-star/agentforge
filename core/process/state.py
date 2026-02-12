@@ -385,7 +385,16 @@ class ProcessState:
         Uses {{variable}} syntax.
         """
         result = self.evaluate(template)
-        return str(result) if result is not None else ""
+        if result is None:
+            return ""
+        # If the result is a dict or list, serialize to JSON string
+        # (avoids Python repr like "{'key': 'val'}" or JS "[object Object]")
+        if isinstance(result, (dict, list)):
+            try:
+                return json.dumps(result, ensure_ascii=False, default=str)
+            except Exception:
+                return str(result)
+        return str(result)
     
     def interpolate_object(self, obj: Any) -> Any:
         """

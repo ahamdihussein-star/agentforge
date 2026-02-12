@@ -4324,8 +4324,8 @@
 
             const centerX = (typeof opts.centerX === 'number') ? opts.centerX : 420;
             const topY = (typeof opts.topY === 'number') ? opts.topY : 120;
-            const vGap = (typeof opts.vGap === 'number') ? opts.vGap : 160;
-            const hGap = (typeof opts.hGap === 'number') ? opts.hGap : 260;
+            const vGap = (typeof opts.vGap === 'number') ? opts.vGap : 200;
+            const hGap = (typeof opts.hGap === 'number') ? opts.hGap : 300;
 
             const newNodes = nodes.map(n => ({ ...n }));
             const newById = new Map(newNodes.map(n => [String(n.id), n]));

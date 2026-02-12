@@ -437,6 +437,33 @@
             }).join('');
             el.innerHTML = `<div class="space-y-3">${cards}</div>`;
 
+            // Enrich the "What happened" step cards with brief output summaries
+            try {
+                steps.forEach((s, idx) => {
+                    const stepCard = document.querySelector(`[data-report-step-idx="${idx}"] .report-step-output`);
+                    if (!stepCard) return;
+                    const outputs = (s && s.output) ? s.output : {};
+                    if (!outputs || typeof outputs !== 'object' || !Object.keys(outputs).length) return;
+                    // Build a concise summary (max 5 key-value pairs, skip internal keys)
+                    const skipKeys = new Set(['sent', 'channel', 'recipients_count', 'result', 'error', 'logs', '_internal']);
+                    const entries = Object.entries(outputs).filter(([k]) => !skipKeys.has(k));
+                    if (!entries.length) return;
+                    const summaryRows = entries.slice(0, 5).map(([k, v]) => {
+                        const label = humanizeFieldLabel ? humanizeFieldLabel(k) : k;
+                        let val = v;
+                        if (val && typeof val === 'object') {
+                            try { val = JSON.stringify(val); } catch (_) { val = String(val); }
+                        }
+                        val = String(val || '');
+                        if (val.length > 120) val = val.slice(0, 120) + '…';
+                        return `<div class="flex gap-2"><span class="text-gray-500 flex-shrink-0">${escHtml(label)}:</span><span class="text-gray-300 truncate">${escHtml(val)}</span></div>`;
+                    }).join('');
+                    const moreText = entries.length > 5 ? `<div class="text-gray-500 text-xs mt-1">+${entries.length - 5} more fields</div>` : '';
+                    stepCard.innerHTML = `<div class="text-xs space-y-1 pl-9 border-t border-gray-700/50 pt-2 mt-1">${summaryRows}${moreText}</div>`;
+                    stepCard.classList.remove('hidden');
+                });
+            } catch (_) {}
+
             // Wire up authenticated downloads for uploaded file buttons
             try {
                 el.querySelectorAll('button[data-upload-file-id]').forEach(btn => {
@@ -498,16 +525,18 @@
                     failed: 'border-red-500/30 bg-red-500/5',
                     skipped: 'border-gray-600 bg-gray-800/30'
                 }[s.status] || 'border-gray-600 bg-gray-800/30';
+                const typeBadge = s.typeLabel || humanizeNodeType(s.type) || '';
                 return `
-                    <div class="p-3 rounded-xl border ${cls}">
+                    <div class="p-3 rounded-xl border ${cls}" data-report-step-idx="${idx}">
                         <div class="flex items-center gap-3">
                             <div class="text-lg">${icon}</div>
                             <div class="flex-1 min-w-0">
                                 <div class="font-semibold text-gray-100 truncate">${escHtml(s.name || 'Step')}</div>
-                                <div class="text-xs text-gray-500">${escHtml(s.typeLabel || humanizeNodeType(s.type))}</div>
+                                <div class="text-xs text-gray-500 uppercase">${escHtml(typeBadge)}</div>
                             </div>
                             <div class="text-xs text-gray-500">#${idx + 1}</div>
                         </div>
+                        <div class="report-step-output mt-2 hidden"></div>
                     </div>
                 `;
             }).join('') || `<div class="text-sm text-gray-500">No steps yet.</div>`;
