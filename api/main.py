@@ -3331,33 +3331,24 @@ async def update_agent_memory(agent: AgentData, conversation: 'Conversation') ->
 def get_language_instruction(language_setting: str = 'user') -> str:
     """Get language/dialect matching instruction for system prompt.
     
-    Supports dynamic dialect matching - the agent mirrors the user's exact
-    dialect and tone rather than defaulting to formal language.
+    Fully dynamic — no hardcoded dialects or languages. The LLM detects
+    and mirrors whatever language/dialect the user writes in.
     """
     
-    # Shared dialect-matching directive (reused across modes)
-    dialect_directive = """You MUST match the user's EXACT dialect and tone:
-• If they write in Egyptian Arabic (مصري) → respond in Egyptian Arabic (e.g., إزيك، عايز، كده، ازاي)
-• If they write in Gulf/Saudi Arabic (خليجي) → respond in Gulf Arabic (e.g., كيفك، أبي، وش، حلو)
-• If they write in Levantine Arabic (شامي) → respond in Levantine Arabic (e.g., كيفك، بدي، هيك، شو)
-• If they write in Maghrebi Arabic (مغربي) → respond in Maghrebi Arabic
-• If they write in Modern Standard Arabic (فصحى) → respond in فصحى
-• If they write in any other language → respond in that same language
-• Detect dialect from the USER'S message, NOT from attached documents/images/files
-• Mirror their conversational style: formal if they're formal, casual if they're casual"""
+    # Universal dialect-mirroring directive — no specific dialects listed
+    mirror_directive = (
+        "Detect the language AND dialect from the user's message (not from attached documents/images/files). "
+        "Respond in the SAME language and SAME dialect. "
+        "Mirror their vocabulary, expressions, and conversational style exactly. "
+        "If they are formal, be formal. If they are casual, be casual. "
+        "Never switch to a formal or standard variant unless the user writes in one."
+    )
 
     lang_map = {
-        'user': f"""RESPOND IN THE USER'S LANGUAGE AND DIALECT.
-{dialect_directive}""",
-
-        'en': 'Respond in English only. Match the user\'s tone: formal if they\'re formal, casual if they\'re casual.',
-
-        'ar': f"""RESPOND IN ARABIC - matching the user's exact Arabic dialect.
-{dialect_directive}
-NOTE: Do NOT default to فصحى unless the user writes in فصحى.""",
-
-        'multi': f"""Match the language and dialect the user writes in.
-{dialect_directive}"""
+        'user': f"RESPOND IN THE USER'S LANGUAGE AND DIALECT. {mirror_directive}",
+        'en': "Respond in English only. Mirror the user's tone and formality level.",
+        'ar': f"RESPOND IN ARABIC — matching the user's exact dialect. {mirror_directive}",
+        'multi': f"Match the language and dialect the user writes in. {mirror_directive}"
     }
     return lang_map.get(language_setting, lang_map['user'])
 
