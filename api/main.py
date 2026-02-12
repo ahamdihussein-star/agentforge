@@ -3444,17 +3444,35 @@ async def process_test_agent_chat(agent: AgentData, message: str, conversation: 
                 inst_text = inst.text if hasattr(inst, 'text') else str(inst)
                 system_prompt += f"\n{i}. {inst_text}"
 
+    # Build tool definitions for action tools
+    action_tools = [t for t in agent_tools if t.type in ['email', 'api', 'webhook', 'slack', 'websearch', 'database']]
+    tool_definitions = build_tool_definitions(action_tools) if action_tools else []
+    
+    # Add available tools to system prompt (BEFORE guardrails so LLM sees tools first)
+    if action_tools:
+        system_prompt += "\n\n=== AVAILABLE TOOLS (USE THEM!) ==="
+        system_prompt += "\nYou MUST use these tools to get real data. NEVER say you don't have data without trying the tools first:\n"
+        for t in action_tools:
+            system_prompt += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
+        system_prompt += "\n**CRITICAL:** When a user asks for information that a tool can provide, you MUST call the tool. Do NOT answer from memory or say the information is unavailable.\n"
+
     # Add guardrails
     system_prompt += "\n\n=== GUARDRAILS (MUST FOLLOW) ==="
     
     if g.anti_hallucination:
         system_prompt += "\n\n**ACCURACY:**"
+        if action_tools:
+            system_prompt += "\n• FIRST use your available tools to get real data before responding"
+            system_prompt += "\n• Only say you don't have information if you have already tried using the relevant tool and it returned no results"
         if g.cite_sources:
             system_prompt += "\n• Cite sources using [Source X] format when using knowledge base"
         if g.admit_uncertainty:
-            system_prompt += "\n• If information is not in knowledge base and you cannot deduce it, say so"
+            if action_tools:
+                system_prompt += "\n• If tools return no data AND information is not in knowledge base, then say so"
+            else:
+                system_prompt += "\n• If information is not in knowledge base and you cannot deduce it, say so"
         if g.verify_facts:
-            system_prompt += "\n• Use facts from the knowledge base - don't make up company-specific data"
+            system_prompt += "\n• Use facts from tools and knowledge base - don't make up company-specific data"
         if g.no_speculation:
             system_prompt += "\n• Don't speculate about company policies or data you don't have"
     
@@ -3487,17 +3505,6 @@ async def process_test_agent_chat(agent: AgentData, message: str, conversation: 
     system_prompt += apis_context
     system_prompt += files_context
     
-    # Build tool definitions for action tools
-    action_tools = [t for t in agent_tools if t.type in ['email', 'api', 'webhook', 'slack', 'websearch', 'database']]
-    tool_definitions = build_tool_definitions(action_tools) if action_tools else []
-    
-    # Add available tools to system prompt
-    if action_tools:
-        system_prompt += "\n\n=== AVAILABLE TOOLS ===\nYou have access to the following tools. Use them when appropriate:\n"
-        for t in action_tools:
-            system_prompt += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
-        system_prompt += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
-    
     # Reminder to follow task instructions
     system_prompt += """
 
@@ -3505,7 +3512,7 @@ async def process_test_agent_chat(agent: AgentData, message: str, conversation: 
 • Follow the task instructions above carefully
 • Be smart: calculate dates, times, durations when user provides relative terms (tomorrow, next week, etc.)
 • Only ask for information that is truly missing - don't re-ask what user already provided
-• Use the knowledge base for facts, but apply common sense for calculations"""
+• Use markdown for formatting when helpful"""
 
     # 7. Build conversation
     llm_messages = [{"role": "system", "content": system_prompt}]
@@ -3848,13 +3855,13 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     
     # Add available tools to system prompt
     tools_description = ""
-    tools_description = "\n\n=== AVAILABLE TOOLS ===\n"
+    tools_description = "\n\n=== AVAILABLE TOOLS (USE THEM!) ===\n"
     tools_description += "**🔐 check_user_permissions** (SECURITY): ALWAYS call this FIRST before executing any task. Returns the current user's identity and what they can access.\n"
     if action_tools:
-        tools_description += "\nOther available tools:\n"
+        tools_description += "\nYou MUST use these tools to get real data. NEVER say you don't have data without trying the tools first:\n"
         for t in action_tools:
             tools_description += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
-    tools_description += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
+    tools_description += "\n**CRITICAL:** When a user asks for information that a tool can provide, you MUST call the tool. Do NOT answer from memory or say the information is unavailable.\n"
     
     # ========================================================================
     # ACCESS CONTROL: Filter tasks based on permissions (Level 2)
@@ -3905,10 +3912,10 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
             # Rebuild tools description
             tools_description = ""
             if action_tools:
-                tools_description = "\n\n=== AVAILABLE TOOLS ===\nYou have access to the following tools. Use them when appropriate:\n"
+                tools_description = "\n\n=== AVAILABLE TOOLS (USE THEM!) ===\nYou MUST use these tools to get real data. NEVER say you don't have data without trying the tools first:\n"
                 for t in action_tools:
                     tools_description += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
-                tools_description += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
+                tools_description += "\n**CRITICAL:** When a user asks for information that a tool can provide, you MUST call the tool. Do NOT answer from memory or say the information is unavailable.\n"
     else:
         print(f"🔐 [PROCESS_CHAT] No denied tasks - access_control={access_control is not None}, has denied_tasks={hasattr(access_control, 'denied_tasks') if access_control else False}")
     
@@ -4084,15 +4091,21 @@ You have access to a special security tool called 'check_user_permissions'.
     # Add guardrails to system prompt
     system_prompt += "\n\n=== GUARDRAILS (MUST FOLLOW) ==="
     
-    # Anti-hallucination guardrails
+    # Anti-hallucination guardrails (tool-aware)
     if g.anti_hallucination:
         system_prompt += "\n\n**ACCURACY:**"
+        if action_tools:
+            system_prompt += "\n• FIRST use your available tools to get real data before responding"
+            system_prompt += "\n• Only say you don't have information if you have already tried using the relevant tool and it returned no results"
         if g.cite_sources:
             system_prompt += "\n• Cite sources using [Source X] format when using knowledge base"
         if g.admit_uncertainty:
-            system_prompt += "\n• If information is not in knowledge base and you cannot deduce it, say so"
+            if action_tools:
+                system_prompt += "\n• If tools return no data AND information is not in knowledge base, then say so"
+            else:
+                system_prompt += "\n• If information is not in knowledge base and you cannot deduce it, say so"
         if g.verify_facts:
-            system_prompt += "\n• Use facts from the knowledge base - don't make up company-specific data"
+            system_prompt += "\n• Use facts from tools and knowledge base - don't make up company-specific data"
         if g.no_speculation:
             system_prompt += "\n• Don't speculate about company policies or data you don't have"
     
@@ -12179,58 +12192,57 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
 {get_language_instruction(g.language)}
 
 """
-            # Add instruction enforcement section
-            if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
-                # Get enforcement phrases
-                phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
-                
-                system_prompt += f"""
-=== ⚠️ INSTRUCTION ENFORCEMENT ===
-{phrases['critical']}
-{phrases['mandatory']}
-{phrases['no_skip']}
-
-"""
-            
             system_prompt += "=== TASKS ==="
             
             # Build tasks with enforced instructions
             for task in accessible_tasks:
                 system_prompt += f"\n\n### TASK: {task.name}\n{task.description}"
                 if task.instructions:
-                    if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
-                        # Use enforcer formatting
-                        system_prompt += InstructionEnforcer.format_instructions_for_prompt(
-                            [inst.text for inst in task.instructions],
-                            task.name,
-                            enforce_lang
-                        )
-                    else:
-                        # Fallback formatting with emphasis
-                        system_prompt += "\n**⚠️ MANDATORY STEPS (Execute ALL in order):**"
-                        for i, inst in enumerate(task.instructions, 1):
-                            system_prompt += f"\n  [{i}] ✓ {inst.text}"
-            
-            # Add verification reminder
-            if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
-                phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
-                system_prompt += f"""
-
-=== BEFORE YOU RESPOND ===
-{phrases['verify']}
-{phrases['confirm']}
-"""
-            
-            system_prompt += context
+                    system_prompt += "\n**Steps:**"
+                    for i, inst in enumerate(task.instructions, 1):
+                        inst_text = inst.text if hasattr(inst, 'text') else str(inst)
+                        system_prompt += f"\n  {i}. {inst_text}"
             
             # ========================================================================
-            # ADD TOOL DESCRIPTIONS TO SYSTEM PROMPT (critical for LLM tool usage)
+            # ADD TOOL DESCRIPTIONS (BEFORE guardrails so LLM sees tools first)
             # ========================================================================
             if action_tools:
-                system_prompt += "\n\n=== AVAILABLE TOOLS ===\nYou have access to the following tools. Use them when appropriate:\n"
+                system_prompt += "\n\n=== AVAILABLE TOOLS (USE THEM!) ==="
+                system_prompt += "\nYou MUST use these tools to get real data. NEVER say you don't have data without trying the tools first:\n"
                 for t in action_tools:
                     system_prompt += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
-                system_prompt += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
+                system_prompt += "\n**CRITICAL:** When a user asks for information that a tool can provide, you MUST call the tool. Do NOT answer from memory or say the information is unavailable.\n"
+            
+            # ========================================================================
+            # GUARDRAILS
+            # ========================================================================
+            system_prompt += "\n\n=== GUARDRAILS ==="
+            
+            if g.anti_hallucination:
+                system_prompt += "\n**ACCURACY:**"
+                if action_tools:
+                    system_prompt += "\n• FIRST use your available tools to get real data before responding"
+                    system_prompt += "\n• Only say you don't have information if you have already tried using the relevant tool and it returned no results"
+                if g.cite_sources:
+                    system_prompt += "\n• Cite sources using [Source X] format when using knowledge base"
+                if g.verify_facts:
+                    system_prompt += "\n• Use facts from tools and knowledge base - don't make up data"
+                if g.no_speculation:
+                    system_prompt += "\n• Don't speculate about data you haven't retrieved"
+            
+            if g.avoid_topics:
+                system_prompt += f"\n**AVOID:** {', '.join(g.avoid_topics)}"
+            if g.focus_topics:
+                system_prompt += f"\n**FOCUS ON:** {', '.join(g.focus_topics)}"
+            
+            if g.pii_protection:
+                system_prompt += "\n**PRIVACY:** Don't ask for or repeat sensitive personal info"
+            
+            # Response length
+            length_map = {'short': '1-2 paragraphs MAX', 'medium': '2-3 paragraphs', 'long': 'Detailed as needed', 'unlimited': 'Thorough coverage'}
+            system_prompt += f"\n**RESPONSE LENGTH:** {length_map.get(g.max_length, '2-3 paragraphs')}"
+            
+            system_prompt += context
             
             # ========================================================================
             # GENERATE THINKING FIRST (quick LLM call)
