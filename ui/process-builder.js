@@ -4667,7 +4667,8 @@
                     const readOnly = !!f.readOnly || !!derived || !!prefill;
                     const required = !!f.required && !readOnly;
                     const placeholder = String(f.placeholder || (label ? `Enter ${label}...` : '')).trim();
-                    return { name: key, label, type, required, placeholder, options, derived, prefill, readOnly };
+                    const multiple = !!f.multiple;
+                    return { name: key, label, type, required, placeholder, options, derived, prefill, readOnly, multiple };
                 })
                 .filter(Boolean);
         }
@@ -5306,8 +5307,12 @@
                 const outPreview = (out && typeof out === 'object' && ('variables_update' in out || 'output' in out))
                     ? _renderEngineValue(out.variables_update && Object.keys(out.variables_update || {}).length ? out.variables_update : out.output)
                     : _renderEngineValue(out);
+                const errorMsg = s.error ? String(s.error) : '';
+                const errorHtml = errorMsg
+                    ? `<div style="margin-top:6px;padding:8px 12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:12px;color:#fca5a5;line-height:1.4;">⚠️ ${escapeHtml(errorMsg)}</div>`
+                    : '';
                 return `
-                    <details style="padding:12px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:14px;margin-bottom:10px;">
+                    <details style="padding:12px;background:var(--bg-input);border:1px solid ${stKey === 'failed' ? 'rgba(239,68,68,0.3)' : 'color-mix(in srgb, var(--pb-muted) 22%, transparent)'};border-radius:14px;margin-bottom:10px;" ${stKey === 'failed' ? 'open' : ''}>
                         <summary style="cursor:pointer;user-select:none;display:flex;gap:12px;align-items:flex-start;">
                             <div style="width:30px;height:30px;border-radius:10px;background:color-mix(in srgb, var(--tb-btn-primary-bg) 18%, transparent);display:flex;align-items:center;justify-content:center;color:var(--tb-btn-primary-text);font-weight:900;">
                                 ${icon}
@@ -5318,6 +5323,7 @@
                                     <div style="font-size:12px;color:var(--pb-muted);">${escapeHtml(s.step_type || '')}</div>
                                 </div>
                                 <div style="margin-top:6px;font-size:13px;color:color-mix(in srgb, var(--pb-text) 86%, var(--pb-muted));line-height:1.35;">${outPreview}</div>
+                                ${errorHtml}
                             </div>
                         </summary>
                         <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">

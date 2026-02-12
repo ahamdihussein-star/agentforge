@@ -649,8 +649,19 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                         logs=logs
                     )
                 # Interpolate path for extraction
+                logs.append(f"Path template: {path_template}")
                 path = state.interpolate_string(path_template)
-                logs.append(f"Path: {path}")
+                logs.append(f"Resolved path: {path}")
+                if not path or path == path_template or path.startswith('{{'):
+                    # Path didn't resolve — likely the source variable is missing
+                    return NodeResult.failure(
+                        error=ExecutionError.validation_error(
+                            f"Could not resolve file path from '{path_template}'. "
+                            f"Make sure the file upload field name matches the source field configuration. "
+                            f"Resolved to: '{path}'"
+                        ),
+                        logs=logs
+                    )
                 result = await self._execute_extract_text_local(
                     path=path,
                     encoding=encoding,
@@ -852,6 +863,16 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
             text = text or ""
             preview = text[:800]
             logs.append(f"Extracted {len(text)} characters")
+            # If extraction yielded no text, treat as failure so downstream steps
+            # (AI parsing, conditions) don't silently operate on empty data.
+            if not text.strip():
+                logs.append("Extraction produced empty text — marking as failure")
+                return {
+                    "success": False,
+                    "error": f"Could not extract any text from the file ({ext or 'unknown'} format). The file may be empty, corrupted, or unreadable. Please upload a clear, readable document or image.",
+                    "data": "",
+                    "meta": {"path": abs_path, "file_type": ext, "chars": 0}
+                }
             return {
                 "success": True,
                 "data": text,

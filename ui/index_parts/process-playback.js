@@ -1188,7 +1188,8 @@
                                     description: f.description,
                                     derived,
                                     prefill,
-                                    readOnly
+                                    readOnly,
+                                    multiple: !!f.multiple
                                 };
                                 startFieldMap[id] = out;
                                 return out;
