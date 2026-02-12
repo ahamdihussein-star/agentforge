@@ -275,7 +275,9 @@ Node config rules:
   - type (text | textarea | number | date | email | select | file)
   - required (true/false)
   - placeholder (business-friendly hint)
-  - For file fields: accepts ANY document or image type (PDF, Word, Excel, PNG, JPG, receipts, invoices, photos, etc.). The platform handles all file types dynamically. Add "multiple": true if the user should upload more than one file.
+  - For file fields: accepts ANY document or image type (PDF, Word, Excel, PNG, JPG, receipts, invoices, photos, etc.). The platform handles all file types dynamically.
+    IMPORTANT: If the business context implies the user may upload MORE THAN ONE file (e.g., expense receipts, supporting documents, multiple invoices, attachments), you MUST add "multiple": true. When in doubt, default to "multiple": true — it is better UX to allow multiple uploads than to force the user to submit only one.
+- FIELD TYPE SELECTION RULE: If a field has a finite, predictable set of values (categories, types, priorities, statuses, payment methods, currencies, etc.), it MUST be type "select" with a populated options array — NEVER type "text". A text field should only be used for truly free-form input (names, descriptions, comments, notes). Think carefully: would a business user benefit from picking from a list? If yes → use "select".
 - For select fields, include: options (array of strings).
   The LLM MUST populate the options list using its own knowledge when the user does not provide specific values. For example, if a workflow needs a category, priority, or type dropdown, the LLM should generate a sensible, comprehensive list of options based on its understanding of the domain and industry. Do NOT leave the options array empty — always provide meaningful choices.
   Only use organization-specific data (department names, employee lists, product catalogs) from tools or the Knowledge Base, NOT from the LLM's general knowledge.
