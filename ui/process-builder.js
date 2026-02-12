@@ -5608,6 +5608,43 @@
             return t;
         }
 
+        /**
+         * Populate tplValues with a mock/placeholder object for an AI or extraction node's output_variable.
+         * Scans all nodes to discover what nested fields are referenced (e.g. parsedData.totalAmount in conditions/notifications)
+         * and builds a placeholder object like { totalAmount: "(simulated)", currency: "(simulated)" }.
+         * This ensures downstream notification templates show meaningful placeholders instead of empty strings.
+         */
+        function _populateSimulatedOutputVariable(outVar, tplValues, allNodes) {
+            if (!outVar || tplValues[outVar] != null) return; // already populated (e.g. from a previous run)
+            const nestedFields = new Set();
+            const varPrefix = outVar + '.';
+            const tplRegex = /\{\{\s*([^}]+)\s*\}\}/g;
+            (allNodes || []).forEach(n => {
+                // Check condition fields
+                const cfg = n.config || {};
+                const condField = String(cfg.field || '').trim();
+                if (condField.startsWith(varPrefix)) nestedFields.add(condField.slice(varPrefix.length));
+                // Check notification message/template for {{outVar.xxx}} references
+                const msgSources = [cfg.message, cfg.template, cfg.title].filter(Boolean);
+                msgSources.forEach(src => {
+                    let m;
+                    while ((m = tplRegex.exec(String(src))) !== null) {
+                        const k = String(m[1]).trim();
+                        if (k.startsWith(varPrefix)) nestedFields.add(k.slice(varPrefix.length));
+                    }
+                });
+            });
+            if (nestedFields.size > 0) {
+                // Build a mock object with placeholder values for each referenced field
+                const mock = {};
+                nestedFields.forEach(f => { mock[f] = '(simulated)'; });
+                tplValues[outVar] = mock;
+            } else {
+                // No dotted references found — set as a simple placeholder string
+                tplValues[outVar] = '(simulated)';
+            }
+        }
+
         function _splitRecipientList(value) {
             if (Array.isArray(value)) {
                 return value.map(v => String(v || '').trim()).filter(Boolean);
@@ -6146,6 +6183,8 @@
                         msg = `AI step will generate an output based on your inputs.`;
                         if (outVar) msg += ` Output stored in {{${outVar}}}.`;
                         msg += ` ⚠️ Simulation cannot run AI — use "Run using real engine" for real results.`;
+                        // Populate tplValues with placeholder so downstream notifications can interpolate
+                        if (outVar) _populateSimulatedOutputVariable(outVar, tplValues, state.nodes);
                     } else if (current.type === 'action') {
                         const at = (cfg.actionType || '').toLowerCase();
                         if (at.includes('extract')) {
@@ -6153,6 +6192,8 @@
                             msg = `Document extraction step (simulated).`;
                             if (outVar) msg += ` Output stored in {{${outVar}}}.`;
                             msg += ` ⚠️ Simulation cannot extract real data — use "Run using real engine" for real results.`;
+                            // Populate tplValues with placeholder so downstream notifications can interpolate
+                            if (outVar) _populateSimulatedOutputVariable(outVar, tplValues, state.nodes);
                         } else {
                             msg = `Action step executed (simulated).`;
                         }
