@@ -950,10 +950,25 @@ class UserDirectoryService:
         from database.models.role import Role
         
         with get_session() as session:
-            user = session.query(User).filter(
-                User.id == user_id,
-                User.org_id == org_id
-            ).first()
+            user = None
+            try:
+                user = session.query(User).filter(
+                    User.id == user_id,
+                    User.org_id == org_id
+                ).first()
+            except Exception:
+                # Fallback: use raw SQL with explicit cast for type safety
+                try:
+                    session.rollback()
+                    from sqlalchemy import text as _text
+                    row = session.execute(
+                        _text("SELECT id FROM users WHERE id::text = :uid AND org_id::text = :oid LIMIT 1"),
+                        {"uid": str(user_id), "oid": str(org_id)}
+                    ).first()
+                    if row:
+                        user = session.query(User).get(row.id)
+                except Exception as e2:
+                    logger.warning("_get_user_internal fallback failed: %s", e2)
             
             if not user:
                 return None
@@ -981,14 +996,20 @@ class UserDirectoryService:
                     dept_name = dept.name
             
             # Resolve manager info
+            # Use raw SQL with explicit cast to avoid VARCHAR/UUID type mismatch
             manager_email = None
             manager_name = None
             if user.manager_id:
                 try:
-                    mgr = session.query(User).filter(User.id == user.manager_id).first()
-                    if mgr:
-                        manager_email = mgr.email
-                        manager_name = mgr.display_name or f"{mgr.first_name or ''} {mgr.last_name or ''}".strip()
+                    from sqlalchemy import text as _text
+                    mgr_row = session.execute(
+                        _text("SELECT id, email, display_name, first_name, last_name FROM users WHERE id::text = :mid AND org_id = :oid LIMIT 1"),
+                        {"mid": str(user.manager_id), "oid": str(org_id)}
+                    ).first()
+                    if mgr_row:
+                        manager_email = mgr_row.email
+                        manager_name = mgr_row.display_name or f"{mgr_row.first_name or ''} {mgr_row.last_name or ''}".strip()
+                        logger.info("Resolved manager for user %s: email=%s, name=%s", str(user.id)[:8], manager_email, manager_name)
                 except Exception as e:
                     logger.warning("Failed to resolve manager by id %s: %s", str(user.manager_id)[:8], e)
                     try:
