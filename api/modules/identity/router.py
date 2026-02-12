@@ -507,9 +507,11 @@ async def update_profile_fields_schema(body: UpdateProfileFieldsSchemaRequest, u
                 settings_raw = json.loads(settings_raw) if settings_raw.strip() else {}
             except Exception:
                 settings_raw = {}
-        settings = settings_raw if isinstance(settings_raw, dict) else {}
-        settings["profile_fields_schema"] = cleaned
-        org.settings = settings
+        old_settings = settings_raw if isinstance(settings_raw, dict) else {}
+        # CRITICAL: create a NEW dict so SQLAlchemy detects the JSONB mutation.
+        # Assigning the same dict object back does NOT trigger change detection.
+        new_settings = {**old_settings, "profile_fields_schema": cleaned}
+        org.settings = new_settings
         org.updated_at = datetime.utcnow()
         session.commit()
 
