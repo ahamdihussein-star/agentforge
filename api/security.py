@@ -1733,12 +1733,39 @@ async def list_users(
     end = start + limit
     users = users[start:end]
     
+    def _safe_custom_attributes(u: User) -> Dict[str, Any]:
+        """
+        Return user-defined custom profile fields for admin UI.
+
+        Storage sources:
+        - user.profile.custom_attributes (set by UpdateUserRequest.user_metadata)
+        - DB user_metadata may also be flattened into profile/custom_attributes by loaders
+        """
+        out: Dict[str, Any] = {}
+        try:
+            if hasattr(u, "profile") and u.profile and hasattr(u.profile, "custom_attributes"):
+                ca = getattr(u.profile, "custom_attributes", None)
+                if isinstance(ca, dict):
+                    for k, v in ca.items():
+                        if not isinstance(k, str):
+                            continue
+                        # Never leak internal/MFA keys into editable custom fields UI
+                        if k.startswith("mfa_") or k.startswith("_"):
+                            continue
+                        out[k] = v
+        except Exception:
+            # Never fail listing users because of custom field edge cases
+            return {}
+        return out
+
     return {
         "users": [{
             "id": u.id,
             "email": u.email,
             "name": u.get_display_name(),
             "profile": u.profile.dict(),
+            # Admin edit modal relies on this for showing previously saved custom fields
+            "custom_attributes": _safe_custom_attributes(u),
             "status": u.status.value,
             "role_ids": u.role_ids,
             "roles": [security_state.roles[r].name for r in u.role_ids if r in security_state.roles],
@@ -1768,11 +1795,23 @@ async def get_user(user_id: str, user: User = Depends(require_auth)):
     if not target_user or target_user.org_id != user.org_id:
         raise HTTPException(status_code=404, detail="User not found")
     
+    custom_attributes: Dict[str, Any] = {}
+    try:
+        if hasattr(target_user, "profile") and target_user.profile and hasattr(target_user.profile, "custom_attributes"):
+            ca = getattr(target_user.profile, "custom_attributes", None)
+            if isinstance(ca, dict):
+                for k, v in ca.items():
+                    if isinstance(k, str) and not k.startswith("mfa_") and not k.startswith("_"):
+                        custom_attributes[k] = v
+    except Exception:
+        custom_attributes = {}
+
     return {
         "id": target_user.id,
         "email": target_user.email,
         "name": target_user.get_display_name(),
         "profile": target_user.profile.dict(),
+        "custom_attributes": custom_attributes,
         "status": target_user.status.value,
         "role_ids": target_user.role_ids,
         "roles": [security_state.roles[r].dict() for r in target_user.role_ids if r in security_state.roles],
