@@ -1,5 +1,5 @@
 # AgentForge Project Status
-> Last Updated: February 10, 2026
+> Last Updated: February 11, 2026
 
 ## 🎯 Current State: Production-Ready Enterprise AI Platform
 
@@ -26,7 +26,7 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
   - `OrganizationService`, `DepartmentService`
   - `AuditService`, `SecuritySettingsService`
 
-### 2. Admin Portal (`/ui/index.html` - ~32,000 lines)
+### 2. Admin Portal (`/ui/index.html` shell + split assets)
 
 #### Authentication & Security
 - Login/Register with validation
@@ -204,10 +204,14 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 ### Frontend
 | File | Size | Purpose |
 |------|------|---------|
-| `ui/index.html` | ~32,000 lines | Admin portal (monolithic) |
-| `ui/chat.html` | ~2,000 lines | End User portal |
-| `ui/lab.html` | ~500 lines | Lab interface |
-| `ui/process-builder.html` | ~6,800 lines | Visual workflow builder + test/playback |
+| `ui/index.html` | ~7,100 lines | Admin portal HTML shell (loads split JS/CSS) |
+| `ui/index.css` | ~1,700 lines | Admin portal CSS (extracted from `index.html`) |
+| `ui/index_parts/*.js` | split | Admin portal JS split into feature chunks (preferred edit targets) |
+| `ui/chat.html` | ~735 lines | End User portal HTML shell |
+| `ui/chat.css` / `ui/chat.js` | split | End User portal assets (preferred edit targets) |
+| `ui/process-builder.html` | ~276 lines | Visual workflow builder HTML shell |
+| `ui/process-builder.css` / `ui/process-builder.js` | split | Visual builder assets (preferred edit targets) |
+| `ui/lab.html` | ~1,900 lines | Lab interface |
 
 ### Key Frontend Components in `index.html`:
 | Component | Description |

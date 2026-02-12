@@ -57,9 +57,15 @@ agentforge/
 │   ├── models/               # SQLAlchemy models (DB-first)
 │   └── services/             # CRUD services
 ├── ui/
-│   ├── index.html            # Admin portal (~32,000 lines)
-│   ├── process-builder.html  # Visual workflow builder (~6,800 lines)
-│   ├── chat.html             # End-user portal
+│   ├── index.html            # Admin portal HTML shell
+│   ├── index.css             # Admin portal CSS (extracted)
+│   ├── index_parts/          # Admin portal JS chunks (preferred edit targets)
+│   ├── process-builder.html  # Visual builder HTML shell
+│   ├── process-builder.css   # Visual builder CSS (extracted)
+│   ├── process-builder.js    # Visual builder JS (extracted)
+│   ├── chat.html             # End-user portal HTML shell
+│   ├── chat.css              # End-user portal CSS (extracted)
+│   ├── chat.js               # End-user portal JS (extracted)
 │   └── lab.html              # Demo Lab UI
 ├── docs/                     # Canonical docs + Process Builder KB files
 ├── data/                     # JSON backups/demo data (not primary storage)
@@ -130,7 +136,7 @@ docker run -p 8000:8000 agentforge
 ### Making Changes
 
 1. **Backend:** Edit `api/main.py`
-2. **Frontend:** Edit `ui/index.html`
+2. **Frontend (Admin):** Edit `ui/index_parts/*.js` (avoid re-inlining huge JS into `ui/index.html`)
 3. **Security:** Edit `core/security/` or `api/security.py`
 
 ### Before Pushing

@@ -2,7 +2,7 @@
 ## Enterprise AI Agent Builder Platform
 
 **Version:** 3.5  
-**Last Updated:** February 10, 2026  
+**Last Updated:** February 11, 2026  
 **GitHub:** https://github.com/ahamdihussein-star/agentforge  
 **Production:** https://agentforge2.up.railway.app  
 **Railway Project:** agentforge2  
@@ -27,6 +27,11 @@
 > - Database schema (models + migrations)
 > - Platform capabilities and known gaps
 > - File-by-file repository reference (what each file contains)
+>
+> **Documentation consolidation policy (current):**
+> - **Primary canonical doc**: this file (`docs/MASTER_DOCUMENTATION_UPDATED.md`)
+> - **Runtime KB docs** (`docs/PROCESS_BUILDER_KB_*.md`): used at runtime for grounded process generation (keep, but treat as data/KB, not narrative docs)
+> - If you see any other standalone docs that duplicate this file, treat them as legacy and link back here (do not invent new canonical docs).
 
 ---
 
@@ -103,9 +108,10 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 - ✅ Database-agnostic design (PostgreSQL, MySQL, SQLite, SQL Server, Oracle support)
 
 ## Critical Issues Requiring Immediate Attention
-- 🔴 **Monolithic Code** - ~16,000 lines in `api/main.py`, ~32,000 lines in `ui/index.html`
+- 🔴 **Monolithic Backend** - ~16,000 lines in `api/main.py` (still a large FastAPI monolith)
+- 🟡 **Frontend split is in progress** - Admin/End-user/Builder UIs were refactored into smaller HTML shells + extracted CSS/JS assets (see Repository File Reference)
 - ✅ **Database Migration** - **COMPLETED** - PostgreSQL fully operational, JSON backup only
-- 🔴 **No Containerization Strategy** - Difficult multi-cloud deployment
+- 🟡 **Kubernetes/IaC not present** - Docker containerization exists (`Dockerfile`, `docker-compose.yml`), but Kubernetes manifests / Helm / Terraform are **not present in repository**
 - 🟡 **Multi-tenancy** - Database schema supports it, UI needs work
 - 🔴 **No CI/CD Pipeline** - Manual deployments
 - 🔴 **Access control gaps (must be verified and fixed)** - some endpoints may bypass authorization checks (see Security Module + Gap Analysis)
@@ -229,10 +235,10 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐ │
-│  │  ui/index.html (Admin Portal) + ui/process-builder.html      │ │
-│  │        (~32,000 lines)           (~6,800 lines)              │ │
-│  │  Login │ Hub │ Studio │ Tools │ KB │ Demo │ Settings │ Process│ │
-│  │  OAuth │ MFA │ Profile │ Security Center │ Builder │ Test Run │ │
+│  │  FRONTEND (Vanilla JS, split assets)                         │ │
+│  │  - ui/index.html + ui/index.css + ui/index_parts/*.js         │ │
+│  │  - ui/chat.html + ui/chat.css + ui/chat.js                    │ │
+│  │  - ui/process-builder.html + ui/process-builder.css/.js       │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                    │
 │                              ▼                                    │
@@ -283,7 +289,7 @@ Current State:
 ✅ Database-first architecture (PostgreSQL primary)
 ✅ JSON files as backup only (written after DB saves)
 ✅ Complete service layer for all entities
-✅ Database-agnostic design (supports multiple DB types)
+✅ Database-agnostic design (via SQLAlchemy; cross-DB support depends on dialect compatibility and is not validated for every DB in this repository)
 ✅ Comprehensive error handling and fallback
 ⚠️ Still monolithic (single file structure)
 ⚠️ Cannot scale horizontally (yet)
@@ -349,7 +355,7 @@ Benefits:
 
 | Component | Current | Target | Migration Effort |
 |-----------|---------|--------|------------------|
-| Frontend | Vanilla JS (Admin: ~32K lines; Builder: ~6.8K lines) | React/Vue + TypeScript | High |
+| Frontend | Vanilla JS (split HTML shells + extracted CSS/JS chunks) | React/Vue + TypeScript | High |
 | API | FastAPI monolith (`api/main.py` ~16K lines) + modular routers | Split services / clearer module boundaries | Medium |
 | Database | PostgreSQL (primary) + JSON backup | PostgreSQL + optional Redis cache/queue | Medium |
 | Vector DB | ProviderFactory-backed (optional; can fall back to keyword search) | ChromaDB/Pinecone/Qdrant (pluggable) | Low |
@@ -385,9 +391,15 @@ agentforge/                               # Monolith with modular subpackages
 │   ├── models/
 │   └── services/
 ├── ui/                                  # Vanilla JS admin + end-user portals
-│   ├── index.html                       # ❌ ~32,000 lines (admin portal)
-│   ├── process-builder.html             # ✅ ~6,800 lines (visual workflow builder + test playback)
-│   ├── chat.html                        # End-user portal
+│   ├── index.html                       # Admin portal HTML shell
+│   ├── index.css                        # Admin portal CSS (extracted)
+│   ├── index_parts/                     # Admin portal JS chunks (preferred edit targets)
+│   ├── chat.html                        # End-user portal HTML shell
+│   ├── chat.css                         # End-user portal CSS (extracted)
+│   ├── chat.js                          # End-user portal JS (extracted)
+│   ├── process-builder.html             # Visual builder HTML shell
+│   ├── process-builder.css              # Visual builder CSS (extracted)
+│   ├── process-builder.js               # Visual builder JS (extracted)
 │   └── lab.html                         # Demo Lab UI
 ├── alembic/                             # Alembic migrations
 ├── scripts/                             # Maintenance/migration scripts
@@ -397,6 +409,10 @@ agentforge/                               # Monolith with modular subpackages
 ```
 
 ## Target Structure
+
+> **Proposal only — Not present in repository.**
+>
+> The content below is a *future* target architecture sketch. The repository currently uses the **Current Structure** shown above.
 
 ```
 agentforge/
@@ -911,6 +927,43 @@ JSON Files (Backup Only)
    - All endpoints use database services directly
    - Comprehensive logging for all operations
    - Error handling with fallback to JSON
+
+4. **Security Services** (`core/security/services.py`)
+   - **PasswordService**: password hashing + verification + strength checks
+   - **MFAService**: TOTP generation/verification + QR generation (if deps installed)
+   - **TokenService**: access/refresh token creation + verification
+   - **EmailService**: email delivery for verification/reset/MFA (SendGrid; SMTP not present in repository)
+   - **LDAPService**: LDAP authentication/sync helpers (requires `ldap3` dependency)
+   - **OAuthService**: Google/Microsoft OAuth URL generation + callback exchange (requires `httpx`)
+
+## Security Architecture (Layers)
+
+Use this mental model when tracing access/security issues:
+
+1. **Layer 1 — Platform access** (Auth + RBAC + MFA + audit)
+   - Entry: `api/security.py`
+   - Enforcement: `core/security/engine.py` (PolicyEngine) + `database/services/*`
+
+2. **Layer 2 — Agent access control** (who can see/use which agent)
+   - “Agents are private by default”, owner always allowed
+   - Delegated admin + task permissions (match by **NAME**, not ID)
+   - Entry: `api/modules/access_control/` + admin UI in `ui/index_parts/`
+
+3. **Layer 3 — Process execution security** (execute/view/cancel/manage approvals)
+   - Entry: `api/modules/process/router.py`
+   - Permissions: `process:*` + agent ACL + approval routing rules
+
+4. **Layer 4 — Identity & directory enrichment** (manager/department chain, profile enrichment)
+   - Core service: `core/identity/service.py` (`UserDirectoryService`)
+   - API: `api/modules/identity/router.py` (mounted under `/api/identity/*`)
+   - Used by processes and approvals for dynamic assignees
+
+**Security-related configuration sources (evidence: `core/security/services.py`)**
+- `MFA_ISSUER`
+- `JWT_SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_HOURS`, `REFRESH_TOKEN_EXPIRE_DAYS`
+- `SENDGRID_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, `BASE_URL`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`
 
 ## Database Integration
 
@@ -1453,6 +1506,20 @@ Workflows can avoid asking the user to retype profile data:
   - `currentUser.id`, `currentUser.name`, `currentUser.email`, `currentUser.roles`, `currentUser.groups`, `currentUser.orgId`
   - Implementation: `core/process/nodes/flow.py::StartNodeExecutor`
 
+## Approvals + identity context (UI vs Portal vs Webhook)
+
+When a process run needs “manager approval” or similar:
+
+- **Manual run (Admin UI)**: the “current user” is derived from the bearer token/session; use:
+  - `assignee_source: "user_directory"` + `directory_assignee_type: "dynamic_manager"` (preferred), or
+  - a static role/group assignee (org policy dependent).
+
+- **Portal / external app**: your portal can call `POST /process/execute` and include identity hints in `trigger_input` (e.g., `employee_id`, `manager_id`) and the workflow can route using:
+  - `{{ trigger_input.manager_id }}` (expression-based), or still rely on `UserDirectoryService` if the org directory source is configured.
+
+- **Webhook trigger**: the platform exposes `POST /process/webhook/{agent_id}` (see `api/modules/process/router.py`).
+  - In webhook flows there is no “logged in” end-user; identity must come from payload fields and/or directory resolution.
+
 ## Documents (Upload + Generate)
 
 ### Upload (input)
@@ -1575,7 +1642,10 @@ This is a **qualitative summary**. For the itemized, source-of-truth status, see
 ## Current Issues
 
 1. **`api/main.py` (~16K lines)** - Violates Single Responsibility; mixes API, tool runtime, RAG, LLM routing, storage
-2. **`ui/index.html` (~32K lines)** - Unmaintainable; UI monolith makes safe iteration harder
+2. **Frontend size/structure** - Admin/End-user/Builder UIs are still **Vanilla JS**, but have been **split into smaller HTML shells + extracted CSS/JS chunks**:
+   - Admin: `ui/index.html` + `ui/index.css` + `ui/index_parts/*.js`
+   - End-user: `ui/chat.html` + `ui/chat.css` + `ui/chat.js`
+   - Builder: `ui/process-builder.html` + `ui/process-builder.css` + `ui/process-builder.js`
 3. **No TypeScript** - Type safety missing
 4. **No Tests** - Zero coverage
 5. **No Linting** - Inconsistent code style
@@ -1588,6 +1658,8 @@ This is a **qualitative summary**. For the itemized, source-of-truth status, see
 ## Overview
 
 The modernization will follow a **Strangler Fig Pattern** - gradually replacing the monolithic code with modular services while maintaining full functionality throughout the migration.
+
+> **Proposal note (repo-accurate):** Paths like `packages/` and `infrastructure/` referenced in this strategy are **not present in this repository** today. Treat them as a future plan, not as existing code you can navigate to.
 
 ## Migration Principles
 
@@ -2229,7 +2301,7 @@ Week 10: Migrate Agent Hub & Agent Card
 Week 11: Migrate Agent Studio wizard
 Week 12: Migrate remaining pages
 Week 13: Testing & bug fixes
-Week 14: Remove old index.html
+Week 14: Split remaining monolithic UI chunks (continue breaking large `ui/index_parts/*.js` files into feature-focused files)
 ```
 
 ---
@@ -2239,6 +2311,8 @@ Week 14: Remove old index.html
 ## Overview
 
 Migrate from JSON file storage to PostgreSQL with zero downtime using a dual-write strategy.
+
+> **Repo-accurate note:** Some code blocks in this section reference a hypothetical `packages/shared/...` layout as part of a future plan. Those paths are **not present in this repository**. For actual schema and migrations, use `database/models/` and `alembic/versions/`.
 
 ## Migration Strategy
 
@@ -2257,49 +2331,46 @@ Phase 5: Cleanup        → Remove JSON code (optional - can keep as backup)
 ### 1.1 Docker Compose Update
 
 ```yaml
-# infrastructure/docker/docker-compose.yml
-version: '3.8'
-
+# docker-compose.yml (repo root)
+# Repo-accurate note:
+# - This repository's compose file runs the app container only.
+# - PostgreSQL is expected via DATABASE_URL (managed DB or external container).
 services:
   agentforge:
     build: .
+    container_name: agentforge
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://agentforge:password@postgres:5432/agentforge
-      - REDIS_URL=redis://redis:6379
-      - FF_USE_DATABASE=true
-    depends_on:
-      - postgres
-      - redis
-
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: agentforge
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: agentforge
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./ui:/app/ui
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - APP_URL=${APP_URL:-http://localhost:8000}
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-
-volumes:
-  postgres_data:
-  redis_data:
+networks:
+  default:
+    name: agentforge-network
 ```
 
 ### 1.2 Database Schema
 
+> **Not present in repository (as written below).**
+>
+> The canonical schema in this repo lives in:
+> - `database/models/*.py` (SQLAlchemy models)
+> - `alembic/versions/*.py` (migrations)
+>
+> The code block below is kept as historical/conceptual context only and should not be treated as an actual file path in this repository.
+
 ```python
-# packages/shared/db/models.py
+# (Example only) Not present in repository: packages/shared/db/models.py
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, JSON, ForeignKey, Text, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -2418,8 +2489,12 @@ class AuditLog(Base):
 
 ### 1.3 Alembic Migrations
 
+> **Not present in repository (as written below).**
+>
+> In this repo, migrations live under `alembic/versions/*.py`.
+
 ```python
-# packages/shared/db/migrations/versions/001_initial.py
+# (Example only) Not present in repository: packages/shared/db/migrations/versions/001_initial.py
 """Initial migration
 
 Revision ID: 001
@@ -3968,17 +4043,23 @@ Use Cases:
 
 ## Supported Platforms
 
-| Platform | Support Level | Deployment Method |
-|----------|--------------|-------------------|
-| **AWS** | Full | EKS, ECS, EC2 |
-| **Azure** | Full | AKS, Container Apps |
-| **GCP** | Full | GKE, Cloud Run |
-| **Oracle Cloud** | Full | OKE, Compute |
-| **On-Premise** | Full | Docker, Kubernetes |
-| **Railway** | Basic | Container |
-| **DigitalOcean** | Basic | App Platform, K8s |
+> **Repo-accurate note:** This repository contains **Docker** deployment artifacts (`Dockerfile`, `docker-compose.yml`) but does **not** include Kubernetes manifests, Helm charts, or Terraform modules.
+>
+> Practically: AgentForge can run anywhere you can run a container + a PostgreSQL database, but the deployment templates for specific clouds are **not present in repository**.
+
+| Platform | Support Level (in this repo) | Deployment Notes |
+|----------|------------------------------|------------------|
+| **AWS** | Manual | Build/push container, deploy to EKS/ECS/EC2 (no IaC included) |
+| **Azure** | Manual | Build/push container, deploy to AKS/Container Apps (no IaC included) |
+| **GCP** | Manual | Build/push container, deploy to GKE/Cloud Run (no IaC included) |
+| **Oracle Cloud (OCI)** | Manual | Build/push container, deploy to OKE/Compute (no IaC included) |
+| **On-Premise** | Manual | Docker / Kubernetes (you provide manifests) |
+| **Railway** | Implemented | Container deploy is used in production (see `Dockerfile`) |
+| **DigitalOcean** | Manual | App Platform / K8s (no templates included) |
 
 ## Infrastructure as Code
+
+**Not present in repository.** Any Terraform/Helm snippets below should be treated as conceptual examples only.
 
 ### AWS Deployment (Terraform)
 
@@ -5625,10 +5706,19 @@ It is grouped by directory to keep it readable.
 
 | Path | Purpose |
 |------|---------|
-| `ui/index.html` | Admin portal (agent wizard, tools/KB setup, security center, process wizard entry) |
-| `ui/process-builder.html` | Visual workflow builder (edit, test run, playback, auto-layout, properties) |
-| `ui/chat.html` | End-user portal (auth + chat) |
-| `ui/lab.html` | Demo Lab UI |
+| `ui/index.html` | Admin portal HTML shell (loads split CSS/JS) |
+| `ui/index.css` | Admin portal CSS (extracted from `ui/index.html`) |
+| `ui/index.js` | Stub (kept for backward reference; real code lives in `ui/index_parts/`) |
+| `ui/index_parts/app-core.js` | Admin portal core bootstrapping + navigation + shared utilities |
+| `ui/index_parts/agent-wizard.js` | Agent creation/edit wizard logic |
+| `ui/index_parts/approvals.js` | Approval dashboard helpers (modal/list rendering) |
+| `ui/index_parts/process-playback.js` | Process playback modal + postMessage integration with builder iframe |
+| `ui/index_parts/features-*.js` | Admin portal feature chunks (demo/tools/chat/auth/security/identity/approvals) |
+| `ui/chat.html` | End-user portal HTML shell |
+| `ui/chat.css` / `ui/chat.js` | End-user portal extracted assets (preferred edit targets) |
+| `ui/process-builder.html` | Visual workflow builder HTML shell |
+| `ui/process-builder.css` / `ui/process-builder.js` | Visual builder extracted assets (preferred edit targets) |
+| `ui/lab.html` | Demo Lab UI (still a single HTML file) |
 | `ui/theme.css` | Shared styling |
 | `ui/theme.js` | Shared theme behavior (dark/light, persistence) |
 
@@ -5641,16 +5731,16 @@ This folder contains operational scripts for DB migration/repairs and validation
 | `scripts/README.md` | Documentation for DB validation + migration scripts |
 | `scripts/comprehensive_db_check.sh` | Primary DB validation script (blocks commits via pre-commit hook) |
 | `scripts/migrate_to_db_complete.py` | Migrate JSON seed data into PostgreSQL (multi-entity) |
-| `scripts/create_missing_tables.py` | Bootstrap missing DB tables/columns in some environments |
-| `scripts/add_user_columns.py` | One-off migration helper (users table columns) |
-| `scripts/add_role_columns.py` | One-off migration helper (roles table columns) |
+| `scripts/create_missing_tables.py` | Startup helper: create missing tables/columns (used by container init) |
+| `scripts/add_user_columns.py` | Startup helper: add missing users columns (used by container init) |
+| `scripts/add_role_columns.py` | Startup helper: add missing roles columns (used by container init) |
 | `scripts/add_organization_oauth_columns.py` | One-off migration helper (org OAuth columns) |
-| `scripts/add_google_oauth_credentials.py` | One-off helper to insert Google OAuth creds |
-| `scripts/fix_all_enums_to_string.py` | One-off helper to convert enums → strings (DB-agnostic) |
+| `scripts/add_google_oauth_credentials.py` | Startup helper: insert Google OAuth creds (used by container init if configured) |
+| `scripts/fix_all_enums_to_string.py` | Startup helper: convert remaining enums → string columns (used by container init) |
 | `scripts/fix_agent_status_enum.py` | One-off helper to fix agent status enum issues |
 | `scripts/fix_agent_status_to_string.py` | One-off helper: agent status conversion |
 | `scripts/fix_message_role_to_string.py` | One-off helper: message role conversion |
-| `scripts/make_password_hash_nullable.py` | One-off helper: allow NULL password hashes (migration compatibility) |
+| `scripts/make_password_hash_nullable.py` | Startup helper: allow NULL password hashes (OAuth compatibility; used by container init) |
 | `scripts/auto-commit.sh` | Optional helper script for auto-commit workflow (local dev ops) |
 
 ## `docs/` (documentation + runtime KB files)
@@ -5662,6 +5752,7 @@ This folder contains operational scripts for DB migration/repairs and validation
 | `docs/PROCESS_BUILDER_KB_ROUTING.md` | Runtime KB: layout/routing rules |
 | `docs/PROCESS_BUILDER_KB_TAXONOMIES.md` | Runtime KB: safe dropdown option taxonomies |
 | `docs/PROCESS_BUILDER_KB_PROFILE_CONTEXT.md` | Runtime KB: available `currentUser.*` context |
+| `docs/PROCESS_BUILDER_KB_IDENTITY.md` | Runtime KB: identity + user directory enrichment rules |
 | `docs/PROCESS_BUILDER_KB_DOCUMENTS.md` | Runtime KB: upload/generate document guidance |
 
 ## `examples/` (example assets)
@@ -5697,7 +5788,7 @@ This folder contains operational scripts for DB migration/repairs and validation
 
 ## Implementation Priority
 
-### ✅ Phase 1: Foundation - **COMPLETED (January 2026)**
+### ✅ Phase 1: Foundation - **COMPLETED (Jan–Feb 2026)**
 | Task | Status | Completion |
 |------|--------|------------|
 | Database migration (PostgreSQL) | ✅ **COMPLETE** | 100% - Database-first architecture operational |
@@ -5707,6 +5798,8 @@ This folder contains operational scripts for DB migration/repairs and validation
 | OAuth MFA verification | ✅ **COMPLETE** | 100% - Full OAuth MFA flow with database persistence |
 | User profile database persistence | ✅ **COMPLETE** | 100% - Profile updates saved to database |
 | MFA settings database persistence | ✅ **COMPLETE** | 100% - MFA enabled/disabled saved to database |
+| Split UI into smaller assets | ✅ **COMPLETE** | Admin/End-user/Builder shells + extracted CSS/JS chunks (see `ui/` + `scripts/split_*`) |
+| Documentation synchronization | 🔶 **PARTIAL** | Master doc updated; generated Phase 0–4 reports exist; runtime KB docs still separate by design |
 | Setup monorepo structure | 🔴 **PENDING** | 0% - Still monolithic |
 | Add CI/CD pipeline | 🔴 **PENDING** | 0% - Manual deployments |
 | Add rate limiting | 🔴 **PENDING** | 0% - Not implemented |
@@ -5852,7 +5945,7 @@ Safety constraints:
   - DB backups/restore runbooks; monitoring and alerting.
 
 ### 7. **Frontend Modernization (Long-term)** (High effort)
-- **Status:** Still monolithic (~32K lines in `ui/index.html`).
+- **Status:** **Partially addressed** — the UI was split into smaller HTML shells + extracted CSS/JS assets, but it is still Vanilla JS and some chunks remain large (see `ui/index_parts/features-*.js`).
 - **Tasks:** migrate to a component-based frontend (React/Vue + TypeScript).
 
 ### 8. **Backend Modularization (Long-term)** (High effort)
@@ -5893,13 +5986,23 @@ Safety constraints:
    - **Never:** Bypass service layer
    - **Always:** Handle errors gracefully with fallback
 
+6. **Frontend UI Changes (preferred edit targets):**
+   - **Admin portal:** edit `ui/index_parts/*.js` (not `ui/index.js`)
+   - **End-user portal:** edit `ui/chat.css` and `ui/chat.js` (HTML is mostly a shell)
+   - **Process builder:** edit `ui/process-builder.css` and `ui/process-builder.js` (HTML is mostly a shell)
+   - **Never:** re-inline large CSS/JS back into HTML
+   - **Always:** preserve script ordering (the UI relies on globals and `defer` ordering)
+
 **Important Files for Code Agents:**
 
 - **Database Schema:** `database/models/` - All model definitions
 - **Database Services:** `database/services/` - All CRUD operations
 - **Database Configuration:** `database/config.py` - Connection settings
 - **Security State:** `core/security/state.py` - In-memory cache management
+- **Security Engine:** `core/security/engine.py` - RBAC/ABAC evaluation (PolicyEngine)
+- **Security Services:** `core/security/services.py` - Password/MFA/Token/Email/LDAP/OAuth implementations
 - **Security API:** `api/security.py` - All security endpoints
+- **Admin UI code:** `ui/index_parts/` - Split JS chunks for admin portal
 - **Migration Scripts:** `scripts/migrate_to_db_complete.py` - Data migration
 - **Common Issues:** `database/COMMON_ISSUES.md` - Documented issues and solutions
 
@@ -5924,6 +6027,6 @@ Safety constraints:
 
 ---
 
-*Last Updated: February 10, 2026*  
+*Last Updated: February 11, 2026*  
 *Document Version: 3.5*  
 *Platform Version: 3.5*
