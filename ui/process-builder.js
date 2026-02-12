@@ -6034,28 +6034,53 @@
                     const fieldKey = String(cfg.field || '').trim();
                     const operator = String(cfg.operator || 'equals').trim();
                     const compareValue = cfg.value;
-                    const inputValue = (fieldKey && fieldKey in inputData) ? inputData[fieldKey] : '';
-                    
-                    let result = false;
-                    switch (operator) {
-                        case 'equals': result = inputValue == compareValue; break;
-                        case 'not_equals': result = inputValue != compareValue; break;
-                        case 'greater_than': result = parseFloat(inputValue) > parseFloat(compareValue); break;
-                        case 'less_than': result = parseFloat(inputValue) < parseFloat(compareValue); break;
-                        case 'contains': result = String(inputValue || '').includes(String(compareValue || '')); break;
-                        case 'is_empty': result = !inputValue || String(inputValue).trim() === ''; break;
-                        default: result = inputValue == compareValue;
+
+                    // Check if the field references a nested/dotted variable from an upstream AI/extraction step
+                    let fieldResolvable = !!(fieldKey && fieldKey in inputData);
+                    if (!fieldResolvable && fieldKey && fieldKey.includes('.')) {
+                        const baseVar = fieldKey.split('.')[0];
+                        fieldResolvable = !!(baseVar in tplValues);
                     }
-                    nextConn = conns.find(c => c.type === (result ? 'yes' : 'no')) || conns[0];
+
+                    const inputValue = fieldResolvable ? inputData[fieldKey] : undefined;
                     
+                    let result = null; // null = unknown (unresolvable in simulation)
+                    if (fieldResolvable || !fieldKey) {
+                        const val = fieldResolvable ? inputValue : '';
+                        switch (operator) {
+                            case 'equals': result = val == compareValue; break;
+                            case 'not_equals': result = val != compareValue; break;
+                            case 'greater_than': result = parseFloat(val) > parseFloat(compareValue); break;
+                            case 'less_than': result = parseFloat(val) < parseFloat(compareValue); break;
+                            case 'contains': result = String(val || '').includes(String(compareValue || '')); break;
+                            case 'is_empty': result = !val || String(val).trim() === ''; break;
+                            default: result = val == compareValue;
+                        }
+                    }
+
                     const label = fieldLabelByKey[fieldKey] || humanizeFieldLabel(fieldKey) || fieldKey || 'Field';
-                    trace.push({
-                        nodeId: current.id,
-                        edgeType: null,
-                        type: current.type,
-                        title: current.name || 'Decision',
-                        message: `${label} ${prettyOperator(operator)} ${compareValue != null && String(compareValue) !== '' ? `"${String(compareValue)}"` : ''} → ${result ? 'Yes' : 'No'}`
-                    });
+
+                    if (result === null) {
+                        // Cannot evaluate — depends on upstream AI/extraction step output
+                        nextConn = conns[0]; // take first connection as default path
+                        trace.push({
+                            nodeId: current.id,
+                            edgeType: null,
+                            type: current.type,
+                            title: current.name || 'Decision',
+                            message: `⚠️ Cannot evaluate in simulation — '${fieldKey}' requires the real engine to populate from upstream AI/extraction steps. Use "Run using real engine" mode for accurate testing. Taking default path (uncertain).`,
+                            status_key: 'warning'
+                        });
+                    } else {
+                        nextConn = conns.find(c => c.type === (result ? 'yes' : 'no')) || conns[0];
+                        trace.push({
+                            nodeId: current.id,
+                            edgeType: null,
+                            type: current.type,
+                            title: current.name || 'Decision',
+                            message: `${label} ${prettyOperator(operator)} ${compareValue != null && String(compareValue) !== '' ? `"${String(compareValue)}"` : ''} → ${result ? 'Yes' : 'No'}`
+                        });
+                    }
                 } else if (current.type !== 'trigger' && current.type !== 'form') {
                     // Regular step summary
                     const cfg = current.config || {};
@@ -6064,7 +6089,13 @@
                     if (current.type === 'notification') {
                         const channel = String(cfg.channel || 'email').trim() || 'email';
                         const subject = String(cfg.title || current.name || 'Notification').trim() || 'Notification';
-                        const recipientTpl = cfg.recipient || (Array.isArray(cfg.recipients) ? cfg.recipients.join(', ') : '');
+                        let recipientTpl = cfg.recipient || (Array.isArray(cfg.recipients) ? cfg.recipients.join(', ') : '');
+                        // Resolve engine shortcuts for simulation display
+                        if (recipientTpl === 'requester' || recipientTpl === 'submitter' || recipientTpl === 'initiator') {
+                            recipientTpl = (ctx && ctx.currentUser && ctx.currentUser.email) ? ctx.currentUser.email : 'requester (auto-resolved at runtime)';
+                        } else if (recipientTpl === 'manager' || recipientTpl === 'supervisor') {
+                            recipientTpl = 'manager (auto-resolved at runtime)';
+                        }
                         const bodyTpl = cfg.message || cfg.template || '';
                         const recipientResolved = interpolateTemplate(recipientTpl || '', tplValues).trim();
                         const bodyResolved = interpolateTemplate(bodyTpl || '', tplValues);
@@ -6108,7 +6139,20 @@
                     } else if (current.type === 'delay') {
                         msg = `Waited ${cfg.duration || 0} ${cfg.unit || 'minutes'}.`;
                     } else if (current.type === 'ai') {
+                        const outVar = current.output_variable || '';
                         msg = `AI step will generate an output based on your inputs.`;
+                        if (outVar) msg += ` Output stored in {{${outVar}}}.`;
+                        msg += ` ⚠️ Simulation cannot run AI — use "Run using real engine" for real results.`;
+                    } else if (current.type === 'action') {
+                        const at = (cfg.actionType || '').toLowerCase();
+                        if (at.includes('extract')) {
+                            const outVar = current.output_variable || '';
+                            msg = `Document extraction step (simulated).`;
+                            if (outVar) msg += ` Output stored in {{${outVar}}}.`;
+                            msg += ` ⚠️ Simulation cannot extract real data — use "Run using real engine" for real results.`;
+                        } else {
+                            msg = `Action step executed (simulated).`;
+                        }
                     } else if (current.type === 'tool') {
                         const tool = (state.tools || []).find(t => t.id === cfg.toolId);
                         msg = `Ran tool: ${tool ? tool.name : 'Tool'}.`;
