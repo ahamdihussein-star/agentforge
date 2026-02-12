@@ -215,12 +215,18 @@ IMPORTANT:
   - For data flow: store AI/tool outputs in variables and reference them in later steps (notifications, conditions, etc.).
 - Scheduling and webhooks are configured on the Start node via `trigger.config.triggerType` (do NOT create separate schedule/webhook nodes).
 
-VISUAL LAYOUT RULES (the frontend auto-layouts, but the node order and structure you produce affects the result):
-- Nodes are displayed in a visual diagram. The layout engine places them top-to-bottom (vertical flow).
-- The "end" node must ALWAYS be the LAST node in the nodes array — it appears at the bottom of the diagram.
-- For condition branches (yes/no): the "yes" path nodes should be listed BEFORE "no" path nodes. After both branches, they should reconverge (e.g., both eventually connect to a shared notification or end node).
-- Keep the main flow linear when possible. Avoid unnecessary branching — it creates visual clutter.
+VISUAL LAYOUT RULES (CRITICAL — follow strictly for clean, professional diagrams):
+- Connection lines must NEVER pass through any node. Ensure enough spacing so edges route cleanly around nodes.
+- Connection lines must take the SHORTEST path between nodes. Never loop or take long detours.
+- Minimum spacing: 200px vertical gap between sequential nodes, 300px horizontal gap between branches.
+- The "end" node must ALWAYS be:
+  (a) The LAST entry in the nodes array.
+  (b) Positioned clearly BELOW all other nodes (vertical) or to the FAR RIGHT (horizontal).
+  (c) NOT placed beside or next to the previous node — there must be a clear visual gap to indicate conclusion.
+- For linear flows (no conditions): place ALL nodes in a single vertical column (same x, increasing y by ~200).
+- For condition branches: "yes" path goes LEFT (x - 300), "no" path goes RIGHT (x + 300). Both paths reconverge to a shared node at center x below both branches.
 - Every node MUST be connected. No orphan nodes. Every path must eventually reach an "end" node.
+- Keep the main flow linear when possible. Avoid unnecessary branching — it creates visual clutter.
 
 Schema to output:
 {{
@@ -553,6 +559,7 @@ class ProcessWizard:
             # the identity KB should always be available for the LLM to use if needed.
             # This avoids hardcoding specific scenarios (like HR) that trigger identity retrieval.
             query += "\n\nidentity user_directory approval assignee notification prefill user profile"
+            query += "\n\nlayout visual spacing connection lines nodes positioning end node branches"
 
             platform_knowledge = retrieve_platform_knowledge(query, top_k=6, max_chars=5000)
         except Exception:
