@@ -606,7 +606,88 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
     """
     
     display_name = "File Operation"
-    
+
+    @staticmethod
+    def _resolve_uploaded_file_path(file_obj: dict, context=None) -> str:
+        """
+        Resolve an uploaded file object to its physical filesystem path.
+
+        Uploaded file objects look like:
+            {"kind": "uploadedFile", "id": "<uuid>", "name": "receipt.png",
+             "download_url": "/process/uploads/<uuid>/download", ...}
+
+        The physical file is stored at:
+            {UPLOAD_PATH}/process_uploads/{org_id}/{file_id}_{filename}
+
+        This method finds the file on disk by scanning the org upload directory.
+        """
+        import os
+
+        if not isinstance(file_obj, dict):
+            return ""
+
+        file_id = str(file_obj.get("id") or "").strip()
+        file_name = file_obj.get("name") or ""
+        dl_url = str(file_obj.get("download_url") or "").strip()
+
+        # Extract file_id from download_url if not directly available
+        if not file_id and dl_url:
+            # /process/uploads/<uuid>/download → extract <uuid>
+            parts = dl_url.rstrip("/").split("/")
+            # Find "uploads" and take the next segment
+            for i, p in enumerate(parts):
+                if p == "uploads" and i + 1 < len(parts):
+                    candidate = parts[i + 1]
+                    if candidate != "download":
+                        file_id = candidate
+                        break
+
+        if not file_id:
+            return ""
+
+        base_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
+
+        # Try to find org_id from context
+        org_id = ""
+        if context:
+            # ProcessContext has org_id directly
+            org_id = str(getattr(context, 'org_id', '') or "").strip()
+            if not org_id:
+                uc = (getattr(context, 'trigger_input', None) or {}).get("_user_context", {})
+                org_id = str(uc.get("org_id") or "").strip()
+            if not org_id:
+                cu = (getattr(context, 'trigger_input', None) or {}).get("currentUser", {})
+                if isinstance(cu, dict):
+                    org_id = str(cu.get("orgId") or cu.get("org_id") or "").strip()
+
+        # Search strategies for the file
+        search_dirs = []
+        if org_id:
+            search_dirs.append(os.path.join(base_dir, "process_uploads", org_id))
+        # Fallback: scan all org subdirectories
+        proc_uploads = os.path.join(base_dir, "process_uploads")
+        if os.path.isdir(proc_uploads):
+            try:
+                for d in os.listdir(proc_uploads):
+                    full = os.path.join(proc_uploads, d)
+                    if os.path.isdir(full) and full not in search_dirs:
+                        search_dirs.append(full)
+            except OSError:
+                pass
+
+        prefix = f"{file_id}_"
+        for search_dir in search_dirs:
+            if not os.path.isdir(search_dir):
+                continue
+            try:
+                for name in os.listdir(search_dir):
+                    if name.startswith(prefix):
+                        return os.path.join(search_dir, name)
+            except OSError:
+                continue
+
+        return ""
+
     async def execute(
         self,
         node: ProcessNode,
@@ -661,17 +742,16 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     for idx, file_item in enumerate(source_value):
                         file_path = None
                         if isinstance(file_item, dict):
-                            # Try download_url first (process uploads), then path
-                            dl_url = file_item.get("download_url") or ""
-                            if dl_url:
-                                file_path = "data/uploads/" + dl_url.split("/uploads/")[-1].replace("/download", "") if "/uploads/" in dl_url else dl_url
-                            if not file_path:
-                                file_path = file_item.get("path") or ""
                             file_name = file_item.get("name") or f"file_{idx+1}"
+                            # Resolve the uploaded file to its physical path on disk
+                            file_path = self._resolve_uploaded_file_path(file_item, context)
+                            if not file_path:
+                                # Fallback: try legacy path property
+                                file_path = file_item.get("path") or ""
                         else:
                             continue
                         if not file_path:
-                            logs.append(f"  File {idx+1} ({file_name}): no path found, skipping")
+                            logs.append(f"  File {idx+1} ({file_name}): could not resolve path, skipping")
                             continue
                         logs.append(f"  Extracting file {idx+1}/{len(source_value)}: {file_name}")
                         file_result = await self._execute_extract_text_local(
@@ -704,22 +784,43 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                             "error": f"Could not extract text from any of the {len(source_value)} uploaded files",
                             "data": ""
                         }
+                elif isinstance(source_value, dict) and source_value.get("kind") == "uploadedFile":
+                    # Single uploaded file object — resolve to physical path
+                    file_name = source_value.get("name") or "file"
+                    logs.append(f"Single uploaded file detected: {file_name}")
+                    path = self._resolve_uploaded_file_path(source_value, context)
+                    if not path:
+                        # Fallback to legacy path
+                        path = source_value.get("path") or ""
+                    logs.append(f"Resolved file path: {path}")
+                    if not path:
+                        return NodeResult.failure(
+                            error=ExecutionError.validation_error(
+                                f"Could not resolve file path for uploaded file '{file_name}'. "
+                                f"File ID: {source_value.get('id', 'unknown')}. "
+                                f"Make sure the file was uploaded successfully."
+                            ),
+                            logs=logs
+                        )
                 else:
-                    # Single file — original logic
-                    # Interpolate path for extraction
+                    # Fallback: original template-based path resolution
                     logs.append(f"Path template: {path_template}")
                     path = state.interpolate_string(path_template)
                     logs.append(f"Resolved path: {path}")
                     if not path or path == path_template or path.startswith('{{'):
-                        # Path didn't resolve — likely the source variable is missing
-                        return NodeResult.failure(
-                            error=ExecutionError.validation_error(
-                                f"Could not resolve file path from '{path_template}'. "
-                                f"Make sure the file upload field name matches the source field configuration. "
-                                f"Resolved to: '{path}'"
-                            ),
-                            logs=logs
-                        )
+                        # Path didn't resolve — try sourceField as uploaded file object
+                        if isinstance(source_value, dict) and (source_value.get("download_url") or source_value.get("id")):
+                            path = self._resolve_uploaded_file_path(source_value, context)
+                            logs.append(f"Fallback: resolved uploaded file to: {path}")
+                        if not path or path.startswith('{{'):
+                            return NodeResult.failure(
+                                error=ExecutionError.validation_error(
+                                    f"Could not resolve file path from '{path_template}'. "
+                                    f"Make sure the file upload field name matches the source field configuration. "
+                                    f"Resolved to: '{path}'"
+                                ),
+                                logs=logs
+                            )
                     result = await self._execute_extract_text_local(
                         path=path,
                         encoding=encoding,
