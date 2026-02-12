@@ -14,7 +14,7 @@ async function loadApprovals() {
     if (list) list.innerHTML = '<div class="card rounded-xl p-8 text-center text-gray-500">Loading approvals...</div>';
     if (empty) empty.classList.add('hidden');
     try {
-        const res = await fetch('/api/process/approvals', { headers: getAuthHeaders() });
+        const res = await fetch('/process/approvals', { headers: getAuthHeaders() });
         if (res.ok) {
             const data = await res.json();
             approvalsCache = Array.isArray(data) ? data : (data.items || data.approvals || []);
@@ -100,7 +100,7 @@ function renderApprovals() {
 async function handleApproval(approvalId, decision) {
     const comment = prompt(decision === 'approved' ? 'Add a comment (optional):' : 'Reason for rejection (optional):') || '';
     try {
-        const res = await fetch(`/api/process/approvals/${approvalId}/decide`, {
+        const res = await fetch(`/process/approvals/${approvalId}/decide`, {
             method: 'POST',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ decision, comment })
@@ -129,7 +129,7 @@ function startApprovalPolling() {
     // Initial load for badge
     (async () => {
         try {
-            const res = await fetch('/api/process/approvals', { headers: getAuthHeaders() });
+            const res = await fetch('/process/approvals', { headers: getAuthHeaders() });
             if (res.ok) {
                 const data = await res.json();
                 approvalsCache = Array.isArray(data) ? data : (data.items || data.approvals || []);
@@ -141,7 +141,7 @@ function startApprovalPolling() {
     setInterval(async () => {
         if (!authToken) return;
         try {
-            const res = await fetch('/api/process/approvals', { headers: getAuthHeaders() });
+            const res = await fetch('/process/approvals', { headers: getAuthHeaders() });
             if (res.ok) {
                 const data = await res.json();
                 approvalsCache = Array.isArray(data) ? data : (data.items || data.approvals || []);
