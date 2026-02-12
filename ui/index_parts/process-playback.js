@@ -1261,7 +1261,8 @@
                         </select>`;
                         break;
                     case 'file':
-                        fieldHtml = `<input type="file" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''}>`;
+                        const multiFile = input.multiple ? 'multiple' : '';
+                        fieldHtml = `<input type="file" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" ${input.required ? 'required' : ''} ${multiFile}>`;
                         break;
                     case 'number':
                         fieldHtml = `<input type="number" id="${fieldId}" class="input-field w-full rounded-lg px-4 py-3" placeholder="${input.placeholder || ''}" ${input.required ? 'required' : ''} ${isReadOnly ? 'readonly' : ''} ${roStyle}>`;
@@ -1343,17 +1344,25 @@
                 const field = document.getElementById(`pf-${input.id}`);
                 if (field) {
                     if (input.type === 'file') {
-                        const fileObj = field.files && field.files[0] ? field.files[0] : null;
-                        if (input.required && !fileObj) {
+                        const fileList = field.files || [];
+                        if (input.required && fileList.length === 0) {
                             showToast(`Please upload: ${input.label}`, 'error');
                             field.focus();
                             return;
                         }
-                        if (fileObj) {
+                        if (fileList.length > 0) {
                             try {
                                 showToast(`Uploading: ${input.label}`, 'info');
                             } catch (_) {}
-                            triggerData[input.id] = await uploadProcessRunFile(fileObj);
+                            if (input.multiple && fileList.length > 1) {
+                                const uploaded = [];
+                                for (let fi = 0; fi < fileList.length; fi++) {
+                                    uploaded.push(await uploadProcessRunFile(fileList[fi]));
+                                }
+                                triggerData[input.id] = uploaded;
+                            } else {
+                                triggerData[input.id] = await uploadProcessRunFile(fileList[0]);
+                            }
                         } else {
                             triggerData[input.id] = null;
                         }

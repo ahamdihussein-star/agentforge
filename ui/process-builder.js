@@ -3158,6 +3158,19 @@
                                             </div>
                                         </div>
                                         
+                                        ${(f.type === 'file') ? `
+                                            <div style="margin-top:10px;">
+                                                <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--pb-muted);">
+                                                    <input type="checkbox" ${f.multiple ? 'checked' : ''} 
+                                                           onchange="updateFormField('${node.id}', ${idx}, 'multiple', this.checked)">
+                                                    Allow multiple files
+                                                </label>
+                                                <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                                    When enabled, the user can upload more than one file at a time.
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                        
                                         ${(f.type === 'select') ? `
                                             <div style="margin-top:10px;">
                                                 <label class="property-label">Dropdown Options</label>
@@ -4763,7 +4776,8 @@
                                             </select>
                                         `;
                                     } else if (f.type === 'file') {
-                                        inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="file" name="${escapeHtml(f.name)}" style="${baseStyle}" ${f.required ? 'required' : ''}>`;
+                                        const multiAttr = f.multiple ? 'multiple' : '';
+                                        inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="file" name="${escapeHtml(f.name)}" style="${baseStyle}" ${f.required ? 'required' : ''} ${multiAttr}>`;
                                     } else {
                                         const inputType = (f.type === 'number') ? 'number' : (f.type === 'email') ? 'email' : (f.type === 'date') ? 'date' : 'text';
                                         inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="${inputType}" name="${escapeHtml(f.name)}" style="${baseStyle}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required ? 'required' : ''} ${ro}>`;
@@ -4940,15 +4954,24 @@
                 for (const f of fieldDefs) {
                     if (!f || String(f.type || '').toLowerCase() !== 'file') continue;
                     const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
-                    const fileObj = el && el.files && el.files[0] ? el.files[0] : null;
-                    if (f.required && !fileObj) {
+                    const fileList = el && el.files ? el.files : [];
+                    if (f.required && fileList.length === 0) {
                         alert(`Please upload: ${f.label}`);
                         if (el) el.focus();
                         return;
                     }
-                    if (fileObj) {
+                    if (fileList.length > 0) {
                         try {
-                            values[f.name] = await uploadPbTestRunFile(fileObj);
+                            if (f.multiple && fileList.length > 1) {
+                                // Upload all files for multiple-file fields
+                                const uploaded = [];
+                                for (let fi = 0; fi < fileList.length; fi++) {
+                                    uploaded.push(await uploadPbTestRunFile(fileList[fi]));
+                                }
+                                values[f.name] = uploaded;
+                            } else {
+                                values[f.name] = await uploadPbTestRunFile(fileList[0]);
+                            }
                         } catch (e) {
                             alert(`Could not upload "${f.label}". Please try again.`);
                             return;

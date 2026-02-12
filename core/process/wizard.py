@@ -286,9 +286,16 @@ Node config rules:
   - placeholder (business-friendly hint)
   - For file fields: accepts ANY document or image type (PDF, Word, Excel, PNG, JPG, receipts, invoices, photos, etc.). The platform handles all file types dynamically.
     IMPORTANT: If the business context implies the user may upload MORE THAN ONE file (e.g., expense receipts, supporting documents, multiple invoices, attachments), you MUST add "multiple": true. When in doubt, default to "multiple": true — it is better UX to allow multiple uploads than to force the user to submit only one.
-- FIELD TYPE SELECTION RULE: If a field has a finite, predictable set of values (categories, types, priorities, statuses, payment methods, currencies, etc.), it MUST be type "select" with a populated options array — NEVER type "text". A text field should only be used for truly free-form input (names, descriptions, comments, notes). Think carefully: would a business user benefit from picking from a list? If yes → use "select".
+- FIELD TYPE SELECTION RULE (MANDATORY — NEVER use "text" when "select" is appropriate):
+  A field MUST be type "select" (dropdown) if ANY of these apply:
+    1. The field name contains: category, type, status, priority, level, method, currency, rating, frequency, severity, department, classification, source, reason, or similar classifying words.
+    2. The user's prompt mentions "select", "choose", "pick", "dropdown", "list of", "options", or describes a set of values.
+    3. The field represents a well-known business concept with standard values (expense categories, leave types, payment methods, currencies, urgency levels, etc.).
+    4. A business user would benefit from picking from a predefined list rather than typing free text.
+  Type "text" is ONLY for truly free-form input: names, descriptions, comments, notes, addresses, custom IDs.
+  When in doubt, use "select" — the admin can always edit the options later.
 - For select fields, include: options (array of strings).
-  The LLM MUST populate the options list using its own knowledge when the user does not provide specific values. For example, if a workflow needs a category, priority, or type dropdown, the LLM should generate a sensible, comprehensive list of options based on its understanding of the domain and industry. Do NOT leave the options array empty — always provide meaningful choices.
+  The LLM MUST populate the options list using its own knowledge. Generate a comprehensive, practical list of options based on the domain. Do NOT leave the options array empty.
   Only use organization-specific data (department names, employee lists, product catalogs) from tools or the Knowledge Base, NOT from the LLM's general knowledge.
 - For select fields, you MAY also include: optionsSource ("taxonomy:<id>" or "tool:<toolId>") if a matching taxonomy or tool exists in the Knowledge Base. If none exists, omit optionsSource entirely and rely on the options array populated by the LLM.
 - For derived (auto-calculated) fields, include:
@@ -945,6 +952,23 @@ class ProcessWizard:
                     f["label"] = _humanize_label(key) or key
 
                 ftype = str(f.get("type") or "text").strip().lower()
+
+                # AUTO-DETECT: Convert text fields that should be dropdowns based on field name patterns
+                _select_keywords = {"category", "type", "status", "priority", "level", "method",
+                                    "currency", "rating", "frequency", "severity", "classification",
+                                    "source", "reason", "department", "mode", "channel", "grade"}
+                if ftype == "text":
+                    fname_lower = (f.get("name") or "").lower()
+                    flabel_lower = (f.get("label") or "").lower()
+                    name_words = set(re.split(r'(?=[A-Z])|[_\s]+', fname_lower))
+                    label_words = set(flabel_lower.split())
+                    if name_words & _select_keywords or label_words & _select_keywords:
+                        # This field should be a dropdown — but LLM used text
+                        ftype = "select"
+                        f["type"] = "select"
+                        if not f.get("options"):
+                            f["options"] = []  # Will stay empty — admin can fill in edit mode
+
                 # Validate/normalize select options
                 if ftype == "select":
                     opts = f.get("options")
@@ -952,40 +976,24 @@ class ProcessWizard:
                     opts_list = [o for o in opts_list if o]
                     options_source = str(f.get("optionsSource") or "").strip()
 
-                    # If no options, we can't keep it as a dropdown
-                    if not opts_list:
-                        f["type"] = "text"
-                        f.pop("options", None)
-                        f.pop("optionsSource", None)
-                    else:
-                        # Infer taxonomy source if missing (only if fully grounded)
+                    if opts_list:
+                        # LLM provided options — KEEP THEM as a dropdown.
+                        # Optionally match to a taxonomy for validation.
                         if not options_source and safe_taxonomies:
                             for tax_id, allowed in safe_taxonomies.items():
                                 if allowed and all(o in allowed for o in opts_list):
                                     options_source = f"taxonomy:{tax_id}"
                                     break
-
-                        # Enforce optionsSource to prevent hallucinated dropdowns
-                        if not options_source:
-                            f["type"] = "text"
-                            f.pop("options", None)
-                            f.pop("optionsSource", None)
-                        elif options_source.startswith("taxonomy:"):
-                            tax_id = options_source.split(":", 1)[1].strip()
-                            allowed = safe_taxonomies.get(tax_id) if isinstance(safe_taxonomies, dict) else None
-                            if not allowed or any(o not in allowed for o in opts_list):
-                                # Not grounded in safe taxonomy → downgrade
-                                f["type"] = "text"
-                                f.pop("options", None)
-                                f.pop("optionsSource", None)
-                            else:
-                                f["options"] = opts_list
-                                f["optionsSource"] = f"taxonomy:{tax_id}"
+                        f["options"] = opts_list
+                        if options_source:
+                            f["optionsSource"] = options_source
                         else:
-                            # Tool-sourced dropdowns are not supported yet in the UI/runtime
-                            f["type"] = "text"
-                            f.pop("options", None)
                             f.pop("optionsSource", None)
+                    else:
+                        # No options provided — downgrade to text (admin can convert in edit mode)
+                        f["type"] = "text"
+                        f.pop("options", None)
+                        f.pop("optionsSource", None)
 
                 # Validate derived fields
                 derived = f.get("derived")
