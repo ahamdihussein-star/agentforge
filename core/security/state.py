@@ -3,13 +3,11 @@ AgentForge Security State - Complete Enterprise Implementation
 ==============================================================
 Main security state container with:
 - All security collections (users, roles, policies, etc.)
-- Persistence to disk
+- Persistence to database (DB-only, no JSON files)
 - Default initialization
 - Helper methods
 """
 
-import os
-import json
 import traceback
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -195,38 +193,26 @@ class SecurityState:
                 except Exception as e:
                     print(f"⚠️ Error saving security settings for {org_id} to database: {e}")
             
-            print("💾 Security state saved to database")
+            print("💾 Security state saved to database (primary collections)")
         except Exception as db_error:
             print(f"❌ Database save failed: {type(db_error).__name__}: {str(db_error)}")
             import traceback
             traceback.print_exc()
-            print("📂 Falling back to disk save...")
         
-        # Also save to disk as backup (for backward compatibility)
-        data_dir = os.environ.get("DATA_PATH", "data")
-        security_dir = os.path.join(data_dir, "security")
-        os.makedirs(security_dir, exist_ok=True)
-        
-        # Save each collection to disk (backup only)
-        collections = {
-            "organizations.json": self.organizations,
-            "users.json": self.users,
-            "departments.json": self.departments,
-            "groups.json": self.groups,
-            "roles.json": self.roles,
-            "policies.json": self.policies,
-            "tool_permissions.json": self.tool_permissions,
-            "kb_permissions.json": self.kb_permissions,
-            "db_permissions.json": self.db_permissions,
-            "ldap_configs.json": self.ldap_configs,
-            "oauth_configs.json": self.oauth_configs,
-            "invitations.json": self.invitations
-        }
-        
-        for filename, data in collections.items():
-            path = os.path.join(security_dir, filename)
-            try:
-                with open(path, "w", encoding="utf-8") as f:
+        # Save remaining collections that don't have dedicated DB services yet
+        # Using SystemSettingsService as a key-value store
+        try:
+            from database.services import SystemSettingsService
+            remaining = {
+                "security_policies": self.policies,
+                "security_tool_permissions": self.tool_permissions,
+                "security_kb_permissions": self.kb_permissions,
+                "security_db_permissions": self.db_permissions,
+                "security_ldap_configs": self.ldap_configs,
+                "security_oauth_configs": self.oauth_configs,
+            }
+            for key, data in remaining.items():
+                try:
                     serialized = {}
                     for k, v in data.items():
                         if hasattr(v, 'dict'):
@@ -235,37 +221,38 @@ class SecurityState:
                             serialized[k] = v.__dict__
                         else:
                             serialized[k] = v
-                    json.dump(serialized, f, indent=2, ensure_ascii=False, default=str)
+                    SystemSettingsService.set_system_setting(
+                        key, serialized, value_type='json', category='security'
+                    )
+                except Exception as e:
+                    print(f"⚠️ Error saving {key} to database: {e}")
+            
+            # Save audit logs (keep last 10k)
+            try:
+                logs = self.audit_logs[-10000:]
+                serialized_logs = []
+                for log in logs:
+                    if hasattr(log, 'dict'):
+                        serialized_logs.append(log.dict())
+                    else:
+                        serialized_logs.append(str(log))
+                SystemSettingsService.set_system_setting(
+                    "security_audit_logs_backup", serialized_logs,
+                    value_type='json', category='security'
+                )
             except Exception as e:
-                print(f"⚠️ Error saving {filename}: {e}")
-        
-        # Save settings separately (dict of settings objects)
-        settings_path = os.path.join(security_dir, "settings.json")
-        try:
-            with open(settings_path, "w", encoding="utf-8") as f:
-                settings_data = {
-                    "tenancy_mode": self.tenancy_mode.value,
-                    "settings": {k: v.dict() for k, v in self.settings.items()}
-                }
-                json.dump(settings_data, f, indent=2, ensure_ascii=False)
+                print(f"⚠️ Error saving audit logs backup: {e}")
+            
+            print("💾 Security state saved to database (all collections)")
         except Exception as e:
-            print(f"⚠️ Error saving settings.json: {e}")
+            print(f"⚠️ Error saving remaining security collections: {e}")
         
-        # Save audit logs (append mode, keep last 10k) - backup only
-        audit_path = os.path.join(security_dir, "audit_logs.json")
-        try:
-            with open(audit_path, "w", encoding="utf-8") as f:
-                logs = self.audit_logs[-10000:]  # Keep last 10k
-                json.dump([log.dict() for log in logs], f, indent=2, ensure_ascii=False, default=str)
-        except Exception as e:
-            print(f"⚠️ Error saving audit_logs.json: {e}")
+        # NOTE: All security data is persisted to the database above.
+        # No JSON file backup is written — the database is the single source of truth.
     
     def load_from_disk(self):
-        """Load security state from disk (with database priority)"""
+        """Load security state from database (DB-only, no JSON files)."""
         import traceback
-        
-        data_dir = os.environ.get("DATA_PATH", "data")
-        security_dir = os.path.join(data_dir, "security")
         
         # Try to load from database first
         db_users_loaded = False
@@ -303,8 +290,7 @@ class SecurityState:
             print(f"❌ [DATABASE ERROR] Failed to load roles: {type(db_error).__name__}: {str(db_error)}")
             traceback.print_exc()
         
-        if not os.path.exists(security_dir):
-            return
+
         
         # --- Load Organizations from database ---
         db_orgs_loaded = False
@@ -396,82 +382,33 @@ class SecurityState:
             print(f"❌ [DATABASE ERROR] Failed to load security settings: {type(db_error).__name__}: {str(db_error)}")
             traceback.print_exc()
         
-        # Fallback to JSON files only if database loading failed
-        if not os.path.exists(security_dir):
-            return
-        
-        # Load settings from JSON only if database loading failed
-        if not db_settings_loaded:
-            settings_path = os.path.join(security_dir, "settings.json")
-            if os.path.exists(settings_path):
+        # Load remaining security collections from DB (via SystemSettingsService)
+        try:
+            from database.services import SystemSettingsService
+            remaining_loaders = [
+                ("security_policies", Policy, self.policies),
+                ("security_tool_permissions", ToolPermission, self.tool_permissions),
+                ("security_kb_permissions", KnowledgeBasePermission, self.kb_permissions),
+                ("security_db_permissions", DatabasePermission, self.db_permissions),
+                ("security_ldap_configs", LDAPConfig, self.ldap_configs),
+                ("security_oauth_configs", OAuthConfig, self.oauth_configs),
+            ]
+            for key, cls, container in remaining_loaders:
                 try:
-                    with open(settings_path, encoding="utf-8") as f:
-                        data = json.load(f)
-                        self.tenancy_mode = TenancyMode(data.get("tenancy_mode", "single"))
-                        for org_id, settings_dict in data.get("settings", {}).items():
-                            self.settings[org_id] = SecuritySettings(**settings_dict)
-                except Exception as e:
-                    print(f"⚠️ Error loading settings.json: {e}")
-        
-        # Only load from JSON if database loading failed
-        loaders = []
-        
-        if not db_orgs_loaded:
-            loaders.append(("organizations.json", Organization, self.organizations))
-        if not db_users_loaded:
-            loaders.append(("users.json", User, self.users))
-        if not db_roles_loaded:
-            loaders.append(("roles.json", Role, self.roles))
-        if not db_departments_loaded:
-            loaders.append(("departments.json", Department, self.departments))
-        if not db_groups_loaded:
-            loaders.append(("groups.json", UserGroup, self.groups))
-        if not db_invitations_loaded:
-            loaders.append(("invitations.json", Invitation, self.invitations))
-        
-        # Policies and permissions - still from JSON (can be migrated later if needed)
-        loaders.extend([
-            ("policies.json", Policy, self.policies),
-            ("tool_permissions.json", ToolPermission, self.tool_permissions),
-            ("kb_permissions.json", KnowledgeBasePermission, self.kb_permissions),
-            ("db_permissions.json", DatabasePermission, self.db_permissions),
-            ("ldap_configs.json", LDAPConfig, self.ldap_configs),
-            ("oauth_configs.json", OAuthConfig, self.oauth_configs),
-        ])
-        
-        for filename, cls, container in loaders:
-            path = os.path.join(security_dir, filename)
-            if os.path.exists(path):
-                try:
-                    with open(path, encoding="utf-8") as f:
-                        data = json.load(f)
-                        for k, v in data.items():
+                    db_data = SystemSettingsService.get_system_setting(key)
+                    if db_data and isinstance(db_data, dict):
+                        for k, v in db_data.items():
                             try:
                                 container[k] = cls(**v)
                             except Exception as item_error:
-                                print(f"  ⚠️ Error loading item {k} from {filename}: {item_error}")
+                                print(f"  ⚠️ Error loading item {k} from {key}: {item_error}")
                 except Exception as e:
-                    print(f"⚠️ Error loading {filename}: {e}")
+                    print(f"⚠️ Error loading {key} from database: {e}")
+        except Exception as e:
+            print(f"⚠️ Error loading remaining security collections from database: {e}")
         
-        # Load audit logs from JSON only if database loading failed
-        if not db_audit_loaded:
-            audit_path = os.path.join(security_dir, "audit_logs.json")
-            if os.path.exists(audit_path):
-                try:
-                    with open(audit_path, encoding="utf-8") as f:
-                        data = json.load(f)
-                        self.audit_logs = []
-                        for log_data in data:
-                            try:
-                                if 'action' in log_data and isinstance(log_data['action'], str):
-                                    log_data['action'] = ActionType(log_data['action'])
-                                if 'resource_type' in log_data and isinstance(log_data['resource_type'], str):
-                                    log_data['resource_type'] = ResourceType(log_data['resource_type'])
-                                self.audit_logs.append(AuditLog(**log_data))
-                            except Exception:
-                                pass
-                except Exception as e:
-                    print(f"⚠️ Error loading audit logs: {e}")
+        # NOTE: All security data is loaded from the database above.
+        # No JSON file fallback — the database is the single source of truth.
         
         # Ensure default roles exist
         self._ensure_default_roles()

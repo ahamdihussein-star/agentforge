@@ -1869,21 +1869,17 @@ class AppState:
         self._vector_db = None
         
     def save_to_disk(self):
-        data_dir = os.environ.get("DATA_PATH", "data")
-        os.makedirs(data_dir, exist_ok=True)
+        """Save application state to database (DB-only, no JSON files)."""
+        from database.services import SystemSettingsService
         
-        # Save agents to database first
+        # ── Agents → DB via AgentService ──
         try:
             from database.services import AgentService
-            # Get default org_id and owner_id
             org_id = "org_default"
             owner_id = None
             created_by = None
-            
-            # Try to get owner_id from security_state if available
             try:
                 if SECURITY_AVAILABLE and security_state.users:
-                    # Use first user as default owner (or super admin if available)
                     super_admin = next((u for u in security_state.users.values() if u.role_ids and any(r == "super_admin" or "super" in r.lower() for r in u.role_ids)), None)
                     if super_admin:
                         owner_id = super_admin.id
@@ -1896,262 +1892,205 @@ class AppState:
             except Exception:
                 pass
             
-            # Save each agent to database
             for agent_id, agent in self.agents.items():
                 try:
                     agent_dict = agent.dict()
-                    # Get org_id and owner_id from agent_dict if available (from database)
                     agent_org_id = agent_dict.get('org_id', org_id)
                     agent_owner_id = agent_dict.get('owner_id', owner_id)
                     agent_created_by = agent_dict.get('created_by', created_by or agent_owner_id)
-                    
-                    # Remove extra fields that AgentData doesn't have
-                    agent_dict.pop('org_id', None)
-                    agent_dict.pop('owner_id', None)
-                    agent_dict.pop('created_by', None)
-                    agent_dict.pop('shared_with_user_ids', None)
-                    agent_dict.pop('shared_with_role_ids', None)
-                    agent_dict.pop('usage_count', None)
-                    agent_dict.pop('last_used_at', None)
-                    agent_dict.pop('context_window', None)
-                    agent_dict.pop('version', None)
-                    agent_dict.pop('parent_version_id', None)
-                    agent_dict.pop('published_at', None)
-                    agent_dict.pop('extra_metadata', None)
-                    
-                    # Save to database
+                    for pop_key in ('org_id', 'owner_id', 'created_by', 'shared_with_user_ids',
+                                    'shared_with_role_ids', 'usage_count', 'last_used_at',
+                                    'context_window', 'version', 'parent_version_id',
+                                    'published_at', 'extra_metadata'):
+                        agent_dict.pop(pop_key, None)
                     AgentService.save_agent(
                         agent_dict,
                         org_id=agent_org_id,
-                        owner_id=agent_owner_id or "00000000-0000-0000-0000-000000000000",  # Fallback UUID
+                        owner_id=agent_owner_id or "00000000-0000-0000-0000-000000000000",
                         created_by=agent_created_by or agent_owner_id or "00000000-0000-0000-0000-000000000000",
                         updated_by=agent_created_by or agent_owner_id
                     )
                 except Exception as e:
                     print(f"⚠️  [DATABASE ERROR] Failed to save agent '{agent.name}' (ID: {agent_id[:8]}...): {e}")
-                    import traceback
-                    traceback.print_exc()
                     continue
-            
-            # Also save to JSON as backup
-            with open(os.path.join(data_dir, "agents.json"), "w") as f:
-                json.dump({k: v.dict() for k, v in self.agents.items()}, f, indent=2)
         except Exception as db_error:
             print(f"❌ [DATABASE ERROR] Failed to save agents: {type(db_error).__name__}: {str(db_error)}")
-            import traceback
-            traceback.print_exc()
-            # Fallback to JSON only
-            with open(os.path.join(data_dir, "agents.json"), "w") as f:
-                json.dump({k: v.dict() for k, v in self.agents.items()}, f, indent=2)
         
-        # Save tools to database
+        # ── Tools → DB via ToolService ──
         try:
             from database.services import ToolService
             for tool_id, tool in self.tools.items():
                 tool_dict = tool.dict()
-                # Convert api_config to dict if it's an object
                 if hasattr(tool, 'api_config') and tool.api_config:
                     tool_dict['api_config'] = tool.api_config.dict() if hasattr(tool.api_config, 'dict') else tool.api_config
                 ToolService.create_tool(tool_dict, "org_default", tool_dict.get('owner_id', 'system'))
         except Exception as e:
             print(f"⚠️  [DATABASE] Failed to save tools: {e}")
-            # Fallback to JSON
-            with open(os.path.join(data_dir, "tools.json"), "w") as f:
-                json.dump({k: v.dict() for k, v in self.tools.items()}, f, indent=2)
         
-        # Save other data to JSON (documents, scraped_pages, conversations)
-        for name, data in [("documents.json", self.documents), ("scraped_pages.json", self.scraped_pages), ("conversations.json", self.conversations)]:
-            with open(os.path.join(data_dir, name), "w") as f:
-                json.dump({k: v.dict() for k, v in data.items()}, f, indent=2)
-        with open(os.path.join(data_dir, "chunks_index.json"), "w") as f:
-            json.dump(self.document_chunks, f)
-        # Save settings
-        with open(os.path.join(data_dir, "settings.json"), "w") as f:
-            json.dump(self.settings.dict(), f, indent=2)
-        # Save integrations (OAuth credentials)
-        with open(os.path.join(data_dir, "integrations.json"), "w") as f:
-            json.dump(self.integrations, f, indent=2)
+        # ── Settings → DB via SystemSettingsService ──
+        try:
+            SystemSettingsService.set_system_setting(
+                "system_settings", self.settings.dict(),
+                value_type='json', category='platform'
+            )
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to save settings: {e}")
+        
+        # ── Documents metadata → DB via SystemSettingsService ──
+        try:
+            SystemSettingsService.set_system_setting(
+                "app_documents", {k: v.dict() for k, v in self.documents.items()},
+                value_type='json', category='app_data'
+            )
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to save documents: {e}")
+        
+        # ── Scraped pages → DB via SystemSettingsService ──
+        try:
+            SystemSettingsService.set_system_setting(
+                "app_scraped_pages", {k: v.dict() for k, v in self.scraped_pages.items()},
+                value_type='json', category='app_data'
+            )
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to save scraped pages: {e}")
+        
+        # ── Document chunks index → DB via SystemSettingsService ──
+        try:
+            SystemSettingsService.set_system_setting(
+                "app_document_chunks", self.document_chunks,
+                value_type='json', category='app_data'
+            )
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to save document chunks: {e}")
+        
+        # ── Integrations (OAuth) → DB via SystemSettingsService ──
+        try:
+            SystemSettingsService.set_system_setting(
+                "app_integrations", self.integrations,
+                value_type='json', category='security'
+            )
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to save integrations: {e}")
+        
+        # NOTE: Conversations are saved to DB on-demand via ConversationService
+        # in the streaming/chat API endpoints — no batch save needed here.
     
     def load_from_disk(self):
-        data_dir = os.environ.get("DATA_PATH", "data")
+        """Load application state from database (DB-only, no JSON files)."""
+        from database.services import SystemSettingsService
         
-        # Load integrations first (OAuth credentials)
-        integrations_path = os.path.join(data_dir, "integrations.json")
-        if os.path.exists(integrations_path):
-            try:
-                with open(integrations_path) as f:
-                    self.integrations = json.load(f)
-                    # Set environment variables from saved integrations
-                    for provider, creds in self.integrations.items():
-                        if provider == 'google':
-                            if creds.get('client_id'):
-                                os.environ['GOOGLE_CLIENT_ID'] = creds['client_id']
-                            if creds.get('client_secret'):
-                                os.environ['GOOGLE_CLIENT_SECRET'] = creds['client_secret']
-                        elif provider == 'microsoft':
-                            if creds.get('client_id'):
-                                os.environ['MICROSOFT_CLIENT_ID'] = creds['client_id']
-                            if creds.get('client_secret'):
-                                os.environ['MICROSOFT_CLIENT_SECRET'] = creds['client_secret']
-                    print(f"✅ Loaded integrations: {list(self.integrations.keys())}")
-            except Exception as e:
-                print(f"⚠️ Error loading integrations: {e}")
-        
-        # Load settings from database first
-        db_settings_loaded = False
+        # ── Integrations (OAuth credentials) → DB ──
         try:
-            from database.services import SystemSettingsService
+            db_integrations = SystemSettingsService.get_system_setting("app_integrations")
+            if db_integrations and isinstance(db_integrations, dict):
+                self.integrations = db_integrations
+                for provider, creds in self.integrations.items():
+                    if provider == 'google':
+                        if creds.get('client_id'):
+                            os.environ['GOOGLE_CLIENT_ID'] = creds['client_id']
+                        if creds.get('client_secret'):
+                            os.environ['GOOGLE_CLIENT_SECRET'] = creds['client_secret']
+                    elif provider == 'microsoft':
+                        if creds.get('client_id'):
+                            os.environ['MICROSOFT_CLIENT_ID'] = creds['client_id']
+                        if creds.get('client_secret'):
+                            os.environ['MICROSOFT_CLIENT_SECRET'] = creds['client_secret']
+                print(f"✅ Loaded integrations from database: {list(self.integrations.keys())}")
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to load integrations: {e}")
+        
+        # ── Settings → DB ──
+        try:
             db_settings = SystemSettingsService.get_system_setting("system_settings")
             if db_settings:
                 self.settings = SystemSettings(**db_settings)
                 llm_provider = self.settings.llm.provider.value if hasattr(self.settings.llm.provider, 'value') else str(self.settings.llm.provider)
                 vector_db_provider = self.settings.vector_db.provider.value if hasattr(self.settings.vector_db.provider, 'value') else str(self.settings.vector_db.provider)
-                db_settings_loaded = True
+                print(f"✅ Loaded settings from database: LLM={llm_provider}, VectorDB={vector_db_provider}")
         except Exception as db_error:
-            print(f"❌ [DATABASE ERROR] Failed to load platform settings: {type(db_error).__name__}: {str(db_error)}")
-            import traceback
-            traceback.print_exc()
-            print("📂 Loading settings from files (database unavailable)")
+            print(f"⚠️  [DATABASE] Failed to load settings: {db_error}, using defaults")
         
-        # Load settings from JSON only if database loading failed
-        if not db_settings_loaded:
-            settings_path = os.path.join(data_dir, "settings.json")
-            if os.path.exists(settings_path):
-                try:
-                    with open(settings_path) as f:
-                        settings_data = json.load(f)
-                        self.settings = SystemSettings(**settings_data)
-                        llm_provider = self.settings.llm.provider.value if hasattr(self.settings.llm.provider, 'value') else str(self.settings.llm.provider)
-                        vector_db_provider = self.settings.vector_db.provider.value if hasattr(self.settings.vector_db.provider, 'value') else str(self.settings.vector_db.provider)
-                        print(f"✅ Loaded settings from file: LLM={llm_provider}, VectorDB={vector_db_provider}")
-                        if self.settings.llm_providers:
-                            print(f"✅ Loaded {len(self.settings.llm_providers)} LLM providers from file: {[p.name for p in self.settings.llm_providers]}")
-                except Exception as e:
-                    print(f"⚠️ Error loading settings: {e}, using defaults")
-                    import traceback
-                    traceback.print_exc()
-        
-        # Load agents from database first
-        db_agents_loaded = False
+        # ── Agents → DB via AgentService ──
         try:
             from database.services import AgentService
             db_agents = AgentService.get_all_agents("org_default")
             if db_agents:
                 for agent_dict in db_agents:
                     try:
-                        # Convert dictionary to AgentData - include owner_id and created_by
-                        # These fields are now in AgentData model
                         agent_data = AgentData(**{
-                            k: v for k, v in agent_dict.items() 
+                            k: v for k, v in agent_dict.items()
                             if k in AgentData.__fields__ or k in ('owner_id', 'created_by')
                         })
                         self.agents[agent_data.id] = agent_data
                     except Exception as e:
                         print(f"⚠️  Error converting agent from database: {e}")
-                        import traceback
-                        traceback.print_exc()
                         continue
-                db_agents_loaded = True
                 print(f"✅ Loaded {len(self.agents)} agents from database")
         except Exception as db_error:
             print(f"❌ [DATABASE ERROR] Failed to load agents: {type(db_error).__name__}: {str(db_error)}")
-            import traceback
-            traceback.print_exc()
-            print("📂 Loading agents from files (database unavailable)")
         
-        # Load agents from JSON only if database loading failed
-        if not db_agents_loaded:
-            agents_path = os.path.join(data_dir, "agents.json")
-            if os.path.exists(agents_path):
-                try:
-                    with open(agents_path) as f:
-                        data = json.load(f)
-                        for k, v in data.items():
-                            try:
-                                if 'tasks' in v:
-                                    tasks = []
-                                    for t in v.get('tasks', []):
-                                        instructions = []
-                                        for i in t.get('instructions', []):
-                                            if isinstance(i, dict): instructions.append(TaskInstruction(**i))
-                                            elif isinstance(i, str): instructions.append(TaskInstruction(text=i))
-                                        tasks.append(TaskDefinition(id=t.get('id', str(uuid.uuid4())), name=t.get('name', ''), description=t.get('description', ''), instructions=instructions))
-                                    v['tasks'] = tasks
-                                    if 'personality' in v and isinstance(v['personality'], dict):
-                                        v['personality'] = AgentPersonality(**v['personality'])
-                                self.agents[k] = AgentData(**v)
-                            except Exception as e:
-                                print(f"Error loading agents.json item {k}: {e}")
-                except Exception as e:
-                    print(f"Error loading agents.json: {e}")
-        
-        # Load tools from database first
-        db_tools_loaded = False
+        # ── Tools → DB via ToolService ──
         try:
             from database.services import ToolService
             db_tools = ToolService.get_all_tools()
             if db_tools:
                 for tool_dict in db_tools:
                     try:
-                        # Convert api_config if present
                         if 'api_config' in tool_dict and tool_dict['api_config']:
                             api_cfg = tool_dict['api_config']
                             if 'input_parameters' in api_cfg:
                                 params = [APIInputParameter(**p) for p in api_cfg['input_parameters']]
                                 api_cfg['input_parameters'] = params
                             tool_dict['api_config'] = APIEndpointConfig(**api_cfg)
-                        
-                        # Migration: Set defaults for access control on existing tools
                         if not tool_dict.get('owner_id'):
                             tool_dict['owner_id'] = tool_dict.get('created_by', 'system')
                         if not tool_dict.get('access_type'):
-                            # Default to authenticated so existing tools work for logged-in users
                             tool_dict['access_type'] = 'authenticated'
-                        
-                        # Debug: Log access control fields from database
-                        print(f"   📦 Loading tool '{tool_dict.get('name')}': access_type={tool_dict.get('access_type')}, allowed_users={tool_dict.get('allowed_user_ids')}, allowed_groups={tool_dict.get('allowed_group_ids')}")
-                        
                         tool = ToolConfiguration(**{k: v for k, v in tool_dict.items() if k in ToolConfiguration.__fields__})
                         self.tools[tool.id] = tool
                     except Exception as e:
                         print(f"⚠️  Error converting tool from database: {e}")
-                db_tools_loaded = True
                 print(f"✅ Loaded {len(self.tools)} tools from database")
         except Exception as db_error:
             print(f"⚠️  [DATABASE] Failed to load tools: {db_error}")
         
-        # Load other data from JSON (tools only if DB failed, documents, etc.)
-        for name, cls, container in [("documents.json", Document, self.documents), ("scraped_pages.json", ScrapedPage, self.scraped_pages), ("conversations.json", Conversation, self.conversations)] + ([] if db_tools_loaded else [("tools.json", ToolConfiguration, self.tools)]):
-            path = os.path.join(data_dir, name)
-            if os.path.exists(path):
-                try:
-                    with open(path) as f:
-                        data = json.load(f)
-                        for k, v in data.items():
-                            try:
-                                if cls == ToolConfiguration and 'api_config' in v and v['api_config']:
-                                    api_cfg = v['api_config']
-                                    if 'input_parameters' in api_cfg:
-                                        params = [APIInputParameter(**p) for p in api_cfg['input_parameters']]
-                                        api_cfg['input_parameters'] = params
-                                    v['api_config'] = APIEndpointConfig(**api_cfg)
-                                
-                                # Migration: Set defaults for access control on existing tools (JSON loaded)
-                                if cls == ToolConfiguration:
-                                    if not v.get('owner_id'):
-                                        v['owner_id'] = v.get('created_by', 'system')
-                                    if not v.get('access_type'):
-                                        v['access_type'] = 'authenticated'
-                                
-                                container[k] = cls(**v)
-                            except Exception as e:
-                                print(f"Error loading {name} item {k}: {e}")
-                except Exception as e:
-                    print(f"Error loading {name}: {e}")
-        chunks_path = os.path.join(data_dir, "chunks_index.json")
-        if os.path.exists(chunks_path):
-            with open(chunks_path) as f:
-                self.document_chunks = json.load(f)
+        # ── Documents metadata → DB ──
+        try:
+            db_documents = SystemSettingsService.get_system_setting("app_documents")
+            if db_documents and isinstance(db_documents, dict):
+                for k, v in db_documents.items():
+                    try:
+                        self.documents[k] = Document(**v)
+                    except Exception as e:
+                        print(f"⚠️  Error loading document {k}: {e}")
+                print(f"✅ Loaded {len(self.documents)} documents from database")
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to load documents: {e}")
+        
+        # ── Scraped pages → DB ──
+        try:
+            db_scraped = SystemSettingsService.get_system_setting("app_scraped_pages")
+            if db_scraped and isinstance(db_scraped, dict):
+                for k, v in db_scraped.items():
+                    try:
+                        self.scraped_pages[k] = ScrapedPage(**v)
+                    except Exception as e:
+                        print(f"⚠️  Error loading scraped page {k}: {e}")
+                print(f"✅ Loaded {len(self.scraped_pages)} scraped pages from database")
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to load scraped pages: {e}")
+        
+        # ── Document chunks index → DB ──
+        try:
+            db_chunks = SystemSettingsService.get_system_setting("app_document_chunks")
+            if db_chunks and isinstance(db_chunks, list):
+                self.document_chunks = db_chunks
+                print(f"✅ Loaded {len(self.document_chunks)} document chunks from database")
+        except Exception as e:
+            print(f"⚠️  [DATABASE] Failed to load document chunks: {e}")
+        
+        # NOTE: Conversations are loaded on-demand via ConversationService
+        # when the chat API endpoints are called — no batch load needed here.
 
 
 app_state = AppState()

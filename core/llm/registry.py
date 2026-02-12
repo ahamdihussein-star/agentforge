@@ -24,36 +24,35 @@ class LLMRegistry:
         Initialize the registry.
         
         Args:
-            storage_path: Path to store model configurations (JSON file)
+            storage_path: Deprecated — kept for backward compatibility but ignored.
+                          All data is stored in the database via SystemSettingsService.
         """
         self._models: Dict[str, LLMConfig] = {}
-        self._storage_path = storage_path
-        
-        if storage_path and os.path.exists(storage_path):
-            self._load_from_file()
+        self._load_from_db()
     
-    def _load_from_file(self):
-        """Load models from storage file."""
+    def _load_from_db(self):
+        """Load models from database."""
         try:
-            with open(self._storage_path, 'r') as f:
-                data = json.load(f)
+            from database.services import SystemSettingsService
+            data = SystemSettingsService.get_system_setting("llm_registry_models")
+            if data and isinstance(data, list):
                 for model_data in data:
                     config = LLMConfig(**model_data)
                     self._models[config.id] = config
         except Exception as e:
-            print(f"Warning: Could not load LLM registry: {e}")
+            print(f"Warning: Could not load LLM registry from database: {e}")
     
-    def _save_to_file(self):
-        """Save models to storage file."""
-        if not self._storage_path:
-            return
-        
+    def _save_to_db(self):
+        """Save models to database."""
         try:
+            from database.services import SystemSettingsService
             data = [model.dict() for model in self._models.values()]
-            with open(self._storage_path, 'w') as f:
-                json.dump(data, f, indent=2, default=str)
+            SystemSettingsService.set_system_setting(
+                "llm_registry_models", data,
+                value_type='json', category='llm'
+            )
         except Exception as e:
-            print(f"Warning: Could not save LLM registry: {e}")
+            print(f"Warning: Could not save LLM registry to database: {e}")
     
     def register(self, config: LLMConfig) -> str:
         """
@@ -69,7 +68,7 @@ class LLMRegistry:
         config.updated_at = datetime.utcnow()
         
         self._models[config.id] = config
-        self._save_to_file()
+        self._save_to_db()
         
         return config.id
     
@@ -94,7 +93,7 @@ class LLMRegistry:
                 setattr(config, key, value)
         
         config.updated_at = datetime.utcnow()
-        self._save_to_file()
+        self._save_to_db()
         
         return config
     
@@ -110,7 +109,7 @@ class LLMRegistry:
         """
         if model_id in self._models:
             del self._models[model_id]
-            self._save_to_file()
+            self._save_to_db()
             return True
         return False
     
