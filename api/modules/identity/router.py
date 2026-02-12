@@ -29,7 +29,7 @@ from .schemas import (
     BulkUserCustomAttributesRequest, BulkUserCustomAttributesResponse,
 )
 from core.identity.service import UserDirectoryService
-from api.security import require_auth, require_admin, User
+from api.security import require_auth, require_admin, User, security_state
 
 router = APIRouter(prefix="/identity", tags=["Identity & Org Chart"])
 
@@ -512,6 +512,19 @@ async def update_profile_fields_schema(body: UpdateProfileFieldsSchemaRequest, u
         org.settings = settings
         org.updated_at = datetime.utcnow()
         session.commit()
+
+    # Keep the in-memory security cache in sync to prevent stale org.settings
+    # from overwriting profile_fields_schema during later security_state.save_to_disk()
+    # (e.g. login/reload flows).
+    try:
+        cached_org = security_state.organizations.get(ctx["org_id"])
+        if cached_org:
+            cached_settings = cached_org.settings if isinstance(getattr(cached_org, "settings", None), dict) else {}
+            cached_settings["profile_fields_schema"] = cleaned
+            cached_org.settings = cached_settings
+    except Exception:
+        # Never fail the API call because of cache sync issues
+        pass
     return ProfileFieldsSchemaResponse(fields=cleaned)
 
 
