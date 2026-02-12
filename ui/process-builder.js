@@ -6120,10 +6120,13 @@
                                         ? `EMAIL notification sent to ${sentCount} recipients.`
                                         : `EMAIL notification sent to ${recipientResolved}.`;
                                 } else if (sendRes.ok && sendRes.data) {
-                                    const err = sendRes.data.error || sendRes.data.note || '';
+                                    let err = sendRes.data.error || sendRes.data.note || '';
+                                    if (err && typeof err === 'object') try { err = JSON.stringify(err); } catch (_) { err = '(see console)'; }
                                     msg = `EMAIL notification could not be sent to ${recipientResolved}.` + (err ? ` Reason: ${String(err)}` : '');
                                 } else {
-                                    msg = `EMAIL notification could not be sent to ${recipientResolved}.` + (sendRes.error ? ` Reason: ${String(sendRes.error)}` : '');
+                                    let sErr = sendRes.error || '';
+                                    if (sErr && typeof sErr === 'object') try { sErr = JSON.stringify(sErr); } catch (_) { sErr = '(see console)'; }
+                                    msg = `EMAIL notification could not be sent to ${recipientResolved}.` + (sErr ? ` Reason: ${String(sErr)}` : '');
                                 }
                                 if (shortBody) msg += ` Message: “${shortBody}”`;
                             } else {
@@ -6244,6 +6247,12 @@
                 if (current.type === 'end') break;
             }
 
+            // Check if any trace steps had warnings (unresolvable conditions, etc.)
+            const hasWarnings = trace.some(t => t.status_key === 'warning' || (t.message && t.message.includes('⚠️')));
+            if (hasWarnings && outcome.status === 'completed') {
+                outcome.headline = 'Workflow completed (with warnings). Some steps could not be fully evaluated in simulation mode — use "Run using real engine" for accurate results.';
+            }
+
             // Auto-play on the canvas FIRST (so the user can see the path animation),
             // then show the final report modal.
             window._lastTestTrace = trace;
@@ -6276,10 +6285,16 @@
             
             const traceCards = trace
                 .filter((t, idx) => idx === 0 || t.message) // keep start + meaningful messages
-                .map((t, idx) => `
-                    <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:14px;margin-bottom:10px;">
+                .map((t, idx) => {
+                    const sk = (t.status_key || '').toLowerCase();
+                    const isWarning = sk === 'warning' || (t.message && t.message.includes('⚠️'));
+                    const isFailed = sk === 'failed';
+                    const cardBorder = isWarning ? 'border:1px solid color-mix(in srgb, var(--warning) 55%, transparent);' : (isFailed ? 'border:1px solid color-mix(in srgb, var(--danger) 55%, transparent);' : 'border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);');
+                    const cardBg = isWarning ? 'background:color-mix(in srgb, var(--warning) 8%, var(--bg-input));' : (isFailed ? 'background:color-mix(in srgb, var(--danger) 8%, var(--bg-input));' : 'background:var(--bg-input);');
+                    return `
+                    <div style="display:flex;gap:12px;padding:12px;${cardBg}${cardBorder}border-radius:14px;margin-bottom:10px;">
                         <div style="width:30px;height:30px;border-radius:10px;background:color-mix(in srgb, var(--tb-btn-primary-bg) 18%, transparent);display:flex;align-items:center;justify-content:center;color:var(--tb-btn-primary-text);font-weight:700;">
-                            ${getTestIcon(t.type)}
+                            ${isWarning ? '⚠️' : getTestIcon(t.type)}
                         </div>
                         <div style="flex:1;min-width:0;">
                             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
@@ -6288,8 +6303,8 @@
                             </div>
                             <div style="margin-top:6px;font-size:13px;color:color-mix(in srgb, var(--pb-text) 86%, var(--pb-muted));line-height:1.35;">${escapeHtml(t.message || '')}</div>
                         </div>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
             
             const statusBadge = outcome.status === 'pending'
                 ? `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--warning) 18%, transparent);border:1px solid color-mix(in srgb, var(--warning) 45%, transparent);color:var(--warning);font-weight:700;font-size:12px;">Pending</span>`

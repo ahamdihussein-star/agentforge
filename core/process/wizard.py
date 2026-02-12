@@ -1107,21 +1107,34 @@ class ProcessWizard:
             t_fields = (trigger_node.get("config") or {}).get("fields") or []
             trigger_file_fields = [f.get("name") for f in t_fields if isinstance(f, dict) and str(f.get("type", "")).lower() == "file"]
 
+        if not trigger_file_fields and any(
+            str((n.get("config") or {}).get("actionType") or "").strip().lower().replace("_", "") in ("extractdocumenttext", "extracttext")
+            for n in normalized_nodes if n.get("type") == "action"
+        ):
+            logger.warning("Extract Document Text action(s) present but trigger has no file fields; sourceField may be unset")
+
         for n in normalized_nodes:
             if n.get("type") != "action":
                 continue
-            cfg = n.get("config") or {}
+            cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
             at = str(cfg.get("actionType") or "").strip().lower().replace("_", "")
             if at in ("extractdocumenttext", "extracttext"):
                 sf = str(cfg.get("sourceField") or "").strip()
-                if not sf and trigger_file_fields:
+                # Verify sourceField matches an actual trigger file field
+                if sf and trigger_file_fields and sf not in trigger_file_fields:
+                    # LLM set a sourceField that doesn't match any trigger file field — fix it
                     sf = trigger_file_fields[0]
                     cfg["sourceField"] = sf
+                elif not sf and trigger_file_fields:
+                    # No sourceField set — pick the first file field
+                    sf = trigger_file_fields[0]
+                    cfg["sourceField"] = sf
+                # ALWAYS set path from sourceField (even if output_variable already exists)
                 if sf:
                     cfg["path"] = "{{" + sf + ".path}}"
-                    ov = n.get("output_variable") or n.get("outputVariable") or ""
-                    if not ov:
-                        n["output_variable"] = sf + "Text" if sf else "extractedData"
+                ov = n.get("output_variable") or n.get("outputVariable") or ""
+                if not ov:
+                    n["output_variable"] = sf + "Text" if sf else "extractedData"
                 n["config"] = cfg
 
         # ENFORCE: Notification nodes must have recipient and template populated.
