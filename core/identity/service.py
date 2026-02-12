@@ -523,6 +523,15 @@ class UserDirectoryService:
             user.updated_at = datetime.utcnow()
             session.commit()
             
+            # Keep in-memory security cache in sync so save_to_disk() doesn't overwrite
+            try:
+                from core.security.state import security_state
+                cached = security_state.users.get(user_id)
+                if cached and getattr(cached, 'org_id', None) == org_id:
+                    cached.manager_id = str(manager_id) if manager_id else None
+            except Exception:
+                pass
+            
             logger.info(f"Updated manager for user {user_id} to {manager_id} by {updated_by}")
             return True
     
@@ -543,6 +552,16 @@ class UserDirectoryService:
             user.employee_id = employee_id
             user.updated_at = datetime.utcnow()
             session.commit()
+            
+            # Keep in-memory security cache in sync
+            try:
+                from core.security.state import security_state
+                cached = security_state.users.get(user_id)
+                if cached and getattr(cached, 'org_id', None) == org_id:
+                    cached.employee_id = employee_id
+            except Exception:
+                pass
+            
             return True
     
     def bulk_update_org_chart(self, org_id: str, updates: List[Dict[str, Any]], updated_by: str) -> Dict[str, Any]:

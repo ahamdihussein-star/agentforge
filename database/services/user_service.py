@@ -163,6 +163,9 @@ class UserService:
                 role_ids=user.role_ids or [],
                 department_id=user.department_id,
                 group_ids=user.group_ids or [],
+                # Organizational hierarchy
+                manager_id=getattr(user, 'manager_id', None),
+                employee_id=getattr(user, 'employee_id', None),
                 auth_provider=user.auth_provider.value if user.auth_provider else None,
                 external_id=user.external_id,
                 email_verified=user.email_verified,
@@ -329,6 +332,14 @@ class UserService:
             db_user.role_ids = user.role_ids or []
             db_user.department_id = user.department_id
             db_user.group_ids = user.group_ids or []
+            # Organizational hierarchy: MERGE to preserve values set via Identity API
+            # Only overwrite if the in-memory user actually has a value
+            incoming_mgr = getattr(user, 'manager_id', None)
+            if incoming_mgr is not None:
+                db_user.manager_id = incoming_mgr
+            incoming_emp = getattr(user, 'employee_id', None)
+            if incoming_emp is not None:
+                db_user.employee_id = incoming_emp
             db_user.email_verified = user.email_verified
             db_user.mfa_enabled = mfa_enabled
             db_user.mfa_method = mfa_method
@@ -483,6 +494,10 @@ class UserService:
         except Exception:
             custom_profile_attributes = {}
         
+        # Organizational hierarchy
+        manager_id = str(db_user.manager_id) if db_user.manager_id else None
+        employee_id_val = db_user.employee_id if hasattr(db_user, 'employee_id') else None
+
         return User(
             id=user_id,
             org_id=org_id,
@@ -492,6 +507,8 @@ class UserService:
             role_ids=role_ids,
             department_id=department_id,
             group_ids=group_ids,
+            manager_id=manager_id,
+            employee_id=employee_id_val,
             profile=UserProfile(
                 first_name=db_user.first_name or "",
                 last_name=db_user.last_name or "",
