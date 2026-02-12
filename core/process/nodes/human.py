@@ -447,7 +447,7 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         # 2. Resolve user IDs (UUIDs) to email addresses via User Directory
         # 3. Pass through anything that looks like an email as-is
         resolved_recipients = []
-        user_context = (state.trigger_input or {}).get("_user_context", {})
+        user_context = (getattr(context, 'trigger_input', None) or {}).get("_user_context", {})
         
         for r in interpolated_recipients:
             r_str = str(r).strip() if r else ""

@@ -78,8 +78,14 @@ def add_identity_columns():
                     col_type = _get_column_type(session, engine, "users", "manager_id")
                     if col_type == 'character varying':
                         print("   ⚠️  users.manager_id is VARCHAR, converting to UUID...")
+                        # Drop any DEFAULT first (prevents cast error)
+                        try:
+                            session.execute(text("ALTER TABLE users ALTER COLUMN manager_id DROP DEFAULT"))
+                            session.commit()
+                        except Exception:
+                            session.rollback()
                         session.execute(text(
-                            "ALTER TABLE users ALTER COLUMN manager_id TYPE UUID USING manager_id::uuid"
+                            "ALTER TABLE users ALTER COLUMN manager_id TYPE UUID USING NULLIF(manager_id, '')::uuid"
                         ))
                         session.commit()
                         print("   ✅ users.manager_id converted to UUID")

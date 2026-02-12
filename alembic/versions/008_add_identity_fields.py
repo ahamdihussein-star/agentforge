@@ -54,8 +54,13 @@ def upgrade():
             row = result.fetchone()
             if row and row[0] == 'character varying':
                 print("  Fixing manager_id: converting VARCHAR → UUID ...")
+                # Drop DEFAULT first to prevent cast error
+                try:
+                    op.execute(text("ALTER TABLE users ALTER COLUMN manager_id DROP DEFAULT"))
+                except Exception:
+                    pass
                 op.execute(text(
-                    "ALTER TABLE users ALTER COLUMN manager_id TYPE UUID USING manager_id::uuid"
+                    "ALTER TABLE users ALTER COLUMN manager_id TYPE UUID USING NULLIF(manager_id, '')::uuid"
                 ))
                 print("  ✅ manager_id converted to UUID")
         except Exception as e:
