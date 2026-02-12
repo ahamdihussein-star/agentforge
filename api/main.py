@@ -12097,18 +12097,62 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             
             tool_definitions = build_tool_definitions(action_tools) if action_tools else []
             
-            # Notify about capabilities - Business friendly (skip to reduce messages)
+            print(f"\n🤖 [STREAM] Agent: {agent.name}")
+            print(f"   [STREAM] Total tools: {len(agent_tools)}, Action tools: {len(action_tools)}, Tool defs: {len(tool_definitions)}")
+            if action_tools:
+                print(f"   [STREAM] Action tools: {[t.name for t in action_tools]}")
             
             # Build accessible tasks
             accessible_tasks = [task for task in agent.tasks if task.name not in denied_task_names]
             
-            # User context
+            # User context (full: name, role, groups)
             user_name = ""
+            user_context = ""
             if current_user:
                 if hasattr(current_user, 'first_name') and current_user.first_name:
                     user_name = current_user.first_name
+                    if hasattr(current_user, 'last_name') and current_user.last_name:
+                        user_name += f" {current_user.last_name}"
+                elif hasattr(current_user, 'display_name') and getattr(current_user, 'display_name', None):
+                    user_name = current_user.display_name
                 elif hasattr(current_user, 'email'):
                     user_name = current_user.email.split('@')[0].replace('.', ' ').title()
+                
+                # Get user's role and groups for context
+                user_role = ""
+                user_groups = []
+                if hasattr(current_user, 'role_ids') and current_user.role_ids:
+                    try:
+                        if SECURITY_AVAILABLE and security_state:
+                            for rid in current_user.role_ids:
+                                role = security_state.roles.get(rid)
+                                if role:
+                                    user_role = role.name
+                                    break
+                    except:
+                        pass
+                if hasattr(current_user, 'group_ids') and current_user.group_ids:
+                    try:
+                        if SECURITY_AVAILABLE and security_state:
+                            for gid in current_user.group_ids:
+                                group = security_state.groups.get(gid)
+                                if group:
+                                    user_groups.append(group.name)
+                    except:
+                        pass
+                
+                user_context = f"\n=== CURRENT USER ==="
+                user_context += f"\n• Name: {user_name}" if user_name else ""
+                user_context += f"\n• Role: {user_role}" if user_role else ""
+                user_context += f"\n• Groups: {', '.join(user_groups)}" if user_groups else ""
+                user_context += """
+
+**USER CONTEXT RULES:**
+- You may greet the user by name for a personalized experience
+- NEVER reveal the user's permissions, role, or group membership
+- NEVER discuss what other users can or cannot do
+- Focus on what YOU can help with, not on what the user is allowed to do
+"""
             
             # Build system prompt with instruction enforcement
             creativity_desc = "(Factual only)" if p.creativity <= 3 else "(Creative)" if p.creativity >= 7 else "(Balanced)"
@@ -12119,8 +12163,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             
             # Build base system prompt
             system_prompt = f"""You are {agent.name}.
-{f'The current user is {user_name}.' if user_name else ''}
-
+{user_context}
 {date_info}
 
 === GOAL ===
@@ -12179,6 +12222,15 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
 """
             
             system_prompt += context
+            
+            # ========================================================================
+            # ADD TOOL DESCRIPTIONS TO SYSTEM PROMPT (critical for LLM tool usage)
+            # ========================================================================
+            if action_tools:
+                system_prompt += "\n\n=== AVAILABLE TOOLS ===\nYou have access to the following tools. Use them when appropriate:\n"
+                for t in action_tools:
+                    system_prompt += f"• **{t.name}** ({t.type}): {t.description or 'No description'}\n"
+                system_prompt += "\nWhen you need to use a tool, the system will automatically execute it for you.\n"
             
             # ========================================================================
             # GENERATE THINKING FIRST (quick LLM call)
