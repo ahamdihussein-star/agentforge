@@ -984,17 +984,33 @@ class UserDirectoryService:
             manager_email = None
             manager_name = None
             if user.manager_id:
-                mgr = session.query(User).filter(User.id == user.manager_id).first()
-                if mgr:
-                    manager_email = mgr.email
-                    manager_name = mgr.display_name or f"{mgr.first_name or ''} {mgr.last_name or ''}".strip()
+                try:
+                    mgr = session.query(User).filter(User.id == user.manager_id).first()
+                    if mgr:
+                        manager_email = mgr.email
+                        manager_name = mgr.display_name or f"{mgr.first_name or ''} {mgr.last_name or ''}".strip()
+                except Exception as e:
+                    logger.warning("Failed to resolve manager by id %s: %s", str(user.manager_id)[:8], e)
+                    try:
+                        session.rollback()
+                    except Exception:
+                        pass
             
             # Check if user is a manager (has direct reports)
-            report_count = session.query(User).filter(
-                User.manager_id == user.id,
-                User.org_id == org_id,
-                User.status == "active"
-            ).count()
+            # Use text() with explicit cast to avoid VARCHAR/UUID type mismatch
+            report_count = 0
+            try:
+                from sqlalchemy import text as _text
+                report_count = session.execute(
+                    _text("SELECT count(*) FROM users WHERE manager_id::text = :uid AND org_id = :oid AND status = 'active'"),
+                    {"uid": str(user.id), "oid": str(org_id)}
+                ).scalar() or 0
+            except Exception as e:
+                logger.warning("Failed to count direct reports: %s", e)
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
             
             # Resolve group names
             group_names = []

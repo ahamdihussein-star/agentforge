@@ -468,11 +468,25 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             # Shortcut: "manager" → the requester's manager
             if r_lower in ("manager", "supervisor", "direct_manager"):
                 email = user_context.get("manager_email") or ""
+                # Fallback: resolve manager via user_directory if _user_context is empty
+                if not email and self.deps and self.deps.user_directory:
+                    try:
+                        requester_id = user_context.get("user_id") or context.user_id
+                        if requester_id:
+                            requester_attrs = self.deps.user_directory.get_user(requester_id, context.org_id)
+                            if requester_attrs and requester_attrs.manager_id:
+                                mgr_attrs = self.deps.user_directory.get_user(requester_attrs.manager_id, context.org_id)
+                                if mgr_attrs and mgr_attrs.email:
+                                    email = mgr_attrs.email
+                                    logs.append(f"Resolved '{r_str}' via user directory fallback → {email}")
+                    except Exception as e:
+                        logs.append(f"Warning: user directory fallback for '{r_str}' failed: {e}")
                 if email:
                     resolved_recipients.append(email)
-                    logs.append(f"Resolved '{r_str}' → {email}")
+                    if f"Resolved '{r_str}'" not in (logs[-1] if logs else ""):
+                        logs.append(f"Resolved '{r_str}' → {email}")
                 else:
-                    logs.append(f"Warning: Could not resolve '{r_str}' — no manager email in user context")
+                    logs.append(f"Warning: Could not resolve '{r_str}' — no manager email in user context or directory")
                 continue
             
             # Looks like an email → pass through
