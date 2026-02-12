@@ -1,0 +1,5129 @@
+## PHASE 1 — Code Truth Report
+- Generated from repository tree at: `/Users/ahmedhamdy/Documents/agentforge`
+- Code files scanned: **172**
+
+---
+### `Dockerfile`
+- **Purpose**: Unknown
+- **Key symbols**: Not applicable
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `OAuth`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/env.py`
+- **Purpose**: Alembic Configuration for AgentForge Database
+- **Key functions/classes**:
+  - `function run_migrations_offline ()` — Run migrations in 'offline' mode.
+  - `function run_migrations_online ()` — Run migrations in 'online' mode.
+- **Dependencies (imports)**:
+  - `alembic.context`
+  - `database.base.Base`
+  - `database.config.DatabaseConfig`
+  - `database.models.*`
+  - `logging.config.fileConfig`
+  - `os`
+  - `sqlalchemy.engine_from_config`
+  - `sqlalchemy.pool`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/versions/001_add_website_tooltype.py`
+- **Purpose**: Add website to tooltype enum
+- **Key functions/classes**:
+  - `function upgrade ()` — Add 'website' value to tooltype enum in PostgreSQL
+  - `function downgrade ()` — Remove 'website' value from tooltype enum
+- **Dependencies (imports)**:
+  - `alembic.op`
+  - `sqlalchemy`
+  - `typing.Sequence`
+  - `typing.Union`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/versions/002_add_tool_access_control.py`
+- **Purpose**: Add tool access control fields
+- **Key functions/classes**:
+  - `function column_exists (table_name, column_name)` — Check if a column exists in a table
+  - `function index_exists (index_name)` — Check if an index exists
+  - `function upgrade ()` — Add access control columns to tools table (if not already present)
+  - `function downgrade ()` — Remove access control columns (if they exist)
+- **Dependencies (imports)**:
+  - `alembic.op`
+  - `sqlalchemy`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `permission`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/versions/003_add_process_agent_support.py`
+- **Purpose**: Add process agent support
+- **Key functions/classes**:
+  - `function column_exists (table_name, column_name)` — Check if a column exists in a table
+  - `function table_exists (table_name)` — Check if a table exists
+  - `function index_exists (index_name)` — Check if an index exists
+  - `function upgrade ()`
+  - `function downgrade ()`
+- **Dependencies (imports)**:
+  - `alembic.op`
+  - `sqlalchemy`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/versions/004_add_process_settings_tables.py`
+- **Purpose**: Add process settings tables
+- **Key functions/classes**:
+  - `function table_exists (table_name)` — Check if a table exists
+  - `function upgrade ()`
+  - `function downgrade ()`
+- **Dependencies (imports)**:
+  - `alembic.op`
+  - `sqlalchemy`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/versions/005_add_approval_assigned_group_ids.py`
+- **Purpose**: Add assigned_group_ids to process_approval_requests
+- **Key functions/classes**:
+  - `function column_exists (table_name, column_name)` — Check if a column exists in the table
+  - `function upgrade ()`
+  - `function downgrade ()`
+- **Dependencies (imports)**:
+  - `alembic.op`
+  - `sqlalchemy`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/versions/006_add_lab_history_items.py`
+- **Purpose**: Add lab_history_items table (Lab history in DB, no localStorage)
+- **Key functions/classes**:
+  - `function table_exists (table_name)` — Check if a table exists
+  - `function upgrade ()`
+  - `function downgrade ()`
+- **Dependencies (imports)**:
+  - `alembic.op`
+  - `sqlalchemy`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/versions/007_add_lab_mock_apis.py`
+- **Purpose**: Add lab_mock_apis table (store mock API metadata + data in DB)
+- **Key functions/classes**:
+  - `function table_exists (table_name)`
+  - `function upgrade ()`
+  - `function downgrade ()`
+- **Dependencies (imports)**:
+  - `alembic.op`
+  - `sqlalchemy`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `alembic/versions/008_add_identity_fields.py`
+- **Purpose**: Add identity and org chart fields
+- **Key functions/classes**:
+  - `function upgrade ()` — Add identity management columns:
+  - `function downgrade ()` — Remove identity management columns
+- **Dependencies (imports)**:
+  - `alembic.op`
+  - `sqlalchemy`
+  - `sqlalchemy.text`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/__init__.py`
+- **Purpose**: AgentForge API Package
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/health.py`
+- **Purpose**: Health Check Endpoints for Database Status
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `fastapi.APIRouter`
+  - `fastapi.HTTPException`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `api/main.py`
+- **Purpose**: AgentForge - API Gateway v3.2
+- **Key functions/classes**:
+  - `function debug_log (*args, **kwargs)` — Only print if DEBUG_MODE is enabled
+  - `class LLMProvider`
+  - `class EmbeddingProvider`
+  - `class VectorDBProvider`
+  - `class LLMConfig`
+  - `class EmbeddingConfig`
+  - `class VectorDBConfig`
+  - `class GoogleConfig` — Google API Keys configuration
+  - `class LLMProviderConfig` — Configuration for a single LLM provider
+  - `class SystemSettings`
+  - `class BaseLLMProvider`
+  - `class BaseEmbeddingProvider`
+  - `class BaseVectorDB`
+  - `class OpenAILLM`
+  - `class AzureOpenAILLM`
+  - `class AnthropicLLM`
+  - `class OllamaLLM`
+  - `class CustomLLM` — Custom LLM provider for OpenAI-compatible APIs
+  - `class OpenAICompatibleLLM` — LLM provider for OpenAI-compatible APIs (Groq, xAI, Mistral, DeepSeek, Together, Perplexity, etc)
+  - `class GoogleLLM` — Google Gemini LLM provider - uses REST API for async compatibility
+  - `class CohereLLM` — Cohere LLM provider - uses native Cohere API
+  - `class OpenAIEmbedding`
+  - `class SentenceTransformersEmbedding`
+  - `class OllamaEmbedding`
+  - `class MemoryVectorDB` — In-memory keyword search (no embeddings required)
+  - `class ChromaVectorDB` — ChromaDB vector database - runs locally, no external dependencies
+  - `class ProviderFactory`
+  - `class APIInputParameter`
+  - `class APIEndpointConfig`
+  - `class KnowledgeBaseEmbeddingConfig`
+  - `class KnowledgeBaseVectorDBConfig`
+  - `class KnowledgeBaseConfig` — Configuration for a Knowledge Base tool with its own RAG settings
+  - `class ToolConfiguration`
+  - `class TaskInstruction`
+  - `class TaskDefinition`
+  - `class AgentPersonality`
+  - `class AgentGuardrails` — Safety and accuracy guardrails for the agent
+  - `class AgentData`
+  - `class ConversationMessage`
+  - `class ConversationAccessCache` — Cached access control for a conversation session
+  - `class Conversation`
+  - `class Document`
+  - `class ScrapedPage`
+  - `class ChatRequest`
+  - `class ChatResponse`
+  - `class CreateAgentRequest`
+  - `class UpdateAgentRequest`
+  - `class CreateToolRequest`
+  - `class ScrapeRequest`
+  - `class APITestRequest`
+  - `class DocumentProcessor`
+  - `function should_use_playwright (url)` — Determine if a URL needs JavaScript rendering based on known dynamic sites.
+  - `class WebsiteScraper`
+  - `class OpenAPIParser`
+  - `class DemoAPITool` — A mock API tool for demo purposes
+  - `class DemoKnowledgeBase` — A knowledge base document for demo purposes
+  - `class DemoAsset` — A sample document/image for demo testing (invoices, receipts, etc.)
+  - `class DemoKit` — A complete demo kit with APIs, Knowledge Bases, and Assets
+  - `class GenerateDemoKitRequest` — Request to generate a demo kit from natural language
+  - `class AppState`
+  - `function resolve_tool_id (tid)` — Resolve a tool ID to its configuration, handling prefixed IDs
+  - `function get_agent_tools (agent)` — Get all tools for an agent, resolving prefixed IDs
+  - `function search_documents_keyword (query, tool_ids, top_k)` — Improved keyword-based search with TF-IDF style scoring
+  - `function search_documents (query, tool_ids, top_k)` — Synchronous wrapper for backward compatibility
+  - `function build_tool_definitions (tools)` — Build OpenAI-compatible tool definitions from agent tools
+  - `function get_current_datetime_for_user (timezone_str)` — Get current date/time formatted for the user's timezone
+  - `function get_language_instruction (language_setting)` — Get language/dialect matching instruction for system prompt
+  - `function extract_text_from_pdf (file_path)` — Extract text from PDF
+  - `function extract_text_from_docx (file_path)` — Extract text from DOCX
+  - `function build_security_tool_definition ()` — Build the embedded security tool that LLM uses to check permissions.
+  - `function execute_security_tool (current_user, access_control, agent, task_name)` — Execute the embedded security tool.
+  - `class EmailService` — Service for sending emails via Gmail API, Microsoft Graph, or SMTP
+  - `class GenerateAgentConfigRequest`
+  - `class OpenAIDirectLLM` — Simple OpenAI wrapper for generation
+  - `class AnthropicDirectLLM` — Simple Anthropic wrapper for generation
+  - `class ConfigureToolsRequest`
+  - `class DemoDataRequest`
+  - `class UpdateDemoAPIRequest`
+  - `class UpdateDemoKBRequest`
+  - `class UpdateDemoAssetRequest`
+  - `class UnifiedDemoRequest` — Request for unified demo setup
+  - `function generate_hr_demo_data ()` — Generate HR domain demo data
+  - `function generate_ecommerce_demo_data ()` — Generate E-commerce domain demo data
+  - `function generate_support_demo_data ()` — Generate Customer Support domain demo data
+  - `function generate_test_prompts (domain, data)` — Generate test prompts that CAN BE ANSWERED from the demo data
+  - `function get_user_group_ids (user_id)` — Get all group IDs that a user belongs to by checking group.member_ids.
+  - `function check_tool_access (tool, user_id, user_group_ids, permission, user_role_ids, user_obj)` — Check if a user has access to a tool.
+  - `class UpdateDemoDocRequest`
+  - `class TableEntryRequest`
+  - `class CodeGenerationRequest`
+  - `class ToolTestRequest`
+  - `class KnowledgeSearchRequest`
+  - `class ApiTestRequest`
+  - `class ExtractParamRequest`
+  - `class GenerateParamRequest`
+  - `class SendEmailRequest`
+  - `class UpdateToolRequest`
+  - `class StartChatRequest` — Request to start a new chat session
+  - `class ChatSessionResponse` — Response with session info and pre-loaded permissions
+  - `class StreamingChatRequest`
+  - `class DemoItem`
+  - `class DemoGenerateRequest`
+  - `class DemoCreateToolRequest`
+  - `function generate_auto_response (api_name, path, method, params)` — Auto-generate realistic sample data based on API name and path
+- **Dependencies (imports)**:
+  - `abc.ABC`
+  - `abc.abstractmethod`
+  - `asyncio`
+  - `contextlib.asynccontextmanager`
+  - `datetime.datetime`
+  - `datetime.timedelta`
+  - `enum.Enum`
+  - `fastapi.Depends`
+  - `fastapi.FastAPI`
+  - `fastapi.File`
+  - `fastapi.Form`
+  - `fastapi.HTTPException`
+  - `fastapi.Request`
+  - `fastapi.UploadFile`
+  - `fastapi.middleware.cors.CORSMiddleware`
+  - `fastapi.responses.FileResponse`
+  - `fastapi.responses.HTMLResponse`
+  - `fastapi.responses.Response`
+  - `fastapi.responses.StreamingResponse`
+  - `hashlib`
+  - `httpx`
+  - `json`
+  - `os`
+  - `pathlib.Path`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `re`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Set`
+  - `urllib.parse.urljoin`
+  - `urllib.parse.urlparse`
+  - `uuid`
+  - `uvicorn`
+  - `yaml`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `OAUTH`
+  - `OAuth`
+  - `PERMISSION`
+  - `Permission`
+  - `Role`
+  - `SESSION`
+  - `Token`
+  - `auth`
+  - `oauth`
+  - `permission`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `api/modules/__init__.py`
+- **Purpose**: API Modules - Modular Monolith Architecture
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/access_control/__init__.py`
+- **Purpose**: Access Control Module
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `router.router`
+  - `schemas.AccessCheckResult`
+  - `schemas.AgentAccessCreate`
+  - `schemas.AgentAccessResponse`
+  - `schemas.AgentAccessUpdate`
+  - `schemas.TaskAccessConfig`
+  - `schemas.ToolAccessConfig`
+  - `service.AccessControlService`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/access_control/router.py`
+- **Purpose**: Access Control API Router
+- **Key functions/classes**:
+  - `function check_agent_management_permission (user, agent_id, org_id)` — Check if user has permission to manage agent access control.
+  - `function is_agent_owner (user, agent_id, org_id)` — Check if user is the owner of an agent
+  - `class AgentAdminUpdate` — Update agent admins request
+- **Dependencies (imports)**:
+  - `api.security.get_current_user`
+  - `api.security.require_admin`
+  - `core.security.models.User`
+  - `fastapi.APIRouter`
+  - `fastapi.Depends`
+  - `fastapi.HTTPException`
+  - `fastapi.Query`
+  - `pydantic.BaseModel`
+  - `schemas.AccessCheckResult`
+  - `schemas.AccessEntity`
+  - `schemas.AccessType`
+  - `schemas.AgentAccessCreate`
+  - `schemas.AgentAccessResponse`
+  - `schemas.AgentAccessUpdate`
+  - `schemas.EntityType`
+  - `schemas.FullAccessConfig`
+  - `schemas.QuickTemplate`
+  - `schemas.TaskAccessConfig`
+  - `schemas.TaskAccessUpdate`
+  - `schemas.TaskPermission`
+  - `schemas.ToolAccessConfig`
+  - `schemas.ToolAccessUpdate`
+  - `schemas.ToolPermission`
+  - `schemas.UserAccessPreview`
+  - `service.AccessControlService`
+  - `service.normalize_org_id`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid.UUID`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `permission`
+  - `role`
+  - `session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `api/modules/access_control/schemas.py`
+- **Purpose**: Access Control Schemas
+- **Key functions/classes**:
+  - `class AccessType` — Who can access the agent
+  - `class EntityType` — Types of entities that can have access
+  - `class AccessEntity` — A user, group, or role that has access
+  - `class AgentAccessCreate` — Create agent access policy
+  - `class AgentAccessUpdate` — Update agent access policy
+  - `class AgentAccessResponse` — Agent access policy response
+  - `class TaskPermission` — Permission for a single task
+  - `class TaskAccessConfig` — Task access configuration for an agent
+  - `class TaskAccessUpdate` — Update task access
+  - `class ToolPermission` — Permission for a single tool
+  - `class ToolAccessConfig` — Tool access configuration for an agent
+  - `class ToolAccessUpdate` — Update tool access
+  - `class AccessCheckResult` — Result of checking user's access
+  - `class UserAccessPreview` — Preview what a user can do with an agent
+  - `class FullAccessConfig` — Complete access configuration for an agent (all 3 levels)
+  - `class QuickTemplate` — Pre-configured access template
+  - `class AgentPermissionType` — Types of permissions an owner can delegate on their agent
+  - `class AgentAdminPermission` — Permissions granted to a delegated admin
+  - `class AgentManagementConfig` — Complete management delegation configuration
+  - `class AgentManagementUpdate` — Update delegated admin permissions
+  - `class PermissionCheckResult` — Result of checking if user has a specific permission
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `ROLE`
+  - `Role`
+  - `permission`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/access_control/service.py`
+- **Purpose**: Access Control Service
+- **Key functions/classes**:
+  - `function normalize_org_id (org_id)` — Normalize org_id to a valid UUID.
+  - `function is_valid_uuid (value)` — Check if a string is a valid UUID
+  - `class AccessControlService` — Service for managing agent access control policies.
+- **Dependencies (imports)**:
+  - `database.base.get_session`
+  - `database.models.agent.Agent`
+  - `database.models.agent_access.AgentAccessPolicy`
+  - `database.models.agent_access.AgentActionPolicy`
+  - `datetime.datetime`
+  - `re`
+  - `schemas.AccessCheckResult`
+  - `schemas.AccessEntity`
+  - `schemas.AccessType`
+  - `schemas.AgentAccessResponse`
+  - `schemas.EntityType`
+  - `schemas.FullAccessConfig`
+  - `schemas.TaskAccessConfig`
+  - `schemas.TaskPermission`
+  - `schemas.ToolAccessConfig`
+  - `schemas.ToolPermission`
+  - `schemas.UserAccessPreview`
+  - `sqlalchemy.and_`
+  - `sqlalchemy.or_`
+  - `sqlalchemy.orm.Session`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid.UUID`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `ROLE`
+  - `Role`
+  - `Session`
+  - `permission`
+  - `role`
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/conversations/__init__.py`
+- **Purpose**: Conversation Management Module
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `router.router`
+  - `service.ConversationManagementService`
+  - `service.ConversationTitleService`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/conversations/router.py`
+- **Purpose**: Conversation Management Router
+- **Key functions/classes**:
+  - `class BulkDeleteRequest` — Request to delete multiple conversations
+  - `class BulkDeleteResponse` — Response for bulk delete operation
+  - `class ConversationListResponse` — Response for conversation list
+  - `class ConversationStatsResponse` — Response for conversation statistics
+  - `class UpdateTitleRequest` — Request to update conversation title
+- **Dependencies (imports)**:
+  - `fastapi.APIRouter`
+  - `fastapi.Depends`
+  - `fastapi.HTTPException`
+  - `fastapi.Query`
+  - `pydantic.BaseModel`
+  - `service.ConversationManagementService`
+  - `service.ConversationTitleService`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `api/modules/conversations/service.py`
+- **Purpose**: Conversation Management Service
+- **Key functions/classes**:
+  - `class ConversationTitleService` — Service for generating smart conversation titles based on context.
+  - `class ConversationManagementService` — Centralized service for conversation management operations.
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `json`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Tuple`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `permission`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/identity/__init__.py`
+- **Purpose**: Identity & Org Chart API Module
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/identity/router.py`
+- **Purpose**: Identity & Org Chart API Router
+- **Key functions/classes**:
+  - `function get_directory_service ()`
+  - `function _extract_user_context (user)` — Extract user_id and org_id from the authenticated User object.
+- **Dependencies (imports)**:
+  - `api.security.User`
+  - `api.security.require_admin`
+  - `api.security.require_auth`
+  - `core.identity.service.UserDirectoryService`
+  - `datetime.datetime`
+  - `fastapi.APIRouter`
+  - `fastapi.Depends`
+  - `fastapi.HTTPException`
+  - `fastapi.Query`
+  - `schemas.BulkOrgChartRequest`
+  - `schemas.BulkOrgChartResponse`
+  - `schemas.CreateDepartmentRequest`
+  - `schemas.DepartmentResponse`
+  - `schemas.DirectorySourceConfig`
+  - `schemas.OrgChartNodeResponse`
+  - `schemas.ResolveAssigneeRequest`
+  - `schemas.ResolveAssigneeResponse`
+  - `schemas.UpdateDepartmentRequest`
+  - `schemas.UpdateEmployeeIdRequest`
+  - `schemas.UpdateManagerRequest`
+  - `schemas.UserAttributesResponse`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `api/modules/identity/schemas.py`
+- **Purpose**: Identity & Org Chart API Schemas
+- **Key functions/classes**:
+  - `class UpdateManagerRequest` — Request to update a user's manager
+  - `class UpdateEmployeeIdRequest` — Request to update a user's employee ID
+  - `class BulkOrgChartUpdate` — Single entry in a bulk org chart update
+  - `class BulkOrgChartRequest` — Request for bulk org chart updates
+  - `class BulkOrgChartResponse` — Response for bulk org chart updates
+  - `class UserAttributesResponse` — User attributes response
+  - `class OrgChartNodeResponse` — Org chart node response
+  - `class DepartmentResponse` — Department info response
+  - `class CreateDepartmentRequest` — Request to create a department
+  - `class UpdateDepartmentRequest` — Request to update a department
+  - `class DirectorySourceConfig` — Configuration for the identity directory source
+  - `class ResolveAssigneeRequest` — Request to resolve process assignees
+  - `class ResolveAssigneeResponse` — Response with resolved assignee user IDs
+- **Dependencies (imports)**:
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/lab/__init__.py`
+- **Purpose**: Lab Module - Test Data Generator
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `router.router`
+  - `service.LabService`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/lab/router.py`
+- **Purpose**: Lab Router - API endpoints for test data generation
+- **Key functions/classes**:
+  - `function _normalize_api_result (result)` — Ensure API-type result has id and slug so history always has complete data.
+  - `function _user_can_access_mock (item_id, current_user, record)` — True if current user is owner of the mock or has execute access to a tool that uses it.
+  - `function _require_user (user)` — Raise 401 if user is not authenticated (Lab history requires login).
+  - `function _user_id (user)` — Get string user id for DB.
+- **Dependencies (imports)**:
+  - `copy.deepcopy`
+  - `fastapi.APIRouter`
+  - `fastapi.Depends`
+  - `fastapi.HTTPException`
+  - `fastapi.Request`
+  - `fastapi.responses.FileResponse`
+  - `fastapi.responses.JSONResponse`
+  - `os`
+  - `re`
+  - `schemas.APIGenerateRequest`
+  - `schemas.APIGenerateResponse`
+  - `schemas.DocumentGenerateRequest`
+  - `schemas.DocumentGenerateResponse`
+  - `schemas.ImageGenerateRequest`
+  - `schemas.ImageGenerateResponse`
+  - `schemas.LabHistoryAddRequest`
+  - `schemas.LabHistoryItemResponse`
+  - `schemas.LabHistoryResponse`
+  - `schemas.LabHistoryUpdateRequest`
+  - `service.LabService`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `api/modules/lab/schemas.py`
+- **Purpose**: Lab Module Schemas - Request/Response models
+- **Key functions/classes**:
+  - `class DocumentFormat`
+  - `class ImageFormat`
+  - `class DocumentType`
+  - `class APIGenerateRequest` — Request to generate a mock API
+  - `class APIGenerateResponse` — Response from API generation
+  - `class DocumentGenerateRequest` — Request to generate a document
+  - `class DocumentGenerateResponse` — Response from document generation
+  - `class ImageGenerateRequest` — Request to generate a document image
+  - `class ImageGenerateResponse` — Response from image generation
+  - `class LabHistoryAddRequest` — Request to add an item to Lab history
+  - `class LabHistoryItemResponse` — One Lab history item (for list and add response)
+  - `class LabItem` — A generated item in the lab (legacy shape)
+  - `class LabHistoryUpdateRequest` — Request to update a Lab history item (e.g. add full_url to result)
+  - `class LabHistoryResponse` — List of generated items (full payload for each so UI can load without extra fetch)
+- **Dependencies (imports)**:
+  - `enum.Enum`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/lab/service.py`
+- **Purpose**: Lab Service - AI-powered test data generation
+- **Key functions/classes**:
+  - `class LabService` — Service for generating test data using AI
+- **Dependencies (imports)**:
+  - `base64`
+  - `datetime.datetime`
+  - `io.BytesIO`
+  - `json`
+  - `os`
+  - `re`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/process/__init__.py`
+- **Purpose**: Process API Module
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `router.router`
+  - `schemas.ApprovalDecisionRequest`
+  - `schemas.ApprovalRequestResponse`
+  - `schemas.ProcessExecutionCreate`
+  - `schemas.ProcessExecutionListResponse`
+  - `schemas.ProcessExecutionResponse`
+  - `service.ProcessAPIService`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/process/router.py`
+- **Purpose**: Process API Router
+- **Key functions/classes**:
+  - `function _get_llm_registry ()` — Get or create LLM registry singleton
+  - `function get_service (db)` — Get process service instance with dependencies
+  - `function _user_to_dict (user)` — Convert User object to dict for service layer
+  - `function _is_platform_admin (user)` — Determine if the current user should be treated as a platform/org admin for portal-scoped visibility.
+  - `function _is_approval_visible_to_user (approval, user_dict)` — Check whether an approval request should be visible/actionable for a user.
+  - `function _process_upload_base_dir ()` — Base directory for uploaded files.
+  - `function _safe_filename (name)`
+  - `class ProcessTestSendNotificationRequest` — Send a real notification during a visual builder test run.
+- **Dependencies (imports)**:
+  - `api.security.User`
+  - `api.security.require_auth`
+  - `core.llm.registry.LLMRegistry`
+  - `core.process.messages.ErrorCode`
+  - `core.process.messages.format_error_for_user`
+  - `core.process.messages.get_success_message`
+  - `core.process.messages.problem_details_rfc9457`
+  - `core.process.messages.sanitize_for_user`
+  - `core.security.Permission`
+  - `core.security.security_state`
+  - `database.config.get_db`
+  - `fastapi.APIRouter`
+  - `fastapi.BackgroundTasks`
+  - `fastapi.Depends`
+  - `fastapi.File`
+  - `fastapi.HTTPException`
+  - `fastapi.Query`
+  - `fastapi.UploadFile`
+  - `fastapi.responses.FileResponse`
+  - `os`
+  - `pydantic.BaseModel`
+  - `pydantic.EmailStr`
+  - `pydantic.Field`
+  - `re`
+  - `schemas.ApprovalDecisionRequest`
+  - `schemas.ApprovalListResponse`
+  - `schemas.ApprovalRequestResponse`
+  - `schemas.EnrichFormFieldsRequest`
+  - `schemas.EnrichFormFieldsResponse`
+  - `schemas.EnrichedFormField`
+  - `schemas.NodeExecutionResponse`
+  - `schemas.ProcessCancelRequest`
+  - `schemas.ProcessExecutionCreate`
+  - `schemas.ProcessExecutionListResponse`
+  - `schemas.ProcessExecutionResponse`
+  - `schemas.ProcessResumeRequest`
+  - `schemas.ProcessStatsResponse`
+  - `service.ProcessAPIService`
+  - `sqlalchemy.orm.Session`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `MFA`
+  - `Permission`
+  - `Session`
+  - `auth`
+  - `role`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `api/modules/process/schemas.py`
+- **Purpose**: Process API Schemas
+- **Key functions/classes**:
+  - `class ProcessExecutionCreate` — Request to start a new workflow run
+  - `class StatusInfo` — User-friendly status information
+  - `class ErrorInfo` — User-friendly error information
+  - `class ProcessExecutionResponse` — Workflow run details
+  - `class ProcessExecutionListResponse` — List of process executions with pagination
+  - `class StepExecutionResponse` — Step execution details (user-friendly version of node execution)
+  - `class ApprovalRequestResponse` — Approval request details
+  - `class ApprovalDecisionRequest` — Submit your approval decision
+  - `class ApprovalListResponse` — List of approval requests
+  - `class ProcessResumeRequest` — Continue a paused workflow
+  - `class ProcessCancelRequest` — Stop a running workflow
+  - `class ProcessStatsResponse` — Workflow statistics summary
+  - `class ProcessEventResponse` — Event from process execution stream
+  - `class EnrichFormFieldsRequest` — Request to get LLM-enriched form field labels for a process run form
+  - `class EnrichedFormField` — Single form field with LLM-generated professional label and placeholder
+  - `class EnrichFormFieldsResponse` — Enriched form fields for the process run form
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `api/modules/process/service.py`
+- **Purpose**: Process API Service
+- **Key functions/classes**:
+  - `function _approvers_to_ids (value)` — Normalize approvers/assignees to a list of string IDs. Handles list of IDs, list of objects with id/value, or single ID.
+  - `class ProcessAPIService` — Service for process execution API operations
+- **Dependencies (imports)**:
+  - `api.modules.access_control.service.AccessControlService`
+  - `core.identity.service.UserDirectoryService`
+  - `core.llm.base.Message`
+  - `core.llm.base.MessageRole`
+  - `core.llm.factory.LLMFactory`
+  - `core.llm.registry.LLMRegistry`
+  - `core.process.ProcessContext`
+  - `core.process.ProcessDefinition`
+  - `core.process.ProcessEngine`
+  - `core.process.ProcessResult`
+  - `core.process.nodes.base.ExecutorDependencies`
+  - `core.process.services.ApprovalService`
+  - `core.process.services.NotificationService`
+  - `core.tools.base.ToolConfig`
+  - `core.tools.base.ToolRegistry`
+  - `database.models.Agent`
+  - `database.services.process_execution_service.ProcessExecutionService`
+  - `datetime.datetime`
+  - `json`
+  - `logging`
+  - `re`
+  - `schemas.ApprovalRequestResponse`
+  - `schemas.ProcessExecutionResponse`
+  - `schemas.ProcessStatsResponse`
+  - `sqlalchemy.orm.Session`
+  - `typing.Any`
+  - `typing.AsyncIterator`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `AUDIT`
+  - `MFA`
+  - `Session`
+  - `audit`
+  - `permission`
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `api/security.py`
+- **Purpose**: AgentForge Security API Endpoints - Complete Enterprise Implementation
+- **Key functions/classes**:
+  - `function save_user_to_db (user)` — Save user to database with fallback to disk
+  - `function save_invitation_to_db (invitation)` — Save invitation to database with fallback to disk
+  - `function save_audit_log_to_db (log)` — Save audit log to database with fallback to disk
+  - `class RegisterRequest`
+  - `class LoginRequest`
+  - `class ChangePasswordRequest`
+  - `class ResetPasswordRequest`
+  - `class FirstLoginPasswordChangeRequest` — Request model for first-login password change
+  - `class AcceptInvitationRequest`
+  - `class ConfirmResetPasswordRequest`
+  - `class EnableMFARequest`
+  - `class VerifyMFARequest`
+  - `class DisableMFARequest`
+  - `class CreateUserRequest`
+  - `class UpdateUserRequest`
+  - `class InviteUserRequest`
+  - `class BulkInviteRequest`
+  - `class CreateRoleRequest`
+  - `class UpdateRoleRequest`
+  - `class PolicyConditionRequest`
+  - `class PolicyRuleRequest`
+  - `class CreatePolicyRequest`
+  - `class UpdatePolicyRequest`
+  - `class ToolPermissionRequest`
+  - `class KBPermissionRequest`
+  - `class DBPermissionRequest`
+  - `class CreateDepartmentRequest`
+  - `class CreateGroupRequest`
+  - `class UpdateSecuritySettingsRequest`
+  - `class LDAPConfigRequest`
+  - `class OAuthConfigRequest`
+  - `class AuthResponse`
+  - `function check_ip_whitelist (request)` — Check if request IP is whitelisted
+  - `class VerifyEmailRequest`
+  - `class ResendVerificationRequest`
+- **Dependencies (imports)**:
+  - `core.security.ActionType`
+  - `core.security.AuditLog`
+  - `core.security.AuthProvider`
+  - `core.security.DEFAULT_ROLES`
+  - `core.security.DataClassification`
+  - `core.security.DatabasePermission`
+  - `core.security.Department`
+  - `core.security.EmailService`
+  - `core.security.Invitation`
+  - `core.security.KnowledgeBasePermission`
+  - `core.security.LDAPConfig`
+  - `core.security.LDAPService`
+  - `core.security.MFAMethod`
+  - `core.security.MFAService`
+  - `core.security.OAuthService`
+  - `core.security.Organization`
+  - `core.security.PasswordService`
+  - `core.security.Permission`
+  - `core.security.Policy`
+  - `core.security.PolicyCondition`
+  - `core.security.PolicyRule`
+  - `core.security.ResourceType`
+  - `core.security.Role`
+  - `core.security.SecuritySettings`
+  - `core.security.Session`
+  - `core.security.TenancyMode`
+  - `core.security.TokenService`
+  - `core.security.ToolPermission`
+  - `core.security.User`
+  - `core.security.UserGroup`
+  - `core.security.UserMFA`
+  - `core.security.UserProfile`
+  - `core.security.UserStatus`
+  - `core.security.security_state`
+  - `csv`
+  - `datetime.datetime`
+  - `datetime.timedelta`
+  - `enum.Enum`
+  - `fastapi.APIRouter`
+  - `fastapi.BackgroundTasks`
+  - `fastapi.Depends`
+  - `fastapi.HTTPException`
+  - `fastapi.Request`
+  - `fastapi.Response`
+  - `fastapi.responses.StreamingResponse`
+  - `fastapi.security.HTTPAuthorizationCredentials`
+  - `fastapi.security.HTTPBearer`
+  - `httpx`
+  - `io`
+  - `json`
+  - `os`
+  - `pydantic.BaseModel`
+  - `pydantic.EmailStr`
+  - `pydantic.Field`
+  - `secrets`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `AUDIT`
+  - `AUTH`
+  - `Audit`
+  - `Auth`
+  - `MFA`
+  - `OAUTH`
+  - `OAuth`
+  - `Permission`
+  - `RBAC`
+  - `ROLE`
+  - `Role`
+  - `Session`
+  - `audit`
+  - `auth`
+  - `mfa`
+  - `oauth`
+  - `permission`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/__init__.py`
+- **Purpose**: AgentForge Core Package
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `agent.engine.AgentConfig`
+  - `agent.engine.AgentEngine`
+  - `agent.engine.AgentResponse`
+  - `agent.generator.AgentGenerator`
+  - `agent.generator.GeneratedAgent`
+  - `llm.base.BaseLLM`
+  - `llm.base.LLMConfig`
+  - `llm.base.LLMResponse`
+  - `llm.base.Message`
+  - `llm.base.MessageRole`
+  - `llm.factory.LLMFactory`
+  - `llm.registry.LLMRegistry`
+  - `llm.router.LLMRouter`
+  - `tools.base.BaseTool`
+  - `tools.base.ToolConfig`
+  - `tools.base.ToolRegistry`
+  - `tools.base.ToolResult`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/agent/__init__.py`
+- **Purpose**: AgentForge Agent Package
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/agent/engine.py`
+- **Purpose**: AgentForge - Agent Engine
+- **Key functions/classes**:
+  - `class AgentEvent` — Event emitted during agent execution
+  - `class AgentResponse` — Response from an agent
+  - `class ModelSelectionMode` — How the agent selects which model to use
+  - `class AgentConfig` — Configuration for an agent
+  - `class Memory` — Agent memory for maintaining conversation state.
+  - `class AgentEngine` — The core agent execution engine.
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `json`
+  - `llm.base.BaseLLM`
+  - `llm.base.LLMResponse`
+  - `llm.base.Message`
+  - `llm.base.MessageRole`
+  - `llm.base.ToolCall`
+  - `llm.factory.LLMFactory`
+  - `llm.registry.LLMRegistry`
+  - `llm.router.LLMRouter`
+  - `llm.router.OptimizeFor`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `time`
+  - `tools.base.BaseTool`
+  - `tools.base.ToolConfig`
+  - `tools.base.ToolRegistry`
+  - `tools.base.ToolResult`
+  - `typing.Any`
+  - `typing.AsyncIterator`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/agent/generator.py`
+- **Purpose**: AgentForge - Agent Generator
+- **Key functions/classes**:
+  - `class GeneratedPersonality` — Generated personality configuration
+  - `class GeneratedTask` — Generated task configuration
+  - `class SuggestedTool` — Suggested tool for the agent
+  - `class SampleResponse` — Sample conversation for the agent
+  - `class GeneratedAgent` — Complete generated agent configuration
+  - `class AgentGenerator` — AI-powered agent generator.
+- **Dependencies (imports)**:
+  - `json`
+  - `llm.base.BaseLLM`
+  - `llm.base.Message`
+  - `llm.base.MessageRole`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `tools.base.ToolConfig`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/feature_flags.py`
+- **Purpose**: Feature Flags System
+- **Key functions/classes**:
+  - `class FeatureFlags` — Feature flags for gradual migration and safe rollouts.
+- **Dependencies (imports)**:
+  - `os`
+  - `typing.Any`
+  - `typing.Dict`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/identity/__init__.py`
+- **Purpose**: Identity & User Directory Module
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `service.UserAttributes`
+  - `service.UserDirectoryService`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/identity/service.py`
+- **Purpose**: User Directory Service
+- **Key functions/classes**:
+  - `class UserAttributes` — Unified user attributes resolved from any identity source.
+  - `class OrgChartNode` — Represents a node in the organizational chart
+  - `class DepartmentInfo` — Department information with members
+  - `class UserDirectoryService` — Unified User Directory Service.
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `logging`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Role`
+  - `auth`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/llm/__init__.py`
+- **Purpose**: AgentForge LLM Package
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/llm/base.py`
+- **Purpose**: AgentForge - LLM Base Interface
+- **Key functions/classes**:
+  - `class MessageRole` — Message roles in a conversation
+  - `class Message` — A single message in a conversation
+  - `class ToolCall` — A tool call made by the LLM
+  - `class LLMResponse` — Response from an LLM
+  - `class LLMCapability` — Capabilities that an LLM may support
+  - `class LLMStrength` — Areas where an LLM excels
+  - `class LLMConfig` — Configuration for a registered LLM
+  - `class BaseLLM` — Abstract base class for all LLM providers.
+- **Dependencies (imports)**:
+  - `abc.ABC`
+  - `abc.abstractmethod`
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `pydantic.BaseModel`
+  - `pydantic.ConfigDict`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.AsyncIterator`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Union`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/llm/factory.py`
+- **Purpose**: AgentForge - LLM Factory
+- **Key functions/classes**:
+  - `class LLMFactory` — Factory for creating LLM instances from configurations.
+  - `function _init_providers ()` — Initialize default providers
+- **Dependencies (imports)**:
+  - `base.BaseLLM`
+  - `base.LLMConfig`
+  - `registry.LLMRegistry`
+  - `typing.Dict`
+  - `typing.Optional`
+  - `typing.Type`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/llm/instruction_enforcer.py`
+- **Purpose**: Instruction Enforcer Service
+- **Key functions/classes**:
+  - `class InstructionEnforcer` — Service to enforce LLM compliance with task instructions.
+- **Dependencies (imports)**:
+  - `json`
+  - `re`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Tuple`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/llm/providers/__init__.py`
+- **Purpose**: AgentForge LLM Providers
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/llm/providers/anthropic.py`
+- **Purpose**: AgentForge - Anthropic LLM Provider
+- **Key functions/classes**:
+  - `class AnthropicLLM` — Anthropic Claude LLM provider.
+- **Dependencies (imports)**:
+  - `base.BaseLLM`
+  - `base.LLMCapability`
+  - `base.LLMConfig`
+  - `base.LLMResponse`
+  - `base.Message`
+  - `base.MessageRole`
+  - `base.ToolCall`
+  - `json`
+  - `time`
+  - `typing.Any`
+  - `typing.AsyncIterator`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Union`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/llm/providers/ollama.py`
+- **Purpose**: AgentForge - Ollama LLM Provider
+- **Key functions/classes**:
+  - `class OllamaLLM` — Ollama LLM provider for local models.
+- **Dependencies (imports)**:
+  - `base.BaseLLM`
+  - `base.LLMCapability`
+  - `base.LLMConfig`
+  - `base.LLMResponse`
+  - `base.Message`
+  - `base.MessageRole`
+  - `base.ToolCall`
+  - `httpx`
+  - `json`
+  - `time`
+  - `typing.Any`
+  - `typing.AsyncIterator`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Union`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/llm/providers/openai.py`
+- **Purpose**: AgentForge - OpenAI LLM Provider
+- **Key functions/classes**:
+  - `class OpenAILLM` — OpenAI LLM provider.
+  - `class AzureOpenAILLM` — Azure OpenAI LLM provider.
+- **Dependencies (imports)**:
+  - `base.BaseLLM`
+  - `base.LLMCapability`
+  - `base.LLMConfig`
+  - `base.LLMResponse`
+  - `base.Message`
+  - `base.MessageRole`
+  - `base.ToolCall`
+  - `json`
+  - `time`
+  - `typing.Any`
+  - `typing.AsyncIterator`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Union`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/llm/registry.py`
+- **Purpose**: AgentForge - LLM Registry
+- **Key functions/classes**:
+  - `class LLMRegistry` — Registry for all available LLM models.
+- **Dependencies (imports)**:
+  - `base.BaseLLM`
+  - `base.LLMCapability`
+  - `base.LLMConfig`
+  - `base.LLMStrength`
+  - `datetime.datetime`
+  - `json`
+  - `os`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Type`
+- **Side effects (heuristic)**:
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/llm/router.py`
+- **Purpose**: AgentForge - LLM Router
+- **Key functions/classes**:
+  - `class OptimizeFor` — Optimization strategy for model selection
+  - `class PromptAnalysis` — Analysis of a prompt for routing decisions
+  - `class RoutingDecision` — Result of a routing decision
+  - `class PromptAnalyzer` — Analyzes prompts to determine routing requirements
+  - `class LLMRouter` — Intelligent router that selects the best LLM for each prompt.
+- **Dependencies (imports)**:
+  - `base.LLMCapability`
+  - `base.LLMConfig`
+  - `base.LLMStrength`
+  - `enum.Enum`
+  - `pydantic.BaseModel`
+  - `re`
+  - `registry.LLMRegistry`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Tuple`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/process/__init__.py`
+- **Purpose**: AgentForge Process Engine
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `engine.ProcessEngine`
+  - `result.ExecutionError`
+  - `result.NodeResult`
+  - `result.ProcessResult`
+  - `schemas.NodeConfig`
+  - `schemas.ProcessDefinition`
+  - `schemas.ProcessEdge`
+  - `schemas.ProcessNode`
+  - `schemas.ProcessTrigger`
+  - `schemas.ProcessVariable`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `wizard.ProcessWizard`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `audit`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/engine.py`
+- **Purpose**: Process Engine
+- **Key functions/classes**:
+  - `class ProcessEvent` — Event emitted during process execution
+  - `class ProcessEngine` — Process Execution Engine
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `inspect`
+  - `logging`
+  - `nodes.base.BaseNodeExecutor`
+  - `nodes.base.ExecutorDependencies`
+  - `nodes.base.NodeExecutorRegistry`
+  - `result.ErrorCategory`
+  - `result.ExecutionError`
+  - `result.ExecutionStatus`
+  - `result.NodeResult`
+  - `result.ProcessResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessDefinition`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `time`
+  - `traceback`
+  - `typing.Any`
+  - `typing.AsyncIterator`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.TYPE_CHECKING`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `audit`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/messages.py`
+- **Purpose**: Business-Friendly Messages
+- **Key functions/classes**:
+  - `function get_business_term (technical_term)` — Convert technical term to business-friendly term
+  - `function get_node_type_display (node_type)` — Get display name for a node type
+  - `class ErrorCode` — Error codes for programmatic handling (not shown to users)
+  - `function get_error_message (code, context)` — Get user-friendly error message
+  - `function format_error_for_user (code, context, include_action)` — Format error message as a single string for display
+  - `function problem_details_rfc9457 (status, code, context, instance, request_id, detail_override)` — Build RFC 9457 Problem Details object for API error responses.
+  - `function get_success_message (key)` — Get success message by key
+  - `function get_status_info (status)` — Get user-friendly status information
+  - `function get_help_text (key)` — Get help text for a field or step type
+  - `function get_validation_message (key, **kwargs)` — Get validation message with optional formatting
+  - `function sanitize_for_user (message)` — Sanitize a potentially technical message for user display
+- **Dependencies (imports)**:
+  - `enum.Enum`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `permission`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/nodes/__init__.py`
+- **Purpose**: Process Node Executors
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `base.BaseNodeExecutor`
+  - `base.NodeExecutorRegistry`
+  - `data.FilterNodeExecutor`
+  - `data.MapNodeExecutor`
+  - `data.TransformNodeExecutor`
+  - `data.ValidateNodeExecutor`
+  - `flow.EndNodeExecutor`
+  - `flow.StartNodeExecutor`
+  - `human.ApprovalNodeExecutor`
+  - `human.HumanTaskNodeExecutor`
+  - `human.NotificationNodeExecutor`
+  - `integration.DatabaseQueryNodeExecutor`
+  - `integration.HTTPRequestNodeExecutor`
+  - `logic.ConditionNodeExecutor`
+  - `logic.LoopNodeExecutor`
+  - `logic.ParallelNodeExecutor`
+  - `logic.SwitchNodeExecutor`
+  - `task.AITaskNodeExecutor`
+  - `task.ScriptNodeExecutor`
+  - `task.ToolCallNodeExecutor`
+  - `timing.DelayNodeExecutor`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/nodes/base.py`
+- **Purpose**: Base Node Executor
+- **Key functions/classes**:
+  - `class ExecutorDependencies` — Dependencies injected into node executors
+  - `class BaseNodeExecutor` — Abstract base class for all node executors
+  - `class NodeExecutorRegistry` — Registry for node executors
+  - `function register_executor (node_type)` — Decorator to register an executor class
+- **Dependencies (imports)**:
+  - `abc.ABC`
+  - `abc.abstractmethod`
+  - `datetime.datetime`
+  - `logging`
+  - `result.ErrorCategory`
+  - `result.ExecutionError`
+  - `result.ExecutionStatus`
+  - `result.NodeResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `time`
+  - `traceback`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.TYPE_CHECKING`
+  - `typing.Type`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/nodes/data.py`
+- **Purpose**: Data Node Executors
+- **Key functions/classes**:
+  - `class TransformNodeExecutor` — Transform node executor
+  - `class ValidateNodeExecutor` — Validate node executor
+  - `class FilterNodeExecutor` — Filter node executor
+  - `class MapNodeExecutor` — Map node executor
+  - `class AggregateNodeExecutor` — Aggregate node executor
+- **Dependencies (imports)**:
+  - `base.BaseNodeExecutor`
+  - `base.register_executor`
+  - `json`
+  - `re`
+  - `result.ErrorCategory`
+  - `result.ExecutionError`
+  - `result.NodeResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/nodes/flow.py`
+- **Purpose**: Flow Control Node Executors
+- **Key functions/classes**:
+  - `class StartNodeExecutor` — Start node executor
+  - `class EndNodeExecutor` — End node executor
+  - `class MergeNodeExecutor` — Merge node executor
+- **Dependencies (imports)**:
+  - `base.BaseNodeExecutor`
+  - `base.register_executor`
+  - `result.ExecutionError`
+  - `result.NodeResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/nodes/human.py`
+- **Purpose**: Human Node Executors
+- **Key functions/classes**:
+  - `function _to_assignee_id_list (value)` — Normalize approvers/assignees to a list of string IDs. Handles list of IDs, list of objects with id/value, or single ID.
+  - `class ApprovalNodeExecutor` — Approval node executor
+  - `class HumanTaskNodeExecutor` — Human Task node executor
+  - `class NotificationNodeExecutor` — Notification node executor
+- **Dependencies (imports)**:
+  - `base.BaseNodeExecutor`
+  - `base.register_executor`
+  - `datetime.datetime`
+  - `datetime.timedelta`
+  - `json`
+  - `result.ErrorCategory`
+  - `result.ExecutionError`
+  - `result.NodeResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/nodes/integration.py`
+- **Purpose**: Integration Node Executors
+- **Key functions/classes**:
+  - `class HTTPRequestNodeExecutor` — HTTP Request node executor
+  - `class DatabaseQueryNodeExecutor` — Database Query node executor
+  - `class FileOperationNodeExecutor` — File Operation node executor
+  - `class MessageQueueNodeExecutor` — Message Queue node executor
+- **Dependencies (imports)**:
+  - `base.BaseNodeExecutor`
+  - `base.register_executor`
+  - `json`
+  - `result.ErrorCategory`
+  - `result.ExecutionError`
+  - `result.NodeResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `time`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `Session`
+  - `auth`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/process/nodes/logic.py`
+- **Purpose**: Logic Node Executors
+- **Key functions/classes**:
+  - `class ConditionNodeExecutor` — Condition (If/Else) node executor
+  - `class SwitchNodeExecutor` — Switch (multi-way branching) node executor
+  - `class LoopNodeExecutor` — Loop (for-each) node executor
+  - `class WhileNodeExecutor` — While loop node executor
+  - `class ParallelNodeExecutor` — Parallel execution node executor
+- **Dependencies (imports)**:
+  - `base.BaseNodeExecutor`
+  - `base.register_executor`
+  - `result.ExecutionError`
+  - `result.NodeResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/nodes/task.py`
+- **Purpose**: Task Node Executors
+- **Key functions/classes**:
+  - `class AITaskNodeExecutor` — AI Task node executor
+  - `class ToolCallNodeExecutor` — Tool Call node executor
+  - `class ScriptNodeExecutor` — Script node executor
+  - `class SecurityError` — Raised when script contains dangerous code
+- **Dependencies (imports)**:
+  - `base.BaseNodeExecutor`
+  - `base.register_executor`
+  - `json`
+  - `result.ErrorCategory`
+  - `result.ExecutionError`
+  - `result.NodeResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `time`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `permission`
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/process/nodes/timing.py`
+- **Purpose**: Timing Node Executors
+- **Key functions/classes**:
+  - `class DelayNodeExecutor` — Delay node executor
+  - `class ScheduleNodeExecutor` — Schedule node executor
+  - `class EventWaitNodeExecutor` — Event Wait node executor
+- **Dependencies (imports)**:
+  - `asyncio`
+  - `base.BaseNodeExecutor`
+  - `base.register_executor`
+  - `datetime.datetime`
+  - `datetime.timedelta`
+  - `result.ExecutionError`
+  - `result.NodeResult`
+  - `schemas.NodeType`
+  - `schemas.ProcessNode`
+  - `state.ProcessContext`
+  - `state.ProcessState`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/platform_knowledge.py`
+- **Purpose**: Platform Knowledge Retrieval (RAG-lite)
+- **Key functions/classes**:
+  - `class KBChunk`
+  - `function _repo_root ()`
+  - `function _read_text (path)`
+  - `function _extract_title (md)`
+  - `function _to_camel_key (s)`
+  - `function _chunk_markdown (md, chunk_chars, overlap_chars)` — Chunk markdown by paragraphs while keeping chunks under chunk_chars.
+  - `function _tokenize (text)`
+  - `function _score_chunks (query, chunks, top_k)`
+  - `function load_platform_kb_chunks ()` — Load curated KB docs from docs/ and chunk them.
+  - `function load_safe_taxonomies ()` — Parse docs/PROCESS_BUILDER_KB_TAXONOMIES.md into a structured taxonomy map.
+  - `function retrieve_platform_knowledge (query, top_k, max_chars)` — Retrieve a compact, grounded knowledge context for the LLM prompt.
+- **Dependencies (imports)**:
+  - `__future__.annotations`
+  - `dataclasses.dataclass`
+  - `functools.lru_cache`
+  - `glob`
+  - `math`
+  - `os`
+  - `re`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Tuple`
+- **Side effects (heuristic)**:
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/result.py`
+- **Purpose**: Process Execution Results
+- **Key functions/classes**:
+  - `class ExecutionStatus` — Execution outcome status
+  - `class ErrorCategory` — Categories of execution errors
+  - `class ExecutionError` — Detailed error information
+  - `class NodeResult` — Result from executing a single node
+  - `class ProcessResult` — Result from executing an entire process
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Union`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `Permission`
+  - `permission`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/schemas.py`
+- **Purpose**: Process Definition Schemas
+- **Key functions/classes**:
+  - `class NodeType` — Types of nodes in a process flow
+  - `class TriggerType` — Types of triggers that can start a process
+  - `class VariableType` — Variable data types
+  - `class ProcessVariable` — Variable definition for process-level state
+  - `class WebhookTriggerConfig` — Configuration for HTTP webhook trigger
+  - `class ScheduleTriggerConfig` — Configuration for scheduled trigger
+  - `class EventTriggerConfig` — Configuration for event-based trigger
+  - `class ProcessTrigger` — Process trigger definition
+  - `class Position` — Visual position for flow builder
+  - `class RetryConfig` — Retry configuration for nodes
+  - `class TimeoutConfig` — Timeout configuration for nodes
+  - `class NodeConfig` — Base configuration for all node types
+  - `class ProcessEdge` — Edge connecting two nodes
+  - `class ProcessNode` — Process node definition
+  - `class ProcessSettings` — Process-level settings
+  - `class ProcessDefinition` — Complete Process Definition
+  - `class AITaskConfig` — Configuration for AI_TASK nodes
+  - `class HTTPRequestConfig` — Configuration for HTTP_REQUEST nodes
+  - `class DatabaseQueryConfig` — Configuration for DATABASE_QUERY nodes
+  - `class ConditionConfig` — Configuration for CONDITION nodes
+  - `class SwitchConfig` — Configuration for SWITCH nodes
+  - `class LoopConfig` — Configuration for LOOP nodes
+  - `class ParallelConfig` — Configuration for PARALLEL nodes
+  - `class ApprovalConfig` — Configuration for APPROVAL nodes
+  - `class TransformConfig` — Configuration for TRANSFORM nodes
+  - `class DelayConfig` — Configuration for DELAY nodes
+  - `class ToolCallConfig` — Configuration for TOOL_CALL nodes (uses platform tools)
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `pydantic.field_validator`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Union`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/process/services/__init__.py`
+- **Purpose**: Process Services
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `approval.ApprovalService`
+  - `notification.NotificationService`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/services/approval.py`
+- **Purpose**: Approval Service
+- **Key functions/classes**:
+  - `class ApprovalService` — Service for managing approval workflows
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `datetime.timedelta`
+  - `logging`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/services/notification.py`
+- **Purpose**: Notification Service
+- **Key functions/classes**:
+  - `class NotificationService` — Service for sending notifications.
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `html`
+  - `json`
+  - `logging`
+  - `re`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.TYPE_CHECKING`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `MFA`
+  - `audit`
+  - `auth`
+  - `session`
+  - `token`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/process/state.py`
+- **Purpose**: Process State Management
+- **Key functions/classes**:
+  - `class VariableChange` — Record of a variable change
+  - `class ProcessContext` — Immutable context passed to node executors
+  - `class ProcessState` — Process execution state manager
+- **Dependencies (imports)**:
+  - `copy`
+  - `datetime.datetime`
+  - `json`
+  - `logging`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `re`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Set`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `AUDIT`
+  - `audit`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/process/wizard.py`
+- **Purpose**: Process Wizard
+- **Key functions/classes**:
+  - `class ProcessWizard` — LLM-powered process definition generator
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `json`
+  - `logging`
+  - `platform_knowledge.load_safe_taxonomies`
+  - `platform_knowledge.retrieve_platform_knowledge`
+  - `re`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Role`
+  - `auth`
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/security/__init__.py`
+- **Purpose**: AgentForge Security Module
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `engine.PolicyEngine`
+  - `models.ActionType`
+  - `models.AuditLog`
+  - `models.AuditLogLevel`
+  - `models.AuthProvider`
+  - `models.DEFAULT_ROLES`
+  - `models.DataClassification`
+  - `models.DatabasePermission`
+  - `models.Department`
+  - `models.Invitation`
+  - `models.KnowledgeBasePermission`
+  - `models.LDAPConfig`
+  - `models.MFAEnforcement`
+  - `models.MFAMethod`
+  - `models.OAuthConfig`
+  - `models.Organization`
+  - `models.Permission`
+  - `models.Policy`
+  - `models.PolicyCondition`
+  - `models.PolicyRule`
+  - `models.RegistrationMode`
+  - `models.ResourceType`
+  - `models.Role`
+  - `models.SecuritySettings`
+  - `models.Session`
+  - `models.TenancyMode`
+  - `models.ToolPermission`
+  - `models.User`
+  - `models.UserGroup`
+  - `models.UserMFA`
+  - `models.UserProfile`
+  - `models.UserStatus`
+  - `services.EmailService`
+  - `services.LDAPService`
+  - `services.MFAService`
+  - `services.OAuthService`
+  - `services.PasswordService`
+  - `services.TokenService`
+  - `state.SecurityState`
+  - `state.security_state`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Auth`
+  - `OAuth`
+  - `Permission`
+  - `RBAC`
+  - `Role`
+  - `Session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/security/engine.py`
+- **Purpose**: AgentForge Policy Engine - Complete Enterprise Implementation
+- **Key functions/classes**:
+  - `class PolicyEngine` — Central policy evaluation engine.
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `models.DatabasePermission`
+  - `models.KnowledgeBasePermission`
+  - `models.Permission`
+  - `models.Policy`
+  - `models.PolicyCondition`
+  - `models.PolicyRule`
+  - `models.ResourceType`
+  - `models.Role`
+  - `models.ToolPermission`
+  - `models.User`
+  - `models.UserStatus`
+  - `re`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Set`
+  - `typing.TYPE_CHECKING`
+  - `typing.Tuple`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `RBAC`
+  - `Role`
+  - `permission`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/security/models.py`
+- **Purpose**: AgentForge Security Data Models - Complete Enterprise Implementation
+- **Key functions/classes**:
+  - `class AuthProvider` — Authentication provider types
+  - `class MFAMethod` — Multi-factor authentication methods
+  - `class UserStatus` — User account status
+  - `class Permission` — All system permissions - Organized by Category
+  - `class ActionType` — Audit action types
+  - `class ResourceType` — Resource types for permissions and audit
+  - `class DataClassification` — Data classification levels for KB and DB
+  - `class TenancyMode` — Multi-tenancy modes
+  - `class RegistrationMode` — User registration modes
+  - `class MFAEnforcement` — MFA enforcement levels
+  - `class AuditLogLevel` — Audit log detail levels
+  - `class Organization` — Organization/Tenant model for multi-tenancy
+  - `class Department` — Department within an organization
+  - `class UserGroup` — User group for permission assignment
+  - `class UserMFA` — MFA configuration for a user
+  - `class UserProfile` — Extended user profile information
+  - `class User` — Main user model
+  - `class Session` — User session
+  - `class Invitation` — User invitation
+  - `class Role` — Role definition for RBAC
+  - `class PolicyCondition` — Single condition in a policy
+  - `class PolicyRule` — Policy rule combining conditions
+  - `class Policy` — Access policy definition for ABAC
+  - `class ToolPermission` — Fine-grained permissions for a specific tool
+  - `class KnowledgeBasePermission` — Fine-grained permissions for Knowledge Base access
+  - `class DatabasePermission` — Fine-grained permissions for database tool access
+  - `class AuditLog` — Audit log entry
+  - `class LDAPConfig` — LDAP/Active Directory configuration
+  - `class OAuthConfig` — OAuth provider configuration
+  - `class SecuritySettings` — Global security settings for the organization
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `pydantic.BaseModel`
+  - `pydantic.EmailStr`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `AUDIT`
+  - `Audit`
+  - `Auth`
+  - `MFA`
+  - `OAUTH`
+  - `OAuth`
+  - `PERMISSION`
+  - `Permission`
+  - `RBAC`
+  - `ROLE`
+  - `Role`
+  - `SESSION`
+  - `Session`
+  - `audit`
+  - `mfa`
+  - `permission`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/security/services.py`
+- **Purpose**: AgentForge Security Services - Complete Enterprise Implementation
+- **Key functions/classes**:
+  - `class PasswordService` — Password hashing, validation, and management
+  - `class MFAService` — Multi-Factor Authentication service
+  - `class TokenService` — JWT-like token service for authentication
+  - `class EmailService` — Email service for sending security-related emails
+  - `class LDAPService` — LDAP/Active Directory authentication and sync service
+  - `class OAuthService` — OAuth 2.0 service for Google and Microsoft
+- **Dependencies (imports)**:
+  - `base64`
+  - `datetime.datetime`
+  - `datetime.timedelta`
+  - `hashlib`
+  - `hmac`
+  - `json`
+  - `os`
+  - `re`
+  - `secrets`
+  - `time`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Tuple`
+  - `urllib.parse.quote`
+  - `urllib.parse.urlencode`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Hash`
+  - `JWT`
+  - `MFA`
+  - `OAuth`
+  - `Token`
+  - `auth`
+  - `hash`
+  - `mfa`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/security/state.py`
+- **Purpose**: AgentForge Security State - Complete Enterprise Implementation
+- **Key functions/classes**:
+  - `class SecurityState` — Main security state container.
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `engine.PolicyEngine`
+  - `json`
+  - `models.ActionType`
+  - `models.AuditLog`
+  - `models.AuditLogLevel`
+  - `models.AuthProvider`
+  - `models.DEFAULT_ROLES`
+  - `models.DatabasePermission`
+  - `models.Department`
+  - `models.Invitation`
+  - `models.KnowledgeBasePermission`
+  - `models.LDAPConfig`
+  - `models.MFAEnforcement`
+  - `models.OAuthConfig`
+  - `models.Organization`
+  - `models.Policy`
+  - `models.PolicyCondition`
+  - `models.PolicyRule`
+  - `models.RegistrationMode`
+  - `models.ResourceType`
+  - `models.Role`
+  - `models.SecuritySettings`
+  - `models.Session`
+  - `models.TenancyMode`
+  - `models.ToolPermission`
+  - `models.User`
+  - `models.UserGroup`
+  - `models.UserProfile`
+  - `models.UserStatus`
+  - `os`
+  - `traceback`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Auth`
+  - `RBAC`
+  - `Role`
+  - `Session`
+  - `audit`
+  - `mfa`
+  - `permission`
+  - `role`
+  - `session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/tools/__init__.py`
+- **Purpose**: AgentForge Tools Package
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/tools/base.py`
+- **Purpose**: AgentForge - Tool Base Interface
+- **Key functions/classes**:
+  - `class ToolCategory` — Categories of tools
+  - `class ToolDefinition` — Tool definition in OpenAI function format.
+  - `class ToolResult` — Result from a tool execution
+  - `class ToolConfig` — Configuration for a tool instance
+  - `class BaseTool` — Abstract base class for all tools.
+  - `class ToolRegistry` — Registry for all available tool types.
+- **Dependencies (imports)**:
+  - `abc.ABC`
+  - `abc.abstractmethod`
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `pydantic.BaseModel`
+  - `pydantic.Field`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Type`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/tools/builtin/__init__.py`
+- **Purpose**: AgentForge Built-in Tools
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `core/tools/builtin/api.py`
+- **Purpose**: AgentForge - API Tool
+- **Key functions/classes**:
+  - `class APITool` — API Tool for making HTTP requests to external services.
+  - `class GraphQLTool` — GraphQL API Tool.
+  - `class WebhookTool` — Webhook Tool for sending HTTP callbacks.
+- **Dependencies (imports)**:
+  - `base.BaseTool`
+  - `base.ToolCategory`
+  - `base.ToolConfig`
+  - `base.ToolDefinition`
+  - `base.ToolRegistry`
+  - `base.ToolResult`
+  - `httpx`
+  - `json`
+  - `time`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `auth`
+  - `oauth`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/tools/builtin/database.py`
+- **Purpose**: AgentForge - Database Tool
+- **Key functions/classes**:
+  - `class DatabaseTool` — Database Tool for querying SQL and NoSQL databases.
+- **Dependencies (imports)**:
+  - `base.BaseTool`
+  - `base.ToolCategory`
+  - `base.ToolConfig`
+  - `base.ToolDefinition`
+  - `base.ToolRegistry`
+  - `base.ToolResult`
+  - `json`
+  - `time`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `core/tools/builtin/rag.py`
+- **Purpose**: AgentForge - RAG Tool
+- **Key functions/classes**:
+  - `class RAGTool` — RAG (Retrieval-Augmented Generation) Tool.
+- **Dependencies (imports)**:
+  - `base.BaseTool`
+  - `base.ToolCategory`
+  - `base.ToolConfig`
+  - `base.ToolDefinition`
+  - `base.ToolRegistry`
+  - `base.ToolResult`
+  - `time`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/__init__.py`
+- **Purpose**: AgentForge Database Package
+- **Key functions/classes**:
+  - `function __getattr__ (name)` — Lazy import mechanism for database.base module.
+- **Dependencies (imports)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/base.py`
+- **Purpose**: SQLAlchemy Base and Session Management
+- **Key functions/classes**:
+  - `function get_engine ()` — Get or create database engine (singleton)
+  - `function get_session_factory ()` — Get or create session factory
+  - `function get_session ()` — Get a new database session
+  - `function get_db_session ()` — Context manager for database sessions
+  - `function init_db ()` — Initialize database (create all tables)
+  - `function check_connection ()` — Check if database connection is working
+- **Dependencies (imports)**:
+  - `__future__.annotations`
+  - `config.DatabaseConfig`
+  - `contextlib.contextmanager`
+  - `sqlalchemy.create_engine`
+  - `sqlalchemy.ext.declarative.declarative_base`
+  - `sqlalchemy.orm.Session`
+  - `sqlalchemy.orm.sessionmaker`
+  - `sqlalchemy.text`
+  - `typing.TYPE_CHECKING`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Permission`
+  - `Role`
+  - `Session`
+  - `audit`
+  - `role`
+  - `session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/column_types.py`
+- **Purpose**: Database-Agnostic Column Type Definitions
+- **Key functions/classes**:
+  - `class GUID` — Platform-independent GUID type.
+  - `class JSON` — Platform-independent JSON type.
+  - `class JSONArray` — Platform-independent JSON Array type.
+- **Dependencies (imports)**:
+  - `json`
+  - `sqlalchemy.dialects.mysql`
+  - `sqlalchemy.dialects.postgresql`
+  - `sqlalchemy.dialects.sqlite`
+  - `sqlalchemy.types.String`
+  - `sqlalchemy.types.TEXT`
+  - `sqlalchemy.types.TypeDecorator`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/config.py`
+- **Purpose**: Database Configuration
+- **Key functions/classes**:
+  - `class DatabaseType`
+  - `class DatabaseConfig` — Database configuration with environment variable support
+  - `function get_engine ()` — Get or create database engine (singleton)
+  - `function get_session_factory ()` — Get or create session factory (singleton)
+  - `function get_db ()` — Dependency that provides a database session.
+  - `function get_db_session ()` — Get a new database session (must be closed manually).
+- **Dependencies (imports)**:
+  - `enum.Enum`
+  - `os`
+  - `sqlalchemy.create_engine`
+  - `sqlalchemy.orm.Session`
+  - `sqlalchemy.orm.sessionmaker`
+  - `typing.Generator`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `SESSION`
+  - `Session`
+  - `session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/enums.py`
+- **Purpose**: Centralized Enum Definitions for AgentForge
+- **Key functions/classes**:
+  - `class AgentType` — Agent Type Enumeration
+  - `class ProcessStatus` — Process definition lifecycle status
+  - `class ProcessExecutionStatus` — Status of a process execution instance
+  - `class ProcessNodeType` — Types of nodes in a process flow
+  - `class ProcessTriggerType` — Types of triggers that can start a process
+  - `class ProcessNodeStatus` — Status of an individual node execution
+  - `class ToolType` — Tool Type Enumeration
+  - `class AgentStatus` — Agent lifecycle status - values match PostgreSQL enum (UPPERCASE)
+  - `class ConversationStatus` — Conversation lifecycle status
+  - `class KBStatus` — Knowledge Base status
+  - `class DocumentStatus` — Document processing status
+  - `function validate_enum_value (enum_class, value, field_name)` — Validate that a value is valid for given enum.
+  - `function get_all_enum_values (enum_class)` — Get all valid values for an enum class
+- **Dependencies (imports)**:
+  - `enum.Enum`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/init_db.py`
+- **Purpose**: Database Initialization Script
+- **Key functions/classes**:
+  - `function main ()` — Initialize database with complete enterprise schema
+- **Dependencies (imports)**:
+  - `os`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Permission`
+  - `Role`
+  - `audit`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/__init__.py`
+- **Purpose**: Database Models Package
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `agent.Agent`
+  - `agent_access.AgentAccessPolicy`
+  - `agent_access.AgentActionPolicy`
+  - `agent_access.AgentDataPolicy`
+  - `agent_access.AgentDeployment`
+  - `agent_access.EndUserSession`
+  - `audit.AuditLog`
+  - `audit.ComplianceReport`
+  - `audit.DataExport`
+  - `audit.SecurityEvent`
+  - `conversation.Conversation`
+  - `conversation.ConversationShare`
+  - `conversation.Message`
+  - `conversation.MessageRole`
+  - `db_permission.DatabasePermission`
+  - `department.Department`
+  - `invitation.Invitation`
+  - `kb_permission.KnowledgeBasePermission`
+  - `knowledge_base.Document`
+  - `knowledge_base.DocumentChunk`
+  - `knowledge_base.DocumentStatus`
+  - `knowledge_base.DocumentType`
+  - `knowledge_base.KBQuery`
+  - `knowledge_base.KnowledgeBase`
+  - `lab_history.LabHistoryItem`
+  - `lab_mock_api.LabMockAPI`
+  - `ldap_config.LDAPConfig`
+  - `oauth_config.OAuthConfig`
+  - `organization.Organization`
+  - `policy.Policy`
+  - `process_execution.ProcessApprovalRequest`
+  - `process_execution.ProcessExecution`
+  - `process_execution.ProcessNodeExecution`
+  - `role.Permission`
+  - `role.Role`
+  - `role.role_permissions`
+  - `security_settings.SecuritySettings`
+  - `settings.APIKey`
+  - `settings.Integration`
+  - `settings.OrganizationSetting`
+  - `settings.SystemSetting`
+  - `settings.UserIntegration`
+  - `tool.Tool`
+  - `tool.ToolExecution`
+  - `tool.ToolType`
+  - `tool_permission.ToolPermission`
+  - `user.MFAMethod`
+  - `user.MFASetting`
+  - `user.PasswordHistory`
+  - `user.User`
+  - `user.UserSession`
+  - `user.UserStatus`
+  - `user_group.UserGroup`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Permission`
+  - `Role`
+  - `audit`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/agent.py`
+- **Purpose**: Agent Models - AI Agent Management
+- **Key functions/classes**:
+  - `class Agent` — AI Agent Definition
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `audit`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/agent_access.py`
+- **Purpose**: Agent Access Control Models
+- **Key functions/classes**:
+  - `class AgentAccessPolicy` — Controls WHO can access WHICH agent
+  - `class AgentDataPolicy` — Controls WHAT DATA an agent can show to specific users
+  - `class AgentActionPolicy` — Controls WHAT ACTIONS an agent can perform for specific users
+  - `class AgentDeployment` — Deployment channels for agents
+  - `class EndUserSession` — Track end-user sessions across channels
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.ForeignKey`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `sqlalchemy.orm.relationship`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Session`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/audit.py`
+- **Purpose**: Audit Log Models - Complete System Audit Trail
+- **Key functions/classes**:
+  - `class AuditLog` — Comprehensive Audit Trail
+  - `class SecurityEvent` — Security-specific Events
+  - `class DataExport` — Data Export Audit Trail
+  - `class ComplianceReport` — Compliance Reports
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Session`
+  - `audit`
+  - `oauth`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/conversation.py`
+- **Purpose**: Conversation Models - Chat History & Messages
+- **Key functions/classes**:
+  - `class MessageRole` — Message sender role
+  - `class Conversation` — Chat Conversation
+  - `class Message` — Individual Chat Message
+  - `class ConversationShare` — Conversation Sharing
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Token`
+  - `audit`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/db_permission.py`
+- **Purpose**: DatabasePermission Model - Fine-grained permissions for database tools
+- **Key functions/classes**:
+  - `class DatabasePermission` — Fine-grained permissions for database tool access
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/department.py`
+- **Purpose**: Department Model - Organization departments
+- **Key functions/classes**:
+  - `class Department` — Department within an organization
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/invitation.py`
+- **Purpose**: Invitation Model - User invitations
+- **Key functions/classes**:
+  - `class Invitation` — User invitation model
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+  - `token`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/kb_permission.py`
+- **Purpose**: KnowledgeBasePermission Model - Fine-grained permissions for Knowledge Bases
+- **Key functions/classes**:
+  - `class KnowledgeBasePermission` — Fine-grained permissions for Knowledge Base access
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.String`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/knowledge_base.py`
+- **Purpose**: Knowledge Base Models - RAG & Document Management
+- **Key functions/classes**:
+  - `class DocumentStatus` — Document processing status
+  - `class DocumentType` — Document file types
+  - `class KnowledgeBase` — Knowledge Base Collection
+  - `class Document` — Individual Document
+  - `class DocumentChunk` — Document Chunks for RAG
+  - `class KBQuery` — Knowledge Base Query Log
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Float`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Token`
+  - `audit`
+  - `token`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/lab_history.py`
+- **Purpose**: Lab History Model - Persisted Lab-generated items (API, document, image)
+- **Key functions/classes**:
+  - `class LabHistoryItem` — One generated item in the Lab (API, document, or image).
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/lab_mock_api.py`
+- **Purpose**: Lab Mock API Model - Persisted mock API definitions and data
+- **Key functions/classes**:
+  - `class LabMockAPI` — One generated mock API: metadata + data array.
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/ldap_config.py`
+- **Purpose**: LDAPConfig Model - LDAP/Active Directory configuration
+- **Key functions/classes**:
+  - `class LDAPConfig` — LDAP/Active Directory configuration
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/oauth_config.py`
+- **Purpose**: OAuthConfig Model - OAuth provider configuration
+- **Key functions/classes**:
+  - `class OAuthConfig` — OAuth provider configuration
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.String`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `OAuth`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/organization.py`
+- **Purpose**: Organization Model - Multi-tenancy support
+- **Key functions/classes**:
+  - `class Organization` — Organization/Tenant model
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `sqlalchemy.orm.relationship`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `OAuth`
+  - `auth`
+  - `token`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/policy.py`
+- **Purpose**: Policy Model - ABAC policies
+- **Key functions/classes**:
+  - `class Policy` — Access policy definition for ABAC
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/process_execution.py`
+- **Purpose**: Process Execution Models - Workflow Execution Tracking
+- **Key functions/classes**:
+  - `class ProcessExecution` — Process Execution Instance
+  - `class ProcessNodeExecution` — Individual Node Execution Record
+  - `class ProcessApprovalRequest` — Human Approval Request
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Float`
+  - `sqlalchemy.ForeignKey`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `sqlalchemy.orm.relationship`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `AUDIT`
+  - `audit`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/process_settings.py`
+- **Purpose**: Process Settings Model
+- **Key functions/classes**:
+  - `class ProcessOrgSettings` — Organization-level process settings
+  - `class ProcessNodeType` — Dynamic node type definitions
+  - `class ProcessTemplate` — Reusable process templates
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.Float`
+  - `sqlalchemy.ForeignKey`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `sqlalchemy.orm.relationship`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/role.py`
+- **Purpose**: Role and Permission Models - RBAC
+- **Key functions/classes**:
+  - `class Role` — Role definition
+  - `class Permission` — Permission definition
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Table`
+  - `sqlalchemy.Text`
+  - `sqlalchemy.orm.relationship`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `RBAC`
+  - `Role`
+  - `permission`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/security_settings.py`
+- **Purpose**: SecuritySettings Model - Security settings per organization
+- **Key functions/classes**:
+  - `class SecuritySettings` — Global security settings for the organization
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `MFA`
+  - `Session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/settings.py`
+- **Purpose**: Settings & Configuration Models
+- **Key functions/classes**:
+  - `class SystemSetting` — System-wide Settings
+  - `class OrganizationSetting` — Organization-level Settings
+  - `class APIKey` — API Keys for External Services
+  - `class Integration` — Third-party Integrations
+  - `class UserIntegration` — User-specific Integration Connections
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `OAuth`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/tool.py`
+- **Purpose**: Tool Models - External Tools & Integrations
+- **Key functions/classes**:
+  - `class Tool` — External Tool Definition
+  - `class ToolExecution` — Tool Execution History
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `enums.ToolType`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Index`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/tool_permission.py`
+- **Purpose**: ToolPermission Model - Fine-grained permissions for tools
+- **Key functions/classes**:
+  - `class ToolPermission` — Fine-grained permissions for a specific tool
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/user.py`
+- **Purpose**: User Model - Authentication and User Management
+- **Key functions/classes**:
+  - `class UserStatus`
+  - `class MFAMethod`
+  - `class User` — User account model
+  - `class UserSession` — User session tracking
+  - `class MFASetting` — MFA configuration and backup codes
+  - `class PasswordHistory` — Password change history for security auditing
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `enum.Enum`
+  - `sqlalchemy.Boolean`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.Integer`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `sqlalchemy.orm.relationship`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `MFA`
+  - `OAuth`
+  - `RBAC`
+  - `Session`
+  - `oauth`
+  - `role`
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/models/user_group.py`
+- **Purpose**: UserGroup Model - User groups for permission assignment
+- **Key functions/classes**:
+  - `class UserGroup` — User group for permission assignment
+- **Dependencies (imports)**:
+  - `base.Base`
+  - `column_types.JSON`
+  - `column_types.JSONArray`
+  - `column_types.UUID`
+  - `datetime.datetime`
+  - `json`
+  - `sqlalchemy.Column`
+  - `sqlalchemy.DateTime`
+  - `sqlalchemy.String`
+  - `sqlalchemy.Text`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `permission`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/__init__.py`
+- **Purpose**: Database Services - Business Logic Layer
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `agent_service.AgentService`
+  - `audit_service.AuditService`
+  - `conversation_service.ConversationService`
+  - `department_service.DepartmentService`
+  - `encryption.EncryptionService`
+  - `invitation_service.InvitationService`
+  - `organization_service.OrganizationService`
+  - `process_execution_service.ProcessExecutionService`
+  - `role_service.RoleService`
+  - `security_settings_service.SecuritySettingsService`
+  - `system_settings_service.SystemSettingsService`
+  - `tool_service.ToolService`
+  - `user_group_service.UserGroupService`
+  - `user_service.SessionService`
+  - `user_service.UserService`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/agent_service.py`
+- **Purpose**: Agent Service - Database Operations for Agent Management
+- **Key functions/classes**:
+  - `class AgentService` — Agent Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `datetime.datetime`
+  - `json`
+  - `models.agent.Agent`
+  - `sqlalchemy.orm.Session`
+  - `traceback`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/services/audit_service.py`
+- **Purpose**: Audit Service - Database Operations for Audit Logs
+- **Key functions/classes**:
+  - `class AuditService` — Audit Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `core.security.ActionType`
+  - `core.security.AuditLog`
+  - `core.security.ResourceType`
+  - `datetime.datetime`
+  - `models.audit.AuditLog`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `audit`
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/conversation_service.py`
+- **Purpose**: Conversation Service - Database Operations for Chat History
+- **Key functions/classes**:
+  - `class ConversationService` — Conversation Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `datetime.datetime`
+  - `json`
+  - `models.conversation.Conversation`
+  - `models.conversation.Message`
+  - `sqlalchemy.orm.Session`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Session`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/department_service.py`
+- **Purpose**: Department Service - Database Operations for Departments
+- **Key functions/classes**:
+  - `class DepartmentService` — Department Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `core.security.Department`
+  - `datetime.datetime`
+  - `models.department.Department`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/encryption.py`
+- **Purpose**: Encryption Service for sensitive data
+- **Key functions/classes**:
+  - `class EncryptionService` — Service for encrypting/decrypting sensitive data
+  - `function get_encryption_service ()` — Get encryption service instance (singleton)
+- **Dependencies (imports)**:
+  - `base64`
+  - `cryptography.fernet.Fernet`
+  - `cryptography.hazmat.backends.default_backend`
+  - `cryptography.hazmat.primitives.hashes`
+  - `cryptography.hazmat.primitives.kdf.pbkdf2.PBKDF2HMAC`
+  - `os`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Encrypt`
+  - `encrypt`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/services/invitation_service.py`
+- **Purpose**: Invitation Service - Database Operations for Invitations
+- **Key functions/classes**:
+  - `class InvitationService` — Invitation Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `core.security.Invitation`
+  - `datetime.datetime`
+  - `json`
+  - `models.invitation.Invitation`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Role`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/services/organization_service.py`
+- **Purpose**: Organization Service - Database Operations for Organizations
+- **Key functions/classes**:
+  - `class OrganizationService` — Organization Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `core.security.Organization`
+  - `datetime.datetime`
+  - `json`
+  - `models.organization.Organization`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `OAuth`
+  - `session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/services/process_execution_service.py`
+- **Purpose**: Process Execution Service
+- **Key functions/classes**:
+  - `class ProcessExecutionService` — Service for managing process executions
+- **Dependencies (imports)**:
+  - `datetime.datetime`
+  - `datetime.timedelta`
+  - `logging`
+  - `models.agent.Agent`
+  - `models.organization.Organization`
+  - `models.process_execution.ProcessApprovalRequest`
+  - `models.process_execution.ProcessExecution`
+  - `models.process_execution.ProcessNodeExecution`
+  - `sqlalchemy.and_`
+  - `sqlalchemy.desc`
+  - `sqlalchemy.func`
+  - `sqlalchemy.or_`
+  - `sqlalchemy.orm.Session`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `typing.Tuple`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Session`
+  - `role`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/services/process_settings_service.py`
+- **Purpose**: Process Settings Service
+- **Key functions/classes**:
+  - `class ProcessSettingsService` — Service for managing process settings
+- **Dependencies (imports)**:
+  - `database.models.process_settings.ProcessNodeType`
+  - `database.models.process_settings.ProcessOrgSettings`
+  - `database.models.process_settings.ProcessTemplate`
+  - `datetime.datetime`
+  - `json`
+  - `logging`
+  - `sqlalchemy.orm.Session`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/services/role_service.py`
+- **Purpose**: Role Service - Database operations for roles
+- **Key functions/classes**:
+  - `class RoleService` — Service for managing roles in the database.
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `core.security.Role`
+  - `datetime.datetime`
+  - `json`
+  - `models.role.Role`
+  - `sqlalchemy.orm.Session`
+  - `traceback`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `Role`
+  - `Session`
+  - `permission`
+  - `role`
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/security_settings_service.py`
+- **Purpose**: SecuritySettings Service - Database Operations for Security Settings
+- **Key functions/classes**:
+  - `class SecuritySettingsService` — SecuritySettings Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `core.security.AuditLogLevel`
+  - `core.security.MFAEnforcement`
+  - `core.security.MFAMethod`
+  - `core.security.RegistrationMode`
+  - `core.security.SecuritySettings`
+  - `datetime.datetime`
+  - `json`
+  - `models.security_settings.SecuritySettings`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `MFA`
+  - `Session`
+  - `session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `database/services/system_settings_service.py`
+- **Purpose**: SystemSettings Service - Database Operations for System Settings
+- **Key functions/classes**:
+  - `class SystemSettingsService` — SystemSettings Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `datetime.datetime`
+  - `json`
+  - `models.settings.OrganizationSetting`
+  - `models.settings.SystemSetting`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/tool_service.py`
+- **Purpose**: Tool Service - Database Operations for Tool Management
+- **Key functions/classes**:
+  - `class ToolService` — Tool Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `datetime.datetime`
+  - `json`
+  - `models.tool.Tool`
+  - `sqlalchemy.orm.Session`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/user_group_service.py`
+- **Purpose**: UserGroup Service - Database Operations for User Groups
+- **Key functions/classes**:
+  - `class UserGroupService` — UserGroup Service - Bridge between API and Database
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `core.security.UserGroup`
+  - `datetime.datetime`
+  - `json`
+  - `models.user_group.UserGroup`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `database/services/user_service.py`
+- **Purpose**: User Service - Database Operations for User Management
+- **Key functions/classes**:
+  - `class UserService` — User Service - Bridge between API and Database
+  - `class SessionService` — Session Service - Database Operations for Session Management
+- **Dependencies (imports)**:
+  - `base.get_db_session`
+  - `core.security.AuthProvider`
+  - `core.security.MFAMethod`
+  - `core.security.Session`
+  - `core.security.User`
+  - `core.security.UserMFA`
+  - `core.security.UserProfile`
+  - `core.security.UserStatus`
+  - `datetime.datetime`
+  - `datetime.timedelta`
+  - `models.user.User`
+  - `models.user.UserSession`
+  - `sqlalchemy.or_`
+  - `sqlalchemy.orm.Session`
+  - `typing.Any`
+  - `typing.Dict`
+  - `typing.List`
+  - `typing.Optional`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `MFA`
+  - `OAuth`
+  - `Session`
+  - `mfa`
+  - `session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `run.py`
+- **Purpose**: AgentForge - Quick Start Script
+- **Key functions/classes**:
+  - `function main ()`
+- **Dependencies (imports)**:
+  - `os`
+  - `sys`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/add_google_oauth_credentials.py`
+- **Purpose**: Add Google OAuth Credentials to Database
+- **Key functions/classes**:
+  - `function add_google_oauth_credentials ()` — Add Google OAuth credentials to the default organization
+- **Dependencies (imports)**:
+  - `database.base.get_db_session`
+  - `database.models.organization.Organization`
+  - `json`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `OAuth`
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/add_identity_columns.py`
+- **Purpose**: Add Identity & Org Chart Columns to Users and Organizations Tables
+- **Key functions/classes**:
+  - `function _column_exists (session, engine, table_name, col_name)` — Check if a column exists in a table.
+  - `function add_identity_columns ()` — Add identity and org chart columns to users and organizations tables.
+- **Dependencies (imports)**:
+  - `database.base.get_db_session`
+  - `database.base.get_engine`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/add_organization_oauth_columns.py`
+- **Purpose**: Add OAuth and Auth Settings Columns to Organizations Table
+- **Key functions/classes**:
+  - `function add_organization_oauth_columns ()` — Add OAuth and auth settings columns to organizations table
+- **Dependencies (imports)**:
+  - `database.base.get_db_session`
+  - `database.base.get_engine`
+  - `json`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `OAuth`
+  - `auth`
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/add_role_columns.py`
+- **Purpose**: Add missing columns to roles table
+- **Key functions/classes**:
+  - `function add_missing_role_columns ()`
+- **Dependencies (imports)**:
+  - `database.base.get_engine`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/add_user_columns.py`
+- **Purpose**: Add Missing Columns to Users Table
+- **Key functions/classes**: Not present in repository (no top-level defs found)
+- **Dependencies (imports)**:
+  - `database.base.get_engine`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `RBAC`
+  - `auth`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/auto-commit.sh`
+- **Purpose**: Operational script
+- **Key symbols**: Not applicable
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `auth`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/comprehensive_db_check.sh`
+- **Purpose**: Operational script
+- **Key symbols**: Not applicable
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/create_missing_tables.py`
+- **Purpose**: Create Missing Database Tables
+- **Key functions/classes**:
+  - `function create_missing_tables ()` — Create missing tables if they don't exist
+  - `function fix_jsonarray_column_types ()` — Fix JSONArray columns that were incorrectly created as PostgreSQL ARRAY.
+  - `function add_missing_columns ()` — Add missing columns to existing tables
+- **Dependencies (imports)**:
+  - `database.base.Base`
+  - `database.base.get_engine`
+  - `os`
+  - `sqlalchemy.inspect`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `Role`
+  - `audit`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/fix_agent_status_enum.py`
+- **Purpose**: Fix AgentStatus PostgreSQL Enum - Add PUBLISHED value
+- **Key functions/classes**:
+  - `function fix_agent_status_enum ()` — Add PUBLISHED value to PostgreSQL agentstatus enum
+- **Dependencies (imports)**:
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/fix_agent_status_to_string.py`
+- **Purpose**: Fix AgentStatus column - Convert from PostgreSQL ENUM to VARCHAR(20)
+- **Key functions/classes**:
+  - `function fix_agent_status_column ()` — Convert status column from ENUM to VARCHAR(20)
+- **Dependencies (imports)**:
+  - `database.base.get_engine`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/fix_all_enums_to_string.py`
+- **Purpose**: Fix ALL remaining PostgreSQL ENUM columns to VARCHAR
+- **Key functions/classes**:
+  - `function fix_all_enums ()`
+- **Dependencies (imports)**:
+  - `database.base.get_engine`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/fix_message_role_to_string.py`
+- **Purpose**: Fix message role column from PostgreSQL ENUM to VARCHAR(20)
+- **Key functions/classes**:
+  - `function fix_message_role_to_string ()`
+- **Dependencies (imports)**:
+  - `database.base.get_engine`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/generate_phase1_code_truth.py`
+- **Purpose**: PHASE 1 — Code Truth Extraction (code-derived, repository-accurate).
+- **Key functions/classes**:
+  - `function walk_code_files ()`
+  - `function read_text (p)`
+  - `function md_escape (s)`
+  - `function first_nonempty_lines (text, n)`
+  - `function python_imports (text)`
+  - `class PySymbol`
+  - `function python_symbols (text)`
+  - `function html_title (text)`
+  - `function html_refs (text)`
+  - `function js_exports_heuristic (text)`
+  - `function evidence_flags (text)`
+  - `function purpose_from_text (rel, text)`
+  - `function main ()`
+- **Dependencies (imports)**:
+  - `__future__.annotations`
+  - `ast`
+  - `dataclasses.dataclass`
+  - `os`
+  - `pathlib.Path`
+  - `re`
+  - `typing.Any`
+  - `typing.Iterable`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `Session`
+  - `audit`
+  - `auth`
+  - `encrypt`
+  - `hash`
+  - `jwt`
+  - `mfa`
+  - `oauth`
+  - `permission`
+  - `rbac`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `scripts/make_password_hash_nullable.py`
+- **Purpose**: Make password_hash nullable for OAuth users
+- **Key functions/classes**:
+  - `function make_password_hash_nullable ()` — Make password_hash column nullable in users table
+- **Dependencies (imports)**:
+  - `database.base.get_db_session`
+  - `database.base.get_engine`
+  - `os`
+  - `sqlalchemy.text`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `OAuth`
+  - `session`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `scripts/migrate_to_db_complete.py`
+- **Purpose**: COMPLETE Data Migration Script - JSON to PostgreSQL
+- **Key functions/classes**:
+  - `function load_json_file (filepath)` — Load and parse JSON file
+  - `function migrate_organizations ()` — Migrate organizations from JSON to database
+  - `function migrate_roles (org_mapping)` — Migrate roles from JSON to database
+  - `function migrate_users (org_mapping, role_mapping)` — Migrate users from JSON to database
+  - `function migrate_agents (org_mapping)` — Migrate agents from JSON to database using AgentService
+  - `function migrate_agents_direct (org_mapping)` — Fallback: Migrate agents directly to database (if AgentService unavailable)
+  - `function migrate_tools (org_mapping)` — Migrate tools from JSON to database using centralized enum management
+  - `function migrate_settings ()` — Migrate settings from JSON to database
+  - `function verify_migration ()` — Verify migrated data
+  - `function main ()` — Run complete migration
+- **Dependencies (imports)**:
+  - `database.base.get_db_session`
+  - `database.enums.AgentStatus`
+  - `database.enums.ToolType`
+  - `database.models.agent.Agent`
+  - `database.models.conversation.Conversation`
+  - `database.models.conversation.Message`
+  - `database.models.knowledge_base.Document`
+  - `database.models.knowledge_base.KnowledgeBase`
+  - `database.models.organization.Organization`
+  - `database.models.role.Role`
+  - `database.models.settings.OrganizationSetting`
+  - `database.models.settings.SystemSetting`
+  - `database.models.tool.Tool`
+  - `database.models.user.User`
+  - `datetime.datetime`
+  - `json`
+  - `os`
+  - `sys`
+  - `uuid`
+- **Side effects (heuristic)**:
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `OAuth`
+  - `Role`
+  - `mfa`
+  - `role`
+  - `session`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `scripts/split_app_features.py`
+- **Purpose**: Split ui/index_parts/app-features.js into multiple smaller feature chunks.
+- **Key functions/classes**:
+  - `function _node_check (js_text)`
+  - `function _line_start_offsets (text)`
+  - `function _safe_boundary_positions (text)` — Conservative safe boundaries: positions right after '
+  - `function _choose_split_near (text, desired, window)` — Find a split boundary near 'desired' that makes both sides parse with node.
+  - `function _write_chunks (text, split_points)`
+  - `function _update_index_html (chunk_paths)`
+  - `function _shrink_source_stub (chunk_paths)`
+  - `function main ()`
+- **Dependencies (imports)**:
+  - `__future__.annotations`
+  - `pathlib.Path`
+  - `re`
+  - `subprocess`
+  - `tempfile`
+- **Side effects (heuristic)**:
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `auth`
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `scripts/split_ui_html_assets.py`
+- **Purpose**: Split a large UI HTML file into smaller assets: CSS + JS + HTML shell.
+- **Key functions/classes**:
+  - `function _extract_head_and_rest (html)`
+  - `function _extract_head_styles (head_html)`
+  - `function _insert_css_link (head_html, href)`
+  - `function _extract_first_inline_script (full_html)`
+  - `function main ()`
+- **Dependencies (imports)**:
+  - `__future__.annotations`
+  - `pathlib.Path`
+  - `re`
+  - `sys`
+- **Side effects (heuristic)**:
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `scripts/split_ui_index_assets.py`
+- **Purpose**: Split ui/index.html into smaller assets.
+- **Key functions/classes**:
+  - `function _extract_head_and_rest (html)`
+  - `function _extract_all_head_styles (head_html)`
+  - `function _insert_css_link (head_html)`
+  - `function _extract_inline_app_script (full_html)` — Extract the first inline <script>...</script> where the opening tag has no src=.
+  - `function main ()`
+- **Dependencies (imports)**:
+  - `__future__.annotations`
+  - `pathlib.Path`
+  - `re`
+- **Side effects (heuristic)**:
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `scripts/split_ui_index_js.py`
+- **Purpose**: Split ui/index.js into multiple smaller deferred scripts safely.
+- **Key functions/classes**:
+  - `class ScanState`
+  - `function _is_safe_split_point (state)`
+  - `function _scan_for_safe_newline_boundaries (text)` — Return indices (character offsets) that are safe split positions (immediately after '
+  - `function _node_check_syntax (js_text)` — Returns (ok, stderr_or_empty). Uses `node --check` as a reliable JS parser.
+  - `function _choose_splits_validated (text, safe_points, target_bytes)` — Choose split points using Node syntax validation so each chunk is a valid standalone script.
+  - `function _write_parts (text, split_points)`
+  - `function _rewrite_index_html (parts)`
+  - `function _write_index_js_stub (parts)`
+  - `function _read_source_js ()` — Use the committed ui/index.js (HEAD) as the source of truth.
+  - `function main ()`
+- **Dependencies (imports)**:
+  - `__future__.annotations`
+  - `dataclasses.dataclass`
+  - `pathlib.Path`
+  - `re`
+  - `subprocess`
+  - `tempfile`
+- **Side effects (heuristic)**:
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling (evidence)**:
+  - raise statements present
+
+---
+### `setup_demo_db.sh`
+- **Purpose**: Unknown
+- **Key symbols**: Not applicable
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/chat.css`
+- **Purpose**: Frontend UI asset
+- **Key symbols**: Not applicable
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `MFA`
+  - `mfa`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/chat.html`
+- **Purpose**: HTML page: AgentForge - AI Assistant
+- **HTML title**: AgentForge - AI Assistant
+- **External refs**:
+  - link: `/AgentForge_Logo.png`
+  - link: `https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap`
+  - link: `/ui/theme.css`
+  - link: `/ui/chat.css`
+  - script: `/ui/theme.js`
+  - script: `https://cdn.jsdelivr.net/npm/marked/marked.min.js`
+  - script: `/ui/chat.js`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `MFA`
+  - `mfa`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/chat.js`
+- **Purpose**: State
+- **Key functions (heuristic)**:
+  - `_ensureAudioCtx()`
+  - `_executionAgentId()`
+  - `_executionInputData()`
+  - `_executionResult()`
+  - `_executionRunNumber()`
+  - `_formatDateTime()`
+  - `_formatPrefillValue()`
+  - `_getAgentType()`
+  - `_getSavedTheme()`
+  - `_getWorkflowApprovalInfo()`
+  - `_getWorkflowCategory()`
+  - `_getWorkflowNameById()`
+  - `_getWorkflowTriggerInfo()`
+  - `_parseProcessDefinition()`
+  - `_renderApprovalDetail()`
+  - `_renderPortalValue()`
+  - `_renderRequestDetail()`
+  - `_resolveArgToken()`
+  - `_roleNames()`
+  - `_setInboxBadge()`
+  - `_setValue()`
+  - `_showBrandPreview()`
+  - `_splitArgs()`
+  - `_statusPillClass()`
+  - `_wfElId()`
+  - `a()`
+  - `addThinkingStep()`
+  - `agent()`
+  - `applyBranding()`
+  - `applyTheme()`
+  - `applyWorkflowPrefill()`
+  - `attachFile()`
+  - `autoResize()`
+  - `b()`
+  - `bbg()`
+  - `btc()`
+  - `buildWorkflowRunForm()`
+  - `canRunNow()`
+  - `clearRequestsWorkflowFilter()`
+  - `closeLoginMfaModal()`
+  - `closeSidebar()`
+  - `closeWorkflowRunModal()`
+  - `collectWorkflowFormValues()`
+  - `createMessageHTML()`
+  - `createThinkingContainer()`
+  - `d()`
+  - `derived()`
+  - `derivedInputs()`
+  - `detailEntries()`
+  - `escapeHtml()`
+  - `evaluateDerivedExpression()`
+  - `f()`
+  - `finishThinking()`
+  - `formatMessage()`
+  - `friendlyErrorMessage()`
+  - `getAuthHeaders()`
+  - `getCurrentUserPrefillValue()`
+  - `getToken()`
+  - `handleBrandCSSUpload()`
+  - `handleBrandFileUpload()`
+  - `handleKeyDown()`
+  - `handleLogout()`
+  - `hideMFASetup()`
+  - `hideProfile()`
+  - `hideSettings()`
+  - `humanizeFieldLabel()`
+  - `humanizeNodeType()`
+  - `humanizeUrgency()`
+  - `idx()`
+  - `inputsEntries()`
+  - `isOrgBrandingAdmin()`
+  - `isPortalAdmin()`
+  - `loadBrandingSettingsUI()`
+  - `loadSoundSetting()`
+  - `loadThemeSettings()`
+  - `mapped()`
+  - `maskEmail()`
+  - `meta()`
+  - `msg()`
+  - `openNavGroup()`
+  - (… 57 more)
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `MFA`
+  - `OAuth`
+  - `Session`
+  - `Token`
+  - `auth`
+  - `mfa`
+  - `oauth`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/index.css`
+- **Purpose**: Frontend UI asset
+- **Key symbols**: Not applicable
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `OAuth`
+  - `oauth`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/index.html`
+- **Purpose**: HTML page: AgentForge - AI Agent Builder
+- **HTML title**: AgentForge - AI Agent Builder
+- **External refs**:
+  - link: `/AgentForge_Logo.png`
+  - link: `/ui/theme.css`
+  - link: `/ui/index.css`
+  - link: `https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap`
+  - link: `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css`
+  - link: `https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css`
+  - script: `/ui/theme.js`
+  - script: `https://cdn.tailwindcss.com`
+  - script: `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js`
+  - script: `https://cdn.jsdelivr.net/npm/marked/marked.min.js`
+  - script: `https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js`
+  - script: `https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js`
+  - script: `/ui/index_parts/app-core.js`
+  - script: `/ui/index_parts/process-playback.js`
+  - script: `/ui/index_parts/approvals.js`
+  - script: `/ui/index_parts/agent-wizard.js`
+  - script: `/ui/index_parts/features-demo-tools.js`
+  - script: `/ui/index_parts/features-tools-wizard.js`
+  - script: `/ui/index_parts/features-chat.js`
+  - script: `/ui/index_parts/features-auth-permissions.js`
+  - script: `/ui/index_parts/features-security-identity.js`
+  - script: `/ui/index_parts/features-approvals-page.js`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `Auth`
+  - `MFA`
+  - `OAuth`
+  - `Permission`
+  - `Role`
+  - `Session`
+  - `Token`
+  - `audit`
+  - `auth`
+  - `mfa`
+  - `permission`
+  - `role`
+  - `token`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/index.js`
+- **Purpose**: ui/index.js (stub)
+- **Key functions (heuristic)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/index_parts/agent-wizard.js`
+- **Purpose**: Auto-generated from ui/index.js
+- **Key functions (heuristic)**:
+  - `acBulkApply()`
+  - `acBulkClear()`
+  - `acFilterEntities()`
+  - `acSelectEntity()`
+  - `acToggleBulk()`
+  - `addAccessEntity()`
+  - `addGeneratedItem()`
+  - `addTools()`
+  - `allowAllTasks()`
+  - `apiTools()`
+  - `baseUrl()`
+  - `buildDelegatedAdminsPreviewHtml()`
+  - `buildUserAccessPreviewHtml()`
+  - `checkOwnershipFromWizard()`
+  - `closeAccessControlModal()`
+  - `closeApiTestModal()`
+  - `closeCreateKitModal()`
+  - `closeDemoEditModal()`
+  - `closeEditAssetModal()`
+  - `closeKbViewModal()`
+  - `collectGuardrails()`
+  - `collectToolsNew()`
+  - `collectWizardAccessControl()`
+  - `confirmToolSelection()`
+  - `copyDockerCommand()`
+  - `daFilterAdmins()`
+  - `daSelectAdmin()`
+  - `daSetAllTasks()`
+  - `deniedCount()`
+  - `denyAllTasks()`
+  - `downloadK8sManifest()`
+  - `editDemoAsset()`
+  - `editDemoItem()`
+  - `enrichEntitiesWithNames()`
+  - `esc()`
+  - `getLocalToolRecommendations()`
+  - `getTaskPermission()`
+  - `goToConfigureNewTool()`
+  - `goToToolPage()`
+  - `goalLower()`
+  - `initDemoLab()`
+  - `isAgentOwner()`
+  - `isTaskAllowedForEntity()`
+  - `isToolAllowedForEntity()`
+  - `isUserAdmin()`
+  - `kbTools()`
+  - `key()`
+  - `loadAvailableToolTypes()`
+  - `loadWizardToolsNew()`
+  - `mappedEntities()`
+  - `onOnpremMethodChange()`
+  - `openWizardApiTestModal()`
+  - `permCount()`
+  - `prepareTestSuggestions()`
+  - `previewAccessAsUser()`
+  - `q()`
+  - `regenerateUnifiedDemo()`
+  - `removeAccessEntity()`
+  - `removeSelectedTool()`
+  - `removeToolFromWizard()`
+  - `removeWizardAccessEntity()`
+  - `renderAccessType()`
+  - `renderBusinessFriendlyResponse()`
+  - `renderDelegatedAdmins()`
+  - `renderDemoKitsList()`
+  - `renderDemoSidebar()`
+  - `renderKitDetails()`
+  - `renderSelectedEntities()`
+  - `renderTasksMatrix()`
+  - `renderToolItems()`
+  - `renderToolsMatrix()`
+  - `renderUnifiedDemoResults()`
+  - `renderWizardSearchResults()`
+  - `renderWizardSelectedEntities()`
+  - `renderWizardTaskPermissions()`
+  - `searchAccessEntities()`
+  - `searchPotentialAdmins()`
+  - `selectAccessType()`
+  - `selectCloudProvider()`
+  - `selectDeployOption()`
+  - (… 35 more)
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Permission`
+  - `Role`
+  - `auth`
+  - `permission`
+  - `role`
+  - `session`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/index_parts/app-core.js`
+- **Purpose**: Auto-generated from ui/index.js
+- **Key functions (heuristic)**:
+  - `_markMilestone()`
+  - `animateSliderTo()`
+  - `applyRecommendationsWithAnimation()`
+  - `closeProcessEditorPreview()`
+  - `ensureModalInBody()`
+  - `escHtml()`
+  - `goStep()`
+  - `initPersonalitySliders()`
+  - `navigate()`
+  - `nodesHtml()`
+  - `onGoalChange()`
+  - `openVisualEditor()`
+  - `prevStep()`
+  - `resetPersonalityDefaults()`
+  - `resetWizardNew()`
+  - `restoreWizardStep0()`
+  - `selectAgentType()`
+  - `showProcessEditor()`
+  - `showToast()`
+  - `syncSlider()`
+  - `updateAgentNameInPersonality()`
+  - `updatePersonalityPreview()`
+  - `updatePersonalitySlider()`
+  - `updateWizardStickyHeader()`
+  - `useAgentTemplate()`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `auth`
+  - `hash`
+  - `permission`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/index_parts/app-features.js`
+- **Purpose**: ui/index_parts/app-features.js (stub)
+- **Key functions (heuristic)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `auth`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/index_parts/approvals.js`
+- **Purpose**: Auto-generated from ui/index.js
+- **Key functions (heuristic)**:
+  - `_normToolType()`
+  - `addInstruction()`
+  - `addTask()`
+  - `addWorkflowNode()`
+  - `applyGeneratedConfig()`
+  - `assigneeDisplay()`
+  - `autoSaveInstruction()`
+  - `autoSaveTask()`
+  - `canExecute()`
+  - `closeApprovalConfigModal()`
+  - `closeApprovalDashboard()`
+  - `closeIconPicker()`
+  - `closeProcessEditor()`
+  - `closeSelectToolModal()`
+  - `collectTasksNew()`
+  - `createProcessEditorModal()`
+  - `deleteNode()`
+  - `editNodeConfig()`
+  - `escapeHtml()`
+  - `friendlyLabel()`
+  - `g()`
+  - `getAllToolBusinessInfo()`
+  - `getCalendarInfo()`
+  - `getCodeInfo()`
+  - `getCrmInfo()`
+  - `getDatabaseInfo()`
+  - `getDragAfterElement()`
+  - `getEmailInfo()`
+  - `getKnowledgeInfo()`
+  - `getSlackInfo()`
+  - `getToolBusinessInfo()`
+  - `getWebSearchInfo()`
+  - `goal()`
+  - `handleDragEnd()`
+  - `handleDragOver()`
+  - `handleIconUpload()`
+  - `handleInstructionDragStart()`
+  - `handleInstructionDrop()`
+  - `hideAIWorkflowInput()`
+  - `insertNode()`
+  - `isSelected()`
+  - `moveNodeDown()`
+  - `moveNodeUp()`
+  - `msg()`
+  - `onApprovalConfigSourceChange()`
+  - `openBuilderWithTemplate()`
+  - `openProcessEditor()`
+  - `openVisualBuilder()`
+  - `r()`
+  - `removeInstruction()`
+  - `removeInstructionOriginal()`
+  - `removeTask()`
+  - `renderReviewData()`
+  - `renderTasks()`
+  - `renderToolSection()`
+  - `renderWorkflowNodes()`
+  - `saveApprovalConfig()`
+  - `saveCurrentTaskEdits()`
+  - `selectEmoji()`
+  - `selectModel()`
+  - `showAIWorkflowInput()`
+  - `showIconPicker()`
+  - `syncTaskPermissions()`
+  - `t()`
+  - `testWorkflow()`
+  - `triggerAutoSave()`
+  - `u()`
+  - `updateModelExplanation()`
+  - `updateNodeName()`
+  - `useProcessTemplate()`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Role`
+  - `permission`
+  - `role`
+  - `token`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+
+---
+### `ui/index_parts/features-approvals-page.js`
+- **Purpose**: Extracted from ui/index_parts/app-features.js
+- **Key functions (heuristic)**:
+  - `addCustomFieldRow()`
+  - `closeMFAModal()`
+  - `collectCustomFields()`
+  - `editSecurityUser()`
+  - `filterApprovals()`
+  - `filterSecurityUsers()`
+  - `hideChangePasswordModal()`
+  - `hideDisableMFAModal()`
+  - `initProfileFormHandler()`
+  - `k()`
+  - `renderApprovals()`
+  - `renderSecurityInvitations()`
+  - `renderSecurityRoles()`
+  - `selectMfaMode()`
+  - `showAddRoleModal()`
+  - `showChangePasswordModal()`
+  - `showDisableMFAModal()`
+  - `showEditRoleModal()`
+  - `showEmailSetup()`
+  - `showInvitationRegister()`
+  - `showInviteModal()`
+  - `showMFASetupModal()`
+  - `showResetPasswordPage()`
+  - `showResetPasswordSuccess()`
+  - `showSpecialPage()`
+  - `showTOTPSetup()`
+  - `showVerifyEmailError()`
+  - `showVerifyEmailPage()`
+  - `showVerifyEmailSuccess()`
+  - `startApprovalPolling()`
+  - `switchSecurityTab()`
+  - `toggleAllPermissions()`
+  - `toggleCategoryPermissions()`
+  - `toggleMFA()`
+  - `togglePasswordVisibility()`
+  - `togglePortalAccess()`
+  - `updateApprovalsBadge()`
+  - `updateInviteUI()`
+  - `updateMFAStatus()`
+  - `updateSelectAllState()`
+  - `v()`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Audit`
+  - `MFA`
+  - `OAuth`
+  - `Permission`
+  - `Role`
+  - `Session`
+  - `audit`
+  - `auth`
+  - `hash`
+  - `mfa`
+  - `permission`
+  - `role`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/index_parts/features-auth-permissions.js`
+- **Purpose**: Extracted from ui/index_parts/app-features.js
+- **Key functions (heuristic)**:
+  - `checkAuth()`
+  - `checkPasswordStrength()`
+  - `clearAuth()`
+  - `closeLoginMfaModal()`
+  - `getAuthHeaders()`
+  - `hasAllPermissions()`
+  - `hasAnyPermission()`
+  - `hasPermission()`
+  - `logout()`
+  - `maskEmail()`
+  - `pasted()`
+  - `showApp()`
+  - `showFirstLoginPasswordModal()`
+  - `showForgotPassword()`
+  - `showForgotPasswordSuccess()`
+  - `showLoginMfaModal()`
+  - `showLoginPage()`
+  - `showRegister()`
+  - `showRegistrationSuccess()`
+  - `togglePassword()`
+  - `updateResendTimer()`
+  - `updateUIByPermissions()`
+  - `updateUserDisplay()`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `MFA`
+  - `OAuth`
+  - `PERMISSION`
+  - `auth`
+  - `hash`
+  - `mfa`
+  - `oauth`
+  - `permission`
+  - `session`
+  - `token`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+
+---
+### `ui/index_parts/features-chat.js`
+- **Purpose**: Extracted from ui/index_parts/app-features.js
+- **Key functions (heuristic)**:
+  - `addAccessStepGroup()`
+  - `addAccessStepPermChip()`
+  - `addAccessStepUser()`
+  - `addHITLFormField()`
+  - `addLLMProvider()`
+  - `addToolPermissionChip()`
+  - `addWizTableEntry()`
+  - `addWizTextEntry()`
+  - `addWizUrl()`
+  - `cancelToolWizard()`
+  - `changeWizTableCols()`
+  - `changeWizTableRows()`
+  - `clearMsgs()`
+  - `closeEditModal()`
+  - `closeWizard()`
+  - `disconnectEmailProvider()`
+  - `editLLMProvider()`
+  - `email()`
+  - `esc()`
+  - `fileIcon()`
+  - `filterAccessStepSearch()`
+  - `filterToolAccessSearch()`
+  - `fmt()`
+  - `fmtSize()`
+  - `formatSize()`
+  - `formatTimeAgo()`
+  - `getActualStep()`
+  - `getEmailConfig()`
+  - `getFileIcon()`
+  - `getProviderConfig()`
+  - `getProviderIcon()`
+  - `handleMessage()`
+  - `handleWizFiles()`
+  - `hideModal()`
+  - `importWizTableFile()`
+  - `initAppData()`
+  - `loadTheme()`
+  - `messagesHtml()`
+  - `name()`
+  - `onApiAuthChange()`
+  - `onAzureAuthChange()`
+  - `onCRMChange()`
+  - `onCodeModeChange()`
+  - `onDBTypeChange()`
+  - `onDefaultProviderChange()`
+  - `onEmailConnected()`
+  - `onEmailProvChange()`
+  - `onEmailProviderSelect()`
+  - `onEmbeddingProviderChange()`
+  - `onHITLFieldTypeChange()`
+  - `onHITLTypeChange()`
+  - `onKBEmbChange()`
+  - `onLLMProviderChange()`
+  - `onLocalStorageTypeChange()`
+  - `onMsgPlatformChange()`
+  - `onOCRProviderChange()`
+  - `onOracleConnTypeChange()`
+  - `onSTTProviderChange()`
+  - `onSheetProvChange()`
+  - `onStorageProvChange()`
+  - `onStorageTypeChange()`
+  - `onTTSProviderChange()`
+  - `onTeamsTypeChange()`
+  - `onVectorDBProviderChange()`
+  - `onWhatsAppProviderChange()`
+  - `parseRow()`
+  - `parseWizCSV()`
+  - `populateSettingsForm()`
+  - `removeAccessStepGroup()`
+  - `removeAccessStepPermChip()`
+  - `removeAccessStepUser()`
+  - `removeHITLFormField()`
+  - `removeLLMProvider()`
+  - `removeToolPermissionChip()`
+  - `removeWizFile()`
+  - `removeWizTableEntry()`
+  - `removeWizTextEntry()`
+  - `removeWizUrl()`
+  - `renderChatConvList()`
+  - `renderConfiguredProviders()`
+  - (… 54 more)
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `OAuth`
+  - `auth`
+  - `hash`
+  - `oauth`
+  - `permission`
+  - `role`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/index_parts/features-demo-tools.js`
+- **Purpose**: Extracted from ui/index_parts/app-features.js
+- **Key functions (heuristic)**:
+  - `addDemoActionButtons()`
+  - `addDemoMessage()`
+  - `addInst()`
+  - `addNoPermissionOverlay()`
+  - `addTask()`
+  - `addTaskModalInstruction()`
+  - `addTaskModalInstructionWithValue()`
+  - `addTestMsg()`
+  - `addToolToSelection()`
+  - `applyPermissionRestrictions()`
+  - `clearDemoChat()`
+  - `closeTaskModal()`
+  - `disableSection()`
+  - `editTask()`
+  - `handleDocDrop()`
+  - `openTaskModal()`
+  - `removeInst()`
+  - `removeTaskModalInstruction()`
+  - `resetWizard()`
+  - `saveTaskModal()`
+  - `setAgentTab()`
+  - `showAddDemoDocModal()`
+  - `showAddTextEntryModal()`
+  - `tasks()`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `PERMISSION`
+  - `Permission`
+  - `Token`
+  - `auth`
+  - `permission`
+  - `role`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/index_parts/features-security-identity.js`
+- **Purpose**: Extracted from ui/index_parts/app-features.js
+- **Key functions (heuristic)**:
+  - `addEditGroupMember()`
+  - `addGroupMember()`
+  - `buildTree()`
+  - `closeAddGroupModal()`
+  - `closeDeptModal()`
+  - `closeManagerModal()`
+  - `filter()`
+  - `hrApiConfig()`
+  - `onDirectorySourceChange()`
+  - `openManagerModal()`
+  - `removeEditGroupMember()`
+  - `removeGroupMember()`
+  - `renderEditGroupMembers()`
+  - `renderGroupSelectedMembers()`
+  - `renderGroups()`
+  - `renderOrgChart()`
+  - `renderOrgDepartments()`
+  - `renderOrgManagerTable()`
+  - `renderSecurityUsers()`
+  - `selectIdentitySource()`
+  - `showAddGroupModal()`
+  - `showCreateDepartmentModal()`
+  - `switchOrgSubTab()`
+  - `updateEditGroupMembersUI()`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `auth`
+  - `mfa`
+  - `permission`
+  - `role`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+
+---
+### `ui/index_parts/features-tools-wizard.js`
+- **Purpose**: Extracted from ui/index_parts/app-features.js
+- **Key functions (heuristic)**:
+  - `addApiParam()`
+  - `addEditPermChip()`
+  - `addMsg()`
+  - `addTyping()`
+  - `backToToolTypes()`
+  - `changeTableCols()`
+  - `changeTableRows()`
+  - `chatAgents()`
+  - `clearToolSelection()`
+  - `closeAllToolMenus()`
+  - `closeDataViewer()`
+  - `closeEditToolModal()`
+  - `closeToolEditPanel()`
+  - `convertTableToText()`
+  - `copyDataContent()`
+  - `deleteSelectedTool()`
+  - `downloadDataContent()`
+  - `duplicateSelectedTool()`
+  - `editSelectedTool()`
+  - `exportTableToCSV()`
+  - `extractTables()`
+  - `filterEditAccessSearch()`
+  - `finishThinkingUI()`
+  - `getBusinessFriendlyParamLabel()`
+  - `getFileIcon()`
+  - `handleChatFile()`
+  - `handleDocFiles()`
+  - `handleDocFilesDrop()`
+  - `handleTestFile()`
+  - `hideProgressModal()`
+  - `highlightSearch()`
+  - `importTableFromFile()`
+  - `isNameDuplicate()`
+  - `loadEditConfigFields()`
+  - `loadEditSources()`
+  - `lowerName()`
+  - `name()`
+  - `onCRMPlatformChange()`
+  - `onCalProviderChange()`
+  - `onDBTypeChange()`
+  - `onEmailProviderChange()`
+  - `onImageProviderChange()`
+  - `onKBEmbProviderChange()`
+  - `onKBVDBProviderChange()`
+  - `onMsgPlatformChange()`
+  - `onSearchProviderChange()`
+  - `onSheetProviderChange()`
+  - `onWebhookTypeChange()`
+  - `parseCSVToTable()`
+  - `parseRow()`
+  - `prefillToolConfig()`
+  - `removeChatAttachment()`
+  - `removeEditDoc()`
+  - `removeEditPage()`
+  - `removeEditPermChip()`
+  - `removeTestAttachment()`
+  - `renderApiParams()`
+  - `renderChatAttachments()`
+  - `renderDataTab()`
+  - `renderDocFiles()`
+  - `renderTableEditor()`
+  - `renderTestAttachments()`
+  - `renderTestParams()`
+  - `renderToolDataTab()`
+  - `rmTyping()`
+  - `searchToolData()`
+  - `selectEditAccessType()`
+  - `selectTool()`
+  - `selectToolType()`
+  - `setApiStep()`
+  - `setConfigMode()`
+  - `setDataTab()`
+  - `setThinkingText()`
+  - `showAddTableModal()`
+  - `showAddUrlModal()`
+  - `showEditAccessResults()`
+  - `showProgressModal()`
+  - `showToolModal()`
+  - `switchEditTab()`
+  - `t()`
+  - (… 17 more)
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `OAuth`
+  - `Token`
+  - `auth`
+  - `permission`
+  - `role`
+  - `session`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/index_parts/process-playback.js`
+- **Purpose**: Auto-generated from ui/index.js
+- **Key functions (heuristic)**:
+  - `_formatMaybeDateTime()`
+  - `_formatPrefillValue()`
+  - `_getProcessEdges()`
+  - `_openProcessPlaybackModal()`
+  - `_parseCurrentProcessDefinition()`
+  - `_postToPlaybackFrame()`
+  - `_renderIoTable()`
+  - `_renderIoValue()`
+  - `_renderReportValue()`
+  - `_resolveArgToken()`
+  - `_setPlaybackSubtitle()`
+  - `_splitArgs()`
+  - `after()`
+  - `applyProcessPrefill()`
+  - `buildPlaybackTraceFromExecution()`
+  - `buildProcessForm()`
+  - `closeProcessModal()`
+  - `closeProcessPlaybackModal()`
+  - `closeProcessTestReport()`
+  - `collectProcessFormValues()`
+  - `comments()`
+  - `completed()`
+  - `curName()`
+  - `derived()`
+  - `derivedInputs()`
+  - `entries()`
+  - `evaluateDerivedExpression()`
+  - `f()`
+  - `friendlyErrorMessage()`
+  - `g()`
+  - `getCurrentUserPrefillValue()`
+  - `getProcessNodeLookup()`
+  - `getRunId()`
+  - `humanizeFieldLabel()`
+  - `humanizeNodeType()`
+  - `humanizeUrgency()`
+  - `info()`
+  - `inputs()`
+  - `match()`
+  - `msg()`
+  - `o()`
+  - `outputs()`
+  - `prefill()`
+  - `prevId()`
+  - `push()`
+  - `r()`
+  - `rawMsg()`
+  - `recompute()`
+  - `recomputeProcessDerivedFields()`
+  - `renderReviewData()`
+  - `replayProcessPlayback()`
+  - `requestProcessPlayback()`
+  - `resolve()`
+  - `resolveStepsFromIds()`
+  - `setupProcessDerivedFields()`
+  - `showProcessTestReport()`
+  - `size()`
+  - `stKey()`
+  - `startExecutionPolling()`
+  - `steps()`
+  - `stepsHtml()`
+  - `text()`
+  - `toDate()`
+  - `toNum()`
+  - `toStr()`
+  - `type()`
+  - `u()`
+  - `updateExecutionStatus()`
+  - `updateExecutionSteps()`
+  - `value()`
+- **Side effects (heuristic)**:
+  - Database access (evidence: SQLAlchemy/Alembic tokens)
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Role`
+  - `Session`
+  - `auth`
+  - `role`
+  - `token`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/lab.html`
+- **Purpose**: HTML page: AgentForge Lab - Test Data Generator
+- **HTML title**: AgentForge Lab - Test Data Generator
+- **External refs**:
+  - link: `/AgentForge_Logo.png`
+  - link: `/ui/theme.css`
+  - link: `https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap`
+  - script: `/ui/theme.js`
+  - script: `https://cdn.tailwindcss.com`
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+  - Filesystem I/O (evidence: open/Path/os.makedirs tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Auth`
+  - `token`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/process-builder.css`
+- **Purpose**: Frontend UI asset
+- **Key symbols**: Not applicable
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/process-builder.html`
+- **Purpose**: HTML page: AgentForge - Workflow Builder
+- **HTML title**: AgentForge - Workflow Builder
+- **External refs**:
+  - link: `/ui/theme.css`
+  - link: `/ui/process-builder.css`
+  - script: `/ui/theme.js`
+  - script: `https://cdn.tailwindcss.com`
+  - script: `/ui/process-builder.js`
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission evidence (tokens)**:
+  - `Role`
+  - `role`
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/process-builder.js`
+- **Purpose**: ===== STATE =====
+- **Key functions (heuristic)**:
+  - `_canvasToScreen()`
+  - `_clearCanvasState()`
+  - `_cursorClick()`
+  - `_engineStatusBadge()`
+  - `_hideBuildCursor()`
+  - `_hideBuildOverlay()`
+  - `_isPlayerMode()`
+  - `_isTerminalPlaybackStatus()`
+  - `_moveCursorToCanvasPoint()`
+  - `_nodeCanvasCenter()`
+  - `_openEngineRunModal()`
+  - `_playbackStatusKey()`
+  - `_postToParent()`
+  - `_renderEngineValue()`
+  - `_resetViewForBuild()`
+  - `_resolveArgToken()`
+  - `_resolveTemplatePath()`
+  - `_showBuildCursor()`
+  - `_showBuildOverlay()`
+  - `_showEngineTestReport()`
+  - `_sleep()`
+  - `_sortNodesForBuild()`
+  - `_splitArgs()`
+  - `_splitRecipientList()`
+  - `actionType()`
+  - `addFormField()`
+  - `addSelectOption()`
+  - `alignProcess()`
+  - `applyAutoLayout()`
+  - `applyDerivedToForm()`
+  - `applyLabelFontSize()`
+  - `applyWorkflowDefinition()`
+  - `autoLayoutWorkflowDefinition()`
+  - `ax()`
+  - `ay()`
+  - `bendPathCrossesNodes()`
+  - `bx()`
+  - `by()`
+  - `centerX()`
+  - `cfg()`
+  - `checkH()`
+  - `checkV()`
+  - `clamp()`
+  - `clearConnectionTargetPort()`
+  - `clearPlaybackHighlights()`
+  - `clientToCanvas()`
+  - `closeApprovalConfigModal()`
+  - `closeProperties()`
+  - `closeTestModal()`
+  - `cnt()`
+  - `collectTestFormValues()`
+  - `completeConnection()`
+  - `createNode()`
+  - `cx()`
+  - `d()`
+  - `deleteConnection()`
+  - `deleteNode()`
+  - `deleteSelectedNodes()`
+  - `derived()`
+  - `deselectAll()`
+  - `deselectConnection()`
+  - `dx()`
+  - `dy()`
+  - `edgeLabel()`
+  - `endConnectingMode()`
+  - `ensureBendOutsideNodes()`
+  - `ensureUniqueKey()`
+  - `escapeHtml()`
+  - `evaluateDerivedExpression()`
+  - `f()`
+  - `fieldCount()`
+  - `fieldDefs()`
+  - `fileFields()`
+  - `findConnectionIndex()`
+  - `finish()`
+  - `fmt()`
+  - `forwardSvgPointerToCanvas()`
+  - `fromX()`
+  - `fromY()`
+  - `generatePropertiesForm()`
+  - (… 177 more)
+- **Side effects (heuristic)**:
+  - Network I/O (evidence: fetch/requests/httpx tokens)
+- **Auth/permission evidence (tokens)**:
+  - `Role`
+  - `Token`
+  - `auth`
+  - `role`
+  - `token`
+- **Error handling (evidence)**:
+  - try/catch blocks present
+  - throw statements present
+
+---
+### `ui/theme.css`
+- **Purpose**: Frontend UI asset
+- **Key symbols**: Not applicable
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
+### `ui/theme.js`
+- **Purpose**: Frontend UI asset
+- **Key functions (heuristic)**: Not present in repository.
+- **Side effects (heuristic)**:
+  - No obvious DB/network/filesystem side effects detected (heuristic)
+- **Auth/permission checks**: Not present in repository (no security tokens found in file; heuristic)
+- **Error handling**: Unknown / not detected (heuristic)
+
+---
