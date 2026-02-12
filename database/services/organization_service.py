@@ -88,8 +88,20 @@ class OrganizationService:
                 db_org.name = org.name
                 db_org.slug = org.slug
                 db_org.plan = org.settings.get('plan', 'free')
-                # JSON column: store as dict (not JSON string) to preserve types and avoid double-encoding
-                db_org.settings = org.settings if isinstance(org.settings, dict) else {}
+                # JSON column: merge to preserve user-defined keys.
+                # This is CRITICAL because security_state.save_to_disk() persists organizations
+                # frequently, and the in-memory org.settings may not include newer keys (e.g.
+                # profile_fields_schema) that were added via newer UI/API.
+                existing_settings: dict = {}
+                try:
+                    if isinstance(db_org.settings, str):
+                        existing_settings = json.loads(db_org.settings) if db_org.settings.strip() else {}
+                    elif isinstance(db_org.settings, dict):
+                        existing_settings = db_org.settings
+                except Exception:
+                    existing_settings = {}
+                incoming_settings = org.settings if isinstance(org.settings, dict) else {}
+                db_org.settings = {**existing_settings, **incoming_settings}
                 
                 # Auth settings
                 db_org.allowed_auth_providers = json.dumps([p.value if hasattr(p, 'value') else str(p) for p in org.allowed_auth_providers]) if org.allowed_auth_providers else json.dumps([])
