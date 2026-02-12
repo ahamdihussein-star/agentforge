@@ -133,49 +133,72 @@ async def get_mock_api(item_id: str, request: Request, user=Depends(get_current_
     # If data is a list and query params provided, filter the results
     if isinstance(data, list) and query_params:
         print(f"🔍 [FILTER] Starting filter: {len(data)} items, params: {query_params}")
-        filtered = []
-        for idx, item in enumerate(data):
-            if isinstance(item, dict):
-                # Create normalized field mapping (remove underscores, lowercase)
-                # This handles: supplier_id, SupplierID, SUPPLIER_ID all the same
-                def normalize_key(k):
-                    return k.lower().replace('_', '').replace('-', '')
-                
-                item_normalized = {normalize_key(k): v for k, v in item.items()}
-                print(f"   Item {idx}: original keys={list(item.keys())[:3]}, normalized keys={list(item_normalized.keys())[:3]}")
-                
-                # Check if all query params match
-                match = True
-                for key, value in query_params.items():
-                    # Normalize parameter name
-                    key_normalized = normalize_key(key)
-                    item_value = item_normalized.get(key_normalized)
-                    
-                    print(f"      Checking param '{key}' (normalized: '{key_normalized}') = '{value}'")
-                    print(f"      Found value: {item_value}")
-                    
-                    if item_value is None:
-                        print(f"      ❌ Field not found in item")
-                        match = False
-                        break
-                    
-                    # Exact match (case-insensitive): "1" must not match "S001" or "S010"
-                    value_str = str(value).strip().lower()
-                    item_str = str(item_value).strip().lower()
-                    if value_str != item_str:
-                        print(f"      ❌ Value mismatch: '{value}' != '{item_value}' (exact match required)")
-                        match = False
-                        break
-                    print(f"      ✅ Match!")
-                
-                if match:
-                    print(f"   ✅ Item {idx} MATCHED")
-                    filtered.append(item)
-                else:
-                    print(f"   ❌ Item {idx} rejected")
         
-        print(f"🔍 [FILTER] Result: {len(filtered)} items matched")
-        data = filtered
+        def normalize_key(k):
+            return k.lower().replace('_', '').replace('-', '')
+        
+        # Generic search params that should do full-text search, not field match
+        SEARCH_PARAMS = {'query', 'q', 'search', 'filter', 'keyword', 'text'}
+        # Values that mean "return everything"
+        ALL_VALUES = {'all', '*', '', 'any', 'everything', 'list', 'show'}
+        
+        # Separate field-specific params from generic search params
+        field_params = {}
+        search_terms = []
+        for key, value in query_params.items():
+            value_lower = str(value).strip().lower()
+            key_lower = key.lower()
+            # If value means "all", skip this filter entirely
+            if value_lower in ALL_VALUES:
+                print(f"   ⏭️ Skipping param '{key}'='{value}' (means 'return all')")
+                continue
+            # If key is a generic search param, use as full-text search
+            if key_lower in SEARCH_PARAMS:
+                search_terms.append(value_lower)
+                print(f"   🔎 Generic search param '{key}'='{value}' (full-text search)")
+            else:
+                field_params[key] = value
+        
+        # If no effective filters remain, return all data
+        if not field_params and not search_terms:
+            print(f"🔍 [FILTER] No effective filters - returning all {len(data)} items")
+        else:
+            filtered = []
+            for idx, item in enumerate(data):
+                if isinstance(item, dict):
+                    item_normalized = {normalize_key(k): v for k, v in item.items()}
+                    
+                    # Check field-specific params (must match a known field)
+                    match = True
+                    for key, value in field_params.items():
+                        key_normalized = normalize_key(key)
+                        item_value = item_normalized.get(key_normalized)
+                        
+                        if item_value is None:
+                            # Field not found in data - skip this param (don't reject)
+                            print(f"      ⏭️ Field '{key}' not in data, skipping") if idx == 0 else None
+                            continue
+                        
+                        # Exact match (case-insensitive)
+                        value_str = str(value).strip().lower()
+                        item_str = str(item_value).strip().lower()
+                        if value_str != item_str:
+                            match = False
+                            break
+                    
+                    # Check full-text search terms (search across ALL fields)
+                    if match and search_terms:
+                        item_text = ' '.join(str(v).lower() for v in item.values() if v is not None)
+                        for term in search_terms:
+                            if term not in item_text:
+                                match = False
+                                break
+                    
+                    if match:
+                        filtered.append(item)
+            
+            print(f"🔍 [FILTER] Result: {len(filtered)} items matched (from {len(data)})")
+            data = filtered
     
     return JSONResponse(content=data)
 
