@@ -88,7 +88,8 @@ class OrganizationService:
                 db_org.name = org.name
                 db_org.slug = org.slug
                 db_org.plan = org.settings.get('plan', 'free')
-                db_org.settings = json.dumps(org.settings)
+                # JSON column: store as dict (not JSON string) to preserve types and avoid double-encoding
+                db_org.settings = org.settings if isinstance(org.settings, dict) else {}
                 
                 # Auth settings
                 db_org.allowed_auth_providers = json.dumps([p.value if hasattr(p, 'value') else str(p) for p in org.allowed_auth_providers]) if org.allowed_auth_providers else json.dumps([])
@@ -124,7 +125,7 @@ class OrganizationService:
                     name=org.name,
                     slug=org.slug,
                     plan=org.settings.get('plan', 'free'),
-                    settings=json.dumps(org.settings),
+                    settings=org.settings if isinstance(org.settings, dict) else {},
                     # Auth settings
                     allowed_auth_providers=json.dumps([p.value if hasattr(p, 'value') else str(p) for p in org.allowed_auth_providers]) if org.allowed_auth_providers else json.dumps([]),
                     require_mfa="true" if org.require_mfa else "false",

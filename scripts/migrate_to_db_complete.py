@@ -92,13 +92,31 @@ def migrate_organizations():
                     allowed_email_domains_json = json.dumps(allowed_email_domains)
                 else:
                     allowed_email_domains_json = json.dumps([])
+
+                def _normalize_settings(v):
+                    """Normalize Organization.settings to a dict (may be dict or JSON string)."""
+                    if v is None:
+                        return {}
+                    if isinstance(v, dict):
+                        return v
+                    if isinstance(v, str):
+                        try:
+                            return json.loads(v) if v.strip() else {}
+                        except Exception:
+                            return {}
+                    return {}
                 
                 if existing:
                     print(f"⏭️  Organization '{org_data['name']}' already exists (updating)")
                     # Update existing
                     existing.name = org_data['name']
                     existing.plan = org_data.get('plan', 'free')
-                    existing.settings = json.dumps(org_data.get('settings', {}))
+                    # IMPORTANT: preserve DB settings (may include user-defined keys like profile_fields_schema)
+                    incoming_settings = _normalize_settings(org_data.get('settings', {}))
+                    current_settings = _normalize_settings(existing.settings)
+                    # Seed JSON provides defaults; DB preserves user edits
+                    merged_settings = {**incoming_settings, **current_settings}
+                    existing.settings = merged_settings
                     # Auth settings
                     existing.allowed_auth_providers = allowed_auth_providers_json
                     existing.require_mfa = "true" if org_data.get('require_mfa', False) else "false"
@@ -130,7 +148,7 @@ def migrate_organizations():
                         name=org_data['name'],
                         slug=slug,
                         plan=org_data.get('plan', 'free'),
-                        settings=json.dumps(org_data.get('settings', {})),
+                        settings=_normalize_settings(org_data.get('settings', {})),
                         # Auth settings
                         allowed_auth_providers=allowed_auth_providers_json,
                         require_mfa="true" if org_data.get('require_mfa', False) else "false",
