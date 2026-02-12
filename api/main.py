@@ -2553,8 +2553,10 @@ def build_tool_definitions(tools: List['ToolConfiguration']) -> List[Dict]:
             # Build parameters from API config
             params_props = {}
             required_params = []
+            has_configured_params = False
             
             if tool.api_config and tool.api_config.input_parameters:
+                has_configured_params = True
                 for param in tool.api_config.input_parameters:
                     param_type = "string"
                     if param.data_type in ['integer', 'number']:
@@ -2569,22 +2571,28 @@ def build_tool_definitions(tools: List['ToolConfiguration']) -> List[Dict]:
                     if param.required:
                         required_params.append(param.name)
             
+            # For APIs with no configured parameters, don't add fake params.
+            # This prevents the LLM from sending random query params that break filtering.
             func_name = make_unique_name("call_api", tool.id)
+            if has_configured_params:
+                api_description = f"Call {tool.name} API. {tool.description or ''}"
+            else:
+                api_description = f"Call {tool.name} API to get data. {tool.description or ''} This API requires NO parameters - just call it directly."
+            
             tool_defs.append({
                 "type": "function",
                 "function": {
                     "name": func_name,
-                    "description": f"Call {tool.name} API. {tool.description or ''}",
+                    "description": api_description,
                     "parameters": {
                         "type": "object",
-                        "properties": params_props if params_props else {
-                            "query": {"type": "string", "description": "Query or request parameters"}
-                        },
-                        "required": required_params if required_params else []
+                        "properties": params_props,
+                        "required": required_params
                     }
                 },
                 "_tool_id": tool.id,
-                "_tool_type": "api"
+                "_tool_type": "api",
+                "_has_params": has_configured_params
             })
         
         elif tool.type == 'websearch':
@@ -2776,7 +2784,27 @@ async def execute_tool(tool_id: str, tool_type: str, arguments: Dict) -> Dict:
                 endpoint = tool.api_config.endpoint_path
                 method = tool.api_config.http_method
                 
-                # Replace parameters in endpoint
+                # Build set of known/configured parameter names
+                configured_param_names = set()
+                if tool.api_config.input_parameters:
+                    for param in tool.api_config.input_parameters:
+                        configured_param_names.add(param.name)
+                
+                # Filter arguments: only keep configured params + path params
+                # This prevents LLM-invented params (like 'query') from being sent
+                clean_args = {}
+                for key, value in arguments.items():
+                    if configured_param_names:
+                        # API has configured params - only keep known ones
+                        if key in configured_param_names:
+                            clean_args[key] = value
+                        else:
+                            print(f"   ⏭️ Stripping unknown param '{key}' (not in configured params: {configured_param_names})")
+                    else:
+                        # API has NO configured params - don't send any query params
+                        print(f"   ⏭️ Stripping param '{key}' (API has no configured parameters)")
+                
+                # Replace parameters in endpoint (path params like /employees/{id})
                 url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
                 for key, value in arguments.items():
                     url = url.replace(f"{{{key}}}", str(value))
@@ -2791,13 +2819,15 @@ async def execute_tool(tool_id: str, tool_type: str, arguments: Dict) -> Dict:
                     if tool.api_config.api_key_location == 'header':
                         headers[tool.api_config.api_key_name] = tool.api_config.auth_value
                 
+                print(f"   🌐 {method} {url} (clean_args={clean_args})")
+                
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     if method == 'GET':
-                        response = await client.get(url, headers=headers, params=arguments)
+                        response = await client.get(url, headers=headers, params=clean_args if clean_args else None)
                     elif method == 'POST':
-                        response = await client.post(url, headers=headers, json=arguments)
+                        response = await client.post(url, headers=headers, json=clean_args if clean_args else None)
                     elif method == 'PUT':
-                        response = await client.put(url, headers=headers, json=arguments)
+                        response = await client.put(url, headers=headers, json=clean_args if clean_args else None)
                     elif method == 'DELETE':
                         response = await client.delete(url, headers=headers)
                     else:
