@@ -648,25 +648,83 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                         error=ExecutionError.validation_error("extract_text currently supports storage_type=local only"),
                         logs=logs
                     )
-                # Interpolate path for extraction
-                logs.append(f"Path template: {path_template}")
-                path = state.interpolate_string(path_template)
-                logs.append(f"Resolved path: {path}")
-                if not path or path == path_template or path.startswith('{{'):
-                    # Path didn't resolve — likely the source variable is missing
-                    return NodeResult.failure(
-                        error=ExecutionError.validation_error(
-                            f"Could not resolve file path from '{path_template}'. "
-                            f"Make sure the file upload field name matches the source field configuration. "
-                            f"Resolved to: '{path}'"
-                        ),
-                        logs=logs
+                
+                # Detect multi-file uploads: if sourceField points to an array of files,
+                # extract text from each file and concatenate the results.
+                source_field = self.get_config_value(node, 'sourceField', '')
+                source_value = state.get(source_field) if source_field else None
+                
+                if isinstance(source_value, list) and len(source_value) > 0:
+                    # Multiple files uploaded — extract from each
+                    logs.append(f"Multi-file extraction: {len(source_value)} files detected")
+                    all_texts = []
+                    for idx, file_item in enumerate(source_value):
+                        file_path = None
+                        if isinstance(file_item, dict):
+                            # Try download_url first (process uploads), then path
+                            dl_url = file_item.get("download_url") or ""
+                            if dl_url:
+                                file_path = "data/uploads/" + dl_url.split("/uploads/")[-1].replace("/download", "") if "/uploads/" in dl_url else dl_url
+                            if not file_path:
+                                file_path = file_item.get("path") or ""
+                            file_name = file_item.get("name") or f"file_{idx+1}"
+                        else:
+                            continue
+                        if not file_path:
+                            logs.append(f"  File {idx+1} ({file_name}): no path found, skipping")
+                            continue
+                        logs.append(f"  Extracting file {idx+1}/{len(source_value)}: {file_name}")
+                        file_result = await self._execute_extract_text_local(
+                            path=file_path,
+                            encoding=encoding,
+                            logs=logs,
+                        )
+                        if file_result.get("success") and file_result.get("data"):
+                            all_texts.append(f"--- File: {file_name} ---\n{file_result['data']}")
+                            logs.append(f"  ✅ Extracted {len(file_result['data'])} characters from {file_name}")
+                        else:
+                            err = file_result.get("error") or "extraction failed"
+                            all_texts.append(f"--- File: {file_name} ---\n[Extraction failed: {err}]")
+                            logs.append(f"  ⚠️ Failed to extract from {file_name}: {err}")
+                    
+                    combined_text = "\n\n".join(all_texts)
+                    if combined_text.strip():
+                        result = {
+                            "success": True,
+                            "data": combined_text,
+                            "meta": {
+                                "files_count": len(source_value),
+                                "chars": len(combined_text),
+                                "preview": combined_text[:500]
+                            }
+                        }
+                    else:
+                        result = {
+                            "success": False,
+                            "error": f"Could not extract text from any of the {len(source_value)} uploaded files",
+                            "data": ""
+                        }
+                else:
+                    # Single file — original logic
+                    # Interpolate path for extraction
+                    logs.append(f"Path template: {path_template}")
+                    path = state.interpolate_string(path_template)
+                    logs.append(f"Resolved path: {path}")
+                    if not path or path == path_template or path.startswith('{{'):
+                        # Path didn't resolve — likely the source variable is missing
+                        return NodeResult.failure(
+                            error=ExecutionError.validation_error(
+                                f"Could not resolve file path from '{path_template}'. "
+                                f"Make sure the file upload field name matches the source field configuration. "
+                                f"Resolved to: '{path}'"
+                            ),
+                            logs=logs
+                        )
+                    result = await self._execute_extract_text_local(
+                        path=path,
+                        encoding=encoding,
+                        logs=logs,
                     )
-                result = await self._execute_extract_text_local(
-                    path=path,
-                    encoding=encoding,
-                    logs=logs,
-                )
             else:
                 # Interpolate path for normal operations
                 path = state.interpolate_string(path_template)
