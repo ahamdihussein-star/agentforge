@@ -468,6 +468,20 @@ class UserService:
                     user_metadata_dict = {}
             elif isinstance(db_user.user_metadata, dict):
                 user_metadata_dict = db_user.user_metadata
+
+        # Expose non-MFA metadata as editable custom profile attributes.
+        # We store MFA temporary codes in user_metadata too, so we MUST filter them out.
+        custom_profile_attributes: Dict[str, Any] = {}
+        try:
+            if isinstance(user_metadata_dict, dict):
+                for k, v in user_metadata_dict.items():
+                    if not isinstance(k, str):
+                        continue
+                    if k.startswith("mfa_") or k.startswith("_"):
+                        continue
+                    custom_profile_attributes[k] = v
+        except Exception:
+            custom_profile_attributes = {}
         
         return User(
             id=user_id,
@@ -482,7 +496,8 @@ class UserService:
                 first_name=db_user.first_name or "",
                 last_name=db_user.last_name or "",
                 phone=db_user.phone or "",
-                avatar_url=""  # Not in DB model yet
+                avatar_url="",  # Not in DB model yet
+                custom_attributes=custom_profile_attributes
             ),
             mfa=UserMFA(
                 enabled=db_user.mfa_enabled if hasattr(db_user, 'mfa_enabled') else False,
