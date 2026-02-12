@@ -361,11 +361,18 @@ Node config rules:
       - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
       - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
       - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
-    - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts, reports), the extraction step automatically processes ALL uploaded files and returns combined text with "--- File: <name> ---" headers separating each document's content. The AI parsing node MUST be aware of this:
-      - Its prompt should instruct the AI to parse data from ALL documents in the text, not just the first one
-      - The AI must aggregate results appropriately based on the workflow's purpose (e.g., sum monetary amounts for financial workflows, merge findings for review workflows, compile all items for inventory workflows, etc.)
-      - Always return: itemCount (number of documents processed), items (array with per-document extracted details), plus any aggregated/summary fields relevant to the workflow's goal
-      - The LLM should infer what fields to extract and how to aggregate them based on the business context — do NOT hardcode field names
+    - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts, reports, images, certificates), the extraction step automatically processes ALL uploaded files (documents AND images via OCR) and returns combined text with "--- File: <name> ---" headers separating each file's content. The AI parsing node MUST handle this correctly:
+      - Parse and extract relevant data from EVERY file in the text, not just the first one
+      - ALWAYS return an "items" array containing each file's extracted data as a separate object, preserving per-file details (fileName, and any fields relevant to the workflow). This ensures each file's data is individually accessible to subsequent workflow steps
+      - ALWAYS return "itemCount" with the number of files/documents processed
+      - Based on the workflow's business context, the AI should ALSO return any computed/aggregated fields that downstream steps might need. The LLM must infer what is appropriate:
+        * If the workflow involves amounts/costs → compute a total/sum across all files
+        * If the workflow involves review/compliance → compile all findings and flag issues
+        * If the workflow involves data collection → merge and deduplicate entries
+        * If the workflow is simply gathering documents → just organize and list all extracted data
+        * Any other scenario → use business judgment to decide what aggregated fields are useful
+      - Do NOT hardcode specific field names — the LLM infers them from the business context
+      - The structured output (items array + aggregated fields) is stored as a single variable (e.g., "parsedData") and is available to ALL subsequent steps: conditions can route based on aggregated values, notifications can reference per-item or summary data, approvals can display the full breakdown, and any other step can use any part of the data
     - Subsequent nodes (conditions, notifications, approvals) should reference the parsed data fields.
     - This pattern works for ANY document or image type — the LLM determines what to extract based on context.
 
@@ -1156,9 +1163,9 @@ class ProcessWizard:
                     extraction_multi_file_vars[ov] = sf
                 n["config"] = cfg
 
-        # ENFORCE: AI nodes that parse multi-file extraction output must handle aggregation.
+        # ENFORCE: AI nodes that parse multi-file extraction output must handle ALL files.
         # When the extraction comes from a multi-file field, the AI node's prompt must
-        # instruct it to parse ALL documents and calculate totals/aggregates.
+        # instruct it to parse every file and structure the data for downstream use.
         if extraction_multi_file_vars:
             for n in normalized_nodes:
                 if n.get("type") != "ai":
@@ -1169,18 +1176,22 @@ class ProcessWizard:
                 for ext_var, file_field in extraction_multi_file_vars.items():
                     if "{{" + ext_var + "}}" in prompt or ext_var in prompt:
                         # This AI node parses multi-file extraction — enhance prompt
-                        if "ALL documents" not in prompt and "all documents" not in prompt and "each document" not in prompt:
+                        if "ALL documents" not in prompt and "all documents" not in prompt and "each document" not in prompt and "every file" not in prompt:
                             multi_file_instruction = (
-                                "\n\nIMPORTANT: The input text may contain data from MULTIPLE uploaded files/documents, "
-                                "separated by '--- File: <name> ---' headers. You MUST parse ALL documents, not just the first one. "
-                                "For each document, extract the relevant fields based on the workflow context. "
-                                "Then aggregate the results appropriately (e.g., sum numeric values, merge lists, compile findings). "
-                                "Always include: itemCount (number of documents processed) and items (array of per-document details). "
-                                "Add any aggregated/summary fields that are relevant to the workflow's purpose."
+                                "\n\nIMPORTANT: The input text may contain data from MULTIPLE uploaded files/documents "
+                                "(each separated by '--- File: <name> ---' headers). "
+                                "You MUST parse and extract data from EVERY file, not just the first one. "
+                                "Return a JSON object that includes: "
+                                "(1) 'items' — an array where each element contains the extracted data from one file "
+                                "(include 'fileName' and all relevant fields per file); "
+                                "(2) 'itemCount' — the number of files processed; "
+                                "(3) any additional computed or aggregated fields that downstream workflow steps "
+                                "might need based on the business context (e.g., totals, summaries, flags). "
+                                "Use your judgment to decide what aggregated fields are appropriate for this workflow."
                             )
                             cfg["prompt"] = prompt + multi_file_instruction
                             n["config"] = cfg
-                            logger.info(f"Enhanced AI node '{n.get('name')}' prompt for multi-file aggregation (source: {file_field})")
+                            logger.info(f"Enhanced AI node '{n.get('name')}' prompt for multi-file processing (source: {file_field})")
                         break
 
         # ENFORCE: AI nodes whose output_variable is referenced by a condition using dot notation
