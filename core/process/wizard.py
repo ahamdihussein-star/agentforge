@@ -191,7 +191,7 @@ IMPORTANT:
 - Output ONLY valid JSON. No markdown. No extra keys outside the schema.
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
-  - trigger, condition, ai, tool, approval, notification, delay, action, end
+  - trigger, condition, loop, ai, tool, approval, notification, delay, action, form, end
 - Always include exactly ONE start node of type "trigger".
 - Always include at least ONE "end" node.
 - If you include a "condition" node, you MUST create exactly two outgoing edges from it:
@@ -265,29 +265,24 @@ Node config rules:
   The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime. If a custom attribute exists in the directory, it will be available for prefill.
   BEST PRACTICE: For any process, ALWAYS prefill every piece of information the system already knows about the user (name, email, department, employee ID, phone, job title, manager, etc.). NEVER ask the user to manually enter data that is available from their profile. This eliminates manual entry and ensures accuracy.
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
+- loop.config must be: {{ "collection": "{{{{items}}}}", "itemVar": "item" }}. Use when repeating steps for each item in a collection.
+- form.config must include: fields (same schema as trigger fields). Use for collecting additional input mid-workflow (not the initial form).
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
   IMPORTANT — Identity-aware approvals (the engine resolves assignees automatically at runtime):
-  - **Manager approval** (leave, expenses, any "manager"/"supervisor"/"boss"):
-    assignee_source: "user_directory", directory_assignee_type: "dynamic_manager", assignee_ids: [].
-  - **Department head approval** (budget, dept-level decisions):
-    assignee_source: "user_directory", directory_assignee_type: "department_manager".
-  - **Escalation / skip-level** (VP, director, senior management):
-    assignee_source: "user_directory", directory_assignee_type: "management_chain", management_level: 2 (or 3, etc.).
-  - **Role-based approval** (e.g., all users with "Finance" role):
-    assignee_source: "user_directory", directory_assignee_type: "role", role_ids: ["<role_id>"].
-  - **Group-based approval** (e.g., IT team, compliance committee):
-    assignee_source: "user_directory", directory_assignee_type: "group", group_ids: ["<group_id>"].
-  - **Entire department** as assignees:
-    assignee_source: "user_directory", directory_assignee_type: "department_members", department_id: "<dept_id>".
-  - **Dynamic from form field** (user selects their approver in the form):
-    assignee_source: "user_directory", directory_assignee_type: "expression", expression: "{{{{ trigger_input.approver_id }}}}".
-  - **Static assignees** (specific named user IDs): assignee_source: "platform_user".
-  - ALWAYS prefer "user_directory" over "platform_user" when the approval should go to the requester's manager, department head, or any organizational role.
-  - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence (e.g., manager → director → VP).
+  - For direct manager/supervisor approval: assignee_source: "user_directory", directory_assignee_type: "dynamic_manager", assignee_ids: [].
+  - For department head approval: assignee_source: "user_directory", directory_assignee_type: "department_manager".
+  - For higher management (skip-level): assignee_source: "user_directory", directory_assignee_type: "management_chain", management_level: N (2=next level, 3=above that).
+  - For role-based approval: assignee_source: "user_directory", directory_assignee_type: "role", role_ids: ["<role_id>"].
+  - For group/team/committee approval: assignee_source: "user_directory", directory_assignee_type: "group", group_ids: ["<group_id>"].
+  - For department-wide: assignee_source: "user_directory", directory_assignee_type: "department_members", department_id: "<dept_id>".
+  - For dynamic (form field selects approver): assignee_source: "user_directory", directory_assignee_type: "expression", expression: "{{{{ trigger_input.fieldName }}}}".
+  - For static (always same person): assignee_source: "platform_user".
+  - ALWAYS prefer "user_directory" over "platform_user" when the approval follows organizational hierarchy.
+  - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence.
 - notification.config must include: channel, recipients (array), title, message.
   SMART RECIPIENTS — the engine auto-resolves recipients at runtime:
   - "requester" → automatically sends to the person who submitted the form (no email needed)
@@ -301,9 +296,9 @@ Node config rules:
 - action.config MUST include: actionType.
   - Use actionType="generateDocument" only when document output is explicitly required.
   - Use actionType="extractDocumentText" when the workflow needs to read/extract text from an uploaded document (field type "file").
-    - Set action.config.sourceField to the uploaded file field name (e.g., "expenseDocument").
-    - Set node.output_variable to store extracted text (e.g., "expenseDocumentText").
-    - Then AI steps MUST reference the extracted text variable (e.g., {{expenseDocumentText}}). Do NOT assume the AI can read the raw uploaded file.
+    - Set action.config.sourceField to the uploaded file field name.
+    - Set node.output_variable to store extracted text.
+    - Then AI steps MUST reference the extracted text variable. Do NOT assume the AI can read the raw uploaded file.
 - end.config must include: output. Use "" (empty string) to output ALL variables. If you want to output a single variable, use {{{{variable_name}}}}.
 
 Generate the workflow JSON now:"""
@@ -513,14 +508,11 @@ class ProcessWizard:
             tool_names = " ".join([t.get("name") or "" for t in tools if isinstance(t, dict)])
             query = f"{goal}\n\n{(analysis or {}).get('summary') or ''}\n\n{tool_names}".strip()
 
-            # Boost query with identity/approval keywords so the identity KB is always retrieved
-            # when the process might involve approvals or user-related workflows.
-            _approval_signals = ["approv", "manager", "supervisor", "request", "leave",
-                                 "vacation", "expense", "hr", "employee", "department",
-                                 "review", "escalat", "hierarchy", "direct report"]
-            goal_lower = (goal or "").lower()
-            if any(sig in goal_lower for sig in _approval_signals):
-                query += "\n\nidentity user_directory dynamic_manager approval assignee manager department employee hierarchy"
+            # Always include identity/approval KB keywords in the retrieval query.
+            # Any process might involve approvals, notifications, or user context —
+            # the identity KB should always be available for the LLM to use if needed.
+            # This avoids hardcoding specific scenarios (like HR) that trigger identity retrieval.
+            query += "\n\nidentity user_directory approval assignee notification prefill user profile"
 
             platform_knowledge = retrieve_platform_knowledge(query, top_k=6, max_chars=5000)
         except Exception:
@@ -597,11 +589,12 @@ class ProcessWizard:
         if not isinstance(edges, list):
             edges = []
 
-        allowed_types = {"trigger", "condition", "ai", "tool", "approval", "notification", "delay", "end", "form", "action"}
+        allowed_types = {"trigger", "condition", "loop", "ai", "tool", "approval", "notification", "delay", "end", "form", "action"}
         type_default_names = {
             "trigger": "Start",
-            "form": "Start Form",
+            "form": "Form Input",
             "condition": "Condition",
+            "loop": "For Each",
             "ai": "AI Task",
             "tool": "Use Tool",
             "approval": "Approval",

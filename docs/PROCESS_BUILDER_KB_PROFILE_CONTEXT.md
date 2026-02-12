@@ -1,50 +1,83 @@
-# Process Builder Knowledge Base — User/Profile Context (v1)
-The workflow engine runs with a **logged-in user context** (the person who started the process).
+# Process Builder Knowledge Base — User Profile & Prefill (v2)
 
-## Available runtime context (engine)
+The workflow engine runs with a **logged-in user context**. This means the platform already knows
+who started the process and can automatically fill in their information.
 
-### Basic profile (always available)
-- `currentUser.id`
-- `currentUser.name`
-- `currentUser.email`
-- `currentUser.firstName`
-- `currentUser.lastName`
-- `currentUser.phone`
-- `currentUser.roles` (array of role IDs)
-- `currentUser.roleNames` (array of human-readable role names)
-- `currentUser.groups` (array of group IDs)
-- `currentUser.groupNames` (array of human-readable group names)
-- `currentUser.orgId`
+## Core Principle: Never Ask for What the System Already Knows
 
-### Extended profile (from Identity Directory — available when org has identity configured)
-- `currentUser.managerId` — direct manager's user ID
-- `currentUser.managerName` — direct manager's full name
-- `currentUser.managerEmail` — direct manager's email
-- `currentUser.departmentId` — department ID
-- `currentUser.departmentName` — department name
-- `currentUser.jobTitle` — job title
-- `currentUser.employeeId` — HR employee identifier
-- `currentUser.isManager` — whether the user manages others (boolean)
+If a piece of information is available from the user's profile, the workflow MUST auto-fill it
+using `prefill` with `readOnly: true` instead of asking the user to type it.
 
-## How to use it in a workflow
+This applies to ANY attribute the organization's identity source provides — the system is fully dynamic.
 
-### 1) Prefill start form fields (recommended)
-For user-entered fields that are already known from the profile (like email, name), prefer:
-- a read-only field with `prefill: { "source": "currentUser", "key": "email" }`, OR
-- omit the field entirely and use `currentUser.email` in notifications.
+## How Prefill Works
 
-The prefill system is **fully dynamic** — ANY user attribute is available as a prefill key:
-- Basic: `email`, `name`, `firstName`, `lastName`, `phone`, `id`, `orgId`
-- Roles/Groups: `roles`, `roleNames`, `groups`, `groupNames`
-- Identity: `managerId`, `managerName`, `managerEmail`, `departmentId`, `departmentName`, `jobTitle`, `employeeId`
-- Hierarchy: `isManager`, `directReportCount`
-- **Custom attributes** (from HR/LDAP): `nationalId`, `hireDate`, `officeLocation`, `costCenter`, `badgeNumber`, or ANY field configured in the organization's identity source — the system resolves them dynamically.
+For any start form field that matches a known user attribute:
+```json
+{
+  "name": "fieldName",
+  "label": "Friendly Label",
+  "type": "text",
+  "readOnly": true,
+  "prefill": { "source": "currentUser", "key": "<attributeKey>" }
+}
+```
 
-### 2) Avoid asking the user to re-type profile information
-If a field can be inferred from the logged-in user (email, name, phone, employee ID, department, manager, job title), do not make it required input unless business rules require confirmation. Use prefill with `readOnly: true` instead.
+The engine resolves the value at runtime from whichever identity source the organization has configured
+(Built-in, LDAP, Active Directory, HR System API). The workflow designer does NOT need to know which source is used.
 
-### 3) Identity-aware approval routing
-When the process needs manager approval, use `assignee_source: "user_directory"` with `directory_assignee_type: "dynamic_manager"` instead of asking the user to enter their manager's ID. See **PROCESS_BUILDER_KB_IDENTITY.md** for full details on all routing types (manager, department head, management chain, role, group, expression, etc.).
+## Available Attribute Categories
 
-## Anti-hallucination note
-The prefill system is dynamic — any camelCase key that maps to a snake_case attribute in the user's profile or custom_attributes will work. Standard keys are listed above, but custom HR/LDAP attributes are also available.
+### Always Available (platform core)
+- `id` — User ID
+- `name` — Full display name
+- `email` — Email address
+- `firstName`, `lastName` — Name parts
+- `phone` — Phone number
+- `roles`, `roleNames` — Platform roles
+- `groups`, `groupNames` — Platform groups
+- `orgId` — Organization ID
+
+### Available When Identity Source Is Configured
+- `managerId`, `managerName`, `managerEmail` — Direct manager info
+- `departmentId`, `departmentName` — Department info
+- `jobTitle` — Job title
+- `employeeId` — HR employee identifier
+- `isManager` — Whether the user manages others
+- `directReportCount` — Number of direct reports
+
+### Custom Attributes (Fully Dynamic)
+Any attribute configured in the organization's identity source (HR system, LDAP, Active Directory)
+is automatically available as a prefill key. The engine resolves custom attributes dynamically —
+if the attribute exists in the directory, it works.
+
+Examples of possible custom attributes (organization-dependent):
+`nationalId`, `hireDate`, `officeLocation`, `costCenter`, `badgeNumber`, `grade`, `division`, etc.
+
+## Decision Rules for Prefill
+
+1. **If the process asks for the user's name, email, phone, department, job title, employee ID,
+   or any profile information** → Use prefill with `readOnly: true`. NEVER make the user type it.
+
+2. **If the process mentions "manager" or "supervisor" in the context of notifications or approvals** →
+   The system can auto-resolve this. Do NOT ask the user to enter their manager's information.
+
+3. **If a field could be ANY user attribute** → Check if it matches a known prefill key.
+   The system supports ANY camelCase key that maps to a snake_case attribute in the user's profile.
+
+4. **If you're unsure whether an attribute exists** → It's safe to use prefill anyway.
+   If the attribute doesn't exist, the field will simply be empty and the user can fill it in.
+
+## Using User Context in Other Nodes
+
+Beyond form prefill, user context is available in templates and expressions:
+- `{{ trigger_input._user_context.email }}` — Requester's email
+- `{{ trigger_input._user_context.name }}` — Requester's name
+- `{{ trigger_input._user_context.manager_email }}` — Manager's email
+- `{{ trigger_input._user_context.department_name }}` — Department name
+
+## Anti-Hallucination Rules
+- The prefill system is dynamic — ANY camelCase key works if the attribute exists.
+- Do NOT generate steps that "look up" or "fetch" user profile data manually — the engine does this automatically.
+- Do NOT ask users to re-enter information the system already has.
+- When using prefill, ALWAYS set `readOnly: true` to prevent the user from accidentally changing auto-filled data.

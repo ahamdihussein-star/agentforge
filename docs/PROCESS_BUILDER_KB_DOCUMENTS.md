@@ -1,28 +1,48 @@
-# Process Builder Knowledge Base — Documents (Upload & Generate) (v1)
-Workflows may need to **collect documents** and/or **generate documents** as outputs.
+# Process Builder Knowledge Base — Document Handling (v2)
 
-## Uploading documents (input)
-Recommended UX: collect documents as part of the **Start form** using a field:
-- `type: "file"`
-- `label`: business-friendly (e.g., "Supporting Document")
+Workflows may need to collect, read, or generate documents.
 
-Notes:
-- File fields should be optional unless required by business policy.
-- Store file metadata (name, size, type) in variables; the platform will later support uploading and storing files.
+## Collecting Documents (Input)
 
-## Generating documents (output)
-Use an **Action** node with:
-- `actionType: "generateDocument"`
+Use a `file` field in the Start form (trigger):
+```json
+{
+  "name": "uploadedDocument",
+  "label": "Attach Document",
+  "type": "file",
+  "required": false,
+  "placeholder": "Upload a file"
+}
+```
 
-Supported formats (platform target):
-- `docx`, `pdf`, `xlsx`, `pptx`, `txt`, `md`, `csv`, `json`, `html`
+## Reading/Extracting Document Content
 
-Recommended properties (business-friendly):
+If a workflow needs to process the content of an uploaded document (e.g., AI analysis of a receipt,
+contract review, extracting data from a report), add an **Action** node AFTER the trigger:
+
+1. Set `actionType: "extractDocumentText"`
+2. Set `sourceField` to the file field name (e.g., `"uploadedDocument"`)
+3. Set `output_variable` to store the extracted text (e.g., `"documentText"`)
+
+Then reference the extracted text in subsequent AI steps: `{{documentText}}`
+
+**Important:** AI steps CANNOT read raw uploaded files directly. Always extract text first.
+
+## Generating Documents (Output)
+
+Use an **Action** node with `actionType: "generateDocument"`.
+
+Supported formats: `docx`, `pdf`, `xlsx`, `pptx`, `txt`, `md`, `csv`, `json`, `html`
+
+Properties:
 - Document title/name
-- Document format (dropdown)
-- Content instructions (what the document should contain)
-- Data sources (which workflow variables to include)
+- Document format
+- Content instructions (what to include)
+- Data sources (which workflow variables to reference)
 
-Anti-hallucination:
-- If a format is not supported, use `txt` as a safe fallback.
+If a format is not supported, use `txt` as a safe fallback.
 
+## Anti-Hallucination Rules
+- Do NOT assume AI nodes can read raw file uploads — always use `extractDocumentText` first.
+- Do NOT invent document formats not listed above.
+- File fields should be optional unless the business requirement explicitly demands a document.

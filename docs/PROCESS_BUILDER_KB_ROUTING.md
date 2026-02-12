@@ -1,24 +1,30 @@
-# Process Builder Knowledge Base — Layout & Routing Rules (v1)
-These rules define how workflows should look in the visual builder.
-They are required for a clean, readable layout for business users.
+# Process Builder Knowledge Base — Layout & Routing Rules (v2)
 
-## Core layout rules
-- Keep a clear top-to-bottom flow: start near the top, end near the bottom.
-- Leave enough spacing between shapes to avoid overlaps.
-- Avoid line crossings when possible.
+These rules define how workflows should look in the visual builder for business users.
 
-## Connection routing rules (critical)
-- Connections must be **orthogonal** (horizontal/vertical) and should not pass through any shape.
-- Connections should not overlap each other when avoidable.
-- Decision nodes (`condition`) must have two outgoing paths:
-  - `Yes` path and `No` path should be visually separated (left/right) for clarity.
+## Layout Rules
+- Top-to-bottom flow: Start near the top, end near the bottom.
+- Enough spacing between nodes to avoid overlaps.
+- Avoid line crossings.
 
-## Platform behavior
-- The platform will apply auto-layout and auto-routing after generation.
-- If the generated positions are imperfect, the platform will adjust them to satisfy the above rules.
+## Connection Rules
+- Connections must be orthogonal (horizontal/vertical).
+- Connections should not pass through nodes.
+- Decision nodes (`condition`) MUST have two visually separated paths (yes/no).
 
-## Implications for generation
-- Prefer fewer nodes with clear names over many small technical nodes.
+## Process Design Best Practices
+- Prefer fewer nodes with clear, descriptive names over many small technical nodes.
 - Group related steps vertically.
-- For branching, offset the branches horizontally.
+- For branching, offset the branches horizontally for visual clarity.
+- Every process needs exactly ONE trigger (start) and at least ONE end node.
+- Give every node a business-friendly name that describes WHAT it does, not HOW.
 
+## Platform Auto-Layout
+The platform applies auto-layout after generation. If positions are imperfect, the platform adjusts them.
+Focus on correct flow logic rather than pixel-perfect positioning.
+
+## Process Complexity Guidelines
+- Simple processes (1-5 steps): Linear flow — trigger → steps → end.
+- Medium processes (5-10 steps): May include conditions and approvals.
+- Complex processes (10+ steps): May include loops, parallel approvals, multiple conditions.
+- Always start with the simplest design that fulfills the user's goal. Add complexity only when needed.

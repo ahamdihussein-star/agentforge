@@ -1,140 +1,203 @@
-# Process Builder Knowledge Base — Shapes & Capabilities (v1)
-This document describes what the platform **can** build in the visual Process Builder.
-It is intended to ground the LLM so it does **not** invent unsupported steps or properties.
+# Process Builder Knowledge Base — Node Types & Capabilities (v2)
 
-## Guiding principles (anti-hallucination)
-- Only use shapes listed here.
-- Only use properties listed here for each shape.
-- If a required value (like dropdown options) is not known from this KB, org settings, or tools, prefer a **free-text field** rather than guessing.
+This document describes ALL node types available in the visual Process Builder.
+The LLM MUST only use node types listed here. Do NOT invent unsupported nodes or properties.
 
-## Visual Builder shapes (business-friendly)
+## Guiding Principles
+- Only use node types listed in this document.
+- Only use properties listed for each node type.
+- If a value (like dropdown options) is not known from org settings, tools, or user context, use a **free-text field** instead of guessing.
+- ALL labels shown to users MUST be business-friendly (no snake_case, no internal IDs).
+- Internal field keys MUST use lowerCamelCase (e.g., `employeeEmail`, `startDate`).
+- The process should be as simple as possible while fulfilling the user's goal.
+
+## Available Node Types
 
 ### 1) Start (Trigger/Form) — `trigger`
-Purpose: collect input and define how the workflow starts.
+Purpose: The entry point of every workflow. Collects input and defines how the workflow starts.
 
-Supported start modes (stored in `trigger.config.triggerType`):
-- `manual`: user fills a form and starts the workflow
-- `schedule`: workflow runs on a schedule
-- `webhook`: workflow starts from an incoming HTTP request
+**Every workflow MUST have exactly ONE trigger node.**
 
-Common properties (all optional except `fields` for manual):
-- `formTitle` (string): form title shown to users
-- `submitText` (string): submit button label
-- `fields` (array): input fields shown to user (required for `manual`)
-- `cron` (string): cron expression (for `schedule`)
-- `timezone` (string): e.g. `UTC` (for `schedule`)
-- `method` (string): `POST` / `GET` (for `webhook`)
-- `path` (string): webhook path (for `webhook`)
+Start modes (`trigger.config.triggerType`):
+- `manual` — User fills a form and submits to start the workflow.
+- `schedule` — Workflow runs automatically on a schedule (cron).
+- `webhook` — Workflow starts from an external HTTP request.
 
-Field schema (each item in `fields`):
-- `name` (lowerCamelCase, internal key)
-- `label` (string, business-friendly)
-- `type` (`text` | `textarea` | `number` | `date` | `email` | `select` | `file`)
-- `required` (boolean)
-- `placeholder` (string)
-- `options` (array of strings) — only for `select`
-- `optionsSource` (string) — only for `select`, required when using a dropdown:
-  - `taxonomy:<taxonomyId>` (preferred), e.g. `taxonomy:leaveType`
-  - `tool:<toolId>` (when options come from a tool)
-- `readOnly` (boolean) — for derived/prefilled fields
-- `derived` (object) — for derived fields: `{ "expression": "daysBetween(startDate, endDate)" }`
-- `prefill` (object) — for profile prefill: `{ "source": "currentUser", "key": "email" }`
+Config properties:
+- `formTitle` (string): Title shown above the form.
+- `submitText` (string): Submit button label.
+- `fields` (array): Input fields (required for `manual`). See **Field Schema** below.
+- `cron` (string): Cron expression (for `schedule` mode).
+- `timezone` (string): Timezone for schedule (e.g., `UTC`).
+- `method` (string): HTTP method `POST`/`GET` (for `webhook` mode).
+- `path` (string): Webhook endpoint path (for `webhook` mode).
 
-Derived expressions (allowed functions):
-- `daysBetween(startDate, endDate)` → number
-- `concat(a, " ", b)` → string
-- `sum(a, b, c...)` → number
-- `round(value, decimals)` → number
+**Field Schema** (each item in `fields`):
+- `name` (string, lowerCamelCase): Internal key used in `{{name}}` references.
+- `label` (string): Business-friendly label shown to the user.
+- `type`: `text` | `textarea` | `number` | `date` | `email` | `select` | `file`
+- `required` (boolean): Whether the field must be filled.
+- `placeholder` (string): Hint text.
+- `options` (array of strings): Only for `select` type — list of allowed values.
+- `optionsSource` (string): Only for `select` — where options come from:
+  - `taxonomy:<taxonomyId>` — from a platform taxonomy.
+  - `tool:<toolId>` — from a configured tool.
+- `readOnly` (boolean): For auto-filled or calculated fields.
+- `derived` (object): For calculated fields — `{ "expression": "<formula>" }`.
+- `prefill` (object): For auto-filling from user profile — `{ "source": "currentUser", "key": "<attribute>" }`.
+
+Derived expressions (supported functions):
+- `daysBetween(field1, field2)` → number of days between two date fields.
+- `concat(a, " ", b)` → concatenate strings.
+- `sum(a, b, c...)` → sum of numeric fields.
+- `round(value, decimals)` → round a number.
 
 ### 2) Decision (If/Else) — `condition`
-Purpose: route to one of two paths.
+Purpose: Route the workflow to one of two paths based on a condition.
 
-Properties (`condition.config`):
-- `field` (string): a start field key
-- `operator` (`equals` | `not_equals` | `greater_than` | `less_than` | `contains` | `is_empty`)
-- `value` (string|number)
+Config (`condition.config`):
+- `field` (string): The field or variable to evaluate.
+- `operator`: `equals` | `not_equals` | `greater_than` | `less_than` | `contains` | `is_empty`
+- `value` (string|number): The value to compare against.
 
-Connections:
-- MUST have exactly two outgoing edges:
-  - `type: "yes"`
-  - `type: "no"`
+Connection rules:
+- MUST have exactly two outgoing edges: one with `type: "yes"`, one with `type: "no"`.
 
-### 3) AI Step — `ai`
-Purpose: use the configured LLM to generate text/insights/structured output.
+### 3) Loop (For Each) — `loop`
+Purpose: Repeat a set of steps for each item in a collection.
 
-Properties (`ai.config`):
-- `prompt` (string): business-friendly instructions; can reference fields via `{{fieldKey}}`
-- `model` (string): e.g. `gpt-4o`
+Config (`loop.config`):
+- `collection` (string): The variable containing the array to iterate over (e.g., `{{items}}`).
+- `itemVar` (string): Variable name for the current item (default: `item`).
 
-Optional:
-- `output_variable` (string): where to store the result (e.g., `result`)
+Use when: The process needs to perform the same action on multiple items (e.g., process each line item, notify each team member, review each document).
 
-### 4) Tool Step — `tool`
-Purpose: call a platform-configured tool (API, DB, knowledge base, etc.)
+### 4) AI Step — `ai`
+Purpose: Use the LLM to generate text, analyze data, make decisions, or produce structured output.
 
-Properties (`tool.config`):
-- `toolId` (string): must match an available tool ID
-- `params` (object): arguments for the tool; may reference variables via `{{fieldKey}}`
+Config (`ai.config`):
+- `prompt` (string): Instructions for the AI. Reference variables using `{{fieldName}}`.
+- `model` (string): Model to use (e.g., `gpt-4o`).
 
 Optional:
-- `output_variable` (string)
+- `output_variable` (string): Store the AI result in this variable for later steps.
 
-### 5) Approval — `approval`
-Purpose: pause until an approver approves/rejects.
+Use when: The process needs intelligent analysis, text generation, classification, summarization, recommendations, or any task requiring reasoning.
 
-Properties (`approval.config`):
-- `message` (string): what needs approval (business-friendly)
-- `assignee_source` (string): `platform_user` | `role` | `group` | `tool` | `user_directory`
+### 5) Tool Step — `tool`
+Purpose: Call a platform-configured tool (API, database, knowledge base, etc.)
+
+Config (`tool.config`):
+- `toolId` (string): Must match an available tool ID from the platform.
+- `params` (object): Arguments for the tool. Can reference variables via `{{fieldName}}`.
+
+Optional:
+- `output_variable` (string): Store the tool result for later steps.
+
+Use when: The process needs to interact with an external system, fetch data from an API, query a database, or perform an action through a configured tool. Only use if tools are available.
+
+### 6) Approval — `approval`
+Purpose: Pause the workflow until an authorized person approves or rejects.
+
+Config (`approval.config`):
+- `message` (string): What needs to be approved (business-friendly description).
+- `assignee_source` (string): How to find the approver:
+  - `platform_user` — Specific user IDs.
+  - `user_directory` — Resolve dynamically from the organization's identity source (RECOMMENDED for any organizational role-based approval).
+  - `tool` — Resolve via a tool.
 - `assignee_type` (string): `user` | `role` | `group`
-- `assignee_ids` (array of strings): user/role/group ids (can be empty if source=tool or user_directory)
-- `timeout_hours` (number)
+- `assignee_ids` (array): User/role/group IDs (can be empty when using `user_directory`).
+- `timeout_hours` (number): Hours before timeout.
 
-When `assignee_source` is `user_directory` (recommended for manager/department approvals):
-- `directory_assignee_type` (string): `dynamic_manager` | `department_manager` | `management_chain` | `role` | `group` | `department_members`
-- `management_level` (number): only for `management_chain`, default 1
-- `assignee_ids` can be empty — the engine resolves assignees automatically from the organization's configured identity source.
-See **PROCESS_BUILDER_KB_IDENTITY.md** for full details.
+When `assignee_source` is `user_directory` (recommended for any approval that follows organizational hierarchy):
+- `directory_assignee_type`: Specifies HOW to resolve the approver:
+  - `dynamic_manager` — The requester's direct manager (auto-resolved).
+  - `department_manager` — Head of the requester's department.
+  - `management_chain` — Nth-level manager (use `management_level: N`).
+  - `role` — Users with a specific platform role (use `role_ids`).
+  - `group` — Users in a specific platform group (use `group_ids`).
+  - `department_members` — All members of a department.
+  - `expression` — Dynamic from a form field or variable (use `expression`).
+  - `static` — Fixed user IDs.
 
-### 6) Notification — `notification`
-Purpose: send message to user (email/slack/teams/sms).
+See **PROCESS_BUILDER_KB_IDENTITY.md** for full identity-aware approval details.
 
-Properties (`notification.config`):
+### 7) Notification — `notification`
+Purpose: Send a message to one or more recipients.
+
+Config (`notification.config`):
 - `channel` (string): `email` | `slack` | `teams` | `sms`
-- `recipient` (string): can be `{{employeeEmail}}` or fixed email
-- `template` (string): message body; can reference variables
+- `recipients` (array of strings): Who receives the message. Supports:
+  - `"requester"` — Auto-resolves to the person who submitted the form.
+  - `"manager"` — Auto-resolves to the requester's direct manager.
+  - A user ID (UUID) — Auto-resolved to email.
+  - An email address — Sent directly.
+  - `"{{ trigger_input._user_context.email }}"` — From context.
+- `title` (string): Subject line.
+- `message` (string): Message body. Can reference variables using `{{fieldName}}`.
 
-### 7) Wait — `delay`
-Purpose: delay execution.
+### 8) Wait/Delay — `delay`
+Purpose: Pause workflow execution for a specified duration.
 
-Properties (`delay.config`):
-- `duration` (number)
+Config (`delay.config`):
+- `duration` (number): How long to wait.
 - `unit` (string): `seconds` | `minutes` | `hours` | `days`
 
-### 8) End — `end`
-Purpose: finish workflow.
+### 9) Advanced Action — `action`
+Purpose: Perform advanced operations. Use when other node types don't cover the requirement.
 
-Properties (`end.config`):
-- `output` (string): `""` to output all variables; or `{{someVar}}` for single value
+Config (`action.config`):
+- `actionType` (string): What kind of action:
+  - `httpRequest` — Make an HTTP request to any URL.
+  - `runScript` — Execute a custom script.
+  - `transformData` — Transform data between formats.
+  - `fileOperation` — Read/write/delete files.
+  - `generateDocument` — Generate a document (PDF, DOCX, etc.).
+  - `extractDocumentText` — Extract text from an uploaded file.
 
-### 9) Advanced Action (internal) — `action`
-Purpose: represent an advanced engine capability while keeping UI business-friendly.
-Use only when needed and keep it editable via friendly properties (no raw JSON).
+For document extraction (when the workflow includes a file upload):
+- Set `sourceField` to the file field name.
+- Set `output_variable` to store the extracted text.
+- AI steps should reference the extracted text variable, NOT the raw file.
 
-Properties (`action.config`):
-- `actionType` (string): `httpRequest` | `runScript` | `transformData` | `fileOperation` | `generateDocument` | `extractDocumentText`
-- Additional properties depend on `actionType` (see other KB docs).
+### 10) Form Input — `form`
+Purpose: Collect additional input from a user mid-workflow (not the initial trigger form).
 
-**File uploads best practice**
-- If the Start/Form includes a field with `type: "file"` and later steps need the document content, add an Action step with:
-  - `actionType: "extractDocumentText"`
-  - `sourceField: "<the file field name>"` (example: `expenseDocument`)
-  - Set the step `output_variable` to store extracted text (example: `expenseDocumentText`)
-- AI steps should use the extracted text variable (example: `{{expenseDocumentText}}`) rather than trying to read the raw uploaded file directly.
+Config (`form.config`):
+- `fields` (array): Same field schema as the trigger form fields.
 
-## Notes on tools and dropdown options
-- Use dropdown fields only when options are known from:
-  - this KB (taxonomies), or
-  - org settings, or
-  - a configured tool that returns allowed values.
-- Otherwise, use a text field.
+Use when: The workflow needs to collect information at a step OTHER than the start (e.g., an approver needs to add comments, a reviewer needs to fill in additional details).
 
+### 11) End — `end`
+Purpose: Finish the workflow.
+
+**Every workflow MUST have at least ONE end node.**
+
+Config (`end.config`):
+- `output` (string): `""` to output all variables, or `{{variableName}}` for a specific result.
+
+## Decision Guide — When to Use Which Node
+
+| Need | Node Type |
+|------|-----------|
+| Collect user input at start | `trigger` (with fields) |
+| Collect user input mid-workflow | `form` |
+| Make a yes/no decision | `condition` |
+| Repeat steps for multiple items | `loop` |
+| Generate text, analyze, classify, summarize | `ai` |
+| Call an external API or system | `tool` (if tool configured) or `action` (httpRequest) |
+| Get someone's approval | `approval` |
+| Send a message to someone | `notification` |
+| Wait before continuing | `delay` |
+| Upload and read a document | `trigger` (file field) + `action` (extractDocumentText) |
+| Generate a document as output | `action` (generateDocument) |
+| End the workflow | `end` |
+
+## Anti-Hallucination Rules
+- NEVER invent node types not listed here.
+- NEVER invent field types not listed here.
+- NEVER invent operator types not listed here.
+- If unsure whether a capability exists, use the simplest available alternative.
+- Use `text` fields instead of `select` when options are unknown.
+- Every `condition` node MUST have exactly two outgoing edges (`yes` and `no`).
+- Every workflow MUST have exactly one `trigger` and at least one `end`.

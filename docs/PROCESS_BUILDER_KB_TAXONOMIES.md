@@ -1,41 +1,43 @@
-# Process Builder Knowledge Base — Safe Taxonomies (Dropdown Options) (v1)
-This document provides **safe, generic** option lists that can be used without inventing company-specific facts.
+# Process Builder Knowledge Base — Dropdown Options & Taxonomies (v2)
 
-## When to use a dropdown
-Use a dropdown field only if:
-- the options come from this taxonomy list, OR
-- the options come from an org-specific tool/knowledge base.
+This document defines rules for when and how to use dropdown (select) fields in workflows.
 
-If neither is available, use a free-text field instead of guessing.
+## Core Rule: Do NOT Hardcode Options
 
-## Common taxonomies
+The platform serves ANY type of organization (enterprise, government, healthcare, education, etc.)
+building ANY type of process. Dropdown options MUST come from one of these sources:
 
-### Leave Type
-- Annual
-- Sick
-- Personal
-- Unpaid
-- Bereavement
-- Maternity / Paternity
-- Work From Home
+1. **Organization's configured tools** — If a tool provides a list of valid options, use `optionsSource: "tool:<toolId>"`.
+2. **Organization's taxonomy configuration** — If the platform has a taxonomy configured, use `optionsSource: "taxonomy:<taxonomyId>"`.
+3. **The user's goal description** — If the user explicitly lists the options they want in their process description, use those exact options.
+4. **Universal/generic options** — Only use universally understood options that apply to ANY organization (e.g., Yes/No, Approve/Reject, High/Medium/Low priority).
 
-### Request Priority
-- Low
-- Medium
-- High
-- Urgent
+## When to Use a Dropdown vs. Free Text
 
-### Notification Channel
-- Email
-- Slack
-- Microsoft Teams
-- SMS
+| Scenario | Use |
+|----------|-----|
+| Options are explicitly provided by the user in their goal | `select` with those options |
+| Options come from a configured tool | `select` with `optionsSource: "tool:<id>"` |
+| Options come from a configured taxonomy | `select` with `optionsSource: "taxonomy:<id>"` |
+| Options are universally standard (yes/no, approve/reject) | `select` with those options |
+| Options are organization-specific and NOT provided | `text` field — let the user type freely |
+| You're unsure whether options exist | `text` field — NEVER guess |
 
-### Approval Outcome (when modeled as user input)
-- Approve
-- Reject
+## Universally Safe Options (can be used without org-specific knowledge)
 
-## Notes
-- **Departments** are not universal. Do NOT invent a department list unless an org-specific source exists.
-- If an org has a tool or knowledge base that contains a department list, use it.
+These are generic options that apply universally across all organizations:
 
+- **Priority**: Low, Medium, High, Urgent
+- **Binary choice**: Yes, No
+- **Approval outcome**: Approve, Reject
+- **Status**: Pending, In Progress, Completed, Cancelled
+
+Any other option list (department names, job titles, category names, product lists, service types,
+location names, etc.) is organization-specific and MUST NOT be invented.
+
+## Anti-Hallucination Rules
+- NEVER invent organization-specific lists (departments, teams, products, services, locations, etc.).
+- NEVER assume what types of categories an organization has.
+- If the user mentions specific options in their goal (e.g., "leave types: annual, sick, personal"), use those exact options.
+- If no options are specified and no tool/taxonomy provides them, use a free-text field.
+- When in doubt, a text field is ALWAYS the safer choice.
