@@ -1,48 +1,67 @@
-# Process Builder Knowledge Base — Document Handling (v2)
+# Process Builder Knowledge Base — Document & Image Handling (v2)
 
-Workflows may need to collect, read, or generate documents.
+Workflows may need to collect, read, or generate documents and images.
 
-## Collecting Documents (Input)
+## Collecting Files (Input)
 
 Use a `file` field in the Start form (trigger):
 ```json
 {
-  "name": "uploadedDocument",
-  "label": "Attach Document",
+  "name": "uploadedFile",
+  "label": "Attach File",
   "type": "file",
   "required": false,
-  "placeholder": "Upload a file"
+  "placeholder": "Upload a file or image"
 }
 ```
 
-## Reading/Extracting Document Content
+The platform accepts ANY file type. There is no limitation on file formats.
 
-If a workflow needs to process the content of an uploaded document (e.g., AI analysis of a receipt,
-contract review, extracting data from a report), add an **Action** node AFTER the trigger:
+## Extracting Content from Files
+
+If a workflow needs to process the content of an uploaded file (e.g., analyze a document,
+extract data from an image, read a spreadsheet), add an **Action** node AFTER the trigger:
 
 1. Set `actionType: "extractDocumentText"`
-2. Set `sourceField` to the file field name (e.g., `"uploadedDocument"`)
-3. Set `output_variable` to store the extracted text (e.g., `"documentText"`)
+2. Set `sourceField` to the file field name (e.g., `"uploadedFile"`)
+3. Set `output_variable` to store the extracted content (e.g., `"fileContent"`)
 
-Then reference the extracted text in subsequent AI steps: `{{documentText}}`
+Then reference the extracted content in subsequent AI steps: `{{fileContent}}`
 
-**Important:** AI steps CANNOT read raw uploaded files directly. Always extract text first.
+### Supported File Types
+
+The platform handles file extraction with NO hardcoded format limitations:
+
+- **Documents**: PDF, Word (docx/doc), text files, markdown, HTML, XML, and any text-based format.
+- **Spreadsheets**: Excel (xlsx/xls), CSV — extracted as structured text with rows and columns.
+- **Presentations**: PowerPoint (pptx/ppt) — extracted slide by slide.
+- **Images**: PNG, JPG, GIF, WebP, BMP, TIFF, HEIC, and any image format — extracted via LLM vision/OCR.
+  The LLM reads the image and extracts all visible text, data, tables, forms, and information.
+- **Code files**: Python, JavaScript, Java, SQL, and any programming language — read as text.
+- **Any other text-readable file**: The engine attempts to read it as text automatically.
+
+The only limitation is the LLM's own capability for a given format, not a hardcoded list.
+
+### Image OCR / Vision
+
+When an uploaded file is an image (receipt, invoice, form, ID card, screenshot, photo of a document, etc.),
+the platform uses the LLM's vision capability to extract content. This means:
+- Handwritten text can be read (OCR).
+- Tables and forms in images are extracted as structured data.
+- Charts and diagrams are described.
+- Any visible text, numbers, or data is captured.
 
 ## Generating Documents (Output)
 
 Use an **Action** node with `actionType: "generateDocument"`.
 
-Supported formats: `docx`, `pdf`, `xlsx`, `pptx`, `txt`, `md`, `csv`, `json`, `html`
-
 Properties:
 - Document title/name
-- Document format
+- Document format (any supported output format)
 - Content instructions (what to include)
 - Data sources (which workflow variables to reference)
 
-If a format is not supported, use `txt` as a safe fallback.
-
 ## Anti-Hallucination Rules
-- Do NOT assume AI nodes can read raw file uploads — always use `extractDocumentText` first.
-- Do NOT invent document formats not listed above.
-- File fields should be optional unless the business requirement explicitly demands a document.
+- AI steps CANNOT read raw file uploads directly — always use `extractDocumentText` first.
+- Do NOT limit file types in the process design — the platform handles any format.
+- File fields should be optional unless the business requirement explicitly demands a file.

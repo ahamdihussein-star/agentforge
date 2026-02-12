@@ -717,10 +717,11 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         logs: list
     ) -> Dict[str, Any]:
         """
-        Extract plain text from a local document file.
+        Extract text/content from a local file.
 
-        Supported formats (best-effort):
-        - pdf, docx, txt/md, csv, xlsx, pptx
+        Handles documents (pdf, docx, xlsx, pptx, csv, txt, etc.),
+        images (png, jpg, gif, webp, bmp, tiff — via LLM OCR),
+        and any other text-readable file.
 
         Security: only allows files under the platform upload directory.
         """
@@ -792,8 +793,61 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     text = "\n".join(chunks)
                 except Exception:
                     return {"success": False, "error": "PowerPoint text extraction failed"}
+            elif ext in ("png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "tif", "svg", "ico", "heic", "heif"):
+                # Image files — use LLM vision for OCR/content extraction
+                logs.append("Image detected — attempting LLM-based OCR/extraction")
+                try:
+                    import base64
+                    with open(abs_path, "rb") as img_f:
+                        img_data = base64.b64encode(img_f.read()).decode("utf-8")
+                    mime_map = {
+                        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                        "gif": "image/gif", "webp": "image/webp", "bmp": "image/bmp",
+                        "tiff": "image/tiff", "tif": "image/tiff", "svg": "image/svg+xml",
+                        "ico": "image/x-icon", "heic": "image/heic", "heif": "image/heif",
+                    }
+                    mime = mime_map.get(ext, f"image/{ext}")
+                    data_uri = f"data:{mime};base64,{img_data}"
+                    # Try to use LLM for OCR — this requires a vision-capable model
+                    try:
+                        from openai import OpenAI
+                        api_key = os.environ.get("OPENAI_API_KEY")
+                        if api_key:
+                            client = OpenAI(api_key=api_key)
+                            response = client.chat.completions.create(
+                                model="gpt-4o",
+                                messages=[{
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text", "text": "Extract ALL text, data, numbers, and information visible in this image. If it contains a form, table, receipt, invoice, or document, extract every field and value. Return the extracted content as structured text."},
+                                        {"type": "image_url", "image_url": {"url": data_uri}}
+                                    ]
+                                }],
+                                max_tokens=4096
+                            )
+                            text = response.choices[0].message.content or ""
+                            logs.append(f"LLM OCR extracted {len(text)} characters")
+                        else:
+                            logs.append("No OPENAI_API_KEY — cannot perform OCR")
+                            return {"success": False, "error": "Image OCR requires an LLM API key (OPENAI_API_KEY). Configure it in environment settings."}
+                    except ImportError:
+                        return {"success": False, "error": "OpenAI library not available for image OCR"}
+                except Exception as e:
+                    return {"success": False, "error": f"Image extraction failed: {str(e)}"}
+            elif ext in ("html", "htm", "xml", "yaml", "yml", "ini", "cfg", "conf", "properties", "env", "sh", "bat", "ps1", "py", "js", "ts", "java", "c", "cpp", "go", "rs", "rb", "php", "sql", "r"):
+                # Text-based files — read as plain text
+                with open(abs_path, "r", encoding=encoding, errors="ignore") as f:
+                    text = f.read()
             else:
-                return {"success": False, "error": f"Unsupported file type: {ext or 'unknown'}"}
+                # Generic fallback — try reading as text first, then report unsupported
+                logs.append(f"Unknown file type '{ext}' — attempting text read as fallback")
+                try:
+                    with open(abs_path, "r", encoding=encoding, errors="ignore") as f:
+                        text = f.read()
+                    if not text.strip():
+                        return {"success": False, "error": f"Could not extract text from file type: {ext or 'unknown'}. The file may be binary or empty."}
+                except Exception:
+                    return {"success": False, "error": f"Could not read file type: {ext or 'unknown'}"}
 
             text = text or ""
             preview = text[:800]
