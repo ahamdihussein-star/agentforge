@@ -40,9 +40,14 @@ except Exception:  # pragma: no cover - defensive for import edge cases
 
 PROCESS_PATTERNS = {
     "approval_workflow": {
-        "description": "Simple approval workflow with notification",
+        "description": "Approval workflow with conditional routing and notification",
         "triggers": ["manual", "http_webhook"],
-        "typical_nodes": ["start", "notification", "approval", "condition", "end"],
+        "typical_nodes": ["start", "condition", "approval", "notification", "end"],
+    },
+    "document_processing": {
+        "description": "Upload documents/images, extract data via AI, process and route based on content",
+        "triggers": ["manual", "http_webhook"],
+        "typical_nodes": ["start", "action", "ai", "condition", "approval", "notification", "end"],
     },
     "data_pipeline": {
         "description": "Data transformation and processing pipeline",
@@ -251,6 +256,7 @@ Node config rules:
   - type (text | textarea | number | date | email | select | file)
   - required (true/false)
   - placeholder (business-friendly hint)
+  - For file fields: accepts ANY document or image type (PDF, Word, Excel, PNG, JPG, receipts, invoices, photos, etc.). The platform handles all file types dynamically. Add "multiple": true if the user should upload more than one file.
 - For select fields, include: options (array of strings).
 - For select fields, you MUST also include: optionsSource ("taxonomy:<id>" or "tool:<toolId>").
 - For derived (auto-calculated) fields, include:
@@ -272,6 +278,8 @@ Node config rules:
 - form.config must include: fields (same schema as trigger fields). Use for collecting additional input mid-workflow (not the initial form).
 - ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
+- AI nodes are POWERFUL: They can parse unstructured text into structured JSON, summarize data, make classifications, calculate totals, detect languages/currencies, validate data, and more. Use them whenever the workflow needs intelligence beyond simple conditions.
+- When an AI node parses data into JSON, subsequent condition nodes can reference fields from the parsed output (e.g., if AI stores result in "parsedData", a condition can check "parsedData.totalAmount").
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
@@ -297,13 +305,30 @@ Node config rules:
   - "user-id-here" → if a UUID user ID, the engine resolves it to an email automatically
   - "someone@example.com" → direct email address
   BEST PRACTICE: Use "requester" and "manager" shortcuts whenever possible. NEVER ask users to enter an email for notifications when the system can resolve it automatically.
+  RICH NOTIFICATIONS: Include relevant data summaries in notification messages using variable interpolation. For instance, include key information (amounts, dates, descriptions, status, parsed data) so recipients have full context without needing to log into the platform. Notifications should be self-contained and informative.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
 - action.config MUST include: actionType.
   - Use actionType="generateDocument" only when document output is explicitly required.
-  - Use actionType="extractDocumentText" when the workflow needs to read/extract text from an uploaded document (field type "file").
+  - Use actionType="extractDocumentText" when the workflow needs to read/extract data from uploaded documents or images (field type "file").
+    The platform uses LLM vision (OCR) automatically to extract ALL text, numbers, tables, and structured data from ANY image or document type (receipts, invoices, forms, photos, PDFs, etc.).
     - Set action.config.sourceField to the uploaded file field name.
-    - Set node.output_variable to store extracted text.
-    - Then AI steps MUST reference the extracted text variable. Do NOT assume the AI can read the raw uploaded file.
+    - Set node.output_variable to store the extracted text/data (e.g., "extractedData").
+    - CRITICAL: After extraction, ALWAYS follow with an "ai" node that parses the raw extracted text into structured data (JSON). The AI node should:
+      - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
+      - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
+      - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
+    - Subsequent nodes (conditions, notifications, approvals) should reference the parsed data fields.
+    - This pattern works for ANY document or image type — the LLM determines what to extract based on context.
+
+- AUTOMATIC APPROVAL PATTERN (condition-based):
+  When a workflow should auto-approve under certain conditions (e.g., amount below a threshold), use a CONDITION node:
+  - The condition checks the relevant value (e.g., field: "totalAmount", operator: "less_than", value: "500")
+  - "yes" branch → skip approval, go directly to a notification node (informing the user it was auto-approved)
+  - "no" branch → go to an approval node (for manual review)
+  This lets workflows intelligently route based on data without requiring human intervention in every case.
+
+- CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
+
 - end.config must include: output. Use "" (empty string) to output ALL variables. If you want to output a single variable, use {{{{variable_name}}}}.
 
 Generate the workflow JSON now:"""

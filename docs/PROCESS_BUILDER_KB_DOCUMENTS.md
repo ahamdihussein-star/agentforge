@@ -61,7 +61,19 @@ Properties:
 - Content instructions (what to include)
 - Data sources (which workflow variables to reference)
 
+## Data Flow Pattern: Upload → Extract → AI Parse → Use
+
+When workflows involve document/image uploads, follow this pattern:
+
+1. **Trigger form**: Collect file(s) via `file` field
+2. **Action node**: `extractDocumentText` extracts raw text/data from the file (OCR for images)
+3. **AI node**: Parse the raw extracted text into structured data (JSON with specific fields)
+4. **Condition/Approval/Notification nodes**: Use the parsed structured data for routing, decisions, and notifications
+
+This ensures the AI can process any type of document or image and extract exactly what the workflow needs.
+
 ## Anti-Hallucination Rules
 - AI steps CANNOT read raw file uploads directly — always use `extractDocumentText` first.
 - Do NOT limit file types in the process design — the platform handles any format.
 - File fields should be optional unless the business requirement explicitly demands a file.
+- Do NOT hardcode what data to extract — let the AI determine it based on the workflow's purpose.
