@@ -181,8 +181,9 @@ User's Goal (use the same language as this goal):
 Analysis (for context):
 {analysis}
 
-Available platform tools (optional; if empty, avoid tool nodes):
+Available platform tools (use these when the user's goal involves actions these tools can perform):
 {tools_json}
+TOOL MATCHING: Read each tool's name, type, and description carefully. When the user's goal implies an action that matches a tool, use a "tool" node with the correct toolId and params. Map user intent to tool capabilities intelligently.
 
 Platform Knowledge Base (ground truth about platform capabilities, rules, and safe option lists):
 {platform_knowledge}
@@ -200,10 +201,12 @@ IMPORTANT:
 - In prompts/templates, reference form fields using double braces like {{{{amount}}}} or {{{{email}}}}.
 - This platform is for business users: ALL labels shown to users must be business-friendly and human readable (no snake_case, no internal IDs).
 - For internal field keys, ALWAYS use lowerCamelCase (no underscores). Example: employeeEmail, startDate, endDate, numberOfDays.
-- Be conservative to avoid hallucination:
-  - Only use dropdowns when you have a safe option list from the Knowledge Base or from a tool. Otherwise use a text field.
-  - Do NOT invent company-specific lists (e.g., departments). If unsure, use free text.
-  - Only use derived fields when the formula is clearly supported (see Knowledge Base).
+- Smart field inference:
+  - Use your business/industry knowledge to determine what fields are needed, even if the user didn't list them explicitly.
+  - For dropdowns: use options from the Knowledge Base, from tools, OR from your general business knowledge when the context clearly implies standard options (e.g., priority levels, status types, categories common to the industry). Do NOT invent organization-specific lists (like department names, employee names, or product catalogs unique to one company).
+  - For auto-fill: ANY field that matches user profile data (name, email, phone, department, job title, employee ID, manager) MUST use prefill with readOnly:true. Never ask the user to type what the system knows.
+  - For derived fields: only use formulas supported by the Knowledge Base (daysBetween, concat, sum, round).
+  - For data flow: store AI/tool outputs in variables and reference them in later steps (notifications, conditions, etc.).
 - Scheduling and webhooks are configured on the Start node via `trigger.config.triggerType` (do NOT create separate schedule/webhook nodes).
 
 Schema to output:
@@ -547,9 +550,30 @@ class ProcessWizard:
             platform_knowledge=(platform_knowledge or "(no KB matches)") + user_attrs_context,
         )
         system_prompt = (
-            "You are a workflow designer. "
-            "Return ONLY valid JSON that matches the schema exactly. "
-            "No markdown, no explanation."
+            "You are an expert workflow designer with deep knowledge of business processes "
+            "across ALL industries (enterprise, government, healthcare, finance, education, IT, operations, etc.). "
+            "You understand organizational structures, approval hierarchies, data flows, and compliance requirements.\n\n"
+            "YOUR INTELLIGENCE DIRECTIVES:\n"
+            "1. INFER from context: The user gives you a high-level goal. YOU must figure out:\n"
+            "   - What input fields are needed (names, types, labels)\n"
+            "   - Which fields should be dropdowns vs free text\n"
+            "   - Which fields can be auto-filled from the user's profile\n"
+            "   - What the logical data flow should be\n"
+            "   - What approvals, notifications, and conditions make sense\n"
+            "2. USE YOUR BUSINESS KNOWLEDGE: When the context clearly implies specific options "
+            "(e.g., a procurement process implies priority levels, a support ticket implies severity levels), "
+            "you MAY suggest appropriate dropdown options from your general knowledge. "
+            "Only avoid inventing options when they are truly organization-specific (like department names or employee lists).\n"
+            "3. MATCH TOOLS TO INTENT: When tools are available, match the user's intent to the right tool. "
+            "If the user says 'send email notification', use the email tool. If they mention 'check inventory', "
+            "use the relevant API tool. Understand tool descriptions and parameters.\n"
+            "4. AUTO-PREFILL: Any field that matches a user profile attribute (name, email, department, "
+            "job title, manager, employee ID, phone, etc.) MUST be auto-filled with readOnly:true. "
+            "The user should NEVER have to type information the system already knows.\n"
+            "5. SMART DATA FLOW: Variables from earlier steps should flow to later steps naturally. "
+            "AI outputs should be stored in variables and referenced in notifications/conditions.\n"
+            "6. RESPOND IN THE SAME LANGUAGE as the user's goal (labels, placeholders, names — everything user-facing).\n\n"
+            "Return ONLY valid JSON that matches the schema exactly. No markdown, no explanation."
         )
         try:
             data = await self._chat_json(system_prompt, user_prompt, temperature=0.25, max_tokens=3500)
