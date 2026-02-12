@@ -218,8 +218,8 @@ function editSecurityUser(userId) {
                             if (!entries.length) return '<div class="text-xs text-gray-500 italic" id="no-custom-fields-msg">No custom fields yet.</div>';
                             return entries.map(([k, v], i) => `
                                 <div class="flex gap-2 items-center w-full" data-custom-row="${i}">
-                                    <input type="text" value="${escapeHtml(k)}" placeholder="Field name" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 min-w-0 custom-field-key">
-                                    <input type="text" value="${escapeHtml(String(v))}" placeholder="Value" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 min-w-0 custom-field-val">
+                                    <input type="text" value="${escHtml(k)}" placeholder="Field name" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 min-w-0 custom-field-key">
+                                    <input type="text" value="${escHtml(String(v))}" placeholder="Value" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 min-w-0 custom-field-val">
                                     <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300 text-lg px-1" title="Remove">&times;</button>
                                 </div>
                             `).join('');
