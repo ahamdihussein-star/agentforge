@@ -1206,7 +1206,17 @@ async def generate_business_summary(
         raise HTTPException(status_code=404, detail="Execution not found")
     
     # Fetch steps with I/O
-    nodes = exec_service.get_step_executions(execution_id)
+    nodes = exec_service.get_node_executions(execution_id)
+    
+    # Resolve process/agent name
+    process_name = "Workflow"
+    try:
+        from database.models.agent import Agent
+        agent = db.query(Agent).filter(Agent.id == execution.agent_id).first()
+        if agent:
+            process_name = agent.name or "Workflow"
+    except Exception:
+        pass
     
     # Build a compact representation of steps for the LLM
     steps_for_llm = []
@@ -1259,8 +1269,9 @@ async def generate_business_summary(
     
     # Build trigger input summary
     trigger_input = {}
-    if execution.input_data and isinstance(execution.input_data, dict):
-        for k, v in execution.input_data.items():
+    raw_input = execution.trigger_input if execution.trigger_input else {}
+    if isinstance(raw_input, dict):
+        for k, v in raw_input.items():
             if k.startswith("_"):
                 continue  # skip internal fields
             if isinstance(v, dict) and v.get("kind") == "uploadedFile":
@@ -1319,7 +1330,7 @@ KEY DETAILS:
     
     user_prompt = f"""Here is a workflow execution result. Please explain what happened in business-friendly language.
 
-Workflow: {execution.process_name or 'Workflow'}
+Workflow: {process_name}
 Status: {execution.status}
 {f'Error: {execution.error_message}' if execution.error_message else ''}
 
@@ -1350,7 +1361,7 @@ Steps executed:
             "success": True,
             "summary": content,
             "execution_status": execution.status,
-            "process_name": execution.process_name or "Workflow"
+            "process_name": process_name
         }
     except Exception as e:
         return {
