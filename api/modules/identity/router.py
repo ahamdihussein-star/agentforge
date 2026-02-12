@@ -25,6 +25,8 @@ from .schemas import (
     UserAttributesResponse, OrgChartNodeResponse, DepartmentResponse,
     CreateDepartmentRequest, UpdateDepartmentRequest,
     DirectorySourceConfig, ResolveAssigneeRequest, ResolveAssigneeResponse,
+    ProfileFieldsSchemaResponse, UpdateProfileFieldsSchemaRequest,
+    BulkUserCustomAttributesRequest, BulkUserCustomAttributesResponse,
 )
 from core.identity.service import UserDirectoryService
 from api.security import require_auth, require_admin, User
@@ -437,6 +439,144 @@ async def update_directory_config(body: DirectorySourceConfig, user: User = Depe
         session.commit()
     
     return body
+
+
+# ============================================================================
+# ORG-LEVEL PROFILE FIELDS (GLOBAL SCHEMA)
+# ============================================================================
+
+@router.get("/profile-fields", response_model=ProfileFieldsSchemaResponse)
+async def get_profile_fields_schema(user: User = Depends(require_admin)):
+    """Get org-level profile field definitions (global schema)."""
+    from database.base import get_session
+    from database.models.organization import Organization
+
+    ctx = _extract_user_context(user)
+    with get_session() as session:
+        org = session.query(Organization).filter(Organization.id == ctx["org_id"]).first()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        settings = org.settings or {}
+        fields = settings.get("profile_fields_schema") or []
+        if not isinstance(fields, list):
+            fields = []
+        return ProfileFieldsSchemaResponse(fields=fields)
+
+
+@router.put("/profile-fields", response_model=ProfileFieldsSchemaResponse)
+async def update_profile_fields_schema(body: UpdateProfileFieldsSchemaRequest, user: User = Depends(require_admin)):
+    """Update org-level profile field definitions (global schema)."""
+    from database.base import get_session
+    from database.models.organization import Organization
+
+    ctx = _extract_user_context(user)
+    fields = body.fields or []
+    # Basic sanitation: ensure keys are strings and non-empty
+    cleaned = []
+    seen = set()
+    for f in fields:
+        key = (getattr(f, "key", None) or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        cleaned.append({
+            "key": key,
+            "label": (getattr(f, "label", None) or "").strip() or key.replace("_", " ").replace("-", " ").title(),
+            "type": (getattr(f, "type", None) or "string").strip() or "string",
+            "description": (getattr(f, "description", None) or "").strip() or None,
+            "required": bool(getattr(f, "required", False)),
+            "source": "org_schema",
+        })
+
+    with get_session() as session:
+        org = session.query(Organization).filter(Organization.id == ctx["org_id"]).first()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        settings = org.settings or {}
+        settings["profile_fields_schema"] = cleaned
+        org.settings = settings
+        org.updated_at = datetime.utcnow()
+        session.commit()
+    return ProfileFieldsSchemaResponse(fields=cleaned)
+
+
+@router.post("/users/bulk-custom-attributes", response_model=BulkUserCustomAttributesResponse)
+async def bulk_update_user_custom_attributes(body: BulkUserCustomAttributesRequest, user: User = Depends(require_admin)):
+    """
+    Bulk set per-user custom attributes (values).
+
+    Enterprise-friendly alternative to editing users one-by-one.
+    Values are stored in users.user_metadata (and exposed as profile.custom_attributes).
+    """
+    from database.base import get_session
+    from database.models.user import User as DBUser
+    import json
+
+    ctx = _extract_user_context(user)
+    mode = (body.mode or "merge").lower()
+    if mode not in ("merge", "replace"):
+        raise HTTPException(status_code=400, detail="Invalid mode. Use merge or replace.")
+
+    success = 0
+    errors: List[Dict[str, Any]] = []
+
+    def _filter_attrs(attrs: Dict[str, Any]) -> Dict[str, Any]:
+        out = {}
+        for k, v in (attrs or {}).items():
+            if not isinstance(k, str):
+                continue
+            kk = k.strip()
+            if not kk or kk.startswith("mfa_") or kk.startswith("_"):
+                continue
+            out[kk] = v
+        return out
+
+    with get_session() as session:
+        for item in (body.items or []):
+            try:
+                target = None
+                if item.user_id:
+                    target = session.query(DBUser).filter(DBUser.id == item.user_id, DBUser.org_id == ctx["org_id"]).first()
+                if not target and item.email:
+                    email = item.email.strip().lower()
+                    target = session.query(DBUser).filter(DBUser.email == email, DBUser.org_id == ctx["org_id"]).first()
+                if not target:
+                    raise ValueError("User not found")
+
+                existing = {}
+                if hasattr(target, "user_metadata") and target.user_metadata:
+                    if isinstance(target.user_metadata, str):
+                        try:
+                            existing = json.loads(target.user_metadata) or {}
+                        except Exception:
+                            existing = {}
+                    elif isinstance(target.user_metadata, dict):
+                        existing = target.user_metadata.copy()
+
+                new_attrs = _filter_attrs(item.attributes)
+                if mode == "replace":
+                    merged = {k: v for k, v in existing.items() if isinstance(k, str) and (k.startswith("mfa_") or k.startswith("_"))}
+                    merged.update(new_attrs)
+                else:
+                    merged = existing
+                    merged.update(new_attrs)
+
+                target.user_metadata = merged
+                target.updated_at = datetime.utcnow()
+                success += 1
+            except Exception as e:
+                errors.append({
+                    "email": getattr(item, "email", None),
+                    "user_id": getattr(item, "user_id", None),
+                    "error": str(e),
+                })
+        session.commit()
+
+    return BulkUserCustomAttributesResponse(
+        success_count=success,
+        error_count=len(errors),
+        errors=errors,
+    )
 
 
 # ============================================================================

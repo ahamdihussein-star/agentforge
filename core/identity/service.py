@@ -747,8 +747,34 @@ class UserDirectoryService:
         try:
             from database.base import get_session
             from database.models.user import User
+            from database.models.organization import Organization
             
             with get_session() as session:
+                # 1) Include org-level schema-defined fields (global definitions)
+                try:
+                    org = session.query(Organization).filter(Organization.id == org_id).first()
+                    settings = (org.settings or {}) if org else {}
+                    schema_fields = settings.get("profile_fields_schema") or []
+                    if isinstance(schema_fields, list):
+                        for f in schema_fields:
+                            if not isinstance(f, dict):
+                                continue
+                            k = (f.get("key") or "").strip()
+                            if not k:
+                                continue
+                            custom_attrs_found[k] = {
+                                "key": k,
+                                "label": f.get("label") or k.replace("_", " ").replace("-", " ").title(),
+                                "type": f.get("type") or "string",
+                                "source": f.get("source") or "org_schema",
+                                "description": f.get("description"),
+                                "required": bool(f.get("required", False)),
+                            }
+                except Exception:
+                    # Schema fields are optional; never fail discovery because of them
+                    pass
+
+                # 2) Discover additional custom attributes by scanning users in this org
                 users = session.query(User).filter(
                     User.org_id == org_id,
                     User.status == "active"

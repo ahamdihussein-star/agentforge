@@ -155,10 +155,72 @@ function startApprovalPolling() {
 // END APPROVALS + ORGANIZATION
 // ============================================================
 
+// ============================================================================
+// ORG PROFILE FIELDS (GLOBAL SCHEMA) — used by Edit User modal
+// ============================================================================
+let _orgProfileFieldsSchemaCache = null;
+let _orgProfileFieldsSchemaCacheAt = 0;
+
+async function getOrgProfileFieldsSchemaForUserEdit(forceReload = false) {
+    const ttlMs = 60 * 1000;
+    if (!forceReload && _orgProfileFieldsSchemaCache && (Date.now() - _orgProfileFieldsSchemaCacheAt) < ttlMs) {
+        return _orgProfileFieldsSchemaCache;
+    }
+    try {
+        const res = await fetch('/api/identity/profile-fields', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            _orgProfileFieldsSchemaCache = data;
+            _orgProfileFieldsSchemaCacheAt = Date.now();
+            return data;
+        }
+    } catch (e) {
+        // Silent: Edit User should still work without schema
+        console.warn('Failed to load org profile fields schema:', e);
+    }
+    _orgProfileFieldsSchemaCache = { fields: [] };
+    _orgProfileFieldsSchemaCacheAt = Date.now();
+    return _orgProfileFieldsSchemaCache;
+}
+
+function collectSchemaFieldValues(schemaDefs) {
+    const out = {};
+    (schemaDefs || []).forEach(def => {
+        const key = (def?.key || '').trim();
+        if (!key) return;
+        const type = (def?.type || 'string').toLowerCase();
+        const el = document.querySelector(`.schema-field-input[data-schema-key="${key}"]`);
+        if (!el) return;
+
+        if (type === 'boolean') {
+            if (el.checked) out[key] = true;
+            else if (def?.required) out[key] = false;
+            return;
+        }
+
+        const raw = (el.value || '').trim();
+        if (!raw) return;
+
+        if (type === 'number') {
+            const n = Number(raw);
+            if (!Number.isNaN(n)) out[key] = n;
+            return;
+        }
+
+        // array/object stored as text (often JSON) — keep as string unless user explicitly types JSON-like values
+        out[key] = raw;
+    });
+    return out;
+}
+
 // Edit security user
-function editSecurityUser(userId) {
+async function editSecurityUser(userId) {
     const user = securityUsers.find(u => u.id === userId);
     if (!user) return;
+
+    const schemaResp = await getOrgProfileFieldsSchemaForUserEdit();
+    const schemaDefs = Array.isArray(schemaResp?.fields) ? schemaResp.fields : [];
+    const schemaKeys = new Set(schemaDefs.map(d => (d?.key || '').trim()).filter(Boolean));
     
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
@@ -202,19 +264,78 @@ function editSecurityUser(userId) {
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm text-gray-400 mb-2">Custom Profile Fields</label>
-                    <p class="text-xs text-gray-500 mb-2">Add any custom attributes (e.g., National ID, Badge Number, Office Location). These are automatically available for process forms and AI-generated workflows.</p>
+                    <label class="block text-sm text-gray-400 mb-2">Organization Profile Fields</label>
+                    <p class="text-xs text-gray-500 mb-2">These fields are defined globally in <strong>Security → Organization → Profile Fields</strong> and appear for every user.</p>
+                    <div id="edit-user-org-schema-fields" class="space-y-3">
+                        ${(() => {
+                            if (!schemaDefs.length) {
+                                return '<div class="text-xs text-gray-500 italic">No global profile fields configured yet.</div>';
+                            }
+                            const meta =
+                                user.custom_attributes ||
+                                user.profile?.custom_attributes ||
+                                user.profile?.user_metadata ||
+                                user.user_metadata ||
+                                {};
+
+                            return schemaDefs.map(def => {
+                                const key = (def?.key || '').trim();
+                                if (!key) return '';
+                                const label = (def?.label || '').trim() || key.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                const type = (def?.type || 'string').toLowerCase();
+                                const desc = (def?.description || '').trim();
+                                const required = !!def?.required;
+                                const val = meta && (key in meta) ? meta[key] : '';
+
+                                const common = `class="schema-field-input input-field w-full px-3 py-2 rounded-lg text-sm" data-schema-key="${escHtml(key)}"`;
+                                let inputHtml = '';
+                                if (type === 'boolean') {
+                                    inputHtml = `<label class="flex items-center gap-2">
+                                        <input type="checkbox" class="schema-field-input accent-purple-500 w-5 h-5" data-schema-key="${escHtml(key)}" ${val === true ? 'checked' : ''}>
+                                        <span class="text-sm text-gray-300">${escHtml(label)}${required ? ' *' : ''}</span>
+                                    </label>`;
+                                } else if (type === 'number') {
+                                    inputHtml = `<input type="number" ${common} value="${escHtml(val === null || val === undefined ? '' : String(val))}" placeholder="${escHtml(label)}${required ? ' *' : ''}">`;
+                                } else if (type === 'array' || type === 'object') {
+                                    inputHtml = `<textarea ${common} rows="2" placeholder="${escHtml(label)}${required ? ' *' : ''}">${escHtml(val === null || val === undefined ? '' : String(val))}</textarea>`;
+                                } else {
+                                    inputHtml = `<input type="text" ${common} value="${escHtml(val === null || val === undefined ? '' : String(val))}" placeholder="${escHtml(label)}${required ? ' *' : ''}">`;
+                                }
+
+                                return `
+                                    <div class="space-y-1">
+                                        ${type === 'boolean' ? inputHtml : `
+                                            <div class="flex items-center justify-between">
+                                                <div class="text-xs text-gray-400">${escHtml(label)}${required ? ' *' : ''}</div>
+                                                <div class="text-[10px] text-gray-500 font-mono">${escHtml(key)}</div>
+                                            </div>
+                                            ${inputHtml}
+                                        `}
+                                        ${desc ? `<div class="text-[11px] text-gray-500">${escHtml(desc)}</div>` : ''}
+                                    </div>
+                                `;
+                            }).join('');
+                        })()}
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Advanced Custom Fields (per-user)</label>
+                    <p class="text-xs text-gray-500 mb-2">Use this only for one-off fields not part of the global schema. These are still available to processes and AI workflows.</p>
                     <div id="edit-user-custom-fields" class="space-y-2">
                         ${(() => {
                             // Custom fields are stored under profile.custom_attributes in the backend.
                             // Keep backward-compatible fallbacks for older payload shapes.
                             const meta =
+                                user.custom_attributes ||
                                 user.profile?.custom_attributes ||
                                 user.profile?.user_metadata ||
                                 user.user_metadata ||
-                                user.custom_attributes ||
                                 {};
-                            const entries = Object.entries(meta).filter(([k,v]) => v !== null && v !== undefined);
+                            const entries = Object.entries(meta).filter(([k,v]) =>
+                                v !== null &&
+                                v !== undefined &&
+                                !schemaKeys.has(k)
+                            );
                             if (!entries.length) return '<div class="text-xs text-gray-500 italic" id="no-custom-fields-msg">No custom fields yet.</div>';
                             return entries.map(([k, v], i) => `
                                 <div class="flex gap-2 items-center w-full" data-custom-row="${i}">
@@ -289,7 +410,10 @@ async function saveUserEdit(userId) {
     const roleCheckboxes = document.querySelectorAll('#edit-user-roles input[type="checkbox"]:checked');
     const roleIds = Array.from(roleCheckboxes).map(cb => cb.value);
     
-    const customFields = collectCustomFields();
+    const schemaResp = await getOrgProfileFieldsSchemaForUserEdit();
+    const schemaDefs = Array.isArray(schemaResp?.fields) ? schemaResp.fields : [];
+    const schemaValues = collectSchemaFieldValues(schemaDefs);
+    const customFields = { ...collectCustomFields(), ...schemaValues };
     console.log('📝 Saving user edit:', { firstName, lastName, status, roleIds, customFields });
     
     try {

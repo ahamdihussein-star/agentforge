@@ -123,6 +123,49 @@ class DirectorySourceConfig(BaseModel):
     hr_api_config: Optional[Dict[str, Any]] = None
 
 
+# ============================================================================
+# ORG-LEVEL PROFILE FIELDS (GLOBAL SCHEMA)
+# ============================================================================
+
+class ProfileFieldDefinition(BaseModel):
+    """
+    Organization-level definition of a user profile field (schema).
+
+    Note: values are still per-user; this defines what fields exist and
+    how they should be presented/typed across the org.
+    """
+    key: str = Field(..., description="Field key (prefer snake_case, e.g., cost_center)")
+    label: Optional[str] = Field(default=None, description="Human label for UI (e.g., Cost Center)")
+    type: str = Field(default="string", description="string|number|boolean|array|object")
+    description: Optional[str] = Field(default=None, description="Help text / meaning")
+    required: bool = Field(default=False, description="If true, considered required by org policy")
+
+
+class ProfileFieldsSchemaResponse(BaseModel):
+    fields: List[ProfileFieldDefinition] = []
+
+
+class UpdateProfileFieldsSchemaRequest(BaseModel):
+    fields: List[ProfileFieldDefinition] = []
+
+
+class BulkUserCustomAttributesItem(BaseModel):
+    email: Optional[str] = None
+    user_id: Optional[str] = None
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BulkUserCustomAttributesRequest(BaseModel):
+    items: List[BulkUserCustomAttributesItem] = []
+    mode: str = Field(default="merge", description="merge|replace")
+
+
+class BulkUserCustomAttributesResponse(BaseModel):
+    success_count: int = 0
+    error_count: int = 0
+    errors: List[Dict[str, Any]] = []
+
+
 class ResolveAssigneeRequest(BaseModel):
     """Request to resolve process assignees"""
     assignee_config: Dict[str, Any]

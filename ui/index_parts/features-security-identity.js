@@ -574,7 +574,7 @@ async function loadOrgTab() {
 }
 
 function switchOrgSubTab(sub) {
-    const subs = ['departments', 'managers', 'orgchart', 'directory'];
+    const subs = ['departments', 'managers', 'orgchart', 'directory', 'profilefields'];
     subs.forEach(s => {
         const el = document.getElementById('org-content-' + s);
         if (el) el.classList.toggle('hidden', s !== sub);
@@ -587,8 +587,142 @@ function switchOrgSubTab(sub) {
     });
     if (sub === 'orgchart') renderOrgChart();
     if (sub === 'directory') loadDirectoryConfig();
+    if (sub === 'profilefields') loadOrgProfileFieldsSchema();
     if (sub === 'managers') renderOrgManagerTable();
     if (sub === 'departments') renderOrgDepartments();
+}
+
+// --- Profile Fields (Global Schema) ---
+let orgProfileFieldsSchema = [];
+
+async function loadOrgProfileFieldsSchema() {
+    const container = document.getElementById('org-profilefields-list');
+    if (container) container.innerHTML = '<div class="text-sm text-gray-500">Loading...</div>';
+    try {
+        const res = await fetch('/api/identity/profile-fields', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            orgProfileFieldsSchema = Array.isArray(data?.fields) ? data.fields : [];
+        } else {
+            orgProfileFieldsSchema = [];
+        }
+    } catch (e) {
+        console.log('Profile fields schema:', e);
+        orgProfileFieldsSchema = [];
+    }
+    renderOrgProfileFieldsSchema();
+}
+
+function renderOrgProfileFieldsSchema() {
+    const container = document.getElementById('org-profilefields-list');
+    if (!container) return;
+    if (!orgProfileFieldsSchema.length) {
+        container.innerHTML = '<div class="text-sm text-gray-500">No global profile fields defined yet.</div>';
+        return;
+    }
+    container.innerHTML = orgProfileFieldsSchema.map((f, idx) => `
+        <div class="flex gap-2 items-center w-full">
+            <input class="input-field px-3 py-2 rounded-lg text-sm flex-1 min-w-0 org-pf-key" placeholder="key (snake_case)" value="${escHtml(f.key || '')}">
+            <input class="input-field px-3 py-2 rounded-lg text-sm flex-1 min-w-0 org-pf-label" placeholder="Label" value="${escHtml(f.label || '')}">
+            <select class="input-field px-3 py-2 rounded-lg text-sm org-pf-type">
+                ${['string','number','boolean','array','object'].map(t => `<option value="${t}" ${((f.type||'string')===t)?'selected':''}>${t}</option>`).join('')}
+            </select>
+            <label class="text-xs text-gray-400 flex items-center gap-2">
+                <input type="checkbox" class="accent-purple-500 org-pf-required" ${f.required ? 'checked' : ''}>
+                Required
+            </label>
+            <button onclick="removeOrgProfileFieldRow(${idx})" class="text-red-400 hover:text-red-300 px-2" title="Remove">✕</button>
+        </div>
+        <div class="pl-1 pb-2">
+            <input class="input-field px-3 py-2 rounded-lg text-sm w-full org-pf-desc" placeholder="Description (optional)" value="${escHtml(f.description || '')}">
+        </div>
+    `).join('');
+}
+
+function addOrgProfileFieldRow() {
+    orgProfileFieldsSchema = orgProfileFieldsSchema || [];
+    orgProfileFieldsSchema.push({ key: '', label: '', type: 'string', description: '', required: false });
+    renderOrgProfileFieldsSchema();
+}
+
+function removeOrgProfileFieldRow(idx) {
+    orgProfileFieldsSchema = (orgProfileFieldsSchema || []).filter((_, i) => i !== idx);
+    renderOrgProfileFieldsSchema();
+}
+
+function collectOrgProfileFieldsSchemaFromUI() {
+    const container = document.getElementById('org-profilefields-list');
+    if (!container) return [];
+    const rows = Array.from(container.querySelectorAll('.flex.gap-2.items-center.w-full'));
+    const defs = [];
+    rows.forEach((row, i) => {
+        const keyEl = row.querySelector('.org-pf-key');
+        const labelEl = row.querySelector('.org-pf-label');
+        const typeEl = row.querySelector('.org-pf-type');
+        const reqEl = row.querySelector('.org-pf-required');
+        const descEl = container.querySelectorAll('.org-pf-desc')[i];
+        const key = (keyEl?.value || '').trim().replace(/\s+/g, '_').toLowerCase();
+        if (!key) return;
+        defs.push({
+            key,
+            label: (labelEl?.value || '').trim() || key.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            type: (typeEl?.value || 'string'),
+            description: (descEl?.value || '').trim() || null,
+            required: !!reqEl?.checked
+        });
+    });
+    return defs;
+}
+
+async function saveOrgProfileFieldsSchema() {
+    const defs = collectOrgProfileFieldsSchemaFromUI();
+    try {
+        const res = await fetch('/api/identity/profile-fields', {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fields: defs })
+        });
+        if (res.ok) {
+            showToast('Global profile fields saved!', 'success');
+            const data = await res.json().catch(() => ({}));
+            orgProfileFieldsSchema = Array.isArray(data?.fields) ? data.fields : defs;
+            renderOrgProfileFieldsSchema();
+        } else {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.detail || 'Failed to save', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+async function applyBulkUserCustomAttributes() {
+    const txt = document.getElementById('org-bulk-custom-attrs')?.value || '';
+    const mode = document.getElementById('org-bulk-custom-attrs-mode')?.value || 'merge';
+    let items = [];
+    try {
+        items = JSON.parse(txt);
+        if (!Array.isArray(items)) throw new Error('JSON must be an array');
+    } catch (e) {
+        showToast('Invalid JSON: ' + e.message, 'error');
+        return;
+    }
+    try {
+        const res = await fetch('/api/identity/users/bulk-custom-attributes', {
+            method: 'POST',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items, mode })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            const errs = data.error_count ? ` (${data.error_count} errors)` : '';
+            showToast(`Bulk update applied: ${data.success_count} users${errs}`, data.error_count ? 'warning' : 'success');
+        } else {
+            showToast(data.detail || 'Bulk update failed', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
 }
 
 // --- Departments ---

@@ -1268,6 +1268,7 @@
                             <button onclick="switchOrgSubTab('managers')" id="org-sub-managers" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">👤 Manager Assignment</button>
                             <button onclick="switchOrgSubTab('orgchart')" id="org-sub-orgchart" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">🌳 Org Chart</button>
                             <button onclick="switchOrgSubTab('directory')" id="org-sub-directory" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">⚙️ Directory Config</button>
+                            <button onclick="switchOrgSubTab('profilefields')" id="org-sub-profilefields" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">🧩 Profile Fields</button>
                         </div>
 
                         <!-- Departments Sub-Tab -->
@@ -1365,6 +1366,41 @@
                                     </div>
                                 </div>
                                 <button onclick="saveDirectoryConfig()" class="btn-primary px-6 py-2 rounded-lg">Save Configuration</button>
+                            </div>
+                        </div>
+
+                        <!-- Profile Fields (Global Schema) Sub-Tab -->
+                        <div id="org-content-profilefields" class="hidden">
+                            <div class="mb-4">
+                                <h3 class="text-lg font-semibold">Profile Fields (Global Schema)</h3>
+                                <p class="text-sm text-gray-400">Define global custom profile fields for your organization. Values are still per-user, but this avoids hardcoding and lets the AI wizard discover fields even before values exist.</p>
+                            </div>
+                            <div class="card rounded-xl p-6 space-y-4 max-w-3xl">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-sm text-gray-400">
+                                        Add fields like <span class="text-gray-200">cost_center</span>, <span class="text-gray-200">national_id</span>, <span class="text-gray-200">office_location</span>.
+                                    </div>
+                                    <button onclick="addOrgProfileFieldRow()" class="btn-secondary px-4 py-2 rounded-lg">+ Add Field</button>
+                                </div>
+                                <div id="org-profilefields-list" class="space-y-2">
+                                    <div class="text-sm text-gray-500">Loading...</div>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button onclick="saveOrgProfileFieldsSchema()" class="btn-primary px-6 py-2 rounded-lg">Save Global Fields</button>
+                                </div>
+
+                                <div class="border-t border-gray-700 pt-4">
+                                    <h4 class="font-semibold mb-2">Bulk Apply Values (Optional)</h4>
+                                    <p class="text-xs text-gray-500 mb-2">Use this to set per-user values without editing users one-by-one. Paste JSON array like: <code class="text-gray-300">[{"email":"user@x.com","attributes":{"cost_center":"CC-1"}}]</code></p>
+                                    <textarea id="org-bulk-custom-attrs" class="w-full input-field rounded-lg px-4 py-2 text-sm h-28" placeholder='[{"email":"user@company.com","attributes":{"cost_center":"CC-ENG-01","employee_id":"E-1001"}}]'></textarea>
+                                    <div class="flex justify-end gap-2 mt-2">
+                                        <select id="org-bulk-custom-attrs-mode" class="input-field rounded-lg px-3 py-2 text-sm">
+                                            <option value="merge">Merge</option>
+                                            <option value="replace">Replace</option>
+                                        </select>
+                                        <button onclick="applyBulkUserCustomAttributes()" class="btn-primary px-5 py-2 rounded-lg">Apply Bulk Update</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
