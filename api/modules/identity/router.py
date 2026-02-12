@@ -450,13 +450,21 @@ async def get_profile_fields_schema(user: User = Depends(require_admin)):
     """Get org-level profile field definitions (global schema)."""
     from database.base import get_session
     from database.models.organization import Organization
+    import json
 
     ctx = _extract_user_context(user)
     with get_session() as session:
         org = session.query(Organization).filter(Organization.id == ctx["org_id"]).first()
         if not org:
             raise HTTPException(status_code=404, detail="Organization not found")
-        settings = org.settings or {}
+        settings_raw = org.settings or {}
+        # Some deployments may store JSON as a string; normalize to dict.
+        if isinstance(settings_raw, str):
+            try:
+                settings_raw = json.loads(settings_raw) if settings_raw.strip() else {}
+            except Exception:
+                settings_raw = {}
+        settings = settings_raw if isinstance(settings_raw, dict) else {}
         fields = settings.get("profile_fields_schema") or []
         if not isinstance(fields, list):
             fields = []
@@ -468,6 +476,7 @@ async def update_profile_fields_schema(body: UpdateProfileFieldsSchemaRequest, u
     """Update org-level profile field definitions (global schema)."""
     from database.base import get_session
     from database.models.organization import Organization
+    import json
 
     ctx = _extract_user_context(user)
     fields = body.fields or []
@@ -492,7 +501,13 @@ async def update_profile_fields_schema(body: UpdateProfileFieldsSchemaRequest, u
         org = session.query(Organization).filter(Organization.id == ctx["org_id"]).first()
         if not org:
             raise HTTPException(status_code=404, detail="Organization not found")
-        settings = org.settings or {}
+        settings_raw = org.settings or {}
+        if isinstance(settings_raw, str):
+            try:
+                settings_raw = json.loads(settings_raw) if settings_raw.strip() else {}
+            except Exception:
+                settings_raw = {}
+        settings = settings_raw if isinstance(settings_raw, dict) else {}
         settings["profile_fields_schema"] = cleaned
         org.settings = settings
         org.updated_at = datetime.utcnow()

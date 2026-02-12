@@ -604,11 +604,14 @@ async function loadOrgProfileFieldsSchema() {
             const data = await res.json();
             orgProfileFieldsSchema = Array.isArray(data?.fields) ? data.fields : [];
         } else {
-            orgProfileFieldsSchema = [];
+            // Don't wipe unsaved edits on transient API errors
+            const data = await res.json().catch(() => ({}));
+            showToast(data.detail || 'Failed to load profile fields', 'error');
         }
     } catch (e) {
         console.log('Profile fields schema:', e);
-        orgProfileFieldsSchema = [];
+        // Don't wipe unsaved edits on transient errors
+        showToast('Error loading profile fields: ' + e.message, 'error');
     }
     renderOrgProfileFieldsSchema();
 }
@@ -640,12 +643,15 @@ function renderOrgProfileFieldsSchema() {
 }
 
 function addOrgProfileFieldRow() {
-    orgProfileFieldsSchema = orgProfileFieldsSchema || [];
+    // Preserve any unsaved edits before adding a new row
+    orgProfileFieldsSchema = collectOrgProfileFieldsSchemaFromUI();
     orgProfileFieldsSchema.push({ key: '', label: '', type: 'string', description: '', required: false });
     renderOrgProfileFieldsSchema();
 }
 
 function removeOrgProfileFieldRow(idx) {
+    // Preserve any unsaved edits before removing
+    orgProfileFieldsSchema = collectOrgProfileFieldsSchemaFromUI();
     orgProfileFieldsSchema = (orgProfileFieldsSchema || []).filter((_, i) => i !== idx);
     renderOrgProfileFieldsSchema();
 }

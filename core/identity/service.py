@@ -753,7 +753,15 @@ class UserDirectoryService:
                 # 1) Include org-level schema-defined fields (global definitions)
                 try:
                     org = session.query(Organization).filter(Organization.id == org_id).first()
-                    settings = (org.settings or {}) if org else {}
+                    settings_raw = (org.settings or {}) if org else {}
+                    # Some DB states may store JSON as a string; normalize.
+                    try:
+                        import json as _json
+                        if isinstance(settings_raw, str):
+                            settings_raw = _json.loads(settings_raw) if settings_raw.strip() else {}
+                    except Exception:
+                        settings_raw = {}
+                    settings = settings_raw if isinstance(settings_raw, dict) else {}
                     schema_fields = settings.get("profile_fields_schema") or []
                     if isinstance(schema_fields, list):
                         for f in schema_fields:
