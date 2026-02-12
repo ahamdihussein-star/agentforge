@@ -206,6 +206,15 @@ IMPORTANT:
 - In prompts/templates, reference form fields using double braces like {{{{amount}}}} or {{{{email}}}}.
 - This platform is for business users: ALL labels shown to users must be business-friendly and human readable (no snake_case, no internal IDs).
 - For internal field keys, ALWAYS use lowerCamelCase (no underscores). Example: employeeEmail, startDate, endDate, numberOfDays.
+
+BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text parser):
+- Do NOT follow the user's prompt word-by-word as a sequence. Instead, UNDERSTAND the business intent and design the logically correct workflow.
+- Think about WHEN each step should happen in real life:
+  - Notifications about pending tasks should be sent BEFORE or AT THE SAME TIME as the task, not after it is completed.
+  - Example: If a manager needs to approve something, the notification to the manager should be sent BEFORE the approval step (or as part of it), because the manager needs to KNOW there is something to approve. Do NOT place a "notify manager" step AFTER the approval step — that would mean notifying them after they already approved.
+  - Example: "Notify employee of approval" should happen AFTER the manager approves, not before.
+- Approval nodes have built-in notification capability — when an approval is assigned to someone, the platform notifies them automatically. You only need a separate notification node for custom messages or for notifying OTHER people (like the requester).
+- Always ask yourself: "In a real office, what would happen first?" and design the flow accordingly.
 - Smart field inference:
   - Use your business/industry knowledge to determine what fields are needed, even if the user didn't list them explicitly. Think like a business analyst: what information would a real-world form for this process collect? Add those fields.
   - IMPORTANT: Do NOT limit the form to only what the user explicitly mentioned. If the user says "upload expense receipts", you should ALSO add fields like expense description/purpose, expense category (dropdown), date of expense, etc. — any field that is standard practice for that type of business process. But do NOT add fields for data that will be extracted automatically (e.g., amounts from receipts) or data from the user's profile (prefilled).
@@ -1077,21 +1086,36 @@ class ProcessWizard:
                 if not has_no:
                     normalized_edges.append({"from": cid, "to": no_target, "type": "no"})
 
-        # ENFORCE: End node(s) must be the LAST entries in the nodes array.
-        # Move all end nodes to the very end of the list.
+        # ENFORCE: Exactly one end node. If multiple, merge into one. If none, create one.
         end_nodes = [n for n in normalized_nodes if n.get("type") == "end"]
         non_end_nodes = [n for n in normalized_nodes if n.get("type") != "end"]
-        normalized_nodes = non_end_nodes + end_nodes
+        if not end_nodes:
+            end_nodes = [{"id": "end_node", "type": "end", "name": "End", "config": {}}]
+        elif len(end_nodes) > 1:
+            # Keep first end node, redirect all edges pointing to other end nodes
+            primary_end = end_nodes[0]
+            extra_end_ids = {n["id"] for n in end_nodes[1:]}
+            for e in normalized_edges:
+                if e.get("to") in extra_end_ids:
+                    e["to"] = primary_end["id"]
+            # Remove edges FROM extra end nodes
+            normalized_edges = [e for e in normalized_edges if e.get("from") not in extra_end_ids]
+            end_nodes = [primary_end]
 
-        # ENFORCE: All paths must reach an end node.
-        # Find nodes that have no outgoing edges and are not end nodes — connect them to the first end node.
-        if end_nodes:
-            end_id = end_nodes[0]["id"]
-            node_ids_with_outgoing = set(e.get("from") for e in normalized_edges)
-            for n in normalized_nodes:
-                if n.get("type") != "end" and n["id"] not in node_ids_with_outgoing:
-                    # This node has no outgoing edge — connect it to end
-                    normalized_edges.append({"from": n["id"], "to": end_id})
+        # End node must be LAST in the array
+        normalized_nodes = non_end_nodes + end_nodes
+        end_id = end_nodes[0]["id"]
+
+        # ENFORCE: All paths must reach the end node.
+        # Any non-end node with no outgoing edge → connect to end.
+        node_ids_with_outgoing = set(e.get("from") for e in normalized_edges)
+        for n in normalized_nodes:
+            if n.get("type") != "end" and n["id"] not in node_ids_with_outgoing:
+                normalized_edges.append({"from": n["id"], "to": end_id})
+
+        # ENFORCE: Nothing should come AFTER the end node.
+        # Remove any edge where end node is the source (end should have no outgoing edges).
+        normalized_edges = [e for e in normalized_edges if e.get("from") != end_id]
 
         # Assign positions if missing / invalid and snap to grid
         base_x = 400
