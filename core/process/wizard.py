@@ -1094,6 +1094,31 @@ class ProcessWizard:
                 if not has_no:
                     normalized_edges.append({"from": cid, "to": no_target, "type": "no"})
 
+        # ENFORCE: Extract Document Text actions must have sourceField set.
+        # Find file fields from the trigger node and auto-assign if missing.
+        trigger_file_fields = []
+        trigger_node = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
+        if trigger_node:
+            t_fields = (trigger_node.get("config") or {}).get("fields") or []
+            trigger_file_fields = [f.get("name") for f in t_fields if isinstance(f, dict) and str(f.get("type", "")).lower() == "file"]
+
+        for n in normalized_nodes:
+            if n.get("type") != "action":
+                continue
+            cfg = n.get("config") or {}
+            at = str(cfg.get("actionType") or "").strip().lower().replace("_", "")
+            if at in ("extractdocumenttext", "extracttext"):
+                sf = str(cfg.get("sourceField") or "").strip()
+                if not sf and trigger_file_fields:
+                    sf = trigger_file_fields[0]
+                    cfg["sourceField"] = sf
+                if sf:
+                    cfg["path"] = "{{" + sf + ".path}}"
+                    ov = n.get("output_variable") or n.get("outputVariable") or ""
+                    if not ov:
+                        n["output_variable"] = sf + "Text" if sf else "extractedData"
+                n["config"] = cfg
+
         # ENFORCE: Exactly one end node. If multiple, merge into one. If none, create one.
         end_nodes = [n for n in normalized_nodes if n.get("type") == "end"]
         non_end_nodes = [n for n in normalized_nodes if n.get("type") != "end"]
