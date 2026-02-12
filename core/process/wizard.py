@@ -219,14 +219,19 @@ VISUAL LAYOUT RULES (CRITICAL — follow strictly for clean, professional diagra
 - Connection lines must NEVER pass through any node. Ensure enough spacing so edges route cleanly around nodes.
 - Connection lines must take the SHORTEST path between nodes. Never loop or take long detours.
 - Minimum spacing: 200px vertical gap between sequential nodes, 300px horizontal gap between branches.
-- The "end" node must ALWAYS be:
-  (a) The LAST entry in the nodes array.
-  (b) Positioned clearly BELOW all other nodes (vertical) or to the FAR RIGHT (horizontal).
-  (c) NOT placed beside or next to the previous node — there must be a clear visual gap to indicate conclusion.
 - For linear flows (no conditions): place ALL nodes in a single vertical column (same x, increasing y by ~200).
 - For condition branches: "yes" path goes LEFT (x - 300), "no" path goes RIGHT (x + 300). Both paths reconverge to a shared node at center x below both branches.
-- Every node MUST be connected. No orphan nodes. Every path must eventually reach an "end" node.
 - Keep the main flow linear when possible. Avoid unnecessary branching — it creates visual clutter.
+
+END NODE RULE (ABSOLUTE — NO EXCEPTIONS):
+- There must be exactly ONE "end" node in the entire process.
+- The "end" node must be the VERY LAST node in the nodes array.
+- ALL paths (yes branch, no branch, every branch) must eventually connect to this single "end" node.
+- NOTHING comes after the "end" node. No notifications, no actions, no steps of any kind.
+- If both branches of a condition need different final notifications, place those notifications BEFORE the end node, then both connect to the single end node.
+- The end node must be positioned BELOW every other node in the diagram.
+- WRONG: Yes → Notification → End, No → Approval → Notification (after End)
+- CORRECT: Yes → Notification → End, No → Approval → Notification → End (same End node, at the very bottom)
 
 Schema to output:
 {{
@@ -1070,10 +1075,26 @@ class ProcessWizard:
                 if not has_no:
                     normalized_edges.append({"from": cid, "to": no_target, "type": "no"})
 
+        # ENFORCE: End node(s) must be the LAST entries in the nodes array.
+        # Move all end nodes to the very end of the list.
+        end_nodes = [n for n in normalized_nodes if n.get("type") == "end"]
+        non_end_nodes = [n for n in normalized_nodes if n.get("type") != "end"]
+        normalized_nodes = non_end_nodes + end_nodes
+
+        # ENFORCE: All paths must reach an end node.
+        # Find nodes that have no outgoing edges and are not end nodes — connect them to the first end node.
+        if end_nodes:
+            end_id = end_nodes[0]["id"]
+            node_ids_with_outgoing = set(e.get("from") for e in normalized_edges)
+            for n in normalized_nodes:
+                if n.get("type") != "end" and n["id"] not in node_ids_with_outgoing:
+                    # This node has no outgoing edge — connect it to end
+                    normalized_edges.append({"from": n["id"], "to": end_id})
+
         # Assign positions if missing / invalid and snap to grid
         base_x = 400
         base_y = 100
-        gap_y = 140
+        gap_y = 200
         for i, n in enumerate(normalized_nodes):
             x = n.get("x")
             y = n.get("y")
@@ -1084,6 +1105,14 @@ class ProcessWizard:
             # Snap to 20px grid (same as UI)
             n["x"] = int(round(float(x) / 20) * 20)
             n["y"] = int(round(float(y) / 20) * 20)
+
+        # ENFORCE: End node positioned below all other nodes
+        if end_nodes:
+            max_y = max((n.get("y", 0) for n in normalized_nodes if n.get("type") != "end"), default=100)
+            for en in end_nodes:
+                if en.get("y", 0) <= max_y:
+                    en["y"] = int(round((max_y + gap_y) / 20) * 20)
+                    en["x"] = base_x  # Center it
 
         out["nodes"] = normalized_nodes
         out["edges"] = normalized_edges

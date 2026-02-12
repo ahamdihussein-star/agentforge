@@ -24,13 +24,26 @@ Following these rules ensures the generated process is clean, readable, and prof
   - Horizontal gap between branching nodes (e.g., yes/no paths): at least 280-300 pixels
 - This ensures labels, connection lines, and node shapes do not overlap or crowd each other.
 
-## Rule 4: End Node Positioning
+## Rule 4: End Node — ABSOLUTE RULE (NO EXCEPTIONS)
 
-- The "end" node must ALWAYS be the last node visually:
-  - In vertical layout (top-to-bottom flow): the end node must be at the BOTTOM of the diagram, clearly below all other nodes.
-  - In horizontal layout (left-to-right flow): the end node must be at the FAR RIGHT of the diagram.
-- The end node must NEVER be placed next to or beside the node immediately before it. It should be clearly separated with proper spacing to indicate the process conclusion.
-- If there are multiple paths (e.g., from a condition), the end node should be positioned below/after ALL paths converge, or below the longest path.
+- There must be exactly ONE "end" node in the entire process.
+- The "end" node must be the VERY LAST entry in the nodes array.
+- ALL paths must eventually connect to this SINGLE end node. No path terminates without reaching the end node.
+- NOTHING comes after the end node — no notifications, no actions, no steps of any kind.
+- The end node must be positioned BELOW every other node in the diagram.
+- If a condition creates two branches and each branch needs a final notification, place those notifications BEFORE the end node, then both branches connect to the single end node at the bottom.
+
+**WRONG pattern:**
+```
+Condition → Yes → Notification → End
+         → No → Approval → Notification (placed AFTER the End node)
+```
+
+**CORRECT pattern:**
+```
+Condition → Yes → Auto-Approval Notification ──→ End (single, at the very bottom)
+         → No → Manager Approval → Manager Notification → Employee Notification ──→ End (same End node)
+```
 
 ## Rule 5: Linear Flow Preference
 
