@@ -361,6 +361,11 @@ Node config rules:
       - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
       - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
       - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
+    - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts), the extraction step automatically processes ALL uploaded files and returns combined text with "--- File: <name> ---" headers separating each document's content. The AI parsing node MUST be aware of this:
+      - Its prompt should instruct the AI to parse data from ALL documents in the text
+      - For financial workflows: calculate the GRAND TOTAL across all documents (sum of all amounts)
+      - Return aggregated fields: e.g., totalAmount = sum of all individual amounts, itemCount = number of documents, items = array of per-document details
+      - Example AI prompt for multi-file: "Parse ALL receipts/invoices from the extracted text. For each document, extract amount, vendor, date. Then calculate the grand total across ALL documents. Return JSON with: totalAmount (sum of all), currency, itemCount, items (array of each document's details)."
     - Subsequent nodes (conditions, notifications, approvals) should reference the parsed data fields.
     - This pattern works for ANY document or image type — the LLM determines what to extract based on context.
 
@@ -1102,16 +1107,26 @@ class ProcessWizard:
         # ENFORCE: Extract Document Text actions must have sourceField set.
         # Find file fields from the trigger node and auto-assign if missing.
         trigger_file_fields = []
+        trigger_multi_file_fields = set()  # Track which file fields accept multiple files
         trigger_node = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
         if trigger_node:
             t_fields = (trigger_node.get("config") or {}).get("fields") or []
-            trigger_file_fields = [f.get("name") for f in t_fields if isinstance(f, dict) and str(f.get("type", "")).lower() == "file"]
+            for f in t_fields:
+                if isinstance(f, dict) and str(f.get("type", "")).lower() == "file":
+                    fname = f.get("name")
+                    if fname:
+                        trigger_file_fields.append(fname)
+                        if f.get("multiple"):
+                            trigger_multi_file_fields.add(fname)
 
         if not trigger_file_fields and any(
             str((n.get("config") or {}).get("actionType") or "").strip().lower().replace("_", "") in ("extractdocumenttext", "extracttext")
             for n in normalized_nodes if n.get("type") == "action"
         ):
             logger.warning("Extract Document Text action(s) present but trigger has no file fields; sourceField may be unset")
+
+        # Map: extraction output_variable → whether it comes from a multi-file field
+        extraction_multi_file_vars = {}
 
         for n in normalized_nodes:
             if n.get("type") != "action":
@@ -1135,7 +1150,37 @@ class ProcessWizard:
                 ov = n.get("output_variable") or n.get("outputVariable") or ""
                 if not ov:
                     n["output_variable"] = sf + "Text" if sf else "extractedData"
+                    ov = n["output_variable"]
+                # Track if this extraction uses a multi-file field
+                if sf and sf in trigger_multi_file_fields:
+                    extraction_multi_file_vars[ov] = sf
                 n["config"] = cfg
+
+        # ENFORCE: AI nodes that parse multi-file extraction output must handle aggregation.
+        # When the extraction comes from a multi-file field, the AI node's prompt must
+        # instruct it to parse ALL documents and calculate totals/aggregates.
+        if extraction_multi_file_vars:
+            for n in normalized_nodes:
+                if n.get("type") != "ai":
+                    continue
+                cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+                prompt = str(cfg.get("prompt") or "").strip()
+                # Check if this AI node references any multi-file extraction variable
+                for ext_var, file_field in extraction_multi_file_vars.items():
+                    if "{{" + ext_var + "}}" in prompt or ext_var in prompt:
+                        # This AI node parses multi-file extraction — enhance prompt
+                        if "ALL documents" not in prompt and "all documents" not in prompt and "each document" not in prompt:
+                            multi_file_instruction = (
+                                "\n\nIMPORTANT: The input text may contain data from MULTIPLE uploaded files/documents, "
+                                "separated by '--- File: <name> ---' headers. You MUST parse ALL documents, not just the first one. "
+                                "Calculate the GRAND TOTAL by summing amounts from all individual documents. "
+                                "Return: totalAmount (sum of ALL documents), currency, itemCount (number of documents), "
+                                "and items (array with each document's details: amount, vendor/source, date if available)."
+                            )
+                            cfg["prompt"] = prompt + multi_file_instruction
+                            n["config"] = cfg
+                            logger.info(f"Enhanced AI node '{n.get('name')}' prompt for multi-file aggregation (source: {file_field})")
+                        break
 
         # ENFORCE: AI nodes whose output_variable is referenced by a condition using dot notation
         # (e.g., parsedData.totalAmount) MUST output JSON so the engine can resolve nested fields.
