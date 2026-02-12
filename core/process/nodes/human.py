@@ -94,7 +94,20 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     "user_ids": assignee_ids_raw if isinstance(assignee_ids_raw, list) else [],
                     "role_ids": self.get_config_value(node, 'assignee_role_ids', []),
                     "group_ids": self.get_config_value(node, 'assignee_group_ids', []),
-                    "department_id": self.get_config_value(node, 'assignee_department_id'),
+                    # Backward-compatible department routing keys:
+                    # - visual builder historically used assignee_department_id
+                    # - some generators may output department_id / departmentId
+                    # - we also support department_name so the LLM can route without knowing IDs
+                    "department_id": (
+                        self.get_config_value(node, 'assignee_department_id')
+                        or self.get_config_value(node, 'department_id')
+                        or self.get_config_value(node, 'departmentId')
+                    ),
+                    "department_name": (
+                        self.get_config_value(node, 'assignee_department_name')
+                        or self.get_config_value(node, 'department_name')
+                        or self.get_config_value(node, 'departmentName')
+                    ),
                     "level": self.get_config_value(node, 'management_level', 1),
                     "expression": self.get_config_value(node, 'assignee_expression', ''),
                 }

@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .schemas import (
     UpdateManagerRequest, UpdateEmployeeIdRequest,
+    UpdateUserDepartmentRequest,
     BulkOrgChartRequest, BulkOrgChartResponse,
     UserAttributesResponse, OrgChartNodeResponse, DepartmentResponse,
     CreateDepartmentRequest, UpdateDepartmentRequest,
@@ -197,6 +198,60 @@ async def update_user_employee_id(
         raise HTTPException(status_code=404, detail="User not found")
     
     return {"status": "success", "user_id": user_id, "employee_id": body.employee_id}
+
+
+@router.put("/users/{user_id}/department")
+async def update_user_department(
+    user_id: str,
+    body: UpdateUserDepartmentRequest,
+    user: User = Depends(require_admin)
+):
+    """
+    Update a user's department assignment.
+    Requires admin permissions (users:edit).
+    """
+    from database.base import get_session
+    from database.models.department import Department
+    from database.models.user import User as UserModel
+
+    ctx = _extract_user_context(user)
+    dept_id = body.department_id
+
+    # Normalize empty strings
+    if isinstance(dept_id, str) and not dept_id.strip():
+        dept_id = None
+
+    with get_session() as session:
+        db_user = session.query(UserModel).filter(
+            UserModel.id == user_id,
+            UserModel.org_id == ctx["org_id"]
+        ).first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        dept_uuid = None
+        if dept_id is not None:
+            dept = session.query(Department).filter(
+                Department.id == dept_id,
+                Department.org_id == ctx["org_id"]
+            ).first()
+            if not dept:
+                raise HTTPException(status_code=404, detail="Department not found")
+            dept_uuid = dept.id
+
+        db_user.department_id = dept_uuid
+        db_user.updated_at = datetime.utcnow()
+        session.commit()
+
+    # Keep in-memory security cache in sync so later save_to_disk doesn't overwrite.
+    try:
+        cached_user = security_state.users.get(user_id)
+        if cached_user and getattr(cached_user, "org_id", None) == ctx["org_id"]:
+            setattr(cached_user, "department_id", str(dept_uuid) if dept_uuid else None)
+    except Exception:
+        pass
+
+    return {"status": "success", "user_id": user_id, "department_id": str(dept_uuid) if dept_uuid else None}
 
 
 @router.post("/org-chart/bulk-update", response_model=BulkOrgChartResponse)

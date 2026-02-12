@@ -642,7 +642,53 @@ class UserDirectoryService:
         Returns:
             List of resolved user IDs
         """
-        assignee_type = assignee_config.get("type", "static")
+        # Backward-compatible aliases:
+        # - process nodes commonly use "directory_assignee_type"
+        # - older callers may set "type"
+        assignee_type = assignee_config.get("type") or assignee_config.get("directory_assignee_type") or "static"
+
+        def _resolve_department_id() -> Optional[str]:
+            """
+            Resolve a department ID from config or context.
+
+            Supports:
+            - department_id (preferred if present)
+            - department_name (case-insensitive lookup within org)
+            - if neither is provided, use triggering user's department when applicable
+            """
+            dept_id = assignee_config.get("department_id") or assignee_config.get("departmentId")
+            if isinstance(dept_id, str) and not dept_id.strip():
+                dept_id = None
+            if dept_id:
+                return dept_id
+
+            dept_name = assignee_config.get("department_name") or assignee_config.get("departmentName")
+            if isinstance(dept_name, str):
+                dept_name = dept_name.strip()
+            else:
+                dept_name = None
+
+            if dept_name:
+                try:
+                    from database.base import get_session
+                    from database.models.department import Department
+                    with get_session() as session:
+                        dept = session.query(Department).filter(
+                            Department.org_id == org_id,
+                            Department.name.ilike(dept_name)
+                        ).first()
+                        if dept:
+                            return str(dept.id)
+                except Exception:
+                    # Never fail assignee resolution due to lookup edge cases
+                    pass
+
+            # Fallback to triggering user's department where meaningful
+            trigger_user_id = process_context.get("user_id")
+            if trigger_user_id:
+                user = self.get_user(trigger_user_id, org_id)
+                return user.department_id if user else None
+            return None
         
         if assignee_type == "static":
             return assignee_config.get("user_ids", [])
@@ -662,14 +708,7 @@ class UserDirectoryService:
         
         elif assignee_type == "department_manager":
             # Get the department manager
-            dept_id = assignee_config.get("department_id")
-            if not dept_id:
-                # Use the triggering user's department
-                trigger_user_id = process_context.get("user_id")
-                if trigger_user_id:
-                    user = self.get_user(trigger_user_id, org_id)
-                    dept_id = user.department_id if user else None
-            
+            dept_id = _resolve_department_id()
             if dept_id:
                 mgr = self._get_department_manager(dept_id, org_id)
                 if mgr:
@@ -678,7 +717,7 @@ class UserDirectoryService:
         
         elif assignee_type == "department_members":
             # Get all members of a department
-            dept_id = assignee_config.get("department_id")
+            dept_id = _resolve_department_id()
             if dept_id:
                 members = self.get_department_members(dept_id, org_id)
                 return [m.user_id for m in members]

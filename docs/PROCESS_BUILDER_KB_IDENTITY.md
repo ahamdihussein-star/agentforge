@@ -33,9 +33,21 @@ appropriate `directory_assignee_type`. The engine resolves the actual person(s) 
 | `management_chain` | Routes to Nth-level manager (set `management_level: N`) | Senior/executive approvals (2 = manager's manager, 3 = one level higher, etc.) |
 | `role` | Routes to users with a specific platform role (set `role_ids`) | Cross-organizational approvals by function (e.g., anyone with a specific role) |
 | `group` | Routes to users in a specific platform group (set `group_ids`) | Committee or team-based approvals |
-| `department_members` | Routes to all members of a department (set `department_id`) | When an entire department needs to be involved |
+| `department_members` | Routes to all members of a department | When an entire department needs to be involved |
 | `expression` | Dynamic from form field or variable (set `expression`) | When the user selects their approver, or the approver is determined by a previous step |
 | `static` | Fixed user IDs (set `user_ids`) | When specific individuals are always the approvers regardless of who submits |
+
+### Department Routing (IMPORTANT)
+
+Department-based routing must remain **dynamic** and must not rely on hardcoded IDs in prompts.
+
+When using `department_manager` or `department_members`, you may provide **either**:
+- `department_id` (string UUID) — if you already have it, OR
+- `department_name` (string) — the engine will resolve it within the org at runtime (case-insensitive), OR
+- omit both — for `department_manager` the engine may fall back to the requester's own department.
+
+Anti-hardcoding rule:
+- Do NOT invent department names or lists. If the user explicitly mentions a department in their goal (e.g., “send to <department>”), use that exact department name as `department_name`. If no department is mentioned and one is required, ask the user to specify the department name.
 
 ### Expression-Based Dynamic Routing
 

@@ -281,7 +281,9 @@ Node config rules:
   - For higher management (skip-level): assignee_source: "user_directory", directory_assignee_type: "management_chain", management_level: N (2=next level, 3=above that).
   - For role-based approval: assignee_source: "user_directory", directory_assignee_type: "role", role_ids: ["<role_id>"].
   - For group/team/committee approval: assignee_source: "user_directory", directory_assignee_type: "group", group_ids: ["<group_id>"].
-  - For department-wide: assignee_source: "user_directory", directory_assignee_type: "department_members", department_id: "<dept_id>".
+  - For department-wide: assignee_source: "user_directory", directory_assignee_type: "department_members", and set EITHER:
+      - assignee_department_name: "<department name>" (RECOMMENDED for LLM-generated workflows), OR
+      - assignee_department_id: "<dept_id>".
   - For dynamic (form field selects approver): assignee_source: "user_directory", directory_assignee_type: "expression", expression: "{{{{ trigger_input.fieldName }}}}".
   - For static (always same person): assignee_source: "platform_user".
   - ALWAYS prefer "user_directory" over "platform_user" when the approval follows organizational hierarchy.

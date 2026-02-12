@@ -122,6 +122,11 @@ When `assignee_source` is `user_directory` (recommended for any approval that fo
 
 See **PROCESS_BUILDER_KB_IDENTITY.md** for full identity-aware approval details.
 
+Department routing fields (use when needed by `department_manager` / `department_members`):
+- Prefer `department_name` (string) when the workflow is created by an LLM from a user prompt (because IDs are not known at design time).
+- Use `department_id` (string UUID) if already available.
+- For backward compatibility, the engine also accepts `assignee_department_id` / `assignee_department_name` in `approval.config`.
+
 ### 7) Notification — `notification`
 Purpose: Send a message to one or more recipients.
 

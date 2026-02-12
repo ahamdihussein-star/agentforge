@@ -926,6 +926,13 @@ function openManagerModal(userId) {
     document.getElementById('mgr-user-id').value = userId;
     document.getElementById('mgr-user-name').textContent = user.name || user.email;
     document.getElementById('mgr-employee-id').value = user.employee_id || '';
+    const deptSelect = document.getElementById('mgr-dept-select');
+    if (deptSelect) {
+        deptSelect.innerHTML = '<option value="">— No Department —</option>' +
+            (orgDepartments || []).map(d =>
+                `<option value="${d.id}" ${d.id === user.department_id ? 'selected' : ''}>${escHtml(d.name || d.id)}</option>`
+            ).join('');
+    }
     const mgrSelect = document.getElementById('mgr-select');
     mgrSelect.innerHTML = '<option value="">— No Manager —</option>' +
         orgUsersCache.filter(u => u.id !== userId).map(u =>
@@ -944,6 +951,7 @@ async function saveManagerAssignment() {
     const userId = document.getElementById('mgr-user-id').value;
     const managerId = document.getElementById('mgr-select').value || null;
     const employeeId = document.getElementById('mgr-employee-id').value.trim() || null;
+    const departmentId = document.getElementById('mgr-dept-select')?.value || null;
     try {
         // Save manager
         const mgrRes = await fetch(`/api/identity/users/${userId}/manager`, {
@@ -959,6 +967,12 @@ async function saveManagerAssignment() {
                 body: JSON.stringify({ employee_id: employeeId })
             });
         }
+        // Save department
+        await fetch(`/api/identity/users/${userId}/department`, {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ department_id: departmentId })
+        });
         if (mgrRes.ok) {
             showToast('Manager assignment saved!', 'success');
             // Update cache
@@ -966,6 +980,7 @@ async function saveManagerAssignment() {
             if (idx >= 0) {
                 orgUsersCache[idx].manager_id = managerId;
                 orgUsersCache[idx].employee_id = employeeId;
+                orgUsersCache[idx].department_id = departmentId;
             }
             renderOrgManagerTable();
             closeManagerModal();

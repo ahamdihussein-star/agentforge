@@ -22,6 +22,11 @@ class UpdateEmployeeIdRequest(BaseModel):
     employee_id: str
 
 
+class UpdateUserDepartmentRequest(BaseModel):
+    """Request to update a user's department"""
+    department_id: Optional[str] = None  # None to clear department
+
+
 class BulkOrgChartUpdate(BaseModel):
     """Single entry in a bulk org chart update"""
     user_id: str
