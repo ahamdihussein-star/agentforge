@@ -2974,21 +2974,28 @@
                         </div>
                         <div class="property-group">
                             <label class="property-label">Recipient</label>
-                            ${availableFields.filter(f => f.type === 'email' || f.type === 'text').length > 0 ? `
-                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
-                                    <option value="">-- Select Field --</option>
-                                    ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
-                                        <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
-                                            ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
-                                        </option>
-                                    `).join('')}
-                                    <option value="_custom">✏️ Custom...</option>
-                                </select>
-                            ` : ''}
-                            <input type="text" class="property-input" ${availableFields.length > 0 ? 'style="margin-top:8px;"' : ''} 
-                                   placeholder="email@example.com or {{field_name}}" 
-                                   value="${node.config.recipient || ''}"
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
+                                <option value="">-- Select Recipient --</option>
+                                <option value="requester" ${node.config.recipient === 'requester' ? 'selected' : ''}>👤 Requester (person who submitted)</option>
+                                <option value="manager" ${node.config.recipient === 'manager' ? 'selected' : ''}>👔 Manager (requester's direct manager)</option>
+                                ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
+                                    <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
+                                        📧 ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (form field)
+                                    </option>
+                                `).join('')}
+                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') ? 'selected' : ''}>✏️ Custom email...</option>
+                            </select>
+                            <input type="text" class="property-input" style="margin-top:8px;${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') ? '' : 'display:none;'}" 
+                                   placeholder="email@example.com" 
+                                   value="${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') ? (node.config.recipient || '') : ''}"
                                    onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                ${node.config.recipient === 'requester' ? '✅ Will auto-send to the employee who submitted the form' : 
+                                  node.config.recipient === 'manager' ? '✅ Will auto-send to the submitter\'s direct manager' :
+                                  node.config.recipient && node.config.recipient.startsWith('{{') ? '✅ Will use the email from the form field' :
+                                  node.config.recipient ? '✅ Will send to: ' + escapeHtml(node.config.recipient) :
+                                  '⚠️ No recipient set — notification won\'t be sent'}
+                            </div>
                         </div>
                         <div class="property-group">
                             <label class="property-label">Message Template</label>
@@ -3467,8 +3474,20 @@
         function updateNodeConfig(nodeId, key, value) {
             const node = state.nodes.find(n => n.id === nodeId);
             if (node) {
+                // Special handling: notification recipient dropdown
+                if (key === 'recipient' && value === '_custom') {
+                    node.config[key] = '';
+                    refreshNode(node);
+                    showProperties(node); // Re-render to show text input
+                    saveToUndo();
+                    return;
+                }
                 node.config[key] = value;
                 refreshNode(node);
+                // Re-render properties for recipient changes to update hint text
+                if (key === 'recipient' && node.type === 'notification') {
+                    showProperties(node);
+                }
                 saveToUndo();
             }
         }

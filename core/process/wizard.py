@@ -335,16 +335,21 @@ Node config rules:
   - For static (always same person): assignee_source: "platform_user".
   - ALWAYS prefer "user_directory" over "platform_user" when the approval follows organizational hierarchy.
   - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence.
-- notification.config must include: channel, recipients (array), title, message.
-  SMART RECIPIENTS — the engine auto-resolves recipients at runtime:
-  - "requester" → automatically sends to the person who submitted the form (no email needed)
-  - "manager" → automatically sends to the requester's direct manager (email auto-resolved)
-  - "{{{{ trigger_input._user_context.email }}}}" → requester's email from context
-  - "{{{{ trigger_input._user_context.manager_email }}}}" → manager's email from context
-  - "user-id-here" → if a UUID user ID, the engine resolves it to an email automatically
-  - "someone@example.com" → direct email address
-  BEST PRACTICE: Use "requester" and "manager" shortcuts whenever possible. NEVER ask users to enter an email for notifications when the system can resolve it automatically.
-  RICH NOTIFICATIONS: Include relevant data summaries in notification messages using variable interpolation. For instance, include key information (amounts, dates, descriptions, status, parsed data) so recipients have full context without needing to log into the platform. Notifications should be self-contained and informative.
+- notification.config must include: channel, recipient (string), template (string).
+  - channel: "email" (default)
+  - recipient: WHO receives this notification. Use ONE of these (string, not array):
+    - "requester" → automatically sends to the person who submitted the form (PREFERRED for employee notifications)
+    - "manager" → automatically sends to the requester's direct manager (PREFERRED for manager notifications)
+    - "{{{{employeeEmail}}}}" → a form field reference (only if you need a custom email field)
+    - "someone@example.com" → a hardcoded email (rarely used)
+    BEST PRACTICE: Use "requester" and "manager" shortcuts. NEVER leave recipient empty. NEVER use "-- Select Field --".
+  - template: The full email body content. MUST be a rich, informative message that includes:
+    - What happened (approved, rejected, pending, auto-approved, etc.)
+    - Key data using variable interpolation: {{{{fieldName}}}} for form fields, {{{{parsedData.totalAmount}}}}, {{{{parsedData.vendor}}}}, etc.
+    - Context so the recipient understands without logging in
+    Example: "Your expense report for {{{{expenseDescription}}}} ({{{{expenseCategory}}}}) totaling {{{{parsedData.totalAmount}}}} {{{{parsedData.currency}}}} has been auto-approved as it is under the 500 AED threshold."
+    NEVER leave template empty. ALWAYS write a complete, business-friendly notification message.
+  CRITICAL: Every notification node MUST have a non-empty recipient and a non-empty template. The AI must fill both — they are NEVER left for the user to configure manually.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
 - action.config MUST include: actionType.
   - Use actionType="generateDocument" only when document output is explicitly required.
@@ -1119,6 +1124,67 @@ class ProcessWizard:
                         n["output_variable"] = sf + "Text" if sf else "extractedData"
                 n["config"] = cfg
 
+        # ENFORCE: Notification nodes must have recipient and template populated.
+        # The LLM may use engine format (recipients/message) instead of visual builder format (recipient/template),
+        # or may leave them empty. Auto-fix both issues.
+        # Collect trigger field names for building smart messages
+        trigger_fields = []
+        _tn = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
+        if _tn:
+            _tfields = (_tn.get("config") or {}).get("fields") or []
+            trigger_fields = [f.get("name") for f in _tfields if isinstance(f, dict) and f.get("name")]
+
+        for n in normalized_nodes:
+            if n.get("type") != "notification":
+                continue
+            cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+            # Normalize engine format → visual builder format
+            if not cfg.get("recipient") and cfg.get("recipients"):
+                rlist = cfg["recipients"]
+                if isinstance(rlist, list) and rlist:
+                    cfg["recipient"] = str(rlist[0])
+                elif isinstance(rlist, str):
+                    cfg["recipient"] = rlist
+            if not cfg.get("template") and cfg.get("message"):
+                cfg["template"] = str(cfg["message"])
+            if not cfg.get("template") and cfg.get("title"):
+                cfg["template"] = str(cfg["title"])
+
+            # Auto-fill empty recipient based on node name/context
+            if not cfg.get("recipient") or cfg.get("recipient") in ("", "-- Select Field --"):
+                name_lower = (n.get("name") or "").lower()
+                if "manager" in name_lower or "supervisor" in name_lower or "boss" in name_lower:
+                    cfg["recipient"] = "manager"
+                else:
+                    # Default to requester (employee) for all other notifications
+                    cfg["recipient"] = "requester"
+
+            # Auto-fill empty template with a smart default message
+            if not cfg.get("template") or not str(cfg.get("template", "")).strip():
+                name = n.get("name") or "Notification"
+                # Build a contextual message using available form fields
+                field_refs = " | ".join([f"{{{{{f}}}}}" for f in trigger_fields[:6]]) if trigger_fields else ""
+                field_summary = f"\n\nDetails: {field_refs}" if field_refs else ""
+                name_lower = (n.get("name") or "").lower()
+
+                if "auto" in name_lower and "approv" in name_lower:
+                    cfg["template"] = f"Your request has been automatically approved as it meets the auto-approval criteria.{field_summary}"
+                elif "approv" in name_lower and "manager" not in name_lower:
+                    cfg["template"] = f"Your request has been approved.{field_summary}"
+                elif "reject" in name_lower:
+                    cfg["template"] = f"Your request has been reviewed and was not approved at this time. Please contact your manager for details.{field_summary}"
+                elif "manager" in name_lower and "pending" in name_lower:
+                    cfg["template"] = f"A new request requires your approval. Please review and take action.{field_summary}"
+                elif "manager" in name_lower:
+                    cfg["template"] = f"A request requires your attention.{field_summary}"
+                else:
+                    cfg["template"] = f"{name}{field_summary}"
+
+            # Ensure channel is set
+            if not cfg.get("channel"):
+                cfg["channel"] = "email"
+            n["config"] = cfg
+
         # ENFORCE: Exactly one end node. If multiple, merge into one. If none, create one.
         end_nodes = [n for n in normalized_nodes if n.get("type") == "end"]
         non_end_nodes = [n for n in normalized_nodes if n.get("type") != "end"]
@@ -1486,9 +1552,8 @@ class ProcessWizard:
             },
             "notification": {
                 "channel": "email",
-                "recipients": [],
-                "title": "",
-                "message": ""
+                "recipient": "requester",
+                "template": ""
             },
             "condition": {
                 "expression": "true"

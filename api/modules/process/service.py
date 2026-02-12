@@ -1509,9 +1509,14 @@ class ProcessAPIService:
                     type_cfg['recipients'] = [type_cfg['recipient']]
                 if not type_cfg.get('message') and type_cfg.get('template'):
                     type_cfg['message'] = type_cfg.get('template', '')
+                    # Remove 'template' so the engine doesn't confuse it with a template ID
+                    del type_cfg['template']
                 # Ensure at least one of message/template so "Either message or template is required" does not fail
                 if not (type_cfg.get('message') or type_cfg.get('template')):
                     type_cfg['message'] = 'Notification'
+                # Ensure title exists (used as email subject)
+                if not type_cfg.get('title'):
+                    type_cfg['title'] = node.get('name') or 'Notification'
             # Tool node: Process Builder uses 'toolId' and 'params'; engine expects 'tool_id' and 'arguments'
             if node_type == 'tool':
                 if not type_cfg.get('tool_id') and type_cfg.get('toolId'):
