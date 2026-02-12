@@ -361,11 +361,11 @@ Node config rules:
       - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
       - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
       - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
-    - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts), the extraction step automatically processes ALL uploaded files and returns combined text with "--- File: <name> ---" headers separating each document's content. The AI parsing node MUST be aware of this:
-      - Its prompt should instruct the AI to parse data from ALL documents in the text
-      - For financial workflows: calculate the GRAND TOTAL across all documents (sum of all amounts)
-      - Return aggregated fields: e.g., totalAmount = sum of all individual amounts, itemCount = number of documents, items = array of per-document details
-      - Example AI prompt for multi-file: "Parse ALL receipts/invoices from the extracted text. For each document, extract amount, vendor, date. Then calculate the grand total across ALL documents. Return JSON with: totalAmount (sum of all), currency, itemCount, items (array of each document's details)."
+    - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts, reports), the extraction step automatically processes ALL uploaded files and returns combined text with "--- File: <name> ---" headers separating each document's content. The AI parsing node MUST be aware of this:
+      - Its prompt should instruct the AI to parse data from ALL documents in the text, not just the first one
+      - The AI must aggregate results appropriately based on the workflow's purpose (e.g., sum monetary amounts for financial workflows, merge findings for review workflows, compile all items for inventory workflows, etc.)
+      - Always return: itemCount (number of documents processed), items (array with per-document extracted details), plus any aggregated/summary fields relevant to the workflow's goal
+      - The LLM should infer what fields to extract and how to aggregate them based on the business context — do NOT hardcode field names
     - Subsequent nodes (conditions, notifications, approvals) should reference the parsed data fields.
     - This pattern works for ANY document or image type — the LLM determines what to extract based on context.
 
@@ -1173,9 +1173,10 @@ class ProcessWizard:
                             multi_file_instruction = (
                                 "\n\nIMPORTANT: The input text may contain data from MULTIPLE uploaded files/documents, "
                                 "separated by '--- File: <name> ---' headers. You MUST parse ALL documents, not just the first one. "
-                                "Calculate the GRAND TOTAL by summing amounts from all individual documents. "
-                                "Return: totalAmount (sum of ALL documents), currency, itemCount (number of documents), "
-                                "and items (array with each document's details: amount, vendor/source, date if available)."
+                                "For each document, extract the relevant fields based on the workflow context. "
+                                "Then aggregate the results appropriately (e.g., sum numeric values, merge lists, compile findings). "
+                                "Always include: itemCount (number of documents processed) and items (array of per-document details). "
+                                "Add any aggregated/summary fields that are relevant to the workflow's purpose."
                             )
                             cfg["prompt"] = prompt + multi_file_instruction
                             n["config"] = cfg
