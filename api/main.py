@@ -12222,16 +12222,38 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
 {get_language_instruction(g.language)}
 
 """
+            # Add instruction enforcement section (BEFORE tasks - matches original working order)
+            if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                # Get enforcement phrases
+                phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
+                
+                system_prompt += f"""
+=== ⚠️ INSTRUCTION ENFORCEMENT ===
+{phrases['critical']}
+{phrases['mandatory']}
+{phrases['no_skip']}
+
+"""
+            
             system_prompt += "=== TASKS ==="
             
             # Build tasks with enforced instructions
             for task in accessible_tasks:
                 system_prompt += f"\n\n### TASK: {task.name}\n{task.description}"
                 if task.instructions:
-                    system_prompt += "\n**Steps:**"
-                    for i, inst in enumerate(task.instructions, 1):
-                        inst_text = inst.text if hasattr(inst, 'text') else str(inst)
-                        system_prompt += f"\n  {i}. {inst_text}"
+                    if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                        # Use enforcer formatting
+                        system_prompt += InstructionEnforcer.format_instructions_for_prompt(
+                            [inst.text for inst in task.instructions],
+                            task.name,
+                            enforce_lang
+                        )
+                    else:
+                        # Fallback formatting with emphasis
+                        system_prompt += "\n**⚠️ MANDATORY STEPS (Execute ALL in order):**"
+                        for i, inst in enumerate(task.instructions, 1):
+                            inst_text = inst.text if hasattr(inst, 'text') else str(inst)
+                            system_prompt += f"\n  [{i}] ✓ {inst_text}"
             
             # ========================================================================
             # ADD TOOL DESCRIPTIONS (BEFORE guardrails so LLM sees tools first)
@@ -12271,6 +12293,16 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             # Response length
             length_map = {'short': '1-2 paragraphs MAX', 'medium': '2-3 paragraphs', 'long': 'Detailed as needed', 'unlimited': 'Thorough coverage'}
             system_prompt += f"\n**RESPONSE LENGTH:** {length_map.get(g.max_length, '2-3 paragraphs')}"
+            
+            # Add verification reminder (ensures LLM re-checks instructions before responding)
+            if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
+                phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
+                system_prompt += f"""
+
+=== BEFORE YOU RESPOND ===
+{phrases['verify']}
+{phrases['confirm']}
+"""
             
             system_prompt += context
             
