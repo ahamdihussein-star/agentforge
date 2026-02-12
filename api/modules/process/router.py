@@ -1342,16 +1342,23 @@ Steps executed:
 """
     
     try:
-        from core.llm.models import Message, MessageRole
+        from core.llm.base import Message, MessageRole
         messages = [
             Message(role=MessageRole.SYSTEM, content=system_prompt),
             Message(role=MessageRole.USER, content=user_prompt),
         ]
     except ImportError:
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
+        try:
+            from core.llm.models import Message, MessageRole
+            messages = [
+                Message(role=MessageRole.SYSTEM, content=system_prompt),
+                Message(role=MessageRole.USER, content=user_prompt),
+            ]
+        except ImportError:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
     
     try:
         response = await llm.chat(messages=messages, temperature=0.3, max_tokens=1500)
