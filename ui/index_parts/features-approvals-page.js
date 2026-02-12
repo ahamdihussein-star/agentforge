@@ -206,13 +206,20 @@ function editSecurityUser(userId) {
                     <p class="text-xs text-gray-500 mb-2">Add any custom attributes (e.g., National ID, Badge Number, Office Location). These are automatically available for process forms and AI-generated workflows.</p>
                     <div id="edit-user-custom-fields" class="space-y-2">
                         ${(() => {
-                            const meta = user.user_metadata || user.custom_attributes || {};
+                            // Custom fields are stored under profile.custom_attributes in the backend.
+                            // Keep backward-compatible fallbacks for older payload shapes.
+                            const meta =
+                                user.profile?.custom_attributes ||
+                                user.profile?.user_metadata ||
+                                user.user_metadata ||
+                                user.custom_attributes ||
+                                {};
                             const entries = Object.entries(meta).filter(([k,v]) => v !== null && v !== undefined);
                             if (!entries.length) return '<div class="text-xs text-gray-500 italic" id="no-custom-fields-msg">No custom fields yet.</div>';
                             return entries.map(([k, v], i) => `
-                                <div class="flex gap-2 items-center" data-custom-row="${i}">
-                                    <input type="text" value="${escapeHtml(k)}" placeholder="Field name" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 custom-field-key">
-                                    <input type="text" value="${escapeHtml(String(v))}" placeholder="Value" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 custom-field-val">
+                                <div class="flex gap-2 items-center w-full" data-custom-row="${i}">
+                                    <input type="text" value="${escapeHtml(k)}" placeholder="Field name" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 min-w-0 custom-field-key">
+                                    <input type="text" value="${escapeHtml(String(v))}" placeholder="Value" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 min-w-0 custom-field-val">
                                     <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300 text-lg px-1" title="Remove">&times;</button>
                                 </div>
                             `).join('');
@@ -240,10 +247,10 @@ function addCustomFieldRow() {
     const noMsg = document.getElementById('no-custom-fields-msg');
     if (noMsg) noMsg.remove();
     const row = document.createElement('div');
-    row.className = 'flex gap-2 items-center';
+    row.className = 'flex gap-2 items-center w-full';
     row.innerHTML = `
-        <input type="text" placeholder="Field name (e.g., national_id)" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 custom-field-key">
-        <input type="text" placeholder="Value" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 custom-field-val">
+        <input type="text" placeholder="Field name (e.g., national_id)" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 min-w-0 custom-field-key">
+        <input type="text" placeholder="Value" class="input-field px-3 py-1.5 rounded-lg text-sm flex-1 min-w-0 custom-field-val">
         <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300 text-lg px-1" title="Remove">&times;</button>
     `;
     container.appendChild(row);
