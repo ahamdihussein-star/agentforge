@@ -1,0 +1,1442 @@
+/* Theme variables from theme.css (single source of truth) */
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--pb-bg);
+            color: var(--pb-text);
+            overflow: hidden;
+        }
+        
+        /* Canvas */
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+            background: var(--canvas-bg);
+            background-image: 
+                radial-gradient(circle, var(--grid-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        #canvas {
+            position: absolute;
+            transform-origin: 0 0;
+            min-width: 3000px;
+            min-height: 2000px;
+            z-index: 2;
+        }
+        
+        /* Nodes – BPMN-style: الشكل نفسه فقط، بدون إطار أو خلفية خارجية */
+        .workflow-node {
+            position: absolute;
+            width: 200px;
+            min-height: 56px;
+            background: var(--node-bg);
+            border: 2px solid var(--node-border);
+            border-radius: 12px;
+            cursor: move;
+            user-select: none;
+            transition: box-shadow 0.2s, border-color 0.2s;
+            z-index: 10;
+            overflow: visible;
+        }
+        /* Start: الدائرة الخضراء فقط – لا إطار أبيض ولا خلفية وراها */
+        .workflow-node.shape-start {
+            width: 72px;
+            padding: 0 0 28px;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none;
+        }
+        .workflow-node.shape-start:hover,
+        .workflow-node.shape-start.selected,
+        .workflow-node.shape-start.multi-selected { box-shadow: none; }
+        .workflow-node.shape-start .node-shape-wrap {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 6px;
+            border-radius: 50%;
+        }
+        .workflow-node.shape-start .node-body { display: none; }
+        .workflow-node.shape-start .node-menu-btn { display: none; }
+        /* End: دائرة 56×56 سميكة – نفس حجم Start */
+        .workflow-node.shape-end {
+            width: 72px;
+            padding: 0 0 28px;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none;
+        }
+        .workflow-node.shape-end:hover,
+        .workflow-node.shape-end.selected,
+        .workflow-node.shape-end.multi-selected { box-shadow: none; }
+        .workflow-node.shape-end .node-shape-wrap {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 6px;
+            border-radius: 50%;
+            border: 4px solid currentColor;
+            box-sizing: border-box;
+        }
+        .workflow-node.shape-end .node-body { display: none; }
+        .workflow-node.shape-end .node-menu-btn { display: none; }
+        /* Condition: ماسّة 56×56 – نفس عرض العُقد الأخرى */
+        .workflow-node.shape-gateway {
+            width: 72px;
+            padding: 0 0 28px;
+            background: transparent !important;
+            border: none !important;
+            clip-path: none;
+            box-shadow: none;
+        }
+        .workflow-node.shape-gateway:hover,
+        .workflow-node.shape-gateway.selected,
+        .workflow-node.shape-gateway.multi-selected { box-shadow: none; }
+        .workflow-node.shape-gateway .node-shape-wrap {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 6px;
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+        .workflow-node.shape-gateway .node-body { display: none; }
+        /* Task (Loop, Wait, Action, Tools, AI, Approval, Form, Notification): مربع دائري الزوايا بحجم Start – بدون مستطيل كبير */
+        .workflow-node.shape-task {
+            width: 72px;
+            padding: 0 0 28px;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none;
+        }
+        .workflow-node.shape-task:hover,
+        .workflow-node.shape-task.selected,
+        .workflow-node.shape-task.multi-selected { box-shadow: none; }
+        .workflow-node.shape-task .node-shape-wrap {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 6px;
+            border-radius: 12px;
+            padding: 0;
+        }
+        .workflow-node.shape-task .node-body { display: none; }
+        .workflow-node.shape-task .node-menu-btn {
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+        }
+        
+        .workflow-node:hover {
+            border-color: #4f46e5;
+            box-shadow: 0 0 20px rgba(79, 70, 229, 0.3);
+        }
+        .workflow-node.shape-start:hover,
+        .workflow-node.shape-end:hover,
+        .workflow-node.shape-gateway:hover,
+        .workflow-node.shape-task:hover {
+            border-color: transparent;
+            box-shadow: none;
+            outline: none;
+        }
+        
+        .workflow-node.selected,
+        .workflow-node.multi-selected {
+            border-color: #6366f1;
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
+        }
+        .workflow-node.shape-start.selected,
+        .workflow-node.shape-start.multi-selected,
+        .workflow-node.shape-end.selected,
+        .workflow-node.shape-end.multi-selected,
+        .workflow-node.shape-gateway.selected,
+        .workflow-node.shape-gateway.multi-selected,
+        .workflow-node.shape-task.selected,
+        .workflow-node.shape-task.multi-selected {
+            border-color: transparent;
+            box-shadow: none;
+            outline: none;
+        }
+        
+        .workflow-node.dragging {
+            opacity: 0.8;
+            z-index: 100;
+        }
+        
+        /* Shape on top, label below (text under shape – BPMN-style) */
+        .node-shape-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+        }
+        .node-shape-wrap.trigger { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .node-shape-wrap.action { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .node-shape-wrap.condition { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .node-shape-wrap.approval { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .node-shape-wrap.loop { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .node-shape-wrap.delay { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+        .node-shape-wrap.end { background: linear-gradient(135deg, #6b7280, #4b5563); }
+        .node-shape-wrap.tool { background: linear-gradient(135deg, #ec4899, #db2777); }
+        .node-shape-wrap.ai { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .node-shape-wrap.form { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+        .node-shape-wrap.notification { background: linear-gradient(135deg, #f97316, #ea580c); }
+        
+        /* حجم الأيقونة موحّد لجميع الأشكال */
+        .node-shape {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .node-shape svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+            color: rgba(255,255,255,0.95);
+        }
+        
+        /* التسمية – سطر واحد تلقائياً، اسحبها لتغيير الموضع – حجم الخط من الـ toolbar */
+        .node-label {
+            font-weight: 600;
+            font-size: var(--label-font-size, 11px);
+            line-height: 1.2;
+            white-space: nowrap;
+            word-break: normal;
+            width: max-content;
+            min-width: min-content;
+            max-width: none;
+            overflow: visible;
+            color: var(--label-badge-text);
+            background: var(--label-badge-bg);
+            border: 1px solid var(--label-badge-border);
+            border-radius: 9999px;
+            padding: 6px 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: var(--label-badge-shadow);
+            backdrop-filter: blur(6px);
+            text-align: center;
+        }
+        .workflow-node .node-label.node-label-draggable {
+            cursor: grab;
+            position: absolute;
+            transform: none;
+            z-index: 15;
+        }
+        .workflow-node .node-label.node-label-draggable:active {
+            cursor: grabbing;
+        }
+        /* label selection منفصل عن shape selection – عند اختيار الـ label فقط */
+        .workflow-node.label-selected .node-label {
+            border-color: var(--connection-color, #6366f1);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4), var(--label-badge-shadow);
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .workflow-node.label-selected .node-label::after {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 9999px;
+            border: 2px solid var(--connection-color, #6366f1);
+            pointer-events: none;
+            opacity: 0.85;
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
+        }
+        .workflow-node.label-below .node-label { position: relative; margin-top: 0; }
+        .workflow-node.label-custom .node-label {
+            position: absolute;
+            transform: none;
+            white-space: nowrap;
+            word-break: normal;
+            width: max-content;
+            min-width: min-content;
+            max-width: none;
+            overflow: visible;
+        }
+        .node-menu-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 24px;
+            height: 24px;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            z-index: 5;
+        }
+        .node-menu-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        
+        .node-body {
+            padding: 10px 12px 12px;
+            border-top: 1px solid var(--node-border);
+        }
+        
+        .node-description {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 12px;
+        }
+        
+        .node-config-preview {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 11px;
+            color: #d1d5db;
+        }
+        
+        .node-config-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .node-config-item:last-child { margin-bottom: 0; }
+        
+        .config-label {
+            color: #6b7280;
+            min-width: 60px;
+        }
+        
+        .config-value {
+            color: #a5b4fc;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        /* Connection Ports – تظهر عند الـ hover أو التحديد أو أثناء الربط (UX أفضل) */
+        .port {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: #374151;
+            border: 2px solid #6b7280;
+            border-radius: 50%;
+            cursor: crosshair;
+            transition: opacity 0.15s ease, transform 0.2s, background 0.15s, border-color 0.15s;
+            z-index: 20;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .workflow-node:hover .port,
+        .workflow-node.selected .port,
+        .workflow-node.multi-selected .port {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .connecting .workflow-node .port {
+            opacity: 1;
+            pointer-events: auto;
+            width: 24px;
+            height: 24px;
+        }
+        body.connecting {
+            cursor: crosshair !important;
+        }
+        
+        .port:hover {
+            background: #6366f1;
+            border-color: #818cf8;
+        }
+        .port.input:hover { transform: translate(-50%, -50%) scale(1.2); }
+        .port.output:hover { transform: translate(-50%, 50%) scale(1.2); }
+        .workflow-node.shape-start .port.output:hover,
+        .workflow-node.shape-end .port.output:hover,
+        .workflow-node.shape-gateway .port.input:hover,
+        .workflow-node.shape-gateway .port.output-yes:hover,
+        .workflow-node.shape-gateway .port.output-no:hover,
+        .workflow-node.shape-task .port.input:hover { transform: translate(-50%, -50%) scale(1.2); }
+        .port.output-yes:hover,
+        .port.output-no:hover { transform: translate(-50%, 50%) scale(1.2); }
+        .workflow-node.shape-task .port.output:hover { transform: translate(-50%, -50%) scale(1.2); }
+        
+        /* Fallback single port – قبل قواعد الجهات الأربع حتى لا تتجاوزها */
+        .port.input { top: 0; left: 50%; transform: translate(-50%, -50%); }
+        .port.output { top: 56px; left: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes { top: 56px; left: 30%; transform: translate(-50%, -50%); }
+        .port.output-no { top: 56px; left: 70%; transform: translate(-50%, -50%); }
+        /* 4-side ports: منفذ واحد لكل جهة – أعلى، يمين، أسفل، يسار (كل الـ shapes) */
+        .port.input-top, .port.input-bottom { left: 50%; transform: translate(-50%, -50%); }
+        .port.input-right, .port.input-left { transform: translate(-50%, -50%); }
+        .port.input-top { top: 0; }
+        .port.input-bottom { top: 56px; }
+        .port.input-right { left: 64px; top: 28px; }
+        .port.input-left { left: 8px; top: 28px; }
+        .port.output-top, .port.output-bottom { left: 50%; transform: translate(-50%, -50%); }
+        .port.output-right, .port.output-left { transform: translate(-50%, -50%); }
+        .port.output-top { top: 0; }
+        .port.output-bottom { top: 56px; }
+        .port.output-right { left: 64px; top: 28px; }
+        .port.output-left { left: 8px; top: 28px; }
+        .port.output-yes-top, .port.output-yes-bottom, .port.output-no-top, .port.output-no-bottom { left: 50%; transform: translate(-50%, -50%); }
+        .port.output-yes-right, .port.output-yes-left, .port.output-no-right, .port.output-no-left { transform: translate(-50%, -50%); }
+        .port.output-yes-top, .port.output-no-top { top: 0; }
+        .port.output-yes-bottom, .port.output-no-bottom { top: 56px; }
+        .port.output-yes-right, .port.output-no-right { left: 64px; top: 28px; }
+        .port.output-yes-left, .port.output-no-left { left: 8px; top: 28px; }
+        
+        .port-label {
+            position: absolute;
+            font-size: 9px;
+            color: #9ca3af;
+            white-space: nowrap;
+        }
+        
+        /* Yes/No تظهر على خط الربط نفسه في renderConnections */
+        
+        /* طبقة الخطوط فقط – خلف العُقد والتسميات (لا تقطع الكلام) */
+        #connections-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            min-width: 3000px;
+            min-height: 2000px;
+            width: 3000px;
+            height: 2000px;
+            overflow: visible;
+            pointer-events: none;
+            z-index: 1;
+            transform-origin: 0 0;
+        }
+        /* طبقة المقابض وتسميات Yes/No فقط – فوق العُقد عشان تقبل نقر/سحب */
+        #connections-interactive-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            min-width: 3000px;
+            min-height: 2000px;
+            width: 3000px;
+            height: 2000px;
+            overflow: visible;
+            pointer-events: auto;
+            z-index: 3;
+            transform-origin: 0 0;
+        }
+        .connection-path {
+            fill: none;
+            stroke: var(--connection-color, #6366f1);
+            stroke-width: 2;
+            stroke-linecap: round;
+            vector-effect: non-scaling-stroke;
+            pointer-events: stroke;
+            cursor: pointer;
+        }
+        
+        .connection-path.yes { stroke: #22c55e; }
+        .connection-path.no { stroke: #ef4444; }
+        
+        .connection-path:hover {
+            stroke-width: 3;
+            cursor: pointer;
+        }
+        .connection-preview-path {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+        .connection-hit-path {
+            fill: none;
+            stroke: transparent;
+            stroke-width: 20;
+            vector-effect: non-scaling-stroke;
+            cursor: pointer;
+        }
+        
+        .connection-path.selected {
+            stroke-width: 4;
+            filter: drop-shadow(0 0 6px currentColor);
+        }
+        .connection-path.yes.selected { stroke-width: 4; filter: drop-shadow(0 0 8px rgba(34,197,94,0.6)); }
+        .connection-path.no.selected { stroke-width: 4; filter: drop-shadow(0 0 8px rgba(239,68,68,0.6)); }
+
+        /* Test/playback edge animation: show "flow" on the taken path */
+        @keyframes pbEdgeFlowDash {
+            from { stroke-dashoffset: 0; }
+            to { stroke-dashoffset: -44; }
+        }
+        .connection-path.play-visited {
+            stroke: #22c55e;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 6px rgba(34,197,94,0.55));
+        }
+        .connection-path.play-flow {
+            stroke-dasharray: 10 8;
+            animation: pbEdgeFlowDash 0.9s linear infinite;
+        }
+        
+        /* مقابض الخط – تظهر عند اختيار الخط (الطبقة التفاعلية منفصلة عن مسار الرسم) */
+        .connection-handles {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease;
+        }
+        .connection-handles.selected {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .connection-hit-path:hover ~ .connection-handles {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        /* Draggable endpoint handles – تغيير نقطة الربط من البداية أو النهاية */
+        .connection-end-handle,
+        .connection-start-handle {
+            fill: var(--connection-color, #6366f1);
+            stroke: #fff;
+            stroke-width: 2;
+            cursor: grab;
+            transform-box: fill-box;
+            transform-origin: center;
+            transition: transform 0.12s ease, fill 0.12s ease, stroke 0.12s ease;
+        }
+        .connection-end-handle:hover,
+        .connection-start-handle:hover { transform: scale(1.4); }
+        .connection-end-handle:active,
+        .connection-start-handle:active { cursor: grabbing; }
+        /* عند السحب: أي shape تحت المؤشر يظهر كهدف ربط */
+        .workflow-node.connection-drop-target {
+            box-shadow: 0 0 0 3px var(--connection-color, #6366f1);
+            border-radius: 12px;
+        }
+        /* المنفذ المستهدف أثناء السحب – يبرز حتى تعرف أي نقطة ستُربط */
+        .port.connection-target-port {
+            opacity: 1 !important;
+            background: #6366f1 !important;
+            border-color: #818cf8 !important;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.6);
+        }
+        .port.input.connection-target-port,
+        .port.input-top.connection-target-port,
+        .port.input-right.connection-target-port,
+        .port.input-bottom.connection-target-port,
+        .port.input-left.connection-target-port { transform: translate(-50%, -50%) scale(1.3) !important; }
+        .connection-path.yes + .connection-handles .connection-end-handle,
+        .connection-path.yes + .connection-handles .connection-start-handle { fill: #22c55e; }
+        .connection-path.no + .connection-handles .connection-end-handle,
+        .connection-path.no + .connection-handles .connection-start-handle { fill: #ef4444; }
+        /* Draggable bend point: خطوط مستقيمة + تحكم في الزاوية */
+        .connection-bend-handle {
+            fill: var(--connection-color, #6366f1);
+            stroke: #fff;
+            stroke-width: 2;
+            cursor: grab;
+            transform-box: fill-box;
+            transform-origin: center;
+            transition: transform 0.12s ease, fill 0.12s ease, stroke 0.12s ease;
+            visibility: hidden;
+        }
+        .connection-handles.selected .connection-bend-handle { visibility: visible; }
+        .connection-handles.yes .connection-bend-handle { fill: #22c55e; }
+        .connection-handles.no .connection-bend-handle { fill: #ef4444; }
+        .connection-bend-handle:hover { transform: scale(1.3333); }
+        .connection-bend-handle:active { cursor: grabbing; }
+        
+        /* تسمية Yes/No بجانب الخط – draggable مثل تسميات العقد */
+        .connection-label-badge {
+            cursor: grab;
+            pointer-events: all;
+            filter: drop-shadow(var(--label-badge-shadow));
+        }
+        .connection-label-badge:active {
+            cursor: grabbing;
+        }
+        .connection-label-badge rect {
+            stroke-width: 1.5;
+            vector-effect: non-scaling-stroke;
+            fill: var(--label-badge-bg);
+            stroke: var(--label-badge-border);
+        }
+        .connection-label-badge text {
+            font-weight: 600;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            fill: var(--label-badge-text);
+        }
+        .connection-label-badge.yes rect { fill: rgba(240, 253, 244, 0.92); stroke: #22c55e; }
+        .connection-label-badge.no rect { fill: rgba(254, 242, 242, 0.92); stroke: #ef4444; }
+        .connection-label-badge.yes text { fill: #166534; }
+        .connection-label-badge.no text { fill: #b91c1c; }
+        .connection-label-badge.selected rect {
+            stroke-width: 2.5;
+            filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.5));
+        }
+        .connection-label-badge.selected.yes rect { stroke: #166534; filter: drop-shadow(0 0 8px rgba(34,197,94,0.5)); }
+        .connection-label-badge.selected.no rect { stroke: #b91c1c; filter: drop-shadow(0 0 8px rgba(239,68,68,0.5)); }
+        
+        /* Toolbar */
+        #top-toolbar {
+            height: 60px;
+            background: var(--pb-toolbar);
+            border-bottom: 1px solid var(--node-border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 16px;
+        }
+        
+        .toolbar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-right: 20px;
+            border-right: 1px solid var(--node-border);
+        }
+        
+        .toolbar-logo img {
+            height: 32px;
+        }
+        
+        .toolbar-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--pb-text);
+        }
+        
+        .workflow-name-input {
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--pb-text);
+            min-width: 200px;
+        }
+        
+        .workflow-name-input:hover {
+            border-color: var(--node-border);
+        }
+        
+        .workflow-name-input:focus {
+            outline: none;
+            border-color: var(--connection-color);
+            background: rgba(99, 102, 241, 0.1);
+        }
+        
+        .toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+        .toolbar-actions .toolbar-label {
+            font-size: 12px;
+            color: var(--pb-text-muted, #9ca3af);
+            margin-right: 4px;
+        }
+        .toolbar-actions .flow-btn.active {
+            background: var(--tb-btn-primary-bg);
+            color: var(--tb-btn-primary-text);
+            border-color: var(--tb-btn-primary-bg);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        /* Toolbar buttons – theme-aware contrast, consistent look */
+        .toolbar-btn {
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid transparent;
+            letter-spacing: 0.01em;
+        }
+        
+        .toolbar-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-secondary {
+            background: var(--tb-btn-secondary-bg);
+            border-color: var(--tb-btn-secondary-border);
+            color: var(--tb-btn-secondary-text);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--tb-btn-secondary-hover);
+            border-color: var(--tb-btn-secondary-hover);
+        }
+        
+        .btn-primary {
+            background: var(--tb-btn-primary-bg);
+            border-color: var(--tb-btn-primary-bg);
+            color: var(--tb-btn-primary-text);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        }
+        
+        .btn-primary:hover {
+            background: var(--tb-btn-primary-hover);
+            border-color: var(--tb-btn-primary-hover);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .btn-success {
+            background: var(--tb-btn-success-bg);
+            border-color: var(--tb-btn-success-bg);
+            color: var(--tb-btn-success-text);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        }
+        
+        .btn-success:hover {
+            background: var(--tb-btn-success-hover);
+            border-color: var(--tb-btn-success-hover);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        /* Left Panel - Node Palette */
+        #node-palette {
+            position: absolute;
+            left: 20px;
+            top: 80px;
+            width: 260px;
+            background: var(--pb-panel);
+            border: 1px solid var(--node-border);
+            border-radius: 12px;
+            max-height: calc(100vh - 160px);
+            overflow-y: auto;
+            z-index: 50;
+        }
+        
+        .palette-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--node-border);
+        }
+        
+        .palette-section:last-child { border-bottom: none; }
+        
+        .palette-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--pb-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+        
+        .palette-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: grab;
+            transition: all 0.2s;
+        }
+        
+        .palette-item:hover {
+            border-color: var(--connection-color);
+            background: rgba(99, 102, 241, 0.1);
+            transform: translateX(4px);
+        }
+        
+        .palette-item:active {
+            cursor: grabbing;
+        }
+        
+        .palette-icon {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            min-height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .palette-icon svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+            color: rgba(255,255,255,0.95);
+        }
+        .palette-icon.trigger { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .palette-icon.action { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .palette-icon.condition { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .palette-icon.approval { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .palette-icon.loop { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .palette-icon.delay { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+        .palette-icon.end { background: linear-gradient(135deg, #6b7280, #4b5563); }
+        .palette-icon.tool { background: linear-gradient(135deg, #ec4899, #db2777); }
+        /* نفس شكل الـ shape على الـ canvas: دائرة، ماسّة، دائرة سميكة، مستطيل */
+        .palette-icon.palette-shape-start { border-radius: 50%; }
+        .palette-icon.palette-shape-end { border-radius: 50%; border: 3px solid currentColor; box-sizing: border-box; }
+        .palette-icon.palette-shape-gateway { border-radius: 0; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); -webkit-clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+        .palette-icon.palette-shape-task { border-radius: 8px; }
+        
+        .palette-info {
+            flex: 1;
+        }
+        
+        .palette-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--pb-text);
+        }
+        
+        .palette-desc {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-top: 2px;
+        }
+        
+        /* Right Panel - Properties */
+        #properties-panel {
+            position: absolute;
+            right: 20px;
+            top: 80px;
+            width: 340px;
+            max-width: calc(100vw - 40px);
+            background: var(--pb-panel);
+            border: 1px solid var(--node-border);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.03);
+            max-height: calc(100vh - 160px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 50;
+            display: none;
+            animation: propPanelIn 0.2s ease-out;
+        }
+        @keyframes propPanelIn {
+            from { opacity: 0; transform: translateX(8px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        #properties-panel.active { display: block; }
+        
+        #approval-config-modal { display: none; align-items: center; justify-content: center; }
+        #approval-config-modal.show { display: flex !important; }
+        #approval-config-modal .hidden { display: none !important; }
+        
+        .properties-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--node-border);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: rgba(0,0,0,0.15);
+            border-radius: 16px 16px 0 0;
+        }
+        
+        .properties-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        
+        .properties-title {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .properties-title h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 2px 0;
+            color: var(--pb-text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .properties-title span {
+            font-size: 11px;
+            color: var(--pb-muted);
+            text-transform: capitalize;
+        }
+        
+        .properties-close {
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: none;
+            color: var(--pb-muted);
+            cursor: pointer;
+            font-size: 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s, background 0.15s;
+        }
+        
+        .properties-close:hover { color: var(--pb-text); background: rgba(255,255,255,0.06); }
+        
+        .properties-body {
+            padding: 20px;
+        }
+        
+        .property-group {
+            margin-bottom: 22px;
+        }
+        
+        .property-group:last-child { margin-bottom: 0; }
+        
+        .property-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--pb-muted);
+            margin-bottom: 8px;
+            display: block;
+            letter-spacing: 0.01em;
+        }
+        
+        .property-hint {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-top: 6px;
+            line-height: 1.4;
+            opacity: 0.9;
+        }
+        
+        .property-input {
+            width: 100%;
+            padding: 11px 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 10px;
+            color: var(--pb-text);
+            font-size: 13px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .property-input::placeholder { color: var(--pb-muted); opacity: 0.7; }
+        
+        .property-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        
+        .property-select {
+            width: 100%;
+            padding: 11px 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 10px;
+            color: var(--pb-text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .property-select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        
+        .property-select optgroup { font-weight: 600; color: var(--pb-muted); }
+        
+        .property-textarea {
+            width: 100%;
+            padding: 11px 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 10px;
+            color: var(--pb-text);
+            font-size: 13px;
+            min-height: 88px;
+            resize: vertical;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .property-textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        
+        /* Section block inside properties */
+        .prop-section {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--node-border);
+        }
+        
+        .prop-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--pb-text);
+            margin: 0 0 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .prop-section-hint {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-bottom: 14px;
+            line-height: 1.45;
+        }
+        
+        /* Tool parameter card - clear, scannable */
+        .tool-param-card {
+            margin-bottom: 12px;
+            padding: 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 12px;
+            border-left: 3px solid #6366f1;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        
+        .tool-param-card:hover { border-left-color: #818cf8; }
+        
+        .tool-param-card .param-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--pb-text);
+            margin-bottom: 2px;
+        }
+        
+        .tool-param-card .param-desc {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        
+        .tool-param-card .value-from-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .tool-param-card .property-select { flex: 1; min-width: 140px; }
+        
+        .tool-param-card .property-input { flex: 1; min-width: 120px; }
+        
+        .value-from-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--pb-muted);
+            margin-bottom: 6px;
+            display: block;
+        }
+        
+        .prop-actions {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--node-border);
+        }
+        
+        .btn-delete-node {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 10px;
+            color: #f87171;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        
+        .btn-delete-node:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+        
+        .field-chips {
+            margin-top: 8px;
+            padding: 10px;
+            background: var(--node-bg);
+            border-radius: 10px;
+            border: 1px solid var(--node-border);
+        }
+        
+        .field-chips-label {
+            font-size: 11px;
+            color: var(--pb-muted);
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .field-chip {
+            padding: 6px 12px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            color: #a5b4fc;
+            font-size: 11px;
+            cursor: pointer;
+            margin: 4px 4px 0 0;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        
+        .field-chip:hover {
+            background: rgba(99, 102, 241, 0.25);
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+        
+        /* Tool Selector */
+        .tool-selector {
+            background: #1a1f2e;
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .tool-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .tool-option:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+        
+        .tool-option.selected {
+            background: rgba(99, 102, 241, 0.2);
+            border-left: 3px solid #6366f1;
+        }
+        
+        .tool-option-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .tool-option-info {
+            flex: 1;
+        }
+        
+        .tool-option-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .tool-option-type {
+            font-size: 11px;
+            color: var(--pb-muted);
+        }
+        
+        .tool-selector-empty {
+            padding: 20px 16px;
+            text-align: center;
+        }
+        
+        .tool-selector-empty-icon {
+            font-size: 28px;
+            opacity: 0.5;
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        .tool-selector-empty-text {
+            font-size: 12px;
+            color: var(--pb-muted);
+            margin: 0;
+            line-height: 1.45;
+        }
+        
+        /* Zoom Controls */
+        #zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 4px;
+            background: var(--pb-panel);
+            border: 1px solid var(--node-border);
+            border-radius: 8px;
+            padding: 4px;
+            z-index: 50;
+        }
+        
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            background: none;
+            border: none;
+            color: var(--pb-muted);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .zoom-btn:hover {
+            background: var(--node-bg);
+            color: var(--pb-text);
+        }
+        
+        .zoom-level {
+            padding: 0 12px;
+            font-size: 12px;
+            color: var(--pb-muted);
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Empty State */
+        #empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--pb-muted);
+            z-index: 5;
+            max-width: 320px;
+            padding: 24px;
+        }
+        
+        .empty-icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+            opacity: 0.6;
+            line-height: 1;
+        }
+        
+        .empty-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--pb-text);
+            margin-bottom: 8px;
+        }
+        
+        .empty-desc {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--pb-muted);
+        }
+        
+        
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* =========================================================
+           AI "Build Video" Experience (Animated workflow creation)
+           ========================================================= */
+        #build-overlay {
+            position: fixed;
+            top: 72px;
+            left: 50%;
+            display: none;
+            transform: translateX(-50%) translateY(-8px);
+            z-index: 12000;
+            width: min(720px, calc(100vw - 24px));
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+        #build-overlay.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+        .build-card {
+            background: rgba(17, 24, 39, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: color-mix(in srgb, var(--pb-panel) 82%, transparent);
+            border: 1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);
+            border-radius: 14px;
+            padding: 12px 14px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+        }
+        .build-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .build-title {
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--pb-text);
+            letter-spacing: 0.2px;
+        }
+        .build-subtitle {
+            margin-top: 3px;
+            font-size: 12px;
+            color: var(--pb-muted);
+            line-height: 1.35;
+            min-height: 16px;
+        }
+        .build-progress {
+            height: 8px;
+            background: rgba(148, 163, 184, 0.18);
+            background: color-mix(in srgb, var(--pb-muted) 18%, transparent);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .build-progress-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #22c55e 0%, #14b8a6 35%, #6366f1 100%);
+            transition: width 220ms ease;
+        }
+
+        /* Build cursor (director pointer) */
+        #build-cursor {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            background: #a5b4fc;
+            box-shadow: 0 0 0 10px rgba(99,102,241,0.18), 0 10px 24px rgba(0,0,0,0.25);
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            z-index: 60;
+            pointer-events: none;
+            transition: left 260ms cubic-bezier(.2,.9,.2,1), top 260ms cubic-bezier(.2,.9,.2,1), opacity 160ms ease;
+        }
+        #build-cursor.show { opacity: 1; }
+        #build-cursor.click { animation: buildCursorClick 180ms ease; }
+        @keyframes buildCursorClick {
+            0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 10px rgba(99,102,241,0.18), 0 10px 24px rgba(0,0,0,0.25); }
+            50% { transform: translate(-50%, -50%) scale(0.85); box-shadow: 0 0 0 14px rgba(99,102,241,0.12), 0 10px 24px rgba(0,0,0,0.22); }
+            100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 10px rgba(99,102,241,0.18), 0 10px 24px rgba(0,0,0,0.25); }
+        }
+
+        /* Node appear animation */
+        .workflow-node.build-node-enter {
+            animation: buildNodeEnter 260ms ease-out both;
+        }
+        @keyframes buildNodeEnter {
+            from { opacity: 0; transform: translateY(8px) scale(0.98); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
+            to   { opacity: 1; transform: translateY(0) scale(1); filter: drop-shadow(0 10px 18px rgba(0,0,0,0.25)); }
+        }
+
+        /* Test/playback highlight (shows the path taken) */
+        /* Highlight the SHAPE only (not the larger node container area) */
+        .workflow-node.play-active { box-shadow: none !important; }
+        .workflow-node.play-active .node-shape-wrap::after {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: inherit;
+            clip-path: inherit;
+            -webkit-clip-path: inherit;
+            border: 2px solid rgba(34,197,94,0.92);
+            box-shadow: 0 0 0 7px rgba(34,197,94,0.16);
+            pointer-events: none;
+        }
+        .workflow-node.play-active .node-shape-wrap {
+            filter:
+                drop-shadow(0 0 10px rgba(34,197,94,0.25))
+                drop-shadow(0 18px 28px rgba(0,0,0,0.35));
+        }
+
+        /* Terminal states: stop point styling (matches actual execution) */
+        .workflow-node.play-waiting .node-shape-wrap::after {
+            border: 2px solid rgba(245,158,11,0.92);
+            box-shadow: 0 0 0 7px rgba(245,158,11,0.16);
+        }
+        .workflow-node.play-waiting .node-shape-wrap {
+            filter:
+                drop-shadow(0 0 10px rgba(245,158,11,0.25))
+                drop-shadow(0 18px 28px rgba(0,0,0,0.35));
+        }
+
+        .workflow-node.play-failed .node-shape-wrap::after {
+            border: 2px solid rgba(239,68,68,0.92);
+            box-shadow: 0 0 0 7px rgba(239,68,68,0.16);
+        }
+        .workflow-node.play-failed .node-shape-wrap {
+            filter:
+                drop-shadow(0 0 10px rgba(239,68,68,0.25))
+                drop-shadow(0 18px 28px rgba(0,0,0,0.35));
+        }
+        
+        .connecting .port.output,
+        .connecting .port.output-top,
+        .connecting .port.output-right,
+        .connecting .port.output-bottom,
+        .connecting .port.output-left,
+        .connecting .port.output-yes-top,
+        .connecting .port.output-yes-right,
+        .connecting .port.output-yes-bottom,
+        .connecting .port.output-yes-left,
+        .connecting .port.output-no-top,
+        .connecting .port.output-no-right,
+        .connecting .port.output-no-bottom,
+        .connecting .port.output-no-left {
+            animation: pulse 1s infinite;
+        }
+        
+        /* Scrollbar (standards-first). WebKit pseudo-elements are intentionally avoided here to prevent
+           Firefox console warnings about unknown selectors. */
+        :root {
+            scrollbar-width: thin;
+            scrollbar-color: #374151 transparent;
+        }
+
+        /* ============================
+           Player mode (embedded playback)
+           - Used by Admin Portal "Play" / Test runs
+           - Hides editing UI and keeps only the workflow canvas + playback animation
+        ============================ */
+        body.pb-player-mode #top-toolbar,
+        body.pb-player-mode #node-palette,
+        body.pb-player-mode #properties-panel,
+        body.pb-player-mode #empty-state {
+            display: none !important;
+        }
+        body.pb-player-mode #canvas-container {
+            height: 100vh;
+        }
+        body.pb-player-mode #selection-box {
+            display: none !important;
+        }
+        body.pb-player-mode .connection-handles,
+        body.pb-player-mode .connection-label-badge {
+            display: none !important;
+        }
+        body.pb-player-mode .workflow-node {
+            cursor: default;
+        }
