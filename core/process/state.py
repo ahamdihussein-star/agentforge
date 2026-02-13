@@ -398,18 +398,53 @@ class ProcessState:
         Interpolate variables into a string template
         
         Uses {{variable}} syntax.
+        
+        Unlike evaluate() (used for conditions), this method returns raw string
+        values WITHOUT Python repr() quoting, so multi-line text (e.g., extracted
+        document content) is preserved as-is for prompts and notifications.
         """
-        result = self.evaluate(template)
-        if result is None:
+        if not template:
             return ""
-        # If the result is a dict or list, serialize to JSON string
-        # (avoids Python repr like "{'key': 'val'}" or JS "[object Object]")
-        if isinstance(result, (dict, list)):
-            try:
-                return json.dumps(result, ensure_ascii=False, default=str)
-            except Exception:
-                return str(result)
-        return str(result)
+
+        pattern = r'\{\{([^}]+)\}\}'
+
+        # If the whole template is a single variable reference, return the raw value
+        simple_match = re.fullmatch(pattern, template.strip())
+        if simple_match:
+            value = self._resolve_path(simple_match.group(1).strip())
+            if value is None:
+                return ""
+            if isinstance(value, (dict, list)):
+                try:
+                    return json.dumps(value, ensure_ascii=False, default=str)
+                except Exception:
+                    return str(value)
+            return str(value)
+
+        # Multiple variables or mixed text: replace each {{var}} with its string value
+        def _replace_for_template(match):
+            var_path = match.group(1).strip()
+            value = self._resolve_path(var_path)
+            # Follow indirect references (value is itself a {{ref}})
+            if isinstance(value, str) and re.match(r'^\s*\{\{[^}]+\}\}\s*$', value):
+                inner_match = re.match(r'^\s*\{\{([^}]+)\}\}\s*$', value)
+                if inner_match:
+                    inner_value = self._resolve_path(inner_match.group(1).strip())
+                    if inner_value is not None and not (
+                        isinstance(inner_value, str) and re.match(r'^\s*\{\{[^}]+\}\}\s*$', inner_value)
+                    ):
+                        value = inner_value
+            if value is None:
+                return ""
+            if isinstance(value, (dict, list)):
+                try:
+                    return json.dumps(value, ensure_ascii=False, default=str)
+                except Exception:
+                    return str(value)
+            # Return the raw string — NO repr(), preserving newlines and readability
+            return str(value)
+
+        return re.sub(pattern, _replace_for_template, template)
     
     def interpolate_object(self, obj: Any) -> Any:
         """
