@@ -4954,6 +4954,153 @@
             applyDerivedToForm(fieldDefs);
         }
 
+        // =====================================================================
+        // PRE-FLIGHT VALIDATION SYSTEM
+        // =====================================================================
+        async function _runPreflightCheck() {
+            const token = getAuthToken();
+            if (!token) return null;
+            try {
+                const res = await fetch('/process/preflight-check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ agent_id: state.agentId })
+                });
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (_) {
+                return null;
+            }
+        }
+        
+        function _showPreflightModal(preflightResult) {
+            return new Promise((resolve) => {
+                const issues = preflightResult.issues || [];
+                const errors = issues.filter(i => i.severity === 'error');
+                const warnings = issues.filter(i => i.severity === 'warning');
+                const profile = preflightResult.user_profile_summary || {};
+                
+                const modal = document.createElement('div');
+                modal.id = 'preflight-modal';
+                modal.style.cssText = `
+                    position:fixed;inset:0;background:rgba(0,0,0,0.78);display:flex;align-items:center;
+                    justify-content:center;z-index:10001;padding:18px;
+                `;
+                modal.addEventListener('click', (e) => { if (e.target === modal) { modal.remove(); resolve('cancel'); } });
+                
+                // Build profile summary card
+                const profileHtml = `
+                    <div style="background:var(--bg-input);border:1px solid rgba(148,163,184,0.15);border-radius:12px;padding:14px;margin-bottom:16px;">
+                        <div style="font-size:12px;color:var(--pb-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Your Profile</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+                            <div><span style="color:var(--pb-muted);">Name:</span> ${escapeHtml(profile.name || '—')}</div>
+                            <div><span style="color:var(--pb-muted);">Email:</span> ${escapeHtml(profile.email || '—')}</div>
+                            <div><span style="color:var(--pb-muted);">Manager:</span> ${profile.has_manager ? escapeHtml(profile.manager_name || profile.manager_email || 'Assigned') : '<span style="color:var(--danger);">Not assigned</span>'}</div>
+                            <div><span style="color:var(--pb-muted);">Department:</span> ${profile.department ? escapeHtml(profile.department) : '<span style="color:var(--warning);">Not set</span>'}</div>
+                        </div>
+                        <div style="margin-top:8px;font-size:11px;color:var(--pb-muted);">Identity Source: ${escapeHtml(preflightResult.identity_source || 'Built-in')}</div>
+                    </div>
+                `;
+                
+                // Build issues cards
+                const issueCards = issues.map(issue => {
+                    const isError = issue.severity === 'error';
+                    const borderColor = isError ? 'var(--danger)' : 'var(--warning)';
+                    const bgColor = isError
+                        ? 'color-mix(in srgb, var(--danger) 8%, transparent)'
+                        : 'color-mix(in srgb, var(--warning) 8%, transparent)';
+                    const icon = isError ? '🔴' : '🟡';
+                    const action = issue.action || {};
+                    const actionBtn = action.label ? `
+                        <button type="button" class="preflight-fix-btn" data-action-type="${escapeHtml(action.type || '')}" data-action-target="${escapeHtml(action.target || '')}" data-action-field="${escapeHtml(action.field || '')}" data-manager-id="${escapeHtml(action.manager_id || '')}"
+                            style="margin-top:10px;padding:7px 14px;background:var(--tb-btn-primary-bg);color:var(--tb-btn-primary-text);border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">
+                            ${escapeHtml(action.label)}
+                        </button>
+                    ` : '';
+                    
+                    return `
+                        <div style="border:1px solid ${borderColor};background:${bgColor};border-radius:10px;padding:12px;margin-bottom:10px;">
+                            <div style="font-weight:600;font-size:14px;">${icon} ${escapeHtml(issue.title)}</div>
+                            <div style="font-size:13px;color:var(--pb-text);margin-top:6px;white-space:pre-wrap;">${escapeHtml(issue.message)}</div>
+                            ${actionBtn}
+                        </div>
+                    `;
+                }).join('');
+                
+                const hasErrors = errors.length > 0;
+                
+                modal.innerHTML = `
+                    <div style="background:var(--pb-panel);color:var(--pb-text);border:1px solid rgba(148,163,184,0.18);border-radius:16px;width:680px;max-width:100%;max-height:86vh;overflow:auto;">
+                        <div style="padding:18px 18px 14px;border-bottom:1px solid rgba(148,163,184,0.16);display:flex;align-items:center;justify-content:space-between;">
+                            <div>
+                                <h2 style="margin:0;font-size:18px;">${hasErrors ? '⚠️ Pre-flight Check' : '✅ Pre-flight Check'}</h2>
+                                <p style="margin:6px 0 0;color:var(--pb-muted);font-size:13px;">${hasErrors ? 'Some issues need your attention before running this test.' : 'Minor warnings detected — you can proceed or fix them first.'}</p>
+                            </div>
+                            <button type="button" id="preflight-close-btn" style="background:transparent;border:none;color:var(--pb-muted);font-size:22px;line-height:1;cursor:pointer;">×</button>
+                        </div>
+                        <div style="padding:18px;">
+                            ${profileHtml}
+                            <div style="font-size:13px;font-weight:600;margin-bottom:10px;">${issues.length} issue${issues.length !== 1 ? 's' : ''} found</div>
+                            ${issueCards}
+                        </div>
+                        <div style="padding:14px 18px;border-top:1px solid rgba(148,163,184,0.16);display:flex;gap:12px;justify-content:flex-end;">
+                            <button type="button" id="preflight-cancel-btn" style="padding:10px 16px;background:var(--tb-btn-secondary-bg);border:1px solid var(--tb-btn-secondary-border);border-radius:10px;color:var(--tb-btn-secondary-text);cursor:pointer;">
+                                Cancel
+                            </button>
+                            <button type="button" id="preflight-continue-btn" style="padding:10px 16px;background:${hasErrors ? 'var(--warning)' : 'var(--success)'};border:none;border-radius:10px;color:white;cursor:pointer;font-weight:600;">
+                                ${hasErrors ? 'Continue anyway' : 'Continue with test'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // Wire up buttons
+                modal.querySelector('#preflight-close-btn').addEventListener('click', () => { modal.remove(); resolve('cancel'); });
+                modal.querySelector('#preflight-cancel-btn').addEventListener('click', () => { modal.remove(); resolve('cancel'); });
+                modal.querySelector('#preflight-continue-btn').addEventListener('click', () => { modal.remove(); resolve('continue'); });
+                
+                // Wire up fix action buttons
+                modal.querySelectorAll('.preflight-fix-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const actionType = btn.dataset.actionType;
+                        const actionTarget = btn.dataset.actionTarget;
+                        const actionField = btn.dataset.actionField;
+                        const managerId = btn.dataset.managerId;
+                        _handlePreflightFixAction(actionType, actionTarget, actionField, managerId);
+                    });
+                });
+            });
+        }
+        
+        function _handlePreflightFixAction(actionType, target, field, managerId) {
+            // Open the appropriate page/modal based on the action
+            const baseUrl = window.location.origin;
+            
+            if (actionType === 'open_settings') {
+                if (target === 'identity') {
+                    window.open(baseUrl + '/dashboard#settings/identity', '_blank');
+                } else if (target === 'departments') {
+                    window.open(baseUrl + '/dashboard#departments', '_blank');
+                } else {
+                    window.open(baseUrl + '/dashboard#settings', '_blank');
+                }
+            } else if (actionType === 'open_profile') {
+                if (target === 'user_management') {
+                    // For manager assignment or department — go to user management
+                    if (managerId) {
+                        window.open(baseUrl + '/dashboard#users/' + encodeURIComponent(managerId), '_blank');
+                    } else {
+                        window.open(baseUrl + '/dashboard#users', '_blank');
+                    }
+                } else {
+                    // Open own profile
+                    window.open(baseUrl + '/dashboard#profile', '_blank');
+                }
+            }
+        }
+        
         async function runWorkflowTest() {
             const ctx = window._testRunContext || {};
             const fieldDefs = ctx.fieldDefs || [];
@@ -4967,6 +5114,21 @@
                     return;
                 }
             }
+
+            // ── PRE-FLIGHT CHECK ──────────────────────────────────────
+            // Analyze the process BEFORE running to catch identity/profile
+            // issues that would cause runtime failures.
+            try {
+                const preflight = await _runPreflightCheck();
+                if (preflight && preflight.issues && preflight.issues.length > 0) {
+                    const decision = await _showPreflightModal(preflight);
+                    if (decision !== 'continue') return;
+                }
+            } catch (_pfErr) {
+                // Preflight is advisory — never block the test if the check itself fails
+                console.warn('[Preflight] Check failed, proceeding:', _pfErr);
+            }
+            // ── END PRE-FLIGHT ────────────────────────────────────────
 
             const runWithEngine = !!document.getElementById('test-run-real-engine')?.checked;
             if (runWithEngine) {

@@ -335,6 +335,464 @@ async def test_send_notification(
 
 
 # =============================================================================
+# PRE-FLIGHT VALIDATION (before test run)
+# =============================================================================
+
+@router.post("/preflight-check")
+async def preflight_check(
+    request: Dict[str, Any],
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    AI-driven pre-flight validation before running a process test.
+    
+    Analyzes the process definition to find ALL required identity fields,
+    checks the current user's profile against them, and returns actionable
+    warnings with fix suggestions.
+    
+    This runs BEFORE the actual test to give the user a chance to fix
+    missing data (assign manager, fill profile fields, etc.) instead of
+    discovering failures mid-execution.
+    """
+    from core.identity.service import UserDirectoryService
+    from database.models.agent import Agent
+    
+    user_dict = _user_to_dict(user)
+    agent_id = request.get("agent_id", "")
+    
+    if not agent_id:
+        raise HTTPException(status_code=400, detail="agent_id is required")
+    
+    # Load process definition
+    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    if not agent or not agent.process_definition:
+        raise HTTPException(status_code=404, detail="Process not found or has no definition")
+    
+    process_def = agent.process_definition
+    if isinstance(process_def, str):
+        import json as _json
+        process_def = _json.loads(process_def)
+    
+    nodes = process_def.get("nodes", [])
+    
+    # =====================================================================
+    # Step 1: Analyze process nodes to extract required identity fields
+    # =====================================================================
+    requirements = _analyze_process_identity_requirements(nodes)
+    
+    # =====================================================================
+    # Step 2: Get the current user's identity data
+    # =====================================================================
+    dir_svc = UserDirectoryService()
+    user_data = {}
+    identity_ctx = {}
+    try:
+        user_data = dir_svc.enrich_process_context(user_dict["id"], user_dict["org_id"])
+    except Exception as e:
+        user_data = {}
+    
+    try:
+        identity_ctx = dir_svc.discover_identity_context(user_dict["org_id"])
+    except Exception:
+        identity_ctx = {}
+    
+    # =====================================================================
+    # Step 3: Check requirements against actual data
+    # =====================================================================
+    issues = _check_requirements_against_data(requirements, user_data, identity_ctx, user_dict)
+    
+    # =====================================================================
+    # Step 4: Return structured result
+    # =====================================================================
+    return {
+        "ok": len([i for i in issues if i["severity"] == "error"]) == 0,
+        "issues": issues,
+        "identity_source": identity_ctx.get("source_label", "Unknown"),
+        "user_profile_summary": {
+            "email": user_data.get("email", None),
+            "name": user_data.get("display_name") or user_data.get("name", None),
+            "has_manager": bool(user_data.get("manager_email") or user_data.get("manager_id")),
+            "manager_name": user_data.get("manager_name", None),
+            "manager_email": user_data.get("manager_email", None),
+            "department": user_data.get("department_name", None),
+            "has_custom_fields": bool(user_data.get("custom_attributes")),
+        },
+        "requirements": requirements,
+    }
+
+
+def _analyze_process_identity_requirements(nodes: list) -> Dict[str, Any]:
+    """
+    Scan ALL process nodes to determine which identity fields are required.
+    
+    This is a deterministic, thorough scan — not LLM-based — so it's instant
+    and 100% accurate. It checks:
+    - Notification recipients (requester, manager, custom emails)
+    - Approval assignees (dynamic_manager, department, role)
+    - Variable references ({{ _user_context.X }})
+    - Condition expressions referencing identity
+    - AI task prompts referencing identity
+    - Form fields with prefill from identity
+    """
+    import re as _re
+    
+    reqs = {
+        "needs_email": False,
+        "needs_manager": False,
+        "needs_department": False,
+        "needs_custom_fields": [],
+        "referenced_identity_fields": set(),
+        "details": [],  # Human-readable description of why each field is needed
+    }
+    
+    # Regex to find {{ _user_context.FIELD }} or {{ trigger_input._user_context.FIELD }}
+    ctx_ref_re = _re.compile(r'\{\{\s*(?:trigger_input\.)?_user_context\.(\w+)\s*\}\}')
+    # Also catch manager_id / manager_email at top-level trigger_input
+    top_ref_re = _re.compile(r'\{\{\s*(?:trigger_input\.)?(manager_id|manager_email|department_id|department_name|employee_id)\s*\}\}')
+    
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        
+        node_type = (node.get("type") or "").lower()
+        node_name = node.get("name") or node.get("label") or node_type
+        config = node.get("config") or node.get("data") or {}
+        if isinstance(config, dict) and "config" in config:
+            config = config["config"]  # Handle nested config from visual builder
+        if not isinstance(config, dict):
+            config = {}
+        
+        # --- Scan the entire node config as text for variable references ---
+        config_text = str(config)
+        for match in ctx_ref_re.finditer(config_text):
+            field = match.group(1)
+            reqs["referenced_identity_fields"].add(field)
+            if field in ("email",):
+                reqs["needs_email"] = True
+            elif field in ("manager_id", "manager_email", "manager_name"):
+                reqs["needs_manager"] = True
+            elif field in ("department_name", "department_id"):
+                reqs["needs_department"] = True
+        
+        for match in top_ref_re.finditer(config_text):
+            field = match.group(1)
+            if "manager" in field:
+                reqs["needs_manager"] = True
+            if "department" in field:
+                reqs["needs_department"] = True
+        
+        # --- NOTIFICATION nodes ---
+        if node_type == "notification":
+            recipients = config.get("recipients") or []
+            if not recipients:
+                single = config.get("recipient")
+                if single:
+                    recipients = [single]
+            
+            for r in recipients:
+                r_str = str(r).strip().lower()
+                if r_str in ("requester", "submitter", "initiator", "self"):
+                    reqs["needs_email"] = True
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "email",
+                        "reason": f"Notification node '{node_name}' sends to '{r_str}' — requires user's email address",
+                    })
+                elif r_str in ("manager", "supervisor", "direct_manager"):
+                    reqs["needs_manager"] = True
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "manager_email",
+                        "reason": f"Notification node '{node_name}' sends to '{r_str}' — requires manager's email address",
+                    })
+        
+        # --- APPROVAL nodes ---
+        if node_type == "approval":
+            assignee_source = (config.get("assignee_source") or "").lower()
+            dir_type = (config.get("directory_assignee_type") or "").lower()
+            
+            if assignee_source == "user_directory":
+                if dir_type in ("dynamic_manager", "manager"):
+                    reqs["needs_manager"] = True
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "manager",
+                        "reason": f"Approval node '{node_name}' routes to user's manager — requires manager assignment",
+                    })
+                elif "department" in dir_type:
+                    reqs["needs_department"] = True
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "department",
+                        "reason": f"Approval node '{node_name}' uses department-based routing — requires department assignment",
+                    })
+            
+            # Check for dynamic expressions in assignee_ids
+            assignee_ids = config.get("assignee_ids") or config.get("approvers") or []
+            for aid in (assignee_ids if isinstance(assignee_ids, list) else [assignee_ids]):
+                aid_str = str(aid or "")
+                if "manager" in aid_str.lower():
+                    reqs["needs_manager"] = True
+                if "department" in aid_str.lower():
+                    reqs["needs_department"] = True
+        
+        # --- CONDITION nodes ---
+        if node_type == "condition":
+            expression = str(config.get("expression") or config.get("condition") or "")
+            if "_user_context" in expression or "manager" in expression.lower():
+                for match in ctx_ref_re.finditer(expression):
+                    reqs["referenced_identity_fields"].add(match.group(1))
+                if "manager" in expression.lower():
+                    reqs["needs_manager"] = True
+                if "department" in expression.lower():
+                    reqs["needs_department"] = True
+        
+        # --- AI_TASK nodes (scan prompt for identity references) ---
+        if node_type == "ai_task":
+            prompt = str(config.get("prompt") or config.get("system_prompt") or "")
+            for match in ctx_ref_re.finditer(prompt):
+                field = match.group(1)
+                reqs["referenced_identity_fields"].add(field)
+                if field == "email":
+                    reqs["needs_email"] = True
+                elif "manager" in field:
+                    reqs["needs_manager"] = True
+                elif "department" in field:
+                    reqs["needs_department"] = True
+        
+        # --- START node: scan prefill fields ---
+        if node_type in ("start", "form"):
+            fields = config.get("fields") or []
+            if isinstance(fields, list):
+                for f in fields:
+                    if not isinstance(f, dict):
+                        continue
+                    prefill = f.get("prefill") or ""
+                    prefill_str = str(prefill).lower()
+                    if "manager" in prefill_str:
+                        reqs["needs_manager"] = True
+                    if "email" in prefill_str and ("user" in prefill_str or "requester" in prefill_str):
+                        reqs["needs_email"] = True
+                    if "department" in prefill_str:
+                        reqs["needs_department"] = True
+                    # Check for custom field prefills
+                    if prefill_str.startswith("_user_context."):
+                        field_name = prefill_str.replace("_user_context.", "")
+                        reqs["referenced_identity_fields"].add(field_name)
+    
+    # Convert set to list for JSON serialization
+    reqs["referenced_identity_fields"] = sorted(reqs["referenced_identity_fields"])
+    return reqs
+
+
+def _check_requirements_against_data(
+    requirements: Dict[str, Any],
+    user_data: Dict[str, Any],
+    identity_ctx: Dict[str, Any],
+    user_dict: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """
+    Compare what the process NEEDS vs what the user's profile HAS.
+    Returns a list of issues, each with severity, message, and fix action.
+    """
+    issues = []
+    
+    # Check: Is identity configured at all?
+    if not user_data:
+        issues.append({
+            "severity": "error",
+            "code": "NO_IDENTITY_DATA",
+            "title": "No identity data found",
+            "message": (
+                "Your user profile could not be loaded from the Identity Directory. "
+                "This process requires identity data to run correctly."
+            ),
+            "action": {
+                "type": "open_settings",
+                "label": "Set up Identity Directory",
+                "target": "identity",
+            },
+        })
+        # If no identity data at all, remaining checks don't apply
+        return issues
+    
+    # Check: Email
+    if requirements.get("needs_email"):
+        email = user_data.get("email") or user_dict.get("email")
+        if not email:
+            reasons = [d["reason"] for d in requirements.get("details", []) if d.get("field") == "email"]
+            issues.append({
+                "severity": "error",
+                "code": "MISSING_EMAIL",
+                "title": "Your email address is missing",
+                "message": (
+                    "This process sends notifications to you (the requester), "
+                    "but your profile has no email address."
+                    + (f"\n\nNeeded by: {reasons[0]}" if reasons else "")
+                ),
+                "action": {
+                    "type": "open_profile",
+                    "label": "Update your profile",
+                    "target": "profile",
+                    "field": "email",
+                },
+            })
+    
+    # Check: Manager
+    if requirements.get("needs_manager"):
+        has_manager = bool(user_data.get("manager_email") or user_data.get("manager_id"))
+        manager_email = user_data.get("manager_email")
+        manager_name = user_data.get("manager_name")
+        
+        if not has_manager:
+            reasons = [d["reason"] for d in requirements.get("details", []) if "manager" in d.get("field", "")]
+            issues.append({
+                "severity": "error",
+                "code": "NO_MANAGER_ASSIGNED",
+                "title": "No manager assigned to your profile",
+                "message": (
+                    "This process requires manager approval or sends notifications to your manager, "
+                    "but you don't have a manager assigned in the Identity Directory."
+                    + (f"\n\nNeeded by: {reasons[0]}" if reasons else "")
+                ),
+                "action": {
+                    "type": "open_profile",
+                    "label": "Assign a manager",
+                    "target": "user_management",
+                    "field": "manager",
+                },
+            })
+        elif has_manager and not manager_email:
+            # Manager is assigned but has no email — manager's profile is incomplete
+            issues.append({
+                "severity": "warning",
+                "code": "MANAGER_NO_EMAIL",
+                "title": f"Your manager{' (' + manager_name + ')' if manager_name else ''} has no email address",
+                "message": (
+                    "Your manager is assigned, but their profile doesn't have an email address. "
+                    "Notifications sent to 'manager' will fail."
+                ),
+                "action": {
+                    "type": "open_profile",
+                    "label": f"Update manager's profile",
+                    "target": "user_management",
+                    "field": "manager_email",
+                    "manager_id": user_data.get("manager_id"),
+                },
+            })
+    
+    # Check: Department
+    if requirements.get("needs_department"):
+        has_dept = bool(user_data.get("department_name") or user_data.get("department_id"))
+        if not has_dept:
+            caps = identity_ctx.get("capabilities", {})
+            has_any_depts = caps.get("has_departments", False)
+            reasons = [d["reason"] for d in requirements.get("details", []) if "department" in d.get("field", "")]
+            
+            if not has_any_depts:
+                issues.append({
+                    "severity": "error",
+                    "code": "NO_DEPARTMENTS",
+                    "title": "No departments configured",
+                    "message": (
+                        "This process uses department-based routing, "
+                        "but no departments exist in the system."
+                        + (f"\n\nNeeded by: {reasons[0]}" if reasons else "")
+                    ),
+                    "action": {
+                        "type": "open_settings",
+                        "label": "Set up departments",
+                        "target": "departments",
+                    },
+                })
+            else:
+                issues.append({
+                    "severity": "error",
+                    "code": "NO_DEPARTMENT_ASSIGNED",
+                    "title": "You are not assigned to a department",
+                    "message": (
+                        "This process uses department-based routing, "
+                        "but your profile has no department assigned."
+                        + (f"\n\nNeeded by: {reasons[0]}" if reasons else "")
+                    ),
+                    "action": {
+                        "type": "open_profile",
+                        "label": "Assign your department",
+                        "target": "user_management",
+                        "field": "department",
+                    },
+                })
+    
+    # Check: Referenced custom identity fields
+    referenced = requirements.get("referenced_identity_fields", [])
+    standard_fields = {
+        "email", "name", "display_name", "first_name", "last_name", "phone",
+        "job_title", "employee_id", "department_name", "department_id",
+        "manager_id", "manager_name", "manager_email", "role_names",
+        "group_names", "is_manager", "user_id", "roles", "groups",
+        "direct_report_count", "identity_source",
+    }
+    for field in referenced:
+        if field in standard_fields:
+            # Check if this standard field has a value
+            value = user_data.get(field)
+            if not value and field not in ("is_manager", "direct_report_count"):
+                issues.append({
+                    "severity": "warning",
+                    "code": "MISSING_PROFILE_FIELD",
+                    "title": f"Profile field '{field}' is empty",
+                    "message": (
+                        f"The process references '{{{{ _user_context.{field} }}}}' "
+                        f"but this field is empty in your profile."
+                    ),
+                    "action": {
+                        "type": "open_profile",
+                        "label": f"Fill in '{field}'",
+                        "target": "profile",
+                        "field": field,
+                    },
+                })
+        else:
+            # This is a custom field — check if it exists in user_data
+            value = user_data.get(field)
+            if value is None:
+                issues.append({
+                    "severity": "warning",
+                    "code": "MISSING_CUSTOM_FIELD",
+                    "title": f"Custom field '{field}' is not set",
+                    "message": (
+                        f"The process references a custom profile field '{field}' "
+                        f"but it doesn't exist in your profile. This may need to be added "
+                        f"via Settings > Identity Directory > Custom Fields."
+                    ),
+                    "action": {
+                        "type": "open_profile",
+                        "label": f"Add '{field}' to profile",
+                        "target": "user_management",
+                        "field": field,
+                    },
+                })
+    
+    # Check identity source warnings
+    id_warnings = identity_ctx.get("warnings", [])
+    for w in id_warnings:
+        issues.append({
+            "severity": "warning",
+            "code": "IDENTITY_WARNING",
+            "title": "Identity Directory warning",
+            "message": w,
+            "action": {
+                "type": "open_settings",
+                "label": "Review Identity Settings",
+                "target": "identity",
+            },
+        })
+    
+    return issues
+
+
+# =============================================================================
 # EXECUTION ENDPOINTS
 # =============================================================================
 
