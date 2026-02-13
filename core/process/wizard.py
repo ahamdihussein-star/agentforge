@@ -343,13 +343,25 @@ Node config rules:
     - "{{{{employeeEmail}}}}" → a form field reference (only if you need a custom email field)
     - "someone@example.com" → a hardcoded email (rarely used)
     BEST PRACTICE: Use "requester" and "manager" shortcuts. NEVER leave recipient empty. NEVER use "-- Select Field --".
-  - template: The full email body content. MUST be a rich, informative message that includes:
-    - What happened (approved, rejected, pending, auto-approved, etc.)
-    - Key data using variable interpolation: {{{{fieldName}}}} for form fields, {{{{parsedData.fieldName}}}}, etc.
-    - Context so the recipient understands without logging in
-    Examples (adapt to the actual workflow):
-      - "Your request for {{{{requestType}}}} has been auto-approved. Details: {{{{parsedData.details}}}}"
-      - "A new {{{{category}}}} request from {{{{employeeName}}}} requires your review. Total: {{{{parsedData.totalAmount}}}} {{{{parsedData.currency}}}}"
+  - template: The full email body content. MUST be a rich, informative, business-friendly message.
+    RULES FOR TEMPLATES:
+    - Include: What happened (approved/rejected/pending/auto-approved) + key data + context
+    - Use variable interpolation: {{{{fieldName}}}} for form fields, {{{{parsedData.fieldName}}}} for AI-parsed data
+    - ALWAYS reference SPECIFIC scalar fields (e.g., {{{{parsedData.totalAmount}}}}, {{{{parsedData.currency}}}})
+    - NEVER dump a raw array/object variable like {{{{parsedData}}}} or {{{{parsedData.expenses}}}} directly into the template.
+      Instead, reference individual scalar fields from the parsed data.
+    - When the process extracts itemized data (e.g., expenses, line items), the template should reference
+      summary fields (total, count) and the platform will auto-format any arrays into readable lists.
+    - Write the message as if you're a professional assistant writing to a colleague — warm, clear, and complete.
+    - Include enough context that the recipient understands WITHOUT logging in.
+    
+    GOOD examples (adapt to workflow):
+      - "Hi {{{{trigger_input._user_context.display_name}}}},\n\nYour expense report '{{{{expenseReportName}}}}' has been approved by your manager.\n\nTotal Amount: {{{{parsedData.totalAmount}}}} {{{{parsedData.currency}}}}\nNumber of expenses: {{{{parsedData.expenseCount}}}}\n\nExpense breakdown:\n{{{{parsedData.expenses}}}}\n\nThank you!"
+      - "A new expense report '{{{{expenseReportName}}}}' from {{{{trigger_input._user_context.display_name}}}} requires your review.\n\nTotal: {{{{parsedData.totalAmount}}}} {{{{parsedData.currency}}}}\n\nPlease log in to review and approve."
+    BAD examples (NEVER do this):
+      - "Details: {{{{parsedData}}}}" ← dumps entire object as text
+      - "Expenses: {{{{expenses}}}}" ← dumps raw array
+    
     Use variable names that match the actual fields and AI output for the specific process being generated.
     NEVER leave template empty. ALWAYS write a complete, business-friendly notification message.
   CRITICAL: Every notification node MUST have a non-empty recipient and a non-empty template. The AI must fill both — they are NEVER left for the user to configure manually.

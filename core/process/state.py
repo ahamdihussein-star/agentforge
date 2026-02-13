@@ -393,6 +393,66 @@ class ProcessState:
             "true": True, "false": False, "null": None
         })
     
+    @staticmethod
+    def _format_value_for_display(value) -> str:
+        """
+        Format a complex value (list/dict) as business-friendly readable text.
+        
+        Instead of dumping raw JSON like [{"amount": 1500, "vendor": "Emirates"}],
+        produces readable text like:
+          - Amount: 1500, Vendor: Emirates
+          - Amount: 100, Vendor: City Parking
+        
+        This makes notification emails, messages, and templates human-friendly.
+        """
+        if value is None:
+            return ""
+        if not isinstance(value, (dict, list)):
+            return str(value)
+        
+        # --- List of items ---
+        if isinstance(value, list):
+            if not value:
+                return "(none)"
+            
+            # List of dicts → format each as a readable line
+            if all(isinstance(item, dict) for item in value):
+                lines = []
+                for i, item in enumerate(value, 1):
+                    # Filter out internal/technical keys and build readable pairs
+                    parts = []
+                    for k, v in item.items():
+                        if k.startswith("_") or v is None:
+                            continue
+                        # Make key readable: snake_case → spaces, camelCase → spaces, then Title Case
+                        import re as _re
+                        label = _re.sub(r'([a-z])([A-Z])', r'\1 \2', k.replace("_", " ")).title()
+                        parts.append(f"{label}: {v}")
+                    if parts:
+                        lines.append(f"  {i}. " + ", ".join(parts))
+                    else:
+                        lines.append(f"  {i}. {item}")
+                return "\n".join(lines)
+            
+            # List of simple values → comma-separated
+            return ", ".join(str(item) for item in value)
+        
+        # --- Single dict ---
+        if isinstance(value, dict):
+            parts = []
+            for k, v in value.items():
+                if k.startswith("_") or v is None:
+                    continue
+                import re as _re
+                label = _re.sub(r'([a-z])([A-Z])', r'\1 \2', k.replace("_", " ")).title()
+                if isinstance(v, (dict, list)):
+                    parts.append(f"{label}: {ProcessState._format_value_for_display(v)}")
+                else:
+                    parts.append(f"{label}: {v}")
+            return ", ".join(parts) if parts else "(empty)"
+        
+        return str(value)
+
     def interpolate_string(self, template: str) -> str:
         """
         Interpolate variables into a string template
@@ -402,6 +462,8 @@ class ProcessState:
         Unlike evaluate() (used for conditions), this method returns raw string
         values WITHOUT Python repr() quoting, so multi-line text (e.g., extracted
         document content) is preserved as-is for prompts and notifications.
+        
+        Complex values (lists, dicts) are formatted as readable text — NOT raw JSON.
         """
         if not template:
             return ""
@@ -415,10 +477,7 @@ class ProcessState:
             if value is None:
                 return ""
             if isinstance(value, (dict, list)):
-                try:
-                    return json.dumps(value, ensure_ascii=False, default=str)
-                except Exception:
-                    return str(value)
+                return self._format_value_for_display(value)
             return str(value)
 
         # Multiple variables or mixed text: replace each {{var}} with its string value
@@ -437,10 +496,7 @@ class ProcessState:
             if value is None:
                 return ""
             if isinstance(value, (dict, list)):
-                try:
-                    return json.dumps(value, ensure_ascii=False, default=str)
-                except Exception:
-                    return str(value)
+                return self._format_value_for_display(value)
             # Return the raw string — NO repr(), preserving newlines and readability
             return str(value)
 
