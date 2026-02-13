@@ -131,10 +131,29 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     assignee_type = 'user'
                     logs.append(f"Resolved {len(assignee_ids)} assignees from User Directory")
                 else:
-                    logs.append("Warning: User Directory resolved 0 assignees, falling back to 'any'")
+                    dir_type = directory_config.get("type", "dynamic_manager")
+                    _trigger_input = getattr(context, 'trigger_input', None) or {}
+                    _id_warnings = _trigger_input.get("_identity_warnings", [])
+                    detail_msg = (
+                        f"The User Directory resolved 0 assignees for type '{dir_type}'. "
+                    )
+                    if dir_type == "dynamic_manager":
+                        detail_msg += (
+                            "This means the user who submitted the process does not have a manager assigned "
+                            "in the Identity Directory. Go to Settings > Identity Directory and assign a manager."
+                        )
+                    elif "department" in dir_type:
+                        detail_msg += (
+                            "This means no users were found in the target department, "
+                            "or the user's department is not set."
+                        )
+                    if _id_warnings:
+                        detail_msg += " Identity warnings: " + "; ".join(_id_warnings)
+                    logs.append(f"⚠️ {detail_msg}")
+                    logs.append("Falling back to 'any' assignee type")
                     assignee_type = 'any'
             except Exception as e:
-                logs.append(f"Warning: User Directory resolution failed: {e}, falling back")
+                logs.append(f"⚠️ User Directory resolution failed: {e}, falling back to static assignees")
                 assignee_ids = _to_assignee_id_list(assignee_ids_raw)
         elif assignee_source == 'tool':
             tool_id = self.get_config_value(node, 'assignee_tool_id') or ''
@@ -461,7 +480,16 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         # 2. Resolve user IDs (UUIDs) to email addresses via User Directory
         # 3. Pass through anything that looks like an email as-is
         resolved_recipients = []
-        user_context = (getattr(context, 'trigger_input', None) or {}).get("_user_context", {})
+        _trigger_input = getattr(context, 'trigger_input', None) or {}
+        user_context = _trigger_input.get("_user_context", {})
+        identity_warnings = _trigger_input.get("_identity_warnings", [])
+        
+        # Log identity state for diagnostics
+        if not user_context:
+            logs.append("⚠️ _user_context is empty — identity directory may not be configured or user not found")
+        elif identity_warnings:
+            for iw in identity_warnings:
+                logs.append(f"⚠️ Identity: {iw}")
         
         for r in interpolated_recipients:
             r_str = str(r).strip() if r else ""
@@ -476,7 +504,10 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                     resolved_recipients.append(email)
                     logs.append(f"Resolved '{r_str}' → {email}")
                 else:
-                    logs.append(f"Warning: Could not resolve '{r_str}' — no email in user context")
+                    logs.append(
+                        f"⚠️ Could not resolve '{r_str}' — no email in user context. "
+                        "Check: Is the user's email set in their profile? Is the Identity Directory configured?"
+                    )
                 continue
             
             # Shortcut: "manager" → the requester's manager
@@ -494,13 +525,17 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                                     email = mgr_attrs.email
                                     logs.append(f"Resolved '{r_str}' via user directory fallback → {email}")
                     except Exception as e:
-                        logs.append(f"Warning: user directory fallback for '{r_str}' failed: {e}")
+                        logs.append(f"⚠️ User directory fallback for '{r_str}' failed: {e}")
                 if email:
                     resolved_recipients.append(email)
                     if f"Resolved '{r_str}'" not in (logs[-1] if logs else ""):
                         logs.append(f"Resolved '{r_str}' → {email}")
                 else:
-                    logs.append(f"Warning: Could not resolve '{r_str}' — no manager email in user context or directory")
+                    logs.append(
+                        f"⚠️ Could not resolve '{r_str}' — no manager email found. "
+                        "Check: Does this user have a manager assigned in the Identity Directory? "
+                        "Go to Settings > Identity Directory > Users and verify the manager field."
+                    )
                 continue
             
             # Looks like an email → pass through
@@ -529,19 +564,38 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         # Guard: if recipients is empty after resolution, report clearly
         if not interpolated_recipients:
             logs.append("Warning: No valid recipients after resolution — notification not sent")
+            # Build a specific business message based on what was attempted
+            attempted_shortcuts = [str(r).strip().lower() for r in (recipients or []) if r]
+            specific_hints = []
+            if any(s in ("requester", "submitter", "initiator", "self") for s in attempted_shortcuts):
+                if not user_context.get("email"):
+                    specific_hints.append("The requester's email address is not available — check the user's profile in the Identity Directory.")
+            if any(s in ("manager", "supervisor", "direct_manager") for s in attempted_shortcuts):
+                if not user_context.get("manager_email"):
+                    specific_hints.append("The requester's manager email is not available — go to Settings > Identity Directory and ensure a manager is assigned to this user.")
+            if not user_context:
+                specific_hints.append("The Identity Directory did not return any user data. Please check that the Identity Directory is configured in Settings.")
+            if identity_warnings:
+                specific_hints.extend(identity_warnings)
+            
+            hint_text = " ".join(specific_hints) if specific_hints else "Check the Identity Directory to ensure the user and their manager have valid email addresses."
+            
             return NodeResult.failure(
                 error=ExecutionError(
                     category=ErrorCategory.CONFIGURATION,
                     code="NO_RECIPIENTS",
                     message=f"No valid recipients resolved for notification '{node.name}'. Original recipients config: {recipients}",
                     business_message=(
-                        f"The notification \"{node.name}\" could not be sent because no valid recipient email was found. "
-                        "This may mean the user's profile is missing an email address, or the manager is not configured in the identity directory."
+                        f"The notification \"{node.name}\" could not be sent because no valid recipient email was found. {hint_text}"
                     ),
                     is_user_fixable=True,
                     details={
                         'original_recipients': recipients,
-                        'action_hint': 'Check the Identity Directory to ensure the user and their manager have valid email addresses.',
+                        'user_context_available': bool(user_context),
+                        'user_email': user_context.get('email', '(not found)'),
+                        'manager_email': user_context.get('manager_email', '(not found)'),
+                        'identity_warnings': identity_warnings,
+                        'action_hint': hint_text,
                     },
                 ),
                 logs=logs,

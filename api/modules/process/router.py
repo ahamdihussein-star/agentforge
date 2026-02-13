@@ -1278,9 +1278,13 @@ async def generate_business_summary(
     
     # Build trigger input summary
     trigger_input = {}
+    identity_warnings_for_llm = []
     raw_input = execution.trigger_input if execution.trigger_input else {}
     if isinstance(raw_input, dict):
         for k, v in raw_input.items():
+            if k == "_identity_warnings":
+                identity_warnings_for_llm = v if isinstance(v, list) else []
+                continue
             if k.startswith("_"):
                 continue  # skip internal fields
             if isinstance(v, dict) and v.get("kind") == "uploadedFile":
@@ -1348,11 +1352,18 @@ KEY DETAILS:
 - <any important data points, amounts, decisions>
 """
     
+    _id_warnings_text = ""
+    if identity_warnings_for_llm:
+        _id_warnings_text = (
+            "\n\nIdentity warnings (these affected the workflow):\n"
+            + "\n".join(f"- {w}" for w in identity_warnings_for_llm)
+        )
+    
     user_prompt = f"""Here is a workflow execution result. Please explain what happened in business-friendly language.
 
 Workflow: {process_name}
 Status: {execution.status}
-{f'Error: {execution.error_message}' if execution.error_message else ''}
+{f'Error: {execution.error_message}' if execution.error_message else ''}{_id_warnings_text}
 
 Submitted information:
 {_json.dumps(trigger_input, indent=2, default=str)}

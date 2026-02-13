@@ -277,6 +277,7 @@ class ProcessAPIService:
         # (manager, department, employee_id, etc.) so process nodes
         # can use dynamic assignees like {{ context.manager_id }}
         user_context = {}
+        _identity_warnings = []
         try:
             user_context = _user_directory.enrich_process_context(user_id, org_id)
             logger.info(
@@ -286,6 +287,37 @@ class ProcessAPIService:
             )
         except Exception as e:
             logger.warning("[ProcessIdentity] Failed to enrich user context: %s", e)
+            _identity_warnings.append(f"Identity enrichment failed: {e}")
+        
+        # Validate the enriched context — report missing critical fields
+        if user_context:
+            if not user_context.get("email"):
+                _identity_warnings.append(
+                    "User email not found in identity directory. "
+                    "Notifications to 'requester' will fail."
+                )
+            if not user_context.get("manager_email") and not user_context.get("manager_id"):
+                _identity_warnings.append(
+                    "Manager information not found for this user in the identity directory. "
+                    "Notifications/approvals to 'manager' will fail. "
+                    "Please check the user's profile in the Identity Directory and ensure a manager is assigned."
+                )
+            if not user_context.get("department_name") and not user_context.get("department_id"):
+                _identity_warnings.append(
+                    "Department not assigned to this user. "
+                    "Department-based routing or approvals may not work."
+                )
+        elif not _identity_warnings:
+            # user_context is empty but no exception was thrown
+            # This means the user wasn't found or identity is not configured
+            _identity_warnings.append(
+                "Could not retrieve user identity data. "
+                "The Identity Directory may not be configured, or the user profile is incomplete. "
+                "Notifications to 'requester' or 'manager' may fail."
+            )
+
+        if _identity_warnings:
+            logger.warning("[ProcessIdentity] Warnings: %s", _identity_warnings)
         
         # Merge user directory data into trigger_input so process nodes can access it
         enriched_trigger = self._ensure_dict(trigger_input or {})
@@ -296,6 +328,9 @@ class ProcessAPIService:
             for key in ["manager_id", "department_id", "employee_id"]:
                 if key not in enriched_trigger and user_context.get(key):
                     enriched_trigger[key] = user_context[key]
+        # Always add identity warnings so downstream steps can report them
+        if _identity_warnings:
+            enriched_trigger["_identity_warnings"] = _identity_warnings
         
         # Build context with filtered tools (ensure dicts; DB may return JSON strings)
         context = ProcessContext(

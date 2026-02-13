@@ -74,8 +74,21 @@ class StartNodeExecutor(BaseNodeExecutor):
         logs.append(f"Trigger type: {context.trigger_type}")
         logs.append(f"User: {context.user_id}")
         
+        # Surface identity warnings so they appear in the test report
+        _id_warnings = (context.trigger_input or {}).get("_identity_warnings", [])
+        if _id_warnings:
+            for iw in _id_warnings:
+                logs.append(f"⚠️ Identity: {iw}")
+        
+        # Check if user context was enriched
+        _uc = (context.trigger_input or {}).get("_user_context", {})
+        if _uc:
+            logs.append(f"Identity enriched: email={_uc.get('email', '(none)')}, manager={_uc.get('manager_email', '(none)')}")
+        else:
+            logs.append("⚠️ No user identity data available — notifications to 'requester' or 'manager' may fail")
+        
         return NodeResult.success(
-            output={"started": True},
+            output={"started": True, "identity_warnings": _id_warnings or None},
             logs=logs
         )
 
