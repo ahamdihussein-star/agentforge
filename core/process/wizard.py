@@ -376,6 +376,10 @@ Node config rules:
       - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
       - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
       - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
+      - MUST set temperature: 0.1 (low temperature for accurate data extraction — never hallucinate)
+      - MUST set output_format: "json"
+      - The prompt MUST include anti-hallucination instructions:
+        "IMPORTANT: Only extract data that is EXPLICITLY present in the text. Do NOT invent, estimate, or assume any values. If a value is unclear, omit it. Count items carefully — each file section (--- File: ... ---) is ONE item."
     - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts, reports, images, certificates), the extraction step automatically processes ALL uploaded files (documents AND images via OCR) and returns combined text with "--- File: <name> ---" headers separating each file's content. The AI parsing node MUST handle this correctly:
       - Parse and extract relevant data from EVERY file in the text, not just the first one
       - ALWAYS return an "items" array containing each file's extracted data as a separate object, preserving per-file details (fileName, and any fields relevant to the workflow). This ensures each file's data is individually accessible to subsequent workflow steps
@@ -1324,8 +1328,9 @@ class ProcessWizard:
                 ov = n.get("output_variable") or n.get("outputVariable") or ""
                 if ov and ov in referenced_base_vars:
                     cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
-                    # Force JSON output format
+                    # Force JSON output format and low temperature for accuracy
                     cfg["output_format"] = "json"
+                    cfg["temperature"] = 0.1  # Low temp for data extraction — minimize hallucination
                     # Enhance the prompt to instruct JSON output with ALL expected field names
                     prompt = str(cfg.get("prompt") or "").strip()
                     # Collect all fields expected from this variable across all downstream steps

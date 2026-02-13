@@ -203,6 +203,9 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             hallucination_warnings = self._check_output_plausibility(prompt, output, logs)
             if hallucination_warnings:
                 logs.extend(hallucination_warnings)
+            # AUTO-CORRECT: Self-consistency check — if output has items array
+            # with amounts AND a total field, ensure total = sum(item amounts)
+            output = self._auto_correct_totals(output, logs)
         
         # Update variables if output_variable specified
         variables_update = {}
@@ -292,6 +295,83 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     )
 
         return warnings
+    
+    @staticmethod
+    def _auto_correct_totals(output: dict, logs: list) -> dict:
+        """
+        Self-consistency auto-correction for AI-parsed structured data.
+        
+        If the output contains an items/expenses array with numeric amounts
+        AND a total-like field, verify the total equals sum(item amounts).
+        If not, auto-correct the total and itemCount to match the actual items.
+        
+        This catches common LLM hallucinations where the model reports a
+        wrong total or wrong item count while the individual items are correct
+        (or vice versa).
+        """
+        # Find the items array (common names)
+        _items_keys = {"items", "expenses", "lineItems", "line_items", "receipts",
+                       "transactions", "entries", "records", "invoices"}
+        items = None
+        items_key = None
+        for k, v in output.items():
+            if k.lower().replace("_", "") in {s.lower().replace("_", "") for s in _items_keys}:
+                if isinstance(v, list) and len(v) > 0:
+                    items = v
+                    items_key = k
+                    break
+        
+        if not items:
+            return output
+        
+        # Find amount field in items (look for amount-like keys)
+        _amount_keys = {"amount", "total", "cost", "price", "value", "sum", "subtotal", "net"}
+        item_amounts = []
+        amount_field = None
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            for k, v in item.items():
+                if k.lower().replace("_", "") in _amount_keys and isinstance(v, (int, float)):
+                    item_amounts.append(v)
+                    if not amount_field:
+                        amount_field = k
+                    break
+        
+        if not item_amounts:
+            return output
+        
+        computed_total = sum(item_amounts)
+        
+        # Check and correct total-like fields
+        _total_keys = {"totalamount", "total", "grandtotal", "total_amount", "totalexpense",
+                       "totalcost", "totalprice", "totalvalue", "sum", "net", "gross"}
+        for k, v in list(output.items()):
+            k_norm = k.lower().replace("_", "").replace("-", "")
+            if k_norm in _total_keys and isinstance(v, (int, float)):
+                if abs(v - computed_total) > 0.01:
+                    logs.append(
+                        f"🔧 Auto-corrected {k}: AI reported {v} but sum of {len(item_amounts)} "
+                        f"item amounts = {computed_total}. Using computed value."
+                    )
+                    output[k] = computed_total
+        
+        # Check and correct item count fields
+        _count_keys = {"itemcount", "item_count", "expensecount", "expense_count",
+                       "count", "numitems", "num_items", "totalitems", "total_items",
+                       "numberofitems", "number_of_items", "receiptcount", "receipt_count"}
+        actual_count = len(items)
+        for k, v in list(output.items()):
+            k_norm = k.lower().replace("_", "").replace("-", "")
+            if k_norm in _count_keys and isinstance(v, (int, float)):
+                if int(v) != actual_count:
+                    logs.append(
+                        f"🔧 Auto-corrected {k}: AI reported {int(v)} but actual "
+                        f"items in '{items_key}' array = {actual_count}. Using actual count."
+                    )
+                    output[k] = actual_count
+        
+        return output
 
     def _parse_json_response(self, content: str) -> Any:
         """Extract and parse JSON from LLM response"""

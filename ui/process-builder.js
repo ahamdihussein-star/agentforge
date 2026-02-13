@@ -5209,15 +5209,15 @@
             const typ = f.file_type ? String(f.file_type).toUpperCase() : '';
             const size = (typeof f.size === 'number') ? `${Math.round(f.size / 1024)} KB` : '';
             const meta = [typ, size].filter(Boolean).join(' · ');
-            const btn = f.id ? `<button type="button" class="toolbar-btn btn-secondary" style="padding:6px 10px;border-radius:10px;font-size:12px;"
+            const btn = f.id ? `<button type="button" class="toolbar-btn btn-secondary" style="padding:4px 8px;border-radius:8px;font-size:11px;white-space:nowrap;"
                 data-upload-file-id="${escapeHtml(String(f.id))}"
                 data-upload-file-name="${escapeHtml(String(name))}"
             >Download</button>` : '';
-            return `<div style="display:flex;align-items:center;gap:6px;margin:3px 0;">
-                <span style="font-size:15px;">📎</span>
-                <span>${escapeHtml(name)}</span>
-                ${meta ? `<span style="color:var(--pb-muted);font-size:12px;">(${escapeHtml(meta)})</span>` : ''}
-                ${btn ? `<span style="margin-left:6px;">${btn}</span>` : ''}
+            return `<div style="display:flex;align-items:center;gap:5px;margin:4px 0;flex-wrap:wrap;">
+                <span style="font-size:14px;flex-shrink:0;">📎</span>
+                <span style="font-size:13px;word-break:break-word;">${escapeHtml(name)}</span>
+                ${meta ? `<span style="color:var(--pb-muted);font-size:11px;white-space:nowrap;">(${escapeHtml(meta)})</span>` : ''}
+                ${btn ? `<span>${btn}</span>` : ''}
             </div>`;
         }
         
