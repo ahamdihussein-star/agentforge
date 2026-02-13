@@ -602,9 +602,10 @@ class ProcessWizard:
             # the identity KB should always be available for the LLM to use if needed.
             # This avoids hardcoding specific scenarios (like HR) that trigger identity retrieval.
             query += "\n\nidentity user_directory approval assignee notification prefill user profile"
+            query += "\n\nrecipient requester manager _user_context enrich runtime resolution identity_source"
             query += "\n\nlayout visual spacing connection lines nodes positioning end node branches"
 
-            platform_knowledge = retrieve_platform_knowledge(query, top_k=6, max_chars=5000)
+            platform_knowledge = retrieve_platform_knowledge(query, top_k=8, max_chars=6000)
         except Exception:
             platform_knowledge = ""
 
@@ -659,7 +660,20 @@ class ProcessWizard:
             "The user should NEVER have to type information the system already knows.\n"
             "5. SMART DATA FLOW: Variables from earlier steps should flow to later steps naturally. "
             "AI outputs should be stored in variables and referenced in notifications/conditions.\n"
-            "6. RESPOND IN THE SAME LANGUAGE as the user's goal (labels, placeholders, names — everything user-facing).\n\n"
+            "6. RESPOND IN THE SAME LANGUAGE as the user's goal (labels, placeholders, names — everything user-facing).\n"
+            "7. IDENTITY-AWARE CONFIGURATION (CRITICAL):\n"
+            "   The platform has a built-in Identity Directory that automatically resolves user information at runtime.\n"
+            "   When a process starts, the engine enriches the context with ALL user data from the configured identity source\n"
+            "   (Built-in, LDAP, Active Directory, HR System). This data is available as trigger_input._user_context.\n"
+            "   Available fields include: email, display_name, manager_id, manager_email, manager_name,\n"
+            "   department_name, employee_id, job_title, role_names, group_names, and any custom attributes.\n\n"
+            "   THEREFORE:\n"
+            "   - NEVER add a 'Manager Email' or 'Manager Name' field to the form — the engine resolves it automatically.\n"
+            "   - For approval routing, use assignee_source: 'user_directory' with directory_assignee_type: 'dynamic_manager'.\n"
+            "   - For notifications to the employee/requester: set recipient to 'requester' (magic shortcut — engine resolves to email).\n"
+            "   - For notifications to the manager: set recipient to 'manager' (magic shortcut — engine resolves to manager's email).\n"
+            "   - In notification templates, reference user data via {{trigger_input._user_context.display_name}}, etc.\n"
+            "   - NEVER try to manually resolve emails — the platform does this automatically.\n\n"
             "Return ONLY valid JSON that matches the schema exactly. No markdown, no explanation."
         )
         try:
@@ -1041,6 +1055,26 @@ class ProcessWizard:
                 if not f.get("placeholder") and f.get("label"):
                     f["placeholder"] = f"Enter {f.get('label')}"
 
+            # ENFORCE: Remove form fields that the identity directory resolves automatically.
+            # The AI should NEVER ask the user to enter their manager's email/name/ID —
+            # these are resolved by the engine from the configured identity source.
+            _identity_auto_fields = {"manageremail", "managername", "managerid",
+                                     "manager_email", "manager_name", "manager_id",
+                                     "supervisoremail", "supervisorname"}
+            if start and isinstance(start.get("config"), dict):
+                _fields = start["config"].get("fields")
+                if isinstance(_fields, list):
+                    _before = len(_fields)
+                    start["config"]["fields"] = [
+                        f for f in _fields
+                        if not isinstance(f, dict)
+                        or (f.get("name") or "").lower() not in _identity_auto_fields
+                    ]
+                    _removed = _before - len(start["config"]["fields"])
+                    if _removed:
+                        logger.info(f"Removed {_removed} manager/identity fields from form — engine resolves these automatically from the identity directory")
+                    fields = start["config"]["fields"]
+
             # Rewrite references across all nodes
             if mapping:
                 for n in normalized_nodes:
@@ -1287,6 +1321,25 @@ class ProcessWizard:
                 cfg["template"] = str(cfg["message"])
             if not cfg.get("template") and cfg.get("title"):
                 cfg["template"] = str(cfg["title"])
+
+            # Normalize common recipient patterns to engine-supported shortcuts.
+            # The AI may generate verbose template references instead of the simpler shortcuts.
+            r = str(cfg.get("recipient") or "").strip()
+            r_lower = r.lower()
+            # Strip {{ }} wrappers for comparison
+            r_stripped = re.sub(r"\{\{|\}\}", "", r_lower).strip()
+            # Normalize verbose user_context email references to "requester" shortcut
+            if "_user_context" in r and ("email" in r_lower and "manager" not in r_lower):
+                cfg["recipient"] = "requester"
+            # Normalize verbose manager_email references to "manager" shortcut
+            elif "manager_email" in r_lower or "manager email" in r_lower:
+                cfg["recipient"] = "manager"
+            # Normalize form field references to manager email (e.g., {{manageremail}}) to shortcut
+            elif r_stripped in _identity_auto_fields or r_stripped in ("manageremail", "manager_email"):
+                cfg["recipient"] = "manager"
+            # Normalize form field references to employee/user email to requester shortcut
+            elif r_stripped in ("employeeemail", "employee_email", "useremail", "user_email"):
+                cfg["recipient"] = "requester"
 
             # Auto-fill empty recipient based on node name/context
             if not cfg.get("recipient") or cfg.get("recipient") in ("", "-- Select Field --"):

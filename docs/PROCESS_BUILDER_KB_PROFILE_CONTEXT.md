@@ -1,4 +1,4 @@
-# Process Builder Knowledge Base — User Profile & Prefill (v2)
+# Process Builder Knowledge Base — User Profile & Prefill (v3)
 
 The workflow engine runs with a **logged-in user context**. This means the platform already knows
 who started the process and can automatically fill in their information.
@@ -9,6 +9,18 @@ If a piece of information is available from the user's profile, the workflow MUS
 using `prefill` with `readOnly: true` instead of asking the user to type it.
 
 This applies to ANY attribute the organization's identity source provides — the system is fully dynamic.
+
+## How the Platform Resolves User Data (Runtime Flow)
+
+When a process starts, the platform automatically:
+1. Identifies the logged-in user from their session
+2. Calls `enrich_process_context(user_id, org_id)` on the configured Identity Directory
+3. The Identity Directory queries the configured source (Built-in, LDAP, AD, HR API, or Hybrid)
+4. ALL resolved attributes are injected into `trigger_input._user_context`
+5. Custom attributes from HR/LDAP are **flattened** into the context (directly accessible)
+
+The workflow designer does NOT need to know which identity source is configured.
+The engine handles this transparently.
 
 ## How Prefill Works
 
@@ -23,8 +35,7 @@ For any start form field that matches a known user attribute:
 }
 ```
 
-The engine resolves the value at runtime from whichever identity source the organization has configured
-(Built-in, LDAP, Active Directory, HR System API). The workflow designer does NOT need to know which source is used.
+The engine resolves the value at runtime from whichever identity source the organization has configured.
 
 ## Available Attribute Categories
 
@@ -39,7 +50,7 @@ The engine resolves the value at runtime from whichever identity source the orga
 - `orgId` — Organization ID
 
 ### Available When Identity Source Is Configured
-- `managerId`, `managerName`, `managerEmail` — Direct manager info
+- `managerId`, `managerName`, `managerEmail` — Direct manager info (resolved automatically)
 - `departmentId`, `departmentName` — Department info
 - `jobTitle` — Job title
 - `employeeId` — HR employee identifier
@@ -60,7 +71,8 @@ Examples of possible custom attributes (organization-dependent):
    or any profile information** → Use prefill with `readOnly: true`. NEVER make the user type it.
 
 2. **If the process mentions "manager" or "supervisor" in the context of notifications or approvals** →
-   The system can auto-resolve this. Do NOT ask the user to enter their manager's information.
+   The system resolves this automatically via the identity directory. Do NOT ask the user to enter
+   their manager's information. Do NOT add a "Manager Email" form field.
 
 3. **If a field could be ANY user attribute** → Check if it matches a known prefill key.
    The system supports ANY camelCase key that maps to a snake_case attribute in the user's profile.
@@ -70,14 +82,18 @@ Examples of possible custom attributes (organization-dependent):
 
 ## Using User Context in Other Nodes
 
-Beyond form prefill, user context is available in templates and expressions:
+Beyond form prefill, user context is available in templates and expressions throughout the process:
 - `{{ trigger_input._user_context.email }}` — Requester's email
-- `{{ trigger_input._user_context.name }}` — Requester's name
-- `{{ trigger_input._user_context.manager_email }}` — Manager's email
+- `{{ trigger_input._user_context.display_name }}` — Requester's full name
+- `{{ trigger_input._user_context.manager_email }}` — Manager's email (resolved from identity directory)
+- `{{ trigger_input._user_context.manager_name }}` — Manager's name
 - `{{ trigger_input._user_context.department_name }}` — Department name
+- `{{ trigger_input._user_context.job_title }}` — Job title
+- `{{ trigger_input._user_context.employee_id }}` — Employee ID
 
 ## Anti-Hallucination Rules
 - The prefill system is dynamic — ANY camelCase key works if the attribute exists.
 - Do NOT generate steps that "look up" or "fetch" user profile data manually — the engine does this automatically.
 - Do NOT ask users to re-enter information the system already has.
+- Do NOT add "Manager Email" as a form field — this is resolved from the identity directory automatically.
 - When using prefill, ALWAYS set `readOnly: true` to prevent the user from accidentally changing auto-filled data.
