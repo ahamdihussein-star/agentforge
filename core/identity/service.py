@@ -1009,9 +1009,13 @@ class UserDirectoryService:
         Returns:
             Dict of ALL user context data for process variables
         """
+        logger.info("[enrich_process_context] Looking up user_id=%s, org_id=%s", user_id, org_id)
         user = self.get_user(user_id, org_id)
         if not user:
+            logger.warning("[enrich_process_context] get_user returned None for user_id=%s, org_id=%s", user_id, org_id)
             return {"user_id": user_id}
+        logger.info("[enrich_process_context] Found user: email=%s, manager_id=%s, manager_email=%s",
+                     user.email, user.manager_id, user.manager_email)
         
         # Start with ALL standard attributes from UserAttributes
         context = {
@@ -1075,7 +1079,23 @@ class UserDirectoryService:
                     User.id == user_id,
                     User.org_id == org_id
                 ).first()
-            except Exception:
+                if not user:
+                    logger.warning("[_get_user_internal] No user found with id=%s AND org_id=%s (direct query)", user_id, org_id)
+                    # Debug: check if user exists with different org_id
+                    any_user = session.query(User).filter(User.id == user_id).first()
+                    if any_user:
+                        logger.warning("[_get_user_internal] User id=%s EXISTS but with org_id=%s (expected %s)", user_id, any_user.org_id, org_id)
+                    else:
+                        logger.warning("[_get_user_internal] User id=%s does NOT exist in DB at all", user_id)
+                        # Check by email if we have it from trigger
+                        from sqlalchemy import text as _text
+                        sample = session.execute(
+                            _text("SELECT id::text, email, org_id::text FROM users WHERE org_id::text = :oid LIMIT 5"),
+                            {"oid": str(org_id)}
+                        ).fetchall()
+                        logger.warning("[_get_user_internal] Sample users in org %s: %s", org_id, [(r[0], r[1], r[2]) for r in sample])
+            except Exception as ex:
+                logger.warning("[_get_user_internal] Primary query failed: %s", ex)
                 # Fallback: use raw SQL with explicit cast for type safety
                 try:
                     session.rollback()
@@ -1086,6 +1106,8 @@ class UserDirectoryService:
                     ).first()
                     if row:
                         user = session.query(User).get(row.id)
+                    else:
+                        logger.warning("[_get_user_internal] Fallback also found no user for id=%s, org_id=%s", user_id, org_id)
                 except Exception as e2:
                     logger.warning("_get_user_internal fallback failed: %s", e2)
             

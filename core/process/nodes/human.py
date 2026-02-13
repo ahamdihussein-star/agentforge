@@ -500,12 +500,19 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             # Shortcut: "requester" → the user who started the process
             if r_lower in ("requester", "submitter", "initiator", "self"):
                 email = user_context.get("email") or ""
+                # Fallback chain: _user_context.email → context.user_email (from auth token)
+                if not email:
+                    email = getattr(context, 'user_email', None) or ""
+                    if email:
+                        logs.append(f"ℹ️ Used auth token email as fallback for '{r_str}'")
                 if email:
                     resolved_recipients.append(email)
                     logs.append(f"Resolved '{r_str}' → {email}")
                 else:
                     logs.append(
-                        f"⚠️ Could not resolve '{r_str}' — no email in user context. "
+                        f"⚠️ Could not resolve '{r_str}' — no email in user context AND no email in auth token. "
+                        f"_user_context keys: {list(user_context.keys())}. "
+                        f"context.user_email: {getattr(context, 'user_email', '(not set)')}. "
                         "Check: Is the user's email set in their profile? Is the Identity Directory configured?"
                     )
                 continue

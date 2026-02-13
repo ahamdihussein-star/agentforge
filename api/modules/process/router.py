@@ -396,12 +396,25 @@ async def preflight_check(
     identity_ctx = {}
     try:
         user_data = dir_svc.enrich_process_context(user_dict["id"], user_dict["org_id"])
+        print(f"[Preflight] enrich_process_context: user_id={user_dict['id']}, org_id={user_dict['org_id']}, "
+              f"email={user_data.get('email', '(none)')}, manager_email={user_data.get('manager_email', '(none)')}, "
+              f"keys={list(user_data.keys())}")
     except Exception as e:
+        print(f"[Preflight] enrich_process_context FAILED: user_id={user_dict['id']}, org_id={user_dict['org_id']}, error={e}")
+        import traceback
+        traceback.print_exc()
         user_data = {}
+    
+    # Fallback: if enrich returned minimal data, inject email from auth token
+    if not user_data.get("email") and user_dict.get("email"):
+        user_data["email"] = user_dict["email"]
+        print(f"[Preflight] Injected email from auth token as fallback: {user_dict['email']}")
     
     try:
         identity_ctx = dir_svc.discover_identity_context(user_dict["org_id"])
-    except Exception:
+        print(f"[Preflight] identity_context: source={identity_ctx.get('source')}, warnings={identity_ctx.get('warnings')}")
+    except Exception as e:
+        print(f"[Preflight] discover_identity_context FAILED: {e}")
         identity_ctx = {}
     
     # =====================================================================

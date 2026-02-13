@@ -279,18 +279,49 @@ class ProcessAPIService:
         user_context = {}
         _identity_warnings = []
         try:
+            logger.info(
+                "[ProcessIdentity] Enriching context: user_id=%s, org_id=%s",
+                user_id, org_id
+            )
             user_context = _user_directory.enrich_process_context(user_id, org_id)
             logger.info(
-                "[ProcessIdentity] Enriched context for user %s: keys=%s",
+                "[ProcessIdentity] Enriched context for user %s: keys=%s, email=%s, manager_email=%s",
                 user_id[:8] + "..." if user_id else "None",
-                list(user_context.keys())
+                list(user_context.keys()),
+                user_context.get("email", "(none)"),
+                user_context.get("manager_email", "(none)")
             )
         except Exception as e:
-            logger.warning("[ProcessIdentity] Failed to enrich user context: %s", e)
+            logger.warning("[ProcessIdentity] Failed to enrich user context for user_id=%s, org_id=%s: %s", user_id, org_id, e)
+            import traceback
+            logger.warning("[ProcessIdentity] Traceback: %s", traceback.format_exc())
             _identity_warnings.append(f"Identity enrichment failed: {e}")
         
+        # ── CRITICAL FALLBACK ──────────────────────────────────────
+        # If enrich_process_context returned empty or minimal data
+        # (e.g. user not found in DB), inject the authenticated user's
+        # email from the auth token so at least "requester" notifications work.
+        _auth_email = (user_info.get("email") if user_info else None) or ""
+        _auth_name = (user_info.get("name") if user_info else None) or ""
+        
+        if not user_context.get("email") and _auth_email:
+            user_context["email"] = _auth_email
+            logger.info(
+                "[ProcessIdentity] Injected email from auth token as fallback: %s", _auth_email
+            )
+            _identity_warnings.append(
+                f"User email was not found via the Identity Directory. "
+                f"Using the authenticated email ({_auth_email}) as fallback. "
+                "To fix permanently, ensure the user exists in the Identity Directory with matching email."
+            )
+        if not user_context.get("display_name") and _auth_name:
+            user_context["display_name"] = _auth_name
+        if not user_context.get("user_id"):
+            user_context["user_id"] = user_id
+        # ── END FALLBACK ──────────────────────────────────────────
+        
         # Validate the enriched context — report missing critical fields
-        if user_context:
+        if user_context and len(user_context) > 2:  # More than just user_id + fallback email
             if not user_context.get("email"):
                 _identity_warnings.append(
                     "User email not found in identity directory. "
@@ -308,12 +339,13 @@ class ProcessAPIService:
                     "Department-based routing or approvals may not work."
                 )
         elif not _identity_warnings:
-            # user_context is empty but no exception was thrown
+            # user_context is minimal (only user_id + possibly fallback email)
             # This means the user wasn't found or identity is not configured
             _identity_warnings.append(
-                "Could not retrieve user identity data. "
-                "The Identity Directory may not be configured, or the user profile is incomplete. "
-                "Notifications to 'requester' or 'manager' may fail."
+                "Could not retrieve full user identity data from the Identity Directory. "
+                "The user may not exist in the DB, the org_id may not match, "
+                "or the Identity Directory is not configured. "
+                "Notifications to 'manager' may fail."
             )
 
         if _identity_warnings:
