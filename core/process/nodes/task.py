@@ -308,9 +308,16 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         This catches common LLM hallucinations where the model reports a
         wrong total or wrong item count while the individual items are correct
         (or vice versa).
+        
+        Smart handling:
+        - Prioritises specific amount keys ("amount") over generic ones ("total", "value")
+          to avoid picking item-level totals (post-tax) instead of base amounts.
+        - If the output has tax/discount/fee/shipping fields, their values are
+          accounted for when validating the top-level total — a legitimate total
+          of (sum + tax - discount) will NOT be "corrected" away.
         """
-        # Find the items array (common names)
-        _items_keys = {"items", "expenses", "lineItems", "line_items", "receipts",
+        # Find the items array (common names — dynamic, not process-specific)
+        _items_keys = {"items", "expenses", "lineitems", "line_items", "receipts",
                        "transactions", "entries", "records", "invoices"}
         items = None
         items_key = None
@@ -324,24 +331,58 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         if not items:
             return output
         
-        # Find amount field in items (look for amount-like keys)
-        _amount_keys = {"amount", "total", "cost", "price", "value", "sum", "subtotal", "net"}
-        item_amounts = []
-        amount_field = None
+        # ── Find amount field in items ──
+        # Use a PRIORITY ORDER so that "amount" is preferred over "total" / "value"
+        # which may include tax or be ambiguous.
+        _amount_priority = [
+            {"amount"},                                  # highest priority — most specific
+            {"cost", "price", "subtotal", "net"},        # common alternatives
+            {"total", "value", "sum", "gross"},          # generic fallback
+        ]
+        item_amounts: list = []
+        amount_field: str | None = None
+        
+        def _pick_amount(item_dict: dict) -> tuple:
+            """Return (amount_value, field_name) from item dict using priority order."""
+            for tier in _amount_priority:
+                for fk, fv in item_dict.items():
+                    if fk.lower().replace("_", "") in tier and isinstance(fv, (int, float)):
+                        return fv, fk
+            return None, None
+        
         for item in items:
             if not isinstance(item, dict):
                 continue
-            for k, v in item.items():
-                if k.lower().replace("_", "") in _amount_keys and isinstance(v, (int, float)):
-                    item_amounts.append(v)
-                    if not amount_field:
-                        amount_field = k
-                    break
+            val, fld = _pick_amount(item)
+            if val is not None:
+                item_amounts.append(val)
+                if not amount_field:
+                    amount_field = fld
         
         if not item_amounts:
             return output
         
         computed_total = sum(item_amounts)
+        
+        # ── Detect tax / discount / fee / shipping adjustments ──
+        # If the output includes these at the TOP level, the legitimate total
+        # may be (computed_total + adjustments).  We should NOT auto-correct
+        # when the AI's total matches (sum ± adjustments).
+        _additive_keys = {"tax", "taxamount", "tax_amount", "shipping",
+                          "shippingcost", "shipping_cost", "fee", "fees",
+                          "surcharge", "handling", "servicefee", "service_fee",
+                          "vat", "vatamount", "vat_amount"}
+        _subtractive_keys = {"discount", "discountamount", "discount_amount",
+                             "rebate", "credit", "adjustment"}
+        adjustment = 0.0
+        for k, v in output.items():
+            k_norm = k.lower().replace("_", "").replace("-", "")
+            if k_norm in _additive_keys and isinstance(v, (int, float)):
+                adjustment += v
+            elif k_norm in _subtractive_keys and isinstance(v, (int, float)):
+                adjustment -= v
+        
+        adjusted_total = computed_total + adjustment
         
         # Check and correct total-like fields
         _total_keys = {"totalamount", "total", "grandtotal", "total_amount", "totalexpense",
@@ -349,12 +390,18 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         for k, v in list(output.items()):
             k_norm = k.lower().replace("_", "").replace("-", "")
             if k_norm in _total_keys and isinstance(v, (int, float)):
-                if abs(v - computed_total) > 0.01:
+                # Accept if total matches either raw sum or adjusted sum (with tax/discount)
+                matches_raw = abs(v - computed_total) <= 0.01
+                matches_adjusted = abs(v - adjusted_total) <= 0.01 if adjustment else False
+                if not matches_raw and not matches_adjusted:
                     logs.append(
                         f"🔧 Auto-corrected {k}: AI reported {v} but sum of {len(item_amounts)} "
-                        f"item amounts = {computed_total}. Using computed value."
+                        f"item amounts = {computed_total}"
+                        + (f" (adjusted with tax/fees = {adjusted_total})" if adjustment else "")
+                        + ". Using computed value."
                     )
-                    output[k] = computed_total
+                    # Use adjusted total if there are adjustment fields, else raw sum
+                    output[k] = adjusted_total if adjustment else computed_total
         
         # Check and correct item count fields
         _count_keys = {"itemcount", "item_count", "expensecount", "expense_count",

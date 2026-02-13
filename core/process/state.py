@@ -425,8 +425,7 @@ class ProcessState:
                         if k.startswith("_") or v is None:
                             continue
                         # Make key readable: snake_case → spaces, camelCase → spaces, then Title Case
-                        import re as _re
-                        label = _re.sub(r'([a-z])([A-Z])', r'\1 \2', k.replace("_", " ")).title()
+                        label = re.sub(r'([a-z])([A-Z])', r'\1 \2', k.replace("_", " ")).title()
                         parts.append(f"{label}: {v}")
                     if parts:
                         lines.append(f"  {i}. " + ", ".join(parts))
@@ -443,8 +442,7 @@ class ProcessState:
             for k, v in value.items():
                 if k.startswith("_") or v is None:
                     continue
-                import re as _re
-                label = _re.sub(r'([a-z])([A-Z])', r'\1 \2', k.replace("_", " ")).title()
+                label = re.sub(r'([a-z])([A-Z])', r'\1 \2', k.replace("_", " ")).title()
                 if isinstance(v, (dict, list)):
                     parts.append(f"{label}: {ProcessState._format_value_for_display(v)}")
                 else:
