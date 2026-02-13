@@ -315,7 +315,13 @@ Node config rules:
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
 - loop.config must be: {{ "collection": "{{{{items}}}}", "itemVar": "item" }}. Use when repeating steps for each item in a collection.
 - form.config must include: fields (same schema as trigger fields). Use for collecting additional input mid-workflow (not the initial form).
-- ai.config must be: {{ "prompt": "<what to do, with {{{{field}}}} refs>", "model": "gpt-4o" }}
+- ai.config must be: {{ "prompt": "<task description only — what to do, with {{{{field}}}} refs>", "model": "gpt-4o", "instructions": ["<rule 1>", "<rule 2>", ...] }}
+  IMPORTANT — prompt vs instructions separation:
+  - config.prompt: ONLY the task description (what data to extract, what to analyze, what to generate).
+  - config.instructions: An ARRAY of separate rule strings. Each rule is an individual constraint, formatting requirement, or guardrail the AI must follow for this step.
+  - NEVER put rules, constraints, or "IMPORTANT:" directives inside the prompt. Always use the instructions array.
+  - The engine injects each instruction into the AI's system prompt as a numbered rule automatically.
+  - If the step has no special rules, instructions can be an empty array [].
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
 - AI nodes are POWERFUL: They can parse unstructured text into structured JSON, summarize data, make classifications, calculate totals, detect languages/currencies, validate data, and more. Use them whenever the workflow needs intelligence beyond simple conditions.
 - When an AI node parses data into JSON, subsequent condition nodes can reference fields from the parsed output (e.g., if AI stores result in "parsedData", a condition can check "parsedData.totalAmount").
@@ -378,8 +384,19 @@ Node config rules:
       - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
       - MUST set temperature: 0.1 (low temperature for accurate data extraction — never hallucinate)
       - MUST set output_format: "json"
-      - The prompt MUST include anti-hallucination instructions:
-        "IMPORTANT: Only extract data that is EXPLICITLY present in the text. Do NOT invent, estimate, or assume any values. If a value is unclear, omit it. Count items carefully — each file section (--- File: ... ---) is ONE item."
+      - PROMPT vs INSTRUCTIONS separation (MANDATORY for ALL "ai" nodes):
+        config.prompt = ONLY the task description (what data to extract, what to do with it).
+        config.instructions = an ARRAY of individual rule strings. Each rule is a separate item.
+        NEVER mix rules/constraints into the prompt. Put them in config.instructions instead.
+        Example:
+          "prompt": "Extract expense data from: {{{{extractedData}}}}. For each receipt, identify expense type, date, vendor, amount, and currency. Return items array and totals.",
+          "instructions": [
+            "Only extract data that is EXPLICITLY present in the text — do NOT invent or estimate values",
+            "Each file section (--- File: ... ---) is exactly ONE item — count them carefully",
+            "If a value is unclear or missing, omit it or set it to null",
+            "Return amounts as numbers, not strings"
+          ]
+        The engine injects each instruction into the AI's system prompt automatically.
     - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts, reports, images, certificates), the extraction step automatically processes ALL uploaded files (documents AND images via OCR) and returns combined text with "--- File: <name> ---" headers separating each file's content. The AI parsing node MUST handle this correctly:
       - Parse and extract relevant data from EVERY file in the text, not just the first one
       - ALWAYS return an "items" array containing each file's extracted data as a separate object, preserving per-file details (fileName, and any fields relevant to the workflow). This ensures each file's data is individually accessible to subsequent workflow steps
