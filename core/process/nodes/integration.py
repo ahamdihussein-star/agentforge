@@ -622,6 +622,8 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         This method finds the file on disk by scanning the org upload directory.
         """
         import os
+        import logging as _log
+        _logger = _log.getLogger("agentforge.file_resolve")
 
         if not isinstance(file_obj, dict):
             return ""
@@ -643,6 +645,7 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                         break
 
         if not file_id:
+            _logger.warning("No file_id found in uploaded file object: %s", {k: str(v)[:60] for k, v in file_obj.items()})
             return ""
 
         base_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
@@ -660,6 +663,8 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                 if isinstance(cu, dict):
                     org_id = str(cu.get("orgId") or cu.get("org_id") or "").strip()
 
+        _logger.info("Resolving file: id=%s, name=%s, org_id=%s, base_dir=%s", file_id[:8], file_name, org_id[:8] if org_id else "(none)", base_dir)
+
         # Search strategies for the file
         search_dirs = []
         if org_id:
@@ -674,18 +679,28 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                         search_dirs.append(full)
             except OSError:
                 pass
+        else:
+            _logger.warning("process_uploads directory does not exist: %s", proc_uploads)
 
         prefix = f"{file_id}_"
         for search_dir in search_dirs:
             if not os.path.isdir(search_dir):
+                _logger.info("  Search dir does not exist: %s", search_dir)
                 continue
             try:
-                for name in os.listdir(search_dir):
-                    if name.startswith(prefix):
-                        return os.path.join(search_dir, name)
-            except OSError:
+                files_in_dir = os.listdir(search_dir)
+                matching = [n for n in files_in_dir if n.startswith(prefix)]
+                if matching:
+                    found = os.path.join(search_dir, matching[0])
+                    _logger.info("  ✅ Found file: %s", found)
+                    return found
+                else:
+                    _logger.info("  No match for prefix '%s' in %s (%d files)", prefix, search_dir, len(files_in_dir))
+            except OSError as e:
+                _logger.warning("  Error listing %s: %s", search_dir, e)
                 continue
 
+        _logger.warning("❌ File not found anywhere. file_id=%s, name=%s, searched %d dirs", file_id[:8], file_name, len(search_dirs))
         return ""
 
     async def execute(
@@ -738,20 +753,26 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                 if isinstance(source_value, list) and len(source_value) > 0:
                     # Multiple files uploaded — extract from each
                     logs.append(f"Multi-file extraction: {len(source_value)} files detected")
-                    all_texts = []
+                    successful_texts = []
+                    failed_files = []
                     for idx, file_item in enumerate(source_value):
                         file_path = None
                         if isinstance(file_item, dict):
                             file_name = file_item.get("name") or f"file_{idx+1}"
+                            file_id = file_item.get("id") or "?"
                             # Resolve the uploaded file to its physical path on disk
                             file_path = self._resolve_uploaded_file_path(file_item, context)
+                            logs.append(f"  File {idx+1} '{file_name}' (id={str(file_id)[:8]}): resolved path = {file_path or '(not found)'}")
                             if not file_path:
                                 # Fallback: try legacy path property
                                 file_path = file_item.get("path") or ""
+                                if file_path:
+                                    logs.append(f"  File {idx+1}: using legacy path fallback: {file_path}")
                         else:
                             continue
                         if not file_path:
-                            logs.append(f"  File {idx+1} ({file_name}): could not resolve path, skipping")
+                            failed_files.append(file_name)
+                            logs.append(f"  ❌ File {idx+1} ({file_name}): could not resolve to any path on disk, skipping")
                             continue
                         logs.append(f"  Extracting file {idx+1}/{len(source_value)}: {file_name}")
                         file_result = await self._execute_extract_text_local(
@@ -760,28 +781,34 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                             logs=logs,
                         )
                         if file_result.get("success") and file_result.get("data"):
-                            all_texts.append(f"--- File: {file_name} ---\n{file_result['data']}")
+                            successful_texts.append(f"--- File: {file_name} ---\n{file_result['data']}")
                             logs.append(f"  ✅ Extracted {len(file_result['data'])} characters from {file_name}")
                         else:
                             err = file_result.get("error") or "extraction failed"
-                            all_texts.append(f"--- File: {file_name} ---\n[Extraction failed: {err}]")
+                            failed_files.append(f"{file_name} ({err})")
                             logs.append(f"  ⚠️ Failed to extract from {file_name}: {err}")
                     
-                    combined_text = "\n\n".join(all_texts)
-                    if combined_text.strip():
+                    # Only count as success if at least one file was actually extracted
+                    if successful_texts:
+                        combined_text = "\n\n".join(successful_texts)
                         result = {
                             "success": True,
                             "data": combined_text,
                             "meta": {
                                 "files_count": len(source_value),
+                                "files_extracted": len(successful_texts),
+                                "files_failed": len(failed_files),
                                 "chars": len(combined_text),
                                 "preview": combined_text[:500]
                             }
                         }
+                        if failed_files:
+                            logs.append(f"  ⚠️ Partial extraction: {len(successful_texts)} succeeded, {len(failed_files)} failed: {', '.join(failed_files)}")
                     else:
+                        error_details = "; ".join(failed_files) if failed_files else "unknown error"
                         result = {
                             "success": False,
-                            "error": f"Could not extract text from any of the {len(source_value)} uploaded files",
+                            "error": f"Could not extract text from any of the {len(source_value)} uploaded files. Details: {error_details}",
                             "data": ""
                         }
                 elif isinstance(source_value, dict) and source_value.get("kind") == "uploadedFile":
