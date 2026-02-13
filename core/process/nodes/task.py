@@ -157,8 +157,27 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 output = self._parse_json_response(content)
                 logs.append("Parsed JSON output successfully")
             except json.JSONDecodeError as e:
-                logs.append(f"Warning: Failed to parse JSON: {e}")
-                # Keep as string if JSON parsing fails
+                # IMPORTANT: If JSON was requested, invalid JSON is a hard failure.
+                # Returning "success" here causes downstream nodes to see strings/None and fail silently
+                # (e.g., {{parsedData.totalAmount}} becomes null and breaks conditions).
+                snippet = (content or "")[:800]
+                return NodeResult.failure(
+                    error=ExecutionError(
+                        category=ErrorCategory.EXTERNAL,
+                        code="INVALID_JSON",
+                        message=f"AI task returned invalid JSON: {e}",
+                        details={
+                            "node": node.name,
+                            "output_format": output_format,
+                            "snippet": snippet,
+                        },
+                        is_retryable=True,
+                        retry_after_seconds=2,
+                    ),
+                    logs=logs + [f"JSON parse failed: {e}"],
+                    duration_ms=duration_ms,
+                    tokens_used=tokens_used,
+                )
         
         # Update variables if output_variable specified
         variables_update = {}
@@ -175,6 +194,7 @@ class AITaskNodeExecutor(BaseNodeExecutor):
     
     def _parse_json_response(self, content: str) -> Any:
         """Extract and parse JSON from LLM response"""
+        content = (content or "").strip()
         # Try direct parse first
         try:
             return json.loads(content)
@@ -187,12 +207,62 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         if json_match:
             return json.loads(json_match.group(1))
         
-        # Try to find JSON object or array
-        json_match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', content)
-        if json_match:
-            return json.loads(json_match.group(1))
+        # Try to find the first balanced JSON object/array in the text (more robust than greedy regex)
+        candidate = self._extract_first_json_block(content)
+        if candidate:
+            return json.loads(candidate)
         
         raise json.JSONDecodeError("No JSON found", content, 0)
+
+    @staticmethod
+    def _extract_first_json_block(text: str) -> str:
+        """
+        Extract the first balanced JSON object/array from a string.
+
+        This helps when the model returns explanations around the JSON or includes multiple blocks.
+        """
+        if not text:
+            return ""
+
+        # Find the first '{' or '['
+        start = None
+        open_ch = None
+        for i, ch in enumerate(text):
+            if ch == '{':
+                start, open_ch = i, '{'
+                break
+            if ch == '[':
+                start, open_ch = i, '['
+                break
+        if start is None:
+            return ""
+
+        close_ch = '}' if open_ch == '{' else ']'
+        depth = 0
+        in_str = False
+        esc = False
+        for j in range(start, len(text)):
+            ch = text[j]
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == '\\':
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            else:
+                if ch == '"':
+                    in_str = True
+                    continue
+                if ch == open_ch:
+                    depth += 1
+                elif ch == close_ch:
+                    depth -= 1
+                    if depth == 0:
+                        return text[start:j + 1].strip()
+
+        return ""
     
     def validate(self, node: ProcessNode) -> Optional[ExecutionError]:
         """Validate AI task node"""
