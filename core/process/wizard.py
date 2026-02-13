@@ -345,9 +345,12 @@ Node config rules:
     BEST PRACTICE: Use "requester" and "manager" shortcuts. NEVER leave recipient empty. NEVER use "-- Select Field --".
   - template: The full email body content. MUST be a rich, informative message that includes:
     - What happened (approved, rejected, pending, auto-approved, etc.)
-    - Key data using variable interpolation: {{{{fieldName}}}} for form fields, {{{{parsedData.totalAmount}}}}, {{{{parsedData.vendor}}}}, etc.
+    - Key data using variable interpolation: {{{{fieldName}}}} for form fields, {{{{parsedData.fieldName}}}}, etc.
     - Context so the recipient understands without logging in
-    Example: "Your expense report for {{{{expenseDescription}}}} ({{{{expenseCategory}}}}) totaling {{{{parsedData.totalAmount}}}} {{{{parsedData.currency}}}} has been auto-approved as it is under the 500 AED threshold."
+    Examples (adapt to the actual workflow):
+      - "Your request for {{{{requestType}}}} has been auto-approved. Details: {{{{parsedData.details}}}}"
+      - "A new {{{{category}}}} request from {{{{employeeName}}}} requires your review. Total: {{{{parsedData.totalAmount}}}} {{{{parsedData.currency}}}}"
+    Use variable names that match the actual fields and AI output for the specific process being generated.
     NEVER leave template empty. ALWAYS write a complete, business-friendly notification message.
   CRITICAL: Every notification node MUST have a non-empty recipient and a non-empty template. The AI must fill both — they are NEVER left for the user to configure manually.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
