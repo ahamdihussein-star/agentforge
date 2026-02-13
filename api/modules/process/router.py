@@ -355,6 +355,7 @@ async def preflight_check(
     missing data (assign manager, fill profile fields, etc.) instead of
     discovering failures mid-execution.
     """
+    import uuid as uuid_module
     from core.identity.service import UserDirectoryService
     from database.models.agent import Agent
     
@@ -364,8 +365,14 @@ async def preflight_check(
     if not agent_id:
         raise HTTPException(status_code=400, detail="agent_id is required")
     
+    # Normalize agent_id to UUID for consistent DB query
+    try:
+        agent_uuid = uuid_module.UUID(str(agent_id))
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid agent_id format")
+    
     # Load process definition
-    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    agent = db.query(Agent).filter(Agent.id == agent_uuid).first()
     if not agent or not agent.process_definition:
         raise HTTPException(status_code=404, detail="Process not found or has no definition")
     
