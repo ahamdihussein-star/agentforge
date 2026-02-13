@@ -949,6 +949,12 @@ class ProcessWizard:
                     cfg["triggerType"] = "manual"
                 start["config"] = cfg
 
+        # Identity-resolved fields that should NOT appear in forms
+        # (the engine resolves these automatically from the configured identity directory)
+        _identity_auto_fields = {"manageremail", "managername", "managerid",
+                                 "manager_email", "manager_name", "manager_id",
+                                 "supervisoremail", "supervisorname"}
+
         # Normalize trigger field keys to lowerCamelCase and rewrite {{refs}} across nodes
         start = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
         if start and isinstance(start.get("config"), dict):
@@ -1058,22 +1064,16 @@ class ProcessWizard:
             # ENFORCE: Remove form fields that the identity directory resolves automatically.
             # The AI should NEVER ask the user to enter their manager's email/name/ID —
             # these are resolved by the engine from the configured identity source.
-            _identity_auto_fields = {"manageremail", "managername", "managerid",
-                                     "manager_email", "manager_name", "manager_id",
-                                     "supervisoremail", "supervisorname"}
-            if start and isinstance(start.get("config"), dict):
-                _fields = start["config"].get("fields")
-                if isinstance(_fields, list):
-                    _before = len(_fields)
-                    start["config"]["fields"] = [
-                        f for f in _fields
-                        if not isinstance(f, dict)
-                        or (f.get("name") or "").lower() not in _identity_auto_fields
-                    ]
-                    _removed = _before - len(start["config"]["fields"])
-                    if _removed:
-                        logger.info(f"Removed {_removed} manager/identity fields from form — engine resolves these automatically from the identity directory")
-                    fields = start["config"]["fields"]
+            _before_count = len(fields)
+            fields = [
+                f for f in fields
+                if not isinstance(f, dict)
+                or (f.get("name") or "").lower() not in _identity_auto_fields
+            ]
+            cfg["fields"] = fields
+            _removed_count = _before_count - len(fields)
+            if _removed_count:
+                logger.info(f"Removed {_removed_count} manager/identity fields from form — engine resolves these automatically from the identity directory")
 
             # Rewrite references across all nodes
             if mapping:

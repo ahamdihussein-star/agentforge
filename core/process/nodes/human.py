@@ -9,12 +9,20 @@ These nodes involve human interaction:
 """
 
 import json
+import re
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from ..schemas import ProcessNode, NodeType
 from ..state import ProcessState, ProcessContext
 from ..result import NodeResult, ExecutionError, ErrorCategory
 from .base import BaseNodeExecutor, register_executor
+
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+
+
+def _looks_like_uuid(value: str) -> bool:
+    """Return True if the string looks like a UUID (template ID) rather than message body text."""
+    return bool(_UUID_RE.match((value or "").strip()))
 
 
 def _to_assignee_id_list(value: Any) -> List[str]:
@@ -420,6 +428,12 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         title = self.get_config_value(node, 'title', '')
         message = self.get_config_value(node, 'message', '')
         template_id = self.get_config_value(node, 'template')
+        # The visual builder uses "template" for the message body text,
+        # while the engine uses "message". If message is empty but template
+        # contains body text (not a template ID/UUID), use template as message.
+        if not message and template_id and not _looks_like_uuid(template_id):
+            message = template_id
+            template_id = None
         template_data = self.get_config_value(node, 'template_data', {})
         priority = self.get_config_value(node, 'priority', 'normal')
         channel_config = self.get_config_value(node, 'channel_config', {})
