@@ -1197,8 +1197,6 @@ class ProcessWizard:
         # ENFORCE: AI nodes whose output_variable is referenced by a condition using dot notation
         # (e.g., parsedData.totalAmount) MUST output JSON so the engine can resolve nested fields.
         # Collect condition field references to detect which AI nodes need JSON output.
-        import re
-
         condition_fields = set()
         for n in normalized_nodes:
             if n.get("type") == "condition":
