@@ -306,6 +306,7 @@ class ProcessAPIService:
         
         if not user_context.get("email") and _auth_email:
             user_context["email"] = _auth_email
+            print(f"🔄 [ProcessIdentity] FALLBACK: Injected email from auth token: {_auth_email}")
             logger.info(
                 "[ProcessIdentity] Injected email from auth token as fallback: %s", _auth_email
             )
@@ -314,6 +315,8 @@ class ProcessAPIService:
                 f"Using the authenticated email ({_auth_email}) as fallback. "
                 "To fix permanently, ensure the user exists in the Identity Directory with matching email."
             )
+        else:
+            print(f"✅ [ProcessIdentity] user_context email: {user_context.get('email', '(not set)')}, auth_email: {_auth_email}")
         if not user_context.get("display_name") and _auth_name:
             user_context["display_name"] = _auth_name
         if not user_context.get("user_id"):
@@ -363,6 +366,24 @@ class ProcessAPIService:
         # Always add identity warnings so downstream steps can report them
         if _identity_warnings:
             enriched_trigger["_identity_warnings"] = _identity_warnings
+        
+        # ── PERSIST enriched trigger to DB ────────────────────────
+        # The execution was created with the RAW trigger_input (form data).
+        # Now we've added _user_context and _identity_warnings which MUST
+        # survive process resume (e.g. after approval).  Update the DB row.
+        try:
+            _exec_obj = self.exec_service.get_execution(str(execution.id))
+            if _exec_obj:
+                _exec_obj.trigger_input = enriched_trigger
+                self.db.add(_exec_obj)
+                self.db.commit()
+                logger.info(
+                    "[ProcessIdentity] Persisted enriched trigger_input (with _user_context) to execution %s",
+                    str(execution.id)
+                )
+        except Exception as _persist_err:
+            logger.warning("[ProcessIdentity] Failed to persist enriched trigger: %s", _persist_err)
+        # ── END PERSIST ───────────────────────────────────────────
         
         # Build context with filtered tools (ensure dicts; DB may return JSON strings)
         context = ProcessContext(
@@ -751,14 +772,58 @@ class ProcessAPIService:
         )
         process_def = ProcessDefinition.from_dict(self._ensure_dict(raw_def))
 
+        # ── Restore enriched trigger and user identity ──────────
+        # trigger_input from DB should already contain _user_context
+        # (persisted during start_execution).  Extract identity data
+        # for the context fields (user_email, user_name) and re-enrich
+        # if missing (belt-and-suspenders).
+        _restored_trigger = self._ensure_dict(execution.trigger_input or {})
+        _restored_uc = _restored_trigger.get("_user_context", {})
+        
+        # Determine user_email and user_name from restored data + auth token
+        _resume_email = (
+            _restored_uc.get("email")
+            or (user_info.get("email") if user_info else None)
+            or ""
+        )
+        _resume_name = (
+            _restored_uc.get("display_name")
+            or (user_info.get("name") if user_info else None)
+            or ""
+        )
+        
+        # If _user_context was not persisted (old execution), re-enrich now
+        if not _restored_uc:
+            logger.info("[ProcessResume] _user_context missing from DB trigger_input — re-enriching")
+            try:
+                _re_uc = _user_directory.enrich_process_context(user_id, str(execution.org_id))
+                if _re_uc:
+                    _restored_trigger["_user_context"] = _re_uc
+                    if not _resume_email:
+                        _resume_email = _re_uc.get("email") or ""
+                    if not _resume_name:
+                        _resume_name = _re_uc.get("display_name") or ""
+            except Exception as _re_err:
+                logger.warning("[ProcessResume] Re-enrichment failed: %s", _re_err)
+            # Last-resort fallback: inject email from auth token
+            if not _restored_trigger.get("_user_context", {}).get("email") and _resume_email:
+                _restored_trigger.setdefault("_user_context", {})["email"] = _resume_email
+        
+        print(f"🔄 [ProcessResume] execution_id={execution_id}, user_email={_resume_email}, "
+              f"_user_context.email={_restored_trigger.get('_user_context', {}).get('email', '(none)')}")
+        
         # Build context (ensure dicts; DB may return JSON strings)
         context = ProcessContext(
             execution_id=str(execution.id),
             agent_id=str(execution.agent_id),
             org_id=str(execution.org_id),
             trigger_type=execution.trigger_type or "manual",
-            trigger_input=self._ensure_dict(execution.trigger_input or {}),
+            trigger_input=_restored_trigger,
             user_id=user_id,
+            user_email=_resume_email,
+            user_name=_resume_name,
+            user_roles=user_info.get('roles', []) if user_info else [],
+            user_groups=user_info.get('groups', []) if user_info else [],
             available_tool_ids=agent.tool_ids or [],
             settings=self._ensure_dict(getattr(execution, "settings", None) or {}),
         )

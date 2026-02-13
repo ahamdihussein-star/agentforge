@@ -484,6 +484,13 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         user_context = _trigger_input.get("_user_context", {})
         identity_warnings = _trigger_input.get("_identity_warnings", [])
         
+        # === DIAGNOSTIC: print what we see so it shows in server console ===
+        print(f"📧 [Notification:{node.name}] recipients={recipients}")
+        print(f"📧 [Notification:{node.name}] _user_context.email={user_context.get('email', '(MISSING)')}")
+        print(f"📧 [Notification:{node.name}] _user_context keys={list(user_context.keys())}")
+        print(f"📧 [Notification:{node.name}] context.user_email={getattr(context, 'user_email', '(NOT SET)')}")
+        print(f"📧 [Notification:{node.name}] _identity_warnings={identity_warnings}")
+        
         # Log identity state for diagnostics
         if not user_context:
             logs.append("⚠️ _user_context is empty — identity directory may not be configured or user not found")

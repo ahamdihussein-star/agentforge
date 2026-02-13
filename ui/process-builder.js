@@ -5115,21 +5115,6 @@
                 }
             }
 
-            // ── PRE-FLIGHT CHECK ──────────────────────────────────────
-            // Analyze the process BEFORE running to catch identity/profile
-            // issues that would cause runtime failures.
-            try {
-                const preflight = await _runPreflightCheck();
-                if (preflight && preflight.issues && preflight.issues.length > 0) {
-                    const decision = await _showPreflightModal(preflight);
-                    if (decision !== 'continue') return;
-                }
-            } catch (_pfErr) {
-                // Preflight is advisory — never block the test if the check itself fails
-                console.warn('[Preflight] Check failed, proceeding:', _pfErr);
-            }
-            // ── END PRE-FLIGHT ────────────────────────────────────────
-
             const runWithEngine = !!document.getElementById('test-run-real-engine')?.checked;
             if (runWithEngine) {
                 // Upload file fields (so the real engine/extraction steps can use the actual document)
@@ -5774,6 +5759,21 @@
                 alert('❌ ' + (e?.message || 'Could not save workflow for test.'));
                 return;
             }
+
+            // ── PRE-FLIGHT CHECK ──────────────────────────────────────
+            // Analyze the process AFTER saving (so agent_id exists) to catch
+            // identity/profile issues that would cause runtime failures.
+            try {
+                const preflight = await _runPreflightCheck();
+                if (preflight && preflight.issues && preflight.issues.length > 0) {
+                    const decision = await _showPreflightModal(preflight);
+                    if (decision !== 'continue') return;
+                }
+            } catch (_pfErr) {
+                // Preflight is advisory — never block the test if the check itself fails
+                console.warn('[Preflight] Check failed, proceeding:', _pfErr);
+            }
+            // ── END PRE-FLIGHT ────────────────────────────────────────
 
             const runningModal = _openEngineRunModal();
             const setBadge = (status) => {
