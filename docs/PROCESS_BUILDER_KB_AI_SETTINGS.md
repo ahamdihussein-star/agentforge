@@ -1,66 +1,58 @@
-# Process Builder Knowledge Base — AI Settings (Workflow-Level)
+# Process Builder — Per-Step AI Settings
 
-The **AI Settings** panel (🧠 button in toolbar) lets the process owner configure how ALL AI steps in the workflow behave. These settings are saved with the workflow and applied at runtime.
+## Overview
+Each **AI action step** in a workflow has its own AI Settings in the step's properties panel.
+When a user clicks on any AI step, they see **Instructions**, **Creativity**, and **Confidence** controls right alongside the prompt and model selection.
 
-## Settings Overview
+This means different steps can have different settings. For example:
+- A **data-extraction** step can be set to Strict creativity (2) and Cautious confidence (2).
+- A **summary-generation** step can be set to Creative (4) and Confident (4).
 
-### 1. AI Instructions (Text)
-Custom rules injected into every AI step's system prompt. These override or supplement the AI-generated defaults.
+## Settings
 
-**Use cases:**
-- Enforce business rules: "Always extract amounts in AED currency"
-- Add constraints: "Ignore expenses under 10 AED"
-- Control formatting: "Report all dates in DD/MM/YYYY format"
-- Domain-specific guidance: "Vendor names should be the company name, not the brand"
+### 1. Instructions (textarea)
+Free-text rules that get injected into the AI's system prompt for **this specific step**.
 
-**How it works:** At runtime, the instructions are appended to each AI node's system prompt as:
-```
-=== WORKFLOW RULES (set by the process owner — MUST follow) ===
-<user's instructions here>
-=== END WORKFLOW RULES ===
-```
-The AI treats these as mandatory rules it must follow.
+**Examples:**
+- "Always extract amounts in AED currency"
+- "If vendor name is unclear, use 'Unknown Vendor'"
+- "Ignore expenses under 10 AED"
+- "Dates must be in DD/MM/YYYY format"
 
-### 2. Creativity (1–5 Slider)
+### 2. Creativity (slider 1-5)
 Controls how much the AI infers beyond explicit data.
 
-| Level | Label      | Temperature | Behavior |
-|-------|-----------|-------------|----------|
-| 1     | Very Strict | 0.1        | Extracts only exactly what it sees, never infers |
-| 2     | Strict      | 0.2        | Minimal inference, sticks to explicit data |
-| 3     | Balanced    | 0.4        | Follows data closely with light inference |
-| 4     | Moderate    | 0.6        | Makes reasonable inferences from context |
-| 5     | Creative    | 0.8        | Infers missing data from context and patterns |
+| Level | Label | Temperature | Best for |
+|-------|-------|-------------|----------|
+| 1 | Very strict | 0.1 | Exact data extraction |
+| 2 | Strict | 0.2 | Data extraction with minimal inference |
+| 3 | Balanced | 0.4 | General tasks |
+| 4 | Moderate | 0.6 | Content generation |
+| 5 | Creative | 0.8 | Creative writing, brainstorming |
 
-**Best practice:** Use 1–2 for data extraction/parsing workflows, 3–4 for content generation.
-
-### 3. Confidence (1–5 Slider)
+### 3. Confidence (slider 1-5)
 Controls how the AI handles uncertain or ambiguous data.
 
-| Level | Label          | Behavior |
-|-------|---------------|----------|
-| 1     | Very Cautious  | Marks anything uncertain as empty (null) |
-| 2     | Cautious       | Only fills values it is fairly sure about |
-| 3     | Balanced       | Reasonable judgment for ambiguous values |
-| 4     | Confident      | Makes best-guess decisions for ambiguous data |
-| 5     | Very Confident | Always provides a value, even with limited data |
+| Level | Label | Behavior |
+|-------|-------|----------|
+| 1 | Very cautious | Leaves unknowns empty (null) |
+| 2 | Cautious | Only fills values it's sure about |
+| 3 | Balanced | Reasonable judgment |
+| 4 | Confident | Best-guess for ambiguous data |
+| 5 | Very confident | Always fills a value |
 
-**Best practice:** Use 1–2 for financial/compliance workflows, 3–4 for general workflows.
+## How the AI Generator Uses These
 
-## How the AI Generator Uses These Settings
+When the wizard generates a workflow, it automatically sets sensible defaults on each AI node:
+- **Steps with data output** (extraction): Creativity = 2 (Strict), Confidence = 3 (Balanced)
+- **General AI steps**: Creativity = 3 (Balanced), Confidence = 3 (Balanced)
 
-When the AI wizard generates a workflow:
-1. It detects whether the workflow contains data extraction (AI nodes with output variables)
-2. It sets **Creativity = 2** (Strict) for extraction-heavy workflows, **3** (Balanced) otherwise
-3. It sets **Confidence = 3** (Balanced) as the default
-4. **Instructions** are left empty — the user fills them if needed
+Users can then adjust these per step in the properties panel.
 
-The user can change these at any time from the AI Settings panel before or after testing.
+## Technical: How Settings Are Applied
 
-## Interaction with Node-Level Settings
+1. **Instructions** are appended to the step's system prompt inside a `=== STEP RULES ===` block.
+2. **Creativity** maps to the LLM `temperature` parameter (only if no explicit temperature is set on the node).
+3. **Confidence** adds a `CONFIDENCE RULE:` instruction to the system prompt.
 
-- **AI Instructions** apply to ALL AI nodes in the workflow
-- **Creativity** sets the default temperature, but individual AI nodes can override it (if the node has an explicit temperature in its config, that takes precedence)
-- **Confidence** adds a confidence rule to the system prompt of ALL AI nodes
-
-Node-level system prompts and workflow-level instructions are COMBINED (not replaced).
+All three are stored in the node's `config` object (`config.instructions`, `config.creativity`, `config.confidence`), so they persist with the process definition — no separate storage needed.

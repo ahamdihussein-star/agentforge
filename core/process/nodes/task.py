@@ -60,26 +60,23 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         system_prompt = self.get_config_value(node, 'system_prompt')
         include_history = self.get_config_value(node, 'include_history', False)
         
+        # Per-step AI settings (from the node's properties panel)
+        _node_instructions = (self.get_config_value(node, 'instructions') or "").strip()
+        _node_creativity = self.get_config_value(node, 'creativity')    # 1-5 scale
+        _node_confidence = self.get_config_value(node, 'confidence')    # 1-5 scale
+        
         logs = [f"Executing AI task: {node.name}"]
         
-        # ── Apply workflow-level AI Settings ──────────────────────────
-        # process_settings.ai contains user-configured instructions,
-        # creativity (1-5), and confidence (1-5) that override defaults.
-        _ai_settings = (context.settings or {}).get("ai", {})
-        _wf_instructions = (_ai_settings.get("instructions") or "").strip()
-        _wf_creativity = _ai_settings.get("creativity")  # 1-5 scale
-        _wf_confidence = _ai_settings.get("confidence")   # 1-5 scale
-        
-        # Map creativity (1-5) → temperature override (only when set)
-        # 1=0.1 (very strict), 2=0.2, 3=0.4 (balanced), 4=0.6, 5=0.8
-        if _wf_creativity is not None and isinstance(_wf_creativity, (int, float)):
+        # ── Map creativity → temperature ─────────────────────────────
+        # Only applies when node has a creativity setting AND no explicit
+        # temperature override (e.g., wizard-enforced 0.1 for extraction).
+        if _node_creativity is not None and isinstance(_node_creativity, (int, float)):
             _creativity_temp_map = {1: 0.1, 2: 0.2, 3: 0.4, 4: 0.6, 5: 0.8}
-            _mapped_temp = _creativity_temp_map.get(int(_wf_creativity), 0.4)
-            # Only override if the node doesn't have an explicit temperature
+            _mapped_temp = _creativity_temp_map.get(int(_node_creativity), 0.4)
             if self.get_config_value(node, 'temperature') is None:
                 temperature = _mapped_temp
-                logs.append(f"AI Settings: creativity={_wf_creativity} → temperature={_mapped_temp}")
-        # ── End AI Settings ───────────────────────────────────────────
+                logs.append(f"Creativity={_node_creativity} → temperature={_mapped_temp}")
+        # ── End creativity mapping ────────────────────────────────────
         
         # Check LLM availability
         if not self.deps.llm:
@@ -110,23 +107,23 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         # Build messages
         messages = []
         
-        # System prompt — combine node-level + workflow-level instructions
+        # System prompt — combine node-level system_prompt + user instructions
         _combined_system = ""
         if system_prompt:
             _combined_system = state.interpolate_string(system_prompt)
         
-        # Inject workflow-level AI instructions (from AI Settings panel)
-        if _wf_instructions:
+        # Inject per-step instructions (from the AI step's properties)
+        if _node_instructions:
             _instruction_block = (
-                "\n\n=== WORKFLOW RULES (set by the process owner — MUST follow) ===\n"
-                + _wf_instructions
-                + "\n=== END WORKFLOW RULES ==="
+                "\n\n=== STEP RULES (set by the process owner — you MUST follow these) ===\n"
+                + _node_instructions
+                + "\n=== END STEP RULES ==="
             )
             _combined_system = (_combined_system + _instruction_block) if _combined_system else _instruction_block.strip()
-            logs.append(f"AI Settings: injected workflow instructions ({len(_wf_instructions)} chars)")
+            logs.append(f"Injected step instructions ({len(_node_instructions)} chars)")
         
         # Inject confidence guidance
-        if _wf_confidence is not None and isinstance(_wf_confidence, (int, float)):
+        if _node_confidence is not None and isinstance(_node_confidence, (int, float)):
             _confidence_map = {
                 1: "If ANY value is uncertain or ambiguous, leave it empty (null). Never guess.",
                 2: "Only fill in values you are fairly confident about. When in doubt, use null.",
@@ -134,7 +131,7 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 4: "Make your best-guess for ambiguous data based on context. Only use null for completely unknown values.",
                 5: "Always provide a value, even for ambiguous data. Use your best judgment and context clues. Never leave fields empty.",
             }
-            _conf_instruction = _confidence_map.get(int(_wf_confidence))
+            _conf_instruction = _confidence_map.get(int(_node_confidence))
             if _conf_instruction:
                 _combined_system += f"\n\nCONFIDENCE RULE: {_conf_instruction}"
         
