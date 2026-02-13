@@ -199,6 +199,8 @@ Config (`end.config`):
 | End the workflow | `end` |
 
 ## Anti-Hallucination Rules
+
+### Node & Schema Rules
 - NEVER invent node types not listed here.
 - NEVER invent field types not listed here.
 - NEVER invent operator types not listed here.
@@ -206,3 +208,22 @@ Config (`end.config`):
 - Use `text` fields instead of `select` when options are unknown.
 - Every `condition` node MUST have exactly two outgoing edges (`yes` and `no`).
 - Every workflow MUST have exactly one `trigger` and at least one `end`.
+
+### Data Integrity Rules (CRITICAL for AI Steps)
+- AI steps that parse extracted text MUST only return data that is **explicitly present** in the input.
+- NEVER invent, fabricate, or estimate values — if a value cannot be found in the source text, return `null`.
+- When extracting amounts/numbers, extract them **exactly** as they appear in the source — do not round, estimate, or average.
+- When multiple files are provided, aggregate data from **all** files, not just the first one.
+- The `details` or `summary` field MUST contain **specific data** from the actual extraction (e.g., "Parking fee: 100 AED, Flight ticket: 1500 AED"), NEVER vague descriptions like "Extracted data from receipts".
+
+### Error Propagation Rules
+- If a step fails, the error MUST propagate to the process result with the **actual error message** — never swallow errors silently.
+- If a data extraction step fails or returns empty data, downstream steps (like conditions or notifications) MUST receive a clear indication of the failure rather than operating on empty/null values.
+- Condition nodes should handle `null`/`None` values gracefully — the AI should configure conditions with safe defaults when possible.
+- Notification templates MUST reference actual variables from previous steps — never use placeholder text that could be mistaken for real data.
+
+### Identity & Recipient Rules
+- NEVER add form fields for manager email, manager name, or manager ID — the engine resolves these automatically from the Identity Directory.
+- For notifications to the requester: use `"requester"` as the recipient.
+- For notifications to the manager: use `"manager"` as the recipient.
+- NEVER try to manually resolve emails — the platform does this automatically.

@@ -529,13 +529,22 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         # Guard: if recipients is empty after resolution, report clearly
         if not interpolated_recipients:
             logs.append("Warning: No valid recipients after resolution — notification not sent")
-            return NodeResult.success(
-                output={
-                    'sent': False,
-                    'reason': 'No valid recipients resolved. Check notification configuration (recipient should be "requester", "manager", or an email address).',
-                    'original_recipients': recipients,
-                },
-                logs=logs
+            return NodeResult.failure(
+                error=ExecutionError(
+                    category=ErrorCategory.CONFIGURATION,
+                    code="NO_RECIPIENTS",
+                    message=f"No valid recipients resolved for notification '{node.name}'. Original recipients config: {recipients}",
+                    business_message=(
+                        f"The notification \"{node.name}\" could not be sent because no valid recipient email was found. "
+                        "This may mean the user's profile is missing an email address, or the manager is not configured in the identity directory."
+                    ),
+                    is_user_fixable=True,
+                    details={
+                        'original_recipients': recipients,
+                        'action_hint': 'Check the Identity Directory to ensure the user and their manager have valid email addresses.',
+                    },
+                ),
+                logs=logs,
             )
         
         # Check for notification service
@@ -578,11 +587,18 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         except Exception as e:
             logs.append(f"Failed to send notification: {e}")
             
-            # Notifications are non-critical - don't fail the process
+            # Notifications are non-critical — log error but still succeed
+            # so the rest of the workflow continues.
             return NodeResult.success(
                 output={
                     'sent': False,
-                    'error': str(e)
+                    'error': str(e),
+                    'business_message': (
+                        f"The notification \"{node.name}\" could not be delivered. "
+                        "The email service may be temporarily unavailable."
+                    ),
+                    'is_user_fixable': False,
+                    'action_hint': 'This appears to be a technical issue. Please share the Technical view details with your IT team.',
                 },
                 logs=logs
             )

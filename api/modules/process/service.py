@@ -441,6 +441,21 @@ class ProcessAPIService:
                     out["logs"] = _truncate(_json_safe(logs[-25:]), max_str=1200, max_items=50, max_depth=3)
             except Exception:
                 pass
+            # Include business-friendly error details for frontend display
+            err = getattr(node_result, "error", None)
+            if err:
+                error_detail = {}
+                biz = getattr(err, "business_message", None)
+                if biz:
+                    error_detail["business_message"] = str(biz)
+                fixable = getattr(err, "is_user_fixable", None)
+                if fixable is not None:
+                    error_detail["is_user_fixable"] = bool(fixable)
+                details = getattr(err, "details", None)
+                if isinstance(details, dict) and details.get("action_hint"):
+                    error_detail["action_hint"] = str(details["action_hint"])
+                if error_detail:
+                    out["error_detail"] = error_detail
             return out
 
         async def _on_node_start(node: Any, state: Any, context: Any, execution_order: int = 0):
@@ -792,6 +807,21 @@ class ProcessAPIService:
             if waiting_for:
                 out["waiting_for"] = str(waiting_for)
                 out["waiting_metadata"] = _truncate(_json_safe(getattr(node_result, "waiting_metadata", None)))
+            # Include business-friendly error details for frontend display
+            err = getattr(node_result, "error", None)
+            if err:
+                error_detail = {}
+                biz = getattr(err, "business_message", None)
+                if biz:
+                    error_detail["business_message"] = str(biz)
+                fixable = getattr(err, "is_user_fixable", None)
+                if fixable is not None:
+                    error_detail["is_user_fixable"] = bool(fixable)
+                details = getattr(err, "details", None)
+                if isinstance(details, dict) and details.get("action_hint"):
+                    error_detail["action_hint"] = str(details["action_hint"])
+                if error_detail:
+                    out["error_detail"] = error_detail
             return out
 
         async def _on_node_start(node: Any, state: Any, context: Any, execution_order: int = 0):

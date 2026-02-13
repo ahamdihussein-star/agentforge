@@ -158,9 +158,22 @@ Notification nodes support **magic recipient shortcuts** that the engine resolve
 5. **NEVER hardcode email addresses** — use shortcuts or let the engine resolve from user directory.
 
 ## Anti-Hallucination Rules
+
+### Identity & Recipient Rules
 - Only use `directory_assignee_type` values listed in the table above.
 - Do NOT generate nodes that manually "look up" or "call HR" to find managers — the engine does this automatically.
 - Do NOT ask users to enter their manager's name, email, or ID — use `dynamic_manager`.
 - Do NOT hardcode specific user IDs in approval nodes for processes that should work for any requester.
 - Do NOT add "Manager Email" as a form field — this is resolved automatically from the identity directory.
 - Expression paths MUST follow the syntax: `{{ trigger_input.fieldName }}`, `{{ variables.varName }}`, `{{ context.user_id }}`.
+
+### Notification Anti-Hallucination
+- Notification message bodies MUST reference **actual variables** from previous steps using `{{variableName}}` syntax.
+- NEVER put placeholder text that looks like real data (e.g., "Your expense of $500 has been approved") — use `{{parsedData.totalAmount}}` instead.
+- If a notification depends on data from an AI parsing step, the AI step's `output_variable` MUST be referenced correctly.
+- If the manager cannot be resolved (no identity configured), the notification will fail with a clear error explaining that the Identity Directory needs to be set up.
+
+### Error Transparency
+- When a step fails, the platform provides both a **business-friendly explanation** (what went wrong in plain language) and **technical details** (exact error, stack trace, variable state).
+- If the error is a **configuration issue** (e.g., missing recipient, wrong field name), the business summary guides the user to fix it.
+- If the error is a **technical bug** (e.g., service unavailable, code error), the business summary tells the user to share the Technical view with their IT team.

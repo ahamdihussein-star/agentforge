@@ -806,11 +806,21 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                             logs.append(f"  ⚠️ Partial extraction: {len(successful_texts)} succeeded, {len(failed_files)} failed: {', '.join(failed_files)}")
                     else:
                         error_details = "; ".join(failed_files) if failed_files else "unknown error"
-                        result = {
-                            "success": False,
-                            "error": f"Could not extract text from any of the {len(source_value)} uploaded files. Details: {error_details}",
-                            "data": ""
-                        }
+                        return NodeResult.failure(
+                            error=ExecutionError(
+                                category=ErrorCategory.EXTERNAL,
+                                code="EXTRACTION_FAILED",
+                                message=f"Could not extract text from any of the {len(source_value)} uploaded files. Details: {error_details}",
+                                business_message=(
+                                    f"None of the {len(source_value)} uploaded file(s) could be read. "
+                                    "The files may be corrupted, in an unsupported format, or the images may be too blurry. "
+                                    "Please re-upload clear, readable files and try again."
+                                ),
+                                is_user_fixable=True,
+                                details={"failed_files": failed_files},
+                            ),
+                            logs=logs,
+                        )
                 elif isinstance(source_value, dict) and source_value.get("kind") == "uploadedFile":
                     # Single uploaded file object — resolve to physical path
                     file_name = source_value.get("name") or "file"
@@ -822,10 +832,18 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     logs.append(f"Resolved file path: {path}")
                     if not path:
                         return NodeResult.failure(
-                            error=ExecutionError.validation_error(
-                                f"Could not resolve file path for uploaded file '{file_name}'. "
-                                f"File ID: {source_value.get('id', 'unknown')}. "
-                                f"Make sure the file was uploaded successfully."
+                            error=ExecutionError(
+                                category=ErrorCategory.RESOURCE,
+                                code="FILE_NOT_FOUND",
+                                message=(
+                                    f"Could not resolve file path for uploaded file '{file_name}'. "
+                                    f"File ID: {source_value.get('id', 'unknown')}."
+                                ),
+                                business_message=(
+                                    f"The uploaded file \"{file_name}\" could not be found on the server. "
+                                    "Please re-upload the file and try again."
+                                ),
+                                is_user_fixable=True,
                             ),
                             logs=logs
                         )
@@ -891,11 +909,34 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     logs=logs
                 )
             else:
+                raw_error = result.get('error', 'File operation failed')
+                # Classify the error for business users
+                if 'not found' in raw_error.lower():
+                    biz_msg = (
+                        f"The step \"{node.name}\" could not find the uploaded file on the server. "
+                        "The file may not have been uploaded correctly. Please try uploading again."
+                    )
+                    code = "FILE_NOT_FOUND"
+                    is_fixable = True
+                elif 'extract' in raw_error.lower() or 'ocr' in raw_error.lower():
+                    biz_msg = (
+                        f"The step \"{node.name}\" could not read the content of the uploaded file. "
+                        "The file may be corrupted, empty, or in an unsupported format. "
+                        "Please upload a clear, readable document or image."
+                    )
+                    code = "EXTRACTION_FAILED"
+                    is_fixable = True
+                else:
+                    biz_msg = f"The step \"{node.name}\" encountered a file operation error."
+                    code = "FILE_ERROR"
+                    is_fixable = False
                 return NodeResult.failure(
                     error=ExecutionError(
                         category=ErrorCategory.EXTERNAL,
-                        code="FILE_ERROR",
-                        message=result.get('error', 'File operation failed')
+                        code=code,
+                        message=raw_error,
+                        business_message=biz_msg,
+                        is_user_fixable=is_fixable,
                     ),
                     duration_ms=duration_ms,
                     logs=logs
@@ -903,7 +944,13 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                 
         except Exception as e:
             return NodeResult.failure(
-                error=ExecutionError.internal_error(f"File operation error: {e}"),
+                error=ExecutionError(
+                    category=ErrorCategory.INTERNAL,
+                    code="INTERNAL_ERROR",
+                    message=f"File operation error: {e}",
+                    business_message=f"An unexpected error occurred in the step \"{node.name}\". This is a technical issue.",
+                    is_user_fixable=False,
+                ),
                 logs=logs
             )
 
@@ -929,13 +976,13 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         abs_path = os.path.abspath(path or "")
 
         if not abs_path:
-            return {"success": False, "error": "No file path provided"}
+            return {"success": False, "error": "No file path provided. The uploaded file reference could not be resolved to a location on disk."}
         if not abs_path.startswith(base_upload + os.sep) and abs_path != base_upload:
-            return {"success": False, "error": "File path is not allowed"}
+            return {"success": False, "error": f"File path is outside the allowed upload directory. Path: {abs_path}"}
         if not os.path.exists(abs_path):
-            return {"success": False, "error": "File not found"}
+            return {"success": False, "error": f"File not found at expected path: {abs_path}. The file may have been deleted or the upload did not complete."}
         if os.path.isdir(abs_path):
-            return {"success": False, "error": "Path is a directory"}
+            return {"success": False, "error": f"Expected a file but found a directory at: {abs_path}"}
 
         ext = os.path.splitext(abs_path)[1].lower().lstrip(".")
         logs.append(f"Detected file type: {ext or 'unknown'}")

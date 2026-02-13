@@ -61,6 +61,16 @@ class ExecutionError(BaseModel):
         description="Additional error details"
     )
     
+    # Business-friendly messaging
+    business_message: Optional[str] = Field(
+        default=None,
+        description="Plain-language explanation for business users"
+    )
+    is_user_fixable: bool = Field(
+        default=True,
+        description="Whether the user can fix this (config issue) vs needs IT (bug)"
+    )
+    
     # For debugging
     stack_trace: Optional[str] = Field(default=None, description="Stack trace")
     
@@ -93,6 +103,8 @@ class ExecutionError(BaseModel):
                 'title': self.get_user_title(),
                 'message': self.get_user_message(),
                 'can_retry': self.is_retryable,
+                'is_user_fixable': self.is_user_fixable,
+                'action_hint': self._get_action_hint(),
             }
         
         return {
@@ -100,11 +112,19 @@ class ExecutionError(BaseModel):
             'code': self.code,
             'message': self.message,
             'details': self.details,
+            'business_message': self.business_message,
+            'is_user_fixable': self.is_user_fixable,
             'is_retryable': self.is_retryable,
             'retry_after_seconds': self.retry_after_seconds,
             'source_node_id': self.source_node_id,
             'occurred_at': self.occurred_at.isoformat(),
         }
+    
+    def _get_action_hint(self) -> str:
+        """Return a short hint telling the user what to do next."""
+        if self.is_user_fixable:
+            return "You may be able to fix this by updating the workflow configuration."
+        return "This appears to be a technical issue. Please share the Technical view details with your IT team for investigation."
     
     def get_user_title(self) -> str:
         """Get business-friendly error title"""
@@ -124,11 +144,17 @@ class ExecutionError(BaseModel):
     
     def get_user_message(self) -> str:
         """Get business-friendly error message"""
+        # Use explicit business_message if provided
+        if self.business_message:
+            return self.business_message
+
         # Map error codes to user-friendly messages
         user_messages = {
             # LLM/AI errors
             "NO_LLM": "The AI service is not configured. Please contact your administrator.",
             "LLM_ERROR": "The AI couldn't process your request. Please try again.",
+            "INVALID_JSON": "The AI step could not produce structured data from the input. The extracted content may not match what was expected.",
+            "AI_HALLUCINATION": "The AI generated data that doesn't match the actual input. The step has been stopped to prevent incorrect results.",
             
             # Tool errors
             "TOOL_ACCESS_DENIED": "You don't have permission to use this feature.",
@@ -156,13 +182,20 @@ class ExecutionError(BaseModel):
             "UNSUPPORTED_QUEUE": "This message queue type is not supported.",
             
             # File errors
-            "FILE_ERROR": "Could not access the file. Please check your settings.",
+            "FILE_ERROR": "Could not access the uploaded file. Please re-upload and try again.",
+            "FILE_NOT_FOUND": "The uploaded file could not be found on the server. Please re-upload and try again.",
+            "EXTRACTION_FAILED": "Could not read content from the uploaded file. The file may be corrupted or in an unsupported format.",
+            
+            # Notification errors
+            "NO_RECIPIENTS": "The notification could not be sent because no valid recipient was configured.",
+            "NOTIFICATION_FAILED": "The notification could not be delivered. Please check the recipient configuration.",
             
             # Queue errors
             "QUEUE_ERROR": "Could not send the message. Please try again.",
             
             # Validation
             "VALIDATION_FAILED": "The data didn't pass the required checks.",
+            "VALIDATION_ERROR": "The step configuration is incomplete or incorrect.",
         }
         
         # Try to find a user-friendly message

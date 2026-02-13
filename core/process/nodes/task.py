@@ -67,7 +67,12 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 error=ExecutionError(
                     category=ErrorCategory.CONFIGURATION,
                     code="NO_LLM",
-                    message="LLM not configured for this process"
+                    message="LLM not configured for this process",
+                    business_message=(
+                        f"The AI step \"{node.name}\" cannot run because no AI model is configured. "
+                        "Please contact your administrator to set up an AI model for this workflow."
+                    ),
+                    is_user_fixable=False,
                 ),
                 logs=logs
             )
@@ -137,8 +142,13 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     category=ErrorCategory.EXTERNAL,
                     code="LLM_ERROR",
                     message=f"LLM call failed: {str(e)}",
+                    business_message=(
+                        f"The AI step \"{node.name}\" could not process the request. "
+                        "This may be a temporary issue with the AI service. Please try again."
+                    ),
+                    is_user_fixable=False,
                     is_retryable=True,
-                    retry_after_seconds=5
+                    retry_after_seconds=5,
                 ),
                 logs=logs
             )
@@ -166,6 +176,11 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                         category=ErrorCategory.EXTERNAL,
                         code="INVALID_JSON",
                         message=f"AI task returned invalid JSON: {e}",
+                        business_message=(
+                            f"The AI step \"{node.name}\" could not produce structured data from the input. "
+                            "This may happen if the uploaded document or image was unclear, or the AI could not interpret it correctly."
+                        ),
+                        is_user_fixable=False,
                         details={
                             "node": node.name,
                             "output_format": output_format,
@@ -177,6 +192,17 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     logs=logs + [f"JSON parse failed: {e}", f"Tokens used: {tokens_used}"],
                     duration_ms=duration_ms,
                 )
+
+        # ANTI-HALLUCINATION: When the AI outputs a JSON object, verify that
+        # critical numeric fields are not fabricated.  The heuristic checks if
+        # the interpolated prompt contained recognisable numeric data and the
+        # AI returned a wildly different set of numbers.  This is intentionally
+        # a lightweight, dynamic check — it doesn't know the schema; it simply
+        # looks for obvious mismatches between input text and output.
+        if isinstance(output, dict):
+            hallucination_warnings = self._check_output_plausibility(prompt, output, logs)
+            if hallucination_warnings:
+                logs.extend(hallucination_warnings)
         
         # Update variables if output_variable specified
         variables_update = {}
@@ -191,6 +217,82 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             logs=logs
         )
     
+    @staticmethod
+    def _check_output_plausibility(
+        prompt_text: str,
+        output: dict,
+        logs: list,
+    ) -> list:
+        """
+        Lightweight anti-hallucination check.
+
+        Compares the AI's JSON output against the source prompt text to detect
+        obvious fabrications.  Returns a list of warning strings (empty = OK).
+
+        This is intentionally dynamic — it does NOT hardcode field names or
+        process types.  Instead it uses generic heuristics:
+        1. If the output contains a field whose name suggests a monetary total
+           (e.g. totalAmount, total, amount) and the prompt text contains numbers,
+           check that the total is plausible (i.e. close to a sum that appears in
+           the source text).
+        2. If the output contains a 'details' or 'summary' field whose value is
+           a short generic phrase rather than specific data from the prompt, warn.
+        """
+        import re as _re
+        warnings: list = []
+
+        # ---- 1. Numeric plausibility ----
+        # Extract all numbers from the prompt (these are the "source of truth")
+        prompt_numbers = [float(m) for m in _re.findall(r'(?<!\w)(\d+(?:\.\d+)?)(?!\w)', prompt_text) if float(m) > 0]
+
+        # Look for "total"-like fields in the output
+        _total_keys = {"totalamount", "total", "amount", "grandtotal", "total_amount", "sum", "net", "gross"}
+        for k, v in output.items():
+            if str(k).lower().replace("_", "").replace("-", "") in _total_keys:
+                if isinstance(v, (int, float)) and v > 0 and prompt_numbers:
+                    # Check: is the AI's total reachable from the prompt numbers?
+                    # Accept if it matches any individual number or any subset sum (greedy check)
+                    if v in prompt_numbers:
+                        continue  # exact match — good
+                    # Check if it's the sum of all prompt numbers
+                    total_all = sum(prompt_numbers)
+                    if abs(v - total_all) < 0.01:
+                        continue  # sum of all — good
+                    # Check if it's reasonably close to any prompt number (within 10%)
+                    close_match = any(abs(v - n) / max(n, 0.01) < 0.10 for n in prompt_numbers)
+                    if close_match:
+                        continue
+                    # Not plausible — warn but don't block (to stay dynamic)
+                    warnings.append(
+                        f"⚠️ Anti-hallucination: AI reported {k}={v} but source text contains numbers {prompt_numbers[:10]}. "
+                        f"The value may not match the actual data."
+                    )
+
+        # ---- 2. Generic/vague detail detection ----
+        _detail_keys = {"details", "summary", "description", "notes"}
+        _vague_patterns = [
+            _re.compile(r"^extracted data from", _re.IGNORECASE),
+            _re.compile(r"^three transactions", _re.IGNORECASE),
+            _re.compile(r"^multiple (receipts|invoices|documents)", _re.IGNORECASE),
+            _re.compile(r"^data extracted", _re.IGNORECASE),
+            _re.compile(r"^information from", _re.IGNORECASE),
+        ]
+        for k, v in output.items():
+            if str(k).lower() in _detail_keys and isinstance(v, str):
+                v_stripped = v.strip().strip("'\"")
+                if len(v_stripped) < 10:
+                    warnings.append(
+                        f"⚠️ Anti-hallucination: AI field '{k}' is suspiciously short: \"{v_stripped}\". "
+                        "It may not reflect the actual extracted data."
+                    )
+                elif any(p.match(v_stripped) for p in _vague_patterns):
+                    warnings.append(
+                        f"⚠️ Anti-hallucination: AI field '{k}' looks like a generic placeholder: \"{v_stripped[:80]}...\". "
+                        "The AI may not have properly parsed the source data."
+                    )
+
+        return warnings
+
     def _parse_json_response(self, content: str) -> Any:
         """Extract and parse JSON from LLM response"""
         content = (content or "").strip()

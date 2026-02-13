@@ -1288,8 +1288,18 @@ class ProcessWizard:
                         + ". Example: {"
                         + ", ".join(f'"{fld}": <value>' for fld in expected_fields)
                         + "}. Numbers must be numeric (not strings). "
-                        + "For 'details' or 'summary' fields, provide a brief human-readable description of the extracted data. "
-                        + "Do NOT include any text outside the JSON."
+                        + "For 'details' or 'summary' fields, provide a brief human-readable description of the ACTUAL extracted data — "
+                        + "NEVER use generic placeholders like 'Extracted data from receipts' or 'Three transactions recorded'. "
+                        + "Include real values from the source text."
+                        + "\n\nANTI-HALLUCINATION RULES (CRITICAL):"
+                        + "\n- ONLY use data that is EXPLICITLY present in the input text. NEVER invent, fabricate, or guess values."
+                        + "\n- If the input contains numbers (amounts, totals, quantities), extract them EXACTLY as they appear."
+                        + "\n- If multiple documents/files are provided, sum or aggregate values ONLY from the actual text — never estimate."
+                        + "\n- If a value cannot be determined from the input, use null — NEVER make up a plausible-sounding value."
+                        + "\n- For the 'details' or 'summary' field, describe SPECIFIC items from the actual data "
+                        + "(e.g., 'Parking fee: 100 AED from City Parking, Flight ticket: 1500 AED from Emirates') "
+                        + "not vague descriptions."
+                        + "\nDo NOT include any text outside the JSON."
                     )
                     if "MUST respond with valid JSON" not in prompt:
                         cfg["prompt"] = prompt + json_instruction

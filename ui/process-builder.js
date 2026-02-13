@@ -5309,6 +5309,9 @@
                         ? 'Workflow is waiting for approval.'
                         : 'Workflow is running.';
 
+            // Track if any step has a non-user-fixable error (for IT guidance banner)
+            let _hasNonFixableError = false;
+
             const stepsCards = (steps || []).slice(0, 80).map((s) => {
                 const info = (s && typeof s.status === 'object') ? s.status : {};
                 const color = String(info?.color || '').toLowerCase();
@@ -5326,10 +5329,47 @@
                 const outPreview = (out && typeof out === 'object' && ('variables_update' in out || 'output' in out))
                     ? _renderEngineValue(out.variables_update && Object.keys(out.variables_update || {}).length ? out.variables_update : out.output)
                     : _renderEngineValue(out);
+
+                // --- Error display: business-friendly + technical ---
                 const errorMsg = s.error ? String(s.error) : '';
-                const errorHtml = errorMsg
-                    ? `<div style="margin-top:6px;padding:8px 12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-size:12px;color:#fca5a5;line-height:1.4;">⚠️ ${escapeHtml(errorMsg)}</div>`
-                    : '';
+                // Extract business_message from error object or from output
+                const errorObj = s.error_detail || s.error_obj || {};
+                const bizMsg = errorObj.business_message
+                    || (out && typeof out === 'object' ? (out.business_message || out.business_error) : '')
+                    || '';
+                const isUserFixable = errorObj.is_user_fixable !== undefined ? errorObj.is_user_fixable
+                    : (out && typeof out === 'object' ? out.is_user_fixable : undefined);
+                const actionHint = errorObj.action_hint
+                    || (out && typeof out === 'object' ? out.action_hint : '')
+                    || (isUserFixable === false ? 'This appears to be a technical issue. Please share the Technical view details with your IT team for investigation.' : '')
+                    || '';
+
+                if (stKey === 'failed' && isUserFixable === false) {
+                    _hasNonFixableError = true;
+                }
+
+                let errorHtml = '';
+                if (errorMsg || bizMsg) {
+                    // Show business message first (if available), then technical error in a collapsible
+                    const bizHtml = bizMsg
+                        ? `<div style="font-size:13px;color:#fca5a5;line-height:1.45;margin-bottom:4px;">${escapeHtml(bizMsg)}</div>`
+                        : '';
+                    const hintHtml = actionHint
+                        ? `<div style="margin-top:6px;padding:6px 10px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:12px;color:#fbbf24;line-height:1.35;">💡 ${escapeHtml(actionHint)}</div>`
+                        : '';
+                    const techHtml = errorMsg && bizMsg
+                        ? `<details style="margin-top:6px;"><summary style="font-size:11px;color:var(--pb-muted);cursor:pointer;">Show technical details</summary><pre style="margin:4px 0 0;white-space:pre-wrap;word-break:break-word;color:var(--pb-muted);font-size:11px;line-height:1.3;">${escapeHtml(errorMsg)}</pre></details>`
+                        : errorMsg ? `<div style="font-size:12px;color:#fca5a5;line-height:1.4;">${escapeHtml(errorMsg)}</div>` : '';
+                    errorHtml = `<div style="margin-top:6px;padding:8px 12px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px;">⚠️ ${bizHtml}${techHtml}${hintHtml}</div>`;
+                }
+                // Also show soft errors from notification outputs that succeeded but didn't send
+                if (!errorHtml && out && typeof out === 'object' && out.sent === false && out.error) {
+                    const softBiz = out.business_message || out.business_error || '';
+                    const softHint = out.action_hint || '';
+                    const softMsg = softBiz || String(out.error);
+                    errorHtml = `<div style="margin-top:6px;padding:8px 12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);border-radius:10px;font-size:12px;color:#fbbf24;line-height:1.4;">⚠️ ${escapeHtml(softMsg)}${softHint ? `<div style="margin-top:4px;font-size:11px;color:var(--pb-muted);">💡 ${escapeHtml(softHint)}</div>` : ''}</div>`;
+                }
+
                 return `
                     <details style="padding:12px;background:var(--bg-input);border:1px solid ${stKey === 'failed' ? 'rgba(239,68,68,0.3)' : 'color-mix(in srgb, var(--pb-muted) 22%, transparent)'};border-radius:14px;margin-bottom:10px;" ${stKey === 'failed' ? 'open' : ''}>
                         <summary style="cursor:pointer;user-select:none;display:flex;gap:12px;align-items:flex-start;">
@@ -5421,6 +5461,14 @@
                             </div>
                         </div>
                         <div>
+                            ${_hasNonFixableError ? `
+                            <div style="margin-bottom:14px;padding:12px 16px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.22);border-radius:12px;display:flex;gap:10px;align-items:flex-start;">
+                                <span style="font-size:18px;flex-shrink:0;">🔧</span>
+                                <div>
+                                    <div style="font-weight:800;font-size:13px;color:#fca5a5;margin-bottom:4px;">Technical issue detected</div>
+                                    <div style="font-size:12px;color:var(--pb-muted);line-height:1.4;">One or more steps failed due to a technical issue that cannot be fixed through workflow configuration. Please share this Technical view (screenshot or copy the details below) with your IT team for investigation.</div>
+                                </div>
+                            </div>` : ''}
                             <div style="font-weight:900;color:var(--pb-text);margin-bottom:10px;">Step inputs & outputs</div>
                             ${stepsCards}
                         </div>

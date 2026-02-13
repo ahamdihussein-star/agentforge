@@ -13,7 +13,7 @@ These nodes control the flow of execution:
 from typing import Optional, List
 from ..schemas import ProcessNode, NodeType
 from ..state import ProcessState, ProcessContext
-from ..result import NodeResult, ExecutionError
+from ..result import NodeResult, ExecutionError, ErrorCategory
 from .base import BaseNodeExecutor, register_executor
 
 
@@ -52,10 +52,30 @@ class ConditionNodeExecutor(BaseNodeExecutor):
             result = state.evaluate_condition(expression)
             logs.append(f"Condition result: {result}")
         except Exception as e:
+            err_str = str(e)
+            # Determine if this is a user-fixable config issue or a technical bug
+            is_none_comparison = "NoneType" in err_str or "None" in err_str
+            if is_none_comparison:
+                biz_msg = (
+                    f"The decision step \"{node.name}\" could not evaluate because a required value was missing or empty. "
+                    "This usually means an earlier step (like data extraction or AI analysis) did not produce the expected result. "
+                    "Please check the previous steps in the Technical view."
+                )
+                is_fixable = False
+            else:
+                biz_msg = (
+                    f"The decision step \"{node.name}\" encountered an error evaluating its rule. "
+                    "The condition configuration may need to be updated."
+                )
+                is_fixable = True
             return NodeResult.failure(
-                error=ExecutionError.validation_error(
-                    message=f"Failed to evaluate condition: {e}",
-                    details={'expression': expression}
+                error=ExecutionError(
+                    category=ErrorCategory.VALIDATION,
+                    code="CONDITION_EVAL_FAILED",
+                    message=f"Failed to evaluate condition '{expression}': {e}",
+                    business_message=biz_msg,
+                    is_user_fixable=is_fixable,
+                    details={'expression': expression, 'error': err_str},
                 ),
                 logs=logs
             )

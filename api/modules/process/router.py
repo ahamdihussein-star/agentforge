@@ -676,6 +676,7 @@ async def get_step_executions(
                 "status": get_status_info(n.status),
                 "branch_taken": n.branch_taken,
                 "error": sanitize_for_user(n.error_message) if n.error_message else None,
+                "error_detail": (n.output_data or {}).get("error_detail") if isinstance(n.output_data, dict) else None,
                 **({
                     "input": _sanitize_io(n.input_data),
                     "output": _sanitize_io(n.output_data),
@@ -1227,6 +1228,14 @@ async def generate_business_summary(
             "status": n.status,
             "error": n.error_message if n.error_message else None,
         }
+        # Include business-friendly error info if available
+        if n.output_data and isinstance(n.output_data, dict):
+            ed = n.output_data.get("error_detail")
+            if ed and isinstance(ed, dict):
+                if ed.get("business_message"):
+                    step["business_error"] = ed["business_message"]
+                if ed.get("is_user_fixable") is not None:
+                    step["is_user_fixable"] = ed["is_user_fixable"]
         # Include key output data (compact)
         if n.output_data:
             out = n.output_data if isinstance(n.output_data, dict) else {}
@@ -1315,6 +1324,17 @@ Rules:
 - For approvals, explain who approved/rejected and why it matters
 - For notifications, mention who was notified and about what
 - Keep the total summary concise (under 300 words)
+
+ERROR CLASSIFICATION (IMPORTANT — when steps fail):
+- If a step failed, classify the error into one of these categories:
+  a) CONFIGURATION ISSUE — the user can fix it (e.g., missing field, wrong setting, empty recipient).
+     Tell the user exactly what to check or change.
+  b) TECHNICAL ISSUE — requires IT support (e.g., service unavailable, code error, unexpected exception).
+     Tell the user: "This is a technical issue. Please share the Technical view with your IT team."
+  c) DATA ISSUE — the input data was incomplete or invalid (e.g., blurry image, empty file, missing info).
+     Tell the user what to fix in their submission.
+- NEVER use generic phrases like "something went wrong" — always explain the specific problem.
+- NEVER fabricate error explanations — only describe what actually happened based on the step data.
 
 Response format (plain text, NOT JSON):
 OUTCOME: <one-line business outcome>
