@@ -1194,45 +1194,70 @@ class ProcessWizard:
                             logger.info(f"Enhanced AI node '{n.get('name')}' prompt for multi-file processing (source: {file_field})")
                         break
 
-        # ENFORCE: AI nodes whose output_variable is referenced by a condition using dot notation
-        # (e.g., parsedData.totalAmount) MUST output JSON so the engine can resolve nested fields.
-        # Collect condition field references to detect which AI nodes need JSON output.
-        condition_fields = set()
+        # ENFORCE: AI nodes whose output_variable is referenced by downstream steps
+        # (conditions, notifications, approvals) using dot notation (e.g., parsedData.totalAmount)
+        # MUST output JSON so the engine can resolve nested fields.
+        # Collect ALL dot-notation references from every node type that uses them.
+        referenced_fields = set()
+
         for n in normalized_nodes:
-            if n.get("type") == "condition":
-                cfg = n.get("config") or {}
-                # Visual-builder style: field-based condition config
+            cfg = n.get("config") or {}
+            ntype = n.get("type") or ""
+
+            # Conditions: field-based and expression-based
+            if ntype == "condition":
                 f = str(cfg.get("field") or "").strip()
                 if "." in f:
-                    condition_fields.add(f)
-                # Engine-style: expression-based condition config (e.g., "{{parsedData.totalAmount}} < 500")
+                    referenced_fields.add(f)
                 expr = str(cfg.get("expression") or "").strip()
                 if expr and "{{" in expr and "}}" in expr:
-                    # Capture {{base.field}} references so we can enforce JSON output on the producing AI node.
-                    # This is critical because the LLM sometimes emits expression-form conditions directly.
                     for m in re.finditer(r"\{\{\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\}\}", expr):
-                        condition_fields.add(f"{m.group(1)}.{m.group(2)}")
+                        referenced_fields.add(f"{m.group(1)}.{m.group(2)}")
 
-        if condition_fields:
-            # Build a set of base variable names referenced by conditions (e.g., "parsedData" from "parsedData.totalAmount")
-            condition_base_vars = {f.split(".")[0] for f in condition_fields}
+            # Notifications: template, message, title may reference {{parsedData.X}}
+            if ntype == "notification":
+                for key in ("template", "message", "title"):
+                    txt = str(cfg.get(key) or "").strip()
+                    if txt and "{{" in txt:
+                        for m in re.finditer(r"\{\{\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\}\}", txt):
+                            referenced_fields.add(f"{m.group(1)}.{m.group(2)}")
+
+            # Approvals: title, description, message may reference {{parsedData.X}}
+            if ntype == "approval":
+                for key in ("title", "description", "message", "instructions"):
+                    txt = str(cfg.get(key) or "").strip()
+                    if txt and "{{" in txt:
+                        for m in re.finditer(r"\{\{\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\}\}", txt):
+                            referenced_fields.add(f"{m.group(1)}.{m.group(2)}")
+
+        if referenced_fields:
+            # Build a set of base variable names (e.g., "parsedData" from "parsedData.totalAmount")
+            referenced_base_vars = {f.split(".")[0] for f in referenced_fields}
             for n in normalized_nodes:
                 if n.get("type") != "ai":
                     continue
                 ov = n.get("output_variable") or n.get("outputVariable") or ""
-                if ov and ov in condition_base_vars:
+                if ov and ov in referenced_base_vars:
                     cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
                     # Force JSON output format
                     cfg["output_format"] = "json"
-                    # Enhance the prompt to instruct JSON output with the expected field names
+                    # Enhance the prompt to instruct JSON output with ALL expected field names
                     prompt = str(cfg.get("prompt") or "").strip()
-                    # Find which fields are expected from this variable
-                    expected_fields = [f.split(".", 1)[1] for f in condition_fields if f.startswith(ov + ".")]
-                    json_instruction = "\n\nIMPORTANT: You MUST respond with valid JSON only. Return a JSON object with these fields: " + ", ".join(f'"{fld}"' for fld in expected_fields) + ". Example: {" + ", ".join(f'"{fld}": <value>' for fld in expected_fields) + "}. Numbers must be numeric (not strings). Do NOT include any text outside the JSON."
+                    # Collect all fields expected from this variable across all downstream steps
+                    expected_fields = sorted(set(f.split(".", 1)[1] for f in referenced_fields if f.startswith(ov + ".")))
+                    json_instruction = (
+                        "\n\nIMPORTANT: You MUST respond with valid JSON only. Return a JSON object that includes AT LEAST these fields: "
+                        + ", ".join(f'"{fld}"' for fld in expected_fields)
+                        + ". Example: {"
+                        + ", ".join(f'"{fld}": <value>' for fld in expected_fields)
+                        + "}. Numbers must be numeric (not strings). "
+                        + "For 'details' or 'summary' fields, provide a brief human-readable description of the extracted data. "
+                        + "Do NOT include any text outside the JSON."
+                    )
                     if "MUST respond with valid JSON" not in prompt:
                         cfg["prompt"] = prompt + json_instruction
                     n["config"] = cfg
-                    logger.info(f"Enforced JSON output on AI node '{n.get('name')}' (output_variable={ov}) because condition references {[f for f in condition_fields if f.startswith(ov + '.')]}")
+                    logger.info(f"Enforced JSON output on AI node '{n.get('name')}' (output_variable={ov}) for fields: {expected_fields}")
 
         # ENFORCE: Notification nodes must have recipient and template populated.
         # The LLM may use engine format (recipients/message) instead of visual builder format (recipient/template),
