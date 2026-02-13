@@ -194,18 +194,18 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     duration_ms=duration_ms,
                 )
 
-        # ANTI-HALLUCINATION: When the AI outputs a JSON object, verify that
-        # critical numeric fields are not fabricated.  The heuristic checks if
-        # the interpolated prompt contained recognisable numeric data and the
-        # AI returned a wildly different set of numbers.  This is intentionally
-        # a lightweight, dynamic check — it doesn't know the schema; it simply
-        # looks for obvious mismatches between input text and output.
+        # ANTI-HALLUCINATION pipeline (order matters):
+        #   1. Cross-reference items against actual source files (remove phantoms)
+        #   2. Check numeric plausibility against prompt text (warn)
+        #   3. Auto-correct totals/counts to match remaining items (fix)
         if isinstance(output, dict):
+            # Step 1: Remove items that reference files not in the input
+            output = self._cross_reference_items_with_source(prompt, output, logs)
+            # Step 2: Warn about suspicious numeric mismatches
             hallucination_warnings = self._check_output_plausibility(prompt, output, logs)
             if hallucination_warnings:
                 logs.extend(hallucination_warnings)
-            # AUTO-CORRECT: Self-consistency check — if output has items array
-            # with amounts AND a total field, ensure total = sum(item amounts)
+            # Step 3: Ensure total = sum(items), count = len(items)
             output = self._auto_correct_totals(output, logs)
         
         # Update variables if output_variable specified
@@ -390,6 +390,101 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                         f"Using computed value."
                     )
                     output[k] = computed_total
+        
+        return output
+
+    @staticmethod
+    def _cross_reference_items_with_source(
+        prompt_text: str,
+        output: dict,
+        logs: list,
+    ) -> dict:
+        """
+        Cross-reference AI output items against actual source files.
+        
+        The platform's document extraction injects "--- File: <name> ---"
+        markers into the extracted text.  These markers are a factual record
+        of how many files were actually processed.  If the AI's output
+        contains an items/collection array with MORE items than there are
+        file sections, the extra items are hallucinated and must be removed.
+        
+        This is platform-level validation (the markers are produced by the
+        platform), NOT business logic.
+        """
+        # Count actual file sections in the prompt text
+        file_markers = re.findall(r'---\s*File:\s*(.+?)\s*---', prompt_text)
+        if not file_markers:
+            return output  # No file sections → not a file-extraction scenario
+        
+        actual_file_count = len(file_markers)
+        actual_file_names = {name.strip().lower() for name in file_markers}
+        
+        # Find the items/collection array in output
+        _collection_keys = {"items", "expenses", "lineitems", "receipts",
+                            "transactions", "entries", "records", "invoices"}
+        items = None
+        items_key = None
+        for k, v in output.items():
+            if k.lower().replace("_", "").replace("-", "") in _collection_keys:
+                if isinstance(v, list):
+                    items = v
+                    items_key = k
+                    break
+        
+        if not items or len(items) <= actual_file_count:
+            return output  # Items count matches or is less — no hallucination
+        
+        # More items than files → try to identify and remove hallucinated items
+        # Strategy: match items to files by fileName, then remove unmatched
+        matched = []
+        unmatched = []
+        for item in items:
+            if not isinstance(item, dict):
+                matched.append(item)
+                continue
+            # Look for a file name reference in the item
+            item_file = None
+            for fk in ("fileName", "file_name", "filename", "file", "source", "sourcefile", "source_file"):
+                if fk in item and isinstance(item[fk], str):
+                    item_file = item[fk].strip().lower()
+                    break
+            
+            if item_file and item_file in actual_file_names:
+                matched.append(item)
+            elif item_file:
+                # Item references a file that wasn't in the input
+                unmatched.append(item)
+            else:
+                # No file reference — keep it (can't determine)
+                matched.append(item)
+        
+        if not unmatched:
+            # All items matched or couldn't be determined — fall back to truncation
+            if len(items) > actual_file_count:
+                removed = items[actual_file_count:]
+                output[items_key] = items[:actual_file_count]
+                removed_names = [
+                    str(r.get("fileName") or r.get("file_name") or r.get("name") or f"item #{actual_file_count + i + 1}")
+                    for i, r in enumerate(removed) if isinstance(r, dict)
+                ]
+                logs.append(
+                    f"🔧 Removed {len(removed)} hallucinated item(s) from '{items_key}': "
+                    f"{', '.join(removed_names)}. "
+                    f"Input had {actual_file_count} file(s) but AI produced {len(items)} items."
+                )
+        else:
+            # Remove items that reference non-existent files
+            output[items_key] = matched
+            removed_names = [
+                str(r.get("fileName") or r.get("file_name") or r.get("name") or "unknown")
+                for r in unmatched if isinstance(r, dict)
+            ]
+            logs.append(
+                f"🔧 Removed {len(unmatched)} hallucinated item(s) from '{items_key}': "
+                f"{', '.join(removed_names)}. "
+                f"These referenced files not present in the input "
+                f"(actual files: {', '.join(actual_file_names)})."
+            )
         
         return output
 
