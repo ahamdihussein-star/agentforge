@@ -17,11 +17,65 @@ Industry Standards Applied:
 """
 
 import logging
+import uuid as _uuid_mod
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_org_uuid(org_id: str) -> Optional[str]:
+    """
+    Resolve an org_id from ANY format to the actual DB UUID string.
+    
+    Handles:
+    - Standard UUID string → returned as-is
+    - "org_default" → looks up the default organization
+    - "org_xxxx" (prefixed format from security_state) → looks up by slug/name
+    - None/empty → returns None
+    
+    Returns the UUID string or None if not resolvable.
+    """
+    if not org_id:
+        return None
+    
+    # Already a valid UUID?
+    try:
+        _uuid_mod.UUID(str(org_id))
+        return str(org_id)
+    except (ValueError, AttributeError):
+        pass
+    
+    # Prefixed format (org_default, org_xxxx)
+    try:
+        from database.base import get_session
+        from database.models.organization import Organization
+        
+        with get_session() as session:
+            if org_id == "org_default":
+                org = session.query(Organization).filter(
+                    Organization.slug == "default"
+                ).first()
+                if org:
+                    return str(org.id)
+            
+            # Try to find any org (for single-org deployments)
+            # This handles "org_xxxx" format where xxxx doesn't map to anything
+            orgs = session.query(Organization).limit(2).all()
+            if len(orgs) == 1:
+                # Single organization — use it
+                logger.info("[_resolve_org_uuid] Single org found, resolving '%s' → '%s'", org_id, str(orgs[0].id))
+                return str(orgs[0].id)
+            elif len(orgs) > 1:
+                # Multiple orgs — try to match by name/slug containing the prefix
+                for o in orgs:
+                    if org_id.replace("org_", "") in str(o.id).replace("-", ""):
+                        return str(o.id)
+    except Exception as e:
+        logger.warning("[_resolve_org_uuid] Failed to resolve org_id '%s': %s", org_id, e)
+    
+    return None
 
 
 # ============================================================================
@@ -1072,6 +1126,15 @@ class UserDirectoryService:
         from database.models.user_group import UserGroup
         from database.models.role import Role
         
+        # ── Normalize org_id ────────────────────────────────────────
+        # The security_state may pass "org_default" or "org_xxxx" format
+        # but the DB uses UUID columns. Resolve to actual UUID first.
+        resolved_org_id = _resolve_org_uuid(org_id)
+        if resolved_org_id and resolved_org_id != org_id:
+            logger.info("[_get_user_internal] Resolved org_id: '%s' → '%s'", org_id, resolved_org_id)
+            org_id = resolved_org_id
+        # ── End normalize ───────────────────────────────────────────
+        
         with get_session() as session:
             user = None
             try:
@@ -1080,20 +1143,16 @@ class UserDirectoryService:
                     User.org_id == org_id
                 ).first()
                 if not user:
-                    logger.warning("[_get_user_internal] No user found with id=%s AND org_id=%s (direct query)", user_id, org_id)
-                    # Debug: check if user exists with different org_id
-                    any_user = session.query(User).filter(User.id == user_id).first()
-                    if any_user:
-                        logger.warning("[_get_user_internal] User id=%s EXISTS but with org_id=%s (expected %s)", user_id, any_user.org_id, org_id)
+                    # Fallback: try by user_id only (handles org_id=NULL in DB)
+                    user = session.query(User).filter(User.id == user_id).first()
+                    if user:
+                        logger.warning(
+                            "[_get_user_internal] User found by id=%s but org_id mismatch: "
+                            "DB has org_id=%s, query had org_id=%s. Using the found user.",
+                            user_id, user.org_id, org_id
+                        )
                     else:
-                        logger.warning("[_get_user_internal] User id=%s does NOT exist in DB at all", user_id)
-                        # Check by email if we have it from trigger
-                        from sqlalchemy import text as _text
-                        sample = session.execute(
-                            _text("SELECT id::text, email, org_id::text FROM users WHERE org_id::text = :oid LIMIT 5"),
-                            {"oid": str(org_id)}
-                        ).fetchall()
-                        logger.warning("[_get_user_internal] Sample users in org %s: %s", org_id, [(r[0], r[1], r[2]) for r in sample])
+                        logger.warning("[_get_user_internal] User id=%s not found in DB at all", user_id)
             except Exception as ex:
                 logger.warning("[_get_user_internal] Primary query failed: %s", ex)
                 # Fallback: use raw SQL with explicit cast for type safety
@@ -1101,13 +1160,13 @@ class UserDirectoryService:
                     session.rollback()
                     from sqlalchemy import text as _text
                     row = session.execute(
-                        _text("SELECT id FROM users WHERE id::text = :uid AND org_id::text = :oid LIMIT 1"),
-                        {"uid": str(user_id), "oid": str(org_id)}
+                        _text("SELECT id FROM users WHERE id::text = :uid LIMIT 1"),
+                        {"uid": str(user_id)}
                     ).first()
                     if row:
                         user = session.query(User).get(row.id)
                     else:
-                        logger.warning("[_get_user_internal] Fallback also found no user for id=%s, org_id=%s", user_id, org_id)
+                        logger.warning("[_get_user_internal] Fallback also found no user for id=%s", user_id)
                 except Exception as e2:
                     logger.warning("_get_user_internal fallback failed: %s", e2)
             

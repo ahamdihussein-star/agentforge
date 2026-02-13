@@ -77,28 +77,79 @@ class UserService:
             raise
     
     @staticmethod
+    def _resolve_org_uuid(org_id_str: str):
+        """
+        Resolve ANY org_id format to a UUID object for DB storage.
+        
+        Handles: UUID strings, "org_default", "org_xxxx" prefixed format.
+        Never returns None silently — logs a warning if resolution fails.
+        """
+        import uuid as uuid_lib
+        
+        if not org_id_str:
+            return None
+        
+        # Already a valid UUID?
+        try:
+            return uuid_lib.UUID(str(org_id_str))
+        except (ValueError, AttributeError):
+            pass
+        
+        # "org_default" → find default organization
+        if org_id_str == "org_default":
+            try:
+                from .organization_service import OrganizationService
+                orgs = OrganizationService.get_all_organizations()
+                default_org = next((o for o in orgs if o.slug == "default"), None)
+                if default_org:
+                    try:
+                        return uuid_lib.UUID(default_org.id)
+                    except ValueError:
+                        pass
+                # No default? Use the only org if there's just one
+                if len(orgs) == 1:
+                    try:
+                        return uuid_lib.UUID(orgs[0].id)
+                    except ValueError:
+                        pass
+            except Exception as e:
+                print(f"⚠️ [UserService._resolve_org_uuid] Failed to resolve 'org_default': {e}")
+            return None
+        
+        # "org_xxxx" prefixed format → try to find matching org
+        if org_id_str.startswith("org_"):
+            try:
+                from .organization_service import OrganizationService
+                orgs = OrganizationService.get_all_organizations()
+                # Single org deployment → use it
+                if len(orgs) == 1:
+                    try:
+                        resolved = uuid_lib.UUID(orgs[0].id)
+                        print(f"🔄 [UserService._resolve_org_uuid] Resolved '{org_id_str}' → single org '{resolved}'")
+                        return resolved
+                    except ValueError:
+                        pass
+                # Check if the hex part matches any org UUID
+                hex_part = org_id_str.replace("org_", "")
+                for o in orgs:
+                    if hex_part in str(o.id).replace("-", ""):
+                        try:
+                            return uuid_lib.UUID(o.id)
+                        except ValueError:
+                            pass
+            except Exception as e:
+                print(f"⚠️ [UserService._resolve_org_uuid] Failed to resolve '{org_id_str}': {e}")
+        
+        print(f"⚠️ [UserService._resolve_org_uuid] Could not resolve org_id '{org_id_str}' to a UUID!")
+        return None
+    
+    @staticmethod
     def create_user(user: User) -> User:
         """Create new user in database"""
         import uuid as uuid_lib
         with get_db_session() as db:
-            # Resolve org_id: convert "org_default" to actual UUID
-            org_uuid = None
-            if user.org_id:
-                if user.org_id == "org_default":
-                    # Find default organization by slug
-                    from .organization_service import OrganizationService
-                    orgs = OrganizationService.get_all_organizations()
-                    default_org = next((o for o in orgs if o.slug == "default"), None)
-                    if default_org:
-                        try:
-                            org_uuid = uuid_lib.UUID(default_org.id)
-                        except ValueError:
-                            org_uuid = None
-                else:
-                    try:
-                        org_uuid = uuid_lib.UUID(user.org_id)
-                    except ValueError:
-                        org_uuid = None
+            # Resolve org_id using centralized resolver
+            org_uuid = UserService._resolve_org_uuid(user.org_id)
             
             # Convert MFA data
             mfa_enabled = user.mfa.enabled if user.mfa else False
@@ -223,24 +274,11 @@ class UserService:
             if not db_user:
                 raise ValueError(f"User {user.id} not found")
             
-            # Resolve org_id: convert "org_default" to actual UUID
-            org_uuid = None
-            if user.org_id:
-                if user.org_id == "org_default":
-                    # Find default organization by slug
-                    from .organization_service import OrganizationService
-                    orgs = OrganizationService.get_all_organizations()
-                    default_org = next((o for o in orgs if o.slug == "default"), None)
-                    if default_org:
-                        try:
-                            org_uuid = uuid_lib.UUID(default_org.id)
-                        except ValueError:
-                            org_uuid = None
-                else:
-                    try:
-                        org_uuid = uuid_lib.UUID(user.org_id)
-                    except ValueError:
-                        org_uuid = None
+            # Resolve org_id using centralized resolver
+            org_uuid = UserService._resolve_org_uuid(user.org_id)
+            # If resolution failed but user already has org_id in DB, keep it
+            if org_uuid is None and db_user.org_id is not None:
+                org_uuid = db_user.org_id
             
             # Convert MFA data
             mfa_enabled = user.mfa.enabled if user.mfa else False
