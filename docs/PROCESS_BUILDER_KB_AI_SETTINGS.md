@@ -1,29 +1,34 @@
-# Process Builder — AI Step Configuration (Instructions, Creativity, Confidence)
+# Process Builder — AI Step Configuration (Instructions, Creativity, Confidence, Output Fields)
 
 ## AI Node Config Schema
 
-Every `"type": "ai"` node supports three configuration properties alongside `prompt` and `model`:
+Every `"type": "ai"` node supports these configuration properties alongside `prompt` and `model`:
 
 ```json
 {
   "type": "ai",
-  "name": "Parse Receipt Data",
+  "name": "Parse Document Data",
   "config": {
-    "prompt": "Extract expense data from: {{extractedData}}. For each receipt, identify expense type, date, vendor, amount, and currency.",
+    "prompt": "Extract structured data from: {{extractedText}}. Identify all relevant fields based on the document type.",
     "model": "gpt-4o",
     "output_format": "json",
     "instructions": [
       "Only extract data EXPLICITLY present in the text — never invent values",
-      "Each file section (--- File: ... ---) is exactly ONE item",
-      "Return amounts as numbers, not strings",
-      "If a value is unclear, set it to null"
+      "If a value is unclear, set it to null",
+      "Return amounts as numbers, not strings"
     ],
     "creativity": 2,
-    "confidence": 3
+    "confidence": 3,
+    "outputFields": [
+      {"label": "<Friendly Name>", "name": "<camelCaseKey>"},
+      {"label": "<Friendly Name>", "name": "<camelCaseKey>"}
+    ]
   },
   "output_variable": "parsedData"
 }
 ```
+
+> **Note:** `outputFields` are always dynamic — the fields are determined by the specific workflow's business context. The wizard infers them from the user's goal and what downstream steps need.
 
 ## Prompt vs Instructions — Separation Rule
 
@@ -130,10 +135,40 @@ Controls how the AI handles uncertain or ambiguous data. Injected as a `CONFIDEN
 
 ### Default value when generating: **confidence = 3** (Balanced)
 
+## Output Fields (Array of Objects)
+
+Defines the individual data fields the AI step will produce. Each field gets a friendly label and a camelCase key.
+These fields appear as **selectable options** in all downstream steps (conditions, notifications, AI prompts, approvals, etc.) — just like form input fields.
+
+### Schema
+
+```json
+"outputFields": [
+  {"label": "Human Readable Name", "name": "camelCaseKey"}
+]
+```
+
+### How it Works
+
+- Each output field maps to a nested path: `{{output_variable.fieldName}}` (e.g., `{{parsedData.amount}}`)
+- Downstream steps show these as clickable chips — users never need to type `{{variable.field}}` syntax
+- Fields are **fully dynamic** — determined by the business context of each workflow, never hardcoded
+- The wizard auto-generates outputFields from downstream references during normalization
+- Users can add/remove fields manually from the AI step's properties panel
+
+### When Generating outputFields
+
+- **ALWAYS** derive fields from the workflow's business purpose — never use a fixed set
+- Include every field that downstream conditions, notifications, or approvals will reference
+- For multi-file workflows, include aggregate fields (totals, counts, item arrays) as appropriate
+- Label should be business-friendly (what a non-technical user would understand)
+- Name should be camelCase (the technical key used in variable interpolation)
+
 ## How the Engine Applies These at Runtime
 
 1. **Instructions**: Joined with bullet points and injected into the system prompt inside a `=== STEP RULES ===` block.
 2. **Creativity**: Mapped to LLM `temperature` parameter. Only applies if the node doesn't have an explicit `temperature` in config.
 3. **Confidence**: Adds a `CONFIDENCE RULE:` instruction to the system prompt with the corresponding behavior.
+4. **Output Fields**: Stored in the node's `config.outputFields` array. The visual builder reads these to populate downstream step dropdowns and chips. The wizard normalization auto-generates them from downstream field references.
 
-All three are stored in the node's `config` object and persist with the process definition — no separate storage needed.
+All properties are stored in the node's `config` object and persist with the process definition — no separate storage needed.

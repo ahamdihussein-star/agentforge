@@ -384,6 +384,14 @@ Node config rules:
       - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
       - MUST set temperature: 0.1 (low temperature for accurate data extraction — never hallucinate)
       - MUST set output_format: "json"
+      - MUST set config.outputFields: an array of objects naming each data field the AI will produce.
+        Each object has "label" (friendly display name) and "name" (camelCase key).
+        These fields appear as selectable options in all downstream steps for non-technical users.
+        CRITICAL: The fields MUST be determined dynamically based on the workflow's business context and goal.
+        Do NOT use hardcoded or fixed field names — infer them from what the user's process needs.
+        Format: "outputFields": [{{"label": "<Human Readable Name>", "name": "<camelCaseKey>"}}]
+        For multi-file workflows, also include aggregate/summary fields (items array, counts, totals, etc.) as appropriate.
+        Every field that is referenced by a downstream condition, notification, or approval MUST be listed in outputFields.
       - PROMPT vs INSTRUCTIONS separation (MANDATORY for ALL "ai" nodes):
         config.prompt = ONLY the task description (what data to extract, what to do with it).
         config.instructions = an ARRAY of individual rule strings. Each rule is a separate item.
@@ -1404,6 +1412,19 @@ class ProcessWizard:
                     )
                     if "MUST respond with valid JSON" not in prompt:
                         cfg["prompt"] = prompt + json_instruction
+
+                    # Auto-generate outputFields for the visual builder so non-technical
+                    # users can see and select individual fields in downstream steps.
+                    if expected_fields and not cfg.get("outputFields"):
+                        output_fields = []
+                        for fld in expected_fields:
+                            # humanize camelCase/snake_case → Title Case
+                            label = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', fld)
+                            label = label.replace('_', ' ').strip()
+                            label = ' '.join(w.capitalize() for w in label.split())
+                            output_fields.append({"name": fld, "label": label})
+                        cfg["outputFields"] = output_fields
+
                     n["config"] = cfg
                     logger.info(f"Enforced JSON output on AI node '{n.get('name')}' (output_variable={ov}) for fields: {expected_fields}")
 

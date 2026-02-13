@@ -984,9 +984,14 @@
                 case 'loop':
                     html = `<div class="node-config-item"><span class="config-label">Each</span><span class="config-value">${cfg.itemVar || 'item'} in ${cfg.collection || '...'}</span></div>`;
                     break;
-                case 'ai':
+                case 'ai': {
+                    const _outFlds = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label) : [];
                     html = `<div class="node-config-item"><span class="config-label">Model</span><span class="config-value">${cfg.model || 'gpt-4o'}</span></div>`;
+                    if (_outFlds.length > 0) {
+                        html += `<div class="node-config-item"><span class="config-label">Output</span><span class="config-value">${_outFlds.length} field${_outFlds.length > 1 ? 's' : ''}</span></div>`;
+                    }
                     break;
+                }
                 case 'end':
                     html = `<div class="node-config-item"><span class="config-label">Output</span><span class="config-value">${cfg.output || 'result'}</span></div>`;
                     break;
@@ -2765,10 +2770,11 @@
             state.nodes.forEach(n => {
                 const outVar = String(n.output_variable || '').trim();
                 if (!outVar) return;
+                const cfg = n.config || {};
 
                 // Extract text action
-                if (n.type === 'action' && (n.config.actionType === 'extractDocumentText')) {
-                    const label = n.config.dataLabel || humanizeFieldLabel(outVar);
+                if (n.type === 'action' && (cfg.actionType === 'extractDocumentText')) {
+                    const label = cfg.dataLabel || humanizeFieldLabel(outVar);
                     outputs.push({
                         name: outVar,
                         label: label,
@@ -2779,22 +2785,43 @@
                         nodeId: n.id
                     });
                 }
-                // AI step output
+                // AI step output — expose individual output fields as separate items
                 else if (n.type === 'ai') {
-                    const label = n.config.dataLabel || humanizeFieldLabel(outVar);
-                    outputs.push({
-                        name: outVar,
-                        label: label,
-                        type: 'data',
-                        source: n.name || 'AI Step',
-                        group: 'data',
-                        icon: '🤖',
-                        nodeId: n.id
-                    });
+                    const stepName = n.name || 'AI Step';
+                    const outFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label && f.name) : [];
+
+                    if (outFields.length > 0) {
+                        // Each defined output field becomes its own selectable item
+                        // e.g. parsedData.invoiceNumber → "Invoice Number"
+                        outFields.forEach(f => {
+                            outputs.push({
+                                name: outVar + '.' + f.name,
+                                label: f.label,
+                                type: 'data',
+                                source: stepName,
+                                group: 'data',
+                                icon: '📋',
+                                nodeId: n.id,
+                                parentVar: outVar
+                            });
+                        });
+                    } else {
+                        // No output fields defined — show the whole variable as a blob
+                        const label = cfg.dataLabel || humanizeFieldLabel(outVar);
+                        outputs.push({
+                            name: outVar,
+                            label: label,
+                            type: 'data',
+                            source: stepName,
+                            group: 'data',
+                            icon: '🤖',
+                            nodeId: n.id
+                        });
+                    }
                 }
                 // Other action types with output_variable
                 else if (n.type === 'action' && outVar) {
-                    const label = n.config.dataLabel || humanizeFieldLabel(outVar);
+                    const label = cfg.dataLabel || humanizeFieldLabel(outVar);
                     outputs.push({
                         name: outVar,
                         label: label,
@@ -3222,6 +3249,56 @@
                             <div id="ai-conf-desc-${node.id}" style="font-size:11px;color:var(--pb-muted);margin-top:2px;">
                                 ${{1:'Very cautious — leaves unknowns empty',2:'Cautious — only fills sure values',3:'Balanced — reasonable judgment',4:'Confident — best-guess for ambiguous',5:'Very confident — always fills a value'}[_aiConfidence] || ''}
                             </div>
+                        </div>
+
+                        <!-- Output Fields (what data does the AI produce?) -->
+                        <div class="property-group">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                <label class="property-label" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
+                                    <span>📦</span> Output Data Fields
+                                </label>
+                                <button type="button" onclick="addAIOutputField('${node.id}')"
+                                        style="padding:3px 10px;font-size:11px;border-radius:6px;border:1px solid var(--pb-primary);background:color-mix(in srgb,var(--pb-primary) 10%,transparent);color:var(--pb-primary);cursor:pointer;font-weight:600;">
+                                    + Add Field
+                                </button>
+                            </div>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Name the data fields this AI will produce. They'll appear as selectable options in all following steps.
+                            </div>
+                            <div id="ai-outfields-${node.id}" style="display:flex;flex-direction:column;gap:6px;">
+                                ${(() => {
+                                    const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
+                                    if (outFields.length === 0) {
+                                        return `<div id="ai-outfields-empty-${node.id}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No output fields defined. Click "+ Add Field" to name the data this AI will produce.</div>`;
+                                    }
+                                    return outFields.map((of, idx) => `
+                                        <div class="ai-outfield-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;">
+                                            <span style="color:var(--pb-primary);font-size:14px;">📋</span>
+                                            <input type="text" class="ai-outfield-label" value="${escapeHtml(of.label || '')}"
+                                                   placeholder="e.g., Invoice Number"
+                                                   onchange="syncAIOutputFields('${node.id}')"
+                                                   style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                                            <button type="button" onclick="removeAIOutputField(this,'${node.id}')"
+                                                    style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
+                                                    onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
+                                                    title="Remove this field">✕</button>
+                                        </div>
+                                    `).join('');
+                                })()}
+                            </div>
+                            ${(() => {
+                                const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
+                                const outVar = String(node.output_variable || '').trim();
+                                if (outFields.length > 0 && outVar) {
+                                    return `<div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:8px;">
+                                        <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">✅ These fields will be available in next steps:</div>
+                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                            ${outFields.filter(f => f.label).map(f => `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);">📋 ${escapeHtml(f.label)}</span>`).join('')}
+                                        </div>
+                                    </div>`;
+                                }
+                                return '';
+                            })()}
                         </div>
 
                         <div class="property-group">
@@ -3760,6 +3837,81 @@
                 if (v) instructions.push(v);
             });
             updateNodeConfig(nodeId, 'instructions', instructions);
+        }
+
+        // ================================================================
+        // AI Step — Output Fields helpers (add / remove / sync)
+        // These let users name the data fields the AI will produce,
+        // making them selectable in all downstream steps.
+        // ================================================================
+
+        function addAIOutputField(nodeId) {
+            const container = document.getElementById('ai-outfields-' + nodeId);
+            if (!container) return;
+            // Hide empty-state if present
+            const emptyEl = document.getElementById('ai-outfields-empty-' + nodeId);
+            if (emptyEl) emptyEl.remove();
+
+            container.insertAdjacentHTML('beforeend', `
+                <div class="ai-outfield-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;">
+                    <span style="color:var(--pb-primary);font-size:14px;">📋</span>
+                    <input type="text" class="ai-outfield-label" value=""
+                           placeholder="e.g., Invoice Number"
+                           onchange="syncAIOutputFields('${nodeId}')"
+                           style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                    <button type="button" onclick="removeAIOutputField(this,'${nodeId}')"
+                            style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
+                            onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
+                            title="Remove this field">✕</button>
+                </div>
+            `);
+            // Focus the new input
+            const newInput = container.querySelector('.ai-outfield-row:last-child .ai-outfield-label');
+            if (newInput) newInput.focus();
+            syncAIOutputFields(nodeId);
+        }
+
+        function removeAIOutputField(btn, nodeId) {
+            const row = btn.closest('.ai-outfield-row');
+            const container = document.getElementById('ai-outfields-' + nodeId);
+            if (row) row.remove();
+
+            // Show empty state if none left
+            const remaining = container.querySelectorAll('.ai-outfield-row');
+            if (remaining.length === 0) {
+                container.insertAdjacentHTML('beforeend',
+                    `<div id="ai-outfields-empty-${nodeId}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No output fields defined. Click "+ Add Field" to name the data this AI will produce.</div>`
+                );
+            }
+            syncAIOutputFields(nodeId);
+        }
+
+        function syncAIOutputFields(nodeId) {
+            const container = document.getElementById('ai-outfields-' + nodeId);
+            if (!container) return;
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+
+            const labelInputs = container.querySelectorAll('.ai-outfield-label');
+            const outputFields = [];
+            labelInputs.forEach(inp => {
+                const label = inp.value.trim();
+                if (label) {
+                    // Auto-generate camelCase key from label
+                    const name = toFieldKey(label) || label.toLowerCase().replace(/\s+/g, '_');
+                    outputFields.push({ label, name });
+                }
+            });
+            node.config.outputFields = outputFields;
+
+            // Auto-set output_variable if not already set
+            if (outputFields.length > 0 && !node.output_variable) {
+                // Use node name as output variable (camelCase) — fully dynamic, no hardcoded names
+                node.output_variable = toFieldKey(node.name || '') || 'aiOutput';
+            }
+
+            refreshNode(node);
+            saveToUndo();
         }
 
         // ================================================================
