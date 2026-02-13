@@ -5204,21 +5204,68 @@
             return `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:color-mix(in srgb, var(--tb-btn-primary-bg) 18%, transparent);border:1px solid color-mix(in srgb, var(--tb-btn-primary-bg) 45%, transparent);color:var(--tb-btn-primary-text);font-weight:800;font-size:12px;">Running</span>`;
         }
 
+        function _renderUploadedFile(f) {
+            const name = f.name || 'Uploaded file';
+            const typ = f.file_type ? String(f.file_type).toUpperCase() : '';
+            const size = (typeof f.size === 'number') ? `${Math.round(f.size / 1024)} KB` : '';
+            const meta = [typ, size].filter(Boolean).join(' · ');
+            const btn = f.id ? `<button type="button" class="toolbar-btn btn-secondary" style="padding:6px 10px;border-radius:10px;font-size:12px;"
+                data-upload-file-id="${escapeHtml(String(f.id))}"
+                data-upload-file-name="${escapeHtml(String(name))}"
+            >Download</button>` : '';
+            return `<div style="display:flex;align-items:center;gap:6px;margin:3px 0;">
+                <span style="font-size:15px;">📎</span>
+                <span>${escapeHtml(name)}</span>
+                ${meta ? `<span style="color:var(--pb-muted);font-size:12px;">(${escapeHtml(meta)})</span>` : ''}
+                ${btn ? `<span style="margin-left:6px;">${btn}</span>` : ''}
+            </div>`;
+        }
+        
         function _renderEngineValue(v) {
             if (v == null) return '—';
             if (typeof v === 'string') return v.trim() ? escapeHtml(v) : '—';
             if (typeof v === 'number' || typeof v === 'boolean') return escapeHtml(String(v));
             if (typeof v === 'object') {
+                // Single uploaded file
                 if (v.kind === 'uploadedFile' && (v.name || v.id)) {
-                    const name = v.name || 'Uploaded file';
-                    const typ = v.file_type ? String(v.file_type).toUpperCase() : '';
-                    const size = (typeof v.size === 'number') ? `${Math.round(v.size / 1024)} KB` : '';
-                    const meta = [typ, size].filter(Boolean).join(' · ');
-                    const btn = v.id ? `<button type="button" class="toolbar-btn btn-secondary" style="padding:6px 10px;border-radius:10px;font-size:12px;"
-                        data-upload-file-id="${escapeHtml(String(v.id))}"
-                        data-upload-file-name="${escapeHtml(String(name))}"
-                    >Download</button>` : '';
-                    return `${escapeHtml(name)}${meta ? ` <span style="color:var(--pb-muted);font-size:12px;">(${escapeHtml(meta)})</span>` : ''}${btn ? ` <span style="margin-left:10px;display:inline-block;">${btn}</span>` : ''}`;
+                    return _renderUploadedFile(v);
+                }
+                // Array of uploaded files (multiple file upload)
+                if (Array.isArray(v) && v.length > 0 && v[0] && v[0].kind === 'uploadedFile') {
+                    return v.map(f => _renderUploadedFile(f)).join('');
+                }
+                // Array of simple values
+                if (Array.isArray(v)) {
+                    if (v.length === 0) return '—';
+                    // Array of objects → format as readable list
+                    if (v.every(item => item && typeof item === 'object' && !Array.isArray(item))) {
+                        return v.map((item, i) => {
+                            const parts = Object.entries(item)
+                                .filter(([k, val]) => !k.startsWith('_') && val != null)
+                                .map(([k, val]) => {
+                                    // camelCase/snake_case → Title Case
+                                    const label = k.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2')
+                                        .replace(/\b\w/g, c => c.toUpperCase());
+                                    return `<strong>${escapeHtml(label)}</strong>: ${escapeHtml(String(val))}`;
+                                }).join(', ');
+                            return `<div style="margin:2px 0;font-size:13px;">${i + 1}. ${parts}</div>`;
+                        }).join('');
+                    }
+                    // Array of simple values → comma-separated
+                    return escapeHtml(v.map(String).join(', '));
+                }
+                // Single object → readable key-value
+                if (!Array.isArray(v)) {
+                    const parts = Object.entries(v)
+                        .filter(([k, val]) => !k.startsWith('_') && val != null)
+                        .map(([k, val]) => {
+                            const label = k.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2')
+                                .replace(/\b\w/g, c => c.toUpperCase());
+                            return `<strong>${escapeHtml(label)}</strong>: ${escapeHtml(String(val))}`;
+                        });
+                    if (parts.length > 0) {
+                        return parts.join('<br>');
+                    }
                 }
             }
             try {
