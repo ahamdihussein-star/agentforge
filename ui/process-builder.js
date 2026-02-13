@@ -32,7 +32,8 @@
             connectionHoverNode: null,
             connectionHoverPort: null,
             connectionHoverPoint: null,
-            connectionCompleted: false
+            connectionCompleted: false,
+            processSettings: {}
         };
         
         // Node ID counter
@@ -3461,7 +3462,129 @@
         function closeProperties() {
             document.getElementById('properties-panel').classList.remove('active');
         }
-        
+
+        // ================================================================
+        // AI SETTINGS — Workflow-level AI behavior configuration
+        // ================================================================
+
+        function _getAISettings() {
+            if (!state.processSettings) state.processSettings = {};
+            if (!state.processSettings.ai) state.processSettings.ai = {};
+            return state.processSettings.ai;
+        }
+
+        function _setAISetting(key, value) {
+            const ai = _getAISettings();
+            ai[key] = value;
+        }
+
+        function showAISettings() {
+            const panel = document.getElementById('properties-panel');
+            const icon = document.getElementById('prop-icon');
+            const title = document.getElementById('prop-title');
+            const type = document.getElementById('prop-type');
+            const body = document.getElementById('prop-body');
+
+            icon.className = 'properties-icon type-ai';
+            icon.textContent = '🧠';
+            title.textContent = 'AI Settings';
+            type.textContent = 'Workflow';
+
+            const ai = _getAISettings();
+            const instructions = ai.instructions || '';
+            const creativity = ai.creativity ?? 3;
+            const confidence = ai.confidence ?? 7;
+
+            const creativityLabels = {
+                1: 'Very strict — extracts only exactly what it sees, never infers',
+                2: 'Strict — minimal inference, sticks to explicit data',
+                3: 'Balanced — follows data closely with light inference',
+                4: 'Moderate — makes reasonable inferences from context',
+                5: 'Creative — infers missing data from context and patterns',
+            };
+            const confidenceLabels = {
+                1: 'Very cautious — marks anything uncertain as empty',
+                2: 'Cautious — only fills in values it is fairly sure about',
+                3: 'Balanced — reasonable confidence in extracted data',
+                4: 'Confident — makes best-guess decisions when data is ambiguous',
+                5: 'Very confident — always provides a value, even with limited data',
+            };
+
+            body.innerHTML = `
+                <div style="padding:2px 0;">
+                    <!-- Instructions -->
+                    <div class="property-group">
+                        <label class="property-label" style="display:flex;align-items:center;gap:6px;">
+                            <span>📝</span> AI Instructions
+                        </label>
+                        <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                            Custom rules that ALL AI steps in this workflow must follow.<br>
+                            These are added to the AI's system prompt automatically.
+                        </div>
+                        <textarea class="property-textarea" id="ai-settings-instructions"
+                                  style="min-height:120px;font-size:13px;"
+                                  placeholder="Examples:\n• Always extract amounts in AED currency\n• If vendor name is unclear, use 'Unknown Vendor'\n• Ignore expenses under 10 AED\n• Report dates in DD/MM/YYYY format"
+                                  onchange="_setAISetting('instructions', this.value)">${escapeHtml(instructions)}</textarea>
+                        <div style="font-size:10px;color:var(--pb-muted);margin-top:4px;">
+                            💡 These instructions override the AI-generated defaults. Use them to fine-tune how the AI extracts data, makes decisions, or formats output.
+                        </div>
+                    </div>
+
+                    <!-- Creativity Slider -->
+                    <div class="property-group">
+                        <label class="property-label" style="display:flex;align-items:center;gap:6px;">
+                            <span>🎨</span> Creativity
+                        </label>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:11px;color:var(--pb-muted);min-width:42px;">Strict</span>
+                            <input type="range" min="1" max="5" value="${creativity}" 
+                                   style="flex:1;accent-color:var(--pb-primary);"
+                                   oninput="document.getElementById('ai-creativity-val').textContent=this.value;document.getElementById('ai-creativity-desc').textContent=({1:'Very strict — extracts only exactly what it sees, never infers',2:'Strict — minimal inference, sticks to explicit data',3:'Balanced — follows data closely with light inference',4:'Moderate — makes reasonable inferences from context',5:'Creative — infers missing data from context and patterns'})[this.value];_setAISetting('creativity',parseInt(this.value));">
+                            <span style="font-size:11px;color:var(--pb-muted);min-width:50px;text-align:right;">Creative</span>
+                            <span id="ai-creativity-val" style="font-size:13px;font-weight:700;color:var(--pb-primary);min-width:18px;text-align:center;">${creativity}</span>
+                        </div>
+                        <div id="ai-creativity-desc" style="font-size:11px;color:var(--pb-muted);margin-top:4px;padding-left:4px;">
+                            ${creativityLabels[creativity] || ''}
+                        </div>
+                    </div>
+
+                    <!-- Confidence Slider -->
+                    <div class="property-group">
+                        <label class="property-label" style="display:flex;align-items:center;gap:6px;">
+                            <span>🎯</span> Confidence
+                        </label>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:11px;color:var(--pb-muted);min-width:42px;">Cautious</span>
+                            <input type="range" min="1" max="5" value="${confidence}"
+                                   style="flex:1;accent-color:var(--pb-primary);"
+                                   oninput="document.getElementById('ai-confidence-val').textContent=this.value;document.getElementById('ai-confidence-desc').textContent=({1:'Very cautious — marks anything uncertain as empty',2:'Cautious — only fills in values it is fairly sure about',3:'Balanced — reasonable confidence in extracted data',4:'Confident — makes best-guess decisions when data is ambiguous',5:'Very confident — always provides a value, even with limited data'})[this.value];_setAISetting('confidence',parseInt(this.value));">
+                            <span style="font-size:11px;color:var(--pb-muted);min-width:50px;text-align:right;">Confident</span>
+                            <span id="ai-confidence-val" style="font-size:13px;font-weight:700;color:var(--pb-primary);min-width:18px;text-align:center;">${confidence}</span>
+                        </div>
+                        <div id="ai-confidence-desc" style="font-size:11px;color:var(--pb-muted);margin-top:4px;padding-left:4px;">
+                            ${confidenceLabels[confidence] || ''}
+                        </div>
+                    </div>
+
+                    <!-- Info box -->
+                    <div style="margin-top:12px;padding:10px 12px;background:color-mix(in srgb, var(--pb-primary) 8%, transparent);border:1px solid color-mix(in srgb, var(--pb-primary) 20%, transparent);border-radius:10px;">
+                        <div style="font-size:12px;font-weight:600;color:var(--pb-primary);margin-bottom:4px;">How these settings work</div>
+                        <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                            <strong>Instructions</strong> are injected as rules into every AI step's system prompt. Use them to enforce business rules the AI must follow.<br><br>
+                            <strong>Creativity</strong> controls how much the AI infers beyond the explicit data. Lower = safer for data extraction. Higher = better for content generation.<br><br>
+                            <strong>Confidence</strong> controls how the AI handles uncertainty. Lower = leaves ambiguous fields empty. Higher = makes best-guess decisions.
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Deselect any node
+            state.selectedNode = null;
+            state.selectedNodeIds = [];
+            updateSelectionUI();
+            panel.classList.add('active');
+        }
+
         function updateNodeProperty(nodeId, prop, value) {
             const node = state.nodes.find(n => n.id === nodeId);
             if (node) {
@@ -4136,6 +4259,11 @@
             document.getElementById('workflow-name').value = name;
             if (goal) state.goal = goal;
 
+            // Load AI settings if present in the definition (e.g., from wizard)
+            if (def?._suggested_settings && typeof def._suggested_settings === 'object') {
+                state.processSettings = { ...state.processSettings, ...def._suggested_settings };
+            }
+
             const nodes = def?.nodes || [];
             const edges = def?.edges || def?.connections || [];
             state.nodes = Array.isArray(nodes) ? nodes : [];
@@ -4524,6 +4652,11 @@
                 document.getElementById('workflow-name').value = agent.name || 'My Workflow';
                 if (agent.goal) state.goal = agent.goal;
                 
+                // Load process settings (AI instructions, creativity, confidence)
+                if (agent.process_settings && typeof agent.process_settings === 'object') {
+                    state.processSettings = agent.process_settings;
+                }
+
                 if (agent.process_definition) {
                     applyWorkflowDefinition(agent.process_definition, {
                         name: agent.name || 'My Workflow',
@@ -4566,6 +4699,7 @@
                     name,
                     goal,
                     process_definition: def,
+                    process_settings: state.processSettings || {},
                     status: 'draft'
                 } : {
                     name,
@@ -4576,7 +4710,7 @@
                     tool_ids: [],
                     model_id: 'gpt-4o',
                     process_definition: def,
-                    process_settings: {},
+                    process_settings: state.processSettings || {},
                     status: 'draft'
                 };
                 
@@ -5376,6 +5510,7 @@
                 name,
                 goal,
                 process_definition: def,
+                process_settings: state.processSettings || {},
                 status: 'draft'
             } : {
                 name,
@@ -5386,7 +5521,7 @@
                 tool_ids: [],
                 model_id: 'gpt-4o',
                 process_definition: def,
-                process_settings: {},
+                process_settings: state.processSettings || {},
                 status: 'draft'
             };
             const res = await fetch(url, {

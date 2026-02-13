@@ -62,6 +62,25 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         
         logs = [f"Executing AI task: {node.name}"]
         
+        # ── Apply workflow-level AI Settings ──────────────────────────
+        # process_settings.ai contains user-configured instructions,
+        # creativity (1-5), and confidence (1-5) that override defaults.
+        _ai_settings = (context.settings or {}).get("ai", {})
+        _wf_instructions = (_ai_settings.get("instructions") or "").strip()
+        _wf_creativity = _ai_settings.get("creativity")  # 1-5 scale
+        _wf_confidence = _ai_settings.get("confidence")   # 1-5 scale
+        
+        # Map creativity (1-5) → temperature override (only when set)
+        # 1=0.1 (very strict), 2=0.2, 3=0.4 (balanced), 4=0.6, 5=0.8
+        if _wf_creativity is not None and isinstance(_wf_creativity, (int, float)):
+            _creativity_temp_map = {1: 0.1, 2: 0.2, 3: 0.4, 4: 0.6, 5: 0.8}
+            _mapped_temp = _creativity_temp_map.get(int(_wf_creativity), 0.4)
+            # Only override if the node doesn't have an explicit temperature
+            if self.get_config_value(node, 'temperature') is None:
+                temperature = _mapped_temp
+                logs.append(f"AI Settings: creativity={_wf_creativity} → temperature={_mapped_temp}")
+        # ── End AI Settings ───────────────────────────────────────────
+        
         # Check LLM availability
         if not self.deps.llm:
             return NodeResult.failure(
@@ -91,11 +110,38 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         # Build messages
         messages = []
         
-        # System prompt
+        # System prompt — combine node-level + workflow-level instructions
+        _combined_system = ""
         if system_prompt:
+            _combined_system = state.interpolate_string(system_prompt)
+        
+        # Inject workflow-level AI instructions (from AI Settings panel)
+        if _wf_instructions:
+            _instruction_block = (
+                "\n\n=== WORKFLOW RULES (set by the process owner — MUST follow) ===\n"
+                + _wf_instructions
+                + "\n=== END WORKFLOW RULES ==="
+            )
+            _combined_system = (_combined_system + _instruction_block) if _combined_system else _instruction_block.strip()
+            logs.append(f"AI Settings: injected workflow instructions ({len(_wf_instructions)} chars)")
+        
+        # Inject confidence guidance
+        if _wf_confidence is not None and isinstance(_wf_confidence, (int, float)):
+            _confidence_map = {
+                1: "If ANY value is uncertain or ambiguous, leave it empty (null). Never guess.",
+                2: "Only fill in values you are fairly confident about. When in doubt, use null.",
+                3: "Use reasonable judgment for ambiguous values. Leave truly unclear data as null.",
+                4: "Make your best-guess for ambiguous data based on context. Only use null for completely unknown values.",
+                5: "Always provide a value, even for ambiguous data. Use your best judgment and context clues. Never leave fields empty.",
+            }
+            _conf_instruction = _confidence_map.get(int(_wf_confidence))
+            if _conf_instruction:
+                _combined_system += f"\n\nCONFIDENCE RULE: {_conf_instruction}"
+        
+        if _combined_system.strip():
             messages.append({
                 "role": "system",
-                "content": state.interpolate_string(system_prompt)
+                "content": _combined_system.strip()
             })
         
         # Include conversation history if requested

@@ -577,6 +577,20 @@ class ProcessWizard:
                 process_def = await self._generate_process(goal, analysis)
                 process_def = self._validate_and_enhance(process_def)
             
+            # Step 3: Suggest default AI settings based on process type
+            # These are sensible defaults the user can adjust in the AI Settings panel
+            has_extraction = any(
+                (n.get("type") == "ai" and n.get("output_variable"))
+                for n in (process_def.get("nodes") or [])
+            )
+            process_def["_suggested_settings"] = {
+                "ai": {
+                    "instructions": "",  # Empty by default — user fills if needed
+                    "creativity": 2 if has_extraction else 3,   # Strict for extraction, balanced for general
+                    "confidence": 3,                             # Balanced default
+                }
+            }
+            
             return process_def
             
         except Exception as e:
