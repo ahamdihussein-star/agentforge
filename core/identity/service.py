@@ -990,11 +990,11 @@ class UserDirectoryService:
                     result["warnings"].append("No active users found in this organization.")
                 else:
                     # Check manager coverage
+                    # Note: manager_id is UUID — only check IS NOT NULL (no empty string compare)
                     users_with_manager = session.query(User).filter(
                         User.org_id == org_id,
                         User.status == "active",
                         User.manager_id.isnot(None),
-                        User.manager_id != ""
                     ).count()
                     
                     pct = round(users_with_manager / total_users * 100) if total_users else 0
@@ -1078,7 +1078,11 @@ class UserDirectoryService:
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "display_name": user.display_name or f"{user.first_name or ''} {user.last_name or ''}".strip(),
+            "display_name": (
+                user.display_name
+                or f"{user.first_name or ''} {user.last_name or ''}".strip()
+                or (user.email.split("@")[0] if user.email else None)
+            ),
             "phone": user.phone,
             # Professional
             "job_title": user.job_title,
@@ -1264,12 +1268,17 @@ class UserDirectoryService:
                     if v is not None and not k.startswith('mfa_') and not k.startswith('_')
                 }
             
+            _display = (
+                user.display_name
+                or f"{user.first_name or ''} {user.last_name or ''}".strip()
+                or (user.email.split("@")[0] if user.email else None)
+            )
             return UserAttributes(
                 user_id=str(user.id),
                 email=user.email,
                 first_name=user.first_name,
                 last_name=user.last_name,
-                display_name=user.display_name or f"{user.first_name or ''} {user.last_name or ''}".strip(),
+                display_name=_display,
                 job_title=user.job_title,
                 phone=user.phone,
                 employee_id=user.employee_id,
