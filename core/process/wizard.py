@@ -1197,12 +1197,23 @@ class ProcessWizard:
         # ENFORCE: AI nodes whose output_variable is referenced by a condition using dot notation
         # (e.g., parsedData.totalAmount) MUST output JSON so the engine can resolve nested fields.
         # Collect condition field references to detect which AI nodes need JSON output.
+        import re
+
         condition_fields = set()
         for n in normalized_nodes:
             if n.get("type") == "condition":
-                f = str((n.get("config") or {}).get("field") or "").strip()
+                cfg = n.get("config") or {}
+                # Visual-builder style: field-based condition config
+                f = str(cfg.get("field") or "").strip()
                 if "." in f:
                     condition_fields.add(f)
+                # Engine-style: expression-based condition config (e.g., "{{parsedData.totalAmount}} < 500")
+                expr = str(cfg.get("expression") or "").strip()
+                if expr and "{{" in expr and "}}" in expr:
+                    # Capture {{base.field}} references so we can enforce JSON output on the producing AI node.
+                    # This is critical because the LLM sometimes emits expression-form conditions directly.
+                    for m in re.finditer(r"\{\{\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\}\}", expr):
+                        condition_fields.add(f"{m.group(1)}.{m.group(2)}")
 
         if condition_fields:
             # Build a set of base variable names referenced by conditions (e.g., "parsedData" from "parsedData.totalAmount")

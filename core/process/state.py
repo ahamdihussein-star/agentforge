@@ -332,6 +332,21 @@ class ProcessState:
         # If result is already boolean, return it
         if isinstance(evaluated, bool):
             return evaluated
+
+        # Guard: ordering comparisons with null/None should not raise TypeError.
+        # Example: "null < 500" occurs when upstream extraction/parsing didn't produce a value.
+        # In such cases, treat the condition as False so the workflow routes to the fallback branch
+        # without producing noisy evaluation errors.
+        try:
+            evaluated_str = str(evaluated).strip()
+            has_ordering = any(op in evaluated_str for op in ("<", ">", "<=", ">="))
+            has_null = re.search(r"\b(null|none)\b", evaluated_str, flags=re.IGNORECASE) is not None
+            if has_ordering and has_null:
+                logger.info("Condition contains null/None in ordering comparison; returning False. expr=%s", expression)
+                return False
+        except Exception:
+            # Never block condition evaluation due to guard logic
+            pass
         
         # Try to evaluate as Python expression (safely)
         try:
