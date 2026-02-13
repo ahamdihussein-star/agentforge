@@ -174,9 +174,8 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                         is_retryable=True,
                         retry_after_seconds=2,
                     ),
-                    logs=logs + [f"JSON parse failed: {e}"],
+                    logs=logs + [f"JSON parse failed: {e}", f"Tokens used: {tokens_used}"],
                     duration_ms=duration_ms,
-                    tokens_used=tokens_used,
                 )
         
         # Update variables if output_variable specified
