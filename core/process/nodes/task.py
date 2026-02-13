@@ -61,7 +61,12 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         include_history = self.get_config_value(node, 'include_history', False)
         
         # Per-step AI settings (from the node's properties panel)
-        _node_instructions = (self.get_config_value(node, 'instructions') or "").strip()
+        _raw_instructions = self.get_config_value(node, 'instructions')
+        # instructions can be a list of strings or a single string (legacy)
+        if isinstance(_raw_instructions, list):
+            _node_instructions = "\n".join(f"• {s.strip()}" for s in _raw_instructions if s and s.strip())
+        else:
+            _node_instructions = (_raw_instructions or "").strip()
         _node_creativity = self.get_config_value(node, 'creativity')    # 1-5 scale
         _node_confidence = self.get_config_value(node, 'confidence')    # 1-5 scale
         

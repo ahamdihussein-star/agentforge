@@ -3018,6 +3018,12 @@
                 case 'ai': {
                     const _aiCreativity = node.config.creativity ?? 3;
                     const _aiConfidence = node.config.confidence ?? 3;
+                    // Normalise instructions: always work with an array
+                    const _instrArr = Array.isArray(node.config.instructions)
+                        ? node.config.instructions
+                        : (typeof node.config.instructions === 'string' && node.config.instructions.trim())
+                            ? [node.config.instructions.trim()]
+                            : [];
                     html += `
                         <div class="property-group">
                             <label class="property-label">AI Prompt</label>
@@ -3036,17 +3042,38 @@
                             ` : ''}
                         </div>
 
-                        <!-- AI Instructions -->
+                        <!-- AI Instructions (add/remove list) -->
                         <div class="property-group">
-                            <label class="property-label" style="display:flex;align-items:center;gap:6px;">
-                                <span>📝</span> Instructions for the AI
-                            </label>
-                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Rules this AI step must follow. Added to its system prompt automatically.
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                <label class="property-label" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
+                                    <span>📝</span> Instructions
+                                </label>
+                                <button type="button" onclick="addAIInstruction('${node.id}')"
+                                        style="padding:3px 10px;font-size:11px;border-radius:6px;border:1px solid var(--pb-primary);background:color-mix(in srgb,var(--pb-primary) 10%,transparent);color:var(--pb-primary);cursor:pointer;font-weight:600;">
+                                    + Add Rule
+                                </button>
                             </div>
-                            <textarea class="property-textarea" style="min-height:80px;font-size:12px;"
-                                      placeholder="e.g.:\n• Always extract amounts in AED\n• If vendor name is unclear, use 'Unknown'\n• Dates must be DD/MM/YYYY"
-                                      onchange="updateNodeConfig('${node.id}', 'instructions', this.value)">${escapeHtml(node.config.instructions || '')}</textarea>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Step-by-step rules this AI must follow. Each rule is injected into the AI's system prompt.
+                            </div>
+                            <div id="ai-inst-list-${node.id}" style="display:flex;flex-direction:column;gap:6px;">
+                                ${_instrArr.length === 0
+                                    ? `<div id="ai-inst-empty-${node.id}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No instructions yet. Click "+ Add Rule" to guide the AI.</div>`
+                                    : _instrArr.map((inst, idx) => `
+                                        <div class="ai-inst-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;" data-node-id="${node.id}">
+                                            <span style="color:var(--pb-primary);font-size:12px;font-weight:700;min-width:20px;">${idx + 1}.</span>
+                                            <input type="text" class="ai-inst-input" value="${escapeHtml(inst)}"
+                                                   placeholder="e.g., Always extract amounts in AED"
+                                                   onchange="syncAIInstructions('${node.id}')"
+                                                   style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                                            <button type="button" onclick="removeAIInstruction(this,'${node.id}')"
+                                                    style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
+                                                    onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
+                                                    title="Remove this instruction">✕</button>
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
                         </div>
 
                         <!-- Creativity -->
@@ -3513,6 +3540,70 @@
         
         function closeProperties() {
             document.getElementById('properties-panel').classList.remove('active');
+        }
+
+        // ================================================================
+        // AI Step — Instruction list helpers (add / remove / sync)
+        // ================================================================
+
+        function addAIInstruction(nodeId) {
+            const container = document.getElementById('ai-inst-list-' + nodeId);
+            if (!container) return;
+            // Hide empty-state if present
+            const emptyEl = document.getElementById('ai-inst-empty-' + nodeId);
+            if (emptyEl) emptyEl.remove();
+
+            const stepNum = container.querySelectorAll('.ai-inst-row').length + 1;
+            container.insertAdjacentHTML('beforeend', `
+                <div class="ai-inst-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;" data-node-id="${nodeId}">
+                    <span style="color:var(--pb-primary);font-size:12px;font-weight:700;min-width:20px;">${stepNum}.</span>
+                    <input type="text" class="ai-inst-input" value=""
+                           placeholder="e.g., Always extract amounts in AED"
+                           onchange="syncAIInstructions('${nodeId}')"
+                           style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                    <button type="button" onclick="removeAIInstruction(this,'${nodeId}')"
+                            style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
+                            onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
+                            title="Remove this instruction">✕</button>
+                </div>
+            `);
+            // Focus the new input
+            const newInput = container.querySelector('.ai-inst-row:last-child .ai-inst-input');
+            if (newInput) newInput.focus();
+            syncAIInstructions(nodeId);
+        }
+
+        function removeAIInstruction(btn, nodeId) {
+            const row = btn.closest('.ai-inst-row');
+            const container = document.getElementById('ai-inst-list-' + nodeId);
+            if (row) row.remove();
+
+            // Renumber remaining
+            const remaining = container.querySelectorAll('.ai-inst-row');
+            remaining.forEach((el, i) => {
+                const numSpan = el.querySelector('span');
+                if (numSpan) numSpan.textContent = (i + 1) + '.';
+            });
+
+            // Show empty state if none left
+            if (remaining.length === 0) {
+                container.insertAdjacentHTML('beforeend',
+                    `<div id="ai-inst-empty-${nodeId}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No instructions yet. Click "+ Add Rule" to guide the AI.</div>`
+                );
+            }
+            syncAIInstructions(nodeId);
+        }
+
+        function syncAIInstructions(nodeId) {
+            const container = document.getElementById('ai-inst-list-' + nodeId);
+            if (!container) return;
+            const inputs = container.querySelectorAll('.ai-inst-input');
+            const instructions = [];
+            inputs.forEach(inp => {
+                const v = inp.value.trim();
+                if (v) instructions.push(v);
+            });
+            updateNodeConfig(nodeId, 'instructions', instructions);
         }
 
         // ================================================================

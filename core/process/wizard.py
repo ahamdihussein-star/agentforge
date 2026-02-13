@@ -584,7 +584,7 @@ class ProcessWizard:
                 if n.get("type") == "ai":
                     cfg = n.setdefault("config", {})
                     has_output = bool(n.get("output_variable"))
-                    cfg.setdefault("instructions", "")
+                    cfg.setdefault("instructions", [])
                     cfg.setdefault("creativity", 2 if has_output else 3)  # Strict for extraction
                     cfg.setdefault("confidence", 3)                       # Balanced default
             
