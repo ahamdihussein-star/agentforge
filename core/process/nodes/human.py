@@ -508,9 +508,21 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             # Fallback: use as-is (might be an email without @, a name, etc.)
             resolved_recipients.append(r_str)
         
-        interpolated_recipients = resolved_recipients
+        interpolated_recipients = [r for r in resolved_recipients if r and r.strip()]
         logs.append(f"Recipients: {interpolated_recipients}")
         logs.append(f"Title: {title}")
+        
+        # Guard: if recipients is empty after resolution, report clearly
+        if not interpolated_recipients:
+            logs.append("Warning: No valid recipients after resolution — notification not sent")
+            return NodeResult.success(
+                output={
+                    'sent': False,
+                    'reason': 'No valid recipients resolved. Check notification configuration (recipient should be "requester", "manager", or an email address).',
+                    'original_recipients': recipients,
+                },
+                logs=logs
+            )
         
         # Check for notification service
         if not self.deps.notification_service:
