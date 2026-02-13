@@ -2746,13 +2746,75 @@
                                 label: label || key,
                                 type: f.type,
                                 required: f.required || false,
-                                source: n.name
+                                source: n.name,
+                                group: 'form'
                             });
                         }
                     });
                 }
             });
             return fields;
+        }
+
+        /**
+         * Get available data from previous steps (extract text, AI, etc.)
+         * Returns named output variables with friendly labels for use in downstream step UIs.
+         */
+        function getUpstreamOutputFields() {
+            const outputs = [];
+            state.nodes.forEach(n => {
+                const outVar = String(n.output_variable || '').trim();
+                if (!outVar) return;
+
+                // Extract text action
+                if (n.type === 'action' && (n.config.actionType === 'extractDocumentText')) {
+                    const label = n.config.dataLabel || humanizeFieldLabel(outVar);
+                    outputs.push({
+                        name: outVar,
+                        label: label,
+                        type: 'text',
+                        source: n.name || 'Extract Text',
+                        group: 'data',
+                        icon: '📄',
+                        nodeId: n.id
+                    });
+                }
+                // AI step output
+                else if (n.type === 'ai') {
+                    const label = n.config.dataLabel || humanizeFieldLabel(outVar);
+                    outputs.push({
+                        name: outVar,
+                        label: label,
+                        type: 'data',
+                        source: n.name || 'AI Step',
+                        group: 'data',
+                        icon: '🤖',
+                        nodeId: n.id
+                    });
+                }
+                // Other action types with output_variable
+                else if (n.type === 'action' && outVar) {
+                    const label = n.config.dataLabel || humanizeFieldLabel(outVar);
+                    outputs.push({
+                        name: outVar,
+                        label: label,
+                        type: 'data',
+                        source: n.name || 'Action',
+                        group: 'data',
+                        icon: '⚡',
+                        nodeId: n.id
+                    });
+                }
+            });
+            return outputs;
+        }
+
+        /**
+         * Get all available data: form fields + upstream step outputs.
+         * Used to populate dropdowns and chips across all step property panels.
+         */
+        function getAllAvailableData() {
+            return [...getAvailableFields(), ...getUpstreamOutputFields()];
         }
         
         // Sources for mapping: form/start fields + output from other steps. Used in Tool params and similar.
@@ -2762,8 +2824,15 @@
             availableFields.forEach(f => {
                 sources.push({ label: `From form: ${f.label || f.name}`, value: `{{${f.name}}}`, group: 'form' });
             });
+            // Named data from upstream steps (extract text, AI, etc.)
+            const upstreamOutputs = getUpstreamOutputFields().filter(d => d.nodeId !== currentNodeId);
+            upstreamOutputs.forEach(d => {
+                sources.push({ label: `${d.icon || '📦'} ${d.label} (from ${d.source})`, value: `{{${d.name}}}`, group: 'data' });
+            });
             state.nodes.forEach(n => {
                 if (n.id === currentNodeId || n.type === 'end') return;
+                // Skip nodes that already have a named output (they're already in upstream outputs)
+                if (n.output_variable && upstreamOutputs.find(d => d.nodeId === n.id)) return;
                 const name = n.name || n.type || n.id;
                 sources.push({ label: `From step: ${name}`, value: `{{steps.${n.id}.output}}`, group: 'step' });
             });
@@ -2783,25 +2852,37 @@
             
             // Get available fields for dropdowns
             const availableFields = getAvailableFields();
+            // Get named data from upstream steps (extract text, AI, etc.)
+            const upstreamData = getUpstreamOutputFields().filter(d => d.nodeId !== node.id);
             
             switch (node.type) {
-                case 'condition':
+                case 'condition': {
+                    const allCondFields = [...availableFields, ...upstreamData];
                     html += `
                         <div class="property-group">
                             <label class="property-label">Field to Check</label>
-                            ${availableFields.length > 0 ? `
+                            ${allCondFields.length > 0 ? `
                                 <select class="property-select" onchange="updateNodeConfig('${node.id}', 'field', this.value)">
                                     <option value="">-- Select Field --</option>
-                                    ${availableFields.map(f => `
-                                        <option value="${f.name}" ${node.config.field === f.name ? 'selected' : ''}>
-                                            ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
-                                        </option>
-                                    `).join('')}
-                                    <option value="_custom" ${node.config.field && !availableFields.find(f => f.name === node.config.field) ? 'selected' : ''}>
+                                    ${availableFields.length > 0 ? `<optgroup label="📝 Form Fields">
+                                        ${availableFields.map(f => `
+                                            <option value="${f.name}" ${node.config.field === f.name ? 'selected' : ''}>
+                                                ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
+                                            </option>
+                                        `).join('')}
+                                    </optgroup>` : ''}
+                                    ${upstreamData.length > 0 ? `<optgroup label="📦 Data from Previous Steps">
+                                        ${upstreamData.map(d => `
+                                            <option value="${d.name}" ${node.config.field === d.name ? 'selected' : ''}>
+                                                ${d.icon || '📦'} ${escapeHtml(d.label)} (from ${escapeHtml(d.source)})
+                                            </option>
+                                        `).join('')}
+                                    </optgroup>` : ''}
+                                    <option value="_custom" ${node.config.field && !allCondFields.find(f => f.name === node.config.field) ? 'selected' : ''}>
                                         ✏️ Custom field...
                                     </option>
                                 </select>
-                                ${(node.config.field && !availableFields.find(f => f.name === node.config.field)) || node.config.field === '_custom' ? `
+                                ${(node.config.field && !allCondFields.find(f => f.name === node.config.field)) || node.config.field === '_custom' ? `
                                     <input type="text" class="property-input" style="margin-top:8px;" placeholder="Enter custom field name" 
                                            value="${node.config.field === '_custom' ? '' : (node.config.field || '')}"
                                            onchange="updateNodeConfig('${node.id}', 'field', this.value)">
@@ -2834,6 +2915,7 @@
                         </div>
                     `;
                     break;
+                }
                     
                 case 'delay':
                     html += `
@@ -2945,6 +3027,16 @@
                                     </div>
                                 </div>
                             ` : ''}
+                            ${upstreamData.length > 0 ? `
+                                <div class="field-chips" style="margin-top:4px;">
+                                    <span class="field-chips-label">Insert from previous steps:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
+                                        ${upstreamData.map(d => `
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
                         </div>
                         <div class="property-group">
                             <label class="property-label">Approvers</label>
@@ -3011,6 +3103,16 @@
                                     </div>
                                 </div>
                             ` : ''}
+                            ${upstreamData.length > 0 ? `
+                                <div class="field-chips" style="margin-top:4px;">
+                                    <span class="field-chips-label">Insert from previous steps:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
+                                        ${upstreamData.map(d => `
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'template', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
                         </div>
                     `;
                     break;
@@ -3036,6 +3138,16 @@
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
                                             <button type="button" onclick="insertFieldRef('${node.id}', 'prompt', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            ${upstreamData.length > 0 ? `
+                                <div class="field-chips" style="margin-top:4px;">
+                                    <span class="field-chips-label">Insert from previous steps:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
+                                        ${upstreamData.map(d => `
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'prompt', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
                                         `).join('')}
                                     </div>
                                 </div>
@@ -3375,23 +3487,33 @@
                     `;
                     break;
                 
-                case 'loop':
+                case 'loop': {
+                    const allLoopFields = [...availableFields, ...upstreamData];
                     html += `
                         <div class="property-group">
                             <label class="property-label">Collection to Iterate</label>
-                            ${availableFields.length > 0 ? `
+                            ${allLoopFields.length > 0 ? `
                                 <select class="property-select" onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
                                     <option value="">-- Select Field --</option>
-                                    ${availableFields.map(f => `
-                                        <option value="${f.name}" ${node.config.collection === f.name ? 'selected' : ''}>
-                                            ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
-                                        </option>
-                                    `).join('')}
-                                    <option value="_custom" ${node.config.collection && !availableFields.find(f => f.name === node.config.collection) ? 'selected' : ''}>
+                                    ${availableFields.length > 0 ? `<optgroup label="📝 Form Fields">
+                                        ${availableFields.map(f => `
+                                            <option value="${f.name}" ${node.config.collection === f.name ? 'selected' : ''}>
+                                                ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
+                                            </option>
+                                        `).join('')}
+                                    </optgroup>` : ''}
+                                    ${upstreamData.length > 0 ? `<optgroup label="📦 Data from Previous Steps">
+                                        ${upstreamData.map(d => `
+                                            <option value="${d.name}" ${node.config.collection === d.name ? 'selected' : ''}>
+                                                ${d.icon || '📦'} ${escapeHtml(d.label)} (from ${escapeHtml(d.source)})
+                                            </option>
+                                        `).join('')}
+                                    </optgroup>` : ''}
+                                    <option value="_custom" ${node.config.collection && !allLoopFields.find(f => f.name === node.config.collection) ? 'selected' : ''}>
                                         ✏️ Custom...
                                     </option>
                                 </select>
-                                ${(node.config.collection && !availableFields.find(f => f.name === node.config.collection)) ? `
+                                ${(node.config.collection && !allLoopFields.find(f => f.name === node.config.collection)) ? `
                                     <input type="text" class="property-input" style="margin-top:8px;" placeholder="e.g., items, data.results" 
                                            value="${node.config.collection || ''}"
                                            onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
@@ -3422,6 +3544,7 @@
                         </div>
                     `;
                     break;
+                }
                 
                 case 'end':
                     html += `
@@ -3483,15 +3606,37 @@
                                 <label class="property-label">Content instructions</label>
                                 <textarea class="property-textarea" placeholder="What should this document contain?"
                                           onchange="updateNodeConfig('${node.id}', 'documentInstructions', this.value)">${escapeHtml(node.config.documentInstructions || '')}</textarea>
-                                <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
-                                    You can reference form fields like <code>{{employeeName}}</code> or <code>{{startDate}}</code>.
-                                </div>
+                                ${availableFields.length > 0 ? `
+                                    <div class="field-chips">
+                                        <span class="field-chips-label">Insert from form:</span>
+                                        <div style="display:flex;flex-wrap:wrap;">
+                                            ${availableFields.map(f => `
+                                                <button type="button" onclick="insertFieldRef('${node.id}', 'documentInstructions', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                ${upstreamData.length > 0 ? `
+                                    <div class="field-chips" style="margin-top:4px;">
+                                        <span class="field-chips-label">Insert from previous steps:</span>
+                                        <div style="display:flex;flex-wrap:wrap;">
+                                            ${upstreamData.map(d => `
+                                                <button type="button" onclick="insertFieldRef('${node.id}', 'documentInstructions', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
+                                        You can reference form fields like <code>{{employeeName}}</code> or <code>{{startDate}}</code>.
+                                    </div>
+                                `}
                             </div>
                         ` : ''}
                         ${actionType === 'extractDocumentText' ? (() => {
                             const fileFields = (getStartFileFieldsForAction() || []);
                             const source = String(node.config.sourceField || '').trim();
                             const outVar = String(node.output_variable || '').trim();
+                            const dataLabel = String(node.config.dataLabel || '').trim();
                             return `
                             <div class="property-group">
                                 <label class="property-label">Source document</label>
@@ -3504,14 +3649,25 @@
                                 </div>
                             </div>
                             <div class="property-group">
-                                <label class="property-label">Save extracted text as</label>
-                                <input type="text" class="property-input" placeholder="e.g., expenseDocumentText"
-                                       value="${escapeHtml(outVar)}"
-                                       onchange="updateNodeProperty('${node.id}', 'output_variable', this.value)">
+                                <label class="property-label" style="display:flex;align-items:center;gap:6px;">
+                                    <span>🏷️</span> Name this data
+                                </label>
+                                <input type="text" class="property-input" placeholder="e.g., Receipt Text, Invoice Content"
+                                       value="${escapeHtml(dataLabel)}"
+                                       onchange="setExtractDataLabel('${node.id}', this.value)">
                                 <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
-                                    Next steps can reference it like <code>{{${escapeHtml(outVar || 'yourVariable')}}}</code>.
+                                    Give a friendly name to the extracted text. Other steps will show this name so you can easily use it.
                                 </div>
                             </div>
+                            ${outVar ? `
+                            <div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:4px;">
+                                <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:4px;">✅ Data saved as</div>
+                                <div style="font-size:13px;font-weight:600;color:var(--pb-text);">${escapeHtml(dataLabel || humanizeFieldLabel(outVar))}</div>
+                                <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                    This will appear as a selectable option in all following steps (AI prompts, conditions, notifications, etc.)
+                                </div>
+                            </div>
+                            ` : ''}
                             `;
                         })() : ''}
                     `;
@@ -3672,7 +3828,13 @@
                 }
                 if (node.config.sourceField) {
                     node.config.path = `{{${node.config.sourceField}.path}}`;
-                    if (!node.output_variable) {
+                    // Auto-generate friendly label & variable name
+                    if (!node.config.dataLabel && !node.output_variable) {
+                        const ff = files.find(x => x.name === node.config.sourceField);
+                        const friendlyLabel = ff ? (ff.label || humanizeFieldLabel(node.config.sourceField)) : humanizeFieldLabel(node.config.sourceField);
+                        node.config.dataLabel = friendlyLabel + ' Text';
+                        node.output_variable = toFieldKey(node.config.dataLabel) || `${node.config.sourceField}Text`;
+                    } else if (!node.output_variable) {
                         node.output_variable = `${node.config.sourceField}Text`;
                     }
                 }
@@ -3695,9 +3857,38 @@
             node.config.sourceField = f;
             if (f) {
                 node.config.path = `{{${f}.path}}`;
-                if (!node.output_variable) {
+                // Auto-generate a friendly label & variable name from the file field
+                if (!node.config.dataLabel && !node.output_variable) {
+                    // Find the file field's label from the trigger
+                    const fileFields = getStartFileFieldsForAction() || [];
+                    const ff = fileFields.find(x => x.name === f);
+                    const friendlyLabel = ff ? (ff.label || humanizeFieldLabel(f)) : humanizeFieldLabel(f);
+                    node.config.dataLabel = friendlyLabel + ' Text';
+                    node.output_variable = toFieldKey(node.config.dataLabel) || `${f}Text`;
+                } else if (!node.output_variable) {
                     node.output_variable = `${f}Text`;
                 }
+            }
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        /**
+         * Set a friendly label for the extracted data and auto-generate the output_variable.
+         * This label will appear in downstream steps as a selectable data source.
+         */
+        function setExtractDataLabel(nodeId, label) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            const trimmed = String(label || '').trim();
+            node.config.dataLabel = trimmed;
+            // Auto-generate a camelCase variable name from the label
+            if (trimmed) {
+                node.output_variable = toFieldKey(trimmed) || 'extractedText';
+            } else if (node.config.sourceField) {
+                // Fallback to source-field-based name
+                node.output_variable = `${node.config.sourceField}Text`;
             }
             refreshNode(node);
             showProperties(node);

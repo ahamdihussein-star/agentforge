@@ -1275,6 +1275,26 @@ class ProcessWizard:
                 if not ov:
                     n["output_variable"] = sf + "Text" if sf else "extractedData"
                     ov = n["output_variable"]
+                # Auto-generate a friendly dataLabel for non-technical users
+                if not cfg.get("dataLabel"):
+                    # Try to derive from source field's label or the node name
+                    source_label = ""
+                    if sf:
+                        # Find the trigger field label
+                        for tn in normalized_nodes:
+                            if tn.get("type") in ("trigger", "form"):
+                                for fld in (tn.get("config") or {}).get("fields") or []:
+                                    if (fld.get("name") or fld.get("id") or "") == sf:
+                                        source_label = fld.get("label", "")
+                                        break
+                        if not source_label:
+                            # humanize the field name: camelCase/snake_case → Title Case
+                            source_label = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', sf)
+                            source_label = source_label.replace('_', ' ').strip().title()
+                    node_name = n.get("name", "")
+                    cfg["dataLabel"] = node_name if node_name and node_name.lower() != "action" else (
+                        (source_label + " Text") if source_label else "Extracted Text"
+                    )
                 # Track if this extraction uses a multi-file field
                 if sf and sf in trigger_multi_file_fields:
                     extraction_multi_file_vars[ov] = sf
