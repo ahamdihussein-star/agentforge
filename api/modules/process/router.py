@@ -1267,7 +1267,8 @@ async def decide_approval(
             user_id=user_dict["id"],
             decision=request.decision,
             comments=request.comments,
-            decision_data=request.decision_data
+            decision_data=request.decision_data,
+            user_info=user_dict
         )
     except ValueError as e:
         raise HTTPException(

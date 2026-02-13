@@ -777,49 +777,67 @@ class ProcessAPIService:
         # (persisted during start_execution).  Extract identity data
         # for the context fields (user_email, user_name) and re-enrich
         # if missing (belt-and-suspenders).
+        #
+        # IMPORTANT: The `user_id` passed here may be the APPROVER (manager),
+        # NOT the original requester.  For identity re-enrichment and context
+        # fields we MUST use execution.created_by (the original requester).
+        _original_requester_id = str(execution.created_by) if execution.created_by else user_id
+        
         _restored_trigger = self._ensure_dict(execution.trigger_input or {})
         _restored_uc = _restored_trigger.get("_user_context", {})
         
-        # Determine user_email and user_name from restored data + auth token
-        _resume_email = (
-            _restored_uc.get("email")
-            or (user_info.get("email") if user_info else None)
-            or ""
-        )
-        _resume_name = (
-            _restored_uc.get("display_name")
-            or (user_info.get("name") if user_info else None)
-            or ""
-        )
+        # Determine user_email and user_name from restored _user_context
+        # (which was enriched during start_execution for the ORIGINAL requester)
+        _resume_email = _restored_uc.get("email") or ""
+        _resume_name = _restored_uc.get("display_name") or ""
         
         # If _user_context was not persisted (old execution), re-enrich now
+        # using the ORIGINAL requester's ID (not the approver)
         if not _restored_uc:
-            logger.info("[ProcessResume] _user_context missing from DB trigger_input — re-enriching")
+            logger.info(
+                "[ProcessResume] _user_context missing from DB trigger_input — "
+                "re-enriching for original requester %s (current user_id=%s)",
+                _original_requester_id, user_id
+            )
             try:
-                _re_uc = _user_directory.enrich_process_context(user_id, str(execution.org_id))
+                _re_uc = _user_directory.enrich_process_context(
+                    _original_requester_id, str(execution.org_id)
+                )
                 if _re_uc:
                     _restored_trigger["_user_context"] = _re_uc
-                    if not _resume_email:
-                        _resume_email = _re_uc.get("email") or ""
-                    if not _resume_name:
-                        _resume_name = _re_uc.get("display_name") or ""
+                    _resume_email = _re_uc.get("email") or _resume_email
+                    _resume_name = _re_uc.get("display_name") or _resume_name
             except Exception as _re_err:
                 logger.warning("[ProcessResume] Re-enrichment failed: %s", _re_err)
-            # Last-resort fallback: inject email from auth token
-            if not _restored_trigger.get("_user_context", {}).get("email") and _resume_email:
-                _restored_trigger.setdefault("_user_context", {})["email"] = _resume_email
+            # Last-resort: if we still have no email, try to fetch from user DB
+            if not _resume_email:
+                try:
+                    from database.services.user_service import UserService
+                    _u_svc = UserService(self.db)
+                    _orig_user = _u_svc.get_user(_original_requester_id)
+                    if _orig_user and _orig_user.email:
+                        _resume_email = _orig_user.email
+                        _restored_trigger.setdefault("_user_context", {})["email"] = _resume_email
+                        logger.info("[ProcessResume] Got email from user DB: %s", _resume_email)
+                except Exception:
+                    pass
         
-        print(f"🔄 [ProcessResume] execution_id={execution_id}, user_email={_resume_email}, "
+        print(f"🔄 [ProcessResume] execution_id={execution_id}, "
+              f"original_requester={_original_requester_id}, current_user={user_id}, "
+              f"user_email={_resume_email}, "
               f"_user_context.email={_restored_trigger.get('_user_context', {}).get('email', '(none)')}")
         
         # Build context (ensure dicts; DB may return JSON strings)
+        # IMPORTANT: user_id must be the ORIGINAL requester (who started the
+        # process), not the approver.  "requester" references, notifications,
+        # and identity data all relate to the person who submitted the form.
         context = ProcessContext(
             execution_id=str(execution.id),
             agent_id=str(execution.agent_id),
             org_id=str(execution.org_id),
             trigger_type=execution.trigger_type or "manual",
             trigger_input=_restored_trigger,
-            user_id=user_id,
+            user_id=_original_requester_id,
             user_email=_resume_email,
             user_name=_resume_name,
             user_roles=user_info.get('roles', []) if user_info else [],
@@ -1223,7 +1241,8 @@ class ProcessAPIService:
         user_id: str,
         decision: str,
         comments: str = None,
-        decision_data: Dict[str, Any] = None
+        decision_data: Dict[str, Any] = None,
+        user_info: Dict[str, Any] = None
     ) -> ApprovalRequestResponse:
         """Handle approval decision and resume process if needed"""
         approval = self.exec_service.get_approval_request(approval_id)
@@ -1245,6 +1264,7 @@ class ProcessAPIService:
                 await self.resume_execution(
                     str(approval.process_execution_id),
                     user_id,
+                    user_info=user_info,
                     resume_input={
                         'approval_decision': decision,
                         'approval_comments': comments,
