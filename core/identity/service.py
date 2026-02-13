@@ -873,6 +873,125 @@ class UserDirectoryService:
             "all_keys": [a["key"] for a in standard_attrs] + list(custom_attrs_found.keys())
         }
     
+    def discover_identity_context(self, org_id: str) -> Dict[str, Any]:
+        """
+        Discover the identity configuration and health for an organization.
+        
+        Used by the AI wizard to understand HOW user identity is configured,
+        so it can generate correct process configurations (approval routing,
+        notification recipients, etc.).
+        
+        Returns:
+            Dict with identity source type, capabilities, and health indicators
+        """
+        result = {
+            "source": "internal",
+            "source_label": "Built-in Identity Directory",
+            "is_configured": True,
+            "capabilities": {
+                "has_managers": False,
+                "has_departments": False,
+                "has_custom_attributes": False,
+                "manager_coverage_pct": 0,
+            },
+            "warnings": [],
+        }
+        
+        try:
+            # Get the configured source
+            config = self._get_org_config(org_id)
+            if config:
+                source = config.get("directory_source", "internal")
+                result["source"] = source
+                source_labels = {
+                    "internal": "Built-in Identity Directory",
+                    "ldap": "LDAP / Active Directory",
+                    "hr_api": "HR System API",
+                    "hybrid": "Hybrid (Internal + External)",
+                }
+                result["source_label"] = source_labels.get(source, source)
+                if source == "ldap" and not config.get("ldap_config_id"):
+                    result["warnings"].append(
+                        "LDAP is selected as identity source but no LDAP configuration is set up. "
+                        "Falling back to built-in directory."
+                    )
+                if source == "hr_api" and not config.get("hr_api_config"):
+                    result["warnings"].append(
+                        "HR API is selected as identity source but no HR API configuration exists. "
+                        "Falling back to built-in directory."
+                    )
+            
+            # Check actual data health
+            from database.base import get_session
+            from database.models.user import User
+            
+            with get_session() as session:
+                total_users = session.query(User).filter(
+                    User.org_id == org_id,
+                    User.status == "active"
+                ).count()
+                
+                if total_users == 0:
+                    result["is_configured"] = False
+                    result["warnings"].append("No active users found in this organization.")
+                else:
+                    # Check manager coverage
+                    users_with_manager = session.query(User).filter(
+                        User.org_id == org_id,
+                        User.status == "active",
+                        User.manager_id.isnot(None),
+                        User.manager_id != ""
+                    ).count()
+                    
+                    pct = round(users_with_manager / total_users * 100) if total_users else 0
+                    result["capabilities"]["has_managers"] = users_with_manager > 0
+                    result["capabilities"]["manager_coverage_pct"] = pct
+                    
+                    if users_with_manager == 0:
+                        result["warnings"].append(
+                            "No users have managers assigned. "
+                            "Approval routing to 'dynamic_manager' and notifications to 'manager' will not work. "
+                            "Assign managers in the Identity Directory."
+                        )
+                    elif pct < 50:
+                        result["warnings"].append(
+                            f"Only {pct}% of users have managers assigned ({users_with_manager}/{total_users}). "
+                            "Some users' processes may fail at manager approval/notification steps."
+                        )
+                    
+                    # Check department coverage
+                    from database.models.department import Department
+                    dept_count = session.query(Department).filter(
+                        Department.org_id == org_id
+                    ).count()
+                    result["capabilities"]["has_departments"] = dept_count > 0
+                    
+                    if dept_count == 0:
+                        result["warnings"].append(
+                            "No departments configured. Department-based routing will not work."
+                        )
+                    
+                    # Check custom attributes
+                    users_with_custom = 0
+                    sample_users = session.query(User).filter(
+                        User.org_id == org_id,
+                        User.status == "active"
+                    ).limit(20).all()
+                    for u in sample_users:
+                        if hasattr(u, 'user_metadata') and isinstance(u.user_metadata, dict) and u.user_metadata:
+                            users_with_custom += 1
+                    result["capabilities"]["has_custom_attributes"] = users_with_custom > 0
+                    
+                    result["total_users"] = total_users
+                    result["users_with_managers"] = users_with_manager
+                    result["departments_count"] = dept_count
+        
+        except Exception as e:
+            logger.warning(f"Failed to discover identity context: {e}")
+            result["warnings"].append(f"Could not query identity data: {e}")
+        
+        return result
+    
     def enrich_process_context(self, user_id: str, org_id: str) -> Dict[str, Any]:
         """
         Enrich process context with ALL available user directory information.

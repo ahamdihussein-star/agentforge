@@ -1080,15 +1080,20 @@ async def generate_workflow_from_goal(
     except Exception:
         llm = None
     
-    # Discover available user attributes for this org (standard + custom)
-    # This lets the AI know exactly what fields can be auto-filled
+    # Discover available user attributes + identity configuration for this org
+    # This lets the AI know exactly what fields can be auto-filled AND
+    # whether identity features (manager, department, custom fields) are actually available
     try:
         from core.identity.service import UserDirectoryService
         _dir_svc = UserDirectoryService()
         available_attrs = _dir_svc.discover_available_attributes(user_dict["org_id"])
         context["available_user_attributes"] = available_attrs
+        # Identity context: tells the AI WHAT identity source is configured,
+        # whether managers/departments exist, and any warnings
+        identity_ctx = _dir_svc.discover_identity_context(user_dict["org_id"])
+        context["identity_context"] = identity_ctx
     except Exception as e:
-        print(f"⚠️  [Wizard] Failed to discover user attributes: {e}")
+        print(f"⚠️  [Wizard] Failed to discover user attributes/identity: {e}")
     
     # Generate process
     wizard = ProcessWizard(llm=llm, org_settings=org_settings)

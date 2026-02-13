@@ -630,12 +630,48 @@ class ProcessWizard:
                     "instead of asking the user to type it.\n"
                     + "\n".join(attr_lines)
                 )
+        
+        # Build identity context so the AI knows what's ACTUALLY configured
+        identity_context_text = ""
+        if additional_context and isinstance(additional_context, dict):
+            id_ctx = additional_context.get("identity_context")
+            if id_ctx and isinstance(id_ctx, dict):
+                lines = [
+                    f"\n\nIDENTITY DIRECTORY STATUS (for this organization):",
+                    f"  Source: {id_ctx.get('source_label', 'Unknown')} ({id_ctx.get('source', 'internal')})",
+                ]
+                caps = id_ctx.get("capabilities", {})
+                if caps.get("has_managers"):
+                    mgr_pct = caps.get("manager_coverage_pct", 0)
+                    lines.append(f"  Managers: YES — {mgr_pct}% of users have managers assigned. "
+                                 "You CAN use 'dynamic_manager' for approvals and 'manager' for notifications.")
+                else:
+                    lines.append(f"  Managers: NO — No users have managers assigned. "
+                                 "Do NOT use 'dynamic_manager' for approvals or 'manager' for notifications. "
+                                 "Use role-based or static assignees instead, or note that manager assignment is required.")
+                if caps.get("has_departments"):
+                    dept_count = id_ctx.get("departments_count", 0)
+                    lines.append(f"  Departments: YES — {dept_count} departments configured. "
+                                 "Department-based routing is available.")
+                else:
+                    lines.append(f"  Departments: NO — No departments configured. "
+                                 "Do NOT use department-based routing.")
+                if caps.get("has_custom_attributes"):
+                    lines.append(f"  Custom Attributes: YES — Organization has custom user fields.")
+                
+                warnings = id_ctx.get("warnings", [])
+                if warnings:
+                    lines.append("  ⚠️ WARNINGS:")
+                    for w in warnings:
+                        lines.append(f"    - {w}")
+                
+                identity_context_text = "\n".join(lines)
 
         user_prompt = VISUAL_BUILDER_GENERATION_PROMPT.format(
             goal=goal,
             analysis=json.dumps(analysis or {}, ensure_ascii=False, indent=2),
             tools_json=tools_json,
-            platform_knowledge=(platform_knowledge or "(no KB matches)") + user_attrs_context,
+            platform_knowledge=(platform_knowledge or "(no KB matches)") + user_attrs_context + identity_context_text,
         )
         system_prompt = (
             "You are an expert workflow designer with deep knowledge of business processes "
