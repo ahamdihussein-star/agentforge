@@ -197,7 +197,11 @@ IMPORTANT:
 - Output ONLY valid JSON. No markdown. No extra keys outside the schema.
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
-  - trigger, condition, loop, ai, tool, approval, notification, delay, action, form, end
+  - trigger, condition, loop, ai, tool, approval, notification, delay, form, end
+  - read_document (extract text from uploaded files — replaces action with extractDocumentText)
+  - create_document (generate a document — replaces action with generateDocument)
+  - calculate (compute totals, averages, formulas — replaces action with transformData)
+  NOTE: The old "action" type is DEPRECATED. Use the purpose-specific types above instead.
 - Always include exactly ONE start node of type "trigger".
 - Always include at least ONE "end" node.
 - If you include a "condition" node, you MUST create exactly two outgoing edges from it:
@@ -372,13 +376,11 @@ Node config rules:
     NEVER leave template empty. ALWAYS write a complete, business-friendly notification message.
   CRITICAL: Every notification node MUST have a non-empty recipient and a non-empty template. The AI must fill both — they are NEVER left for the user to configure manually.
 - delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
-- action.config MUST include: actionType.
-  - Use actionType="generateDocument" only when document output is explicitly required.
-  - Use actionType="extractDocumentText" when the workflow needs to read/extract data from uploaded documents or images (field type "file").
-    The platform uses LLM vision (OCR) automatically to extract ALL text, numbers, tables, and structured data from ANY image or document type (receipts, invoices, forms, photos, PDFs, etc.).
-    - Set action.config.sourceField to the uploaded file field name.
-    - Set node.output_variable to store the extracted text/data (e.g., "extractedData").
-    - CRITICAL: After extraction, ALWAYS follow with an "ai" node that parses the raw extracted text into structured data (JSON). The AI node should:
+- read_document.config MUST include: sourceField (the file field name from the Start form).
+  - Set node.output_variable to store the extracted text (e.g., "extractedData").
+  - The platform uses LLM vision (OCR) automatically to extract ALL text from ANY file type.
+  - Use read_document when the workflow needs to read/extract data from uploaded documents or images (field type "file").
+    CRITICAL: After read_document, ALWAYS follow with an "ai" node that parses the raw extracted text into structured data (JSON). The AI node should:
       - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
       - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
       - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
@@ -405,7 +407,7 @@ Node config rules:
             "Return amounts as numbers, not strings"
           ]
         The engine injects each instruction into the AI's system prompt automatically.
-    - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts, reports, images, certificates), the extraction step automatically processes ALL uploaded files (documents AND images via OCR) and returns combined text with "--- File: <name> ---" headers separating each file's content. The AI parsing node MUST handle this correctly:
+    - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts, reports, images, certificates), the read_document step automatically processes ALL uploaded files (documents AND images via OCR) and returns combined text with "--- File: <name> ---" headers separating each file's content. The AI parsing node MUST handle this correctly:
       - Parse and extract relevant data from EVERY file in the text, not just the first one
       - ALWAYS return an "items" array containing each file's extracted data as a separate object, preserving per-file details (fileName, and any fields relevant to the workflow). This ensures each file's data is individually accessible to subsequent workflow steps
       - ALWAYS return "itemCount" with the number of files/documents processed
@@ -428,6 +430,15 @@ Node config rules:
   This lets workflows intelligently route based on data without requiring human intervention in every case.
 
 - CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
+
+- create_document.config must include: title (string), format ("docx"|"pdf"|"xlsx"|"pptx"|"txt"), instructions (what to include).
+  - Use when the process needs to generate a document as output (report, letter, summary).
+  - Set node.output_variable to store the document reference.
+
+- calculate.config must include: operation ("sum"|"average"|"count"|"concat"|"custom"), expression (formula with {{{{field}}}} refs).
+  - Use for computing totals, averages, counts, or combining text values.
+  - Set node.output_variable to store the computed result.
+  - Also set dataLabel (friendly display name for the result).
 
 - end.config must include: output. Use "" (empty string) to output ALL variables. If you want to output a single variable, use {{{{variable_name}}}}.
 
@@ -602,16 +613,21 @@ class ProcessWizard:
                 process_def = await self._generate_process(goal, analysis)
                 process_def = self._validate_and_enhance(process_def)
             
-            # Step 3: Suggest default AI settings based on process type
-            # Inject per-step AI defaults into each AI node's config
-            # (user can adjust these in the node's properties panel)
+            # Step 3: Inject defaults into each node's config
             for n in (process_def.get("nodes") or []):
-                if n.get("type") == "ai":
-                    cfg = n.setdefault("config", {})
+                n_type = n.get("type", "")
+                cfg = n.setdefault("config", {})
+                if n_type == "ai":
                     has_output = bool(n.get("output_variable"))
                     cfg.setdefault("instructions", [])
-                    cfg.setdefault("creativity", 2 if has_output else 3)  # Strict for extraction
-                    cfg.setdefault("confidence", 3)                       # Balanced default
+                    cfg.setdefault("creativity", 2 if has_output else 3)
+                    cfg.setdefault("confidence", 3)
+                elif n_type == "read_document":
+                    cfg.setdefault("sourceField", "")
+                elif n_type == "create_document":
+                    cfg.setdefault("format", "docx")
+                elif n_type == "calculate":
+                    cfg.setdefault("operation", "custom")
             
             return process_def
             
@@ -802,19 +818,27 @@ class ProcessWizard:
         if not isinstance(edges, list):
             edges = []
 
-        allowed_types = {"trigger", "condition", "loop", "ai", "tool", "approval", "notification", "delay", "end", "form", "action"}
+        allowed_types = {
+            "trigger", "condition", "loop", "ai", "tool", "approval",
+            "notification", "delay", "end", "form", "action",
+            # New v3 shape types
+            "read_document", "create_document", "calculate",
+        }
         type_default_names = {
             "trigger": "Start",
-            "form": "Form Input",
-            "condition": "Condition",
-            "loop": "For Each",
-            "ai": "AI Task",
-            "tool": "Use Tool",
-            "approval": "Approval",
-            "notification": "Send Notification",
+            "form": "Collect Information",
+            "condition": "Decision",
+            "loop": "Repeat",
+            "ai": "AI Step",
+            "tool": "Connect to System",
+            "approval": "Request Approval",
+            "notification": "Send Message",
             "delay": "Wait",
             "action": "Action",
-            "end": "End",
+            "end": "Finish",
+            "read_document": "Read Document",
+            "create_document": "Create Document",
+            "calculate": "Calculate",
         }
 
         def _humanize_label(s: str) -> str:
