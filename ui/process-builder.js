@@ -892,7 +892,8 @@
                 delay: 'delay',
                 approval: 'approval', form: 'form',
                 end: 'end',
-                read_document: 'action', create_document: 'action', calculate: 'action'
+                read_document: 'action', create_document: 'action', calculate: 'action',
+                ai_step: 'ai'
             };
             return classes[type] || 'action';
         }
@@ -906,7 +907,8 @@
                 delay: '⏳',
                 approval: '✅', form: '📝',
                 end: '🏁',
-                read_document: '📄', create_document: '📑', calculate: '🧮'
+                read_document: '📄', create_document: '📑', calculate: '🧮',
+                ai_step: '🤖'
             };
             return icons[type] || '📦';
         }
@@ -921,7 +923,7 @@
                 approval: 'Request Approval', form: 'Collect Information',
                 end: 'Finish',
                 read_document: 'Read Document', create_document: 'Create Document',
-                calculate: 'Calculate'
+                calculate: 'Calculate', ai_step: 'AI Step'
             };
             return names[type] || type;
         }
@@ -943,7 +945,8 @@
                 end: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"/></svg>',
                 read_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-7h8v2H8v-2zm0-3h8v2H8v-2z"/></svg>',
                 create_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM12 17l-4-4h3V9h2v4h3l-4 4z"/></svg>',
-                calculate: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4 8h-2v2h-2v-2H9V9h2V7h2v2h2v2zm-1 6H7v-2h7v2z"/></svg>'
+                calculate: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4 8h-2v2h-2v-2H9V9h2V7h2v2h2v2zm-1 6H7v-2h7v2z"/></svg>',
+                ai_step: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>'
             };
             return icons[type] || icons.action;
         }
@@ -965,7 +968,8 @@
                 end: 'Process complete',
                 read_document: 'Reads uploaded files',
                 create_document: 'Generates a document',
-                calculate: 'Computes a value'
+                calculate: 'Computes a value',
+                ai_step: 'AI-powered step'
             };
             return descs[node.type] || '';
         }
@@ -1010,7 +1014,8 @@
                 case 'loop':
                     html = `<div class="node-config-item"><span class="config-label">Each</span><span class="config-value">${cfg.itemVar || 'item'} in ${cfg.collection || '...'}</span></div>`;
                     break;
-                case 'ai': {
+                case 'ai':
+                case 'ai_step': {
                     const _outFlds = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label) : [];
                     const modeLabels = {extract:'Extract data',analyze:'Analyze',generate:'Generate',classify:'Classify',custom:'Custom'};
                     html = `<div class="node-config-item"><span class="config-label">Task</span><span class="config-value">${modeLabels[cfg.aiMode] || 'AI task'}</span></div>`;
@@ -3188,7 +3193,8 @@
                     `;
                     break;
                     
-                case 'ai': {
+                case 'ai':
+                case 'ai_step': {
                     const _aiCreativity = node.config.creativity ?? 3;
                     const _aiConfidence = node.config.confidence ?? 3;
                     const _aiMode = node.config.aiMode || 'custom';
