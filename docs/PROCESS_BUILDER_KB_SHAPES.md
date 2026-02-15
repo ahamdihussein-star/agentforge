@@ -83,17 +83,19 @@ AI sub-modes (set via `aiMode` in config for UI pre-fill, not required):
 - `classify` — Classify or categorize
 - `custom` — Custom task (default)
 
-#### 4) Read Document — `read_document`
-Extract text content from uploaded files (PDFs, images, Word docs, Excel, etc.).
+#### 4) Read File — `read_document`
+Extract content from uploaded files — documents (PDFs, Word, Excel) AND images (receipts, IDs, photos).
 
 Config (`read_document.config`):
 - `sourceField` (string): Name of the file field from Start/Form.
-- `dataLabel` (string): Friendly name for the extracted text (auto-generated from source field if empty).
+- `outputFields` (array): Named data fields the user expects from this file. Each: `{ "label": "Human Name", "name": "camelCaseKey" }`.
+  These fields appear as selectable options in all downstream steps (Decision, Calculate, Notification, etc.).
+  The platform uses AI to automatically extract these fields from the file content.
 
 Optional:
-- `output_variable` (string): Store the extracted text for later steps (default: `extractedData`).
+- `output_variable` (string): Store the extracted data for later steps (default: `extractedData`).
 
-Note: This is a prerequisite for AI Step when analyzing uploaded documents. The pattern is: Upload (Start) -> Read Document -> AI Step (analyze the text).
+Note: Supports ALL file types including images via AI vision/OCR. When `outputFields` are defined, they become available in downstream steps for conditions, calculations, and notifications — the user never needs to type variable names.
 
 #### 5) Create Document — `create_document`
 Generate a document (Word, PDF, Excel, PowerPoint).
@@ -226,7 +228,7 @@ Optional:
 | Run steps simultaneously | Run in Parallel |
 | Invoke another process | Call Process |
 | AI analysis, extraction, classification | AI Step |
-| Read uploaded file content | Read Document |
+| Extract content from files or images | Read File |
 | Generate a document | Create Document |
 | Compute totals, averages, formulas | Calculate |
 | Call external system or API | Connect to System |
@@ -239,7 +241,7 @@ Optional:
 These shapes are NOT available in the palette but old saved processes that use them will still load and execute:
 - **Wait** (`delay`) — Use schedule triggers or approval timeouts instead.
 - **Repeat** (`loop`) — Use an AI Step to handle iteration logic internally.
-- **Action** (`action`) — Replaced by purpose-specific shapes (Read Document, Create Document, Calculate).
+- **Action** (`action`) — Replaced by purpose-specific shapes (Read File, Create Document, Calculate).
 
 ## Anti-Hallucination Rules
 

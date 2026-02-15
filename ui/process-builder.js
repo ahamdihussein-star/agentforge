@@ -697,7 +697,7 @@
                 tool: { name: 'Connect to System', config: { toolId: toolId || '', params: {} } },
                 ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3 } },
                 end: { name: 'Finish', config: { output: '' } },
-                read_document: { name: 'Read Document', config: { sourceField: '', dataLabel: '' } },
+                read_document: { name: 'Read File', config: { sourceField: '', dataLabel: '', outputFields: [] } },
                 create_document: { name: 'Create Document', config: { title: '', format: 'docx', instructions: '' } },
                 calculate: { name: 'Calculate', config: { operation: 'custom', expression: '', dataLabel: '' } },
                 parallel: { name: 'Run in Parallel', config: {} },
@@ -928,7 +928,7 @@
                 loop: 'Repeat', delay: 'Wait',
                 approval: 'Request Approval', form: 'Collect Information',
                 end: 'Finish',
-                read_document: 'Read Document', create_document: 'Create Document',
+                read_document: 'Read File', create_document: 'Create Document',
                 calculate: 'Calculate', ai_step: 'AI Step',
                 parallel: 'Run in Parallel', call_process: 'Call Process'
             };
@@ -975,7 +975,7 @@
                 form: 'Asks someone to fill a form',
                 notification: 'Sends a message',
                 end: 'Process complete',
-                read_document: 'Reads uploaded files',
+                read_document: 'Extracts content from uploaded files (documents or images)',
                 create_document: 'Generates a document',
                 calculate: 'Computes a value',
                 ai_step: 'AI-powered step',
@@ -1036,25 +1036,51 @@
                     break;
                 }
                 case 'end':
-                    html = `<div class="node-config-item"><span class="config-label">Output</span><span class="config-value">${cfg.output || 'result'}</span></div>`;
+                    html = `<div class="node-config-item"><span class="config-label">Returns</span><span class="config-value">${cfg.output ? humanizeFieldLabel(cfg.output.replace(/[{}]/g,'')) : 'All data'}</span></div>`;
                     break;
                 case 'action':
                     html = `<div class="node-config-item"><span class="config-label">Type</span><span class="config-value">${cfg.actionType || 'custom'}</span></div>`;
                     break;
-                case 'read_document':
-                    html = `<div class="node-config-item"><span class="config-label">File</span><span class="config-value">${cfg.sourceField || 'Not set'}</span></div>`;
+                case 'read_document': {
+                    // Show human-friendly source file label
+                    let rdSourceLabel = 'Not selected';
+                    if (cfg.sourceField) {
+                        const rdAllNodes = state.nodes || [];
+                        for (const rn of rdAllNodes) {
+                            if ((rn.type === 'trigger' || rn.type === 'form') && rn.config.fields) {
+                                const ff = rn.config.fields.find(f => f.name === cfg.sourceField);
+                                if (ff) { rdSourceLabel = ff.label || humanizeFieldLabel(ff.name) || cfg.sourceField; break; }
+                            }
+                        }
+                    }
+                    const rdFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label) : [];
+                    html = `<div class="node-config-item"><span class="config-label">Source</span><span class="config-value">${rdSourceLabel}</span></div>`;
+                    if (rdFields.length > 0) {
+                        html += `<div class="node-config-item"><span class="config-label">Fields</span><span class="config-value">${rdFields.length} expected</span></div>`;
+                    }
                     break;
+                }
                 case 'create_document':
-                    html = `<div class="node-config-item"><span class="config-label">Format</span><span class="config-value">${(cfg.format || 'docx').toUpperCase()}</span></div>`;
+                    html = `<div class="node-config-item"><span class="config-label">Format</span><span class="config-value">${{docx:'Word',pdf:'PDF',xlsx:'Excel',pptx:'PowerPoint',txt:'Text'}[(cfg.format||'docx')] || (cfg.format||'docx').toUpperCase()}</span></div>`;
                     break;
-                case 'calculate':
-                    html = `<div class="node-config-item"><span class="config-label">Operation</span><span class="config-value">${cfg.operation || 'custom'}</span></div>`;
+                case 'calculate': {
+                    const calcLabels = {sum:'Sum / Total',average:'Average',count:'Count',concat:'Combine text',custom:'Custom formula'};
+                    html = `<div class="node-config-item"><span class="config-label">Type</span><span class="config-value">${calcLabels[cfg.operation] || cfg.operation || 'Custom formula'}</span></div>`;
                     break;
-                case 'parallel':
-                    html = `<div class="node-config-item"><span class="config-label">Mode</span><span class="config-value">All paths run at once</span></div>`;
+                }
+                case 'parallel': {
+                    const stratLabel = (cfg.merge_strategy === 'wait_any') ? 'Continue when any finishes' : 'Wait for all paths';
+                    html = `<div class="node-config-item"><span class="config-label">Strategy</span><span class="config-value">${stratLabel}</span></div>`;
                     break;
+                }
                 case 'call_process': {
-                    const _cpName = cfg._processName || (cfg.processId ? 'Process selected' : 'Not set');
+                    let _cpName = 'Not selected';
+                    if (cfg._processName && cfg._processName !== '-- Select a published process --') {
+                        _cpName = cfg._processName;
+                    } else if (cfg.processId) {
+                        const _cpProc = (state.publishedProcesses || []).find(p => p.id === cfg.processId);
+                        _cpName = _cpProc ? _cpProc.name : 'Process selected';
+                    }
                     html = `<div class="node-config-item"><span class="config-label">Process</span><span class="config-value">${_cpName}</span></div>`;
                     break;
                 }
@@ -2845,18 +2871,39 @@
                         nodeId: n.id
                     });
                 }
-                // Read Document shape
+                // Read File shape — expose individual output fields if defined
                 else if (n.type === 'read_document') {
-                    const label = cfg.dataLabel || humanizeFieldLabel(outVar) || 'Extracted Text';
-                    outputs.push({
-                        name: outVar,
-                        label: label,
-                        type: 'text',
-                        source: n.name || 'Read Document',
-                        group: 'data',
-                        icon: '📄',
-                        nodeId: n.id
-                    });
+                    const stepName = n.name || 'Read File';
+                    const rdOutFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label && f.name) : [];
+                    const rdOutVar = outVar || 'extractedData';
+
+                    if (rdOutFields.length > 0) {
+                        // Each expected field becomes a selectable item in downstream steps
+                        rdOutFields.forEach(f => {
+                            outputs.push({
+                                name: rdOutVar + '.' + f.name,
+                                label: f.label,
+                                type: 'data',
+                                source: stepName,
+                                group: 'data',
+                                icon: '📄',
+                                nodeId: n.id,
+                                parentVar: rdOutVar
+                            });
+                        });
+                    } else {
+                        // No output fields defined — show the whole variable
+                        const label = cfg.dataLabel || humanizeFieldLabel(rdOutVar) || 'Extracted Content';
+                        outputs.push({
+                            name: rdOutVar,
+                            label: label,
+                            type: 'text',
+                            source: stepName,
+                            group: 'data',
+                            icon: '📄',
+                            nodeId: n.id
+                        });
+                    }
                 }
                 // Call Process output
                 else if (n.type === 'call_process') {
@@ -3769,16 +3816,21 @@
                 
                 case 'call_process': {
                     const processes = state.publishedProcesses || [];
+                    const selectedProcId = node.config.processId || '';
+                    const selectedProc = processes.find(p => p.id === selectedProcId);
+                    const procInputFields = selectedProc ? (selectedProc.input_fields || []) : [];
+                    const cpMapping = node.config.inputMapping || {};
+                    const cpMappingSources = getMappingSources(node.id);
                     html += `
                         <div class="property-group">
                             <label class="property-label">Which process to run?</label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
                                 Select a published process to run as a sub-step of this workflow.
                             </div>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'processId', this.value); var sel=this.options[this.selectedIndex]; updateNodeConfig('${node.id}', '_processName', sel.text);">
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'processId', this.value); var sel=this.options[this.selectedIndex]; updateNodeConfig('${node.id}', '_processName', sel.text); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
                                 <option value="">-- Select a published process --</option>
                                 ${processes.map(p => `
-                                    <option value="${escapeHtml(p.id)}" ${node.config.processId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>
+                                    <option value="${escapeHtml(p.id)}" ${selectedProcId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>
                                 `).join('')}
                             </select>
                             ${processes.length === 0 ? `
@@ -3786,13 +3838,55 @@
                                     No published processes found. Publish a process first, then it will appear here.
                                 </div>
                             ` : ''}
+                            ${selectedProc && selectedProc.description ? `
+                                <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;line-height:1.4;">
+                                    ${escapeHtml(selectedProc.description)}
+                                </div>
+                            ` : ''}
                         </div>
+                        ${procInputFields.length > 0 ? `
+                        <div class="prop-section">
+                            <h4 class="prop-section-title">Send data to this process</h4>
+                            <p class="prop-section-hint">Map each input the sub-process needs to data from your form or a previous step.</p>
+                            ${procInputFields.map(pf => {
+                                const pfName = pf.name || '';
+                                const pfLabel = pf.label || humanizeFieldLabel(pfName) || pfName;
+                                const pfRequired = pf.required || false;
+                                const currentMapVal = cpMapping[pfName] || '';
+                                const isFromSource = currentMapVal && String(currentMapVal).startsWith('{{') && String(currentMapVal).endsWith('}}');
+                                const fixedVal = isFromSource ? '' : (currentMapVal || '');
+                                const sourceVal = isFromSource ? currentMapVal : '_fixed_';
+                                const formSources = cpMappingSources.filter(s => s.group === 'form');
+                                const dataSources = cpMappingSources.filter(s => s.group === 'data' || s.group === 'step');
+                                return `
+                                <div class="tool-param-card tool-param-row">
+                                    <div class="param-name">${escapeHtml(pfLabel)}${pfRequired ? ' <span style="color:#f87171;">*</span>' : ''}</div>
+                                    <span class="value-from-label">Value from</span>
+                                    <div class="value-from-row">
+                                        <select class="property-select" onchange="updateCallProcessMapping('${node.id}', '${escapeHtml(pfName)}', this.value, this.parentElement)">
+                                            <option value="_fixed_" ${sourceVal === '_fixed_' ? 'selected' : ''}>Type a fixed value</option>
+                                            ${formSources.length ? `<optgroup label="From form">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${dataSources.length ? `<optgroup label="From previous steps">${dataSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                        </select>
+                                        <input type="text" class="property-input" placeholder="Enter value"
+                                               value="${escapeHtml(fixedVal)}"
+                                               onchange="updateCallProcessMappingFixed('${node.id}', '${escapeHtml(pfName)}', this.value)"
+                                               ${isFromSource ? 'style="display:none;"' : ''}>
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                        ` : (selectedProcId ? `
+                            <div style="font-size:11px;color:var(--pb-muted);padding:8px 12px;background:var(--pb-surface);border-radius:8px;margin-top:4px;">
+                                This process does not require any input data.
+                            </div>
+                        ` : '')}
                         <div class="property-group">
                             <label class="property-label">Save the result as</label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Give a name to the data returned by the sub-process so other steps can use it.
+                                Name the data returned by the sub-process so other steps can use it.
                             </div>
-                            <input type="text" class="property-input" placeholder="e.g. subProcessResult"
+                            <input type="text" class="property-input" placeholder="e.g. approvalResult"
                                    value="${escapeHtml(node.output_variable || node.config.outputVariable || '')}"
                                    onchange="state.nodes.find(n=>n.id==='${node.id}').output_variable=this.value; renderConnections();">
                         </div>
@@ -3946,29 +4040,73 @@
                             });
                         }
                     });
+                    const rdOutFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
                     html += `
                         <div class="property-group">
                             <label class="property-label">Which uploaded file?</label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Select the file field from the Start form that this step should read.
+                                Choose the file or image uploaded in the Start form.
                             </div>
+                            ${fileFields.length > 0 ? `
                             <select class="property-select" onchange="updateNodeConfig('${node.id}', 'sourceField', this.value)">
-                                <option value="">-- Select a file field --</option>
+                                <option value="">-- Select --</option>
                                 ${fileFields.map(f => `<option value="${f.name}" ${node.config.sourceField === f.name ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
                             </select>
-                        </div>
-                        <div class="property-group">
-                            <label class="property-label">Name this extracted text</label>
-                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                A friendly name so other steps can use the text content. Auto-generated from the file field if left empty.
+                            ` : `
+                            <div style="font-size:11px;color:#f59e0b;padding:8px 12px;background:color-mix(in srgb,#f59e0b 8%,transparent);border-radius:8px;">
+                                No file fields found. Add a <strong>File Upload</strong> field to the Start form first.
                             </div>
-                            <input type="text" class="property-input" placeholder="${node.config.sourceField ? humanizeFieldLabel(node.config.sourceField) + ' Text' : 'e.g. Receipt Text, Invoice Content'}"
-                                   value="${escapeHtml(node.config.dataLabel || '')}"
-                                   onchange="updateNodeConfig('${node.id}', 'dataLabel', this.value)">
+                            `}
                         </div>
-                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-top:8px;">
+
+                        <div class="property-group">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                <label class="property-label" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
+                                    <span>📋</span> What information to extract
+                                </label>
+                                <button type="button" onclick="addReadDocOutputField('${node.id}')"
+                                        style="padding:3px 10px;font-size:11px;border-radius:6px;border:1px solid var(--pb-primary);background:color-mix(in srgb,var(--pb-primary) 10%,transparent);color:var(--pb-primary);cursor:pointer;font-weight:600;">
+                                    + Add Field
+                                </button>
+                            </div>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Name the data you expect from this file (e.g. Invoice Number, Total Amount, Vendor). These become selectable in all following steps.
+                            </div>
+                            <div id="rd-outfields-${node.id}" style="display:flex;flex-direction:column;gap:6px;">
+                                ${rdOutFields.length === 0
+                                    ? `<div id="rd-outfields-empty-${node.id}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No fields defined yet. Click "+ Add Field" to name the data you need from this file.</div>`
+                                    : rdOutFields.map((of, idx) => `
+                                        <div class="rd-outfield-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;">
+                                            <span style="color:var(--pb-primary);font-size:14px;">📋</span>
+                                            <input type="text" class="rd-outfield-label" value="${escapeHtml(of.label || '')}"
+                                                   placeholder="e.g., Invoice Number"
+                                                   onchange="syncReadDocOutputFields('${node.id}')"
+                                                   style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                                            <button type="button" onclick="removeReadDocOutputField(this,'${node.id}')"
+                                                    style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
+                                                    onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
+                                                    title="Remove this field">✕</button>
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+                            ${(() => {
+                                const outVar = String(node.output_variable || 'extractedData').trim();
+                                if (rdOutFields.length > 0 && outVar) {
+                                    return `<div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:8px;">
+                                        <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">These fields will be available in next steps:</div>
+                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                            ${rdOutFields.filter(f => f.label).map(f => `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);">📋 ${escapeHtml(f.label)}</span>`).join('')}
+                                        </div>
+                                    </div>`;
+                                }
+                                return '';
+                            })()}
+                        </div>
+
+                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-top:4px;">
                             <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
-                                This step reads the content from uploaded files (PDFs, images, Word docs, Excel) so other steps can use the text. Follow it with an <strong>AI Step</strong> to analyze or extract structured data.
+                                Supports <strong>all file types</strong>: PDFs, Word, Excel, images (receipts, IDs, photos), and more. The platform reads content automatically using AI vision for images.
                             </div>
                         </div>
                     `;
@@ -4082,6 +4220,7 @@
                                     </div>
                                 </div>
                             ` : ''}
+                            ${buildPersonInfoChips(node.id, 'expression')}
                         </div>
                         `}
                         <div class="property-group">
@@ -4252,6 +4391,105 @@
             if (outputFields.length > 0 && !node.output_variable) {
                 // Use node name as output variable (camelCase) — fully dynamic, no hardcoded names
                 node.output_variable = toFieldKey(node.name || '') || 'aiOutput';
+            }
+
+            refreshNode(node);
+            saveToUndo();
+        }
+
+        // ================================================================
+        // Call Process — Input Mapping helpers
+        // ================================================================
+
+        function updateCallProcessMapping(nodeId, fieldName, selectValue, parentRow) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!node.config.inputMapping) node.config.inputMapping = {};
+            const fixedInput = parentRow ? parentRow.querySelector('input.property-input') : null;
+
+            if (selectValue === '_fixed_') {
+                // Show fixed input, clear mapping
+                if (fixedInput) fixedInput.style.display = '';
+                node.config.inputMapping[fieldName] = fixedInput ? fixedInput.value : '';
+            } else {
+                // Hide fixed input, set mapping to selected source
+                if (fixedInput) fixedInput.style.display = 'none';
+                node.config.inputMapping[fieldName] = selectValue;
+            }
+            saveToUndo();
+        }
+
+        function updateCallProcessMappingFixed(nodeId, fieldName, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!node.config.inputMapping) node.config.inputMapping = {};
+            node.config.inputMapping[fieldName] = value;
+            saveToUndo();
+        }
+
+        // ================================================================
+        // Read File — Output Fields helpers (add / remove / sync)
+        // Let users name the data fields they expect from the file,
+        // making them selectable in all downstream steps.
+        // ================================================================
+
+        function addReadDocOutputField(nodeId) {
+            const container = document.getElementById('rd-outfields-' + nodeId);
+            if (!container) return;
+            const emptyEl = document.getElementById('rd-outfields-empty-' + nodeId);
+            if (emptyEl) emptyEl.remove();
+
+            container.insertAdjacentHTML('beforeend', `
+                <div class="rd-outfield-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;">
+                    <span style="color:var(--pb-primary);font-size:14px;">📋</span>
+                    <input type="text" class="rd-outfield-label" value=""
+                           placeholder="e.g., Invoice Number"
+                           onchange="syncReadDocOutputFields('${nodeId}')"
+                           style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                    <button type="button" onclick="removeReadDocOutputField(this,'${nodeId}')"
+                            style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
+                            onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
+                            title="Remove this field">✕</button>
+                </div>
+            `);
+            const newInput = container.querySelector('.rd-outfield-row:last-child .rd-outfield-label');
+            if (newInput) newInput.focus();
+            syncReadDocOutputFields(nodeId);
+        }
+
+        function removeReadDocOutputField(btn, nodeId) {
+            const row = btn.closest('.rd-outfield-row');
+            const container = document.getElementById('rd-outfields-' + nodeId);
+            if (row) row.remove();
+            const remaining = container.querySelectorAll('.rd-outfield-row');
+            if (remaining.length === 0) {
+                container.insertAdjacentHTML('beforeend',
+                    `<div id="rd-outfields-empty-${nodeId}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No fields defined yet. Click "+ Add Field" to name the data you need from this file.</div>`
+                );
+            }
+            syncReadDocOutputFields(nodeId);
+        }
+
+        function syncReadDocOutputFields(nodeId) {
+            const container = document.getElementById('rd-outfields-' + nodeId);
+            if (!container) return;
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+
+            const labelInputs = container.querySelectorAll('.rd-outfield-label');
+            const outputFields = [];
+            labelInputs.forEach(inp => {
+                const label = inp.value.trim();
+                if (label) {
+                    const name = toFieldKey(label) || label.toLowerCase().replace(/\s+/g, '_');
+                    outputFields.push({ label, name });
+                }
+            });
+            node.config.outputFields = outputFields;
+
+            // Auto-set output_variable if not already set
+            if (!node.output_variable) {
+                node.output_variable = 'extractedData';
             }
 
             refreshNode(node);

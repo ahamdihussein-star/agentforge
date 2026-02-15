@@ -1648,7 +1648,7 @@ class ProcessAPIService:
             elif node_type == 'tool':
                 node['type'] = 'tool_call'
             elif node_type == 'read_document':
-                # New shape: Read Document → file_operation (extract_text)
+                # New shape: Read File → file_operation (extract_text)
                 node['type'] = 'file_operation'
             elif node_type == 'create_document':
                 # New shape: Create Document → file_operation (generate_document)

@@ -206,7 +206,7 @@ IMPORTANT:
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
   - trigger, condition, ai, tool, approval, notification, form, end
-  - read_document (extract text from uploaded files — replaces action with extractDocumentText)
+  - read_document (extract content from uploaded files: documents AND images — replaces action with extractDocumentText)
   - create_document (generate a document — replaces action with generateDocument)
   - calculate (compute totals, averages, formulas — replaces action with transformData)
   - parallel (run multiple paths at the same time — connect to multiple next steps)
@@ -402,9 +402,13 @@ Node config rules:
   - Example: call_process.config = { "processId": "<id>", "inputMapping": { "field1": "{{{{value1}}}}" }, "outputVariable": "subResult" }
 
 - read_document.config MUST include: sourceField (the file field name from the Start form).
-  - Set node.output_variable to store the extracted text (e.g., "extractedData").
-  - The platform uses LLM vision (OCR) automatically to extract ALL text from ANY file type.
-  - Use read_document when the workflow needs to read/extract data from uploaded documents or images (field type "file").
+  - Set node.output_variable to store the extracted data (e.g., "extractedData").
+  - SHOULD include config.outputFields: an array of objects naming each data field the user expects from this file.
+    Each object has "label" (friendly display name) and "name" (camelCase key).
+    These fields become selectable in ALL downstream steps (Decision, Calculate, Notification, etc.).
+    Format: "outputFields": [{{"label": "Invoice Number", "name": "invoiceNumber"}}, {{"label": "Total Amount", "name": "totalAmount"}}]
+  - The platform uses LLM vision (OCR) automatically to extract ALL content from ANY file type (documents AND images).
+  - Use read_document when the workflow needs to read/extract data from uploaded files — documents or images (field type "file").
     CRITICAL: After read_document, ALWAYS follow with an "ai" node that parses the raw extracted text into structured data (JSON). The AI node should:
       - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
       - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
@@ -936,7 +940,7 @@ class ProcessWizard:
             "approval": "Request Approval",
             "notification": "Send Message",
             "end": "Finish",
-            "read_document": "Read Document",
+            "read_document": "Read File",
             "create_document": "Create Document",
             "calculate": "Calculate",
             "parallel": "Run in Parallel",

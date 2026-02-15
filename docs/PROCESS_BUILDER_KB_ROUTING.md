@@ -61,7 +61,7 @@ When a workflow needs to call another published process:
 | Run in Parallel (`parallel`) | Simultaneous paths | Multiple outgoing (all run at once) |
 | Call Process (`call_process`) | Invoke another process | 1 outgoing (continues after sub-process) |
 | AI Step (`ai`) | Intelligent processing | 1 outgoing |
-| Read Document (`read_document`) | Extract text from files | 1 outgoing |
+| Read File (`read_document`) | Extract content from files/images | 1 outgoing |
 | Create Document (`create_document`) | Generate a document | 1 outgoing |
 | Send Message (`notification`) | Notify someone | 1 outgoing |
 | Request Approval (`approval`) | Wait for approval | 1 outgoing |

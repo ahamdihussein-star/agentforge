@@ -21,7 +21,7 @@ For multiple file uploads (receipts, attachments, etc.), add `"multiple": true`.
 
 ## Extracting Content from Files
 
-Use a **Read Document** (`read_document`) node after the trigger:
+Use a **Read File** (`read_document`) node after the trigger:
 
 1. Set `sourceField` to the file field name (e.g., `"uploadedFile"`)
 2. Set `output_variable` to store the extracted content (e.g., `"extractedData"`)
@@ -61,12 +61,12 @@ Use a **Create Document** (`create_document`) node:
 - `instructions` (string): What should be in the document (can use `{{fieldName}}` references)
 - `output_variable` (string): Store the document reference for later steps
 
-## Data Flow Pattern: Upload → Read Document → AI Parse → Use
+## Data Flow Pattern: Upload → Read File → AI Parse → Use
 
 When workflows involve document/image uploads, follow this pattern:
 
 1. **Start form**: Collect file(s) via `file` field (with `multiple: true` for multiple uploads)
-2. **Read Document** (`read_document`): Extracts raw text/data from the file (OCR for images)
+2. **Read File** (`read_document`): Extracts content from the file (OCR for images)
 3. **AI Step** (`ai`): Parse the raw extracted text into structured data (JSON with specific fields)
    - Reference the extracted text: `{{extractedData}}`
    - Define `outputFields` for all data the AI will produce
@@ -77,14 +77,14 @@ When workflows involve document/image uploads, follow this pattern:
 ### Multi-File Pattern
 
 When the file field has `multiple: true`:
-- Read Document processes ALL uploaded files
+- Read File processes ALL uploaded files
 - Extracted text has `--- File: <name> ---` headers separating each file
 - The AI step MUST parse ALL files and return an `items` array + aggregate fields
 
 ## Anti-Hallucination Rules
 
 ### Process Design Rules
-- AI steps CANNOT read raw file uploads directly — ALWAYS use Read Document first.
+- AI steps CANNOT read raw file uploads directly — ALWAYS use Read File first.
 - Do NOT limit file types in the process design — the platform handles any format.
 - File fields should be optional unless the business requirement explicitly demands a file.
 - Do NOT hardcode what data to extract — let the AI determine it based on the workflow's purpose.

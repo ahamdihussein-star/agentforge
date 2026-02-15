@@ -36,7 +36,7 @@ The visual Process Builder uses business-friendly shape names organized into cat
 | Category | Shapes |
 |----------|--------|
 | Start & End | Start, Finish |
-| Intelligence | AI Step, Read Document, Create Document |
+| Intelligence | AI Step, Read File, Create Document |
 | People | Send Message, Request Approval, Collect Information |
 | Logic | Decision, Run in Parallel, Call Process |
 | Data | Calculate |
