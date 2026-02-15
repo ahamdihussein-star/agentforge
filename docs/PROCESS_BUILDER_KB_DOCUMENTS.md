@@ -1,4 +1,4 @@
-# Process Builder Knowledge Base — Document & Image Handling (v2)
+# Process Builder Knowledge Base — Document & Image Handling (v3)
 
 Workflows may need to collect, read, or generate documents and images.
 
@@ -17,16 +17,17 @@ Use a `file` field in the Start form (trigger):
 
 The platform accepts ANY file type. There is no limitation on file formats.
 
+For multiple file uploads (receipts, attachments, etc.), add `"multiple": true`.
+
 ## Extracting Content from Files
 
-If a workflow needs to process the content of an uploaded file (e.g., analyze a document,
-extract data from an image, read a spreadsheet), add an **Action** node AFTER the trigger:
+Use a **Read Document** (`read_document`) node after the trigger:
 
-1. Set `actionType: "extractDocumentText"`
-2. Set `sourceField` to the file field name (e.g., `"uploadedFile"`)
-3. Set `output_variable` to store the extracted content (e.g., `"fileContent"`)
+1. Set `sourceField` to the file field name (e.g., `"uploadedFile"`)
+2. Set `output_variable` to store the extracted content (e.g., `"extractedData"`)
+3. Optionally set `dataLabel` for a friendly name (auto-generated from source field if empty)
 
-Then reference the extracted content in subsequent AI steps: `{{fileContent}}`
+Then reference the extracted content in subsequent AI steps: `{{extractedData}}`
 
 ### Supported File Types
 
@@ -53,29 +54,37 @@ the platform uses the LLM's vision capability to extract content. This means:
 
 ## Generating Documents (Output)
 
-Use an **Action** node with `actionType: "generateDocument"`.
+Use a **Create Document** (`create_document`) node:
 
-Properties:
-- Document title/name
-- Document format (any supported output format)
-- Content instructions (what to include)
-- Data sources (which workflow variables to reference)
+- `title` (string): Document title
+- `format` (string): `docx` | `pdf` | `xlsx` | `pptx` | `txt`
+- `instructions` (string): What should be in the document (can use `{{fieldName}}` references)
+- `output_variable` (string): Store the document reference for later steps
 
-## Data Flow Pattern: Upload → Extract → AI Parse → Use
+## Data Flow Pattern: Upload → Read Document → AI Parse → Use
 
 When workflows involve document/image uploads, follow this pattern:
 
-1. **Trigger form**: Collect file(s) via `file` field
-2. **Action node**: `extractDocumentText` extracts raw text/data from the file (OCR for images)
-3. **AI node**: Parse the raw extracted text into structured data (JSON with specific fields)
-4. **Condition/Approval/Notification nodes**: Use the parsed structured data for routing, decisions, and notifications
+1. **Start form**: Collect file(s) via `file` field (with `multiple: true` for multiple uploads)
+2. **Read Document** (`read_document`): Extracts raw text/data from the file (OCR for images)
+3. **AI Step** (`ai`): Parse the raw extracted text into structured data (JSON with specific fields)
+   - Reference the extracted text: `{{extractedData}}`
+   - Define `outputFields` for all data the AI will produce
+   - Set `output_format: "json"` and low `creativity` (1-2)
+4. **Downstream steps**: Use the parsed structured data for routing, decisions, notifications
+   - All `outputFields` from the AI step appear as selectable chips in downstream steps
 
-This ensures the AI can process any type of document or image and extract exactly what the workflow needs.
+### Multi-File Pattern
+
+When the file field has `multiple: true`:
+- Read Document processes ALL uploaded files
+- Extracted text has `--- File: <name> ---` headers separating each file
+- The AI step MUST parse ALL files and return an `items` array + aggregate fields
 
 ## Anti-Hallucination Rules
 
 ### Process Design Rules
-- AI steps CANNOT read raw file uploads directly — always use `extractDocumentText` first.
+- AI steps CANNOT read raw file uploads directly — ALWAYS use Read Document first.
 - Do NOT limit file types in the process design — the platform handles any format.
 - File fields should be optional unless the business requirement explicitly demands a file.
 - Do NOT hardcode what data to extract — let the AI determine it based on the workflow's purpose.
@@ -86,9 +95,7 @@ This ensures the AI can process any type of document or image and extract exactl
 - When multiple files are uploaded, the extracted text contains ALL files separated by `--- File: <name> ---` headers. The AI MUST process data from **every file**, not just the first.
 - Numeric totals MUST be calculated from the **actual numbers** in the extracted text, not estimated or invented.
 - If a requested field cannot be determined from the extracted text, return `null` — NEVER guess.
-- The `details` or `summary` field MUST reference **specific data points** from the extraction (e.g., "Parking: 100 AED, Flight: 1500 AED, Total: 1600 AED"), NEVER generic descriptions like "Extracted data from receipts".
 
 ### Error Handling Rules
 - If file extraction fails (file not found, empty, corrupted), the workflow MUST stop and report the actual error — not silently continue with empty data.
 - If the AI step receives empty or garbled input, it MUST report that parsing failed rather than producing hallucinated output.
-- Downstream steps (conditions, notifications) that depend on parsed data will receive clear errors if the data is missing, with business-friendly explanations.

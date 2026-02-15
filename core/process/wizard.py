@@ -684,13 +684,14 @@ class ProcessWizard:
             tool_names = " ".join([t.get("name") or "" for t in tools if isinstance(t, dict)])
             query = f"{goal}\n\n{(analysis or {}).get('summary') or ''}\n\n{tool_names}".strip()
 
-            # Always include identity/approval KB keywords in the retrieval query.
-            # Any process might involve approvals, notifications, or user context —
-            # the identity KB should always be available for the LLM to use if needed.
-            # This avoids hardcoding specific scenarios (like HR) that trigger identity retrieval.
+            # Always include identity/approval/tools KB keywords in the retrieval query.
+            # Any process might involve approvals, notifications, tools, or user context —
+            # the relevant KB sections should always be available for the LLM to use if needed.
             query += "\n\nidentity user_directory approval assignee notification prefill user profile"
             query += "\n\nrecipient requester manager _user_context enrich runtime resolution identity_source"
             query += "\n\nlayout visual spacing connection lines nodes positioning end node branches"
+            query += "\n\ntool toolId params integration external system api database knowledge_base matching"
+            query += "\n\nparallel call_process sub_process branches simultaneous"
 
             platform_knowledge = retrieve_platform_knowledge(query, top_k=8, max_chars=6000)
         except Exception:
@@ -754,11 +755,45 @@ class ProcessWizard:
                 
                 identity_context_text = "\n".join(lines)
 
+        # Build a dynamic tools summary for the platform_knowledge section.
+        # This ensures the AI has both the KB guide (how to use tools) AND a structured
+        # summary of what specific tools are available right now.
+        tools_summary_text = ""
+        if tools:
+            lines = ["\n\nCONFIGURED TOOLS SUMMARY (available for this organization):"]
+            lines.append("Use these tool names and IDs when the user's prompt mentions a matching system.")
+            for i, t in enumerate(tools[:30], 1):
+                tname = t.get("name") or "Unknown"
+                ttype = t.get("type") or ""
+                tdesc = t.get("description") or ""
+                tid = t.get("id") or ""
+                params = t.get("input_parameters") or []
+                param_names = ", ".join(
+                    str(p.get("name") or "") for p in (params if isinstance(params, list) else [])
+                ) if params else "(none)"
+                lines.append(
+                    f"  {i}. \"{tname}\" (type: {ttype}, id: {tid})"
+                    f"\n     Description: {tdesc}"
+                    f"\n     Parameters: {param_names}"
+                )
+            lines.append(
+                "  → To use a tool: create a 'tool' node with toolId set to the tool's id, "
+                "and map params from form fields or upstream data using {{fieldName}} syntax."
+            )
+            tools_summary_text = "\n".join(lines)
+
+        combined_knowledge = (
+            (platform_knowledge or "(no KB matches)")
+            + user_attrs_context
+            + identity_context_text
+            + tools_summary_text
+        )
+
         user_prompt = VISUAL_BUILDER_GENERATION_PROMPT.format(
             goal=goal,
             analysis=json.dumps(analysis or {}, ensure_ascii=False, indent=2),
             tools_json=tools_json,
-            platform_knowledge=(platform_knowledge or "(no KB matches)") + user_attrs_context + identity_context_text,
+            platform_knowledge=combined_knowledge,
         )
         system_prompt = (
             "You are an expert workflow designer with deep knowledge of business processes "

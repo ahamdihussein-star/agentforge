@@ -158,6 +158,13 @@ def _score_chunks(query: str, chunks: List[KBChunk], top_k: int = 5) -> List[Tup
     return scored[:top_k]
 
 
+def clear_kb_cache():
+    """Clear all cached KB data so the next retrieval re-reads from disk.
+    Call this after KB files are added, updated, or when tools change."""
+    load_platform_kb_chunks.cache_clear()
+    load_safe_taxonomies.cache_clear()
+
+
 @lru_cache(maxsize=1)
 def load_platform_kb_chunks() -> List[KBChunk]:
     """
