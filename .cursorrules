@@ -26,6 +26,59 @@
 
 ---
 
+## 🏛️ ENTERPRISE & GOVERNMENT STANDARDS (MANDATORY)
+
+This platform is designed for **Large Enterprises & Government Agencies**.
+Every line of code and UI element must meet Global Enterprise Standards.
+
+### 1. The "Civil Servant" UX Standard (Non-Technical Users)
+- **Zero Jargon:** Never expose terms like "JSON", "UUID", "Endpoint", "Latency", or "Stack Trace".
+- **Self-Healing:** If an error occurs, the system must suggest a fix in plain language (e.g., "Manager missing" instead of "NullReferenceException").
+- **Accessibility:** UI must be clear, high-contrast, and intuitive. Think "GovTech" simplicity.
+- **Fail-Safe:** A non-technical user should NEVER be able to break the system or corrupt data through the UI.
+
+### 2. Enterprise Security & Zero Trust
+- **Data Isolation:** Every database query MUST be scoped by `org_id`. Never trust user input to define the scope.
+- **RBAC Enforcement:** Permissions are checked at the **Service Layer**, not just the UI.
+- **Audit Trails:** Critical actions (Process modifications, Approvals, User changes) must be logged/traceable.
+- **No Hardcoded Secrets:** Credentials, API keys, and sensitive config must come from Environment Variables or Secure Vaults.
+
+### 3. Scalability & Performance
+- **Stateless Architecture:** The backend services must remain stateless to allow horizontal scaling (Kubernetes ready).
+- **Async by Default:** Long-running tasks (AI generation, heavy processing) must be handled asynchronously (background tasks) to keep the UI responsive.
+- **Optimized Queries:** Avoid N+1 query problems. Use proper indexing on Foreign Keys.
+
+### 4. Global Best Practices
+- **Idempotency:** Repeating a request (e.g., clicking "Approve" twice) must not cause side effects (like double payment).
+- **Graceful Degradation:** If the AI service is down, the rest of the platform (Manual Approvals, Dashboard) must continue to work.
+
+---
+
+## 🧠 PROCESS BUILDER PHILOSOPHY
+
+### 1. Business-Friendly & No-Code First
+- **UI/UX**: Never display raw JSON or object dumps. Use `_format_value_for_display`.
+- **Notifications**: Emails and reports must be human-readable business text.
+
+### 2. Identity-Aware & Dynamic
+- **Context**: The system runs on `_user_context` (User, Manager, Org).
+- **Routing**: Approvals resolve recipients dynamically (e.g., "requester's manager") at runtime.
+- **Validation**: "Pre-flight Checks" warn users about missing identity data before execution.
+
+### 3. Anti-Hallucination & Reliability
+- **Separation of Concerns**: `config.prompt` is for the Task. `config.instructions` (Array) is for Rules.
+- **Strict Extraction**: Data extraction defaults to `creativity: 2`.
+- **Validation**: Use `_cross_reference_items_with_source` to verify AI output against source files.
+
+### 4. Zero Hardcoding & Universal Dynamism (True Platform)
+- **Generic Engine**: The platform must support **ANY** domain (HR, Finance, Legal, Gov, Healthcare).
+- **FORBIDDEN**: Never hardcode logic for a specific use case (e.g., `if process_name == 'Expense'`).
+- **Config-Driven**: Any new capability (e.g., "Tax Calculation") must be implemented as a **GENERIC** feature (e.g., "Formula Field" or "AI Instruction") configurable by the user.
+- **Future-Proof**: Changes must not break existing processes. New features should be opt-in or backward compatible.
+- **Dynamic Building**: The user (or AI Wizard) defines the logic via configuration; the Code only provides the building blocks.
+
+---
+
 ## 🚨 CRITICAL - READ BEFORE ANY DATABASE WORK!
 
 ### MANDATORY PRE-WORK CHECKLIST:
@@ -92,7 +145,7 @@ grep -r "UUID(as_uuid=True)" database/models/
 ✅ **ALWAYS** use types from `database/column_types.py`:
 ```python
 from ..column_types import UUID, JSON, JSONArray
-JSONB = JSON  # Alias after ALL imports
+JSONB = JSON # Alias after ALL imports
 ```
 
 ✅ **ALWAYS** follow PEP 8 import order:

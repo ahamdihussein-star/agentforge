@@ -1,5 +1,5 @@
 # AgentForge Project Status
-> Last Updated: February 11, 2026
+> Last Updated: February 15, 2026
 
 ## 🎯 Current State: Production-Ready Enterprise AI Platform
 
@@ -11,6 +11,36 @@ AgentForge is a **fully functional enterprise AI agent platform** with:
 - OAuth integration (Google)
 - End User Portal with personalization
 - **AI-powered Process Builder** (generate workflows from a prompt into a visual, editable builder)
+
+---
+
+## 🏛️ Platform Vision
+
+AgentForge is a **generic enterprise engine** designed for **Large Enterprises and Government Agencies**. It is NOT a demo or a single-purpose application.
+
+### Target Users
+- **Non-technical business users** (civil servants, HR managers, finance officers, operations teams).
+- Users should be able to build ANY type of AI agent (process or conversational) with ZERO technical knowledge.
+- The UI must follow the "Civil Servant Standard": zero jargon, self-explanatory, fail-safe.
+
+### Core Principles
+1. **Universal Dynamism**: The platform supports ANY domain (HR, Finance, Legal, Gov, Healthcare). No hardcoded business logic.
+2. **No-Code First**: Every configuration is done through business-friendly UI. The code handles all technical transformation behind the scenes.
+3. **Identity-Aware**: Dynamic resolution of users, managers, departments from configured identity sources at runtime.
+4. **Enterprise Security**: Data isolation by org_id, RBAC at service layer, audit trails, zero trust.
+5. **Scalability**: Stateless backend, async processing, optimized queries.
+
+### Process Builder Shape Catalog (13 shapes)
+The visual Process Builder uses business-friendly shape names organized into categories:
+
+| Category | Shapes |
+|----------|--------|
+| Start & End | Start, Finish |
+| Intelligence | AI Step, Read Document, Create Document |
+| People | Send Message, Request Approval, Collect Information |
+| Logic | Decision, Wait, Repeat |
+| Data | Calculate |
+| Integration | Connect to System |
 
 ---
 
