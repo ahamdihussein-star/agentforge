@@ -1047,7 +1047,9 @@
                     break;
                 }
                 case 'end':
-                    html = `<div class="node-config-item"><span class="config-label">Returns</span><span class="config-value">${cfg.output ? humanizeFieldLabel(cfg.output.replace(/[{}]/g,'')) : 'All data'}</span></div>`;
+                    html = cfg.successMessage
+                        ? `<div class="node-config-item"><span class="config-value" style="font-size:11px;">${escapeHtml(cfg.successMessage.substring(0, 50))}${cfg.successMessage.length > 50 ? '...' : ''}</span></div>`
+                        : `<div class="node-config-item"><span class="config-value" style="color:#22c55e;">Process complete</span></div>`;
                     break;
                 case 'action':
                     html = `<div class="node-config-item"><span class="config-label">Type</span><span class="config-value">${cfg.actionType || 'custom'}</span></div>`;
@@ -3979,52 +3981,21 @@
                 }
 
                 case 'end': {
-                    // Build a dropdown of available data from previous steps + form + person info
-                    const endPersonFields = (state.profileFieldsFlat || []).slice(0, 12);
+                    // ── Finish: marks the end of the process ──
                     html += `
-                        <div class="property-group">
-                            <label class="property-label">What should this process return?</label>
-                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Select the data to include in the final result. Leave empty to return everything.
+                        <div style="padding:12px;background:color-mix(in srgb,#22c55e 8%,transparent);border:1px solid color-mix(in srgb,#22c55e 20%,transparent);border-radius:10px;margin-bottom:12px;">
+                            <div style="font-size:12px;color:var(--pb-text);line-height:1.6;">
+                                <strong>🏁 Process complete</strong><br>
+                                This marks the end of the workflow. All collected data and results from previous steps are saved automatically.
                             </div>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'output', this.value)">
-                                <option value="" ${!node.config.output ? 'selected' : ''}>All data (default)</option>
-                                ${availableFields.length > 0 ? `<optgroup label="📝 Form fields">
-                                    ${availableFields.map(f => `
-                                        <option value="{{${f.name}}}" ${node.config.output === '{{' + f.name + '}}' ? 'selected' : ''}>${escapeHtml(f.label || f.name)}</option>
-                                    `).join('')}
-                                </optgroup>` : ''}
-                                ${upstreamData.length > 0 ? `<optgroup label="📦 Data from previous steps">
-                                    ${upstreamData.map(d => `
-                                        <option value="{{${d.name}}}" ${node.config.output === '{{' + d.name + '}}' ? 'selected' : ''}>${escapeHtml(d.label)} (from ${escapeHtml(d.source)})</option>
-                                    `).join('')}
-                                </optgroup>` : ''}
-                                ${endPersonFields.length > 0 ? `<optgroup label="👤 Person information">
-                                    ${endPersonFields.map(pf => `
-                                        <option value="{{trigger_input._user_context.${escapeHtml(pf.key)}}}" ${node.config.output === '{{trigger_input._user_context.' + pf.key + '}}' ? 'selected' : ''}>👤 ${escapeHtml(pf.label || pf.key)}</option>
-                                    `).join('')}
-                                </optgroup>` : ''}
-                            </select>
                         </div>
                         <div class="property-group">
-                            <label class="property-label">Completion message</label>
+                            <label class="property-label">Completion message <span style="font-weight:400;color:var(--pb-muted);">(optional)</span></label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Shown to the person who started this process when it finishes.
+                                A message shown to the person who started this process when it finishes.
                             </div>
                             <textarea class="property-textarea" placeholder="e.g. Your request has been processed successfully."
                                       onchange="updateNodeConfig('${node.id}', 'successMessage', this.value)">${escapeHtml(node.config.successMessage || '')}</textarea>
-                            ${availableFields.length > 0 ? `
-                                <div class="field-chips">
-                                    <span class="field-chips-label">Insert form data:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
-                                        ${availableFields.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'successMessage', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || f.name)}</button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${buildExtractedDataChips(node.id, 'successMessage', upstreamData)}
-                            ${buildPersonInfoChips(node.id, 'successMessage')}
                         </div>
                     `;
                     break;

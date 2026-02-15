@@ -41,8 +41,8 @@ Config properties:
 Process complete. Every workflow MUST have at least ONE finish node.
 
 Config (`end.config`):
-- `output` (string): `""` to return all data, or `{{variableName}}` for a specific result.
-- `successMessage` (string): Completion message shown to the person who started the process.
+- `successMessage` (string, optional): Completion message shown to the person who started the process.
+- All collected data and results from previous steps are saved automatically — no configuration needed.
 
 ---
 
