@@ -1013,7 +1013,7 @@
                     break;
                 case 'trigger': {
                     const _tt = cfg.triggerType || 'manual';
-                    const _ttLabels = {manual: 'Manual start', schedule: 'Runs on schedule', webhook: 'API / Webhook'};
+                    const _ttLabels = {manual: 'Manual start', schedule: 'Runs on schedule'};
                     html = `<div class="node-config-item"><span class="config-label">Trigger</span><span class="config-value">${_ttLabels[_tt] || 'Manual start'}</span></div>`;
                     if (_tt === 'schedule') {
                         const _sf = cfg._schedFreq || 'daily';
@@ -3527,14 +3527,6 @@
                                         <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">Runs automatically on a recurring schedule</div>
                                     </div>
                                 </label>
-                                <label class="trigger-type-card" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;cursor:pointer;border:2px solid ${triggerType === 'webhook' ? 'var(--pb-primary)' : 'color-mix(in srgb,var(--pb-border) 60%,transparent)'};background:${triggerType === 'webhook' ? 'color-mix(in srgb,var(--pb-primary) 8%,transparent)' : 'transparent'};transition:all 0.15s;">
-                                    <input type="radio" name="triggerType-${node.id}" value="webhook" ${triggerType === 'webhook' ? 'checked' : ''} onchange="setTriggerType('${node.id}', 'webhook')" style="display:none;">
-                                    <span style="font-size:22px;">🔗</span>
-                                    <div>
-                                        <div style="font-size:13px;font-weight:600;color:var(--pb-text);">API / Webhook</div>
-                                        <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">Triggered by an external system via API call</div>
-                                    </div>
-                                </label>
                             </div>
                         </div>
 
@@ -3624,37 +3616,6 @@
                         </div>
                         ` : ''}
 
-                        ${triggerType === 'webhook' ? `
-                        <div class="property-group">
-                            <label class="property-label">Webhook endpoint</label>
-                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                An external system will call this URL to start the process. The URL is generated after you save.
-                            </div>
-                            <input type="text" class="property-input" readonly placeholder="Auto-generated after saving"
-                                   value="${escapeHtml(node.config.webhookUrl || '')}" style="opacity:0.7;">
-                        </div>
-                        <div class="property-group">
-                            <label class="property-label">HTTP method</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'method', this.value)">
-                                <option value="POST" ${(node.config.method || 'POST') === 'POST' ? 'selected' : ''}>POST</option>
-                                <option value="GET" ${(node.config.method) === 'GET' ? 'selected' : ''}>GET</option>
-                                <option value="PUT" ${(node.config.method) === 'PUT' ? 'selected' : ''}>PUT</option>
-                            </select>
-                        </div>
-                        <div class="property-group">
-                            <label class="property-label">Authentication</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'webhookAuth', this.value)">
-                                <option value="api_key" ${(node.config.webhookAuth || 'api_key') === 'api_key' ? 'selected' : ''}>API Key (auto-generated)</option>
-                                <option value="bearer" ${(node.config.webhookAuth) === 'bearer' ? 'selected' : ''}>Bearer Token</option>
-                                <option value="none" ${(node.config.webhookAuth) === 'none' ? 'selected' : ''}>None (public)</option>
-                            </select>
-                        </div>
-                        <div style="padding:10px 12px;background:color-mix(in srgb,#3b82f6 8%,transparent);border:1px solid color-mix(in srgb,#3b82f6 20%,transparent);border-radius:10px;margin-top:4px;">
-                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
-                                <strong>📌 Best for:</strong> Integration with external systems, event-driven workflows, CRM/ERP triggers, form submissions from external websites.
-                            </div>
-                        </div>
-                        ` : ''}
                     `;
                     break;
                 }
@@ -4683,9 +4644,6 @@
                 if (!node.config.timezone) node.config.timezone = 'UTC';
                 if (!node.config._schedFreq) node.config._schedFreq = 'daily';
                 if (!node.config._schedTime) node.config._schedTime = '09:00';
-            } else if (triggerType === 'webhook') {
-                if (!node.config.method) node.config.method = 'POST';
-                if (!node.config.webhookAuth) node.config.webhookAuth = 'api_key';
             }
             // Manual trigger: no fields needed here — use "Collect Information" shape for forms
             refreshNode(node);

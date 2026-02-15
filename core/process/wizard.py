@@ -215,10 +215,9 @@ IMPORTANT:
   - For iteration/repetition scenarios, use an "ai" node that handles the iteration internally.
   - For waiting/delays, the platform handles timing through approval timeouts and schedule triggers.
 - Always include exactly ONE start node of type "trigger".
-- The "trigger" node defines HOW the process starts (manual, schedule, or webhook) — it does NOT have form fields.
+- The "trigger" node defines HOW the process starts (manual or schedule) — it does NOT have form fields.
   - For manual processes that need user input: place a "form" (Collect Information) node immediately after the trigger.
   - For scheduled processes (data sync, reports, cleanup, API imports): do NOT add a form node — connect the trigger directly to action nodes.
-  - For webhook-triggered processes: the incoming data is available as variables; add a form node only if additional human input is needed.
 - Always include at least ONE "end" node.
 - If you include a "condition" node, you MUST create exactly two outgoing edges from it:
   - one with type "yes"
@@ -242,7 +241,7 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
   - For auto-fill: ANY field that matches user profile data (name, email, phone, department, job title, employee ID, manager) MUST use prefill with readOnly:true. Never ask the user to type what the system knows.
   - For derived fields: only use formulas supported by the Knowledge Base (daysBetween, concat, sum, round).
   - For data flow: store AI/tool outputs in variables and reference them in later steps (notifications, conditions, etc.).
-- Scheduling and webhooks are configured on the Start node via `trigger.config.triggerType` (do NOT create separate schedule/webhook nodes).
+- Scheduling is configured on the Start node via `trigger.config.triggerType` (do NOT create separate schedule nodes).
 - The trigger node is ONLY for how the process starts — do NOT put form fields on it.
   - Manual processes: trigger → form (Collect Information) → action steps → end
   - Scheduled processes: trigger → action steps (tool/AI/read_document/etc.) → end
@@ -1139,10 +1138,10 @@ class ProcessWizard:
             start = next((n for n in normalized_nodes if n.get("type") == "trigger"), None)
             if start:
                 cfg = start.get("config") if isinstance(start.get("config"), dict) else {}
-                # triggerType: manual (default), schedule, webhook
+                # triggerType: manual (default), schedule
                 ttype = str(cfg.get("triggerType") or "manual").strip().lower()
-                if ttype not in ("manual", "schedule", "webhook"):
-                    ttype = "manual"
+                if ttype not in ("manual", "schedule"):
+                    ttype = "manual"  # webhook and other legacy types → manual
                 cfg["triggerType"] = ttype
 
                 # Migrate any fields placed on trigger to a form node (backward compat + AI correction)
@@ -1159,11 +1158,7 @@ class ProcessWizard:
                         cfg["_schedFreq"] = "daily"
                     if not cfg.get("_schedTime"):
                         cfg["_schedTime"] = "09:00"
-                elif ttype == "webhook":
-                    if not cfg.get("method"):
-                        cfg["method"] = "POST"
-                    if not cfg.get("webhookAuth"):
-                        cfg["webhookAuth"] = "api_key"
+                # webhook type is no longer user-facing; kept for backward compat in engine only
 
                 start["config"] = cfg
 

@@ -23,10 +23,9 @@ To collect user input, use a **Collect Information** (`form`) step after the Sta
 Start modes (`trigger.config.triggerType`):
 - `manual` — A person starts the process manually (optionally followed by a Collect Information step for form input).
 - `schedule` — Runs automatically on a recurring schedule (e.g., daily reports, data syncs, cleanup tasks, API imports).
-- `webhook` — Triggered by an external system via API call (e.g., CRM events, form submissions from external sites).
 
 Config properties:
-- `triggerType` (string, required): `manual` | `schedule` | `webhook`.
+- `triggerType` (string, required): `manual` | `schedule`.
 
 **Schedule mode** additional config:
 - `cron` (string): Cron expression (the UI converts from a visual picker).
@@ -35,10 +34,6 @@ Config properties:
 - `_schedTime` (string): Time in HH:MM format.
 - `_schedDay` (string): Day of week 0-6 (for weekly).
 - `_schedDate` (string): Day of month 1-28 or `L` (for monthly).
-
-**Webhook mode** additional config:
-- `method` (string): HTTP method (`POST`, `GET`, `PUT`).
-- `webhookAuth` (string): Authentication (`api_key`, `bearer`, `none`).
 
 **IMPORTANT**: The Start node does NOT have form `fields`. All form input collection belongs in the `form` (Collect Information) shape.
 
