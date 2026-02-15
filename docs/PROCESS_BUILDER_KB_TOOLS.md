@@ -1,4 +1,4 @@
-# Process Builder Knowledge Base — Tools Integration & Dynamic Matching (v1)
+# Process Builder Knowledge Base — Tools Integration & Dynamic Matching (v4)
 
 This document teaches the AI wizard how to intelligently use configured platform tools
 when generating process definitions from user prompts.
@@ -105,6 +105,28 @@ If `tools_json` is empty (`[]`), no external tools are configured. In that case:
 - Do NOT create any `tool` nodes
 - Use only built-in node types
 - If the user mentions a specific system, note that the tool needs to be configured first
+
+## Published Processes (for call_process nodes)
+
+In addition to tools, the wizard also receives a list of **PUBLISHED PROCESSES** — existing process workflows that have been created and published in the organization.
+
+When the user's goal mentions:
+- Running, calling, or invoking another process by name
+- Reusing existing logic (e.g., "use the standard approval flow")
+- Delegating a sub-task to an existing process
+
+The wizard should create a `call_process` node with the matching process ID.
+
+### Published Process Matching
+1. Match by name similarity (same as tool matching)
+2. Check the process description for capability match
+3. Review input fields to understand what data the sub-process needs
+4. Map input fields from the current process data using `inputMapping`
+
+### When NOT to Use call_process
+- If no published processes are listed — do NOT create call_process nodes
+- If the user's goal is completely self-contained — no need to invoke sub-processes
+- NEVER invent process IDs — only use IDs from the published processes list
 
 ## Anti-Hallucination Rules
 

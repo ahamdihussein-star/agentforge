@@ -1,4 +1,4 @@
-# Process Builder Knowledge Base — Dropdown Options & Taxonomies (v2)
+# Process Builder Knowledge Base — Dropdown Options & Taxonomies (v4)
 
 This document defines rules for when and how to use dropdown (select) fields in workflows.
 

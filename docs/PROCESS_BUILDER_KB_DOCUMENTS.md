@@ -1,4 +1,4 @@
-# Process Builder Knowledge Base — Document & Image Handling (v3)
+# Process Builder Knowledge Base — Document & Image Handling (v4)
 
 Workflows may need to collect, read, or generate documents and images.
 

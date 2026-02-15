@@ -1,4 +1,4 @@
-# Process Builder Knowledge Base — Layout & Routing Rules (v3)
+# Process Builder Knowledge Base — Layout & Routing Rules (v4)
 
 These rules define how workflows should look in the visual builder for business users.
 
@@ -44,11 +44,13 @@ When a workflow needs to do multiple things at the same time (e.g., send a notif
 ### Sub-Process Invocation
 When a workflow needs to call another published process:
 1. Add a `call_process` node
-2. Select the target process from the dropdown
-3. Map input data from the current process to the sub-process
-4. The sub-process runs to completion, and its result is available as a variable
+2. Set `processId` to the target process ID (from the PUBLISHED PROCESSES list)
+3. Map input data from the current process to the sub-process using `inputMapping`
+4. Set `outputVariable` to store the sub-process result
+5. The sub-process runs to completion, and its result is available as a variable
 
 **Use case**: Reusable business processes (e.g., "Standard Approval Flow", "Document Review Process") that multiple workflows call.
+**Important**: The list of available published processes is provided dynamically. Only use process IDs from this list — never invent them.
 
 ## Node Type Quick Reference
 

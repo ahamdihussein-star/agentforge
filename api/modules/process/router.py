@@ -1574,6 +1574,42 @@ async def generate_workflow_from_goal(
     except Exception as e:
         print(f"⚠️  [Wizard] Failed to discover user attributes/identity: {e}")
     
+    # Discover published processes so the AI can suggest call_process nodes
+    try:
+        from database.services.agent_service import AgentService
+        all_agents = AgentService.get_all_agents(org_id=user_dict["org_id"])
+        published_processes = []
+        for ag in all_agents:
+            if (
+                ag.get("agent_type") == "process"
+                and ag.get("status") == "published"
+            ):
+                # Extract input fields from the process definition's start node
+                input_fields = []
+                proc_def = ag.get("process_definition")
+                if proc_def and isinstance(proc_def, dict):
+                    nodes = proc_def.get("nodes") or []
+                    for nd in nodes:
+                        if nd.get("type") in ("trigger", "start"):
+                            cfg = nd.get("config") or {}
+                            for fld in (cfg.get("fields") or []):
+                                input_fields.append({
+                                    "name": fld.get("name"),
+                                    "label": fld.get("label"),
+                                    "type": fld.get("type", "text"),
+                                    "required": fld.get("required", False),
+                                })
+                            break
+                published_processes.append({
+                    "id": ag.get("id"),
+                    "name": ag.get("name"),
+                    "description": ag.get("goal") or ag.get("description") or "",
+                    "input_fields": input_fields,
+                })
+        context["published_processes"] = published_processes
+    except Exception as e:
+        print(f"⚠️  [Wizard] Failed to discover published processes: {e}")
+    
     # Generate process
     wizard = ProcessWizard(llm=llm, org_settings=org_settings)
     

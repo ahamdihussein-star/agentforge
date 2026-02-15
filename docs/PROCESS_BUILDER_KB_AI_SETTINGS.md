@@ -1,4 +1,4 @@
-# Process Builder — AI Step Configuration (Instructions, Creativity, Confidence, Output Fields)
+# Process Builder — AI Step Configuration (Instructions, Creativity, Confidence, Output Fields) (v4)
 
 ## AI Node Config Schema
 
@@ -118,7 +118,8 @@ Controls how much the AI infers beyond the explicit data. Mapped to LLM temperat
 | 5 | Creative | 0.8 | Creative writing, brainstorming |
 
 ### Default values when generating:
-- Steps with `output_variable` (extraction/parsing): **creativity = 2** (Strict)
+- OCR/document extraction (after `read_document`): **creativity = 1** (Very strict — never hallucinate extracted data)
+- Other extraction/parsing steps with `output_variable`: **creativity = 2** (Strict)
 - General AI steps: **creativity = 3** (Balanced)
 
 ## Confidence (Integer 1-5)

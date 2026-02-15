@@ -169,21 +169,21 @@ Connection rules: MUST have exactly two outgoing edges — `type: "yes"` and `ty
 Execute multiple paths simultaneously. All connected next steps run at the same time.
 
 Config (`parallel.config`):
-- No user configuration needed — branches are automatically determined from the connections drawn on the canvas.
+- Branches are automatically determined from the connections drawn on the canvas — no manual branch configuration needed.
 - `merge_strategy` (string): `wait_all` (default — wait for all paths to finish) | `wait_any` (continue when any one path finishes).
 
 Usage: Connect this node to multiple next steps. All connected paths run simultaneously. The process continues when all paths complete (or any one, depending on strategy).
+Layout: Place parallel branches side by side horizontally, each branch offset by ±300px from the parallel node's x position.
 
 #### 11) Call Process — `call_process`
 Invoke another published process as a sub-step.
 
 Config (`call_process.config`):
-- `processId` (string): ID of the published process to invoke (selected from a dropdown in the UI).
-- `inputMapping` (object): Map current process data to the sub-process input fields.
-- `outputVariable` (string): Name for the sub-process output so other steps can use it.
+- `processId` (string): ID of the published process to invoke (selected from a dropdown in the UI). MUST match an ID from the platform's published processes list.
+- `inputMapping` (object): Map current process data to the sub-process input fields. Keys = sub-process field names, values = `{{currentProcessField}}` references.
+- `outputVariable` (string): Variable name to store the sub-process result so downstream steps can reference it.
 
-Optional:
-- `output_variable` (string): Store the sub-process result for later steps.
+Note: `outputVariable` (camelCase) is the visual builder config key. The normalization layer converts it to `output_variable` for the engine.
 
 ---
 
@@ -255,6 +255,12 @@ These shapes are NOT available in the palette but old saved processes that use t
 - NEVER invent, fabricate, or estimate values.
 - When multiple files are provided, aggregate data from ALL files.
 - AI `outputFields` MUST list every field that downstream steps reference.
+
+### Published Processes & call_process Rules
+- NEVER invent process IDs — only use IDs from the PUBLISHED PROCESSES list provided in the platform knowledge.
+- If no published processes are available, do NOT create `call_process` nodes.
+- When a user mentions calling or reusing another process by name, match it to the closest published process by name similarity.
+- `inputMapping` keys MUST match the sub-process input field names exactly.
 
 ### Identity & Recipient Rules
 - NEVER add form fields for manager email/name/ID — the engine resolves these automatically.

@@ -349,7 +349,7 @@ Node config rules:
   - For higher management (skip-level): assignee_source: "user_directory", directory_assignee_type: "management_chain", management_level: N (2=next level, 3=above that).
   - For role-based approval: assignee_source: "user_directory", directory_assignee_type: "role", role_ids: ["<role_id>"].
   - For group/team/committee approval: assignee_source: "user_directory", directory_assignee_type: "group", group_ids: ["<group_id>"].
-  - For department-wide: assignee_source: "user_directory", directory_assignee_type: "department_members", and set EITHER:
+  - For department-wide (all members of a department): assignee_source: "user_directory", directory_assignee_type: "department_members", and set EITHER:
       - assignee_department_name: "<department name>" (RECOMMENDED for LLM-generated workflows), OR
       - assignee_department_id: "<dept_id>".
   - For dynamic (form field selects approver): assignee_source: "user_directory", directory_assignee_type: "expression", expression: "{{{{ trigger_input.fieldName }}}}".
@@ -386,14 +386,20 @@ Node config rules:
     Use variable names that match the actual fields and AI output for the specific process being generated.
     NEVER leave template empty. ALWAYS write a complete, business-friendly notification message.
   CRITICAL: Every notification node MUST have a non-empty recipient and a non-empty template. The AI must fill both — they are NEVER left for the user to configure manually.
-- parallel.config: No user configuration needed. Connect the parallel node to multiple next steps — the platform auto-builds branches from the edges.
+- parallel.config: Connect the parallel node to multiple next steps — the platform auto-builds branches from the edges.
+  - Optional: merge_strategy ("wait_all" = wait for all paths, "wait_any" = continue when any finishes). Default: "wait_all".
   - Use parallel when the workflow needs to do multiple things at the same time (e.g., send a notification AND create a document simultaneously).
   - After the parallel paths complete, connect them back to a shared next node to continue the flow.
+  - LAYOUT: Place parallel branches side by side horizontally, each branch offset by ±300px from the parallel node's x position.
 
-- call_process.config must include: processId (ID of the published process to invoke).
+- call_process.config must include: processId (ID of the published process to invoke — MUST match an ID from the PUBLISHED PROCESSES list in the platform knowledge).
   - Use when the workflow should run another existing published process as a sub-step.
-  - Set output_variable to store the sub-process result.
-  - Example: call_process.config = { "processId": "<id>", "inputMapping": { "field1": "{{value1}}" } }
+  - Use when the user explicitly mentions calling, running, or reusing another process by name.
+  - ALSO use when part of the workflow duplicates logic that an existing published process already handles — prefer composition over duplication.
+  - inputMapping: map current process data to the sub-process input fields. Keys = sub-process field names, values = {{currentProcessField}} references.
+  - Set output_variable to store the sub-process result for downstream steps.
+  - If no published processes are available (PUBLISHED PROCESSES list is empty), do NOT create call_process nodes.
+  - Example: call_process.config = { "processId": "<id>", "inputMapping": { "field1": "{{{{value1}}}}" }, "outputVariable": "subResult" }
 
 - read_document.config MUST include: sourceField (the file field name from the Start form).
   - Set node.output_variable to store the extracted text (e.g., "extractedData").
@@ -403,7 +409,7 @@ Node config rules:
       - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
       - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
       - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
-      - MUST set temperature: 0.1 (low temperature for accurate data extraction — never hallucinate)
+      - MUST set creativity: 1 (very strict — for accurate data extraction, never hallucinate)
       - MUST set output_format: "json"
       - MUST set config.outputFields: an array of objects naming each data field the AI will produce.
         Each object has "label" (friendly display name) and "name" (camelCase key).
@@ -691,7 +697,7 @@ class ProcessWizard:
             query += "\n\nrecipient requester manager _user_context enrich runtime resolution identity_source"
             query += "\n\nlayout visual spacing connection lines nodes positioning end node branches"
             query += "\n\ntool toolId params integration external system api database knowledge_base matching"
-            query += "\n\nparallel call_process sub_process branches simultaneous"
+            query += "\n\nparallel call_process sub_process branches simultaneous published_processes composition reuse"
 
             platform_knowledge = retrieve_platform_knowledge(query, top_k=8, max_chars=6000)
         except Exception:
@@ -782,11 +788,50 @@ class ProcessWizard:
             )
             tools_summary_text = "\n".join(lines)
 
+        # Build published processes summary so the AI can use call_process nodes.
+        # This is CRITICAL: the AI must know what existing processes are available
+        # so it can invoke them via call_process nodes when the user's goal mentions
+        # reusing an existing process or when composition makes sense.
+        published_processes_text = ""
+        if additional_context and isinstance(additional_context, dict):
+            pub_procs = additional_context.get("published_processes")
+            if pub_procs and isinstance(pub_procs, list) and len(pub_procs) > 0:
+                lines = [
+                    "\n\nPUBLISHED PROCESSES (available to invoke via call_process nodes):",
+                    "When the user's goal mentions running, calling, or reusing an existing process, "
+                    "use a 'call_process' node with the matching process ID. "
+                    "Also use call_process when part of the workflow matches an existing published process — "
+                    "prefer composition over rebuilding the same logic."
+                ]
+                for i, pp in enumerate(pub_procs[:20], 1):
+                    pname = pp.get("name") or "Unnamed"
+                    pdesc = pp.get("description") or "(no description)"
+                    pid = pp.get("id") or ""
+                    inp_fields = pp.get("input_fields") or []
+                    if inp_fields:
+                        fields_str = ", ".join(
+                            f"{f.get('name')} ({f.get('type', 'text')})"
+                            for f in inp_fields[:10]
+                        )
+                    else:
+                        fields_str = "(no input fields)"
+                    lines.append(
+                        f"  {i}. \"{pname}\" (id: {pid})"
+                        f"\n     Description: {pdesc}"
+                        f"\n     Input fields: {fields_str}"
+                    )
+                lines.append(
+                    "  → To invoke: create a 'call_process' node with processId set to the process ID, "
+                    "and map input fields from current process data using inputMapping: { \"fieldName\": \"{{value}}\" }."
+                )
+                published_processes_text = "\n".join(lines)
+
         combined_knowledge = (
             (platform_knowledge or "(no KB matches)")
             + user_attrs_context
             + identity_context_text
             + tools_summary_text
+            + published_processes_text
         )
 
         user_prompt = VISUAL_BUILDER_GENERATION_PROMPT.format(

@@ -1,4 +1,4 @@
-# Process Builder Knowledge Base — Visual Layout Rules
+# Process Builder Knowledge Base — Visual Layout Rules (v4)
 
 These rules govern how the AI MUST position and connect nodes when generating a process diagram.
 The visual builder renders nodes as shapes on a canvas with connection lines between them.
@@ -59,12 +59,21 @@ Condition → Yes → Auto-Approval Notification ──→ End (single, at the v
   - Both paths should eventually reconverge to a shared node (notification, end, etc.) placed below both branches on the center axis.
 - Both branches should have roughly equal vertical depth before reconverging.
 
+## Rule 7: Parallel Branch Layout
+
+- When a parallel node splits into multiple simultaneous paths:
+  - Each branch should be offset horizontally: first branch at x - 300, second at center, third at x + 300, etc.
+  - All branches start at the same y level (below the parallel node).
+  - All branches eventually reconverge to a shared next node placed below all branches at center x.
+- This creates a clear visual representation of simultaneous execution.
+
 ## Summary for AI Generation
 
 When generating the nodes array with x/y positions:
 1. Start node: center top (e.g., x=400, y=100)
 2. Sequential nodes: same x, increase y by ~200 each
-3. Condition branches: offset x by ±300, same y level for parallel nodes
-4. Reconvergence node: back to center x, y below both branches
-5. End node: center x, y well below everything else (at least 200px gap from the last node)
-6. ALWAYS ensure the "end" node is the LAST entry in the nodes array
+3. Condition branches: offset x by ±300, same y level for branching nodes
+4. Parallel branches: offset each branch by ±300 horizontally, same y level
+5. Reconvergence node: back to center x, y below both/all branches
+6. End node: center x, y well below everything else (at least 200px gap from the last node)
+7. ALWAYS ensure the "end" node is the LAST entry in the nodes array
