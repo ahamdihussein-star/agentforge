@@ -215,6 +215,10 @@ IMPORTANT:
   - For iteration/repetition scenarios, use an "ai" node that handles the iteration internally.
   - For waiting/delays, the platform handles timing through approval timeouts and schedule triggers.
 - Always include exactly ONE start node of type "trigger".
+- The "trigger" node defines HOW the process starts (manual, schedule, or webhook) — it does NOT have form fields.
+  - For manual processes that need user input: place a "form" (Collect Information) node immediately after the trigger.
+  - For scheduled processes (data sync, reports, cleanup, API imports): do NOT add a form node — connect the trigger directly to action nodes.
+  - For webhook-triggered processes: the incoming data is available as variables; add a form node only if additional human input is needed.
 - Always include at least ONE "end" node.
 - If you include a "condition" node, you MUST create exactly two outgoing edges from it:
   - one with type "yes"
@@ -233,12 +237,16 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
 - Always ask yourself: "In a real office, what would happen first?" and design the flow accordingly.
 - Smart field inference:
   - Use your business/industry knowledge to determine what fields are needed, even if the user didn't list them explicitly. Think like a business analyst: what information would a real-world form for this process collect? Add those fields.
-  - IMPORTANT: Do NOT limit the form to only what the user explicitly mentioned. If the user says "upload expense receipts", you should ALSO add fields like expense description/purpose, expense category (dropdown), date of expense, etc. — any field that is standard practice for that type of business process. But do NOT add fields for data that will be extracted automatically (e.g., amounts from receipts) or data from the user's profile (prefilled).
+  - IMPORTANT: Do NOT limit the Collect Information form to only what the user explicitly mentioned. If the user says "upload expense receipts", you should ALSO add fields like expense description/purpose, expense category (dropdown), date of expense, etc. — any field that is standard practice for that type of business process. But do NOT add fields for data that will be extracted automatically (e.g., amounts from receipts) or data from the user's profile (prefilled).
   - For dropdowns: ALWAYS populate options using your business/industry knowledge. You are an expert — if a field needs categories, priorities, types, statuses, or any standard list, YOU define a comprehensive and practical list of options. Only use organization-specific data (department names, employee lists, product catalogs unique to one company) from tools or the Knowledge Base, never from your general knowledge. But for universal/industry-standard options (expense categories, leave types, priority levels, currencies, etc.), YOU are the source of truth — populate them confidently.
   - For auto-fill: ANY field that matches user profile data (name, email, phone, department, job title, employee ID, manager) MUST use prefill with readOnly:true. Never ask the user to type what the system knows.
   - For derived fields: only use formulas supported by the Knowledge Base (daysBetween, concat, sum, round).
   - For data flow: store AI/tool outputs in variables and reference them in later steps (notifications, conditions, etc.).
 - Scheduling and webhooks are configured on the Start node via `trigger.config.triggerType` (do NOT create separate schedule/webhook nodes).
+- The trigger node is ONLY for how the process starts — do NOT put form fields on it.
+  - Manual processes: trigger → form (Collect Information) → action steps → end
+  - Scheduled processes: trigger → action steps (tool/AI/read_document/etc.) → end
+  - Webhook processes: trigger → action steps → end
 
 VISUAL LAYOUT RULES (CRITICAL — follow strictly for clean, professional diagrams):
 - Connection lines must NEVER pass through any node. Ensure enough spacing so edges route cleanly around nodes.
@@ -1126,8 +1134,9 @@ class ProcessWizard:
                     n["name"] = n.get("name") or "AI Task"
                     n.setdefault("config", {})
 
-            # Ensure trigger fields are present and non-empty for a usable run form
-            start = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
+            # Normalize trigger node — Start defines HOW the process begins, not form fields.
+            # If the AI placed fields in the trigger, migrate them to the first form node (or create one).
+            start = next((n for n in normalized_nodes if n.get("type") == "trigger"), None)
             if start:
                 cfg = start.get("config") if isinstance(start.get("config"), dict) else {}
                 # triggerType: manual (default), schedule, webhook
@@ -1136,40 +1145,99 @@ class ProcessWizard:
                     ttype = "manual"
                 cfg["triggerType"] = ttype
 
-                fields = cfg.get("fields")
-                if ttype == "manual":
-                    if not isinstance(fields, list) or len(fields) == 0:
-                        cfg["fields"] = [{"name": "details", "label": "Details", "type": "text", "required": True, "placeholder": "Enter details..."}]
-                    else:
-                        # Ensure business-friendly labels and sane defaults
-                        for f in fields:
-                            if not isinstance(f, dict):
-                                continue
-                            fname = str(f.get("name") or f.get("id") or "").strip()
-                            if fname and not f.get("label"):
-                                f["label"] = _humanize_label(fname) or fname
-                            ftype = str(f.get("type") or "text").strip().lower()
-                            if ftype == "select" and "options" not in f:
-                                f["options"] = []
-                            if not f.get("placeholder") and f.get("label"):
-                                f["placeholder"] = f"Enter {f.get('label')}"
-                else:
-                    # For schedule/webhook, form fields are optional
-                    if not isinstance(fields, list):
-                        cfg["fields"] = []
-                    if ttype == "schedule":
-                        if not cfg.get("cron"):
-                            cfg["cron"] = "0 9 * * *"
-                        if not cfg.get("timezone"):
-                            cfg["timezone"] = "UTC"
-                    if ttype == "webhook":
-                        if not cfg.get("method"):
-                            cfg["method"] = "POST"
-                        if not cfg.get("path"):
-                            cfg["path"] = "/trigger"
-                if not cfg.get("triggerType"):
-                    cfg["triggerType"] = "manual"
+                # Migrate any fields placed on trigger to a form node (backward compat + AI correction)
+                trigger_fields = cfg.pop("fields", None)
+                cfg.pop("formTitle", None)
+                cfg.pop("submitText", None)
+
+                if ttype == "schedule":
+                    if not cfg.get("cron"):
+                        cfg["cron"] = "0 9 * * *"
+                    if not cfg.get("timezone"):
+                        cfg["timezone"] = "UTC"
+                    if not cfg.get("_schedFreq"):
+                        cfg["_schedFreq"] = "daily"
+                    if not cfg.get("_schedTime"):
+                        cfg["_schedTime"] = "09:00"
+                elif ttype == "webhook":
+                    if not cfg.get("method"):
+                        cfg["method"] = "POST"
+                    if not cfg.get("webhookAuth"):
+                        cfg["webhookAuth"] = "api_key"
+
                 start["config"] = cfg
+
+                # If trigger had fields and it's a manual process, ensure a form node exists
+                if trigger_fields and isinstance(trigger_fields, list) and len(trigger_fields) > 0 and ttype == "manual":
+                    # Check if there's already a form node right after the trigger
+                    existing_form = next((n for n in normalized_nodes if n.get("type") == "form"), None)
+                    if existing_form:
+                        # Merge fields into existing form node (avoid duplicates)
+                        ecfg = existing_form.get("config") if isinstance(existing_form.get("config"), dict) else {}
+                        existing_fields = ecfg.get("fields") or []
+                        existing_names = {f.get("name") for f in existing_fields if f.get("name")}
+                        for tf in trigger_fields:
+                            if isinstance(tf, dict) and tf.get("name") and tf["name"] not in existing_names:
+                                existing_fields.append(tf)
+                        ecfg["fields"] = existing_fields
+                        existing_form["config"] = ecfg
+                    else:
+                        # Create a form node after the trigger
+                        import uuid as _uuid
+                        form_id = "form_" + str(_uuid.uuid4())[:8]
+                        form_node = {
+                            "id": form_id,
+                            "type": "form",
+                            "name": "Collect Information",
+                            "config": {
+                                "formTitle": "Request details",
+                                "submitText": "Submit",
+                                "fields": trigger_fields,
+                            },
+                            "position": {
+                                "x": start.get("position", {}).get("x", 400),
+                                "y": start.get("position", {}).get("y", 100) + 200,
+                            },
+                        }
+                        # Insert form node right after trigger
+                        trigger_idx = normalized_nodes.index(start)
+                        normalized_nodes.insert(trigger_idx + 1, form_node)
+                        # Re-wire: find edge from trigger → first_next and insert form in between
+                        start_id = start.get("id")
+                        for edge in normalized_edges:
+                            if edge.get("source") == start_id:
+                                original_target = edge["target"]
+                                edge["target"] = form_id
+                                # Add new edge from form to original target
+                                normalized_edges.append({
+                                    "id": "e_" + form_id + "_" + original_target,
+                                    "source": form_id,
+                                    "target": original_target,
+                                    "type": "default",
+                                })
+                                break
+
+            # Normalize form nodes: ensure fields have proper labels and defaults
+            for fn in normalized_nodes:
+                if fn.get("type") != "form":
+                    continue
+                fcfg = fn.get("config") if isinstance(fn.get("config"), dict) else {}
+                fields = fcfg.get("fields")
+                if isinstance(fields, list):
+                    for f in fields:
+                        if not isinstance(f, dict):
+                            continue
+                        fname = str(f.get("name") or f.get("id") or "").strip()
+                        if fname and not f.get("label"):
+                            f["label"] = _humanize_label(fname) or fname
+                        ftype = str(f.get("type") or "text").strip().lower()
+                        if ftype == "select" and "options" not in f:
+                            f["options"] = []
+                        if not f.get("placeholder") and f.get("label"):
+                            f["placeholder"] = f"Enter {f.get('label')}"
+                elif fcfg.get("fields") is None:
+                    fcfg["fields"] = []
+                fn["config"] = fcfg
 
         # Identity-resolved fields that should NOT appear in forms
         # (the engine resolves these automatically from the configured identity directory)
@@ -1177,8 +1245,10 @@ class ProcessWizard:
                                  "manager_email", "manager_name", "manager_id",
                                  "supervisoremail", "supervisorname"}
 
-        # Normalize trigger field keys to lowerCamelCase and rewrite {{refs}} across nodes
-        start = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
+        # Normalize form field keys to lowerCamelCase and rewrite {{refs}} across nodes
+        # Fields now live on form nodes only (not trigger), but check both for backward compat
+        start = next((n for n in normalized_nodes if n.get("type") == "form"), None) or \
+                next((n for n in normalized_nodes if n.get("type") in ("trigger",) and isinstance((n.get("config") or {}).get("fields"), list)), None)
         if start and isinstance(start.get("config"), dict):
             cfg = start["config"]
             fields = cfg.get("fields") if isinstance(cfg.get("fields"), list) else []

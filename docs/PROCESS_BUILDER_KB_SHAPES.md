@@ -17,37 +17,30 @@ The LLM MUST only use node types listed here. Do NOT invent unsupported nodes or
 
 #### 1) Start — `trigger`
 How the process begins. Every workflow MUST have exactly ONE start node.
+The Start node defines HOW the process is triggered — it does NOT collect form input.
+To collect user input, use a **Collect Information** (`form`) step after the Start.
 
 Start modes (`trigger.config.triggerType`):
-- `manual` — Someone fills a form to start
-- `schedule` — Runs automatically on a schedule
-- `webhook` — Triggered from another system
+- `manual` — A person starts the process manually (optionally followed by a Collect Information step for form input).
+- `schedule` — Runs automatically on a recurring schedule (e.g., daily reports, data syncs, cleanup tasks, API imports).
+- `webhook` — Triggered by an external system via API call (e.g., CRM events, form submissions from external sites).
 
 Config properties:
-- `formTitle` (string): Title shown above the form.
-- `submitText` (string): Submit button label.
-- `fields` (array): Input fields (required for `manual`). See **Field Schema** below.
-- `cron` (string): Cron expression (for `schedule` mode — UI converts from visual picker).
-- `timezone` (string): Timezone (e.g., `UTC`, `Asia/Dubai`).
-- `method` (string): HTTP method (for `webhook` — auto-defaults to POST).
-- `path` (string): Webhook endpoint path.
+- `triggerType` (string, required): `manual` | `schedule` | `webhook`.
 
-**Field Schema** (each item in `fields`):
-- `name` (string, lowerCamelCase): Internal key used in `{{name}}` references.
-- `label` (string): Business-friendly label shown to the user.
-- `type`: `text` | `textarea` | `number` | `date` | `email` | `select` | `file`
-- `required` (boolean)
-- `placeholder` (string): Hint text.
-- `options` (array of strings): For `select` type.
-- `optionsSource` (string): `taxonomy:<id>` or `tool:<toolId>`.
-- `readOnly` (boolean): For auto-filled or calculated fields.
-- `derived` (object): `{ "expression": "<formula>" }` for calculated fields.
-- `prefill` (object): `{ "source": "currentUser", "key": "<attribute>" }` for profile auto-fill.
-  The prefill system is FULLY DYNAMIC — any attribute from the user's identity source is available.
-  Common keys: `name`, `email`, `phone`, `jobTitle`, `employeeId`, `departmentName`, `managerName`, `managerEmail`, plus any custom attributes configured in the organization's HR/LDAP.
-- `multiple` (boolean): For `file` type — allow multiple uploads.
+**Schedule mode** additional config:
+- `cron` (string): Cron expression (the UI converts from a visual picker).
+- `timezone` (string): e.g., `UTC`, `Africa/Cairo`, `Asia/Dubai`, `America/New_York`.
+- `_schedFreq` (string): Visual frequency (`hourly`, `daily`, `weekdays`, `weekly`, `monthly`, `custom`).
+- `_schedTime` (string): Time in HH:MM format.
+- `_schedDay` (string): Day of week 0-6 (for weekly).
+- `_schedDate` (string): Day of month 1-28 or `L` (for monthly).
 
-Derived expressions: `daysBetween(a, b)`, `concat(a, " ", b)`, `sum(a, b)`, `round(val, dec)`.
+**Webhook mode** additional config:
+- `method` (string): HTTP method (`POST`, `GET`, `PUT`).
+- `webhookAuth` (string): Authentication (`api_key`, `bearer`, `none`).
+
+**IMPORTANT**: The Start node does NOT have form `fields`. All form input collection belongs in the `form` (Collect Information) shape.
 
 #### 2) Finish — `end`
 Process complete. Every workflow MUST have at least ONE finish node.
@@ -147,11 +140,31 @@ When `assignee_source` is `user_directory`:
 - `role_ids` / `group_ids` (array): For role/group resolution.
 
 #### 8) Collect Information — `form`
-Pause the process and ask someone to fill a form.
+Pause the process and show a form to collect information from a person.
+This is the ONLY shape for collecting user input. Use it right after Start for initial data, or mid-workflow for additional information.
 
 Config (`form.config`):
-- `fields` (array): Same field schema as Start trigger fields.
+- `formTitle` (string): Title shown above the form.
+- `submitText` (string): Submit button label (default: "Submit").
+- `fields` (array): Input fields. See **Field Schema** below.
 - `assignee` (string): Who should fill this form (requester, manager, specific user).
+
+**Field Schema** (each item in `fields`):
+- `name` (string, lowerCamelCase): Internal key used in `{{name}}` references.
+- `label` (string): Business-friendly label shown to the user.
+- `type`: `text` | `textarea` | `number` | `date` | `email` | `select` | `file`
+- `required` (boolean)
+- `placeholder` (string): Hint text.
+- `options` (array of strings): For `select` type.
+- `optionsSource` (string): `taxonomy:<id>` or `tool:<toolId>`.
+- `readOnly` (boolean): For auto-filled or calculated fields.
+- `derived` (object): `{ "expression": "<formula>" }` for calculated fields.
+- `prefill` (object): `{ "source": "currentUser", "key": "<attribute>" }` for profile auto-fill.
+  The prefill system is FULLY DYNAMIC — any attribute from the user's identity source is available.
+  Common keys: `name`, `email`, `phone`, `jobTitle`, `employeeId`, `departmentName`, `managerName`, `managerEmail`, plus any custom attributes.
+- `multiple` (boolean): For `file` type — allow multiple uploads.
+
+Derived expressions: `daysBetween(a, b)`, `concat(a, " ", b)`, `sum(a, b)`, `round(val, dec)`.
 
 ---
 
@@ -162,7 +175,7 @@ Route the workflow based on a yes/no condition.
 
 Config (`condition.config`):
 - `field` (string): The field or variable to evaluate.
-- `operator`: `equals` | `not_equals` | `greater_than` | `less_than` | `contains` | `is_empty`
+- `operator`: `equals` | `not_equals` | `greater_than` | `less_than` | `contains` | `not_contains` | `starts_with` | `is_empty` | `is_not_empty`
 - `value` (string|number): The value to compare against.
 
 Connection rules: MUST have exactly two outgoing edges — `type: "yes"` and `type: "no"`.
@@ -222,8 +235,8 @@ Optional:
 
 | Need | Shape |
 |------|-------|
-| Collect input at start | Start (with fields) |
-| Collect input mid-workflow | Collect Information |
+| Collect input from a person | Collect Information |
+| Run process on a timer | Start (scheduled) |
 | Yes/no decision | Decision |
 | Run steps simultaneously | Run in Parallel |
 | Invoke another process | Call Process |

@@ -684,7 +684,7 @@
         
         function getNodeConfig(type, toolId = null) {
             const configs = {
-                trigger: { name: 'Start', config: { triggerType: 'manual', formTitle: 'Request details', submitText: 'Submit', fields: [] } },
+                trigger: { name: 'Start', config: { triggerType: 'manual' } },
                 schedule: { name: 'Schedule', config: { cron: '0 9 * * *', timezone: 'UTC' } },
                 webhook: { name: 'Webhook', config: { method: 'POST', path: '/trigger' } },
                 action: { name: 'Action', config: { description: '', actionType: 'custom' } },
@@ -1011,11 +1011,22 @@
                 case 'notification':
                     html = `<div class="node-config-item"><span class="config-label">Channel</span><span class="config-value">${cfg.channel || 'email'}</span></div>`;
                     break;
-                case 'form':
-                case 'trigger':
+                case 'trigger': {
+                    const _tt = cfg.triggerType || 'manual';
+                    const _ttLabels = {manual: 'Manual start', schedule: 'Runs on schedule', webhook: 'API / Webhook'};
+                    html = `<div class="node-config-item"><span class="config-label">Trigger</span><span class="config-value">${_ttLabels[_tt] || 'Manual start'}</span></div>`;
+                    if (_tt === 'schedule') {
+                        const _sf = cfg._schedFreq || 'daily';
+                        const _sfLabels = {daily:'Daily',weekdays:'Weekdays',weekly:'Weekly',monthly:'Monthly',hourly:'Every hour',custom:'Custom'};
+                        html += `<div class="node-config-item"><span class="config-label">Runs</span><span class="config-value">${_sfLabels[_sf] || _sf}${cfg._schedTime ? ' at ' + cfg._schedTime : ''}</span></div>`;
+                    }
+                    break;
+                }
+                case 'form': {
                     const fieldCount = (cfg.fields || []).length;
                     html = `<div class="node-config-item"><span class="config-label">Fields</span><span class="config-value">${fieldCount} input${fieldCount !== 1 ? 's' : ''}</span></div>`;
                     break;
+                }
                 case 'schedule':
                     html = `<div class="node-config-item"><span class="config-label">Cron</span><span class="config-value">${cfg.cron || '0 9 * * *'}</span></div>`;
                     break;
@@ -3493,77 +3504,170 @@
                     break;
                 }
                 
-                case 'form':
-                case 'trigger':
-                    // Form fields editor
-                    const fields = node.config.fields || [];
+                case 'trigger': {
+                    // ── Start shape: HOW the process begins (no form fields here) ──
                     const triggerType = (node.config.triggerType || 'manual');
                     html += `
-                        ${node.type === 'trigger' ? `
                         <div class="property-group">
                             <label class="property-label">How does this process start?</label>
-                            <select class="property-select" onchange="setTriggerType('${node.id}', this.value)">
-                                <option value="manual" ${triggerType === 'manual' ? 'selected' : ''}>Someone fills a form</option>
-                                <option value="schedule" ${triggerType === 'schedule' ? 'selected' : ''}>Runs on a schedule</option>
-                                <option value="webhook" ${triggerType === 'webhook' ? 'selected' : ''}>Triggered from another system</option>
+                            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+                                <label class="trigger-type-card" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;cursor:pointer;border:2px solid ${triggerType === 'manual' ? 'var(--pb-primary)' : 'color-mix(in srgb,var(--pb-border) 60%,transparent)'};background:${triggerType === 'manual' ? 'color-mix(in srgb,var(--pb-primary) 8%,transparent)' : 'transparent'};transition:all 0.15s;">
+                                    <input type="radio" name="triggerType-${node.id}" value="manual" ${triggerType === 'manual' ? 'checked' : ''} onchange="setTriggerType('${node.id}', 'manual')" style="display:none;">
+                                    <span style="font-size:22px;">👤</span>
+                                    <div>
+                                        <div style="font-size:13px;font-weight:600;color:var(--pb-text);">Manual start</div>
+                                        <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">A person triggers this process (with or without a form)</div>
+                                    </div>
+                                </label>
+                                <label class="trigger-type-card" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;cursor:pointer;border:2px solid ${triggerType === 'schedule' ? 'var(--pb-primary)' : 'color-mix(in srgb,var(--pb-border) 60%,transparent)'};background:${triggerType === 'schedule' ? 'color-mix(in srgb,var(--pb-primary) 8%,transparent)' : 'transparent'};transition:all 0.15s;">
+                                    <input type="radio" name="triggerType-${node.id}" value="schedule" ${triggerType === 'schedule' ? 'checked' : ''} onchange="setTriggerType('${node.id}', 'schedule')" style="display:none;">
+                                    <span style="font-size:22px;">🕐</span>
+                                    <div>
+                                        <div style="font-size:13px;font-weight:600;color:var(--pb-text);">Scheduled</div>
+                                        <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">Runs automatically on a recurring schedule</div>
+                                    </div>
+                                </label>
+                                <label class="trigger-type-card" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;cursor:pointer;border:2px solid ${triggerType === 'webhook' ? 'var(--pb-primary)' : 'color-mix(in srgb,var(--pb-border) 60%,transparent)'};background:${triggerType === 'webhook' ? 'color-mix(in srgb,var(--pb-primary) 8%,transparent)' : 'transparent'};transition:all 0.15s;">
+                                    <input type="radio" name="triggerType-${node.id}" value="webhook" ${triggerType === 'webhook' ? 'checked' : ''} onchange="setTriggerType('${node.id}', 'webhook')" style="display:none;">
+                                    <span style="font-size:22px;">🔗</span>
+                                    <div>
+                                        <div style="font-size:13px;font-weight:600;color:var(--pb-text);">API / Webhook</div>
+                                        <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">Triggered by an external system via API call</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        ${triggerType === 'manual' ? `
+                        <div style="padding:12px;background:color-mix(in srgb,var(--pb-primary) 6%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 18%,transparent);border-radius:10px;">
+                            <div style="font-size:12px;color:var(--pb-text);line-height:1.6;">
+                                <strong>💡 Tip:</strong> If you need to collect information from the user, connect the Start to a <strong>Collect Information</strong> step.
+                                The Start step itself just marks the beginning of the process.
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${triggerType === 'schedule' ? `
+                        <div class="property-group">
+                            <label class="property-label">How often should it run?</label>
+                            <select class="property-select" id="sched-freq-${node.id}" onchange="updateScheduleFromPicker('${node.id}')">
+                                <option value="hourly" ${(node.config._schedFreq) === 'hourly' ? 'selected' : ''}>Every hour</option>
+                                <option value="daily" ${(node.config._schedFreq || 'daily') === 'daily' ? 'selected' : ''}>Every day</option>
+                                <option value="weekdays" ${(node.config._schedFreq) === 'weekdays' ? 'selected' : ''}>Every weekday (Mon–Fri)</option>
+                                <option value="weekly" ${(node.config._schedFreq) === 'weekly' ? 'selected' : ''}>Every week</option>
+                                <option value="monthly" ${(node.config._schedFreq) === 'monthly' ? 'selected' : ''}>Every month</option>
+                                <option value="custom" ${(node.config._schedFreq) === 'custom' ? 'selected' : ''}>Custom (cron)</option>
                             </select>
                         </div>
-                        ` : `
-                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-bottom:12px;">
-                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
-                                This step pauses the process and asks someone to fill in a form before continuing.
+                        ${(node.config._schedFreq || 'daily') !== 'hourly' && (node.config._schedFreq || 'daily') !== 'custom' ? `
+                        <div class="property-group">
+                            <label class="property-label">At what time?</label>
+                            <input type="time" class="property-input" id="sched-time-${node.id}" value="${node.config._schedTime || '09:00'}" onchange="updateScheduleFromPicker('${node.id}')">
+                        </div>
+                        ` : ''}
+                        ${(node.config._schedFreq) === 'weekly' ? `
+                        <div class="property-group">
+                            <label class="property-label">On which day?</label>
+                            <select class="property-select" id="sched-day-${node.id}" onchange="updateScheduleFromPicker('${node.id}')">
+                                <option value="1" ${(node.config._schedDay || '1') === '1' ? 'selected' : ''}>Monday</option>
+                                <option value="2" ${(node.config._schedDay) === '2' ? 'selected' : ''}>Tuesday</option>
+                                <option value="3" ${(node.config._schedDay) === '3' ? 'selected' : ''}>Wednesday</option>
+                                <option value="4" ${(node.config._schedDay) === '4' ? 'selected' : ''}>Thursday</option>
+                                <option value="5" ${(node.config._schedDay) === '5' ? 'selected' : ''}>Friday</option>
+                                <option value="6" ${(node.config._schedDay) === '6' ? 'selected' : ''}>Saturday</option>
+                                <option value="0" ${(node.config._schedDay) === '0' ? 'selected' : ''}>Sunday</option>
+                            </select>
+                        </div>
+                        ` : ''}
+                        ${(node.config._schedFreq) === 'monthly' ? `
+                        <div class="property-group">
+                            <label class="property-label">On which date?</label>
+                            <select class="property-select" id="sched-date-${node.id}" onchange="updateScheduleFromPicker('${node.id}')">
+                                <option value="1" ${(node.config._schedDate || '1') === '1' ? 'selected' : ''}>1st of the month</option>
+                                <option value="15" ${(node.config._schedDate) === '15' ? 'selected' : ''}>15th of the month</option>
+                                <option value="L" ${(node.config._schedDate) === 'L' ? 'selected' : ''}>Last day of the month</option>
+                            </select>
+                        </div>
+                        ` : ''}
+                        ${(node.config._schedFreq) === 'custom' ? `
+                        <div class="property-group">
+                            <label class="property-label">Cron expression</label>
+                            <input type="text" class="property-input" placeholder="0 9 * * *"
+                                   value="${escapeHtml(node.config.cron || '0 9 * * *')}"
+                                   onchange="updateNodeConfig('${node.id}', 'cron', this.value)">
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                Format: minute hour day month weekday. Example: <code>0 9 * * 1-5</code> = 9 AM every weekday.
                             </div>
                         </div>
-                        `}
-                        
-                        ${triggerType === 'schedule' ? `
-                            <div class="property-group">
-                                <label class="property-label">When should it run?</label>
-                                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                                    <span style="font-size:12px;color:var(--pb-muted);">Every</span>
-                                    <select class="property-select" style="width:auto;flex:1;" id="sched-freq-${node.id}" onchange="updateScheduleFromPicker('${node.id}')">
-                                        <option value="daily" ${(node.config._schedFreq || 'daily') === 'daily' ? 'selected' : ''}>Day</option>
-                                        <option value="weekly" ${(node.config._schedFreq) === 'weekly' ? 'selected' : ''}>Week</option>
-                                        <option value="monthly" ${(node.config._schedFreq) === 'monthly' ? 'selected' : ''}>Month</option>
-                                        <option value="hourly" ${(node.config._schedFreq) === 'hourly' ? 'selected' : ''}>Hour</option>
-                                    </select>
-                                    <span style="font-size:12px;color:var(--pb-muted);">at</span>
-                                    <input type="time" class="property-input" style="width:auto;" id="sched-time-${node.id}" value="${node.config._schedTime || '09:00'}" onchange="updateScheduleFromPicker('${node.id}')">
-                                </div>
-                            </div>
-                            <div class="property-group">
-                                <label class="property-label">Timezone</label>
-                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'timezone', this.value)">
-                                    <option value="UTC" ${(node.config.timezone || 'UTC') === 'UTC' ? 'selected' : ''}>UTC</option>
-                                    <option value="Africa/Cairo" ${(node.config.timezone || '') === 'Africa/Cairo' ? 'selected' : ''}>Cairo</option>
-                                    <option value="Asia/Dubai" ${(node.config.timezone || '') === 'Asia/Dubai' ? 'selected' : ''}>Dubai</option>
-                                    <option value="Europe/London" ${(node.config.timezone || '') === 'Europe/London' ? 'selected' : ''}>London</option>
-                                    <option value="America/New_York" ${(node.config.timezone || '') === 'America/New_York' ? 'selected' : ''}>New York</option>
-                                    <option value="America/Los_Angeles" ${(node.config.timezone || '') === 'America/Los_Angeles' ? 'selected' : ''}>Los Angeles</option>
-                                    <option value="Asia/Tokyo" ${(node.config.timezone || '') === 'Asia/Tokyo' ? 'selected' : ''}>Tokyo</option>
-                                    <option value="Europe/Paris" ${(node.config.timezone || '') === 'Europe/Paris' ? 'selected' : ''}>Paris</option>
-                                </select>
-                            </div>
-                            <details style="margin-top:4px;">
-                                <summary style="font-size:11px;color:var(--pb-muted);cursor:pointer;">Advanced: Edit cron expression</summary>
-                                <input type="text" class="property-input" style="margin-top:6px;" placeholder="0 9 * * *"
-                                       value="${escapeHtml(node.config.cron || '0 9 * * *')}"
-                                       onchange="updateNodeConfig('${node.id}', 'cron', this.value)">
-                            </details>
                         ` : ''}
-                        
+                        <div class="property-group">
+                            <label class="property-label">Timezone</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'timezone', this.value)">
+                                <option value="UTC" ${(node.config.timezone || 'UTC') === 'UTC' ? 'selected' : ''}>UTC</option>
+                                <option value="Africa/Cairo" ${(node.config.timezone) === 'Africa/Cairo' ? 'selected' : ''}>Cairo (EET)</option>
+                                <option value="Asia/Riyadh" ${(node.config.timezone) === 'Asia/Riyadh' ? 'selected' : ''}>Riyadh (AST)</option>
+                                <option value="Asia/Dubai" ${(node.config.timezone) === 'Asia/Dubai' ? 'selected' : ''}>Dubai (GST)</option>
+                                <option value="Europe/London" ${(node.config.timezone) === 'Europe/London' ? 'selected' : ''}>London (GMT/BST)</option>
+                                <option value="Europe/Paris" ${(node.config.timezone) === 'Europe/Paris' ? 'selected' : ''}>Paris (CET)</option>
+                                <option value="America/New_York" ${(node.config.timezone) === 'America/New_York' ? 'selected' : ''}>New York (EST)</option>
+                                <option value="America/Chicago" ${(node.config.timezone) === 'America/Chicago' ? 'selected' : ''}>Chicago (CST)</option>
+                                <option value="America/Los_Angeles" ${(node.config.timezone) === 'America/Los_Angeles' ? 'selected' : ''}>Los Angeles (PST)</option>
+                                <option value="Asia/Tokyo" ${(node.config.timezone) === 'Asia/Tokyo' ? 'selected' : ''}>Tokyo (JST)</option>
+                                <option value="Asia/Singapore" ${(node.config.timezone) === 'Asia/Singapore' ? 'selected' : ''}>Singapore (SGT)</option>
+                                <option value="Australia/Sydney" ${(node.config.timezone) === 'Australia/Sydney' ? 'selected' : ''}>Sydney (AEST)</option>
+                            </select>
+                        </div>
+                        <div style="padding:10px 12px;background:color-mix(in srgb,#22c55e 8%,transparent);border:1px solid color-mix(in srgb,#22c55e 20%,transparent);border-radius:10px;margin-top:4px;">
+                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                <strong>📌 Best for:</strong> Report generation, data sync, system checks, cleanup tasks, API data imports, recurring notifications.
+                            </div>
+                        </div>
+                        ` : ''}
+
                         ${triggerType === 'webhook' ? `
-                            <div class="property-group">
-                                <label class="property-label">Webhook URL</label>
-                                <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                    The platform will generate a URL that other systems can call to start this process.
-                                </div>
-                                <input type="text" class="property-input" readonly placeholder="Will be generated after saving"
-                                       value="${escapeHtml(node.config.path || '/trigger')}" style="opacity:0.7;">
+                        <div class="property-group">
+                            <label class="property-label">Webhook endpoint</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                An external system will call this URL to start the process. The URL is generated after you save.
                             </div>
+                            <input type="text" class="property-input" readonly placeholder="Auto-generated after saving"
+                                   value="${escapeHtml(node.config.webhookUrl || '')}" style="opacity:0.7;">
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">HTTP method</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'method', this.value)">
+                                <option value="POST" ${(node.config.method || 'POST') === 'POST' ? 'selected' : ''}>POST</option>
+                                <option value="GET" ${(node.config.method) === 'GET' ? 'selected' : ''}>GET</option>
+                                <option value="PUT" ${(node.config.method) === 'PUT' ? 'selected' : ''}>PUT</option>
+                            </select>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Authentication</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'webhookAuth', this.value)">
+                                <option value="api_key" ${(node.config.webhookAuth || 'api_key') === 'api_key' ? 'selected' : ''}>API Key (auto-generated)</option>
+                                <option value="bearer" ${(node.config.webhookAuth) === 'bearer' ? 'selected' : ''}>Bearer Token</option>
+                                <option value="none" ${(node.config.webhookAuth) === 'none' ? 'selected' : ''}>None (public)</option>
+                            </select>
+                        </div>
+                        <div style="padding:10px 12px;background:color-mix(in srgb,#3b82f6 8%,transparent);border:1px solid color-mix(in srgb,#3b82f6 20%,transparent);border-radius:10px;margin-top:4px;">
+                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                <strong>📌 Best for:</strong> Integration with external systems, event-driven workflows, CRM/ERP triggers, form submissions from external websites.
+                            </div>
+                        </div>
                         ` : ''}
-                        
-                        ${triggerType === 'manual' ? `
+                    `;
+                    break;
+                }
+
+                case 'form': {
+                    // ── Collect Information: full form builder ──
+                    const fields = node.config.fields || [];
+                    html += `
+                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-bottom:12px;">
+                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                This step pauses the process and shows a form to collect information from a person before continuing.
+                            </div>
+                        </div>
                         <div class="property-group">
                             <label class="property-label">Form title</label>
                             <input type="text" class="property-input" placeholder="e.g., Submit Expense Report" 
@@ -3620,7 +3724,7 @@
                                                 ${buildProfileFieldOptions(f.prefill)}
                                             </select>
                                             <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
-                                                Auto-fill this field with the logged-in user's profile information. The user won't need to type it.
+                                                Auto-fill this field with the logged-in user's profile information.
                                             </div>
                                         </div>
                                         
@@ -3631,9 +3735,6 @@
                                                            onchange="updateFormField('${node.id}', ${idx}, 'multiple', this.checked)">
                                                     Allow multiple files
                                                 </label>
-                                                <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
-                                                    When enabled, the user can upload more than one file at a time.
-                                                </div>
                                             </div>
                                         ` : ''}
                                         
@@ -3673,7 +3774,7 @@
                                                     value="${escapeHtml((f.derived && f.derived.expression) ? f.derived.expression : '')}"
                                                     onchange="updateDerivedExpression('${node.id}', ${idx}, this.value)">
                                                 <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
-                                                    Supported examples: <code>daysBetween(startDate, endDate)</code>, <code>concat(firstName, ' ', lastName)</code>
+                                                    Supported: <code>daysBetween(startDate, endDate)</code>, <code>concat(firstName, ' ', lastName)</code>
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -3691,9 +3792,9 @@
                                    value="${node.config.submitText || 'Submit'}"
                                    onchange="updateNodeConfig('${node.id}', 'submitText', this.value)">
                         </div>
-                        ` : ''}
                     `;
                     break;
+                }
                 
                 case 'schedule':
                     html += `
@@ -4580,14 +4681,13 @@
             if (triggerType === 'schedule') {
                 if (!node.config.cron) node.config.cron = '0 9 * * *';
                 if (!node.config.timezone) node.config.timezone = 'UTC';
+                if (!node.config._schedFreq) node.config._schedFreq = 'daily';
+                if (!node.config._schedTime) node.config._schedTime = '09:00';
             } else if (triggerType === 'webhook') {
                 if (!node.config.method) node.config.method = 'POST';
-                if (!node.config.path) node.config.path = '/trigger';
-            } else {
-                // manual
-                if (!node.config.fields) node.config.fields = [];
-                if (!node.config.submitText) node.config.submitText = 'Submit';
+                if (!node.config.webhookAuth) node.config.webhookAuth = 'api_key';
             }
+            // Manual trigger: no fields needed here — use "Collect Information" shape for forms
             refreshNode(node);
             showProperties(node);
             saveToUndo();
@@ -4599,19 +4699,38 @@
             if (!node) return;
             const freqEl = document.getElementById('sched-freq-' + nodeId);
             const timeEl = document.getElementById('sched-time-' + nodeId);
-            if (!freqEl || !timeEl) return;
-            const freq = freqEl.value;
-            const time = timeEl.value || '09:00';
+            const dayEl = document.getElementById('sched-day-' + nodeId);
+            const dateEl = document.getElementById('sched-date-' + nodeId);
+            const freq = freqEl ? freqEl.value : (node.config._schedFreq || 'daily');
+            const time = timeEl ? timeEl.value : (node.config._schedTime || '09:00');
             const [h, m] = time.split(':').map(Number);
+            const dayOfWeek = dayEl ? dayEl.value : (node.config._schedDay || '1');
+            const dayOfMonth = dateEl ? dateEl.value : (node.config._schedDate || '1');
             let cron = '0 9 * * *';
-            if (freq === 'daily') cron = `${m} ${h} * * *`;
-            else if (freq === 'weekly') cron = `${m} ${h} * * 1`; // Monday
-            else if (freq === 'monthly') cron = `${m} ${h} 1 * *`; // 1st of month
-            else if (freq === 'hourly') cron = `0 * * * *`;
+            if (freq === 'hourly') cron = '0 * * * *';
+            else if (freq === 'daily') cron = `${m} ${h} * * *`;
+            else if (freq === 'weekdays') cron = `${m} ${h} * * 1-5`;
+            else if (freq === 'weekly') cron = `${m} ${h} * * ${dayOfWeek}`;
+            else if (freq === 'monthly') {
+                if (dayOfMonth === 'L') cron = `${m} ${h} 28 * *`; // Approximate last day
+                else cron = `${m} ${h} ${dayOfMonth} * *`;
+            }
+            else if (freq === 'custom') {
+                // Don't overwrite — user edits cron directly
+                node.config._schedFreq = freq;
+                refreshNode(node);
+                showProperties(node);
+                saveToUndo();
+                return;
+            }
             node.config.cron = cron;
             node.config._schedFreq = freq;
             node.config._schedTime = time;
+            node.config._schedDay = dayOfWeek;
+            node.config._schedDate = dayOfMonth;
             refreshNode(node);
+            // Re-render properties to show/hide day/date pickers based on frequency
+            showProperties(node);
             saveToUndo();
         }
 
