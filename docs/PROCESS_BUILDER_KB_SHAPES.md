@@ -81,6 +81,11 @@ For typed output fields, each object in `outputFields` also supports a `type` pr
 `{ "label": "Total Amount", "name": "totalAmount", "type": "currency" }`
 Supported types: `text`, `number`, `date`, `currency`, `email`, `boolean`, `list`.
 
+Connected Tools (optional — any AI mode):
+- `enabledToolIds` (array of strings): IDs of platform tools the AI can call during execution.
+- When connected, the AI can invoke these tools to fetch real-time data, query databases, call APIs, etc.
+- The AI autonomously decides when and how to use each tool based on the task description.
+
 Note: `read_document` and `create_document` are legacy node types now handled as AI modes. Old processes with these types are automatically converted.
 
 ---

@@ -449,6 +449,13 @@ Node config rules:
   - config.creativity: 1-5 (1=strict, 5=creative)
   - config.confidence: 1-5
 
+  CONNECTED TOOLS (optional — any AI mode):
+  - config.enabledToolIds: array of tool IDs from the AVAILABLE TOOLS list
+  - When set, the AI can call these tools during execution (e.g., fetch data from an API, query a database)
+  - The AI decides when and how to use each tool based on the task
+  - Use this when the AI needs real-time data or must interact with external systems
+  - Example: "enabledToolIds": ["tool_crm_api", "tool_hr_db"]
+
 - AUTOMATIC APPROVAL PATTERN (condition-based):
   When a workflow should auto-approve under certain conditions (e.g., amount below a threshold), use a CONDITION node:
   - The condition checks the relevant value (e.g., field: "totalAmount", operator: "less_than", value: "500")
@@ -646,6 +653,7 @@ class ProcessWizard:
                     cfg.setdefault("creativity", 2 if has_output else 3)
                     cfg.setdefault("confidence", 3)
                     cfg.setdefault("aiMode", "custom")
+                    cfg.setdefault("enabledToolIds", [])
                 elif n_type == "read_document":
                     # Legacy: convert read_document → ai with extract_file mode
                     n["type"] = "ai"
@@ -653,6 +661,7 @@ class ProcessWizard:
                     cfg.setdefault("sourceField", "")
                     cfg.setdefault("creativity", 1)
                     cfg.setdefault("instructions", [])
+                    cfg.setdefault("enabledToolIds", [])
                 elif n_type == "create_document":
                     # Legacy: convert create_document → ai with create_doc mode
                     n["type"] = "ai"
@@ -662,6 +671,7 @@ class ProcessWizard:
                     if cfg.get("title") and not cfg.get("docTitle"):
                         cfg["docTitle"] = cfg.pop("title")
                     cfg.setdefault("docFormat", "docx")
+                    cfg.setdefault("enabledToolIds", [])
                 elif n_type == "calculate":
                     cfg.setdefault("operation", "custom")
             

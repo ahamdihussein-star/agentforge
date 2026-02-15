@@ -1824,6 +1824,11 @@ class ProcessAPIService:
                             'required': list(schema_props.keys())
                         }
 
+                # Pass enabled tool IDs to engine
+                enabled_tool_ids = type_cfg.get('enabledToolIds') or []
+                if enabled_tool_ids and isinstance(enabled_tool_ids, list):
+                    type_cfg['enabled_tool_ids'] = enabled_tool_ids
+
             # New shape: calculate → transform
             if node_type == 'calculate':
                 op = type_cfg.get('operation') or 'custom'

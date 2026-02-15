@@ -700,7 +700,7 @@
                 form: { name: 'Collect Information', config: { fields: [] } },
                 notification: { name: 'Send Message', config: { channel: 'email', template: '' } },
                 tool: { name: 'Connect to System', config: { toolId: toolId || '', params: {} } },
-                ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3, aiMode: 'custom', outputFields: [], sourceField: '', docTitle: '', docFormat: 'docx' } },
+                ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3, aiMode: 'custom', outputFields: [], sourceField: '', docTitle: '', docFormat: 'docx', enabledToolIds: [] } },
                 end: { name: 'Finish', config: { output: '' } },
                 calculate: { name: 'Calculate', config: { operation: 'custom', expression: '', dataLabel: '' } },
                 parallel: { name: 'Run in Parallel', config: {} },
@@ -1052,6 +1052,11 @@
                     if (cfg.aiMode === 'create_doc' && cfg.docFormat) {
                         const fmtNames = {docx:'Word',pdf:'PDF',xlsx:'Excel',pptx:'PowerPoint',txt:'Text'};
                         html += `<div class="node-config-item"><span class="config-label">Format</span><span class="config-value">${fmtNames[cfg.docFormat] || cfg.docFormat}</span></div>`;
+                    }
+                    const _eTIds = Array.isArray(cfg.enabledToolIds) ? cfg.enabledToolIds : [];
+                    if (_eTIds.length > 0) {
+                        const toolNames = _eTIds.map(id => { const t = (state.tools||[]).find(x=>x.id===id); return t ? t.name : ''; }).filter(Boolean);
+                        html += `<div class="node-config-item"><span class="config-label">Tools</span><span class="config-value">${toolNames.length > 0 ? toolNames.join(', ') : _eTIds.length + ' connected'}</span></div>`;
                     }
                     break;
                 }
@@ -3520,6 +3525,43 @@
                             })()}
                         </div>
 
+                        <!-- Connected Tools (optional — allow the AI to call external systems) -->
+                        ${state.tools && state.tools.length > 0 ? (() => {
+                            const enabledIds = Array.isArray(node.config.enabledToolIds) ? node.config.enabledToolIds : [];
+                            return `
+                            <details style="margin-top:8px;" ${enabledIds.length > 0 ? 'open' : ''}>
+                                <summary style="font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;padding:6px 0;display:flex;align-items:center;gap:6px;">
+                                    <span>🔗</span> Connected tools
+                                    ${enabledIds.length > 0 ? `<span style="background:var(--pb-primary);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;">${enabledIds.length}</span>` : ''}
+                                </summary>
+                                <div style="font-size:11px;color:var(--pb-muted);margin-bottom:8px;">
+                                    Allow this AI step to call external systems during execution. The AI will decide when to use each tool based on the task.
+                                </div>
+                                <div style="display:flex;flex-direction:column;gap:6px;">
+                                    ${state.tools.map(t => {
+                                        const isChecked = enabledIds.includes(t.id);
+                                        return `
+                                        <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${isChecked ? 'color-mix(in srgb,var(--pb-primary) 8%,transparent)' : 'var(--pb-surface)'};border:1px solid ${isChecked ? 'color-mix(in srgb,var(--pb-primary) 25%,transparent)' : 'transparent'};border-radius:8px;cursor:pointer;transition:all 0.15s;"
+                                               onmouseenter="this.style.background=this.querySelector('input').checked?'color-mix(in srgb,var(--pb-primary) 12%,transparent)':'color-mix(in srgb,var(--pb-surface) 80%,var(--pb-border))'"
+                                               onmouseleave="this.style.background=this.querySelector('input').checked?'color-mix(in srgb,var(--pb-primary) 8%,transparent)':'var(--pb-surface)'">
+                                            <input type="checkbox" ${isChecked ? 'checked' : ''}
+                                                   onchange="toggleAITool('${node.id}','${t.id}',this.checked)"
+                                                   style="accent-color:var(--pb-primary);width:16px;height:16px;cursor:pointer;">
+                                            <span style="font-size:16px;">${getToolIcon(t.type)}</span>
+                                            <div style="flex:1;min-width:0;">
+                                                <div style="font-size:12px;font-weight:600;color:var(--pb-text);">${escapeHtml(t.name || 'Tool')}</div>
+                                                ${t.description ? `<div style="font-size:10px;color:var(--pb-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(t.description)}</div>` : ''}
+                                            </div>
+                                        </label>`;
+                                    }).join('')}
+                                </div>
+                                ${enabledIds.length > 0 ? `
+                                <div style="margin-top:8px;padding:8px 10px;background:color-mix(in srgb,var(--pb-primary) 6%,transparent);border-radius:8px;font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                    The AI will automatically call these tools when needed to complete the task. Results are included in the AI's response.
+                                </div>` : ''}
+                            </details>`;
+                        })() : ''}
+
                         <details style="margin-top:8px;">
                             <summary style="font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;padding:6px 0;">Advanced settings</summary>
                             <div class="property-group" style="margin-top:8px;">
@@ -4392,6 +4434,26 @@
 
             refreshNode(node);
             saveToUndo();
+        }
+
+        // ================================================================
+        // AI Step — Toggle connected tool
+        // ================================================================
+        function toggleAITool(nodeId, toolId, checked) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!Array.isArray(node.config.enabledToolIds)) node.config.enabledToolIds = [];
+            if (checked) {
+                if (!node.config.enabledToolIds.includes(toolId)) {
+                    node.config.enabledToolIds.push(toolId);
+                }
+            } else {
+                node.config.enabledToolIds = node.config.enabledToolIds.filter(id => id !== toolId);
+            }
+            refreshNode(node);
+            saveToUndo();
+            // Refresh properties panel to update the badge counter & styles
+            showProperties(node);
         }
 
         // ================================================================

@@ -166,6 +166,31 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             "content": prompt
         })
         
+        # ── Resolve connected tools (for LLM function-calling) ────────
+        enabled_tool_ids = self.get_config_value(node, 'enabled_tool_ids') or []
+        llm_tools = []          # OpenAI-format tool definitions
+        tool_map = {}            # name → BaseTool instance (for execution)
+        if enabled_tool_ids and isinstance(enabled_tool_ids, list):
+            for tid in enabled_tool_ids:
+                # Security: verify tool access permission at runtime
+                if tid in getattr(context, 'denied_tool_ids', set()):
+                    logs.append(f"Skipped tool {tid}: access denied")
+                    continue
+                if hasattr(context, 'is_tool_allowed') and not context.is_tool_allowed(tid):
+                    logs.append(f"Skipped tool {tid}: not in allowed tools")
+                    continue
+                tool_inst = self.deps.get_tool(tid)
+                if tool_inst:
+                    try:
+                        tool_def = tool_inst.get_openai_tool()
+                        llm_tools.append(tool_def)
+                        fname = tool_def.get('function', {}).get('name') or tid
+                        tool_map[fname] = tool_inst
+                        logs.append(f"Connected tool: {fname}")
+                    except Exception as te:
+                        logs.append(f"Warning: could not load tool {tid}: {te}")
+        # ── End tool resolution ────────────────────────────────────────
+
         # Call LLM
         start_time = time.time()
         try:
@@ -178,12 +203,57 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             
             response = await self.deps.llm.chat(
                 messages=llm_messages,
+                tools=llm_tools if llm_tools else None,
                 temperature=temperature,
                 max_tokens=max_tokens
             )
             
+            # ── Tool-calling loop (max 5 rounds to prevent infinite loops) ──
+            _tool_rounds = 0
+            while response.tool_calls and _tool_rounds < 5:
+                _tool_rounds += 1
+                # Append assistant message with tool_calls
+                llm_messages.append(Message(
+                    role=MessageRole.ASSISTANT,
+                    content=response.content or '',
+                    tool_calls=[
+                        {"id": tc.id, "type": "function",
+                         "function": {"name": tc.name, "arguments": tc.arguments if isinstance(tc.arguments, str) else json.dumps(tc.arguments)}}
+                        for tc in response.tool_calls
+                    ]
+                ))
+                # Execute each tool call and append results
+                for tc in response.tool_calls:
+                    fname = tc.name
+                    tool_inst = tool_map.get(fname)
+                    if not tool_inst:
+                        tool_result_str = json.dumps({"error": f"Tool '{fname}' not found"})
+                        logs.append(f"Tool call failed: {fname} not found")
+                    else:
+                        try:
+                            args = tc.arguments if isinstance(tc.arguments, dict) else json.loads(tc.arguments or '{}')
+                            tool_result = await tool_inst.execute(args, context={})
+                            tool_result_str = tool_result.to_llm_response()
+                            logs.append(f"Tool call {fname}: {'OK' if tool_result.success else 'FAILED'}")
+                        except Exception as tex:
+                            tool_result_str = json.dumps({"error": str(tex)})
+                            logs.append(f"Tool call {fname} error: {tex}")
+                    llm_messages.append(Message(
+                        role=MessageRole.TOOL,
+                        content=tool_result_str,
+                        tool_call_id=tc.id
+                    ))
+                # Re-call LLM with tool results
+                response = await self.deps.llm.chat(
+                    messages=llm_messages,
+                    tools=llm_tools,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+            # ── End tool-calling loop ──────────────────────────────────────
+            
             duration_ms = (time.time() - start_time) * 1000
-            logs.append(f"LLM response received in {duration_ms:.0f}ms")
+            logs.append(f"LLM response received in {duration_ms:.0f}ms{' (with ' + str(_tool_rounds) + ' tool round(s))' if _tool_rounds > 0 else ''}")
             
         except Exception as e:
             return NodeResult.failure(
