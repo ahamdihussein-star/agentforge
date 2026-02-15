@@ -1,4 +1,4 @@
-# Process Builder Knowledge Base — Shape Catalog (v3)
+# Process Builder Knowledge Base — Shape Catalog (v4)
 
 This document describes ALL shapes (node types) available in the visual Process Builder.
 The LLM MUST only use node types listed here. Do NOT invent unsupported nodes or properties.
@@ -9,8 +9,9 @@ The LLM MUST only use node types listed here. Do NOT invent unsupported nodes or
 - ALL labels shown to users MUST be business-friendly (no snake_case, no internal IDs).
 - Internal field keys MUST use lowerCamelCase (e.g., `employeeEmail`, `startDate`).
 - The process should be as simple as possible while fulfilling the user's goal.
+- This platform is for NON-TECHNICAL business users. All UI and configuration must be self-explanatory.
 
-## Shape Catalog (13 shapes)
+## Shape Catalog (11 shapes)
 
 ### Category: Start & End
 
@@ -42,6 +43,8 @@ Config properties:
 - `readOnly` (boolean): For auto-filled or calculated fields.
 - `derived` (object): `{ "expression": "<formula>" }` for calculated fields.
 - `prefill` (object): `{ "source": "currentUser", "key": "<attribute>" }` for profile auto-fill.
+  The prefill system is FULLY DYNAMIC — any attribute from the user's identity source is available.
+  Common keys: `name`, `email`, `phone`, `jobTitle`, `employeeId`, `departmentName`, `managerName`, `managerEmail`, plus any custom attributes configured in the organization's HR/LDAP.
 - `multiple` (boolean): For `file` type — allow multiple uploads.
 
 Derived expressions: `daysBetween(a, b)`, `concat(a, " ", b)`, `sum(a, b)`, `round(val, dec)`.
@@ -67,7 +70,8 @@ Config (`ai.config`):
 - `confidence` (integer 1-5): 1=Very cautious, 5=Very confident.
 - `model` (string): AI model (default: `gpt-4o`).
 - `output_format` (string): `text` or `json`.
-- `output_schema` (object): Expected output structure (for JSON).
+- `outputFields` (array): Named output fields the AI produces. Each: `{ "label": "Human Name", "name": "camelCaseKey" }`.
+  These appear as selectable data chips in all downstream steps.
 
 Optional:
 - `output_variable` (string): Store the AI result for later steps.
@@ -84,6 +88,7 @@ Extract text content from uploaded files (PDFs, images, Word docs, Excel, etc.).
 
 Config (`read_document.config`):
 - `sourceField` (string): Name of the file field from Start/Form.
+- `dataLabel` (string): Friendly name for the extracted text (auto-generated from source field if empty).
 
 Optional:
 - `output_variable` (string): Store the extracted text for later steps (default: `extractedData`).
@@ -110,14 +115,14 @@ Send a message to one or more recipients.
 
 Config (`notification.config`):
 - `channel` (string): `email` | `slack` | `teams` | `sms`
-- `recipients` (array of strings): Who receives the message:
+- `recipient` (string): Who receives the message:
   - `"requester"` — The person who started this process.
   - `"manager"` — The requester's direct manager.
-  - A user ID (UUID) — resolved to email.
-  - An email address — sent directly.
   - `"{{fieldName}}"` — From a form field.
+  - An email address — sent directly.
 - `title` (string): Subject line.
-- `message` (string): Message body with `{{fieldName}}` references.
+- `template` (string): Message body with `{{fieldName}}` references.
+  Can also use `{{trigger_input._user_context.fieldName}}` for person information (name, email, department, etc.).
 
 #### 7) Request Approval — `approval`
 Pause the workflow until someone approves or rejects.
@@ -127,6 +132,8 @@ Config (`approval.config`):
 - `assignee_source` (string): How to find the approver:
   - `platform_user` — A specific person.
   - `user_directory` — Resolve dynamically from org hierarchy (RECOMMENDED).
+  - `platform_role` — Anyone with a specific role.
+  - `platform_group` — Anyone in a specific group.
   - `tool` — Resolve via a tool.
 - `assignee_type` (string): `user` | `role` | `group`
 - `assignee_ids` (array): User/role/group IDs.
@@ -158,20 +165,25 @@ Config (`condition.config`):
 
 Connection rules: MUST have exactly two outgoing edges — `type: "yes"` and `type: "no"`.
 
-#### 10) Wait — `delay`
-Pause for a specified duration.
+#### 10) Run in Parallel — `parallel`
+Execute multiple paths simultaneously. All connected next steps run at the same time.
 
-Config (`delay.config`):
-- `duration` (number): How long to wait.
-- `unit` (string): `minutes` | `hours` | `days`
+Config (`parallel.config`):
+- No user configuration needed — branches are automatically determined from the connections drawn on the canvas.
+- `merge_strategy` (string): `wait_all` (default — wait for all paths to finish) | `wait_any` (continue when any one path finishes).
 
-#### 11) Repeat — `loop`
-Repeat steps for each item in a list.
+Usage: Connect this node to multiple next steps. All connected paths run simultaneously. The process continues when all paths complete (or any one, depending on strategy).
 
-Config (`loop.config`):
-- `collection` (string): The variable containing the array (e.g., `{{parsedData.items}}`).
-- `itemVar` (string): Variable name for the current item (default: `item`).
-- `maxIterations` (number): Safety limit (default: 100).
+#### 11) Call Process — `call_process`
+Invoke another published process as a sub-step.
+
+Config (`call_process.config`):
+- `processId` (string): ID of the published process to invoke (selected from a dropdown in the UI).
+- `inputMapping` (object): Map current process data to the sub-process input fields.
+- `outputVariable` (string): Name for the sub-process output so other steps can use it.
+
+Optional:
+- `output_variable` (string): Store the sub-process result for later steps.
 
 ---
 
@@ -181,10 +193,9 @@ Config (`loop.config`):
 Compute a value, transform data, or apply a formula.
 
 Config (`calculate.config`):
-- `operation` (string): `sum` | `average` | `count` | `concat` | `format_date` | `custom`
-- `input` (string): The field or variable to operate on.
-- `field` (string): For sum/average — which field in each item to aggregate.
-- `expression` (string): For custom — a formula expression with `{{fieldName}}` references.
+- `operation` (string): `sum` | `average` | `count` | `concat` | `custom`
+- `expression` (string): For common operations, a field reference; for custom, a formula with `{{fieldName}}` refs.
+- `dataLabel` (string): Friendly name for the result.
 
 Optional:
 - `output_variable` (string): Store the result for later steps.
@@ -212,7 +223,8 @@ Optional:
 | Collect input at start | Start (with fields) |
 | Collect input mid-workflow | Collect Information |
 | Yes/no decision | Decision |
-| Repeat steps for each item | Repeat |
+| Run steps simultaneously | Run in Parallel |
+| Invoke another process | Call Process |
 | AI analysis, extraction, classification | AI Step |
 | Read uploaded file content | Read Document |
 | Generate a document | Create Document |
@@ -220,14 +232,21 @@ Optional:
 | Call external system or API | Connect to System |
 | Get someone's approval | Request Approval |
 | Send email/Slack/Teams/SMS | Send Message |
-| Pause the process | Wait |
 | End the workflow | Finish |
+
+## Deprecated Shapes (kept for backward compatibility only)
+
+These shapes are NOT available in the palette but old saved processes that use them will still load and execute:
+- **Wait** (`delay`) — Use schedule triggers or approval timeouts instead.
+- **Repeat** (`loop`) — Use an AI Step to handle iteration logic internally.
+- **Action** (`action`) — Replaced by purpose-specific shapes (Read Document, Create Document, Calculate).
 
 ## Anti-Hallucination Rules
 
 ### Node & Schema Rules
 - NEVER invent node types not listed here.
 - NEVER invent field types not listed here.
+- NEVER use deprecated types (delay, loop, action) in new processes.
 - Every `condition`/`decision` node MUST have exactly two outgoing edges (`yes` and `no`).
 - Every workflow MUST have exactly one Start and at least one Finish.
 
@@ -235,8 +254,18 @@ Optional:
 - AI steps that parse extracted text MUST only return data explicitly present in the input.
 - NEVER invent, fabricate, or estimate values.
 - When multiple files are provided, aggregate data from ALL files.
+- AI `outputFields` MUST list every field that downstream steps reference.
 
 ### Identity & Recipient Rules
 - NEVER add form fields for manager email/name/ID — the engine resolves these automatically.
 - For notifications to the requester: use `"requester"`.
 - For notifications to the manager: use `"manager"`.
+- Use `{{trigger_input._user_context.<key>}}` to reference any user profile attribute in templates.
+
+### User Profile Data (Dynamic — Unlimited Fields)
+The platform loads ALL available user profile fields dynamically from the configured identity source.
+Standard fields: name, email, phone, jobTitle, employeeId, departmentName, managerName, managerEmail, directReportCount, isManager.
+Custom fields: Any attribute configured in the organization's HR system, LDAP, or identity provider (e.g., costCenter, officeLocation, badgeNumber, nationalId, hireDate).
+All profile fields are available for:
+- Form field prefill (`prefill.key`)
+- Person Information chips in notification/approval/AI templates (`{{trigger_input._user_context.<key>}}`)

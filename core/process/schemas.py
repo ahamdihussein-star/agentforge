@@ -34,6 +34,7 @@ class NodeType(str, Enum):
     LOOP = "loop"
     WHILE = "while"
     PARALLEL = "parallel"
+    SUB_PROCESS = "sub_process"
     MERGE = "merge"
     
     # Task Nodes
@@ -559,6 +560,23 @@ class ParallelConfig(BaseModel):
         description="For wait_n strategy, how many to wait for"
     )
     fail_fast: bool = Field(default=True, description="Fail if any branch fails")
+
+
+class SubProcessConfig(BaseModel):
+    """Configuration for SUB_PROCESS nodes — invoke another published process"""
+    process_id: str = Field(..., description="ID of the published process to invoke")
+    input_mapping: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Map current process variables to sub-process input fields"
+    )
+    wait_for_completion: bool = Field(
+        default=True,
+        description="Whether to wait for the sub-process to finish before continuing"
+    )
+    timeout_seconds: Optional[int] = Field(
+        default=3600,
+        description="Timeout for sub-process execution"
+    )
 
 
 class ApprovalConfig(BaseModel):

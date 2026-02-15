@@ -1,6 +1,6 @@
 """
 Logic Node Executors
-Conditional branching, loops, and parallel execution
+Conditional branching, loops, parallel execution, and sub-process invocation
 
 These nodes control the flow of execution:
 - CONDITION: If/else branching
@@ -8,13 +8,17 @@ These nodes control the flow of execution:
 - LOOP: For-each iteration
 - WHILE: Conditional iteration
 - PARALLEL: Parallel execution of branches
+- SUB_PROCESS: Invoke another published process
 """
 
+import logging
 from typing import Optional, List
 from ..schemas import ProcessNode, NodeType
 from ..state import ProcessState, ProcessContext
 from ..result import NodeResult, ExecutionError, ErrorCategory
 from .base import BaseNodeExecutor, register_executor
+
+logger = logging.getLogger(__name__)
 
 
 @register_executor(NodeType.CONDITION)
@@ -419,5 +423,141 @@ class ParallelNodeExecutor(BaseNodeExecutor):
                 'fail_fast': fail_fast,
             },
             next_node_ids=branch_starts,  # All branch starts
+            logs=logs
+        )
+
+
+@register_executor(NodeType.SUB_PROCESS)
+class SubProcessNodeExecutor(BaseNodeExecutor):
+    """
+    Sub-process (Call Process) node executor
+    
+    Invokes another published process as a sub-step. The sub-process
+    runs to completion and its output is returned as this node's output.
+    
+    Config:
+        process_id: ID of the published process to invoke
+        input_mapping: Dict mapping current variables to sub-process inputs
+        wait_for_completion: Whether to block until sub-process finishes
+        timeout_seconds: Max time to wait for sub-process
+    """
+    
+    display_name = "Call Process"
+    
+    async def execute(
+        self,
+        node: ProcessNode,
+        state: ProcessState,
+        context: ProcessContext
+    ) -> NodeResult:
+        """Execute sub-process node — invokes another process via the execution service"""
+        
+        process_id = self.get_config_value(node, 'process_id', '')
+        input_mapping = self.get_config_value(node, 'input_mapping', {})
+        wait_for_completion = self.get_config_value(node, 'wait_for_completion', True)
+        timeout_seconds = self.get_config_value(node, 'timeout_seconds', 3600)
+        
+        logs = [f"Invoking sub-process: {process_id}"]
+        
+        if not process_id:
+            return NodeResult.failure(
+                error=ExecutionError(
+                    code="SUB_PROCESS_NO_ID",
+                    message="No process ID configured. Select a published process to run.",
+                    category=ErrorCategory.CONFIGURATION
+                ),
+                logs=["No process_id configured for sub-process node"]
+            )
+        
+        # Build input data from mapping
+        input_data = {}
+        for target_key, source_expr in input_mapping.items():
+            if isinstance(source_expr, str) and source_expr.startswith('{{') and source_expr.endswith('}}'):
+                var_name = source_expr[2:-2].strip()
+                input_data[target_key] = state.get_variable(var_name)
+            else:
+                input_data[target_key] = source_expr
+        
+        logs.append(f"Input mapping: {len(input_mapping)} fields")
+        logs.append(f"Wait for completion: {wait_for_completion}")
+        
+        # The actual sub-process invocation is handled by the engine,
+        # which will look for 'is_sub_process' in the output and call
+        # the process execution service accordingly.
+        return NodeResult.success(
+            output={
+                'is_sub_process': True,
+                'sub_process_id': process_id,
+                'sub_process_input': input_data,
+                'wait_for_completion': wait_for_completion,
+                'timeout_seconds': timeout_seconds,
+            },
+            logs=logs
+        )
+
+
+@register_executor(NodeType.SUB_PROCESS)
+class SubProcessNodeExecutor(BaseNodeExecutor):
+    """
+    Sub-process node executor
+
+    Invokes another published process as a child execution.
+    The parent process waits for the child to complete and captures its output.
+
+    Config:
+        process_id: ID of the published process to invoke
+        input_mapping: Dict mapping parent variables to child input fields
+        wait_for_completion: Whether to block until child finishes (default True)
+        timeout_seconds: Max wait time (default 3600)
+    """
+
+    display_name = "Call Process"
+
+    async def execute(
+        self,
+        node: ProcessNode,
+        state: ProcessState,
+        context: ProcessContext
+    ) -> NodeResult:
+        """Execute sub-process node — invoke child process"""
+
+        process_id = self.get_config_value(node, 'process_id', '')
+        input_mapping = self.get_config_value(node, 'input_mapping', {})
+        wait_for_completion = self.get_config_value(node, 'wait_for_completion', True)
+        timeout_seconds = self.get_config_value(node, 'timeout_seconds', 3600)
+
+        logs = [f"Sub-process invocation: process_id={process_id}"]
+
+        if not process_id:
+            return NodeResult.failure(
+                error=ExecutionError(
+                    category=ErrorCategory.CONFIGURATION,
+                    message="No process_id configured for Call Process node",
+                    details={"node_id": node.id}
+                ),
+                logs=["ERROR: process_id is empty — configure 'Which process to run?'"]
+            )
+
+        # Resolve input mapping: substitute variable references from parent state
+        resolved_inputs = {}
+        for child_key, parent_ref in input_mapping.items():
+            if isinstance(parent_ref, str) and parent_ref.startswith('{{') and parent_ref.endswith('}}'):
+                var_name = parent_ref[2:-2].strip()
+                resolved_inputs[child_key] = state.get_variable(var_name) if hasattr(state, 'get_variable') else parent_ref
+            else:
+                resolved_inputs[child_key] = parent_ref
+
+        logs.append(f"Resolved inputs: {list(resolved_inputs.keys())}")
+
+        # The actual sub-process invocation is delegated to the engine/service layer.
+        # This executor returns metadata so the engine can handle the invocation.
+        return NodeResult.success(
+            output={
+                'is_sub_process': True,
+                'sub_process_id': process_id,
+                'sub_process_inputs': resolved_inputs,
+                'wait_for_completion': wait_for_completion,
+                'timeout_seconds': timeout_seconds,
+            },
             logs=logs
         )

@@ -30,7 +30,7 @@ AgentForge is a **generic enterprise engine** designed for **Large Enterprises a
 4. **Enterprise Security**: Data isolation by org_id, RBAC at service layer, audit trails, zero trust.
 5. **Scalability**: Stateless backend, async processing, optimized queries.
 
-### Process Builder Shape Catalog (13 shapes)
+### Process Builder Shape Catalog (11 shapes)
 The visual Process Builder uses business-friendly shape names organized into categories:
 
 | Category | Shapes |
@@ -38,9 +38,13 @@ The visual Process Builder uses business-friendly shape names organized into cat
 | Start & End | Start, Finish |
 | Intelligence | AI Step, Read Document, Create Document |
 | People | Send Message, Request Approval, Collect Information |
-| Logic | Decision, Wait, Repeat |
+| Logic | Decision, Run in Parallel, Call Process |
 | Data | Calculate |
 | Integration | Connect to System |
+
+Wait and Repeat (loop) shapes were removed — too technical for business users.
+Run in Parallel and Call Process were added for enterprise workflow patterns.
+User profile field pickers are fully dynamic (loaded from identity API, including custom attributes).
 
 ---
 

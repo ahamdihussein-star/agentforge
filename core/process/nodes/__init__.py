@@ -21,6 +21,7 @@ from .logic import (
     SwitchNodeExecutor,
     LoopNodeExecutor,
     ParallelNodeExecutor,
+    SubProcessNodeExecutor,
 )
 from .task import (
     AITaskNodeExecutor,
@@ -60,6 +61,7 @@ __all__ = [
     'SwitchNodeExecutor',
     'LoopNodeExecutor',
     'ParallelNodeExecutor',
+    'SubProcessNodeExecutor',
     
     # Task
     'AITaskNodeExecutor',

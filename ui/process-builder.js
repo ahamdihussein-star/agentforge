@@ -154,6 +154,8 @@
             initDraftMessaging();
             initPlayerMessaging();
             loadTools();
+            loadProfileFields();
+            loadPublishedProcesses();
             loadWorkflowFromUrl();
             updateFlowButtons();
             applyLabelFontSize();
@@ -697,7 +699,9 @@
                 end: { name: 'Finish', config: { output: '' } },
                 read_document: { name: 'Read Document', config: { sourceField: '', dataLabel: '' } },
                 create_document: { name: 'Create Document', config: { title: '', format: 'docx', instructions: '' } },
-                calculate: { name: 'Calculate', config: { operation: 'custom', expression: '', dataLabel: '' } }
+                calculate: { name: 'Calculate', config: { operation: 'custom', expression: '', dataLabel: '' } },
+                parallel: { name: 'Run in Parallel', config: {} },
+                call_process: { name: 'Call Process', config: { processId: '', inputMapping: {}, outputVariable: '' } }
             };
             
             // If it's a tool node with toolId, get tool name
@@ -714,7 +718,7 @@
         function getShapeClass(type) {
             if (['trigger', 'schedule', 'webhook'].includes(type)) return 'shape-start';
             if (type === 'end') return 'shape-end';
-            if (['condition', 'loop'].includes(type)) return 'shape-gateway';
+            if (['condition', 'loop', 'parallel'].includes(type)) return 'shape-gateway';
             return 'shape-task';
         }
         
@@ -893,7 +897,8 @@
                 approval: 'approval', form: 'form',
                 end: 'end',
                 read_document: 'action', create_document: 'action', calculate: 'action',
-                ai_step: 'ai'
+                ai_step: 'ai',
+                parallel: 'condition', call_process: 'action'
             };
             return classes[type] || 'action';
         }
@@ -908,7 +913,8 @@
                 approval: '✅', form: '📝',
                 end: '🏁',
                 read_document: '📄', create_document: '📑', calculate: '🧮',
-                ai_step: '🤖'
+                ai_step: '🤖',
+                parallel: '⚡', call_process: '📋'
             };
             return icons[type] || '📦';
         }
@@ -923,7 +929,8 @@
                 approval: 'Request Approval', form: 'Collect Information',
                 end: 'Finish',
                 read_document: 'Read Document', create_document: 'Create Document',
-                calculate: 'Calculate', ai_step: 'AI Step'
+                calculate: 'Calculate', ai_step: 'AI Step',
+                parallel: 'Run in Parallel', call_process: 'Call Process'
             };
             return names[type] || type;
         }
@@ -946,7 +953,9 @@
                 read_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-7h8v2H8v-2zm0-3h8v2H8v-2z"/></svg>',
                 create_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM12 17l-4-4h3V9h2v4h3l-4 4z"/></svg>',
                 calculate: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4 8h-2v2h-2v-2H9V9h2V7h2v2h2v2zm-1 6H7v-2h7v2z"/></svg>',
-                ai_step: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>'
+                ai_step: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
+                parallel: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"/></svg>',
+                call_process: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 19H5V5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>'
             };
             return icons[type] || icons.action;
         }
@@ -969,7 +978,9 @@
                 read_document: 'Reads uploaded files',
                 create_document: 'Generates a document',
                 calculate: 'Computes a value',
-                ai_step: 'AI-powered step'
+                ai_step: 'AI-powered step',
+                parallel: 'Runs next steps simultaneously',
+                call_process: 'Invokes another process'
             };
             return descs[node.type] || '';
         }
@@ -1039,6 +1050,14 @@
                 case 'calculate':
                     html = `<div class="node-config-item"><span class="config-label">Operation</span><span class="config-value">${cfg.operation || 'custom'}</span></div>`;
                     break;
+                case 'parallel':
+                    html = `<div class="node-config-item"><span class="config-label">Mode</span><span class="config-value">All paths run at once</span></div>`;
+                    break;
+                case 'call_process': {
+                    const _cpName = cfg._processName || (cfg.processId ? 'Process selected' : 'Not set');
+                    html = `<div class="node-config-item"><span class="config-label">Process</span><span class="config-value">${_cpName}</span></div>`;
+                    break;
+                }
                 default:
                     html = '<div class="node-config-item"><span class="config-value" style="color:#6b7280;">Click to configure</span></div>';
             }
@@ -2813,7 +2832,7 @@
                 if (!outVar) return;
                 const cfg = n.config || {};
 
-                // Extract text action
+                // Extract text action (legacy action type)
                 if (n.type === 'action' && (cfg.actionType === 'extractDocumentText')) {
                     const label = cfg.dataLabel || humanizeFieldLabel(outVar);
                     outputs.push({
@@ -2823,6 +2842,32 @@
                         source: n.name || 'Extract Text',
                         group: 'data',
                         icon: '📄',
+                        nodeId: n.id
+                    });
+                }
+                // Read Document shape
+                else if (n.type === 'read_document') {
+                    const label = cfg.dataLabel || humanizeFieldLabel(outVar) || 'Extracted Text';
+                    outputs.push({
+                        name: outVar,
+                        label: label,
+                        type: 'text',
+                        source: n.name || 'Read Document',
+                        group: 'data',
+                        icon: '📄',
+                        nodeId: n.id
+                    });
+                }
+                // Call Process output
+                else if (n.type === 'call_process') {
+                    const label = cfg._processName || humanizeFieldLabel(outVar) || 'Sub-Process Result';
+                    outputs.push({
+                        name: outVar,
+                        label: label,
+                        type: 'data',
+                        source: n.name || 'Call Process',
+                        group: 'data',
+                        icon: '📋',
                         nodeId: n.id
                     });
                 }
@@ -3093,19 +3138,18 @@
                             <label class="property-label">What needs to be approved?</label>
                             <textarea class="property-textarea" placeholder="Describe what the approver should review..."
                                       onchange="updateNodeConfig('${node.id}', 'message', this.value)">${escapeHtml(aCfg.message || '')}</textarea>
-                            ${availableFields.length > 0 || upstreamData.length > 0 ? `
+                            ${availableFields.length > 0 ? `
                                 <div class="field-chips">
-                                    <span class="field-chips-label">Insert data:</span>
+                                    <span class="field-chips-label">Insert form data:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
                                             <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
                                         `).join('')}
-                                        ${upstreamData.map(d => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
-                                        `).join('')}
                                     </div>
                                 </div>
                             ` : ''}
+                            ${buildExtractedDataChips(node.id, 'message', upstreamData)}
+                            ${buildPersonInfoChips(node.id, 'message')}
                         </div>
                         <div class="property-group">
                             <label class="property-label">Who should approve?</label>
@@ -3179,16 +3223,8 @@
                                     </div>
                                 </div>
                             ` : ''}
-                            ${upstreamData.length > 0 ? `
-                                <div class="field-chips" style="margin-top:4px;">
-                                    <span class="field-chips-label">From previous steps:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
-                                        ${upstreamData.map(d => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'template', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
+                            ${buildExtractedDataChips(node.id, 'template', upstreamData)}
+                            ${buildPersonInfoChips(node.id, 'template')}
                         </div>
                     `;
                     break;
@@ -3214,6 +3250,24 @@
                                 <option value="classify" ${_aiMode === 'classify' ? 'selected' : ''}>Classify or categorize</option>
                                 <option value="custom" ${_aiMode === 'custom' ? 'selected' : ''}>Custom task</option>
                             </select>
+                            ${!node.config.prompt ? `
+                            <div style="margin-top:8px;">
+                                <div style="font-size:11px;color:var(--pb-muted);margin-bottom:4px;">Quick templates:</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                    ${[
+                                        {m:'extract',t:'Extract key data fields from: {{extractedData}}'},
+                                        {m:'analyze',t:'Summarize the main points from: {{extractedData}}'},
+                                        {m:'generate',t:'Write a professional report based on: {{details}}'},
+                                        {m:'classify',t:'Classify this into the appropriate category: {{details}}'}
+                                    ].map(tpl => `
+                                        <button type="button" onclick="updateNodeConfig('${node.id}','prompt','${tpl.t}'); updateNodeConfig('${node.id}','aiMode','${tpl.m}'); showProperties(state.nodes.find(n=>n.id==='${node.id}'));"
+                                                style="padding:4px 10px;font-size:11px;border-radius:6px;border:1px solid color-mix(in srgb,var(--pb-primary) 30%,transparent);background:color-mix(in srgb,var(--pb-primary) 5%,transparent);color:var(--pb-text);cursor:pointer;">
+                                            ${{extract:'📊 Extract data',analyze:'📝 Summarize',generate:'✏️ Generate report',classify:'🏷️ Classify'}[tpl.m]}
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            ` : ''}
                         </div>
                         <div class="property-group">
                             <label class="property-label">Task description</label>
@@ -3230,16 +3284,8 @@
                                     </div>
                                 </div>
                             ` : ''}
-                            ${upstreamData.length > 0 ? `
-                                <div class="field-chips" style="margin-top:4px;">
-                                    <span class="field-chips-label">Insert from previous steps:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
-                                        ${upstreamData.map(d => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'prompt', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
+                            ${buildExtractedDataChips(node.id, 'prompt', upstreamData)}
+                            ${buildPersonInfoChips(node.id, 'prompt')}
                         </div>
 
                         <!-- AI Instructions (add/remove list) -->
@@ -3504,12 +3550,10 @@
                                         <div style="margin-top:10px;">
                                             <label class="property-label">Prefill from user profile</label>
                                             <select class="property-select" onchange="setFieldPrefill('${node.id}', ${idx}, this.value)">
-                                                <option value="" ${!f.prefill ? 'selected' : ''}>None</option>
-                                                <option value="email" ${(f.prefill && f.prefill.source === 'currentUser' && f.prefill.key === 'email') ? 'selected' : ''}>Email</option>
-                                                <option value="name" ${(f.prefill && f.prefill.source === 'currentUser' && f.prefill.key === 'name') ? 'selected' : ''}>Name</option>
+                                                ${buildProfileFieldOptions(f.prefill)}
                                             </select>
                                             <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
-                                                This saves time by auto-filling known information for the logged-in user.
+                                                Auto-fill this field with the logged-in user's profile information. The user won't need to type it.
                                             </div>
                                         </div>
                                         
@@ -3702,6 +3746,60 @@
                     break;
                 }
                 
+                case 'parallel':
+                    html += `
+                        <div style="padding:12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-bottom:12px;">
+                            <div style="font-size:12px;color:var(--pb-text);line-height:1.6;">
+                                <strong>⚡ Run in Parallel</strong><br>
+                                Connect this step to multiple next steps. All connected paths will run <strong>at the same time</strong>, and the process continues only when all paths finish.
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">How to continue?</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                When should the process move forward after the parallel paths?
+                            </div>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'merge_strategy', this.value)">
+                                <option value="wait_all" ${(node.config.merge_strategy || 'wait_all') === 'wait_all' ? 'selected' : ''}>Wait for all paths to finish</option>
+                                <option value="wait_any" ${node.config.merge_strategy === 'wait_any' ? 'selected' : ''}>Continue when any one path finishes</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+                
+                case 'call_process': {
+                    const processes = state.publishedProcesses || [];
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">Which process to run?</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Select a published process to run as a sub-step of this workflow.
+                            </div>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'processId', this.value); var sel=this.options[this.selectedIndex]; updateNodeConfig('${node.id}', '_processName', sel.text);">
+                                <option value="">-- Select a published process --</option>
+                                ${processes.map(p => `
+                                    <option value="${escapeHtml(p.id)}" ${node.config.processId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>
+                                `).join('')}
+                            </select>
+                            ${processes.length === 0 ? `
+                                <div style="font-size:11px;color:#f59e0b;margin-top:6px;">
+                                    No published processes found. Publish a process first, then it will appear here.
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Save the result as</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Give a name to the data returned by the sub-process so other steps can use it.
+                            </div>
+                            <input type="text" class="property-input" placeholder="e.g. subProcessResult"
+                                   value="${escapeHtml(node.output_variable || node.config.outputVariable || '')}"
+                                   onchange="state.nodes.find(n=>n.id==='${node.id}').output_variable=this.value; renderConnections();">
+                        </div>
+                    `;
+                    break;
+                }
+
                 case 'end': {
                     // Build a dropdown of available data from previous steps
                     const endDataOptions = [...upstreamData, ...availableFields.map(f => ({name: f.name, label: f.label || f.name, source: 'Form'}))];
@@ -3862,9 +3960,9 @@
                         <div class="property-group">
                             <label class="property-label">Name this extracted text</label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                A friendly name so other steps can use the text content.
+                                A friendly name so other steps can use the text content. Auto-generated from the file field if left empty.
                             </div>
-                            <input type="text" class="property-input" placeholder="e.g. Receipt Text, Invoice Content"
+                            <input type="text" class="property-input" placeholder="${node.config.sourceField ? humanizeFieldLabel(node.config.sourceField) + ' Text' : 'e.g. Receipt Text, Invoice Content'}"
                                    value="${escapeHtml(node.config.dataLabel || '')}"
                                    onchange="updateNodeConfig('${node.id}', 'dataLabel', this.value)">
                         </div>
@@ -3902,7 +4000,7 @@
                                       onchange="updateNodeConfig('${node.id}', 'instructions', this.value)">${escapeHtml(node.config.instructions || '')}</textarea>
                             ${availableFields.length > 0 ? `
                                 <div class="field-chips">
-                                    <span class="field-chips-label">Insert data:</span>
+                                    <span class="field-chips-label">Insert form data:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
                                             <button type="button" onclick="insertFieldRef('${node.id}', 'instructions', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || f.name)}</button>
@@ -3910,6 +4008,8 @@
                                     </div>
                                 </div>
                             ` : ''}
+                            ${buildExtractedDataChips(node.id, 'instructions', upstreamData)}
+                            ${buildPersonInfoChips(node.id, 'instructions')}
                         </div>
                     `;
                     break;
@@ -3941,33 +4041,49 @@
 
                 case 'calculate': {
                     const calcOp = node.config.operation || 'custom';
+                    const allCalcData = [...availableFields, ...upstreamData];
                     html += `
                         <div class="property-group">
                             <label class="property-label">What to calculate</label>
                             <select class="property-select" onchange="updateNodeConfig('${node.id}', 'operation', this.value); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
-                                <option value="sum" ${calcOp === 'sum' ? 'selected' : ''}>Sum / Total</option>
+                                <option value="sum" ${calcOp === 'sum' ? 'selected' : ''}>Add up (Sum / Total)</option>
                                 <option value="average" ${calcOp === 'average' ? 'selected' : ''}>Average</option>
                                 <option value="count" ${calcOp === 'count' ? 'selected' : ''}>Count items</option>
                                 <option value="concat" ${calcOp === 'concat' ? 'selected' : ''}>Combine text</option>
                                 <option value="custom" ${calcOp === 'custom' ? 'selected' : ''}>Custom formula</option>
                             </select>
                         </div>
+                        ${calcOp !== 'custom' ? `
                         <div class="property-group">
-                            <label class="property-label">${calcOp === 'custom' ? 'Formula' : 'Data source'}</label>
+                            <label class="property-label">${{sum:'Add up values from',average:'Average values from',count:'Count items in',concat:'Combine text from'}[calcOp] || 'Data source'}</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'expression', '{{' + this.value + '}}')">
+                                <option value="">-- Select a data field --</option>
+                                ${availableFields.length > 0 ? `<optgroup label="Form fields">
+                                    ${availableFields.map(f => `<option value="${f.name}" ${(node.config.expression||'').includes(f.name) ? 'selected' : ''}>${escapeHtml(f.label || f.name)}</option>`).join('')}
+                                </optgroup>` : ''}
+                                ${upstreamData.length > 0 ? `<optgroup label="Data from previous steps">
+                                    ${upstreamData.map(d => `<option value="${d.name}" ${(node.config.expression||'').includes(d.name) ? 'selected' : ''}>${escapeHtml(d.label)} (from ${escapeHtml(d.source)})</option>`).join('')}
+                                </optgroup>` : ''}
+                            </select>
+                        </div>
+                        ` : `
+                        <div class="property-group">
+                            <label class="property-label">Formula</label>
                             <textarea class="property-textarea" style="min-height:60px;"
-                                      placeholder="${calcOp === 'custom' ? 'e.g. {{parsedData.totalAmount}} * 1.05' : 'e.g. {{parsedData.items}}'}"
+                                      placeholder="e.g. {{parsedData.totalAmount}} * 1.05"
                                       onchange="updateNodeConfig('${node.id}', 'expression', this.value)">${escapeHtml(node.config.expression || node.config.input || '')}</textarea>
-                            ${availableFields.length > 0 || upstreamData.length > 0 ? `
+                            ${allCalcData.length > 0 ? `
                                 <div class="field-chips">
                                     <span class="field-chips-label">Insert data:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
-                                        ${[...availableFields, ...upstreamData].map(f => `
+                                        ${allCalcData.map(f => `
                                             <button type="button" onclick="insertFieldRef('${node.id}', 'expression', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || f.name)}</button>
                                         `).join('')}
                                     </div>
                                 </div>
                             ` : ''}
                         </div>
+                        `}
                         <div class="property-group">
                             <label class="property-label">Save result as</label>
                             <input type="text" class="property-input" placeholder="e.g. grandTotal, itemCount"
@@ -4693,6 +4809,152 @@
             });
         }
         
+        /**
+         * Load user profile fields from the identity API for dynamic prefill pickers.
+         * Stores grouped fields in state.profileFields.
+         */
+        function loadProfileFields() {
+            const token = getAuthToken();
+            fetch('/api/identity/profile-fields', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(data => {
+                const fields = Array.isArray(data.fields) ? data.fields : (Array.isArray(data) ? data : []);
+                // Group the fields by category
+                const grouped = {};
+                fields.forEach(f => {
+                    const cat = f.category || f.group || 'Other';
+                    if (!grouped[cat]) grouped[cat] = [];
+                    grouped[cat].push({
+                        key: f.key || f.name || f.id,
+                        label: f.label || f.display_name || f.key || f.name || '',
+                        category: cat
+                    });
+                });
+                // Ensure we always have standard fields even if API is empty
+                if (Object.keys(grouped).length === 0) {
+                    grouped['User Profile'] = [
+                        { key: 'name', label: 'Full Name', category: 'User Profile' },
+                        { key: 'email', label: 'Email', category: 'User Profile' },
+                        { key: 'phone', label: 'Phone', category: 'User Profile' },
+                        { key: 'jobTitle', label: 'Job Title', category: 'User Profile' },
+                        { key: 'employeeId', label: 'Employee ID', category: 'User Profile' },
+                    ];
+                    grouped['Organization'] = [
+                        { key: 'departmentName', label: 'Department', category: 'Organization' },
+                        { key: 'managerName', label: 'Manager Name', category: 'Organization' },
+                        { key: 'managerEmail', label: 'Manager Email', category: 'Organization' },
+                    ];
+                    grouped['Hierarchy'] = [
+                        { key: 'directReportCount', label: 'Direct Reports Count', category: 'Hierarchy' },
+                        { key: 'isManager', label: 'Is Manager', category: 'Hierarchy' },
+                    ];
+                }
+                state.profileFields = grouped;
+                state.profileFieldsFlat = fields.length > 0 ? fields : Object.values(grouped).flat();
+            })
+            .catch(e => {
+                console.warn('Profile fields not available, using defaults:', e);
+                state.profileFields = {
+                    'User Profile': [
+                        { key: 'name', label: 'Full Name', category: 'User Profile' },
+                        { key: 'email', label: 'Email', category: 'User Profile' },
+                        { key: 'phone', label: 'Phone', category: 'User Profile' },
+                        { key: 'jobTitle', label: 'Job Title', category: 'User Profile' },
+                        { key: 'employeeId', label: 'Employee ID', category: 'User Profile' },
+                    ],
+                    'Organization': [
+                        { key: 'departmentName', label: 'Department', category: 'Organization' },
+                        { key: 'managerName', label: 'Manager Name', category: 'Organization' },
+                        { key: 'managerEmail', label: 'Manager Email', category: 'Organization' },
+                    ],
+                    'Hierarchy': [
+                        { key: 'directReportCount', label: 'Direct Reports Count', category: 'Hierarchy' },
+                        { key: 'isManager', label: 'Is Manager', category: 'Hierarchy' },
+                    ]
+                };
+                state.profileFieldsFlat = Object.values(state.profileFields).flat();
+            });
+        }
+
+        /**
+         * Load published processes for the Call Process shape picker.
+         */
+        function loadPublishedProcesses() {
+            const token = getAuthToken();
+            fetch('/api/agents?type=process&status=published&limit=100', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(data => {
+                const agents = Array.isArray(data.agents) ? data.agents : (Array.isArray(data) ? data : []);
+                state.publishedProcesses = agents.filter(a => a.type === 'process' || a.agent_type === 'process').map(a => ({
+                    id: a.id,
+                    name: a.name || 'Untitled Process',
+                    description: a.description || ''
+                }));
+            })
+            .catch(e => {
+                console.warn('Could not load published processes:', e);
+                state.publishedProcesses = [];
+            });
+        }
+
+        /**
+         * Build the dynamic profile field prefill dropdown HTML.
+         * Used in form field prefill pickers - replaces the old hardcoded Email/Name dropdown.
+         */
+        function buildProfileFieldOptions(currentPrefill) {
+            const groups = state.profileFields || {};
+            const currentKey = (currentPrefill && currentPrefill.source === 'currentUser') ? currentPrefill.key : '';
+            let html = '<option value="" ' + (!currentKey ? 'selected' : '') + '>None</option>';
+            for (const [cat, fields] of Object.entries(groups)) {
+                html += '<optgroup label="' + escapeHtml(cat) + '">';
+                for (const f of fields) {
+                    html += '<option value="' + escapeHtml(f.key) + '" ' + (currentKey === f.key ? 'selected' : '') + '>' + escapeHtml(f.label) + '</option>';
+                }
+                html += '</optgroup>';
+            }
+            return html;
+        }
+
+        /**
+         * Build Person Information chips for insertion into textareas (notifications, approval messages, AI prompts).
+         * Returns HTML string with clickable chips for inserting user context references.
+         */
+        function buildPersonInfoChips(nodeId, configKey) {
+            const allFields = state.profileFieldsFlat || [];
+            if (allFields.length === 0) return '';
+            return `
+                <div class="field-chips" style="margin-top:4px;">
+                    <span class="field-chips-label">Person information:</span>
+                    <div style="display:flex;flex-wrap:wrap;">
+                        ${allFields.slice(0, 12).map(f => `
+                            <button type="button" onclick="insertFieldRef('${nodeId}', '${configKey}', '{{trigger_input._user_context.${f.key}}}')" class="field-chip" style="border-color:color-mix(in srgb,#22c55e 40%,transparent);background:color-mix(in srgb,#22c55e 8%,transparent);" title="From user profile: ${escapeHtml(f.label || f.key)}">👤 ${escapeHtml(f.label || f.key)}</button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Build Extracted Data chips for insertion from upstream AI/read_document steps.
+         */
+        function buildExtractedDataChips(nodeId, configKey, upstreamData) {
+            if (!upstreamData || upstreamData.length === 0) return '';
+            return `
+                <div class="field-chips" style="margin-top:4px;">
+                    <span class="field-chips-label">Extracted data from previous steps:</span>
+                    <div style="display:flex;flex-wrap:wrap;">
+                        ${upstreamData.map(d => `
+                            <button type="button" onclick="insertFieldRef('${nodeId}', '${configKey}', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         function getToolIcon(type) {
             const icons = {
                 api: '🌐',

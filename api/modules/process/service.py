@@ -1656,6 +1656,12 @@ class ProcessAPIService:
             elif node_type == 'calculate':
                 # New shape: Calculate → transform
                 node['type'] = 'transform'
+            elif node_type == 'parallel':
+                # Run in Parallel — engine already supports parallel type
+                node['type'] = 'parallel'
+            elif node_type == 'call_process':
+                # Call Process — maps to sub_process engine type
+                node['type'] = 'sub_process'
             elif node_type == 'action':
                 node['type'] = 'ai_task'  # default; may be remapped based on actionType
             config = node.get('config')
@@ -1817,6 +1823,26 @@ class ProcessAPIService:
                 if not type_cfg.get('title'):
                     # Keep title short; defaults also exist in executor
                     type_cfg['title'] = node.get('name') or 'Approval Required'
+            # Parallel node: auto-build branches from outgoing edges
+            if node_type == 'parallel':
+                node_id = node.get('id')
+                if node_id:
+                    out_edges = edges_by_source.get(node_id, {})
+                    branches = [[target] for etype, target in out_edges.items() if target]
+                    if branches:
+                        type_cfg['branches'] = branches
+                    type_cfg.setdefault('merge_strategy', 'wait_all')
+                    type_cfg.setdefault('fail_fast', True)
+
+            # Call Process (sub_process) node
+            if node_type == 'call_process':
+                pid = type_cfg.get('processId') or ''
+                type_cfg['process_id'] = pid
+                type_cfg.setdefault('input_mapping', type_cfg.get('inputMapping', {}))
+                ov = type_cfg.get('outputVariable') or node.get('output_variable') or ''
+                if ov:
+                    node['output_variable'] = ov
+
             # End node: treat plain output string as variable reference (e.g. "result" -> "{{result}}")
             if node_type == 'end':
                 out_val = type_cfg.get('output')

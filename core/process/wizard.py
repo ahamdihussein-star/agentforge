@@ -188,7 +188,15 @@ Analysis (for context):
 
 Available platform tools (use these when the user's goal involves actions these tools can perform):
 {tools_json}
-TOOL MATCHING: Read each tool's name, type, and description carefully. When the user's goal implies an action that matches a tool, use a "tool" node with the correct toolId and params. Map user intent to tool capabilities intelligently.
+TOOL MATCHING (CRITICAL — name-based matching):
+- Read each tool's name, type, and description carefully.
+- When the user mentions a tool BY NAME (e.g., "use the HR System tool", "connect to SAP", "query the Employee Database"), ALWAYS match it to the closest tool in tools_json by name similarity. Prefer name matching over description matching.
+- When the user's goal implies an action that matches a tool's capability, use a "tool" node with the correct toolId and params.
+- Examples of name-based matching:
+  - User says "use SAP" → match tool with name containing "SAP"
+  - User says "check the HR system" → match tool with name containing "HR"
+  - User says "send via Slack" → if a Slack tool exists, use it; otherwise use notification with channel "slack"
+- If no tool matches the user's intent, do NOT create a tool node — use an AI step or notification instead.
 
 Platform Knowledge Base (ground truth about platform capabilities, rules, and safe option lists):
 {platform_knowledge}
@@ -197,11 +205,15 @@ IMPORTANT:
 - Output ONLY valid JSON. No markdown. No extra keys outside the schema.
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
-  - trigger, condition, loop, ai, tool, approval, notification, delay, form, end
+  - trigger, condition, ai, tool, approval, notification, form, end
   - read_document (extract text from uploaded files — replaces action with extractDocumentText)
   - create_document (generate a document — replaces action with generateDocument)
   - calculate (compute totals, averages, formulas — replaces action with transformData)
-  NOTE: The old "action" type is DEPRECATED. Use the purpose-specific types above instead.
+  - parallel (run multiple paths at the same time — connect to multiple next steps)
+  - call_process (invoke another published process as a sub-step)
+  NOTE: The old "action", "delay", and "loop" types are DEPRECATED. Do NOT use them.
+  - For iteration/repetition scenarios, use an "ai" node that handles the iteration internally.
+  - For waiting/delays, the platform handles timing through approval timeouts and schedule triggers.
 - Always include exactly ONE start node of type "trigger".
 - Always include at least ONE "end" node.
 - If you include a "condition" node, you MUST create exactly two outgoing edges from it:
@@ -317,7 +329,6 @@ Node config rules:
   The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime. If a custom attribute exists in the directory, it will be available for prefill.
   BEST PRACTICE: For any process, ALWAYS prefill every piece of information the system already knows about the user (name, email, department, employee ID, phone, job title, manager, etc.). NEVER ask the user to manually enter data that is available from their profile. This eliminates manual entry and ensures accuracy.
 - condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
-- loop.config must be: {{ "collection": "{{{{items}}}}", "itemVar": "item" }}. Use when repeating steps for each item in a collection.
 - form.config must include: fields (same schema as trigger fields). Use for collecting additional input mid-workflow (not the initial form).
 - ai.config must be: {{ "prompt": "<task description only — what to do, with {{{{field}}}} refs>", "model": "gpt-4o", "instructions": ["<rule 1>", "<rule 2>", ...] }}
   IMPORTANT — prompt vs instructions separation:
@@ -375,7 +386,15 @@ Node config rules:
     Use variable names that match the actual fields and AI output for the specific process being generated.
     NEVER leave template empty. ALWAYS write a complete, business-friendly notification message.
   CRITICAL: Every notification node MUST have a non-empty recipient and a non-empty template. The AI must fill both — they are NEVER left for the user to configure manually.
-- delay.config must include: duration (number) and unit ("seconds"|"minutes"|"hours"|"days").
+- parallel.config: No user configuration needed. Connect the parallel node to multiple next steps — the platform auto-builds branches from the edges.
+  - Use parallel when the workflow needs to do multiple things at the same time (e.g., send a notification AND create a document simultaneously).
+  - After the parallel paths complete, connect them back to a shared next node to continue the flow.
+
+- call_process.config must include: processId (ID of the published process to invoke).
+  - Use when the workflow should run another existing published process as a sub-step.
+  - Set output_variable to store the sub-process result.
+  - Example: call_process.config = { "processId": "<id>", "inputMapping": { "field1": "{{value1}}" } }
+
 - read_document.config MUST include: sourceField (the file field name from the Start form).
   - Set node.output_variable to store the extracted text (e.g., "extractedData").
   - The platform uses LLM vision (OCR) automatically to extract ALL text from ANY file type.
@@ -819,26 +838,33 @@ class ProcessWizard:
             edges = []
 
         allowed_types = {
-            "trigger", "condition", "loop", "ai", "tool", "approval",
-            "notification", "delay", "end", "form", "action",
-            # New v3 shape types
+            "trigger", "condition", "ai", "tool", "approval",
+            "notification", "end", "form",
+            # v3 shape types
             "read_document", "create_document", "calculate",
+            # v4 shape types
+            "parallel", "call_process",
+            # Backward compat (old processes may still have these)
+            "loop", "delay", "action",
         }
         type_default_names = {
             "trigger": "Start",
             "form": "Collect Information",
             "condition": "Decision",
-            "loop": "Repeat",
             "ai": "AI Step",
             "tool": "Connect to System",
             "approval": "Request Approval",
             "notification": "Send Message",
-            "delay": "Wait",
-            "action": "Action",
             "end": "Finish",
             "read_document": "Read Document",
             "create_document": "Create Document",
             "calculate": "Calculate",
+            "parallel": "Run in Parallel",
+            "call_process": "Call Process",
+            # Backward compat
+            "loop": "Repeat",
+            "delay": "Wait",
+            "action": "Action",
         }
 
         def _humanize_label(s: str) -> str:
