@@ -228,56 +228,56 @@
         </div>
     </div>
     
-    <!-- Approval step config modal (Approvers from Platform User / Role / Group / Tool) -->
+    <!-- Approval step config modal -->
     <div id="approval-config-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:100;" onclick="if(event.target===this)closeApprovalConfigModal()">
         <div class="card rounded-xl w-full max-w-lg mx-4 p-6" style="background:#1f2937;border-radius:12px;" onclick="event.stopPropagation()">
-            <h3 class="text-lg font-bold mb-4">✅ Approval Step – Approvers</h3>
+            <h3 class="text-lg font-bold mb-4">Who should approve?</h3>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm text-gray-400 mb-1">Approvers from</label>
+                    <label class="block text-sm text-gray-400 mb-1">Find the approver by</label>
                     <select id="approval-config-source" onchange="onApprovalConfigSourceChange()" class="property-select w-full rounded-lg px-4 py-2" style="width:100%;background:#111827;color:#fff;border:1px solid #374151;">
-                        <option value="platform_user">Platform User</option>
-                        <option value="platform_role">Platform Role</option>
-                        <option value="platform_group">Platform Group</option>
-                        <option value="user_directory">User Directory (Auto)</option>
-                        <option value="tool">Tool</option>
+                        <option value="user_directory">Automatically from organization</option>
+                        <option value="platform_user">A specific person</option>
+                        <option value="platform_role">Anyone with a specific role</option>
+                        <option value="platform_group">Anyone in a specific group</option>
+                        <option value="tool">Via external system</option>
                     </select>
                 </div>
                 <div id="approval-config-platform-user-wrap" class="hidden">
-                    <label class="block text-sm text-gray-400 mb-1">Select users</label>
+                    <label class="block text-sm text-gray-400 mb-1">Select person(s)</label>
                     <select id="approval-config-user-list" multiple class="property-input w-full rounded-lg px-4 py-2" style="height:120px;width:100%;background:#111827;color:#fff;"></select>
                 </div>
                 <div id="approval-config-platform-role-wrap" class="hidden">
-                    <label class="block text-sm text-gray-400 mb-1">Select roles</label>
+                    <label class="block text-sm text-gray-400 mb-1">Select role(s)</label>
                     <select id="approval-config-role-list" multiple class="property-input w-full rounded-lg px-4 py-2" style="height:120px;width:100%;background:#111827;color:#fff;"></select>
                 </div>
                 <div id="approval-config-platform-group-wrap" class="hidden">
-                    <label class="block text-sm text-gray-400 mb-1">Select groups</label>
+                    <label class="block text-sm text-gray-400 mb-1">Select group(s)</label>
                     <select id="approval-config-group-list" multiple class="property-input w-full rounded-lg px-4 py-2" style="height:120px;width:100%;background:#111827;color:#fff;"></select>
                 </div>
                 <div id="approval-config-user-directory-wrap" class="hidden">
-                    <label class="block text-sm text-gray-400 mb-1">Resolve approver from</label>
+                    <label class="block text-sm text-gray-400 mb-1">Who from the organization?</label>
                     <select id="approval-config-directory-type" class="property-select w-full rounded-lg px-4 py-2" style="width:100%;background:#111827;color:#fff;border:1px solid #374151;">
-                        <option value="dynamic_manager">Direct Manager</option>
-                        <option value="department_manager">Department Head</option>
-                        <option value="management_chain">Management Chain (Nth Level)</option>
+                        <option value="dynamic_manager">Their direct manager</option>
+                        <option value="department_manager">Department head</option>
+                        <option value="management_chain">Higher management (skip level)</option>
                     </select>
                     <div id="approval-config-mgmt-level-wrap" class="hidden mt-3">
-                        <label class="block text-sm text-gray-400 mb-1">Management level</label>
+                        <label class="block text-sm text-gray-400 mb-1">How many levels up?</label>
                         <input type="number" id="approval-config-mgmt-level" min="1" max="10" value="2" class="property-input w-full rounded-lg px-4 py-2" style="width:100%;background:#111827;color:#fff;" placeholder="e.g. 2 = manager's manager">
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">The engine automatically resolves the approver from the organization's identity source (Internal Org Chart, LDAP, or HR System).</p>
+                    <p class="text-xs text-gray-500 mt-2">The approver is automatically resolved from your organization's identity source (Org Chart, LDAP, or HR System).</p>
                 </div>
                 <div id="approval-config-tool-wrap" class="hidden">
-                    <label class="block text-sm text-gray-400 mb-1">Select tool</label>
+                    <label class="block text-sm text-gray-400 mb-1">Select system</label>
                     <select id="approval-config-tool" class="property-select w-full rounded-lg px-4 py-2" style="width:100%;background:#111827;color:#fff;">
-                        <option value="">— None —</option>
+                        <option value="">-- Select --</option>
                     </select>
                 </div>
             </div>
             <div class="flex gap-3 mt-6">
                 <button type="button" onclick="closeApprovalConfigModal()" class="flex-1 py-2 rounded-lg" style="background:#374151;color:#fff;">Cancel</button>
-                <button type="button" onclick="saveApprovalConfig()" class="flex-1 py-2 rounded-lg" style="background:#6366f1;color:#fff;">Save</button>
+                <button type="button" onclick="saveApprovalConfig()" class="flex-1 py-2 rounded-lg" style="background:#6366f1;color:#fff;">Done</button>
             </div>
         </div>
     </div>

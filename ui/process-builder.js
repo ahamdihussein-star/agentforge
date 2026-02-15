@@ -1012,7 +1012,8 @@
                     break;
                 case 'ai': {
                     const _outFlds = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label) : [];
-                    html = `<div class="node-config-item"><span class="config-label">Model</span><span class="config-value">${cfg.model || 'gpt-4o'}</span></div>`;
+                    const modeLabels = {extract:'Extract data',analyze:'Analyze',generate:'Generate',classify:'Classify',custom:'Custom'};
+                    html = `<div class="node-config-item"><span class="config-label">Task</span><span class="config-value">${modeLabels[cfg.aiMode] || 'AI task'}</span></div>`;
                     if (_outFlds.length > 0) {
                         html += `<div class="node-config-item"><span class="config-label">Output</span><span class="config-value">${_outFlds.length} field${_outFlds.length > 1 ? 's' : ''}</span></div>`;
                     }
@@ -2922,58 +2923,58 @@
                     const allCondFields = [...availableFields, ...upstreamData];
                     html += `
                         <div class="property-group">
-                            <label class="property-label">Field to Check</label>
-                            ${allCondFields.length > 0 ? `
-                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'field', this.value)">
-                                    <option value="">-- Select Field --</option>
-                                    ${availableFields.length > 0 ? `<optgroup label="📝 Form Fields">
-                                        ${availableFields.map(f => `
-                                            <option value="${f.name}" ${node.config.field === f.name ? 'selected' : ''}>
-                                                ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (${escapeHtml(f.type || '')})
-                                            </option>
-                                        `).join('')}
-                                    </optgroup>` : ''}
-                                    ${upstreamData.length > 0 ? `<optgroup label="📦 Data from Previous Steps">
-                                        ${upstreamData.map(d => `
-                                            <option value="${d.name}" ${node.config.field === d.name ? 'selected' : ''}>
-                                                ${d.icon || '📦'} ${escapeHtml(d.label)} (from ${escapeHtml(d.source)})
-                                            </option>
-                                        `).join('')}
-                                    </optgroup>` : ''}
-                                    <option value="_custom" ${node.config.field && !allCondFields.find(f => f.name === node.config.field) ? 'selected' : ''}>
-                                        ✏️ Custom field...
-                                    </option>
-                                </select>
-                                ${(node.config.field && !allCondFields.find(f => f.name === node.config.field)) || node.config.field === '_custom' ? `
-                                    <input type="text" class="property-input" style="margin-top:8px;" placeholder="Enter custom field name" 
-                                           value="${node.config.field === '_custom' ? '' : (node.config.field || '')}"
+                            <label class="property-label">When is this true?</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:8px;">
+                                If the condition below is true, the process goes down the <strong style="color:#22c55e;">Yes</strong> path. Otherwise, it goes down the <strong style="color:#ef4444;">No</strong> path.
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:color-mix(in srgb,var(--pb-primary) 5%,transparent);border-radius:10px;border:1px solid color-mix(in srgb,var(--pb-primary) 15%,transparent);">
+                                ${allCondFields.length > 0 ? `
+                                    <select class="property-select" onchange="updateNodeConfig('${node.id}', 'field', this.value)" style="width:100%;">
+                                        <option value="">-- Select a field --</option>
+                                        ${availableFields.length > 0 ? `<optgroup label="Form fields">
+                                            ${availableFields.map(f => `
+                                                <option value="${f.name}" ${node.config.field === f.name ? 'selected' : ''}>
+                                                    ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}
+                                                </option>
+                                            `).join('')}
+                                        </optgroup>` : ''}
+                                        ${upstreamData.length > 0 ? `<optgroup label="Data from previous steps">
+                                            ${upstreamData.map(d => `
+                                                <option value="${d.name}" ${node.config.field === d.name ? 'selected' : ''}>
+                                                    ${escapeHtml(d.label)} (from ${escapeHtml(d.source)})
+                                                </option>
+                                            `).join('')}
+                                        </optgroup>` : ''}
+                                        <option value="_custom" ${node.config.field && !allCondFields.find(f => f.name === node.config.field) ? 'selected' : ''}>
+                                            Enter manually...
+                                        </option>
+                                    </select>
+                                    ${(node.config.field && !allCondFields.find(f => f.name === node.config.field)) || node.config.field === '_custom' ? `
+                                        <input type="text" class="property-input" placeholder="Field name" 
+                                               value="${node.config.field === '_custom' ? '' : (node.config.field || '')}"
+                                               onchange="updateNodeConfig('${node.id}', 'field', this.value)">
+                                    ` : ''}
+                                ` : `
+                                    <input type="text" class="property-input" placeholder="e.g. amount, status" 
+                                           value="${node.config.field || ''}"
                                            onchange="updateNodeConfig('${node.id}', 'field', this.value)">
+                                `}
+                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'operator', this.value)" style="width:100%;">
+                                    <option value="equals" ${node.config.operator === 'equals' ? 'selected' : ''}>is equal to</option>
+                                    <option value="not_equals" ${node.config.operator === 'not_equals' ? 'selected' : ''}>is not equal to</option>
+                                    <option value="greater_than" ${node.config.operator === 'greater_than' ? 'selected' : ''}>is greater than</option>
+                                    <option value="less_than" ${node.config.operator === 'less_than' ? 'selected' : ''}>is less than</option>
+                                    <option value="contains" ${node.config.operator === 'contains' ? 'selected' : ''}>contains</option>
+                                    <option value="is_empty" ${node.config.operator === 'is_empty' ? 'selected' : ''}>is empty</option>
+                                </select>
+                                ${node.config.operator !== 'is_empty' ? `
+                                    <input type="text" class="property-input" placeholder="Value to compare" 
+                                           value="${node.config.value || ''}"
+                                           onchange="updateNodeConfig('${node.id}', 'value', this.value)">
                                 ` : ''}
-                            ` : `
-                                <input type="text" class="property-input" placeholder="e.g., amount, status" 
-                                       value="${node.config.field || ''}"
-                                       onchange="updateNodeConfig('${node.id}', 'field', this.value)">
-                                <div style="font-size:11px;color:#f59e0b;margin-top:4px;">
-                                    💡 Tip: Add fields to your Start/Form node first
-                                </div>
-                            `}
-                        </div>
-                        <div class="property-group">
-                            <label class="property-label">Operator</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'operator', this.value)">
-                                <option value="equals" ${node.config.operator === 'equals' ? 'selected' : ''}>Equals</option>
-                                <option value="not_equals" ${node.config.operator === 'not_equals' ? 'selected' : ''}>Not Equals</option>
-                                <option value="greater_than" ${node.config.operator === 'greater_than' ? 'selected' : ''}>Greater Than</option>
-                                <option value="less_than" ${node.config.operator === 'less_than' ? 'selected' : ''}>Less Than</option>
-                                <option value="contains" ${node.config.operator === 'contains' ? 'selected' : ''}>Contains</option>
-                                <option value="is_empty" ${node.config.operator === 'is_empty' ? 'selected' : ''}>Is Empty</option>
-                            </select>
-                        </div>
-                        <div class="property-group">
-                            <label class="property-label">Value</label>
-                            <input type="text" class="property-input" placeholder="Compare value" 
-                                   value="${node.config.value || ''}"
-                                   onchange="updateNodeConfig('${node.id}', 'value', this.value)">
+                            </div>
                         </div>
                     `;
                     break;
@@ -2982,18 +2983,22 @@
                 case 'delay':
                     html += `
                         <div class="property-group">
-                            <label class="property-label">Wait Duration</label>
-                            <div style="display:flex;gap:8px;">
-                                <input type="number" class="property-input" style="width:100px;" 
+                            <label class="property-label">How long should the process wait?</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <input type="number" class="property-input" style="width:100px;" min="1"
                                        value="${node.config.duration || 5}"
                                        onchange="updateNodeConfig('${node.id}', 'duration', parseInt(this.value))">
-                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'unit', this.value)">
-                                    <option value="seconds" ${node.config.unit === 'seconds' ? 'selected' : ''}>Seconds</option>
-                                    <option value="minutes" ${node.config.unit === 'minutes' ? 'selected' : ''}>Minutes</option>
+                                <select class="property-select" style="flex:1;" onchange="updateNodeConfig('${node.id}', 'unit', this.value)">
+                                    <option value="minutes" ${(node.config.unit || 'minutes') === 'minutes' ? 'selected' : ''}>Minutes</option>
                                     <option value="hours" ${node.config.unit === 'hours' ? 'selected' : ''}>Hours</option>
                                     <option value="days" ${node.config.unit === 'days' ? 'selected' : ''}>Days</option>
                                 </select>
                             </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Reason (optional)</label>
+                            <textarea class="property-textarea" placeholder="Why does the process need to wait? (for documentation only)"
+                                      onchange="updateNodeConfig('${node.id}', 'reason', this.value)">${escapeHtml(node.config.reason || '')}</textarea>
                         </div>
                     `;
                     break;
@@ -3005,7 +3010,10 @@
                     const mappingSources = getMappingSources(node.id);
                     html += `
                         <div class="property-group">
-                            <label class="property-label">Tool</label>
+                            <label class="property-label">Which system?</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Select a system that has been configured in the platform.
+                            </div>
                             <div class="tool-selector">
                                 ${state.tools.length ? state.tools.map(t => `
                                     <div class="tool-option ${node.config.toolId === t.id ? 'selected' : ''}" 
@@ -3018,8 +3026,8 @@
                                     </div>
                                 `).join('') : `
                                     <div class="tool-selector-empty">
-                                        <span class="tool-selector-empty-icon">🔧</span>
-                                        <p class="tool-selector-empty-text">No tools in the platform yet. Add tools in Settings, then refresh.</p>
+                                        <span class="tool-selector-empty-icon">🔗</span>
+                                        <p class="tool-selector-empty-text">No external systems configured yet. Add integrations in Settings to connect to APIs, databases, or other services.</p>
                                     </div>
                                 `}
                             </div>
@@ -3066,33 +3074,27 @@
                     }
                     break;
                     
-                case 'approval':
+                case 'approval': {
                     const aCfg = node.config || {};
                     const aSrc = aCfg.assignee_source || (aCfg.approvers && aCfg.approvers.length ? 'platform_user' : 'platform_user');
                     const aIds = aCfg.assignee_ids || aCfg.approvers || [];
                     const aToolId = aCfg.assignee_tool_id || '';
                     const timeoutVal = aCfg.timeout_hours != null ? aCfg.timeout_hours : (aCfg.timeout != null ? aCfg.timeout : 24);
-                    const dirTypeLabel = {'dynamic_manager':'Direct Manager','department_manager':'Dept Head','management_chain':'Mgmt Chain'}[aCfg.directory_assignee_type] || '';
-                    const approverLabel = aSrc === 'user_directory' ? ('Auto: ' + (dirTypeLabel || 'Directory')) : aSrc === 'tool' ? (state.tools.find(t => t.id === aToolId) || {}).name || 'Tool' : (aSrc.replace('platform_','') + ': ' + aIds.length + ' selected');
+                    const dirLabels = {'dynamic_manager':'Their direct manager','department_manager':'Department head','management_chain':'Higher management (skip level)'};
+                    const dirTypeLabel = dirLabels[aCfg.directory_assignee_type] || '';
+                    const approverLabel = aSrc === 'user_directory' ? (dirTypeLabel || 'Auto from directory') : aSrc === 'platform_role' ? (aIds.length + ' role(s)') : aSrc === 'platform_group' ? (aIds.length + ' group(s)') : aSrc === 'tool' ? ((state.tools.find(t => t.id === aToolId) || {}).name || 'Tool') : (aIds.length + ' person(s)');
                     html += `
                         <div class="property-group">
-                            <label class="property-label">Approval Message</label>
-                            <textarea class="property-textarea" placeholder="Message to show approvers..."
-                                      onchange="updateNodeConfig('${node.id}', 'message', this.value)">${aCfg.message || ''}</textarea>
-                            ${availableFields.length > 0 ? `
+                            <label class="property-label">What needs to be approved?</label>
+                            <textarea class="property-textarea" placeholder="Describe what the approver should review..."
+                                      onchange="updateNodeConfig('${node.id}', 'message', this.value)">${escapeHtml(aCfg.message || '')}</textarea>
+                            ${availableFields.length > 0 || upstreamData.length > 0 ? `
                                 <div class="field-chips">
-                                    <span class="field-chips-label">Insert from form:</span>
+                                    <span class="field-chips-label">Insert data:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
                                             <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
                                         `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${upstreamData.length > 0 ? `
-                                <div class="field-chips" style="margin-top:4px;">
-                                    <span class="field-chips-label">Insert from previous steps:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
                                         ${upstreamData.map(d => `
                                             <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
                                         `).join('')}
@@ -3101,63 +3103,70 @@
                             ` : ''}
                         </div>
                         <div class="property-group">
-                            <label class="property-label">Approvers</label>
-                            <div style="font-size:12px;color:#9ca3af;margin-bottom:6px;">From: ${approverLabel}</div>
-                            <button type="button" onclick="openApprovalConfigModal('${node.id}')" class="property-input" style="cursor:pointer;text-align:left;">
-                                Configure approvers (Platform User / Role / Group / Tool)
+                            <label class="property-label">Who should approve?</label>
+                            <div style="font-size:12px;color:var(--pb-muted);margin-bottom:6px;">Currently: <strong>${escapeHtml(approverLabel)}</strong></div>
+                            <button type="button" onclick="openApprovalConfigModal('${node.id}')" class="property-input" style="cursor:pointer;text-align:center;border-radius:8px;font-weight:500;">
+                                Choose approver...
                             </button>
                         </div>
                         <div class="property-group">
-                            <label class="property-label">Timeout (hours)</label>
-                            <input type="number" class="property-input" value="${timeoutVal}" min="1"
-                                   onchange="updateNodeConfig('${node.id}', 'timeout_hours', parseInt(this.value) || 24)">
+                            <label class="property-label">What happens if no one responds?</label>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <span style="font-size:12px;color:var(--pb-muted);white-space:nowrap;">Auto-timeout after</span>
+                                <input type="number" class="property-input" style="width:80px;" value="${timeoutVal}" min="1"
+                                       onchange="updateNodeConfig('${node.id}', 'timeout_hours', parseInt(this.value) || 24)">
+                                <span style="font-size:12px;color:var(--pb-muted);">hours</span>
+                            </div>
                         </div>
                     `;
                     break;
+                }
                     
                 case 'notification':
                     html += `
                         <div class="property-group">
-                            <label class="property-label">Channel</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'channel', this.value)">
-                                <option value="email" ${node.config.channel === 'email' ? 'selected' : ''}>Email</option>
-                                <option value="slack" ${node.config.channel === 'slack' ? 'selected' : ''}>Slack</option>
-                                <option value="teams" ${node.config.channel === 'teams' ? 'selected' : ''}>Microsoft Teams</option>
-                                <option value="sms" ${node.config.channel === 'sms' ? 'selected' : ''}>SMS</option>
-                            </select>
-                        </div>
-                        <div class="property-group">
-                            <label class="property-label">Recipient</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
-                                <option value="">-- Select Recipient --</option>
-                                <option value="requester" ${node.config.recipient === 'requester' ? 'selected' : ''}>👤 Requester (person who submitted)</option>
-                                <option value="manager" ${node.config.recipient === 'manager' ? 'selected' : ''}>👔 Manager (requester's direct manager)</option>
-                                ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
-                                    <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
-                                        📧 ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (form field)
-                                    </option>
+                            <label class="property-label">How to send</label>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                ${['email','slack','teams','sms'].map(ch => `
+                                    <button type="button" onclick="updateNodeConfig('${node.id}', 'channel', '${ch}'); showProperties(state.nodes.find(n=>n.id==='${node.id}'));"
+                                            class="property-input" style="flex:1;min-width:60px;text-align:center;cursor:pointer;padding:8px 4px;border-radius:8px;font-size:12px;${(node.config.channel || 'email') === ch ? 'border-color:var(--pb-primary);background:color-mix(in srgb,var(--pb-primary) 12%,transparent);color:var(--pb-primary);font-weight:600;' : ''}">
+                                        ${{email:'📧 Email', slack:'💬 Slack', teams:'💼 Teams', sms:'📱 SMS'}[ch]}
+                                    </button>
                                 `).join('')}
-                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') ? 'selected' : ''}>✏️ Custom email...</option>
-                            </select>
-                            <input type="text" class="property-input" style="margin-top:8px;${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') ? '' : 'display:none;'}" 
-                                   placeholder="email@example.com" 
-                                   value="${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') ? (node.config.recipient || '') : ''}"
-                                   onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
-                            <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
-                                ${node.config.recipient === 'requester' ? '✅ Will auto-send to the employee who submitted the form' : 
-                                  node.config.recipient === 'manager' ? '✅ Will auto-send to the submitter\'s direct manager' :
-                                  node.config.recipient && node.config.recipient.startsWith('{{') ? '✅ Will use the email from the form field' :
-                                  node.config.recipient ? '✅ Will send to: ' + escapeHtml(node.config.recipient) :
-                                  '⚠️ No recipient set — notification won\'t be sent'}
                             </div>
                         </div>
                         <div class="property-group">
-                            <label class="property-label">Message Template</label>
-                            <textarea class="property-textarea" placeholder="Enter message template..."
-                                      onchange="updateNodeConfig('${node.id}', 'template', this.value)">${node.config.template || ''}</textarea>
+                            <label class="property-label">Who should receive this?</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
+                                <option value="">-- Select --</option>
+                                <option value="requester" ${node.config.recipient === 'requester' ? 'selected' : ''}>The person who started this process</option>
+                                <option value="manager" ${node.config.recipient === 'manager' ? 'selected' : ''}>Their manager</option>
+                                ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
+                                    <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
+                                        ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (from form)
+                                    </option>
+                                `).join('')}
+                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') ? 'selected' : ''}>A specific email address...</option>
+                            </select>
+                            ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') && node.config.recipient !== '' ? `
+                                <input type="text" class="property-input" style="margin-top:8px;" placeholder="email@example.com" 
+                                       value="${escapeHtml(node.config.recipient || '')}"
+                                       onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
+                            ` : ''}
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Subject</label>
+                            <input type="text" class="property-input" placeholder="e.g. Your request has been approved"
+                                   value="${escapeHtml(node.config.title || '')}"
+                                   onchange="updateNodeConfig('${node.id}', 'title', this.value)">
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Message</label>
+                            <textarea class="property-textarea" style="min-height:100px;" placeholder="Write the message to send..."
+                                      onchange="updateNodeConfig('${node.id}', 'template', this.value)">${escapeHtml(node.config.template || '')}</textarea>
                             ${availableFields.length > 0 ? `
                                 <div class="field-chips">
-                                    <span class="field-chips-label">Insert from form:</span>
+                                    <span class="field-chips-label">Insert data:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${availableFields.map(f => `
                                             <button type="button" onclick="insertFieldRef('${node.id}', 'template', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
@@ -3167,7 +3176,7 @@
                             ` : ''}
                             ${upstreamData.length > 0 ? `
                                 <div class="field-chips" style="margin-top:4px;">
-                                    <span class="field-chips-label">Insert from previous steps:</span>
+                                    <span class="field-chips-label">From previous steps:</span>
                                     <div style="display:flex;flex-wrap:wrap;">
                                         ${upstreamData.map(d => `
                                             <button type="button" onclick="insertFieldRef('${node.id}', 'template', '{{${d.name}}}')" class="field-chip" style="border-color:color-mix(in srgb,var(--pb-primary) 40%,transparent);background:color-mix(in srgb,var(--pb-primary) 8%,transparent);" title="From: ${escapeHtml(d.source)}">${d.icon || '📦'} ${escapeHtml(d.label)}</button>
@@ -3182,6 +3191,7 @@
                 case 'ai': {
                     const _aiCreativity = node.config.creativity ?? 3;
                     const _aiConfidence = node.config.confidence ?? 3;
+                    const _aiMode = node.config.aiMode || 'custom';
                     // Normalise instructions: always work with an array
                     const _instrArr = Array.isArray(node.config.instructions)
                         ? node.config.instructions
@@ -3190,9 +3200,19 @@
                             : [];
                     html += `
                         <div class="property-group">
-                            <label class="property-label">AI Prompt</label>
+                            <label class="property-label">What should the AI do?</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'aiMode', this.value); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
+                                <option value="extract" ${_aiMode === 'extract' ? 'selected' : ''}>Extract data from files</option>
+                                <option value="analyze" ${_aiMode === 'analyze' ? 'selected' : ''}>Analyze or summarize</option>
+                                <option value="generate" ${_aiMode === 'generate' ? 'selected' : ''}>Generate content</option>
+                                <option value="classify" ${_aiMode === 'classify' ? 'selected' : ''}>Classify or categorize</option>
+                                <option value="custom" ${_aiMode === 'custom' ? 'selected' : ''}>Custom task</option>
+                            </select>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Task description</label>
                             <textarea class="property-textarea" style="min-height:120px;" 
-                                      placeholder="Describe what the AI should do..."
+                                      placeholder="${{extract:'Describe what data to extract (e.g., Extract invoice number, date, line items, and total from the uploaded document)', analyze:'Describe what to analyze (e.g., Summarize the key findings from the uploaded report)', generate:'Describe what to generate (e.g., Write a professional approval email with the request details)', classify:'Describe how to classify (e.g., Categorize this support ticket as Bug, Feature Request, or Question)', custom:'Describe what the AI should do...'}[_aiMode] || 'Describe what the AI should do...'}"
                                       onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || '')}</textarea>
                             ${availableFields.length > 0 ? `
                                 <div class="field-chips">
@@ -3336,14 +3356,20 @@
                             })()}
                         </div>
 
-                        <div class="property-group">
-                            <label class="property-label">AI Model</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'model', this.value)">
-                                <option value="gpt-4o" ${node.config.model === 'gpt-4o' ? 'selected' : ''}>GPT-4o (Fast)</option>
-                                <option value="gpt-4o-mini" ${node.config.model === 'gpt-4o-mini' ? 'selected' : ''}>GPT-4o Mini</option>
-                                <option value="claude-sonnet-4-20250514" ${node.config.model === 'claude-sonnet-4-20250514' ? 'selected' : ''}>Claude Sonnet</option>
-                            </select>
-                        </div>
+                        <details style="margin-top:8px;">
+                            <summary style="font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;padding:6px 0;">Advanced settings</summary>
+                            <div class="property-group" style="margin-top:8px;">
+                                <label class="property-label">AI Model</label>
+                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'model', this.value)">
+                                    <option value="gpt-4o" ${(node.config.model || 'gpt-4o') === 'gpt-4o' ? 'selected' : ''}>GPT-4o (Recommended)</option>
+                                    <option value="gpt-4o-mini" ${node.config.model === 'gpt-4o-mini' ? 'selected' : ''}>GPT-4o Mini (Faster)</option>
+                                    <option value="claude-sonnet-4-20250514" ${node.config.model === 'claude-sonnet-4-20250514' ? 'selected' : ''}>Claude Sonnet</option>
+                                </select>
+                                <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                    The default model works well for most tasks. Change only if you have a specific reason.
+                                </div>
+                            </div>
+                        </details>
                     `;
                     break;
                 }
@@ -3354,26 +3380,36 @@
                     const fields = node.config.fields || [];
                     const triggerType = (node.config.triggerType || 'manual');
                     html += `
+                        ${node.type === 'trigger' ? `
                         <div class="property-group">
-                            <label class="property-label">Start method</label>
+                            <label class="property-label">How does this process start?</label>
                             <select class="property-select" onchange="setTriggerType('${node.id}', this.value)">
-                                <option value="manual" ${triggerType === 'manual' ? 'selected' : ''}>Manual (Form)</option>
-                                <option value="schedule" ${triggerType === 'schedule' ? 'selected' : ''}>Schedule</option>
-                                <option value="webhook" ${triggerType === 'webhook' ? 'selected' : ''}>Webhook</option>
+                                <option value="manual" ${triggerType === 'manual' ? 'selected' : ''}>Someone fills a form</option>
+                                <option value="schedule" ${triggerType === 'schedule' ? 'selected' : ''}>Runs on a schedule</option>
+                                <option value="webhook" ${triggerType === 'webhook' ? 'selected' : ''}>Triggered from another system</option>
                             </select>
-                            <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
-                                Choose how this workflow starts. Manual uses a form; Schedule runs automatically; Webhook starts from an API call.
+                        </div>
+                        ` : `
+                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-bottom:12px;">
+                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                This step pauses the process and asks someone to fill in a form before continuing.
                             </div>
                         </div>
+                        `}
                         
                         ${triggerType === 'schedule' ? `
                             <div class="property-group">
-                                <label class="property-label">Schedule (Cron)</label>
-                                <input type="text" class="property-input" placeholder="0 9 * * *"
-                                       value="${escapeHtml(node.config.cron || '0 9 * * *')}"
-                                       onchange="updateNodeConfig('${node.id}', 'cron', this.value)">
-                                <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
-                                    Example: <code>0 9 * * *</code> runs every day at 9:00
+                                <label class="property-label">When should it run?</label>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                                    <span style="font-size:12px;color:var(--pb-muted);">Every</span>
+                                    <select class="property-select" style="width:auto;flex:1;" id="sched-freq-${node.id}" onchange="updateScheduleFromPicker('${node.id}')">
+                                        <option value="daily" ${(node.config._schedFreq || 'daily') === 'daily' ? 'selected' : ''}>Day</option>
+                                        <option value="weekly" ${(node.config._schedFreq) === 'weekly' ? 'selected' : ''}>Week</option>
+                                        <option value="monthly" ${(node.config._schedFreq) === 'monthly' ? 'selected' : ''}>Month</option>
+                                        <option value="hourly" ${(node.config._schedFreq) === 'hourly' ? 'selected' : ''}>Hour</option>
+                                    </select>
+                                    <span style="font-size:12px;color:var(--pb-muted);">at</span>
+                                    <input type="time" class="property-input" style="width:auto;" id="sched-time-${node.id}" value="${node.config._schedTime || '09:00'}" onchange="updateScheduleFromPicker('${node.id}')">
                                 </div>
                             </div>
                             <div class="property-group">
@@ -3383,26 +3419,28 @@
                                     <option value="Africa/Cairo" ${(node.config.timezone || '') === 'Africa/Cairo' ? 'selected' : ''}>Cairo</option>
                                     <option value="Asia/Dubai" ${(node.config.timezone || '') === 'Asia/Dubai' ? 'selected' : ''}>Dubai</option>
                                     <option value="Europe/London" ${(node.config.timezone || '') === 'Europe/London' ? 'selected' : ''}>London</option>
+                                    <option value="America/New_York" ${(node.config.timezone || '') === 'America/New_York' ? 'selected' : ''}>New York</option>
+                                    <option value="America/Los_Angeles" ${(node.config.timezone || '') === 'America/Los_Angeles' ? 'selected' : ''}>Los Angeles</option>
+                                    <option value="Asia/Tokyo" ${(node.config.timezone || '') === 'Asia/Tokyo' ? 'selected' : ''}>Tokyo</option>
+                                    <option value="Europe/Paris" ${(node.config.timezone || '') === 'Europe/Paris' ? 'selected' : ''}>Paris</option>
                                 </select>
                             </div>
+                            <details style="margin-top:4px;">
+                                <summary style="font-size:11px;color:var(--pb-muted);cursor:pointer;">Advanced: Edit cron expression</summary>
+                                <input type="text" class="property-input" style="margin-top:6px;" placeholder="0 9 * * *"
+                                       value="${escapeHtml(node.config.cron || '0 9 * * *')}"
+                                       onchange="updateNodeConfig('${node.id}', 'cron', this.value)">
+                            </details>
                         ` : ''}
                         
                         ${triggerType === 'webhook' ? `
                             <div class="property-group">
-                                <label class="property-label">HTTP Method</label>
-                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'method', this.value)">
-                                    <option value="POST" ${(node.config.method || 'POST') === 'POST' ? 'selected' : ''}>POST</option>
-                                    <option value="GET" ${(node.config.method || '') === 'GET' ? 'selected' : ''}>GET</option>
-                                </select>
-                            </div>
-                            <div class="property-group">
-                                <label class="property-label">Webhook path</label>
-                                <input type="text" class="property-input" placeholder="/trigger"
-                                       value="${escapeHtml(node.config.path || '/trigger')}"
-                                       onchange="updateNodeConfig('${node.id}', 'path', this.value)">
-                                <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
-                                    The platform will expose a webhook endpoint for this workflow.
+                                <label class="property-label">Webhook URL</label>
+                                <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                    The platform will generate a URL that other systems can call to start this process.
                                 </div>
+                                <input type="text" class="property-input" readonly placeholder="Will be generated after saving"
+                                       value="${escapeHtml(node.config.path || '/trigger')}" style="opacity:0.7;">
                             </div>
                         ` : ''}
                         
@@ -3414,9 +3452,9 @@
                                    onchange="updateNodeConfig('${node.id}', 'formTitle', this.value)">
                         </div>
                         <div class="property-group">
-                            <label class="property-label">Input Fields</label>
+                            <label class="property-label">What information to collect</label>
                             <div id="form-fields-list" style="margin-bottom:12px;">
-                                ${fields.length === 0 ? '<div style="color:#6b7280;font-size:12px;padding:8px;">No fields yet. Add some below.</div>' : ''}
+                                ${fields.length === 0 ? '<div style="color:#6b7280;font-size:12px;padding:8px;">No fields yet. Click "Add Field" below to start building the form.</div>' : ''}
                                 ${fields.map((f, idx) => `
                                     <div class="tool-param-card" style="padding:10px;margin-bottom:10px;">
                                         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
@@ -3436,12 +3474,12 @@
                                             <div style="flex:1;">
                                                 <label class="property-label">Type</label>
                                                 <select class="property-select" onchange="updateFormField('${node.id}', ${idx}, 'type', this.value)">
-                                                    <option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option>
+                                                    <option value="text" ${f.type === 'text' ? 'selected' : ''}>Short text</option>
                                                     <option value="number" ${f.type === 'number' ? 'selected' : ''}>Number</option>
-                                                    <option value="email" ${f.type === 'email' ? 'selected' : ''}>Email</option>
+                                                    <option value="email" ${f.type === 'email' ? 'selected' : ''}>Email address</option>
                                                     <option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option>
-                                                    <option value="textarea" ${f.type === 'textarea' ? 'selected' : ''}>Long Text</option>
-                                                    <option value="select" ${f.type === 'select' ? 'selected' : ''}>Dropdown</option>
+                                                    <option value="textarea" ${f.type === 'textarea' ? 'selected' : ''}>Long text</option>
+                                                    <option value="select" ${f.type === 'select' ? 'selected' : ''}>Dropdown list</option>
                                                     <option value="file" ${f.type === 'file' ? 'selected' : ''}>File Upload</option>
                                                 </select>
                                             </div>
@@ -3658,24 +3696,33 @@
                     break;
                 }
                 
-                case 'end':
+                case 'end': {
+                    // Build a dropdown of available data from previous steps
+                    const endDataOptions = [...upstreamData, ...availableFields.map(f => ({name: f.name, label: f.label || f.name, source: 'Form'}))];
                     html += `
                         <div class="property-group">
-                            <label class="property-label">Output Variable</label>
-                            <input type="text" class="property-input" placeholder="e.g., result, response" 
-                                   value="${node.config.output || ''}"
-                                   onchange="updateNodeConfig('${node.id}', 'output', this.value)">
-                            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-                                The variable to return as workflow result
+                            <label class="property-label">What should this process return?</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Select the data to include in the final result. Leave empty to return everything.
                             </div>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'output', this.value)">
+                                <option value="" ${!node.config.output ? 'selected' : ''}>All data (default)</option>
+                                ${endDataOptions.map(d => `
+                                    <option value="{{${d.name}}}" ${node.config.output === '{{' + d.name + '}}' ? 'selected' : ''}>${escapeHtml(d.label || d.name)} ${d.source ? '(from ' + escapeHtml(d.source) + ')' : ''}</option>
+                                `).join('')}
+                            </select>
                         </div>
                         <div class="property-group">
-                            <label class="property-label">Success Message</label>
-                            <textarea class="property-textarea" placeholder="Workflow completed successfully"
-                                      onchange="updateNodeConfig('${node.id}', 'successMessage', this.value)">${node.config.successMessage || ''}</textarea>
+                            <label class="property-label">Completion message</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Shown to the person who started this process when it finishes.
+                            </div>
+                            <textarea class="property-textarea" placeholder="e.g. Your request has been processed successfully."
+                                      onchange="updateNodeConfig('${node.id}', 'successMessage', this.value)">${escapeHtml(node.config.successMessage || '')}</textarea>
                         </div>
                     `;
                     break;
+                }
                 
                 case 'action':
                     const actionType = (node.config.actionType || 'custom');
@@ -4137,6 +4184,28 @@
             }
             refreshNode(node);
             showProperties(node);
+            saveToUndo();
+        }
+
+        // Visual schedule picker → cron expression conversion
+        function updateScheduleFromPicker(nodeId) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            const freqEl = document.getElementById('sched-freq-' + nodeId);
+            const timeEl = document.getElementById('sched-time-' + nodeId);
+            if (!freqEl || !timeEl) return;
+            const freq = freqEl.value;
+            const time = timeEl.value || '09:00';
+            const [h, m] = time.split(':').map(Number);
+            let cron = '0 9 * * *';
+            if (freq === 'daily') cron = `${m} ${h} * * *`;
+            else if (freq === 'weekly') cron = `${m} ${h} * * 1`; // Monday
+            else if (freq === 'monthly') cron = `${m} ${h} 1 * *`; // 1st of month
+            else if (freq === 'hourly') cron = `0 * * * *`;
+            node.config.cron = cron;
+            node.config._schedFreq = freq;
+            node.config._schedTime = time;
+            refreshNode(node);
             saveToUndo();
         }
 
