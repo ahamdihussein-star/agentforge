@@ -64,37 +64,24 @@ Config (`ai.config`):
 Optional:
 - `output_variable` (string): Store the AI result for later steps.
 
-AI sub-modes (set via `aiMode` in config for UI pre-fill, not required):
-- `extract` — Extract data from files (auto-sets output_format to json, creativity to 2)
+AI modes (set via `aiMode` in config — determines what the AI step does):
+- `extract_file` — Extract data from uploaded files/images
+  - Additional config: `sourceField` (file field name), uses AI vision/OCR for images
+  - Auto-sets creativity to 1 (strict extraction), output_format to json
+  - Supports ALL file types: PDFs, Word, Excel, images (receipts, IDs, photos)
+- `create_doc` — Generate a document (Word, PDF, Excel, PowerPoint, Text)
+  - Additional config: `docTitle` (string), `docFormat` (`docx`|`pdf`|`xlsx`|`pptx`|`txt`)
+  - `prompt` describes document contents (can use `{{fieldName}}` refs)
 - `analyze` — Analyze or summarize text
-- `generate` — Generate content
-- `classify` — Classify or categorize
-- `custom` — Custom task (default)
+- `generate` — Generate content (emails, reports, etc.)
+- `classify` — Classify or categorize items
+- `custom` — Custom AI task (default)
 
-#### 4) Read File — `read_document`
-Extract content from uploaded files — documents (PDFs, Word, Excel) AND images (receipts, IDs, photos).
+For typed output fields, each object in `outputFields` also supports a `type` property:
+`{ "label": "Total Amount", "name": "totalAmount", "type": "currency" }`
+Supported types: `text`, `number`, `date`, `currency`, `email`, `boolean`, `list`.
 
-Config (`read_document.config`):
-- `sourceField` (string): Name of the file field from Start/Form.
-- `outputFields` (array): Named data fields the user expects from this file. Each: `{ "label": "Human Name", "name": "camelCaseKey" }`.
-  These fields appear as selectable options in all downstream steps (Decision, Calculate, Notification, etc.).
-  The platform uses AI to automatically extract these fields from the file content.
-
-Optional:
-- `output_variable` (string): Store the extracted data for later steps (default: `extractedData`).
-
-Note: Supports ALL file types including images via AI vision/OCR. When `outputFields` are defined, they become available in downstream steps for conditions, calculations, and notifications — the user never needs to type variable names.
-
-#### 5) Create Document — `create_document`
-Generate a document (Word, PDF, Excel, PowerPoint).
-
-Config (`create_document.config`):
-- `title` (string): Document title.
-- `format` (string): `docx` | `pdf` | `xlsx` | `pptx` | `txt`
-- `instructions` (string): What should be in the document. Can reference variables with `{{fieldName}}`.
-
-Optional:
-- `output_variable` (string): Store the document reference for later steps.
+Note: `read_document` and `create_document` are legacy node types now handled as AI modes. Old processes with these types are automatically converted.
 
 ---
 
@@ -236,8 +223,8 @@ Optional:
 | Run steps simultaneously | Run in Parallel |
 | Invoke another process | Call Process |
 | AI analysis, extraction, classification | AI Step |
-| Extract content from files or images | Read File |
-| Generate a document | Create Document |
+| Extract content from files or images | AI Step (mode: extract_file) |
+| Generate a document | AI Step (mode: create_doc) |
 | Compute totals, averages, formulas | Calculate |
 | Call external system or API | Connect to System |
 | Get someone's approval | Request Approval |
@@ -249,7 +236,9 @@ Optional:
 These shapes are NOT available in the palette but old saved processes that use them will still load and execute:
 - **Wait** (`delay`) — Use schedule triggers or approval timeouts instead.
 - **Repeat** (`loop`) — Use an AI Step to handle iteration logic internally.
-- **Action** (`action`) — Replaced by purpose-specific shapes (Read File, Create Document, Calculate).
+- **Action** (`action`) — Replaced by purpose-specific shapes (AI Step modes, Calculate).
+- **Read File** (`read_document`) — Now an AI Step mode (`extract_file`).
+- **Create Document** (`create_document`) — Now an AI Step mode (`create_doc`).
 
 ## Anti-Hallucination Rules
 

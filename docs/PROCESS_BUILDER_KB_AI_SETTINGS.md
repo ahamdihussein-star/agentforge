@@ -118,7 +118,7 @@ Controls how much the AI infers beyond the explicit data. Mapped to LLM temperat
 | 5 | Creative | 0.8 | Creative writing, brainstorming |
 
 ### Default values when generating:
-- OCR/document extraction (after `read_document`): **creativity = 1** (Very strict — never hallucinate extracted data)
+- File/image extraction (`aiMode: "extract_file"`): **creativity = 1** (Very strict — never hallucinate extracted data)
 - Other extraction/parsing steps with `output_variable`: **creativity = 2** (Strict)
 - General AI steps: **creativity = 3** (Balanced)
 

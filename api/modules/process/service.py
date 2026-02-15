@@ -1644,14 +1644,21 @@ class ProcessAPIService:
             if node_type in ('trigger', 'form', 'schedule', 'webhook'):
                 node['type'] = 'start'
             elif node_type in ('ai', 'ai_step'):
-                node['type'] = 'ai_task'
+                # Decide engine type based on AI mode
+                ai_mode = (n.get('config') or {}).get('aiMode', 'custom')
+                if ai_mode == 'extract_file':
+                    node['type'] = 'file_operation'
+                elif ai_mode == 'create_doc':
+                    node['type'] = 'file_operation'
+                else:
+                    node['type'] = 'ai_task'
             elif node_type == 'tool':
                 node['type'] = 'tool_call'
             elif node_type == 'read_document':
-                # New shape: Read File → file_operation (extract_text)
+                # Legacy Read File → file_operation (extract_text)
                 node['type'] = 'file_operation'
             elif node_type == 'create_document':
-                # New shape: Create Document → file_operation (generate_document)
+                # Legacy Create Document → file_operation (generate_document)
                 node['type'] = 'file_operation'
             elif node_type == 'calculate':
                 # New shape: Calculate → transform
@@ -1770,6 +1777,52 @@ class ProcessAPIService:
                     type_cfg['title'] = node.get('name') or 'Document'
                 if not type_cfg.get('format'):
                     type_cfg['format'] = 'docx'
+
+            # AI modes: extract_file / create_doc → file_operation with right sub-config
+            if node_type in ('ai', 'ai_step'):
+                ai_mode = type_cfg.get('aiMode') or 'custom'
+                if ai_mode == 'extract_file':
+                    type_cfg['operation'] = 'extract_text'
+                    type_cfg['storage_type'] = type_cfg.get('storage_type') or 'local'
+                    if not type_cfg.get('path'):
+                        src = (type_cfg.get('sourceField') or '').strip()
+                        if src:
+                            type_cfg['path'] = f"{{{{{src}.path}}}}"
+                elif ai_mode == 'create_doc':
+                    type_cfg['operation'] = 'generate_document'
+                    type_cfg['storage_type'] = type_cfg.get('storage_type') or 'local'
+                    if not type_cfg.get('title'):
+                        type_cfg['title'] = type_cfg.get('docTitle') or node.get('name') or 'Document'
+                    if not type_cfg.get('format'):
+                        type_cfg['format'] = type_cfg.get('docFormat') or 'docx'
+                    if not type_cfg.get('instructions') and type_cfg.get('prompt'):
+                        type_cfg['instructions'] = type_cfg.get('prompt')
+
+                # Auto-generate output_schema from outputFields for all AI modes
+                output_fields = type_cfg.get('outputFields') or []
+                if output_fields and isinstance(output_fields, list):
+                    type_map = {
+                        'text': 'string', 'number': 'number', 'date': 'string',
+                        'currency': 'number', 'email': 'string', 'boolean': 'boolean',
+                        'list': 'array'
+                    }
+                    schema_props = {}
+                    for f in output_fields:
+                        if f.get('name') and f.get('label'):
+                            json_type = type_map.get(f.get('type', 'text'), 'string')
+                            schema_props[f['name']] = {
+                                'type': json_type,
+                                'description': f['label']
+                            }
+                            if json_type == 'array':
+                                schema_props[f['name']]['items'] = {'type': 'string'}
+                    if schema_props:
+                        type_cfg['output_format'] = 'json'
+                        type_cfg['output_schema'] = {
+                            'type': 'object',
+                            'properties': schema_props,
+                            'required': list(schema_props.keys())
+                        }
 
             # New shape: calculate → transform
             if node_type == 'calculate':

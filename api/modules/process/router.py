@@ -1433,6 +1433,41 @@ async def update_org_process_settings(
     )
 
 
+@router.get("/available-models")
+async def get_available_models(
+    user: User = Depends(require_auth)
+):
+    """
+    Return all configured and active AI models for use in AI Step dropdowns.
+    """
+    try:
+        registry = LLMRegistry()
+        models = registry.list_all(active_only=True)
+        result = []
+        for m in models:
+            result.append({
+                "id": m.model_id or m.id,
+                "name": m.display_name,
+                "provider": m.provider,
+                "recommended": "gpt-4o" in (m.model_id or m.id).lower()
+            })
+        # If no models registered, return sensible defaults
+        if not result:
+            result = [
+                {"id": "gpt-4o", "name": "GPT-4o (Recommended)", "provider": "openai", "recommended": True},
+                {"id": "gpt-4o-mini", "name": "GPT-4o Mini (Faster)", "provider": "openai", "recommended": False},
+                {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet", "provider": "anthropic", "recommended": False}
+            ]
+        return {"models": result}
+    except Exception as e:
+        # Fallback defaults if registry fails
+        return {"models": [
+            {"id": "gpt-4o", "name": "GPT-4o (Recommended)", "provider": "openai", "recommended": True},
+            {"id": "gpt-4o-mini", "name": "GPT-4o Mini (Faster)", "provider": "openai", "recommended": False},
+            {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet", "provider": "anthropic", "recommended": False}
+        ]}
+
+
 @router.get("/config/templates")
 async def get_process_templates(
     category: Optional[str] = Query(None, description="Filter by category"),

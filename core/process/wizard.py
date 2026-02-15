@@ -206,12 +206,11 @@ IMPORTANT:
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
   - trigger, condition, ai, tool, approval, notification, form, end
-  - read_document (extract content from uploaded files: documents AND images — replaces action with extractDocumentText)
-  - create_document (generate a document — replaces action with generateDocument)
   - calculate (compute totals, averages, formulas — replaces action with transformData)
   - parallel (run multiple paths at the same time — connect to multiple next steps)
   - call_process (invoke another published process as a sub-step)
-  NOTE: The old "action", "delay", and "loop" types are DEPRECATED. Do NOT use them.
+  NOTE: The old "action", "delay", "loop", "read_document", and "create_document" types are DEPRECATED. Do NOT use them.
+  - For file extraction or document generation, use an "ai" node with the appropriate aiMode (see below).
   - For iteration/repetition scenarios, use an "ai" node that handles the iteration internally.
   - For waiting/delays, the platform handles timing through approval timeouts and schedule triggers.
 - Always include exactly ONE start node of type "trigger".
@@ -244,8 +243,7 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
 - Scheduling is configured on the Start node via `trigger.config.triggerType` (do NOT create separate schedule nodes).
 - The trigger node is ONLY for how the process starts — do NOT put form fields on it.
   - Manual processes: trigger → form (Collect Information) → action steps → end
-  - Scheduled processes: trigger → action steps (tool/AI/read_document/etc.) → end
-  - Webhook processes: trigger → action steps → end
+  - Scheduled processes: trigger → action steps (tool/AI/etc.) → end
 
 VISUAL LAYOUT RULES (CRITICAL — follow strictly for clean, professional diagrams):
 - Connection lines must NEVER pass through any node. Ensure enough spacing so edges route cleanly around nodes.
@@ -408,55 +406,48 @@ Node config rules:
   - If no published processes are available (PUBLISHED PROCESSES list is empty), do NOT create call_process nodes.
   - Example: call_process.config = { "processId": "<id>", "inputMapping": { "field1": "{{{{value1}}}}" }, "outputVariable": "subResult" }
 
-- read_document.config MUST include: sourceField (the file field name from the Start form).
-  - Set node.output_variable to store the extracted data (e.g., "extractedData").
-  - SHOULD include config.outputFields: an array of objects naming each data field the user expects from this file.
-    Each object has "label" (friendly display name) and "name" (camelCase key).
-    These fields become selectable in ALL downstream steps (Decision, Calculate, Notification, etc.).
-    Format: "outputFields": [{{"label": "Invoice Number", "name": "invoiceNumber"}}, {{"label": "Total Amount", "name": "totalAmount"}}]
-  - The platform uses LLM vision (OCR) automatically to extract ALL content from ANY file type (documents AND images).
-  - Use read_document when the workflow needs to read/extract data from uploaded files — documents or images (field type "file").
-    CRITICAL: After read_document, ALWAYS follow with an "ai" node that parses the raw extracted text into structured data (JSON). The AI node should:
-      - Reference the extracted text variable in its prompt: {{{{extractedData}}}}
-      - Use its intelligence to identify and extract all relevant fields from the raw text (amounts, dates, vendors, currencies, line items, totals, etc.) based on the workflow's purpose
-      - Store the parsed result as a structured variable (e.g., output_variable: "parsedData")
-      - MUST set creativity: 1 (very strict — for accurate data extraction, never hallucinate)
-      - MUST set output_format: "json"
-      - MUST set config.outputFields: an array of objects naming each data field the AI will produce.
-        Each object has "label" (friendly display name) and "name" (camelCase key).
-        These fields appear as selectable options in all downstream steps for non-technical users.
-        CRITICAL: The fields MUST be determined dynamically based on the workflow's business context and goal.
-        Do NOT use hardcoded or fixed field names — infer them from what the user's process needs.
-        Format: "outputFields": [{{"label": "<Human Readable Name>", "name": "<camelCaseKey>"}}]
-        For multi-file workflows, also include aggregate/summary fields (items array, counts, totals, etc.) as appropriate.
-        Every field that is referenced by a downstream condition, notification, or approval MUST be listed in outputFields.
-      - PROMPT vs INSTRUCTIONS separation (MANDATORY for ALL "ai" nodes):
-        config.prompt = ONLY the task description (what data to extract, what to do with it).
-        config.instructions = an ARRAY of individual rule strings. Each rule is a separate item.
-        NEVER mix rules/constraints into the prompt. Put them in config.instructions instead.
-        Example:
-          "prompt": "Extract expense data from: {{{{extractedData}}}}. For each receipt, identify expense type, date, vendor, amount, and currency. Return items array and totals.",
-          "instructions": [
-            "Only extract data that is EXPLICITLY present in the text — do NOT invent or estimate values",
-            "Each file section (--- File: ... ---) is exactly ONE item — count them carefully",
-            "If a value is unclear or missing, omit it or set it to null",
-            "Return amounts as numbers, not strings"
-          ]
-        The engine injects each instruction into the AI's system prompt automatically.
-    - MULTI-FILE UPLOADS: When the file field has multiple=true (e.g., multiple receipts, invoices, contracts, reports, images, certificates), the read_document step automatically processes ALL uploaded files (documents AND images via OCR) and returns combined text with "--- File: <name> ---" headers separating each file's content. The AI parsing node MUST handle this correctly:
-      - Parse and extract relevant data from EVERY file in the text, not just the first one
-      - ALWAYS return an "items" array containing each file's extracted data as a separate object, preserving per-file details (fileName, and any fields relevant to the workflow). This ensures each file's data is individually accessible to subsequent workflow steps
-      - ALWAYS return "itemCount" with the number of files/documents processed
-      - Based on the workflow's business context, the AI should ALSO return any computed/aggregated fields that downstream steps might need. The LLM must infer what is appropriate:
-        * If the workflow involves amounts/costs → compute a total/sum across all files
-        * If the workflow involves review/compliance → compile all findings and flag issues
-        * If the workflow involves data collection → merge and deduplicate entries
-        * If the workflow is simply gathering documents → just organize and list all extracted data
-        * Any other scenario → use business judgment to decide what aggregated fields are useful
-      - Do NOT hardcode specific field names — the LLM infers them from the business context
-      - The structured output (items array + aggregated fields) is stored as a single variable (e.g., "parsedData") and is available to ALL subsequent steps: conditions can route based on aggregated values, notifications can reference per-item or summary data, approvals can display the full breakdown, and any other step can use any part of the data
-    - Subsequent nodes (conditions, notifications, approvals) should reference the parsed data fields.
-    - This pattern works for ANY document or image type — the LLM determines what to extract based on context.
+- AI NODE MODES (config.aiMode — determines what the AI step does):
+  The "ai" node is the unified intelligence step. It supports these modes:
+  
+  1. aiMode: "extract_file" — Extract data from uploaded files/images
+     - config.sourceField: the file field name from the Collect Information form
+     - config.prompt: describe what data to extract
+     - config.outputFields: array of objects naming each extracted field. Each has:
+       "label" (human-readable), "name" (camelCase key), "type" ("text"|"number"|"date"|"currency"|"email"|"boolean"|"list")
+     - config.creativity: 1 (strict — for accurate extraction)
+     - config.instructions: array of individual rules for the AI
+     - Set node.output_variable (e.g., "parsedData") to store structured results
+     - The platform uses LLM vision (OCR) for images automatically
+     - For MULTI-FILE UPLOADS (field has multiple=true): the engine processes ALL uploaded files and returns combined text.
+       The AI MUST parse every file and return "items" array + "itemCount" + any aggregate fields.
+     - outputFields MUST list every field referenced by downstream steps (conditions, notifications, approvals).
+     - PROMPT vs INSTRUCTIONS separation (MANDATORY):
+       config.prompt = ONLY the task description.
+       config.instructions = array of individual rule strings (injected as system prompt).
+     Example:
+       "aiMode": "extract_file", "sourceField": "receipt",
+       "prompt": "Extract expense data from: {{{{extractedData}}}}",
+       "outputFields": [{{"label":"Total Amount","name":"totalAmount","type":"currency"}},{{"label":"Vendor","name":"vendor","type":"text"}}],
+       "instructions": ["Only extract explicitly present data","Return amounts as numbers"],
+       "creativity": 1
+
+  2. aiMode: "create_doc" — Generate a document
+     - config.docTitle: document title
+     - config.docFormat: "docx"|"pdf"|"xlsx"|"pptx"|"txt"
+     - config.prompt: what the document should contain (can use {{{{field}}}} refs)
+     - Set node.output_variable to store the document reference
+
+  3. aiMode: "analyze" — Analyze or summarize data
+  4. aiMode: "generate" — Generate content (emails, text, etc.)
+  5. aiMode: "classify" — Classify or categorize items
+  6. aiMode: "custom" — Custom AI task
+
+  For modes 3-6:
+  - config.prompt: task description with {{{{field}}}} references
+  - config.outputFields: array of typed output fields (same format as extract_file)
+  - config.instructions: array of rules
+  - config.creativity: 1-5 (1=strict, 5=creative)
+  - config.confidence: 1-5
 
 - AUTOMATIC APPROVAL PATTERN (condition-based):
   When a workflow should auto-approve under certain conditions (e.g., amount below a threshold), use a CONDITION node:
@@ -466,10 +457,6 @@ Node config rules:
   This lets workflows intelligently route based on data without requiring human intervention in every case.
 
 - CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
-
-- create_document.config must include: title (string), format ("docx"|"pdf"|"xlsx"|"pptx"|"txt"), instructions (what to include).
-  - Use when the process needs to generate a document as output (report, letter, summary).
-  - Set node.output_variable to store the document reference.
 
 - calculate.config must include: operation ("sum"|"average"|"count"|"concat"|"custom"), expression (formula with {{{{field}}}} refs).
   - Use for computing totals, averages, counts, or combining text values.
@@ -658,10 +645,23 @@ class ProcessWizard:
                     cfg.setdefault("instructions", [])
                     cfg.setdefault("creativity", 2 if has_output else 3)
                     cfg.setdefault("confidence", 3)
+                    cfg.setdefault("aiMode", "custom")
                 elif n_type == "read_document":
+                    # Legacy: convert read_document → ai with extract_file mode
+                    n["type"] = "ai"
+                    cfg["aiMode"] = "extract_file"
                     cfg.setdefault("sourceField", "")
+                    cfg.setdefault("creativity", 1)
+                    cfg.setdefault("instructions", [])
                 elif n_type == "create_document":
-                    cfg.setdefault("format", "docx")
+                    # Legacy: convert create_document → ai with create_doc mode
+                    n["type"] = "ai"
+                    cfg["aiMode"] = "create_doc"
+                    if cfg.get("format") and not cfg.get("docFormat"):
+                        cfg["docFormat"] = cfg.pop("format")
+                    if cfg.get("title") and not cfg.get("docTitle"):
+                        cfg["docTitle"] = cfg.pop("title")
+                    cfg.setdefault("docFormat", "docx")
                 elif n_type == "calculate":
                     cfg.setdefault("operation", "custom")
             

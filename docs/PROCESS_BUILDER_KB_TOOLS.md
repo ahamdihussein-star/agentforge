@@ -89,7 +89,7 @@ When a tool match is found, create a `tool` node:
   Only use a tool node for email if the user specifically mentions an external email service by name.
 - **Approvals**: Use `approval` node — never a tool.
 - **AI processing**: Use `ai` node — never a tool.
-- **File operations**: Use `read_document` / `create_document` — never a tool.
+- **File operations**: Use `ai` node with `aiMode: "extract_file"` or `"create_doc"` — never a tool.
 - **Calculations**: Use `calculate` node — never a tool.
 
 ## Dynamic Discovery

@@ -21,13 +21,15 @@ For multiple file uploads (receipts, attachments, etc.), add `"multiple": true`.
 
 ## Extracting Content from Files
 
-Use a **Read File** (`read_document`) node after the trigger:
+Use an **AI Step** (`ai`) with `aiMode: "extract_file"`:
 
 1. Set `sourceField` to the file field name (e.g., `"uploadedFile"`)
-2. Set `output_variable` to store the extracted content (e.g., `"extractedData"`)
-3. Optionally set `dataLabel` for a friendly name (auto-generated from source field if empty)
+2. Set `prompt` to describe what data to extract
+3. Define `outputFields` with typed fields the AI will produce (e.g., `[{"label":"Total","name":"total","type":"currency"}]`)
+4. Set `output_variable` to store the structured result (e.g., `"parsedData"`)
+5. Set `creativity: 1` for strict data extraction
 
-Then reference the extracted content in subsequent AI steps: `{{extractedData}}`
+The platform automatically reads any file type (PDFs, Word, images via OCR, etc.) and the AI extracts the requested fields as structured data in one step.
 
 ### Supported File Types
 
@@ -54,37 +56,36 @@ the platform uses the LLM's vision capability to extract content. This means:
 
 ## Generating Documents (Output)
 
-Use a **Create Document** (`create_document`) node:
+Use an **AI Step** (`ai`) with `aiMode: "create_doc"`:
 
-- `title` (string): Document title
-- `format` (string): `docx` | `pdf` | `xlsx` | `pptx` | `txt`
-- `instructions` (string): What should be in the document (can use `{{fieldName}}` references)
+- `docTitle` (string): Document title
+- `docFormat` (string): `docx` | `pdf` | `xlsx` | `pptx` | `txt`
+- `prompt` (string): What should be in the document (can use `{{fieldName}}` references)
 - `output_variable` (string): Store the document reference for later steps
 
-## Data Flow Pattern: Upload → Read File → AI Parse → Use
+## Data Flow Pattern: Upload → AI Extract → Use
 
 When workflows involve document/image uploads, follow this pattern:
 
-1. **Start form**: Collect file(s) via `file` field (with `multiple: true` for multiple uploads)
-2. **Read File** (`read_document`): Extracts content from the file (OCR for images)
-3. **AI Step** (`ai`): Parse the raw extracted text into structured data (JSON with specific fields)
-   - Reference the extracted text: `{{extractedData}}`
-   - Define `outputFields` for all data the AI will produce
-   - Set `output_format: "json"` and low `creativity` (1-2)
-4. **Downstream steps**: Use the parsed structured data for routing, decisions, notifications
-   - All `outputFields` from the AI step appear as selectable chips in downstream steps
+1. **Collect Information**: Collect file(s) via `file` field (with `multiple: true` for multiple uploads)
+2. **AI Step** (`ai` with `aiMode: "extract_file"`): Extracts AND parses the file in one step
+   - Set `sourceField` to the file field name
+   - Define typed `outputFields` for all data the AI will produce
+   - Set `creativity: 1` for strict data extraction
+   - Set `output_variable` to store the structured result
+3. **Downstream steps**: Use the parsed structured data for routing, decisions, notifications
+   - All `outputFields` from the AI step appear as selectable options in downstream steps
 
 ### Multi-File Pattern
 
 When the file field has `multiple: true`:
-- Read File processes ALL uploaded files
-- Extracted text has `--- File: <name> ---` headers separating each file
-- The AI step MUST parse ALL files and return an `items` array + aggregate fields
+- The AI step processes ALL uploaded files automatically
+- The AI MUST parse ALL files and return an `items` array + aggregate fields
 
 ## Anti-Hallucination Rules
 
 ### Process Design Rules
-- AI steps CANNOT read raw file uploads directly — ALWAYS use Read File first.
+- Use AI Step with `aiMode: "extract_file"` to read files — it handles extraction and parsing in one step.
 - Do NOT limit file types in the process design — the platform handles any format.
 - File fields should be optional unless the business requirement explicitly demands a file.
 - Do NOT hardcode what data to extract — let the AI determine it based on the workflow's purpose.

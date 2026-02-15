@@ -60,9 +60,7 @@ When a workflow needs to call another published process:
 | Decision (`condition`) | Yes/No branching | Exactly 2 outgoing: yes + no |
 | Run in Parallel (`parallel`) | Simultaneous paths | Multiple outgoing (all run at once) |
 | Call Process (`call_process`) | Invoke another process | 1 outgoing (continues after sub-process) |
-| AI Step (`ai`) | Intelligent processing | 1 outgoing |
-| Read File (`read_document`) | Extract content from files/images | 1 outgoing |
-| Create Document (`create_document`) | Generate a document | 1 outgoing |
+| AI Step (`ai`) | Intelligent processing (extract files, create docs, analyze, classify, etc.) | 1 outgoing |
 | Send Message (`notification`) | Notify someone | 1 outgoing |
 | Request Approval (`approval`) | Wait for approval | 1 outgoing |
 | Collect Information (`form`) | Ask for form input | 1 outgoing |

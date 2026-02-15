@@ -32,7 +32,11 @@
             connectionHoverNode: null,
             connectionHoverPort: null,
             connectionHoverPoint: null,
-            connectionCompleted: false
+            connectionCompleted: false,
+            publishedProcesses: [],
+            availableModels: [],
+            profileFields: {},
+            profileFieldsFlat: []
         };
         
         // Node ID counter
@@ -156,6 +160,7 @@
             loadTools();
             loadProfileFields();
             loadPublishedProcesses();
+            loadAvailableModels();
             loadWorkflowFromUrl();
             updateFlowButtons();
             applyLabelFontSize();
@@ -695,10 +700,8 @@
                 form: { name: 'Collect Information', config: { fields: [] } },
                 notification: { name: 'Send Message', config: { channel: 'email', template: '' } },
                 tool: { name: 'Connect to System', config: { toolId: toolId || '', params: {} } },
-                ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3 } },
+                ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3, aiMode: 'custom', outputFields: [], sourceField: '', docTitle: '', docFormat: 'docx' } },
                 end: { name: 'Finish', config: { output: '' } },
-                read_document: { name: 'Read File', config: { sourceField: '', dataLabel: '', outputFields: [] } },
-                create_document: { name: 'Create Document', config: { title: '', format: 'docx', instructions: '' } },
                 calculate: { name: 'Calculate', config: { operation: 'custom', expression: '', dataLabel: '' } },
                 parallel: { name: 'Run in Parallel', config: {} },
                 call_process: { name: 'Call Process', config: { processId: '', inputMapping: {}, outputVariable: '' } }
@@ -928,7 +931,7 @@
                 loop: 'Repeat', delay: 'Wait',
                 approval: 'Request Approval', form: 'Collect Information',
                 end: 'Finish',
-                read_document: 'Read File', create_document: 'Create Document',
+                read_document: 'AI Step', create_document: 'AI Step',
                 calculate: 'Calculate', ai_step: 'AI Step',
                 parallel: 'Run in Parallel', call_process: 'Call Process'
             };
@@ -950,8 +953,8 @@
                 approval: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/><path d="M18.5 10.5L16 13l-1.5-1.5 1-1L16 11l2.5-2.5 1 2z"/></svg>',
                 form: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>',
                 end: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"/></svg>',
-                read_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-7h8v2H8v-2zm0-3h8v2H8v-2z"/></svg>',
-                create_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM12 17l-4-4h3V9h2v4h3l-4 4z"/></svg>',
+                read_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
+                create_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
                 calculate: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4 8h-2v2h-2v-2H9V9h2V7h2v2h2v2zm-1 6H7v-2h7v2z"/></svg>',
                 ai_step: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
                 parallel: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"/></svg>',
@@ -975,8 +978,8 @@
                 form: 'Asks someone to fill a form',
                 notification: 'Sends a message',
                 end: 'Process complete',
-                read_document: 'Extracts content from uploaded files (documents or images)',
-                create_document: 'Generates a document',
+                read_document: 'AI-powered step',
+                create_document: 'AI-powered step',
                 calculate: 'Computes a value',
                 ai_step: 'AI-powered step',
                 parallel: 'Runs next steps simultaneously',
@@ -1037,12 +1040,18 @@
                     html = `<div class="node-config-item"><span class="config-label">Each</span><span class="config-value">${cfg.itemVar || 'item'} in ${cfg.collection || '...'}</span></div>`;
                     break;
                 case 'ai':
-                case 'ai_step': {
+                case 'ai_step':
+                case 'read_document':
+                case 'create_document': {
                     const _outFlds = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label) : [];
-                    const modeLabels = {extract:'Extract data',analyze:'Analyze',generate:'Generate',classify:'Classify',custom:'Custom'};
+                    const modeLabels = {extract_file:'Extract from file',create_doc:'Create document',extract:'Extract data',analyze:'Analyze',generate:'Generate',classify:'Classify',custom:'Custom'};
                     html = `<div class="node-config-item"><span class="config-label">Task</span><span class="config-value">${modeLabels[cfg.aiMode] || 'AI task'}</span></div>`;
                     if (_outFlds.length > 0) {
                         html += `<div class="node-config-item"><span class="config-label">Output</span><span class="config-value">${_outFlds.length} field${_outFlds.length > 1 ? 's' : ''}</span></div>`;
+                    }
+                    if (cfg.aiMode === 'create_doc' && cfg.docFormat) {
+                        const fmtNames = {docx:'Word',pdf:'PDF',xlsx:'Excel',pptx:'PowerPoint',txt:'Text'};
+                        html += `<div class="node-config-item"><span class="config-label">Format</span><span class="config-value">${fmtNames[cfg.docFormat] || cfg.docFormat}</span></div>`;
                     }
                     break;
                 }
@@ -1053,28 +1062,6 @@
                     break;
                 case 'action':
                     html = `<div class="node-config-item"><span class="config-label">Type</span><span class="config-value">${cfg.actionType || 'custom'}</span></div>`;
-                    break;
-                case 'read_document': {
-                    // Show human-friendly source file label
-                    let rdSourceLabel = 'Not selected';
-                    if (cfg.sourceField) {
-                        const rdAllNodes = state.nodes || [];
-                        for (const rn of rdAllNodes) {
-                            if ((rn.type === 'trigger' || rn.type === 'form') && rn.config.fields) {
-                                const ff = rn.config.fields.find(f => f.name === cfg.sourceField);
-                                if (ff) { rdSourceLabel = ff.label || humanizeFieldLabel(ff.name) || cfg.sourceField; break; }
-                            }
-                        }
-                    }
-                    const rdFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label) : [];
-                    html = `<div class="node-config-item"><span class="config-label">Source</span><span class="config-value">${rdSourceLabel}</span></div>`;
-                    if (rdFields.length > 0) {
-                        html += `<div class="node-config-item"><span class="config-label">Fields</span><span class="config-value">${rdFields.length} expected</span></div>`;
-                    }
-                    break;
-                }
-                case 'create_document':
-                    html = `<div class="node-config-item"><span class="config-label">Format</span><span class="config-value">${{docx:'Word',pdf:'PDF',xlsx:'Excel',pptx:'PowerPoint',txt:'Text'}[(cfg.format||'docx')] || (cfg.format||'docx').toUpperCase()}</span></div>`;
                     break;
                 case 'calculate': {
                     const calcLabels = {sum:'Sum / Total',average:'Average',count:'Count',concat:'Combine text',custom:'Custom formula'};
@@ -2884,28 +2871,26 @@
                         nodeId: n.id
                     });
                 }
-                // Read File shape — expose individual output fields if defined
-                else if (n.type === 'read_document') {
-                    const stepName = n.name || 'Read File';
+                // Legacy read_document / create_document nodes — treat as AI step
+                else if (n.type === 'read_document' || n.type === 'create_document') {
+                    const stepName = n.name || (n.type === 'read_document' ? 'AI Step' : 'AI Step');
                     const rdOutFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label && f.name) : [];
                     const rdOutVar = outVar || 'extractedData';
 
                     if (rdOutFields.length > 0) {
-                        // Each expected field becomes a selectable item in downstream steps
                         rdOutFields.forEach(f => {
                             outputs.push({
                                 name: rdOutVar + '.' + f.name,
                                 label: f.label,
-                                type: 'data',
+                                type: f.type || 'data',
                                 source: stepName,
                                 group: 'data',
-                                icon: '📄',
+                                icon: '📋',
                                 nodeId: n.id,
                                 parentVar: rdOutVar
                             });
                         });
                     } else {
-                        // No output fields defined — show the whole variable
                         const label = cfg.dataLabel || humanizeFieldLabel(rdOutVar) || 'Extracted Content';
                         outputs.push({
                             name: rdOutVar,
@@ -2913,7 +2898,7 @@
                             type: 'text',
                             source: stepName,
                             group: 'data',
-                            icon: '📄',
+                            icon: '📋',
                             nodeId: n.id
                         });
                     }
@@ -2937,13 +2922,11 @@
                     const outFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label && f.name) : [];
 
                     if (outFields.length > 0) {
-                        // Each defined output field becomes its own selectable item
-                        // e.g. parsedData.invoiceNumber → "Invoice Number"
                         outFields.forEach(f => {
                             outputs.push({
                                 name: outVar + '.' + f.name,
                                 label: f.label,
-                                type: 'data',
+                                type: f.type || 'data',
                                 source: stepName,
                                 group: 'data',
                                 icon: '📋',
@@ -2952,7 +2935,6 @@
                             });
                         });
                     } else {
-                        // No output fields defined — show the whole variable as a blob
                         const label = cfg.dataLabel || humanizeFieldLabel(outVar);
                         outputs.push({
                             name: outVar,
@@ -3010,7 +2992,7 @@
                 sources.push({ label: `From step: ${name}`, value: `{{steps.${n.id}.output}}`, group: 'step' });
             });
             // Person info / user profile fields
-            const personFields = (state.profileFieldsFlat || []).slice(0, 12);
+            const personFields = (state.profileFieldsFlat || []);
             personFields.forEach(pf => {
                 sources.push({ label: `👤 ${pf.label || pf.key}`, value: `{{trigger_input._user_context.${pf.key}}}`, group: 'person' });
             });
@@ -3035,7 +3017,7 @@
             
             switch (node.type) {
                 case 'condition': {
-                    const condPersonFields = (state.profileFieldsFlat || []).slice(0, 12);
+                    const condPersonFields = (state.profileFieldsFlat || []);
                     const allCondFields = [...availableFields, ...upstreamData, ...condPersonFields.map(pf => ({name: 'trigger_input._user_context.' + pf.key, label: pf.label || pf.key, _personInfo: true}))];
                     const condFieldVal = node.config.field || '';
                     const condIsCustomField = condFieldVal && condFieldVal !== '_custom' && !allCondFields.find(f => f.name === condFieldVal);
@@ -3218,18 +3200,7 @@
                             <label class="property-label">What needs to be approved?</label>
                             <textarea class="property-textarea" placeholder="Describe what the approver should review..."
                                       onchange="updateNodeConfig('${node.id}', 'message', this.value)">${escapeHtml(aCfg.message || '')}</textarea>
-                            ${availableFields.length > 0 ? `
-                                <div class="field-chips">
-                                    <span class="field-chips-label">Insert form data:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
-                                        ${availableFields.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'message', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${buildExtractedDataChips(node.id, 'message', upstreamData)}
-                            ${buildPersonInfoChips(node.id, 'message')}
+                            ${buildInsertDataDropdown(node.id, 'message', availableFields, upstreamData)}
                         </div>
                         <div class="property-group">
                             <label class="property-label">Who should approve?</label>
@@ -3293,24 +3264,24 @@
                             <label class="property-label">Message</label>
                             <textarea class="property-textarea" style="min-height:100px;" placeholder="Write the message to send..."
                                       onchange="updateNodeConfig('${node.id}', 'template', this.value)">${escapeHtml(node.config.template || '')}</textarea>
-                            ${availableFields.length > 0 ? `
-                                <div class="field-chips">
-                                    <span class="field-chips-label">Insert data:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
-                                        ${availableFields.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'template', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${buildExtractedDataChips(node.id, 'template', upstreamData)}
-                            ${buildPersonInfoChips(node.id, 'template')}
+                            ${buildInsertDataDropdown(node.id, 'template', availableFields, upstreamData)}
                         </div>
                     `;
                     break;
                     
                 case 'ai':
-                case 'ai_step': {
+                case 'ai_step':
+                case 'read_document':
+                case 'create_document': {
+                    // Normalise legacy nodes into ai modes
+                    if (node.type === 'read_document' && (!node.config.aiMode || node.config.aiMode === 'custom')) {
+                        node.config.aiMode = 'extract_file';
+                    }
+                    if (node.type === 'create_document' && (!node.config.aiMode || node.config.aiMode === 'custom')) {
+                        node.config.aiMode = 'create_doc';
+                        if (node.config.format && !node.config.docFormat) node.config.docFormat = node.config.format;
+                        if (node.config.title && !node.config.docTitle) node.config.docTitle = node.config.title;
+                    }
                     const _aiCreativity = node.config.creativity ?? 3;
                     const _aiConfidence = node.config.confidence ?? 3;
                     const _aiMode = node.config.aiMode || 'custom';
@@ -3320,55 +3291,103 @@
                         : (typeof node.config.instructions === 'string' && node.config.instructions.trim())
                             ? [node.config.instructions.trim()]
                             : [];
+
+                    // Collect file fields from form/trigger nodes (for extract_file mode)
+                    const _fileFields = [];
+                    state.nodes.forEach(n => {
+                        if ((n.type === 'trigger' || n.type === 'form') && n.config.fields) {
+                            n.config.fields.forEach(f => {
+                                if (f.type === 'file') _fileFields.push({ name: f.name, label: f.label || f.name });
+                            });
+                        }
+                    });
+
                     html += `
                         <div class="property-group">
                             <label class="property-label">What should the AI do?</label>
                             <select class="property-select" onchange="updateNodeConfig('${node.id}', 'aiMode', this.value); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
-                                <option value="extract" ${_aiMode === 'extract' ? 'selected' : ''}>Extract data from files</option>
+                                <option value="extract_file" ${_aiMode === 'extract_file' ? 'selected' : ''}>Extract data from a file or image</option>
+                                <option value="create_doc" ${_aiMode === 'create_doc' ? 'selected' : ''}>Create a document</option>
                                 <option value="analyze" ${_aiMode === 'analyze' ? 'selected' : ''}>Analyze or summarize</option>
                                 <option value="generate" ${_aiMode === 'generate' ? 'selected' : ''}>Generate content</option>
                                 <option value="classify" ${_aiMode === 'classify' ? 'selected' : ''}>Classify or categorize</option>
                                 <option value="custom" ${_aiMode === 'custom' ? 'selected' : ''}>Custom task</option>
                             </select>
-                            ${!node.config.prompt ? `
-                            <div style="margin-top:8px;">
-                                <div style="font-size:11px;color:var(--pb-muted);margin-bottom:4px;">Quick templates:</div>
-                                <div style="display:flex;flex-wrap:wrap;gap:4px;">
-                                    ${[
-                                        {m:'extract',t:'Extract key data fields from: {{extractedData}}'},
-                                        {m:'analyze',t:'Summarize the main points from: {{extractedData}}'},
-                                        {m:'generate',t:'Write a professional report based on: {{details}}'},
-                                        {m:'classify',t:'Classify this into the appropriate category: {{details}}'}
-                                    ].map(tpl => `
-                                        <button type="button" onclick="updateNodeConfig('${node.id}','prompt','${tpl.t}'); updateNodeConfig('${node.id}','aiMode','${tpl.m}'); showProperties(state.nodes.find(n=>n.id==='${node.id}'));"
-                                                style="padding:4px 10px;font-size:11px;border-radius:6px;border:1px solid color-mix(in srgb,var(--pb-primary) 30%,transparent);background:color-mix(in srgb,var(--pb-primary) 5%,transparent);color:var(--pb-text);cursor:pointer;">
-                                            ${{extract:'📊 Extract data',analyze:'📝 Summarize',generate:'✏️ Generate report',classify:'🏷️ Classify'}[tpl.m]}
-                                        </button>
-                                    `).join('')}
-                                </div>
+                        </div>`;
+
+                    // ── Mode-specific: Extract from file ──
+                    if (_aiMode === 'extract_file' || _aiMode === 'extract') {
+                        html += `
+                        <div class="property-group">
+                            <label class="property-label">Which uploaded file?</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Choose the file or image uploaded in a previous form.
                             </div>
-                            ` : ''}
+                            ${_fileFields.length > 0 ? `
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'sourceField', this.value)">
+                                <option value="">-- Select a file --</option>
+                                ${_fileFields.map(f => `<option value="${f.name}" ${node.config.sourceField === f.name ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
+                            </select>
+                            ` : `
+                            <div style="font-size:11px;color:#f59e0b;padding:8px 12px;background:color-mix(in srgb,#f59e0b 8%,transparent);border-radius:8px;">
+                                No file fields found. Add a <strong>File Upload</strong> field in "Collect Information" first.
+                            </div>
+                            `}
                         </div>
+                        <div class="property-group">
+                            <label class="property-label">What information to extract</label>
+                            <textarea class="property-textarea" style="min-height:80px;" 
+                                      placeholder="Describe what data to extract (e.g., Extract invoice number, date, line items, and total from the uploaded document)"
+                                      onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || '')}</textarea>
+                            ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
+                        </div>
+                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-bottom:8px;">
+                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                Supports <strong>all file types</strong>: PDFs, Word, Excel, images (receipts, IDs, photos), and more. The platform reads content automatically using AI vision for images.
+                            </div>
+                        </div>`;
+                    }
+                    // ── Mode-specific: Create document ──
+                    else if (_aiMode === 'create_doc') {
+                        html += `
+                        <div class="property-group">
+                            <label class="property-label">Document title</label>
+                            <input type="text" class="property-input" placeholder="e.g. Expense Report, Meeting Summary"
+                                   value="${escapeHtml(node.config.docTitle || '')}"
+                                   onchange="updateNodeConfig('${node.id}', 'docTitle', this.value)">
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Format</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'docFormat', this.value)">
+                                <option value="docx" ${(node.config.docFormat||'docx') === 'docx' ? 'selected' : ''}>Word (.docx)</option>
+                                <option value="pdf" ${node.config.docFormat === 'pdf' ? 'selected' : ''}>PDF (.pdf)</option>
+                                <option value="xlsx" ${node.config.docFormat === 'xlsx' ? 'selected' : ''}>Excel (.xlsx)</option>
+                                <option value="pptx" ${node.config.docFormat === 'pptx' ? 'selected' : ''}>PowerPoint (.pptx)</option>
+                                <option value="txt" ${node.config.docFormat === 'txt' ? 'selected' : ''}>Text (.txt)</option>
+                            </select>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">What should be in the document?</label>
+                            <textarea class="property-textarea" style="min-height:100px;"
+                                      placeholder="Describe the document contents. You can insert data from previous steps."
+                                      onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || node.config.instructions || '')}</textarea>
+                            ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
+                        </div>`;
+                    }
+                    // ── All other modes (analyze, generate, classify, custom) ──
+                    else {
+                        html += `
                         <div class="property-group">
                             <label class="property-label">Task description</label>
                             <textarea class="property-textarea" style="min-height:120px;" 
-                                      placeholder="${{extract:'Describe what data to extract (e.g., Extract invoice number, date, line items, and total from the uploaded document)', analyze:'Describe what to analyze (e.g., Summarize the key findings from the uploaded report)', generate:'Describe what to generate (e.g., Write a professional approval email with the request details)', classify:'Describe how to classify (e.g., Categorize this support ticket as Bug, Feature Request, or Question)', custom:'Describe what the AI should do...'}[_aiMode] || 'Describe what the AI should do...'}"
+                                      placeholder="${{analyze:'Describe what to analyze (e.g., Summarize the key findings from the uploaded report)', generate:'Describe what to generate (e.g., Write a professional approval email with the request details)', classify:'Describe how to classify (e.g., Categorize this support ticket as Bug, Feature Request, or Question)', custom:'Describe what the AI should do...'}[_aiMode] || 'Describe what the AI should do...'}"
                                       onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || '')}</textarea>
-                            ${availableFields.length > 0 ? `
-                                <div class="field-chips">
-                                    <span class="field-chips-label">Insert from form:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
-                                        ${availableFields.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'prompt', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${buildExtractedDataChips(node.id, 'prompt', upstreamData)}
-                            ${buildPersonInfoChips(node.id, 'prompt')}
-                        </div>
+                            ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
+                        </div>`;
+                    }
 
-                        <!-- AI Instructions (add/remove list) -->
+                    // ── AI Instructions (add/remove list) — shared across all modes ──
+                    html += `
                         <div class="property-group">
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                                 <label class="property-label" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
@@ -3465,6 +3484,16 @@
                                                    placeholder="e.g., Invoice Number"
                                                    onchange="syncAIOutputFields('${node.id}')"
                                                    style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                                            <select class="ai-outfield-type" onchange="syncAIOutputFields('${node.id}')"
+                                                    style="width:100px;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid color-mix(in srgb,var(--pb-border) 60%,transparent);background:var(--pb-surface);color:var(--pb-text);">
+                                                <option value="text" ${(of.type||'text') === 'text' ? 'selected' : ''}>Text</option>
+                                                <option value="number" ${of.type === 'number' ? 'selected' : ''}>Number</option>
+                                                <option value="date" ${of.type === 'date' ? 'selected' : ''}>Date</option>
+                                                <option value="currency" ${of.type === 'currency' ? 'selected' : ''}>Currency</option>
+                                                <option value="email" ${of.type === 'email' ? 'selected' : ''}>Email</option>
+                                                <option value="boolean" ${of.type === 'boolean' ? 'selected' : ''}>Yes/No</option>
+                                                <option value="list" ${of.type === 'list' ? 'selected' : ''}>List</option>
+                                            </select>
                                             <button type="button" onclick="removeAIOutputField(this,'${node.id}')"
                                                     style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
                                                     onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
@@ -3476,11 +3505,14 @@
                             ${(() => {
                                 const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
                                 const outVar = String(node.output_variable || '').trim();
-                                if (outFields.length > 0 && outVar) {
+                                if (outFields.length > 0 && (outVar || true)) {
                                     return `<div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:8px;">
-                                        <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">✅ These fields will be available in next steps:</div>
+                                        <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">These fields will be available in next steps:</div>
                                         <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                            ${outFields.filter(f => f.label).map(f => `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);">📋 ${escapeHtml(f.label)}</span>`).join('')}
+                                            ${outFields.filter(f => f.label).map(f => {
+                                                const typeIcons = {text:'Aa',number:'#',date:'📅',currency:'💰',email:'✉',boolean:'✓',list:'☰'};
+                                                return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);"><span style="font-size:10px;opacity:0.7;">${typeIcons[f.type]||'📋'}</span> ${escapeHtml(f.label)}</span>`;
+                                            }).join('')}
                                         </div>
                                     </div>`;
                                 }
@@ -3492,10 +3524,13 @@
                             <summary style="font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;padding:6px 0;">Advanced settings</summary>
                             <div class="property-group" style="margin-top:8px;">
                                 <label class="property-label">AI Model</label>
-                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'model', this.value)">
-                                    <option value="gpt-4o" ${(node.config.model || 'gpt-4o') === 'gpt-4o' ? 'selected' : ''}>GPT-4o (Recommended)</option>
-                                    <option value="gpt-4o-mini" ${node.config.model === 'gpt-4o-mini' ? 'selected' : ''}>GPT-4o Mini (Faster)</option>
-                                    <option value="claude-sonnet-4-20250514" ${node.config.model === 'claude-sonnet-4-20250514' ? 'selected' : ''}>Claude Sonnet</option>
+                                <select class="property-select" id="ai-model-select-${node.id}" onchange="updateNodeConfig('${node.id}', 'model', this.value)">
+                                    ${(state.availableModels && state.availableModels.length > 0
+                                        ? state.availableModels.map(m => `<option value="${m.id}" ${(node.config.model || 'gpt-4o') === m.id ? 'selected' : ''}>${escapeHtml(m.name || m.id)}${m.recommended ? ' (Recommended)' : ''}</option>`).join('')
+                                        : `<option value="gpt-4o" ${(node.config.model || 'gpt-4o') === 'gpt-4o' ? 'selected' : ''}>GPT-4o (Recommended)</option>
+                                           <option value="gpt-4o-mini" ${node.config.model === 'gpt-4o-mini' ? 'selected' : ''}>GPT-4o Mini (Faster)</option>
+                                           <option value="claude-sonnet-4-20250514" ${node.config.model === 'claude-sonnet-4-20250514' ? 'selected' : ''}>Claude Sonnet</option>`
+                                    )}
                                 </select>
                                 <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
                                     The default model works well for most tasks. Change only if you have a specific reason.
@@ -3996,6 +4031,7 @@
                             </div>
                             <textarea class="property-textarea" placeholder="e.g. Your request has been processed successfully."
                                       onchange="updateNodeConfig('${node.id}', 'successMessage', this.value)">${escapeHtml(node.config.successMessage || '')}</textarea>
+                            ${buildInsertDataDropdown(node.id, 'successMessage', availableFields, upstreamData)}
                         </div>
                     `;
                     break;
@@ -4109,128 +4145,7 @@
                     `;
                     break;
 
-                case 'read_document': {
-                    // Collect file fields from trigger/form nodes
-                    const fileFields = [];
-                    state.nodes.forEach(n => {
-                        if ((n.type === 'trigger' || n.type === 'form') && n.config.fields) {
-                            n.config.fields.forEach(f => {
-                                if (f.type === 'file') fileFields.push({ name: f.name, label: f.label || f.name });
-                            });
-                        }
-                    });
-                    const rdOutFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
-                    html += `
-                        <div class="property-group">
-                            <label class="property-label">Which uploaded file?</label>
-                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Choose the file or image uploaded in the Start form.
-                            </div>
-                            ${fileFields.length > 0 ? `
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'sourceField', this.value)">
-                                <option value="">-- Select --</option>
-                                ${fileFields.map(f => `<option value="${f.name}" ${node.config.sourceField === f.name ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
-                            </select>
-                            ` : `
-                            <div style="font-size:11px;color:#f59e0b;padding:8px 12px;background:color-mix(in srgb,#f59e0b 8%,transparent);border-radius:8px;">
-                                No file fields found. Add a <strong>File Upload</strong> field to the Start form first.
-                            </div>
-                            `}
-                        </div>
-
-                        <div class="property-group">
-                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                                <label class="property-label" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
-                                    <span>📋</span> What information to extract
-                                </label>
-                                <button type="button" onclick="addReadDocOutputField('${node.id}')"
-                                        style="padding:3px 10px;font-size:11px;border-radius:6px;border:1px solid var(--pb-primary);background:color-mix(in srgb,var(--pb-primary) 10%,transparent);color:var(--pb-primary);cursor:pointer;font-weight:600;">
-                                    + Add Field
-                                </button>
-                            </div>
-                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Name the data you expect from this file (e.g. Invoice Number, Total Amount, Vendor). These become selectable in all following steps.
-                            </div>
-                            <div id="rd-outfields-${node.id}" style="display:flex;flex-direction:column;gap:6px;">
-                                ${rdOutFields.length === 0
-                                    ? `<div id="rd-outfields-empty-${node.id}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No fields defined yet. Click "+ Add Field" to name the data you need from this file.</div>`
-                                    : rdOutFields.map((of, idx) => `
-                                        <div class="rd-outfield-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;">
-                                            <span style="color:var(--pb-primary);font-size:14px;">📋</span>
-                                            <input type="text" class="rd-outfield-label" value="${escapeHtml(of.label || '')}"
-                                                   placeholder="e.g., Invoice Number"
-                                                   onchange="syncReadDocOutputFields('${node.id}')"
-                                                   style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
-                                            <button type="button" onclick="removeReadDocOutputField(this,'${node.id}')"
-                                                    style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
-                                                    onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
-                                                    title="Remove this field">✕</button>
-                                        </div>
-                                    `).join('')
-                                }
-                            </div>
-                            ${(() => {
-                                const outVar = String(node.output_variable || 'extractedData').trim();
-                                if (rdOutFields.length > 0 && outVar) {
-                                    return `<div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:8px;">
-                                        <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">These fields will be available in next steps:</div>
-                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                            ${rdOutFields.filter(f => f.label).map(f => `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);">📋 ${escapeHtml(f.label)}</span>`).join('')}
-                                        </div>
-                                    </div>`;
-                                }
-                                return '';
-                            })()}
-                        </div>
-
-                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-top:4px;">
-                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
-                                Supports <strong>all file types</strong>: PDFs, Word, Excel, images (receipts, IDs, photos), and more. The platform reads content automatically using AI vision for images.
-                            </div>
-                        </div>
-                    `;
-                    break;
-                }
-
-                case 'create_document': {
-                    html += `
-                        <div class="property-group">
-                            <label class="property-label">Document title</label>
-                            <input type="text" class="property-input" placeholder="e.g. Expense Report, Meeting Summary"
-                                   value="${escapeHtml(node.config.title || '')}"
-                                   onchange="updateNodeConfig('${node.id}', 'title', this.value)">
-                        </div>
-                        <div class="property-group">
-                            <label class="property-label">Format</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'format', this.value)">
-                                <option value="docx" ${(node.config.format||'docx') === 'docx' ? 'selected' : ''}>Word (.docx)</option>
-                                <option value="pdf" ${node.config.format === 'pdf' ? 'selected' : ''}>PDF (.pdf)</option>
-                                <option value="xlsx" ${node.config.format === 'xlsx' ? 'selected' : ''}>Excel (.xlsx)</option>
-                                <option value="pptx" ${node.config.format === 'pptx' ? 'selected' : ''}>PowerPoint (.pptx)</option>
-                                <option value="txt" ${node.config.format === 'txt' ? 'selected' : ''}>Text (.txt)</option>
-                            </select>
-                        </div>
-                        <div class="property-group">
-                            <label class="property-label">What should be in the document?</label>
-                            <textarea class="property-textarea" style="min-height:100px;"
-                                      placeholder="Describe the document contents. You can use data from previous steps."
-                                      onchange="updateNodeConfig('${node.id}', 'instructions', this.value)">${escapeHtml(node.config.instructions || '')}</textarea>
-                            ${availableFields.length > 0 ? `
-                                <div class="field-chips">
-                                    <span class="field-chips-label">Insert form data:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
-                                        ${availableFields.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'instructions', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || f.name)}</button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${buildExtractedDataChips(node.id, 'instructions', upstreamData)}
-                            ${buildPersonInfoChips(node.id, 'instructions')}
-                        </div>
-                    `;
-                    break;
-                }
+                /* read_document & create_document are now handled by the 'ai' case above */
 
                 case 'loop': {
                     // Get array variables from upstream steps
@@ -4289,17 +4204,7 @@
                             <textarea class="property-textarea" style="min-height:60px;"
                                       placeholder="e.g. {{parsedData.totalAmount}} * 1.05"
                                       onchange="updateNodeConfig('${node.id}', 'expression', this.value)">${escapeHtml(node.config.expression || node.config.input || '')}</textarea>
-                            ${allCalcData.length > 0 ? `
-                                <div class="field-chips">
-                                    <span class="field-chips-label">Insert data:</span>
-                                    <div style="display:flex;flex-wrap:wrap;">
-                                        ${allCalcData.map(f => `
-                                            <button type="button" onclick="insertFieldRef('${node.id}', 'expression', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || f.name)}</button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${buildPersonInfoChips(node.id, 'expression')}
+                            ${buildInsertDataDropdown(node.id, 'expression', availableFields, upstreamData)}
                         </div>
                         `}
                         <div class="property-group">
@@ -4421,6 +4326,16 @@
                            placeholder="e.g., Invoice Number"
                            onchange="syncAIOutputFields('${nodeId}')"
                            style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                    <select class="ai-outfield-type" onchange="syncAIOutputFields('${nodeId}')"
+                            style="width:100px;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid color-mix(in srgb,var(--pb-border) 60%,transparent);background:var(--pb-surface);color:var(--pb-text);">
+                        <option value="text" selected>Text</option>
+                        <option value="number">Number</option>
+                        <option value="date">Date</option>
+                        <option value="currency">Currency</option>
+                        <option value="email">Email</option>
+                        <option value="boolean">Yes/No</option>
+                        <option value="list">List</option>
+                    </select>
                     <button type="button" onclick="removeAIOutputField(this,'${nodeId}')"
                             style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
                             onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
@@ -4454,14 +4369,17 @@
             const node = state.nodes.find(n => n.id === nodeId);
             if (!node) return;
 
-            const labelInputs = container.querySelectorAll('.ai-outfield-label');
+            const rows = container.querySelectorAll('.ai-outfield-row');
             const outputFields = [];
-            labelInputs.forEach(inp => {
-                const label = inp.value.trim();
+            rows.forEach(row => {
+                const labelInp = row.querySelector('.ai-outfield-label');
+                const typeSelect = row.querySelector('.ai-outfield-type');
+                const label = labelInp ? labelInp.value.trim() : '';
+                const type = typeSelect ? typeSelect.value : 'text';
                 if (label) {
                     // Auto-generate camelCase key from label
                     const name = toFieldKey(label) || label.toLowerCase().replace(/\s+/g, '_');
-                    outputFields.push({ label, name });
+                    outputFields.push({ label, name, type });
                 }
             });
             node.config.outputFields = outputFields;
@@ -5233,6 +5151,21 @@
             });
         }
 
+        function loadAvailableModels() {
+            const token = getAuthToken();
+            fetch('/api/process/available-models', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(data => {
+                state.availableModels = Array.isArray(data.models) ? data.models : [];
+            })
+            .catch(e => {
+                console.warn('Could not load available AI models:', e);
+                state.availableModels = [];
+            });
+        }
+
         /**
          * Build the dynamic profile field prefill dropdown HTML.
          * Used in form field prefill pickers - replaces the old hardcoded Email/Name dropdown.
@@ -5255,6 +5188,60 @@
          * Build Person Information chips for insertion into textareas (notifications, approval messages, AI prompts).
          * Returns HTML string with clickable chips for inserting user context references.
          */
+        /**
+         * Unified "Insert Data" dropdown — replaces form chips, extracted data chips, and person info chips
+         * with a single categorized dropdown grouped by source.
+         */
+        function buildInsertDataDropdown(nodeId, configKey, formFields, upstreamData) {
+            const profileFields = state.profileFieldsFlat || [];
+            const hasForm = formFields && formFields.length > 0;
+            const hasUpstream = upstreamData && upstreamData.length > 0;
+            const hasProfile = profileFields.length > 0;
+            if (!hasForm && !hasUpstream && !hasProfile) return '';
+
+            let options = '';
+            if (hasForm) {
+                options += `<optgroup label="Form Fields">`;
+                formFields.forEach(f => {
+                    options += `<option value="{{${f.name}}}">📝 ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</option>`;
+                });
+                options += `</optgroup>`;
+            }
+            if (hasUpstream) {
+                // Group upstream by source
+                const groups = {};
+                upstreamData.forEach(d => {
+                    const src = d.source || 'Previous Step';
+                    if (!groups[src]) groups[src] = [];
+                    groups[src].push(d);
+                });
+                Object.keys(groups).forEach(src => {
+                    options += `<optgroup label="${escapeHtml(src)}">`;
+                    groups[src].forEach(d => {
+                        options += `<option value="{{${d.name}}}">${d.icon || '📦'} ${escapeHtml(d.label)}</option>`;
+                    });
+                    options += `</optgroup>`;
+                });
+            }
+            if (hasProfile) {
+                options += `<optgroup label="Person Information">`;
+                profileFields.forEach(f => {
+                    options += `<option value="{{trigger_input._user_context.${f.key}}}">👤 ${escapeHtml(f.label || f.key)}</option>`;
+                });
+                options += `</optgroup>`;
+            }
+
+            return `
+                <div style="margin-top:6px;">
+                    <select class="property-select" style="font-size:11px;color:var(--pb-muted);padding:6px 8px;"
+                            onchange="if(this.value){insertFieldRef('${nodeId}','${configKey}',this.value);this.selectedIndex=0;}">
+                        <option value="">+ Insert data...</option>
+                        ${options}
+                    </select>
+                </div>
+            `;
+        }
+
         function buildPersonInfoChips(nodeId, configKey) {
             const allFields = state.profileFieldsFlat || [];
             if (allFields.length === 0) return '';

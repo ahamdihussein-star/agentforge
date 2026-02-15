@@ -256,6 +256,11 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             # Step 3: Ensure total = sum(items), count = len(items)
             output = self._auto_correct_totals(output, logs)
         
+        # Typed field coercion: if outputFields with types are defined, validate and coerce
+        output_fields = self.get_config_value(node, 'outputFields') or []
+        if isinstance(output, dict) and output_fields:
+            output = self._coerce_typed_fields(output, output_fields, logs)
+
         # Update variables if output_variable specified
         variables_update = {}
         if node.output_variable:
@@ -269,6 +274,72 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             logs=logs
         )
     
+    @staticmethod
+    def _coerce_typed_fields(output: dict, output_fields: list, logs: list) -> dict:
+        """
+        Validate and coerce AI output fields to their declared types.
+
+        output_fields is the list from the visual builder, e.g.:
+          [{"name": "totalAmount", "label": "Total Amount", "type": "number"}, ...]
+
+        Returns the (possibly modified) output dict.
+        """
+        from datetime import datetime as _dt
+
+        for f in output_fields:
+            name = f.get('name')
+            declared_type = f.get('type', 'text')
+            if not name or name not in output:
+                continue
+            raw = output[name]
+            try:
+                if declared_type == 'number' or declared_type == 'currency':
+                    if raw is None or raw == '':
+                        output[name] = 0
+                    elif isinstance(raw, (int, float)):
+                        pass  # already numeric
+                    else:
+                        # Strip currency symbols and thousands separators
+                        cleaned = re.sub(r'[^\d.\-]', '', str(raw))
+                        output[name] = float(cleaned) if '.' in cleaned else int(cleaned)
+                elif declared_type == 'boolean':
+                    if isinstance(raw, bool):
+                        pass
+                    elif isinstance(raw, str):
+                        output[name] = raw.strip().lower() in ('true', 'yes', '1', 'y')
+                    else:
+                        output[name] = bool(raw)
+                elif declared_type == 'date':
+                    if isinstance(raw, str) and raw.strip():
+                        # Try common date formats — store as ISO string
+                        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y-%m-%dT%H:%M:%S'):
+                            try:
+                                output[name] = _dt.strptime(raw.strip(), fmt).isoformat()
+                                break
+                            except ValueError:
+                                continue
+                elif declared_type == 'list':
+                    if isinstance(raw, str):
+                        # Try JSON parse, else split by comma
+                        try:
+                            parsed = json.loads(raw)
+                            if isinstance(parsed, list):
+                                output[name] = parsed
+                            else:
+                                output[name] = [parsed]
+                        except (json.JSONDecodeError, TypeError):
+                            output[name] = [s.strip() for s in raw.split(',') if s.strip()]
+                    elif not isinstance(raw, list):
+                        output[name] = [raw]
+                elif declared_type == 'email':
+                    # Light validation — just ensure it looks like an email
+                    val = str(raw).strip()
+                    output[name] = val
+                # 'text' — no coercion needed
+            except Exception as exc:
+                logs.append(f"Coercion warning: could not convert '{name}' to {declared_type}: {exc}")
+        return output
+
     @staticmethod
     def _check_output_plausibility(
         prompt_text: str,
