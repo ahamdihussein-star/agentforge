@@ -82,92 +82,112 @@
     <!-- Node Palette (Left Panel) -->
     <div id="node-palette">
         <div class="palette-section">
-            <div class="palette-title">Triggers</div>
+            <div class="palette-title">Start & End</div>
             <div class="palette-item" draggable="true" data-type="trigger">
                 <div class="palette-icon trigger">🎯</div>
                 <div class="palette-info">
-                    <div class="palette-name">Start Trigger</div>
-                    <div class="palette-desc">How the workflow starts (manual / schedule / webhook)</div>
+                    <div class="palette-name">Start</div>
+                    <div class="palette-desc">How the process begins</div>
+                </div>
+            </div>
+            <div class="palette-item" draggable="true" data-type="end">
+                <div class="palette-icon end">🏁</div>
+                <div class="palette-info">
+                    <div class="palette-name">Finish</div>
+                    <div class="palette-desc">Process complete</div>
                 </div>
             </div>
         </div>
-        
+
         <div class="palette-section">
-            <div class="palette-title">Logic</div>
-            <div class="palette-item" draggable="true" data-type="condition">
-                <div class="palette-icon condition">🔀</div>
-                <div class="palette-info">
-                    <div class="palette-name">Condition</div>
-                    <div class="palette-desc">If/else branching</div>
-                </div>
-            </div>
-            <div class="palette-item" draggable="true" data-type="delay">
-                <div class="palette-icon delay">⏳</div>
-                <div class="palette-info">
-                    <div class="palette-name">Delay</div>
-                    <div class="palette-desc">Wait before continuing</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="palette-section">
-            <div class="palette-title">Actions</div>
-            <div class="palette-item" draggable="true" data-type="action">
-                <div class="palette-icon action">⚡</div>
-                <div class="palette-info">
-                    <div class="palette-name">Action</div>
-                    <div class="palette-desc">Perform an operation</div>
-                </div>
-            </div>
-            <!-- Tool nodes come from "Your Tools" below (platform-configured tools only) -->
+            <div class="palette-title">Intelligence</div>
             <div class="palette-item" draggable="true" data-type="ai">
                 <div class="palette-icon action">🤖</div>
                 <div class="palette-info">
-                    <div class="palette-name">AI Action</div>
-                    <div class="palette-desc">AI-powered task</div>
+                    <div class="palette-name">AI Step</div>
+                    <div class="palette-desc">Analyze, extract, generate, or classify using AI</div>
+                </div>
+            </div>
+            <div class="palette-item" draggable="true" data-type="read_document">
+                <div class="palette-icon action">📄</div>
+                <div class="palette-info">
+                    <div class="palette-name">Read Document</div>
+                    <div class="palette-desc">Extract text from uploaded files</div>
+                </div>
+            </div>
+            <div class="palette-item" draggable="true" data-type="create_document">
+                <div class="palette-icon action">📑</div>
+                <div class="palette-info">
+                    <div class="palette-name">Create Document</div>
+                    <div class="palette-desc">Generate a Word, PDF, or Excel file</div>
                 </div>
             </div>
         </div>
-        
+
         <div class="palette-section">
-            <div class="palette-title">Human Tasks</div>
+            <div class="palette-title">People</div>
+            <div class="palette-item" draggable="true" data-type="notification">
+                <div class="palette-icon action">📧</div>
+                <div class="palette-info">
+                    <div class="palette-name">Send Message</div>
+                    <div class="palette-desc">Send an email, Slack, or Teams message</div>
+                </div>
+            </div>
             <div class="palette-item" draggable="true" data-type="approval">
                 <div class="palette-icon approval">✅</div>
                 <div class="palette-info">
-                    <div class="palette-name">Approval</div>
-                    <div class="palette-desc">Wait for approval</div>
+                    <div class="palette-name">Request Approval</div>
+                    <div class="palette-desc">Ask someone to approve or reject</div>
                 </div>
             </div>
             <div class="palette-item" draggable="true" data-type="form">
                 <div class="palette-icon approval">📝</div>
                 <div class="palette-info">
-                    <div class="palette-name">Form Input</div>
-                    <div class="palette-desc">Collect user input</div>
-                </div>
-            </div>
-            <div class="palette-item" draggable="true" data-type="notification">
-                <div class="palette-icon action">📧</div>
-                <div class="palette-info">
-                    <div class="palette-name">Notification</div>
-                    <div class="palette-desc">Send a message</div>
+                    <div class="palette-name">Collect Information</div>
+                    <div class="palette-desc">Ask someone to fill in a form</div>
                 </div>
             </div>
         </div>
-        
+
         <div class="palette-section">
-            <div class="palette-title">Flow Control</div>
-            <div class="palette-item" draggable="true" data-type="end">
-                <div class="palette-icon end">🏁</div>
+            <div class="palette-title">Logic</div>
+            <div class="palette-item" draggable="true" data-type="condition">
+                <div class="palette-icon condition">🔀</div>
                 <div class="palette-info">
-                    <div class="palette-name">End</div>
-                    <div class="palette-desc">Complete workflow</div>
+                    <div class="palette-name">Decision</div>
+                    <div class="palette-desc">Yes/No branching based on a condition</div>
+                </div>
+            </div>
+            <div class="palette-item" draggable="true" data-type="delay">
+                <div class="palette-icon delay">⏳</div>
+                <div class="palette-info">
+                    <div class="palette-name">Wait</div>
+                    <div class="palette-desc">Pause before continuing</div>
+                </div>
+            </div>
+            <div class="palette-item" draggable="true" data-type="loop">
+                <div class="palette-icon condition">🔁</div>
+                <div class="palette-info">
+                    <div class="palette-name">Repeat</div>
+                    <div class="palette-desc">Do something for each item in a list</div>
                 </div>
             </div>
         </div>
-        
+
+        <div class="palette-section">
+            <div class="palette-title">Data</div>
+            <div class="palette-item" draggable="true" data-type="calculate">
+                <div class="palette-icon action">🧮</div>
+                <div class="palette-info">
+                    <div class="palette-name">Calculate</div>
+                    <div class="palette-desc">Compute totals, averages, or formulas</div>
+                </div>
+            </div>
+        </div>
+
         <div class="palette-section" id="tools-section">
-            <div class="palette-title">Your Tools</div>
-            <p class="palette-desc" style="margin: 0 0 8px 0; padding: 0 8px; font-size: 11px; color: var(--pb-muted);">Tools configured in the platform. Drag one onto the canvas.</p>
+            <div class="palette-title">Integration</div>
+            <p class="palette-desc" style="margin: 0 0 8px 0; padding: 0 8px; font-size: 11px; color: var(--pb-muted);">Connect to external systems and platform tools.</p>
             <div id="platform-tools-list">
                 <!-- Loaded dynamically -->
                 <div style="font-size: 11px; color: var(--pb-muted); padding: 8px;">Loading tools...</div>

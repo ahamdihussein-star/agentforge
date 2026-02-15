@@ -1643,10 +1643,19 @@ class ProcessAPIService:
             node_type = (node.get('type') or '').strip().lower()
             if node_type in ('trigger', 'form', 'schedule', 'webhook'):
                 node['type'] = 'start'
-            elif node_type == 'ai':
+            elif node_type in ('ai', 'ai_step'):
                 node['type'] = 'ai_task'
             elif node_type == 'tool':
                 node['type'] = 'tool_call'
+            elif node_type == 'read_document':
+                # New shape: Read Document → file_operation (extract_text)
+                node['type'] = 'file_operation'
+            elif node_type == 'create_document':
+                # New shape: Create Document → file_operation (generate_document)
+                node['type'] = 'file_operation'
+            elif node_type == 'calculate':
+                # New shape: Calculate → transform
+                node['type'] = 'transform'
             elif node_type == 'action':
                 node['type'] = 'ai_task'  # default; may be remapped based on actionType
             config = node.get('config')
@@ -1737,6 +1746,32 @@ class ProcessAPIService:
                         src = str(src).strip()
                         if src:
                             type_cfg['path'] = f"{{{{{src}.path}}}}"
+
+            # New shape: read_document → file_operation extract_text
+            if node_type == 'read_document':
+                type_cfg['operation'] = 'extract_text'
+                type_cfg['storage_type'] = type_cfg.get('storage_type') or 'local'
+                if not type_cfg.get('path'):
+                    src = (type_cfg.get('sourceField') or '').strip()
+                    if src:
+                        type_cfg['path'] = f"{{{{{src}.path}}}}"
+
+            # New shape: create_document → file_operation generate_document
+            if node_type == 'create_document':
+                type_cfg['operation'] = 'generate_document'
+                type_cfg['storage_type'] = type_cfg.get('storage_type') or 'local'
+                if not type_cfg.get('title'):
+                    type_cfg['title'] = node.get('name') or 'Document'
+                if not type_cfg.get('format'):
+                    type_cfg['format'] = 'docx'
+
+            # New shape: calculate → transform
+            if node_type == 'calculate':
+                op = type_cfg.get('operation') or 'custom'
+                expr = type_cfg.get('expression') or ''
+                type_cfg['transform_type'] = 'custom'
+                if not type_cfg.get('script'):
+                    type_cfg['script'] = expr
 
             # Schedule/Webhook legacy nodes: map into START triggerType config
             if node_type in ('schedule', 'webhook'):

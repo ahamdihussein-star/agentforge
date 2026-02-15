@@ -686,15 +686,18 @@
                 schedule: { name: 'Schedule', config: { cron: '0 9 * * *', timezone: 'UTC' } },
                 webhook: { name: 'Webhook', config: { method: 'POST', path: '/trigger' } },
                 action: { name: 'Action', config: { description: '', actionType: 'custom' } },
-                condition: { name: 'Condition', config: { field: '', operator: 'equals', value: '' } },
-                loop: { name: 'For Each', config: { collection: '', itemVar: 'item' } },
+                condition: { name: 'Decision', config: { field: '', operator: 'equals', value: '' } },
+                loop: { name: 'Repeat', config: { collection: '', itemVar: 'item', maxIterations: 100 } },
                 delay: { name: 'Wait', config: { duration: 5, unit: 'minutes' } },
-                approval: { name: 'Approval', config: { assignee_source: 'platform_user', assignee_type: 'user', assignee_ids: [], timeout_hours: 24, message: '' } },
-                form: { name: 'Form', config: { fields: [] } },
-                notification: { name: 'Send Notification', config: { channel: 'email', template: '' } },
-                tool: { name: 'Use Tool', config: { toolId: toolId || '', params: {} } },
-                ai: { name: 'AI Task', config: { prompt: '', model: 'gpt-4o' } },
-                end: { name: 'End', config: { output: '' } }
+                approval: { name: 'Request Approval', config: { assignee_source: 'platform_user', assignee_type: 'user', assignee_ids: [], timeout_hours: 24, message: '' } },
+                form: { name: 'Collect Information', config: { fields: [] } },
+                notification: { name: 'Send Message', config: { channel: 'email', template: '' } },
+                tool: { name: 'Connect to System', config: { toolId: toolId || '', params: {} } },
+                ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3 } },
+                end: { name: 'Finish', config: { output: '' } },
+                read_document: { name: 'Read Document', config: { sourceField: '', dataLabel: '' } },
+                create_document: { name: 'Create Document', config: { title: '', format: 'docx', instructions: '' } },
+                calculate: { name: 'Calculate', config: { operation: 'custom', expression: '', dataLabel: '' } }
             };
             
             // If it's a tool node with toolId, get tool name
@@ -711,7 +714,7 @@
         function getShapeClass(type) {
             if (['trigger', 'schedule', 'webhook'].includes(type)) return 'shape-start';
             if (type === 'end') return 'shape-end';
-            if (type === 'condition') return 'shape-gateway';
+            if (['condition', 'loop'].includes(type)) return 'shape-gateway';
             return 'shape-task';
         }
         
@@ -888,7 +891,8 @@
                 loop: 'loop',
                 delay: 'delay',
                 approval: 'approval', form: 'form',
-                end: 'end'
+                end: 'end',
+                read_document: 'action', create_document: 'action', calculate: 'action'
             };
             return classes[type] || 'action';
         }
@@ -901,9 +905,25 @@
                 loop: '🔁',
                 delay: '⏳',
                 approval: '✅', form: '📝',
-                end: '🏁'
+                end: '🏁',
+                read_document: '📄', create_document: '📑', calculate: '🧮'
             };
             return icons[type] || '📦';
+        }
+        
+        // Business-friendly display names for node types
+        function getNodeDisplayName(type) {
+            const names = {
+                trigger: 'Start', schedule: 'Start', webhook: 'Start',
+                ai: 'AI Step', action: 'Action', tool: 'Connect to System',
+                notification: 'Send Message', condition: 'Decision',
+                loop: 'Repeat', delay: 'Wait',
+                approval: 'Request Approval', form: 'Collect Information',
+                end: 'Finish',
+                read_document: 'Read Document', create_document: 'Create Document',
+                calculate: 'Calculate'
+            };
+            return names[type] || type;
         }
         
         function getTypeSvgIcon(type) {
@@ -920,26 +940,32 @@
                 delay: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>',
                 approval: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/><path d="M18.5 10.5L16 13l-1.5-1.5 1-1L16 11l2.5-2.5 1 2z"/></svg>',
                 form: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>',
-                end: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"/></svg>'
+                end: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"/></svg>',
+                read_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-7h8v2H8v-2zm0-3h8v2H8v-2z"/></svg>',
+                create_document: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM12 17l-4-4h3V9h2v4h3l-4 4z"/></svg>',
+                calculate: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4 8h-2v2h-2v-2H9V9h2V7h2v2h2v2zm-1 6H7v-2h7v2z"/></svg>'
             };
             return icons[type] || icons.action;
         }
         
         function getNodeDescription(node) {
             const descs = {
-                trigger: 'Workflow starts here',
-                schedule: 'Runs on schedule',
-                webhook: 'Triggered by API',
+                trigger: 'Process starts here',
+                schedule: 'Runs on a schedule',
+                webhook: 'Triggered from another system',
                 action: 'Performs an operation',
-                tool: 'Executes a platform tool',
-                ai: 'AI-powered processing',
-                condition: 'Branch based on condition',
-                loop: 'Iterate over collection',
-                delay: 'Wait before continuing',
-                approval: 'Wait for approval',
-                form: 'Collect user input',
-                notification: 'Send notification',
-                end: 'Workflow ends here'
+                tool: 'Connects to an external system',
+                ai: 'AI-powered step',
+                condition: 'Yes/No decision',
+                loop: 'Repeats for each item',
+                delay: 'Pauses the process',
+                approval: 'Waits for approval',
+                form: 'Asks someone to fill a form',
+                notification: 'Sends a message',
+                end: 'Process complete',
+                read_document: 'Reads uploaded files',
+                create_document: 'Generates a document',
+                calculate: 'Computes a value'
             };
             return descs[node.type] || '';
         }
@@ -997,6 +1023,15 @@
                     break;
                 case 'action':
                     html = `<div class="node-config-item"><span class="config-label">Type</span><span class="config-value">${cfg.actionType || 'custom'}</span></div>`;
+                    break;
+                case 'read_document':
+                    html = `<div class="node-config-item"><span class="config-label">File</span><span class="config-value">${cfg.sourceField || 'Not set'}</span></div>`;
+                    break;
+                case 'create_document':
+                    html = `<div class="node-config-item"><span class="config-label">Format</span><span class="config-value">${(cfg.format || 'docx').toUpperCase()}</span></div>`;
+                    break;
+                case 'calculate':
+                    html = `<div class="node-config-item"><span class="config-label">Operation</span><span class="config-value">${cfg.operation || 'custom'}</span></div>`;
                     break;
                 default:
                     html = '<div class="node-config-item"><span class="config-value" style="color:#6b7280;">Click to configure</span></div>';
@@ -2731,7 +2766,7 @@
             icon.className = 'properties-icon ' + getTypeClass(node.type);
             icon.textContent = getTypeIcon(node.type);
             title.textContent = node.name;
-            type.textContent = node.type.charAt(0).toUpperCase() + node.type.slice(1);
+            type.textContent = getNodeDisplayName(node.type);
             
             body.innerHTML = generatePropertiesForm(node);
             panel.classList.add('active');
@@ -3749,6 +3784,146 @@
                         })() : ''}
                     `;
                     break;
+
+                case 'read_document': {
+                    // Collect file fields from trigger/form nodes
+                    const fileFields = [];
+                    state.nodes.forEach(n => {
+                        if ((n.type === 'trigger' || n.type === 'form') && n.config.fields) {
+                            n.config.fields.forEach(f => {
+                                if (f.type === 'file') fileFields.push({ name: f.name, label: f.label || f.name });
+                            });
+                        }
+                    });
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">Which uploaded file?</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Select the file field from the Start form that this step should read.
+                            </div>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'sourceField', this.value)">
+                                <option value="">-- Select a file field --</option>
+                                ${fileFields.map(f => `<option value="${f.name}" ${node.config.sourceField === f.name ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Name this extracted text</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                A friendly name so other steps can use the text content.
+                            </div>
+                            <input type="text" class="property-input" placeholder="e.g. Receipt Text, Invoice Content"
+                                   value="${escapeHtml(node.config.dataLabel || '')}"
+                                   onchange="updateNodeConfig('${node.id}', 'dataLabel', this.value)">
+                        </div>
+                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-top:8px;">
+                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                This step reads the content from uploaded files (PDFs, images, Word docs, Excel) so other steps can use the text. Follow it with an <strong>AI Step</strong> to analyze or extract structured data.
+                            </div>
+                        </div>
+                    `;
+                    break;
+                }
+
+                case 'create_document': {
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">Document title</label>
+                            <input type="text" class="property-input" placeholder="e.g. Expense Report, Meeting Summary"
+                                   value="${escapeHtml(node.config.title || '')}"
+                                   onchange="updateNodeConfig('${node.id}', 'title', this.value)">
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Format</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'format', this.value)">
+                                <option value="docx" ${(node.config.format||'docx') === 'docx' ? 'selected' : ''}>Word (.docx)</option>
+                                <option value="pdf" ${node.config.format === 'pdf' ? 'selected' : ''}>PDF (.pdf)</option>
+                                <option value="xlsx" ${node.config.format === 'xlsx' ? 'selected' : ''}>Excel (.xlsx)</option>
+                                <option value="pptx" ${node.config.format === 'pptx' ? 'selected' : ''}>PowerPoint (.pptx)</option>
+                                <option value="txt" ${node.config.format === 'txt' ? 'selected' : ''}>Text (.txt)</option>
+                            </select>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">What should be in the document?</label>
+                            <textarea class="property-textarea" style="min-height:100px;"
+                                      placeholder="Describe the document contents. You can use data from previous steps."
+                                      onchange="updateNodeConfig('${node.id}', 'instructions', this.value)">${escapeHtml(node.config.instructions || '')}</textarea>
+                            ${availableFields.length > 0 ? `
+                                <div class="field-chips">
+                                    <span class="field-chips-label">Insert data:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
+                                        ${availableFields.map(f => `
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'instructions', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || f.name)}</button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                    break;
+                }
+
+                case 'loop': {
+                    // Get array variables from upstream steps
+                    const arrayFields = upstreamData.filter(d => d.type === 'data' || d.type === 'array');
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">What list should this repeat for?</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Select the list of items from a previous step (e.g., expenses from an AI extraction).
+                            </div>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'collection', '{{' + this.value + '}}')">
+                                <option value="">-- Select a list --</option>
+                                ${arrayFields.map(d => `<option value="${d.name}" ${(node.config.collection||'').includes(d.name) ? 'selected' : ''}>${escapeHtml(d.label || d.name)} (from ${escapeHtml(d.source || 'previous step')})</option>`).join('')}
+                                <option value="_custom_">Enter manually...</option>
+                            </select>
+                        </div>
+                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-top:8px;">
+                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                This step repeats the steps connected after it for <strong>each item</strong> in the selected list. For example, send a separate notification for each expense or process each document individually.
+                            </div>
+                        </div>
+                    `;
+                    break;
+                }
+
+                case 'calculate': {
+                    const calcOp = node.config.operation || 'custom';
+                    html += `
+                        <div class="property-group">
+                            <label class="property-label">What to calculate</label>
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'operation', this.value); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
+                                <option value="sum" ${calcOp === 'sum' ? 'selected' : ''}>Sum / Total</option>
+                                <option value="average" ${calcOp === 'average' ? 'selected' : ''}>Average</option>
+                                <option value="count" ${calcOp === 'count' ? 'selected' : ''}>Count items</option>
+                                <option value="concat" ${calcOp === 'concat' ? 'selected' : ''}>Combine text</option>
+                                <option value="custom" ${calcOp === 'custom' ? 'selected' : ''}>Custom formula</option>
+                            </select>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">${calcOp === 'custom' ? 'Formula' : 'Data source'}</label>
+                            <textarea class="property-textarea" style="min-height:60px;"
+                                      placeholder="${calcOp === 'custom' ? 'e.g. {{parsedData.totalAmount}} * 1.05' : 'e.g. {{parsedData.items}}'}"
+                                      onchange="updateNodeConfig('${node.id}', 'expression', this.value)">${escapeHtml(node.config.expression || node.config.input || '')}</textarea>
+                            ${availableFields.length > 0 || upstreamData.length > 0 ? `
+                                <div class="field-chips">
+                                    <span class="field-chips-label">Insert data:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
+                                        ${[...availableFields, ...upstreamData].map(f => `
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'expression', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || f.name)}</button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Save result as</label>
+                            <input type="text" class="property-input" placeholder="e.g. grandTotal, itemCount"
+                                   value="${escapeHtml(node.config.dataLabel || '')}"
+                                   onchange="updateNodeConfig('${node.id}', 'dataLabel', this.value)">
+                        </div>
+                    `;
+                    break;
+                }
                     
                 default:
                     html += `
