@@ -2977,7 +2977,7 @@
             return [...getAvailableFields(), ...getUpstreamOutputFields()];
         }
         
-        // Sources for mapping: form/start fields + output from other steps. Used in Tool params and similar.
+        // Sources for mapping: form/start fields + output from other steps + person info. Used in Tool params, Call Process, etc.
         function getMappingSources(currentNodeId) {
             const sources = [];
             const availableFields = getAvailableFields();
@@ -2995,6 +2995,11 @@
                 if (n.output_variable && upstreamOutputs.find(d => d.nodeId === n.id)) return;
                 const name = n.name || n.type || n.id;
                 sources.push({ label: `From step: ${name}`, value: `{{steps.${n.id}.output}}`, group: 'step' });
+            });
+            // Person info / user profile fields
+            const personFields = (state.profileFieldsFlat || []).slice(0, 12);
+            personFields.forEach(pf => {
+                sources.push({ label: `👤 ${pf.label || pf.key}`, value: `{{trigger_input._user_context.${pf.key}}}`, group: 'person' });
             });
             return sources;
         }
@@ -3017,7 +3022,10 @@
             
             switch (node.type) {
                 case 'condition': {
-                    const allCondFields = [...availableFields, ...upstreamData];
+                    const condPersonFields = (state.profileFieldsFlat || []).slice(0, 12);
+                    const allCondFields = [...availableFields, ...upstreamData, ...condPersonFields.map(pf => ({name: 'trigger_input._user_context.' + pf.key, label: pf.label || pf.key, _personInfo: true}))];
+                    const condFieldVal = node.config.field || '';
+                    const condIsCustomField = condFieldVal && condFieldVal !== '_custom' && !allCondFields.find(f => f.name === condFieldVal);
                     html += `
                         <div class="property-group">
                             <label class="property-label">When is this true?</label>
@@ -3030,32 +3038,39 @@
                                 ${allCondFields.length > 0 ? `
                                     <select class="property-select" onchange="updateNodeConfig('${node.id}', 'field', this.value)" style="width:100%;">
                                         <option value="">-- Select a field --</option>
-                                        ${availableFields.length > 0 ? `<optgroup label="Form fields">
+                                        ${availableFields.length > 0 ? `<optgroup label="📝 Form fields">
                                             ${availableFields.map(f => `
-                                                <option value="${f.name}" ${node.config.field === f.name ? 'selected' : ''}>
+                                                <option value="${f.name}" ${condFieldVal === f.name ? 'selected' : ''}>
                                                     ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}
                                                 </option>
                                             `).join('')}
                                         </optgroup>` : ''}
-                                        ${upstreamData.length > 0 ? `<optgroup label="Data from previous steps">
+                                        ${upstreamData.length > 0 ? `<optgroup label="📦 Data from previous steps">
                                             ${upstreamData.map(d => `
-                                                <option value="${d.name}" ${node.config.field === d.name ? 'selected' : ''}>
+                                                <option value="${d.name}" ${condFieldVal === d.name ? 'selected' : ''}>
                                                     ${escapeHtml(d.label)} (from ${escapeHtml(d.source)})
                                                 </option>
                                             `).join('')}
                                         </optgroup>` : ''}
-                                        <option value="_custom" ${node.config.field && !allCondFields.find(f => f.name === node.config.field) ? 'selected' : ''}>
+                                        ${condPersonFields.length > 0 ? `<optgroup label="👤 Person information">
+                                            ${condPersonFields.map(pf => `
+                                                <option value="trigger_input._user_context.${escapeHtml(pf.key)}" ${condFieldVal === 'trigger_input._user_context.' + pf.key ? 'selected' : ''}>
+                                                    ${escapeHtml(pf.label || pf.key)}
+                                                </option>
+                                            `).join('')}
+                                        </optgroup>` : ''}
+                                        <option value="_custom" ${condFieldVal === '_custom' || condIsCustomField ? 'selected' : ''}>
                                             Enter manually...
                                         </option>
                                     </select>
-                                    ${(node.config.field && !allCondFields.find(f => f.name === node.config.field)) || node.config.field === '_custom' ? `
+                                    ${condFieldVal === '_custom' || condIsCustomField ? `
                                         <input type="text" class="property-input" placeholder="Field name" 
-                                               value="${node.config.field === '_custom' ? '' : (node.config.field || '')}"
+                                               value="${condFieldVal === '_custom' ? '' : (condFieldVal || '')}"
                                                onchange="updateNodeConfig('${node.id}', 'field', this.value)">
                                     ` : ''}
                                 ` : `
                                     <input type="text" class="property-input" placeholder="e.g. amount, status" 
-                                           value="${node.config.field || ''}"
+                                           value="${condFieldVal || ''}"
                                            onchange="updateNodeConfig('${node.id}', 'field', this.value)">
                                 `}
                                 <select class="property-select" onchange="updateNodeConfig('${node.id}', 'operator', this.value)" style="width:100%;">
@@ -3064,11 +3079,14 @@
                                     <option value="greater_than" ${node.config.operator === 'greater_than' ? 'selected' : ''}>is greater than</option>
                                     <option value="less_than" ${node.config.operator === 'less_than' ? 'selected' : ''}>is less than</option>
                                     <option value="contains" ${node.config.operator === 'contains' ? 'selected' : ''}>contains</option>
+                                    <option value="not_contains" ${node.config.operator === 'not_contains' ? 'selected' : ''}>does not contain</option>
+                                    <option value="starts_with" ${node.config.operator === 'starts_with' ? 'selected' : ''}>starts with</option>
                                     <option value="is_empty" ${node.config.operator === 'is_empty' ? 'selected' : ''}>is empty</option>
+                                    <option value="is_not_empty" ${node.config.operator === 'is_not_empty' ? 'selected' : ''}>is not empty</option>
                                 </select>
-                                ${node.config.operator !== 'is_empty' ? `
+                                ${node.config.operator !== 'is_empty' && node.config.operator !== 'is_not_empty' ? `
                                     <input type="text" class="property-input" placeholder="Value to compare" 
-                                           value="${node.config.value || ''}"
+                                           value="${escapeHtml(node.config.value || '')}"
                                            onchange="updateNodeConfig('${node.id}', 'value', this.value)">
                                 ` : ''}
                             </div>
@@ -3132,11 +3150,12 @@
                     `;
                     if (inputParams.length > 0) {
                         const formSources = mappingSources.filter(s => s.group === 'form');
-                        const stepSources = mappingSources.filter(s => s.group === 'step');
+                        const dataSources = mappingSources.filter(s => s.group === 'data' || s.group === 'step');
+                        const personSources = mappingSources.filter(s => s.group === 'person');
                         html += `
                         <div class="prop-section">
                             <h4 class="prop-section-title">What to send</h4>
-                            <p class="prop-section-hint">Map each field to data from your form, a previous step, or enter a fixed value.</p>
+                            <p class="prop-section-hint">Map each field to data from your form, a previous step, person information, or enter a fixed value.</p>
                             ${inputParams.map((p, idx) => {
                                 const paramName = (p.name || ('param_' + idx)).replace(/'/g, "\\'");
                                 const currentVal = toolParams[p.name || paramName] || '';
@@ -3151,8 +3170,9 @@
                                     <div class="value-from-row">
                                         <select class="property-select tool-param-source" data-node-id="${node.id}" data-param-name="${escapeHtml(paramName)}" onchange="onToolParamSourceChange(this)">
                                             <option value="_fixed_" ${sourceVal === '_fixed_' ? 'selected' : ''}>Type a fixed value</option>
-                                            ${formSources.length ? `<optgroup label="From form / start">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
-                                            ${stepSources.length ? `<optgroup label="From a previous step">${stepSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${formSources.length ? `<optgroup label="📝 From form">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${dataSources.length ? `<optgroup label="📦 From previous steps">${dataSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${personSources.length ? `<optgroup label="👤 Person information">${personSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('')}</optgroup>` : ''}
                                         </select>
                                         <input type="text" class="property-input tool-param-fixed" placeholder="Enter value" 
                                                data-node-id="${node.id}" data-param-name="${escapeHtml(paramName)}"
@@ -3858,6 +3878,7 @@
                                 const sourceVal = isFromSource ? currentMapVal : '_fixed_';
                                 const formSources = cpMappingSources.filter(s => s.group === 'form');
                                 const dataSources = cpMappingSources.filter(s => s.group === 'data' || s.group === 'step');
+                                const personSources = cpMappingSources.filter(s => s.group === 'person');
                                 return `
                                 <div class="tool-param-card tool-param-row">
                                     <div class="param-name">${escapeHtml(pfLabel)}${pfRequired ? ' <span style="color:#f87171;">*</span>' : ''}</div>
@@ -3865,8 +3886,9 @@
                                     <div class="value-from-row">
                                         <select class="property-select" onchange="updateCallProcessMapping('${node.id}', '${escapeHtml(pfName)}', this.value, this.parentElement)">
                                             <option value="_fixed_" ${sourceVal === '_fixed_' ? 'selected' : ''}>Type a fixed value</option>
-                                            ${formSources.length ? `<optgroup label="From form">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
-                                            ${dataSources.length ? `<optgroup label="From previous steps">${dataSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${formSources.length ? `<optgroup label="📝 From form">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${dataSources.length ? `<optgroup label="📦 From previous steps">${dataSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${personSources.length ? `<optgroup label="👤 Person information">${personSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('')}</optgroup>` : ''}
                                         </select>
                                         <input type="text" class="property-input" placeholder="Enter value"
                                                value="${escapeHtml(fixedVal)}"
@@ -3895,8 +3917,8 @@
                 }
 
                 case 'end': {
-                    // Build a dropdown of available data from previous steps
-                    const endDataOptions = [...upstreamData, ...availableFields.map(f => ({name: f.name, label: f.label || f.name, source: 'Form'}))];
+                    // Build a dropdown of available data from previous steps + form + person info
+                    const endPersonFields = (state.profileFieldsFlat || []).slice(0, 12);
                     html += `
                         <div class="property-group">
                             <label class="property-label">What should this process return?</label>
@@ -3905,9 +3927,21 @@
                             </div>
                             <select class="property-select" onchange="updateNodeConfig('${node.id}', 'output', this.value)">
                                 <option value="" ${!node.config.output ? 'selected' : ''}>All data (default)</option>
-                                ${endDataOptions.map(d => `
-                                    <option value="{{${d.name}}}" ${node.config.output === '{{' + d.name + '}}' ? 'selected' : ''}>${escapeHtml(d.label || d.name)} ${d.source ? '(from ' + escapeHtml(d.source) + ')' : ''}</option>
-                                `).join('')}
+                                ${availableFields.length > 0 ? `<optgroup label="📝 Form fields">
+                                    ${availableFields.map(f => `
+                                        <option value="{{${f.name}}}" ${node.config.output === '{{' + f.name + '}}' ? 'selected' : ''}>${escapeHtml(f.label || f.name)}</option>
+                                    `).join('')}
+                                </optgroup>` : ''}
+                                ${upstreamData.length > 0 ? `<optgroup label="📦 Data from previous steps">
+                                    ${upstreamData.map(d => `
+                                        <option value="{{${d.name}}}" ${node.config.output === '{{' + d.name + '}}' ? 'selected' : ''}>${escapeHtml(d.label)} (from ${escapeHtml(d.source)})</option>
+                                    `).join('')}
+                                </optgroup>` : ''}
+                                ${endPersonFields.length > 0 ? `<optgroup label="👤 Person information">
+                                    ${endPersonFields.map(pf => `
+                                        <option value="{{trigger_input._user_context.${escapeHtml(pf.key)}}}" ${node.config.output === '{{trigger_input._user_context.' + pf.key + '}}' ? 'selected' : ''}>👤 ${escapeHtml(pf.label || pf.key)}</option>
+                                    `).join('')}
+                                </optgroup>` : ''}
                             </select>
                         </div>
                         <div class="property-group">
@@ -3917,6 +3951,18 @@
                             </div>
                             <textarea class="property-textarea" placeholder="e.g. Your request has been processed successfully."
                                       onchange="updateNodeConfig('${node.id}', 'successMessage', this.value)">${escapeHtml(node.config.successMessage || '')}</textarea>
+                            ${availableFields.length > 0 ? `
+                                <div class="field-chips">
+                                    <span class="field-chips-label">Insert form data:</span>
+                                    <div style="display:flex;flex-wrap:wrap;">
+                                        ${availableFields.map(f => `
+                                            <button type="button" onclick="insertFieldRef('${node.id}', 'successMessage', '{{${f.name}}}')" class="field-chip">${escapeHtml(f.label || f.name)}</button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            ${buildExtractedDataChips(node.id, 'successMessage', upstreamData)}
+                            ${buildPersonInfoChips(node.id, 'successMessage')}
                         </div>
                     `;
                     break;
