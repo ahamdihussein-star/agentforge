@@ -29,6 +29,12 @@ const API='';
         
         // Track current page to prevent duplicate navigation from hashchange
         let _currentPage = '';
+        
+        // Create wizard (modal) state
+        let _createWizardReturnTo = 'dashboard';
+        let _createFlowStep = 'type'; // 'type' | 'method' | 'ai'
+        let _createBuildMode = null;  // 'manual' | 'ai' | null
+        let _wizardStep0OriginalHtml = null;
 
         // Ensure modal is direct child of body so it's visible when opened from any page
         function ensureModalInBody(modalId) {
@@ -44,11 +50,21 @@ const API='';
                 console.log('🎯 [CREATE] navigate("create") called', { from: _currentPage, stack: new Error().stack?.split('\n').slice(1, 4).join(' <- ') });
             }
             
+            const fromPage = _currentPage || 'dashboard';
+            const isCreate = p === 'create';
+            
+            // Remember where to return when closing the modal
+            if (isCreate && fromPage && fromPage !== 'create') {
+                _createWizardReturnTo = fromPage;
+            }
+            
             // Track current page
             _currentPage = p;
             
-            // Hide all sections
-            document.querySelectorAll('main>section').forEach(s => s.classList.add('hidden'));
+            // Hide all sections (except when opening Create as a modal overlay)
+            if (!isCreate) {
+                document.querySelectorAll('main>section').forEach(s => s.classList.add('hidden'));
+            }
             
             // Show target page
             const targetPage = document.getElementById('page-'+p);
@@ -84,6 +100,7 @@ const API='';
                     resetWizardNew();
                     step=0;
                     updateStepsNew();
+                    createFlowReset();
                     console.log('🎯 [CREATE] resetWizardNew() completed successfully');
                 } catch(e) {
                     console.error('🎯 [CREATE] ERROR in resetWizardNew():', e);
@@ -93,6 +110,27 @@ const API='';
             if(p==='profile') loadProfileInfo();
             if(p==='demo')initDemoLab();
             if(p==='approvals') loadApprovals();
+        }
+
+        function closeCreateWizardModal(force = false) {
+            const hasProgress = !!(wizard?.editId || wizard?.id || wizard?.goal || wizard?.originalGoal || (step && step > 0));
+            const doClose = () => {
+                const returnTo = (_createWizardReturnTo && _createWizardReturnTo !== 'create') ? _createWizardReturnTo : 'dashboard';
+                // Ensure create is hidden before switching pages
+                document.getElementById('page-create')?.classList.add('hidden');
+                navigate(returnTo);
+            };
+            
+            if (force || !hasProgress) return doClose();
+            
+            const msg = 'Close setup and discard your current draft?';
+            try {
+                if (typeof notify !== 'undefined' && notify?.confirm) {
+                    return notify.confirm(msg, doClose, { confirmText: 'Close', cancelText: 'Keep Working' });
+                }
+            } catch (_) { /* ignore */ }
+            
+            if (confirm(msg)) doClose();
         }
         
         // Load dashboard statistics
@@ -495,6 +533,12 @@ const API='';
             for(let i=1; i<=8; i++) {
                 document.getElementById('wizard-step-'+i)?.classList.add('hidden');
             }
+
+            // Capture the original Step 0 markup once (used for restoring later)
+            if (_wizardStep0OriginalHtml === null) {
+                const step0El = document.getElementById('wizard-step-0');
+                if (step0El) _wizardStep0OriginalHtml = step0El.innerHTML;
+            }
             
             // Check if step-0 content was replaced (e.g., by showProcessEditor)
             // If so, restore the original content
@@ -508,23 +552,8 @@ const API='';
             
             // Reset agent type selection to default
             selectedAgentType = 'conversational';
-            const convCard = document.getElementById('type-card-conversational');
-            const procCard = document.getElementById('type-card-process');
-            const convSection = document.getElementById('section-conversational');
-            const procSection = document.getElementById('section-process');
-            
-            if (convCard && procCard && convSection && procSection) {
-                convCard.classList.add('border-purple-500');
-                convCard.classList.remove('border-transparent');
-                procCard.classList.remove('border-green-500');
-                procCard.classList.add('border-transparent');
-                convSection.classList.remove('hidden');
-                procSection.classList.add('hidden');
-                convCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
-                convCard.querySelector('.text-sm:last-child').className = 'text-sm text-purple-400 font-medium';
-                procCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
-                procCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
-            }
+            try { selectAgentType('conversational'); } catch (_) {}
+            try { createFlowReset(); } catch (_) {}
         }
         
         // Restore wizard step 0 original content if it was replaced
@@ -532,151 +561,16 @@ const API='';
             const step0 = document.getElementById('wizard-step-0');
             if (!step0) return;
             
-            step0.innerHTML = `
-                <div class="text-center mb-8">
-                    <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-4">
-                        <img src="/AgentForge_Logo.png" alt="" class="w-12 h-12">
-                    </div>
-                    <h2 class="text-2xl md:text-3xl font-bold mb-2">What would you like to create?</h2>
-                    <p class="text-gray-400">Choose the type of AI solution for your needs</p>
-                </div>
-                
-                <!-- Agent Type Selection Cards -->
-                <div class="grid md:grid-cols-2 gap-4 mb-6">
-                    <!-- Conversational AI Card -->
-                    <div id="type-card-conversational" onclick="selectAgentType('conversational')" 
-                         class="card rounded-xl p-5 cursor-pointer border-2 border-purple-500 hover:border-purple-400 transition-all">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">💬</div>
-                            <div>
-                                <h3 class="font-bold">Conversational AI</h3>
-                                <p class="text-xs text-gray-400">Chat & assist users</p>
-                            </div>
-                        </div>
-                        <p class="text-sm text-gray-300 mb-3">An AI assistant that chats with users and helps with tasks through conversation.</p>
-                        <div class="flex flex-wrap gap-1 mb-2">
-                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Chat</span>
-                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Q&A</span>
-                            <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Support</span>
-                        </div>
-                        <div class="text-sm text-purple-400 font-medium">✓ Selected</div>
-                    </div>
-                    
-                    <!-- Workflow Automation Card -->
-                    <div id="type-card-process" onclick="selectAgentType('process')" 
-                         class="card rounded-xl p-5 cursor-pointer border-2 border-transparent hover:border-green-500 transition-all">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
-                            <div>
-                                <h3 class="font-bold">Workflow Automation</h3>
-                                <p class="text-xs text-gray-400">Automate processes</p>
-                            </div>
-                        </div>
-                        <p class="text-sm text-gray-300 mb-3">Automated workflows with approvals, integrations, and step-by-step processes.</p>
-                        <div class="flex flex-wrap gap-1 mb-2">
-                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Approvals</span>
-                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Integrations</span>
-                            <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">Automation</span>
-                        </div>
-                        <div class="text-sm text-gray-500">Click to select</div>
-                    </div>
-                </div>
-                
-                <!-- Conversational AI Section -->
-                <div id="section-conversational" class="card rounded-xl p-6 md:p-8">
-                    <label class="text-sm text-gray-400 mb-2 block">What should your assistant do? *</label>
-                    <textarea id="w-initial-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4 text-lg" placeholder="Example: Help customers track their orders, answer product questions, and process returns..."></textarea>
-                    
-                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
-                        <button onclick="generateAgentConfig()" id="btn-generate-config" class="btn-primary px-8 py-3 rounded-lg flex-1 flex items-center justify-center gap-2 text-lg">
-                            <span>✨</span> Create My Assistant
-                        </button>
-                    </div>
-                    
-                    <div class="mt-6 pt-6 border-t border-gray-700">
-                        <p class="text-sm text-gray-500 mb-3">Or start with a template:</p>
-                        <div class="flex flex-wrap gap-2">
-                            <button onclick="useAgentTemplate('customer_support')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🎧 Customer Support</button>
-                            <button onclick="useAgentTemplate('sales')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">💼 Sales Assistant</button>
-                            <button onclick="useAgentTemplate('hr')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">👥 HR Helper</button>
-                            <button onclick="useAgentTemplate('research')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔬 Research Analyst</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Workflow Automation Section (Hidden by default) -->
-                <div id="section-process" class="hidden card rounded-xl p-6 md:p-8" style="background: linear-gradient(135deg, rgba(34,197,94,0.05), rgba(20,184,166,0.05)); border: 1px solid rgba(34,197,94,0.2);">
-                    <div class="text-center mb-6">
-                        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-3xl mb-4">🔄</div>
-                        <h3 class="text-xl font-bold mb-2">Visual Workflow Builder</h3>
-                        <p class="text-gray-400">Design powerful automations with drag & drop</p>
-                    </div>
-                    
-                    <div class="grid md:grid-cols-2 gap-4 mb-6">
-                        <!-- Option 1: Visual Builder -->
-                        <div onclick="openVisualBuilder()" class="p-5 rounded-xl bg-gradient-to-br from-green-500/10 to-teal-500/10 border border-green-500/30 cursor-pointer hover:border-green-400 transition-all group">
-                            <div class="flex items-center gap-3 mb-3">
-                                <div class="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-xl">🎨</div>
-                                <div class="font-semibold">Visual Builder</div>
-                                <span class="ml-auto text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400">Recommended</span>
-                            </div>
-                            <p class="text-sm text-gray-400 mb-3">Drag & drop nodes, connect steps visually, configure with forms - no coding required.</p>
-                            <div class="flex items-center gap-2 text-green-400 text-sm group-hover:translate-x-1 transition-transform">
-                                <span>Open Builder</span>
-                                <span>→</span>
-                            </div>
-                        </div>
-                        
-                        <!-- Option 2: AI Generate -->
-                        <div onclick="showAIWorkflowInput()" class="p-5 rounded-xl bg-gray-800/50 border border-gray-700 cursor-pointer hover:border-purple-500 transition-all group">
-                            <div class="flex items-center gap-3 mb-3">
-                                <div class="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center text-xl">🤖</div>
-                                <div class="font-semibold">AI Generate</div>
-                            </div>
-                            <p class="text-sm text-gray-400 mb-3">Describe what you need in plain English, AI creates the workflow for you.</p>
-                            <div class="flex items-center gap-2 text-purple-400 text-sm group-hover:translate-x-1 transition-transform">
-                                <span>Generate with AI</span>
-                                <span>→</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- AI Input (Hidden by default) -->
-                    <div id="ai-workflow-input" class="hidden">
-                        <label class="text-sm text-gray-400 mb-2 block">Describe your workflow *</label>
-                        <textarea id="w-process-goal" rows="3" class="input-field w-full rounded-lg px-4 py-3" placeholder="When an expense over $500 is submitted, send to manager for approval..."></textarea>
-                        <div class="mt-4 flex gap-3">
-                            <button onclick="generateProcessConfig()" class="flex-1 px-6 py-3 rounded-lg text-white font-medium flex items-center justify-center gap-2" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff !important;">
-                                <span>✨</span> Generate Workflow
-                            </button>
-                            <button onclick="hideAIWorkflowInput()" class="px-4 py-3 rounded-lg bg-gray-700 text-gray-300">Cancel</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Quick Templates -->
-                    <div id="workflow-templates" class="mt-4 pt-4 border-t border-gray-700/50">
-                        <p class="text-sm text-gray-500 mb-3">Quick start templates:</p>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            <button onclick="openBuilderWithTemplate('approval')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
-                                <span class="text-lg">✅</span>
-                                <div class="text-sm font-medium mt-1">Approval</div>
-                            </button>
-                            <button onclick="openBuilderWithTemplate('onboarding')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
-                                <span class="text-lg">👋</span>
-                                <div class="text-sm font-medium mt-1">Onboarding</div>
-                            </button>
-                            <button onclick="openBuilderWithTemplate('notification')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
-                                <span class="text-lg">🔔</span>
-                                <div class="text-sm font-medium mt-1">Notifications</div>
-                            </button>
-                            <button onclick="openBuilderWithTemplate('integration')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
-                                <span class="text-lg">🔗</span>
-                                <div class="text-sm font-medium mt-1">Integration</div>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
+            if (_wizardStep0OriginalHtml) {
+                step0.innerHTML = _wizardStep0OriginalHtml;
+            } else {
+                console.warn('restoreWizardStep0: no original HTML captured yet');
+                return;
+            }
+            
+            // Re-apply default state (cards + flow)
+            try { selectAgentType(selectedAgentType || 'conversational'); } catch (_) {}
+            try { createFlowReset(); } catch (_) {}
         }
         
         async function updateStepsNew() {
@@ -724,6 +618,7 @@ const API='';
                 console.log('Loading LLM models');
                 loadLLMModels();
                 initPersonalitySliders();
+                updateWizardCreationModeCopy();
             }
             if(step === 3) {
                 console.log('Loading Demo Kit Tools for selection');
@@ -1469,21 +1364,17 @@ const API='';
         
         function selectAgentType(type) {
             console.log('🎯 [CREATE] selectAgentType() called with type:', type);
-            selectedAgentType = type;
+            selectedAgentType = type === 'process' ? 'process' : 'conversational';
             
             // Update card styles
             const convCard = document.getElementById('type-card-conversational');
             const procCard = document.getElementById('type-card-process');
-            const convSection = document.getElementById('section-conversational');
-            const procSection = document.getElementById('section-process');
             
-            if (type === 'conversational') {
+            if (selectedAgentType === 'conversational') {
                 convCard?.classList.add('border-purple-500');
                 convCard?.classList.remove('border-transparent');
                 procCard?.classList.remove('border-green-500');
                 procCard?.classList.add('border-transparent');
-                convSection?.classList.remove('hidden');
-                procSection?.classList.add('hidden');
                 // Update selection text
                 if (convCard) convCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
                 if (procCard) procCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
@@ -1494,21 +1385,174 @@ const API='';
                 procCard?.classList.remove('border-transparent');
                 convCard?.classList.remove('border-purple-500');
                 convCard?.classList.add('border-transparent');
-                procSection?.classList.remove('hidden');
-                convSection?.classList.add('hidden');
                 // Update selection text
                 if (procCard) procCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
                 if (convCard) convCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
                 if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-green-400 font-medium';
                 if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
             }
+            
+            // Toggle method copy blocks
+            document.getElementById('build-manual-copy-conv')?.classList.toggle('hidden', selectedAgentType !== 'conversational');
+            document.getElementById('build-manual-copy-proc')?.classList.toggle('hidden', selectedAgentType !== 'process');
+            document.getElementById('build-ai-copy-conv')?.classList.toggle('hidden', selectedAgentType !== 'conversational');
+            document.getElementById('build-ai-copy-proc')?.classList.toggle('hidden', selectedAgentType !== 'process');
+            
+            // Toggle AI prompt blocks
+            document.getElementById('create-ai-conversational')?.classList.toggle('hidden', selectedAgentType !== 'conversational');
+            document.getElementById('create-ai-process')?.classList.toggle('hidden', selectedAgentType !== 'process');
+        }
+        
+        // =========================================================================
+        // UNIFIED CREATE FLOW (Step 0 only)
+        // =========================================================================
+        
+        function createFlowReset() {
+            _createFlowStep = 'type';
+            _createBuildMode = null;
+            selectBuildMode(null);
+            createFlowGo('type');
+        }
+        
+        function createFlowGo(stepName) {
+            _createFlowStep = stepName;
+            
+            const stepType = document.getElementById('create-flow-step-type');
+            const stepMethod = document.getElementById('create-flow-step-method');
+            const stepAI = document.getElementById('create-flow-step-ai');
+            
+            stepType?.classList.toggle('hidden', stepName !== 'type');
+            stepMethod?.classList.toggle('hidden', stepName !== 'method');
+            stepAI?.classList.toggle('hidden', stepName !== 'ai');
+            
+            // Stepper visuals
+            const dots = {
+                type: document.querySelector('.create-flow-step[data-step="type"] .create-flow-dot'),
+                method: document.querySelector('.create-flow-step[data-step="method"] .create-flow-dot'),
+                ai: document.querySelector('.create-flow-step[data-step="ai"] .create-flow-dot')
+            };
+            const dividers = Array.from(document.querySelectorAll('.create-flow-divider'));
+            
+            const setDot = (dot, state) => {
+                if (!dot) return;
+                dot.classList.remove('active', 'completed');
+                if (state === 'active') dot.classList.add('active');
+                if (state === 'completed') dot.classList.add('completed');
+            };
+            
+            if (stepName === 'type') {
+                setDot(dots.type, 'active');
+                setDot(dots.method, null);
+                setDot(dots.ai, null);
+                dividers.forEach(d => d.classList.remove('completed'));
+            } else if (stepName === 'method') {
+                setDot(dots.type, 'completed');
+                setDot(dots.method, 'active');
+                setDot(dots.ai, null);
+                dividers[0]?.classList.add('completed');
+                dividers[1]?.classList.remove('completed');
+            } else {
+                setDot(dots.type, 'completed');
+                setDot(dots.method, 'completed');
+                setDot(dots.ai, 'active');
+                dividers.forEach(d => d.classList.add('completed'));
+            }
+            
+            // Ensure the correct AI prompt is visible for current agent type
+            try { selectAgentType(selectedAgentType); } catch (_) {}
+        }
+        
+        function selectBuildMode(mode) {
+            _createBuildMode = mode;
+            
+            const manualCard = document.getElementById('build-card-manual');
+            const aiCard = document.getElementById('build-card-ai');
+            const manualSel = document.getElementById('build-manual-selected');
+            const aiSel = document.getElementById('build-ai-selected');
+            const continueBtn = document.getElementById('create-flow-continue-btn');
+            
+            // Reset visuals
+            manualCard?.classList.remove('border-blue-500');
+            aiCard?.classList.remove('border-purple-500');
+            manualCard?.classList.add('border-transparent');
+            aiCard?.classList.add('border-transparent');
+            
+            if (mode === 'manual') {
+                manualCard?.classList.add('border-blue-500');
+                manualCard?.classList.remove('border-transparent');
+                if (manualSel) { manualSel.textContent = '✓ Selected'; manualSel.className = 'text-sm text-blue-400 font-medium'; }
+                if (aiSel) { aiSel.textContent = 'Click to select'; aiSel.className = 'text-sm text-gray-500'; }
+                if (continueBtn) continueBtn.textContent = 'Start Setup';
+            } else if (mode === 'ai') {
+                aiCard?.classList.add('border-purple-500');
+                aiCard?.classList.remove('border-transparent');
+                if (aiSel) { aiSel.textContent = '✓ Selected'; aiSel.className = 'text-sm text-purple-400 font-medium'; }
+                if (manualSel) { manualSel.textContent = 'Click to select'; manualSel.className = 'text-sm text-gray-500'; }
+                if (continueBtn) continueBtn.textContent = 'Continue';
+            } else {
+                if (manualSel) { manualSel.textContent = 'Click to select'; manualSel.className = 'text-sm text-gray-500'; }
+                if (aiSel) { aiSel.textContent = 'Click to select'; aiSel.className = 'text-sm text-gray-500'; }
+                if (continueBtn) continueBtn.textContent = 'Continue';
+            }
+        }
+        
+        function createFlowContinue() {
+            if (!_createBuildMode) {
+                showToast('Please choose how you want to set it up.', 'warning');
+                return;
+            }
+            
+            if (_createBuildMode === 'manual') {
+                if (selectedAgentType === 'process') {
+                    openVisualBuilder();
+                    closeCreateWizardModal(true);
+                    return;
+                }
+                startManualConversationalWizard();
+                return;
+            }
+            
+            createFlowGo('ai');
+        }
+        
+        function createFlowGenerate() {
+            if (selectedAgentType === 'process') {
+                return generateProcessConfig();
+            }
+            return generateAgentConfig();
+        }
+        
+        function startManualConversationalWizard() {
+            try {
+                wizard.creationMode = 'manual';
+                wizard.agentType = 'conversational';
+            } catch (_) { /* ignore */ }
+            step = 1;
+            updateStepsNew();
+            updateWizardCreationModeCopy();
+        }
+        
+        function updateWizardCreationModeCopy() {
+            const isAI = wizard?.creationMode === 'ai';
+            
+            const subtitle = document.getElementById('wizard-step1-subtitle');
+            if (subtitle) subtitle.textContent = isAI ? 'Drafted settings — review and adjust as needed' : 'Set up your agent — you can update anytime';
+            
+            const nameHint = document.getElementById('w-name-hint');
+            if (nameHint) nameHint.textContent = isAI ? 'Drafted based on your description — edit if needed.' : 'Choose a clear name your users will recognize.';
+            
+            const goalHint = document.getElementById('goal-hint');
+            if (goalHint) goalHint.textContent = isAI ? 'Drafted goal — make it as specific as possible.' : 'Describe the outcome in clear business terms.';
+            
+            const badge = document.getElementById('goal-ai-badge');
+            if (badge) badge.textContent = isAI ? 'Drafted' : 'Manual';
         }
         
         // Generate Process/Workflow Configuration using AI
         async function generateProcessConfig() {
             const goal = document.getElementById('w-process-goal')?.value.trim();
             if(!goal) {
-                alert('Please describe what your workflow should do');
+                showToast('Please describe what your workflow should do.', 'warning');
                 return;
             }
             
@@ -1614,13 +1658,13 @@ const API='';
                         openVisualEditor();
                     }
                 } else {
-                    alert(data.detail || 'Could not create workflow. Please try again.');
+                    showToast(data.detail || 'Could not create the workflow. Please try again.', 'error');
                     document.getElementById('wizard-generating').classList.add('hidden');
                     document.getElementById('wizard-step-0').classList.remove('hidden');
                 }
             } catch(e) {
                 console.error('Process generation error:', e);
-                alert('Could not connect to the server. Please try again.');
+                showToast('Could not connect to the server. Please try again.', 'error');
                 document.getElementById('wizard-generating').classList.add('hidden');
                 document.getElementById('wizard-step-0').classList.remove('hidden');
             }

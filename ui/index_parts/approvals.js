@@ -719,7 +719,7 @@
         async function generateAgentConfig() {
             const goal = document.getElementById('w-initial-goal').value.trim();
             if(!goal) {
-                alert('Please describe what your agent should do');
+                showToast('Please describe what your assistant should do.', 'warning');
                 return;
             }
             
@@ -773,18 +773,22 @@
                 
                 if(response.ok) {
                     const config = await response.json();
+                    try {
+                        wizard.creationMode = 'ai';
+                        wizard.agentType = 'conversational';
+                    } catch (_) { /* ignore */ }
                     applyGeneratedConfig(config);
                 } else {
                     // Show error - no local fallback
                     const error = await response.json().catch(() => ({}));
-                    alert('Failed to generate agent configuration: ' + (error.detail || 'Please check your LLM settings.'));
+                    showToast('Could not create a draft. Please check your AI settings and try again.', 'error');
                     document.getElementById('wizard-generating').classList.add('hidden');
                     document.getElementById('wizard-step-0').classList.remove('hidden');
                     return;
                 }
             } catch(e) {
                 console.error('Config generation error:', e);
-                alert('Failed to connect to AI service. Please check your settings and try again.');
+                showToast('Could not connect to the AI service. Please try again.', 'error');
                 document.getElementById('wizard-generating').classList.add('hidden');
                 document.getElementById('wizard-step-0').classList.remove('hidden');
                 return;
