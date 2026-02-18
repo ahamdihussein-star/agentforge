@@ -12954,10 +12954,10 @@ async def serve_ui_files(path: str, response: Response):
 
 
 @app.get("/api/process/available-models")
-async def get_available_process_models_api(user: User = Depends(require_auth)):
+async def get_available_process_models_api(current_user: User = Depends(get_current_user)):
     """Backward-compatible alias for UI builds that call /api/process/available-models."""
     from api.modules.process.router import get_available_models
-    return await get_available_models(user=user)
+    return await get_available_models(user=current_user)
 
 
 # ============================================================================
