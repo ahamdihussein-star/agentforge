@@ -12879,8 +12879,12 @@ async def chat_with_files(
 
 @app.get("/ui", response_class=HTMLResponse)
 @app.get("/ui/", response_class=HTMLResponse)
-async def serve_ui_root():
+async def serve_ui_root(response: Response):
     """Serve main UI index page"""
+    # Reduce stale asset issues in managed hosting/CDNs
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     ui_file = "ui/index.html"
     if os.path.exists(ui_file):
         with open(ui_file) as f:
@@ -12888,7 +12892,7 @@ async def serve_ui_root():
     return "<html><body><h1>UI not found</h1></body></html>"
 
 @app.get("/ui/{path:path}")
-async def serve_ui_files(path: str):
+async def serve_ui_files(path: str, response: Response):
     """Serve UI files - HTML, CSS, JS, images, etc."""
     from fastapi.responses import FileResponse
     
@@ -12923,10 +12927,20 @@ async def serve_ui_files(path: str):
         # For HTML files, read and return content
         if ext == 'html':
             with open(file_path, 'r', encoding='utf-8') as f:
-                return HTMLResponse(content=f.read())
+                html_resp = HTMLResponse(content=f.read())
+                html_resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+                html_resp.headers["Pragma"] = "no-cache"
+                html_resp.headers["Expires"] = "0"
+                return html_resp
         
         # For other files, use FileResponse
-        return FileResponse(file_path, media_type=media_type)
+        file_resp = FileResponse(file_path, media_type=media_type)
+        # JS/CSS are most impacted by stale CDN/browser caching in a no-build pipeline
+        if ext in ("js", "css"):
+            file_resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+            file_resp.headers["Pragma"] = "no-cache"
+            file_resp.headers["Expires"] = "0"
+        return file_resp
     
     # File not found - for non-HTML paths, return 404
     # For paths without extension (SPA routes), serve index.html
@@ -12937,6 +12951,13 @@ async def serve_ui_files(path: str):
                 return HTMLResponse(content=f.read())
     
     raise HTTPException(404, f"File not found: {path}")
+
+
+@app.get("/api/process/available-models")
+async def get_available_process_models_api(user: User = Depends(require_auth)):
+    """Backward-compatible alias for UI builds that call /api/process/available-models."""
+    from api.modules.process.router import get_available_models
+    return await get_available_models(user=user)
 
 
 # ============================================================================

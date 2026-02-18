@@ -415,7 +415,7 @@ Node config rules:
   - inputMapping: map current process data to the sub-process input fields. Keys = sub-process field names, values = {{currentProcessField}} references.
   - Set output_variable to store the sub-process result for downstream steps.
   - If no published processes are available (PUBLISHED PROCESSES list is empty), do NOT create call_process nodes.
-  - Example: call_process.config = { "processId": "<id>", "inputMapping": { "field1": "{{{{value1}}}}" }, "outputVariable": "subResult" }
+  - Example: call_process.config = {{ "processId": "<id>", "inputMapping": {{ "field1": "{{{{value1}}}}" }}, "outputVariable": "subResult" }}
 
 - AI NODE MODES (config.aiMode — determines what the AI step does):
   The "ai" node is the unified intelligence step. It supports these modes:

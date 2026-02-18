@@ -5431,7 +5431,7 @@
 
         function loadAvailableModels() {
             const token = getAuthToken();
-            fetch('/api/process/available-models', {
+            fetch('/process/available-models', {
                 headers: token ? { 'Authorization': 'Bearer ' + token } : {}
             })
             .then(r => r.ok ? r.json() : Promise.reject(r.status))
