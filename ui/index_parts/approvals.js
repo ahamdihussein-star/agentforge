@@ -764,11 +764,48 @@
             last.querySelector('span').textContent = '✓';
             
             try {
+                // Provide available tools context to the wizard (sanitized: no secrets)
+                let toolsForContext = [];
+                try {
+                    const token = authToken || localStorage.getItem('agentforge_token');
+                    const toolsRes = await fetch('/api/tools', {
+                        headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                    });
+                    const toolsJson = await toolsRes.json().catch(() => ({}));
+                    const tools = Array.isArray(toolsJson?.tools) ? toolsJson.tools : [];
+                    toolsForContext = tools.slice(0, 40).map(t => {
+                        const apiParams = t?.api_config?.input_parameters || t?.api_config?.inputParameters || [];
+                        const safeParams = Array.isArray(apiParams) ? apiParams.map(p => ({
+                            name: p?.name,
+                            description: p?.description,
+                            data_type: p?.data_type || p?.type,
+                            required: !!p?.required,
+                            location: p?.location
+                        })) : [];
+                        return {
+                            id: t?.id,
+                            name: t?.name,
+                            type: t?.type,
+                            description: t?.description || '',
+                            input_parameters: safeParams
+                        };
+                    }).filter(t => t.id && t.name);
+                } catch (_) { /* ignore */ }
+
                 // Call AI to generate configuration - 100% dynamic, no fallback
+                const token = authToken || localStorage.getItem('agentforge_token');
                 const response = await fetch(API + '/api/agents/generate-config', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ goal })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+                    },
+                    body: JSON.stringify({
+                        goal,
+                        context: {
+                            tools: toolsForContext
+                        }
+                    })
                 });
                 
                 if(response.ok) {
@@ -1406,7 +1443,11 @@
             crm: { icon: '🎯', name: 'CRM' },
             websearch: { icon: '🔍', name: 'Web Search' },
             code: { icon: '💻', name: 'Code Execution' },
-            slack: { icon: '💬', name: 'Messaging' }
+            slack: { icon: '💬', name: 'Messaging' },
+            api: { icon: '🔌', name: 'API Integration' },
+            webhook: { icon: '🔗', name: 'Webhooks' },
+            website: { icon: '🌐', name: 'Website' },
+            ocr: { icon: '🧾', name: 'Document Reading' }
         };
         
         // Generate dynamic tool info based on agent goal

@@ -5411,6 +5411,7 @@ async def create_agent(request: CreateAgentRequest, current_user: User = Depends
 class GenerateAgentConfigRequest(BaseModel):
     goal: str
     update_mode: Optional[bool] = False  # True when updating existing config
+    context: Optional[Dict[str, Any]] = None  # Optional platform context (e.g., available tools)
 
 @app.post("/api/agents/generate-config")
 async def generate_agent_config(request: GenerateAgentConfigRequest):
@@ -5418,6 +5419,12 @@ async def generate_agent_config(request: GenerateAgentConfigRequest):
     try:
         goal = request.goal
         update_mode = request.update_mode or False
+        context = request.context or {}
+        if not isinstance(context, dict):
+            context = {}
+        tools_ctx = context.get("tools") or []
+        if not isinstance(tools_ctx, list):
+            tools_ctx = []
         
         if not goal or len(goal.strip()) < 10:
             raise HTTPException(400, "Please provide a more detailed goal description (at least 10 characters)")
@@ -5464,6 +5471,28 @@ async def generate_agent_config(request: GenerateAgentConfigRequest):
             raise HTTPException(503, "No LLM configured. Please add at least one LLM provider in Settings.")
         
         # Build the dynamic prompt
+        # Include available platform tools if provided (sanitized by frontend)
+        tools_block = ""
+        try:
+            if tools_ctx:
+                safe_tools = []
+                for t in tools_ctx[:40]:
+                    if not isinstance(t, dict):
+                        continue
+                    safe_tools.append({
+                        "id": t.get("id"),
+                        "name": t.get("name"),
+                        "type": t.get("type"),
+                        "description": t.get("description", ""),
+                        "input_parameters": t.get("input_parameters", []) if isinstance(t.get("input_parameters"), list) else [],
+                    })
+                if safe_tools:
+                    tools_block = "\n\nAVAILABLE PLATFORM TOOLS (use these to decide suggestedTools):\n" + json.dumps(
+                        safe_tools, ensure_ascii=False
+                    )
+        except Exception:
+            tools_block = ""
+
         system_prompt = f"""You are an expert AI agent architect. Your job is to design the perfect agent configuration based on the user's goal.
 
 IMPORTANT: You must analyze the goal deeply and generate ALL configurations dynamically. Do NOT use generic/default values - every field must be specifically tailored to this agent's purpose.
@@ -5471,6 +5500,7 @@ IMPORTANT: You must analyze the goal deeply and generate ALL configurations dyna
 AVAILABLE AI MODELS (only recommend from this list):
 {models_list}
 {tool_models_note}
+{tools_block}
 
 Return a JSON object with these fields:
 
@@ -5524,17 +5554,12 @@ Return a JSON object with these fields:
    BAD instruction: "Help the user"
    GOOD instruction: "When user uploads a document, extract key data automatically instead of asking them to type it"
 
-10. "suggestedTools": Array of tools this agent needs:
-    - "knowledge" (documents/FAQs)
-    - "database" (structured data)
-    - "email" (send emails)
-    - "calendar" (scheduling)
-    - "crm" (customer data)
-    - "websearch" (internet search)
-    - "code" (run code)
-    - "slack" (messaging)
-    - "ocr" (read images/PDFs)
-    - "api" (external APIs)
+10. "suggestedTools": Array of tool categories this agent should use, chosen from this platform taxonomy only:
+    - "knowledge", "database", "email", "calendar", "crm", "websearch", "code", "slack", "api", "webhook", "website", "ocr"
+    
+    IMPORTANT:
+    - Only include categories that are truly necessary for THIS goal.
+    - If AVAILABLE PLATFORM TOOLS were provided above, use them to decide which categories to include (do not invent capabilities).
 
 11. "guardrails": Safety settings object:
     - "antiHallucination": Should agent strictly avoid making things up?
