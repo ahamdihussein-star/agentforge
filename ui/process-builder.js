@@ -3346,6 +3346,69 @@
                                       onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || '')}</textarea>
                             ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
                         </div>
+
+                        <!-- Output Fields (inline for extract mode — right after the prompt) -->
+                        <div class="property-group">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                <label class="property-label" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
+                                    <span>📦</span> Output Data Fields
+                                </label>
+                                <button type="button" onclick="addAIOutputField('${node.id}')"
+                                        style="padding:3px 10px;font-size:11px;border-radius:6px;border:1px solid var(--pb-primary);background:color-mix(in srgb,var(--pb-primary) 10%,transparent);color:var(--pb-primary);cursor:pointer;font-weight:600;">
+                                    + Add Field
+                                </button>
+                            </div>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Name the data fields this AI will extract. They'll appear as selectable options in all following steps.
+                            </div>
+                            <div id="ai-outfields-${node.id}" style="display:flex;flex-direction:column;gap:6px;">
+                                ${(() => {
+                                    const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
+                                    if (outFields.length === 0) {
+                                        return `<div id="ai-outfields-empty-${node.id}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No output fields defined. Click "+ Add Field" to name the data this AI will extract.</div>`;
+                                    }
+                                    return outFields.map((of, idx) => `
+                                        <div class="ai-outfield-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;">
+                                            <span style="color:var(--pb-primary);font-size:14px;">📋</span>
+                                            <input type="text" class="ai-outfield-label" value="${escapeHtml(of.label || '')}"
+                                                   placeholder="e.g., Invoice Number"
+                                                   onchange="syncAIOutputFields('${node.id}')"
+                                                   style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                                            <select class="ai-outfield-type" onchange="syncAIOutputFields('${node.id}')"
+                                                    style="width:100px;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid color-mix(in srgb,var(--pb-border) 60%,transparent);background:var(--pb-surface);color:var(--pb-text);">
+                                                <option value="text" ${(of.type||'text') === 'text' ? 'selected' : ''}>Text</option>
+                                                <option value="number" ${of.type === 'number' ? 'selected' : ''}>Number</option>
+                                                <option value="date" ${of.type === 'date' ? 'selected' : ''}>Date</option>
+                                                <option value="currency" ${of.type === 'currency' ? 'selected' : ''}>Currency</option>
+                                                <option value="email" ${of.type === 'email' ? 'selected' : ''}>Email</option>
+                                                <option value="boolean" ${of.type === 'boolean' ? 'selected' : ''}>Yes/No</option>
+                                                <option value="list" ${of.type === 'list' ? 'selected' : ''}>List</option>
+                                            </select>
+                                            <button type="button" onclick="removeAIOutputField(this,'${node.id}')"
+                                                    style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
+                                                    onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
+                                                    title="Remove this field">✕</button>
+                                        </div>
+                                    `).join('');
+                                })()}
+                            </div>
+                            ${(() => {
+                                const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
+                                if (outFields.length > 0) {
+                                    return `<div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:8px;">
+                                        <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">These fields will be available in next steps:</div>
+                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                            ${outFields.filter(f => f.label).map(f => {
+                                                const typeIcons = {text:'Aa',number:'#',date:'📅',currency:'💰',email:'✉',boolean:'✓',list:'☰'};
+                                                return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);"><span style="font-size:10px;opacity:0.7;">${typeIcons[f.type]||'📋'}</span> ${escapeHtml(f.label)}</span>`;
+                                            }).join('')}
+                                        </div>
+                                    </div>`;
+                                }
+                                return '';
+                            })()}
+                        </div>
+
                         <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-bottom:8px;">
                             <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
                                 Supports <strong>all file types</strong>: PDFs, Word, Excel, images (receipts, IDs, photos), and more. The platform reads content automatically using AI vision for images.
@@ -3462,7 +3525,8 @@
                             </div>
                         </div>
 
-                        <!-- Output Fields (what data does the AI produce?) -->
+                        ${_aiMode !== 'extract_file' && _aiMode !== 'extract' ? `
+                        <!-- Output Fields (what data does the AI produce?) — skipped for extract_file (rendered inline above) -->
                         <div class="property-group">
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                                 <label class="property-label" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
@@ -3480,7 +3544,7 @@
                                 ${(() => {
                                     const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
                                     if (outFields.length === 0) {
-                                        return `<div id="ai-outfields-empty-${node.id}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No output fields defined. Click "+ Add Field" to name the data this AI will produce.</div>`;
+                                        return '<div id="ai-outfields-empty-' + node.id + '" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No output fields defined. Click "+ Add Field" to name the data this AI will produce.</div>';
                                     }
                                     return outFields.map((of, idx) => `
                                         <div class="ai-outfield-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;">
@@ -3511,19 +3575,15 @@
                                 const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
                                 const outVar = String(node.output_variable || '').trim();
                                 if (outFields.length > 0 && (outVar || true)) {
-                                    return `<div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:8px;">
-                                        <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">These fields will be available in next steps:</div>
-                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                            ${outFields.filter(f => f.label).map(f => {
-                                                const typeIcons = {text:'Aa',number:'#',date:'📅',currency:'💰',email:'✉',boolean:'✓',list:'☰'};
-                                                return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);"><span style="font-size:10px;opacity:0.7;">${typeIcons[f.type]||'📋'}</span> ${escapeHtml(f.label)}</span>`;
-                                            }).join('')}
-                                        </div>
-                                    </div>`;
+                                    return '<div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:8px;"><div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">These fields will be available in next steps:</div><div style="display:flex;flex-wrap:wrap;gap:6px;">' + outFields.filter(f => f.label).map(f => {
+                                        const typeIcons = {text:'Aa',number:'#',date:'📅',currency:'💰',email:'✉',boolean:'✓',list:'☰'};
+                                        return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);"><span style="font-size:10px;opacity:0.7;">' + (typeIcons[f.type]||'📋') + '</span> ' + escapeHtml(f.label) + '</span>';
+                                    }).join('') + '</div></div>';
                                 }
                                 return '';
                             })()}
                         </div>
+                        ` : ''}
 
                         <!-- Connected Tools (optional — allow the AI to call external systems) -->
                         ${state.tools && state.tools.length > 0 ? (() => {
