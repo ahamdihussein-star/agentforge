@@ -22,7 +22,7 @@ The tool runs, returns results, and the workflow continues to the next step.
 ```json
 {
   "type": "tool",
-  "name": "Check HR System",
+  "name": "Query External System",
   "config": {
     "toolId": "<matched tool id>",
     "params": {
@@ -30,7 +30,7 @@ The tool runs, returns results, and the workflow continues to the next step.
       "<param_name>": "fixed_value"
     }
   },
-  "output_variable": "hrResult"
+  "output_variable": "toolResult"
 }
 ```
 

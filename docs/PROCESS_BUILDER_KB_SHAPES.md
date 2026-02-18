@@ -337,33 +337,10 @@ Config (`tool.config`):
 |--------|--------|---------|
 | Form field | `{{fieldName}}` | `{{amount}}`, `{{employeeEmail}}` |
 | AI output | `{{outputVar.fieldName}}` | `{{parsedData.totalAmount}}` |
-| Tool output | `{{outputVar.fieldName}}` | `{{hrResult.employeeRecord}}` |
+| Tool output | `{{outputVar.fieldName}}` | `{{toolResult.record}}` |
 | Calculate output | `{{outputVar}}` | `{{taxAmount}}` |
 | User profile | `{{trigger_input._user_context.<key>}}` | `{{trigger_input._user_context.display_name}}` |
 | Sub-process output | `{{outputVar.fieldName}}` | `{{subResult.status}}` |
-
-## Common Enterprise Process Patterns
-
-### Expense Report / Reimbursement
-trigger → form (upload receipts + expense details) → AI extract_file (parse receipts) → condition (amount threshold?) → approval (manager) → notification (requester: approved) → end
-
-### Leave / Vacation Request
-trigger → form (leave type, dates, reason — prefill employee info) → condition (auto-approve short leave?) → yes: notification → end / no: approval (manager) → notification → end
-
-### Purchase Order / Procurement
-trigger → form (item details, vendor, amount) → condition (budget threshold?) → approval chain (manager → department head) → notification (requester + finance) → end
-
-### IT Support Ticket
-trigger → form (issue description, category, priority, screenshots) → AI classify (route ticket) → condition (priority?) → high: approval (IT manager) + notification / low: notification (IT team) → end
-
-### Document Review / Contract Approval
-trigger → form (upload document, description) → AI analyze (summarize key terms) → approval (legal/compliance) → notification (requester) → end
-
-### Onboarding / New Employee
-trigger (scheduled or manual) → form (employee details) → parallel (IT setup notification + HR notification + badge request) → end
-
-### Data Sync / Scheduled Report
-trigger (scheduled) → tool (fetch data from external system) → AI analyze (summarize findings) → notification (team) → end
 
 ## Deprecated Shapes (backward compatibility only)
 

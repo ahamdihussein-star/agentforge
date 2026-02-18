@@ -58,7 +58,7 @@ trigger → form → condition1 (< 500?)
 ### Parallel Execution
 ```
 trigger → form → parallel
-                  ├── branch1 (x-300): notification to HR
+                  ├── branch1 (x-300): notification to team A
                   ├── branch2 (center): create document
                   └── branch3 (x+300): tool call
                             ↓ (all complete)
@@ -103,11 +103,11 @@ trigger → form (upload multiple files) → ai batch_files (analyze across all)
 
 ## Process Complexity Guidelines
 
-| Complexity | Steps | Includes | Example |
-|------------|-------|----------|---------|
-| Simple | 1-5 | Linear: trigger → form → action → end | Leave request, simple notification |
-| Medium | 5-10 | Conditions, approvals | Expense report, purchase request |
-| Complex | 10+ | Parallel, sub-processes, multi-condition, multi-approval | Onboarding, procurement, contract review |
+| Complexity | Steps | Includes |
+|------------|-------|----------|
+| Simple | 1-5 | Linear: trigger → form → action → end |
+| Medium | 5-10 | Conditions, approvals, AI steps |
+| Complex | 10+ | Parallel, sub-processes, multi-condition, multi-approval |
 
 ALWAYS start with the simplest design that fulfills the user's goal. Add complexity only when needed.
 

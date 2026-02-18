@@ -103,33 +103,28 @@ Use an **AI Step** (`ai`) with `aiMode: "create_doc"`:
 
 ### Pattern 1: Upload → Extract → Route → Notify
 ```
-form (file upload) → AI extract_file → condition (route by data) → notification
+form (file upload) → AI extract_file → condition (route by data) → approval/notification
 ```
-Example: Upload invoice → Extract amount/vendor → Check if > threshold → Route to manager approval or auto-approve.
 
 ### Pattern 2: Upload → Extract → Calculate → Report
 ```
 form (file upload) → AI extract_file → calculate (formula) → AI create_doc → notification
 ```
-Example: Upload timesheet → Extract hours → Calculate total pay → Generate pay report → Send to HR.
 
 ### Pattern 3: Multiple Files → Cross-File Analysis
 ```
 form (multiple file uploads) → AI batch_files → condition → notification
 ```
-Example: Upload all Q1 invoices → Sum totals, find highest, calculate average → Route for review.
 
 ### Pattern 4: Upload → Validate → Approve → Archive
 ```
 form (file upload) → AI extract_file → condition (valid?) → approval → tool (archive to system)
 ```
-Example: Upload contract → Extract terms → Check compliance → Legal approval → Archive in document system.
 
 ### Pattern 5: Scheduled Data Collection → Report Generation
 ```
-trigger (scheduled) → tool (fetch data) → AI analyze → AI create_doc → notification (send report)
+trigger (scheduled) → tool (fetch data) → AI analyze → AI create_doc → notification
 ```
-Example: Weekly sales data sync → Analyze trends → Generate report → Email to management.
 
 ## Anti-Hallucination Rules
 

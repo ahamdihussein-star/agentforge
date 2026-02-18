@@ -10,8 +10,8 @@ Every `"type": "ai"` node supports these configuration properties:
   "name": "Parse Document Data",
   "config": {
     "aiMode": "extract_file",
-    "sourceField": "uploadedReceipt",
-    "prompt": "Extract expense data from the uploaded receipt",
+    "sourceField": "uploadedDocument",
+    "prompt": "Extract structured data from the uploaded document",
     "model": "gpt-4o",
     "instructions": [
       "Only extract data EXPLICITLY present in the text — never invent values",
@@ -21,9 +21,9 @@ Every `"type": "ai"` node supports these configuration properties:
     "creativity": 1,
     "confidence": 3,
     "outputFields": [
-      {"label": "Vendor Name", "name": "vendorName", "type": "text"},
+      {"label": "Title", "name": "docTitle", "type": "text"},
       {"label": "Total Amount", "name": "totalAmount", "type": "currency"},
-      {"label": "Date", "name": "receiptDate", "type": "date"}
+      {"label": "Date", "name": "documentDate", "type": "date"}
     ],
     "enabledToolIds": []
   },
@@ -35,7 +35,7 @@ Every `"type": "ai"` node supports these configuration properties:
 
 | Field | Purpose | Content |
 |-------|---------|---------|
-| `config.prompt` | **Task description only** — what the AI should do | "Extract expense data from the uploaded receipt" |
+| `config.prompt` | **Task description only** — what the AI should do | "Extract structured data from the uploaded document" |
 | `config.instructions` | **Array of individual rules** — constraints and guardrails | Each string is one rule |
 
 ### Rules
@@ -135,7 +135,7 @@ Controls how much the AI infers beyond the explicit data. Mapped to LLM temperat
 
 | Level | Label | Temperature | Best For |
 |-------|-------|-------------|----------|
-| 1 | Very strict | 0.1 | Exact data extraction, OCR parsing, invoice processing |
+| 1 | Very strict | 0.1 | Exact data extraction, OCR parsing, document processing |
 | 2 | Strict | 0.2 | Data extraction with minimal inference, form parsing |
 | 3 | Balanced | 0.4 | General tasks, analysis, moderate inference |
 | 4 | Moderate | 0.6 | Content generation, summarization, reports |
