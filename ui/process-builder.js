@@ -6264,6 +6264,36 @@
                 || null;
         }
 
+        function _pbEdgeFrom(e) {
+            if (!e || typeof e !== 'object') return null;
+            return e.from ?? e.source ?? e.start ?? e.a ?? null;
+        }
+
+        function _pbEdgeTo(e) {
+            if (!e || typeof e !== 'object') return null;
+            return e.to ?? e.target ?? e.end ?? e.b ?? null;
+        }
+
+        function getEntryFormNodeForTest(startNode) {
+            const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+            const edges = Array.isArray(state.edges) ? state.edges : [];
+            const forms = nodes.filter(n => n && n.type === 'form');
+            if (!forms.length) return null;
+
+            const startId = startNode && startNode.id ? String(startNode.id) : '';
+            if (startId) {
+                const direct = forms.find(fn => {
+                    if (!fn || !fn.id) return false;
+                    const formId = String(fn.id);
+                    const isDirect = edges.some(e => String(_pbEdgeFrom(e) || '') === startId && String(_pbEdgeTo(e) || '') === formId);
+                    return isDirect && (getStartFieldDefs(fn) || []).length > 0;
+                });
+                if (direct) return direct;
+            }
+
+            return forms.find(fn => (getStartFieldDefs(fn) || []).length > 0) || null;
+        }
+
         function getStartFieldDefs(startNode) {
             if (!startNode || typeof startNode !== 'object') return [];
             const cfg = (startNode.config && typeof startNode.config === 'object') ? startNode.config : {};
@@ -6328,15 +6358,16 @@
         }
 
         async function testWorkflow() {
-            const startNode = getStartNodeForTest();
+            const startNode = getStartNodeForTest() || state.nodes.find(n => n && n.type === 'form') || null;
             if (!startNode) {
                 alert('No start node found. Add a Start/Form node first.');
                 return;
             }
-            const fieldDefs = getStartFieldDefs(startNode);
+            // Inputs may live on a Form node after Start, or there may be no inputs at all (e.g., schedule/webhook).
+            let fieldDefs = getStartFieldDefs(startNode);
             if (!fieldDefs.length) {
-                alert('No input fields found. Add fields to your Start/Form node first.');
-                return;
+                const entryForm = getEntryFormNodeForTest(startNode);
+                if (entryForm) fieldDefs = getStartFieldDefs(entryForm);
             }
             
             // Create test modal (business-friendly)
@@ -6348,6 +6379,10 @@
                 justify-content: center; z-index: 10000; padding: 18px;
             `;
             modal.addEventListener('click', (e) => { if (e.target === modal) closeTestModal(); });
+
+            const subtitle = fieldDefs.length
+                ? 'Fill the fields and we’ll play back the workflow path on the canvas.'
+                : 'No information is required. Click “Run test” to play back the workflow path on the canvas.';
             
             modal.innerHTML = `
                 <div style="background:var(--pb-panel); color:var(--pb-text); border:1px solid rgba(148,163,184,0.18); border-radius:16px; width:720px; max-width:100%; max-height:86vh; overflow:auto;">
@@ -6355,7 +6390,7 @@
                         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
                             <div>
                                 <h2 style="margin:0; font-size:18px;">Test run</h2>
-                                <p style="margin:6px 0 0; color:var(--pb-muted); font-size:13px;">Fill the fields and we’ll play back the workflow path on the canvas.</p>
+                                <p style="margin:6px 0 0; color:var(--pb-muted); font-size:13px;">${escapeHtml(subtitle)}</p>
                                 <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
                                     <label style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;">
                                         <input id="test-send-real-emails" type="checkbox" checked style="width:16px;height:16px;accent-color: var(--success);">
@@ -6375,42 +6410,48 @@
                     </div>
                     <div style="padding:18px;">
                         <form id="test-workflow-form" onsubmit="event.preventDefault(); runWorkflowTest();">
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-                                ${fieldDefs.map(f => {
-                                    const required = f.required ? '<span style="color:var(--danger);">*</span>' : '';
-                                    const ro = f.readOnly ? 'readonly' : '';
-                                    const dis = f.readOnly ? 'disabled' : '';
-                                    const hint = f.prefill
-                                        ? `<div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">Auto-filled from profile</div>`
-                                        : (f.derived ? `<div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">Auto-calculated</div>` : (f.readOnly ? `<div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">Read-only</div>` : ''));
-                                    const baseStyle = `width:100%; padding:10px; background:var(--bg-input); border:1.5px solid var(--input-border); border-radius:10px; color:var(--text-primary);`;
-                                    const labelHtml = `<label style="display:block; margin-bottom:7px; font-size:13px; color:var(--pb-text);">${escapeHtml(f.label)} ${required}</label>`;
-                                    let inputHtml = '';
-                                    if (f.type === 'textarea') {
-                                        inputHtml = `<textarea data-field-key="${escapeHtml(f.name)}" name="${escapeHtml(f.name)}" style="${baseStyle} min-height:90px;" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required ? 'required' : ''} ${ro}></textarea>`;
-                                    } else if (f.type === 'select') {
-                                        inputHtml = `
-                                            <select data-field-key="${escapeHtml(f.name)}" name="${escapeHtml(f.name)}" style="${baseStyle}" ${f.required ? 'required' : ''} ${dis}>
-                                                <option value="">Select…</option>
-                                                ${(f.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
-                                            </select>
+                            ${fieldDefs.length ? `
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                                    ${fieldDefs.map(f => {
+                                        const required = f.required ? '<span style="color:var(--danger);">*</span>' : '';
+                                        const ro = f.readOnly ? 'readonly' : '';
+                                        const dis = f.readOnly ? 'disabled' : '';
+                                        const hint = f.prefill
+                                            ? `<div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">Auto-filled from profile</div>`
+                                            : (f.derived ? `<div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">Auto-calculated</div>` : (f.readOnly ? `<div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">Read-only</div>` : ''));
+                                        const baseStyle = `width:100%; padding:10px; background:var(--bg-input); border:1.5px solid var(--input-border); border-radius:10px; color:var(--text-primary);`;
+                                        const labelHtml = `<label style="display:block; margin-bottom:7px; font-size:13px; color:var(--pb-text);">${escapeHtml(f.label)} ${required}</label>`;
+                                        let inputHtml = '';
+                                        if (f.type === 'textarea') {
+                                            inputHtml = `<textarea data-field-key="${escapeHtml(f.name)}" name="${escapeHtml(f.name)}" style="${baseStyle} min-height:90px;" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required ? 'required' : ''} ${ro}></textarea>`;
+                                        } else if (f.type === 'select') {
+                                            inputHtml = `
+                                                <select data-field-key="${escapeHtml(f.name)}" name="${escapeHtml(f.name)}" style="${baseStyle}" ${f.required ? 'required' : ''} ${dis}>
+                                                    <option value="">Select…</option>
+                                                    ${(f.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+                                                </select>
+                                            `;
+                                        } else if (f.type === 'file') {
+                                            const multiAttr = f.multiple ? 'multiple' : '';
+                                            inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="file" name="${escapeHtml(f.name)}" style="${baseStyle}" ${f.required ? 'required' : ''} ${multiAttr}>`;
+                                        } else {
+                                            const inputType = (f.type === 'number') ? 'number' : (f.type === 'email') ? 'email' : (f.type === 'date') ? 'date' : 'text';
+                                            inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="${inputType}" name="${escapeHtml(f.name)}" style="${baseStyle}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required ? 'required' : ''} ${ro}>`;
+                                        }
+                                        return `
+                                            <div style="min-width:0;">
+                                                ${labelHtml}
+                                                ${inputHtml}
+                                                ${hint}
+                                            </div>
                                         `;
-                                    } else if (f.type === 'file') {
-                                        const multiAttr = f.multiple ? 'multiple' : '';
-                                        inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="file" name="${escapeHtml(f.name)}" style="${baseStyle}" ${f.required ? 'required' : ''} ${multiAttr}>`;
-                                    } else {
-                                        const inputType = (f.type === 'number') ? 'number' : (f.type === 'email') ? 'email' : (f.type === 'date') ? 'date' : 'text';
-                                        inputHtml = `<input data-field-key="${escapeHtml(f.name)}" type="${inputType}" name="${escapeHtml(f.name)}" style="${baseStyle}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required ? 'required' : ''} ${ro}>`;
-                                    }
-                                    return `
-                                        <div style="min-width:0;">
-                                            ${labelHtml}
-                                            ${inputHtml}
-                                            ${hint}
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
+                                    }).join('')}
+                                </div>
+                            ` : `
+                                <div style="padding:12px 12px; border:1px dashed rgba(148,163,184,0.26); border-radius:12px; color:var(--pb-muted); font-size:13px;">
+                                    No input fields were found for this workflow.
+                                </div>
+                            `}
                             <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;padding-top:16px;border-top:1px solid rgba(148,163,184,0.16);">
                                 <button type="button" onclick="closeTestModal()" style="padding:10px 16px; background:var(--tb-btn-secondary-bg); border:1px solid var(--tb-btn-secondary-border); border-radius:10px; color:var(--tb-btn-secondary-text); cursor:pointer;">
                                     Cancel
