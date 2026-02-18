@@ -1797,6 +1797,11 @@ class ProcessAPIService:
                         type_cfg['format'] = type_cfg.get('docFormat') or 'docx'
                     if not type_cfg.get('instructions') and type_cfg.get('prompt'):
                         type_cfg['instructions'] = type_cfg.get('prompt')
+                elif ai_mode == 'batch_files':
+                    # Normalize sourceFields → source_fields for engine consumption
+                    src_fields = type_cfg.get('sourceFields') or []
+                    if src_fields and isinstance(src_fields, list):
+                        type_cfg['source_fields'] = src_fields
 
                 # Auto-generate output_schema from outputFields for all AI modes
                 output_fields = type_cfg.get('outputFields') or []

@@ -437,12 +437,20 @@ Node config rules:
      - config.prompt: what the document should contain (can use {{{{field}}}} refs)
      - Set node.output_variable to store the document reference
 
-  3. aiMode: "analyze" — Analyze or summarize data
-  4. aiMode: "generate" — Generate content (emails, text, etc.)
-  5. aiMode: "classify" — Classify or categorize items
-  6. aiMode: "custom" — Custom AI task
+  3. aiMode: "batch_files" — Analyze & calculate across multiple files
+     - config.sourceFields: array of file field names (e.g., ["invoiceUpload", "receiptPhotos"])
+     - config.prompt: what to calculate/analyze across ALL selected files
+     - config.outputFields: typed output fields for the calculation results
+     - The engine reads ALL files from the selected fields and sends their contents to the AI
+     - Use this when the user needs cross-file calculations (sums, comparisons, aggregations)
+     - Example: sourceFields: ["invoices"], prompt: "Sum all invoice totals and find the highest"
 
-  For modes 3-6:
+  4. aiMode: "analyze" — Analyze or summarize data
+  5. aiMode: "generate" — Generate content (emails, text, etc.)
+  6. aiMode: "classify" — Classify or categorize items
+  7. aiMode: "custom" — Custom AI task
+
+  For modes 4-7:
   - config.prompt: task description with {{{{field}}}} references
   - config.outputFields: array of typed output fields (same format as extract_file)
   - config.instructions: array of rules
@@ -654,6 +662,7 @@ class ProcessWizard:
                     cfg.setdefault("confidence", 3)
                     cfg.setdefault("aiMode", "custom")
                     cfg.setdefault("enabledToolIds", [])
+                    cfg.setdefault("sourceFields", [])
                 elif n_type == "read_document":
                     # Legacy: convert read_document → ai with extract_file mode
                     n["type"] = "ai"

@@ -700,7 +700,7 @@
                 form: { name: 'Collect Information', config: { fields: [] } },
                 notification: { name: 'Send Message', config: { channel: 'email', template: '' } },
                 tool: { name: 'Connect to System', config: { toolId: toolId || '', params: {} } },
-                ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3, aiMode: 'custom', outputFields: [], sourceField: '', docTitle: '', docFormat: 'docx', enabledToolIds: [] } },
+                ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3, aiMode: 'custom', outputFields: [], sourceField: '', sourceFields: [], docTitle: '', docFormat: 'docx', enabledToolIds: [] } },
                 end: { name: 'Finish', config: { output: '' } },
                 calculate: { name: 'Calculate', config: { operation: 'custom', expression: '', dataLabel: '' } },
                 parallel: { name: 'Run in Parallel', config: {} },
@@ -1044,7 +1044,7 @@
                 case 'read_document':
                 case 'create_document': {
                     const _outFlds = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label) : [];
-                    const modeLabels = {extract_file:'Extract from file',create_doc:'Create document',extract:'Extract data',analyze:'Analyze',generate:'Generate',classify:'Classify',custom:'Custom'};
+                    const modeLabels = {extract_file:'Extract from file',batch_files:'Analyze across files',create_doc:'Create document',extract:'Extract data',analyze:'Analyze',generate:'Generate',classify:'Classify',custom:'Custom'};
                     html = `<div class="node-config-item"><span class="config-label">Task</span><span class="config-value">${modeLabels[cfg.aiMode] || 'AI task'}</span></div>`;
                     if (_outFlds.length > 0) {
                         html += `<div class="node-config-item"><span class="config-label">Output</span><span class="config-value">${_outFlds.length} field${_outFlds.length > 1 ? 's' : ''}</span></div>`;
@@ -1052,6 +1052,10 @@
                     if (cfg.aiMode === 'create_doc' && cfg.docFormat) {
                         const fmtNames = {docx:'Word',pdf:'PDF',xlsx:'Excel',pptx:'PowerPoint',txt:'Text'};
                         html += `<div class="node-config-item"><span class="config-label">Format</span><span class="config-value">${fmtNames[cfg.docFormat] || cfg.docFormat}</span></div>`;
+                    }
+                    if (cfg.aiMode === 'batch_files') {
+                        const _bfCount = Array.isArray(cfg.sourceFields) ? cfg.sourceFields.length : 0;
+                        if (_bfCount > 0) html += `<div class="node-config-item"><span class="config-label">Sources</span><span class="config-value">${_bfCount} file field${_bfCount > 1 ? 's' : ''}</span></div>`;
                     }
                     const _eTIds = Array.isArray(cfg.enabledToolIds) ? cfg.enabledToolIds : [];
                     if (_eTIds.length > 0) {
@@ -3312,6 +3316,7 @@
                             <label class="property-label">What should the AI do?</label>
                             <select class="property-select" onchange="updateNodeConfig('${node.id}', 'aiMode', this.value); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
                                 <option value="extract_file" ${_aiMode === 'extract_file' ? 'selected' : ''}>Extract data from a file or image</option>
+                                <option value="batch_files" ${_aiMode === 'batch_files' ? 'selected' : ''}>Analyze & calculate across files</option>
                                 <option value="create_doc" ${_aiMode === 'create_doc' ? 'selected' : ''}>Create a document</option>
                                 <option value="analyze" ${_aiMode === 'analyze' ? 'selected' : ''}>Analyze or summarize</option>
                                 <option value="generate" ${_aiMode === 'generate' ? 'selected' : ''}>Generate content</option>
@@ -3412,6 +3417,121 @@
                         <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-bottom:8px;">
                             <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
                                 Supports <strong>all file types</strong>: PDFs, Word, Excel, images (receipts, IDs, photos), and more. The platform reads content automatically using AI vision for images.
+                            </div>
+                        </div>`;
+                    }
+                    // ── Mode-specific: Batch files (analyze & calculate across files) ──
+                    else if (_aiMode === 'batch_files') {
+                        const _selectedSF = Array.isArray(node.config.sourceFields) ? node.config.sourceFields : [];
+                        const _allSelected = _fileFields.length > 0 && _fileFields.every(f => _selectedSF.includes(f.name));
+                        html += `
+                        <div class="property-group">
+                            <label class="property-label" style="display:flex;align-items:center;gap:6px;">
+                                <span>📂</span> Which files to include?
+                            </label>
+                            ${_fileFields.length > 0 ? `
+                            <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${_allSelected ? 'color-mix(in srgb,var(--pb-primary) 10%,transparent)' : 'var(--pb-surface)'};border:1px solid ${_allSelected ? 'color-mix(in srgb,var(--pb-primary) 25%,transparent)' : 'var(--pb-border)'};border-radius:8px;cursor:pointer;margin-bottom:6px;transition:all 0.15s;">
+                                <input type="checkbox" ${_allSelected ? 'checked' : ''}
+                                       onchange="toggleAllBatchFiles('${node.id}',this.checked)"
+                                       style="accent-color:var(--pb-primary);width:16px;height:16px;cursor:pointer;">
+                                <div style="flex:1;">
+                                    <div style="font-size:12px;font-weight:600;color:var(--pb-text);">All uploaded files</div>
+                                    <div style="font-size:10px;color:var(--pb-muted);">${_fileFields.length} file field${_fileFields.length > 1 ? 's' : ''} available</div>
+                                </div>
+                            </label>
+                            <div style="display:flex;flex-direction:column;gap:4px;padding-left:4px;">
+                                ${_fileFields.map(f => {
+                                    const isChecked = _selectedSF.includes(f.name);
+                                    return `
+                                    <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:${isChecked ? 'color-mix(in srgb,var(--pb-primary) 6%,transparent)' : 'transparent'};border-radius:6px;cursor:pointer;transition:all 0.15s;"
+                                           onmouseenter="this.style.background=this.querySelector('input').checked?'color-mix(in srgb,var(--pb-primary) 10%,transparent)':'color-mix(in srgb,var(--pb-surface) 80%,var(--pb-border))'"
+                                           onmouseleave="this.style.background=this.querySelector('input').checked?'color-mix(in srgb,var(--pb-primary) 6%,transparent)':'transparent'">
+                                        <input type="checkbox" ${isChecked ? 'checked' : ''}
+                                               onchange="toggleBatchFileField('${node.id}','${f.name}',this.checked)"
+                                               style="accent-color:var(--pb-primary);width:14px;height:14px;cursor:pointer;">
+                                        <span style="font-size:12px;color:var(--pb-text);">📎 ${escapeHtml(f.label)}</span>
+                                    </label>`;
+                                }).join('')}
+                            </div>
+                            ` : `
+                            <div style="font-size:11px;color:#f59e0b;padding:8px 12px;background:color-mix(in srgb,#f59e0b 8%,transparent);border-radius:8px;">
+                                No file fields found. Add a <strong>File Upload</strong> field in "Collect Information" first.
+                            </div>
+                            `}
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">What to calculate or analyze</label>
+                            <textarea class="property-textarea" style="min-height:100px;"
+                                      placeholder="Describe what you want to calculate or analyze across all the selected files.\n\nExamples:\n• Sum all invoice totals and find the highest amount\n• Compare dates across all contracts\n• List all line items from every receipt and calculate the grand total\n• Summarize key findings from all uploaded reports"
+                                      onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || '')}</textarea>
+                            ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
+                        </div>
+
+                        <!-- Output Fields inline for batch_files mode -->
+                        <div class="property-group">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                <label class="property-label" style="margin-bottom:0;display:flex;align-items:center;gap:6px;">
+                                    <span>📦</span> Output Data Fields
+                                </label>
+                                <button type="button" onclick="addAIOutputField('${node.id}')"
+                                        style="padding:3px 10px;font-size:11px;border-radius:6px;border:1px solid var(--pb-primary);background:color-mix(in srgb,var(--pb-primary) 10%,transparent);color:var(--pb-primary);cursor:pointer;font-weight:600;">
+                                    + Add Field
+                                </button>
+                            </div>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Define the results you need. The AI will calculate these from all selected files.
+                            </div>
+                            <div id="ai-outfields-${node.id}" style="display:flex;flex-direction:column;gap:6px;">
+                                ${(() => {
+                                    const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
+                                    if (outFields.length === 0) {
+                                        return `<div id="ai-outfields-empty-${node.id}" style="text-align:center;padding:12px 8px;font-size:12px;color:var(--pb-muted);font-style:italic;background:var(--pb-surface);border-radius:8px;">No output fields defined. Click "+ Add Field" to define what results you need.</div>`;
+                                    }
+                                    return outFields.map((of, idx) => `
+                                        <div class="ai-outfield-row" style="display:flex;align-items:center;gap:6px;background:var(--pb-surface);border-radius:8px;padding:6px 8px;">
+                                            <span style="color:var(--pb-primary);font-size:14px;">📋</span>
+                                            <input type="text" class="ai-outfield-label" value="${escapeHtml(of.label || '')}"
+                                                   placeholder="e.g., Grand Total"
+                                                   onchange="syncAIOutputFields('${node.id}')"
+                                                   style="flex:1;background:transparent;border:none;color:var(--pb-text);font-size:12px;outline:none;padding:4px 0;">
+                                            <select class="ai-outfield-type" onchange="syncAIOutputFields('${node.id}')"
+                                                    style="width:100px;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid color-mix(in srgb,var(--pb-border) 60%,transparent);background:var(--pb-surface);color:var(--pb-text);">
+                                                <option value="text" ${(of.type||'text') === 'text' ? 'selected' : ''}>Text</option>
+                                                <option value="number" ${of.type === 'number' ? 'selected' : ''}>Number</option>
+                                                <option value="date" ${of.type === 'date' ? 'selected' : ''}>Date</option>
+                                                <option value="currency" ${of.type === 'currency' ? 'selected' : ''}>Currency</option>
+                                                <option value="email" ${of.type === 'email' ? 'selected' : ''}>Email</option>
+                                                <option value="boolean" ${of.type === 'boolean' ? 'selected' : ''}>Yes/No</option>
+                                                <option value="list" ${of.type === 'list' ? 'selected' : ''}>List</option>
+                                            </select>
+                                            <button type="button" onclick="removeAIOutputField(this,'${node.id}')"
+                                                    style="background:none;border:none;color:var(--pb-muted);cursor:pointer;padding:2px 4px;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;"
+                                                    onmouseenter="this.style.opacity='1';this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.5';this.style.color='var(--pb-muted)'"
+                                                    title="Remove this field">✕</button>
+                                        </div>
+                                    `).join('');
+                                })()}
+                            </div>
+                            ${(() => {
+                                const outFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
+                                if (outFields.length > 0) {
+                                    return `<div style="background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:8px;padding:10px 12px;margin-top:8px;">
+                                        <div style="font-size:11px;font-weight:600;color:var(--pb-primary);margin-bottom:6px;">These results will be available in next steps:</div>
+                                        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                            ${outFields.filter(f => f.label).map(f => {
+                                                const typeIcons = {text:'Aa',number:'#',date:'📅',currency:'💰',email:'✉',boolean:'✓',list:'☰'};
+                                                return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:color-mix(in srgb,var(--pb-primary) 15%,transparent);border-radius:12px;font-size:11px;font-weight:600;color:var(--pb-text);"><span style="font-size:10px;opacity:0.7;">${typeIcons[f.type]||'📋'}</span> ${escapeHtml(f.label)}</span>`;
+                                            }).join('')}
+                                        </div>
+                                    </div>`;
+                                }
+                                return '';
+                            })()}
+                        </div>
+
+                        <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-bottom:8px;">
+                            <div style="font-size:11px;color:var(--pb-muted);line-height:1.5;">
+                                The AI will read <strong>all selected files</strong> and perform your calculations. Works with PDFs, images, Excel, Word, and more. No limit on the number of files.
                             </div>
                         </div>`;
                     }
@@ -3525,7 +3645,7 @@
                             </div>
                         </div>
 
-                        ${_aiMode !== 'extract_file' && _aiMode !== 'extract' ? `
+                        ${_aiMode !== 'extract_file' && _aiMode !== 'extract' && _aiMode !== 'batch_files' ? `
                         <!-- Output Fields (what data does the AI produce?) — skipped for extract_file (rendered inline above) -->
                         <div class="property-group">
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -4513,6 +4633,42 @@
             refreshNode(node);
             saveToUndo();
             // Refresh properties panel to update the badge counter & styles
+            showProperties(node);
+        }
+
+        // ================================================================
+        // AI Step — Batch files toggle helpers
+        // ================================================================
+        function toggleBatchFileField(nodeId, fieldName, checked) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!Array.isArray(node.config.sourceFields)) node.config.sourceFields = [];
+            if (checked) {
+                if (!node.config.sourceFields.includes(fieldName)) {
+                    node.config.sourceFields.push(fieldName);
+                }
+            } else {
+                node.config.sourceFields = node.config.sourceFields.filter(f => f !== fieldName);
+            }
+            refreshNode(node);
+            saveToUndo();
+            showProperties(node);
+        }
+
+        function toggleAllBatchFiles(nodeId, checked) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            const fileFields = [];
+            state.nodes.forEach(n => {
+                if ((n.type === 'trigger' || n.type === 'form') && n.config.fields) {
+                    n.config.fields.forEach(f => {
+                        if (f.type === 'file') fileFields.push(f.name);
+                    });
+                }
+            });
+            node.config.sourceFields = checked ? [...fileFields] : [];
+            refreshNode(node);
+            saveToUndo();
             showProperties(node);
         }
 

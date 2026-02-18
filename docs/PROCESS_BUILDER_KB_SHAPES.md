@@ -69,6 +69,11 @@ AI modes (set via `aiMode` in config — determines what the AI step does):
   - Additional config: `sourceField` (file field name), uses AI vision/OCR for images
   - Auto-sets creativity to 1 (strict extraction), output_format to json
   - Supports ALL file types: PDFs, Word, Excel, images (receipts, IDs, photos)
+- `batch_files` — Analyze & calculate across multiple uploaded files
+  - Additional config: `sourceFields` (array of file field names)
+  - `prompt` describes what to calculate or analyze across all files
+  - Engine reads all files from selected fields and sends contents to the AI
+  - Use for cross-file calculations: sums, comparisons, aggregations, summaries
 - `create_doc` — Generate a document (Word, PDF, Excel, PowerPoint, Text)
   - Additional config: `docTitle` (string), `docFormat` (`docx`|`pdf`|`xlsx`|`pptx`|`txt`)
   - `prompt` describes document contents (can use `{{fieldName}}` refs)

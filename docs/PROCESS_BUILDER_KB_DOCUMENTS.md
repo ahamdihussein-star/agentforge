@@ -82,6 +82,23 @@ When the file field has `multiple: true`:
 - The AI step processes ALL uploaded files automatically
 - The AI MUST parse ALL files and return an `items` array + aggregate fields
 
+### Cross-File Calculations Pattern
+
+When the user needs calculations, comparisons, or aggregations across multiple uploaded files:
+
+1. **Collect Information**: Collect files via one or more `file` fields
+2. **AI Step** (`ai` with `aiMode: "batch_files"`):
+   - Set `sourceFields` to an array of file field names (e.g., `["invoices", "receipts"]`)
+   - `prompt` describes what to calculate (e.g., "Sum all invoice totals, find the highest amount")
+   - Define typed `outputFields` for the calculation results (e.g., `grandTotal: currency`, `highestAmount: currency`)
+   - The engine reads ALL files from all selected fields and sends contents to the AI
+3. **Downstream steps**: Use the calculated results for routing, decisions, notifications
+
+Use `batch_files` instead of `extract_file` when:
+- The user needs results that span MULTIPLE files (sums, comparisons, trends)
+- The user uploads several documents and wants aggregated insights
+- The calculation depends on data from more than one file
+
 ## Anti-Hallucination Rules
 
 ### Process Design Rules

@@ -109,6 +109,62 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 logs=logs
             )
         
+        # ── Pre-read source files (batch_files mode) ─────────────────
+        source_fields = self.get_config_value(node, 'source_fields') or []
+        _file_context_block = ""
+        if source_fields and isinstance(source_fields, list):
+            from .integration import FileOperationNodeExecutor
+            _file_reader = FileOperationNodeExecutor(self.deps)
+            _file_sections = []
+            _total_files = 0
+            _failed_files = []
+            for sf_name in source_fields:
+                sf_value = state.get(sf_name)
+                if sf_value is None:
+                    logs.append(f"Source field '{sf_name}': no value in state, skipping")
+                    continue
+                # Normalize to a list of file objects
+                file_items = sf_value if isinstance(sf_value, list) else [sf_value]
+                for fi in file_items:
+                    if not isinstance(fi, dict):
+                        continue
+                    _total_files += 1
+                    fname = fi.get("name") or f"file_{_total_files}"
+                    fpath = FileOperationNodeExecutor._resolve_uploaded_file_path(fi, context)
+                    if not fpath:
+                        fpath = fi.get("path") or ""
+                    if not fpath:
+                        _failed_files.append(fname)
+                        logs.append(f"  Could not resolve path for '{fname}', skipping")
+                        continue
+                    try:
+                        result = await _file_reader._execute_extract_text_local(
+                            path=fpath, encoding="utf-8", logs=logs
+                        )
+                        if result.get("success") and result.get("data"):
+                            text = result["data"]
+                            _file_sections.append(
+                                f"--- File: {fname} (from field: {sf_name}) ---\n{text}"
+                            )
+                            logs.append(f"  Read '{fname}': {len(text)} chars")
+                        else:
+                            _failed_files.append(f"{fname} ({result.get('error', 'unknown')})")
+                            logs.append(f"  Failed to read '{fname}': {result.get('error')}")
+                    except Exception as _fex:
+                        _failed_files.append(f"{fname} ({_fex})")
+                        logs.append(f"  Error reading '{fname}': {_fex}")
+
+            if _file_sections:
+                _file_context_block = (
+                    "\n\n=== FILE CONTENTS (read automatically from uploaded files) ===\n"
+                    + "\n\n".join(_file_sections)
+                    + "\n=== END FILE CONTENTS ==="
+                )
+                logs.append(f"Injected {len(_file_sections)} file(s) into context ({_total_files} total, {len(_failed_files)} failed)")
+            elif _total_files > 0:
+                logs.append(f"Warning: all {_total_files} files failed to read")
+        # ── End source file pre-reading ────────────────────────────────
+
         # Build messages
         messages = []
         
@@ -140,6 +196,10 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             if _conf_instruction:
                 _combined_system += f"\n\nCONFIDENCE RULE: {_conf_instruction}"
         
+        # Inject file contents (from batch_files pre-read) into system context
+        if _file_context_block:
+            _combined_system = (_combined_system + _file_context_block) if _combined_system else _file_context_block.strip()
+
         if _combined_system.strip():
             messages.append({
                 "role": "system",
