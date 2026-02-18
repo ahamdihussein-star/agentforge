@@ -1,79 +1,25 @@
-# Process Builder Knowledge Base — Visual Layout Rules (v4)
+# Process Builder Knowledge Base — Visual Layout Rules (v5)
 
-These rules govern how the AI MUST position and connect nodes when generating a process diagram.
-The visual builder renders nodes as shapes on a canvas with connection lines between them.
-Following these rules ensures the generated process is clean, readable, and professional.
+> **Note:** Layout rules have been consolidated into `PROCESS_BUILDER_KB_ROUTING.md`.
+> This file is kept for reference. All layout and routing rules are in one place.
 
-## Rule 1: Connection Lines Must NOT Pass Through Any Node
+## Quick Reference
 
-- Every connection line (edge) between two nodes must route AROUND other nodes, never through them.
-- When generating node positions (x, y), ensure there is enough vertical and horizontal space so that edges connecting non-adjacent nodes do not visually overlap with intermediate nodes.
-- Practical approach: place nodes in a single vertical column when the flow is linear. Only use horizontal spreading (side-by-side) for condition branches (yes/no paths).
+### Node Positioning
+1. Start node: center top (x=400, y=100)
+2. Sequential nodes: same x, increase y by ~200
+3. Condition branches: offset x by ±300 ("yes" = LEFT, "no" = RIGHT)
+4. Parallel branches: offset each by ±300 horizontally
+5. Reconvergence: back to center x, below all branches
+6. End node: center x, LAST in array, below everything (at least 200px gap)
 
-## Rule 2: Connection Lines Must Take the Shortest Path
+### Spacing
+- Vertical gap: at least 180-200px between sequential nodes
+- Horizontal gap: at least 280-300px between branches
 
-- A connection line must NOT loop around itself or take an unnecessarily long route to reach its target node.
-- The line should go from the source node's nearest output port to the target node's nearest input port via the most direct path.
-- Practical approach: keep connected nodes close to each other in the node array order, and avoid placing a target node far from its source when they are directly connected.
-
-## Rule 3: Adequate Spacing Between Nodes
-
-- Nodes must NOT be placed too close together. There must be enough visual space between them for the diagram to be clear and readable.
-- Minimum recommended spacing:
-  - Vertical gap between sequential nodes: at least 180-200 pixels
-  - Horizontal gap between branching nodes (e.g., yes/no paths): at least 280-300 pixels
-- This ensures labels, connection lines, and node shapes do not overlap or crowd each other.
-
-## Rule 4: End Node — ABSOLUTE RULE (NO EXCEPTIONS)
-
-- There must be exactly ONE "end" node in the entire process.
-- The "end" node must be the VERY LAST entry in the nodes array.
-- ALL paths must eventually connect to this SINGLE end node. No path terminates without reaching the end node.
-- NOTHING comes after the end node — no notifications, no actions, no steps of any kind.
-- The end node must be positioned BELOW every other node in the diagram.
-- If a condition creates two branches and each branch needs a final notification, place those notifications BEFORE the end node, then both branches connect to the single end node at the bottom.
-
-**WRONG pattern:**
-```
-Condition → Yes → Notification → End
-         → No → Approval → Notification (placed AFTER the End node)
-```
-
-**CORRECT pattern:**
-```
-Condition → Yes → Auto-Approval Notification ──→ End (single, at the very bottom)
-         → No → Manager Approval → Manager Notification → Employee Notification ──→ End (same End node)
-```
-
-## Rule 5: Linear Flow Preference
-
-- When the process has no branching (no conditions), place ALL nodes in a single vertical column (same x coordinate, increasing y).
-- This creates a clean, top-to-bottom flow that is easy to follow.
-- Only spread nodes horizontally when a condition creates two parallel paths (yes/no branches).
-
-## Rule 6: Condition Branch Layout
-
-- When a condition node branches into yes/no paths:
-  - The "yes" path nodes go to the LEFT.
-  - The "no" path nodes go to the RIGHT.
-  - Both paths should eventually reconverge to a shared node (notification, end, etc.) placed below both branches on the center axis.
-- Both branches should have roughly equal vertical depth before reconverging.
-
-## Rule 7: Parallel Branch Layout
-
-- When a parallel node splits into multiple simultaneous paths:
-  - Each branch should be offset horizontally: first branch at x - 300, second at center, third at x + 300, etc.
-  - All branches start at the same y level (below the parallel node).
-  - All branches eventually reconverge to a shared next node placed below all branches at center x.
-- This creates a clear visual representation of simultaneous execution.
-
-## Summary for AI Generation
-
-When generating the nodes array with x/y positions:
-1. Start node: center top (e.g., x=400, y=100)
-2. Sequential nodes: same x, increase y by ~200 each
-3. Condition branches: offset x by ±300, same y level for branching nodes
-4. Parallel branches: offset each branch by ±300 horizontally, same y level
-5. Reconvergence node: back to center x, y below both/all branches
-6. End node: center x, y well below everything else (at least 200px gap from the last node)
-7. ALWAYS ensure the "end" node is the LAST entry in the nodes array
+### Key Rules
+- Connection lines NEVER pass through any node
+- Connection lines take the SHORTEST path
+- Linear flows: single vertical column
+- Exactly ONE end node, LAST in array, ALL paths converge to it
+- Nothing comes after the end node

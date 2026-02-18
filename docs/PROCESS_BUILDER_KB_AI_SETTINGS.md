@@ -1,43 +1,44 @@
-# Process Builder — AI Step Configuration (Instructions, Creativity, Confidence, Output Fields) (v4)
+# Process Builder — AI Step Configuration (v5)
 
 ## AI Node Config Schema
 
-Every `"type": "ai"` node supports these configuration properties alongside `prompt` and `model`:
+Every `"type": "ai"` node supports these configuration properties:
 
 ```json
 {
   "type": "ai",
   "name": "Parse Document Data",
   "config": {
-    "prompt": "Extract structured data from: {{extractedText}}. Identify all relevant fields based on the document type.",
+    "aiMode": "extract_file",
+    "sourceField": "uploadedReceipt",
+    "prompt": "Extract expense data from the uploaded receipt",
     "model": "gpt-4o",
-    "output_format": "json",
     "instructions": [
       "Only extract data EXPLICITLY present in the text — never invent values",
       "If a value is unclear, set it to null",
       "Return amounts as numbers, not strings"
     ],
-    "creativity": 2,
+    "creativity": 1,
     "confidence": 3,
     "outputFields": [
-      {"label": "<Friendly Name>", "name": "<camelCaseKey>"},
-      {"label": "<Friendly Name>", "name": "<camelCaseKey>"}
-    ]
+      {"label": "Vendor Name", "name": "vendorName", "type": "text"},
+      {"label": "Total Amount", "name": "totalAmount", "type": "currency"},
+      {"label": "Date", "name": "receiptDate", "type": "date"}
+    ],
+    "enabledToolIds": []
   },
   "output_variable": "parsedData"
 }
 ```
 
-> **Note:** `outputFields` are always dynamic — the fields are determined by the specific workflow's business context. The wizard infers them from the user's goal and what downstream steps need.
-
-## Prompt vs Instructions — Separation Rule
+## Prompt vs Instructions — Separation Rule (MANDATORY)
 
 | Field | Purpose | Content |
 |-------|---------|---------|
-| `config.prompt` | **Task description only** — what the AI should do | "Extract expense data from {{extractedData}}..." |
-| `config.instructions` | **Array of individual rules** — constraints and guardrails | Each string is one rule the AI must follow |
+| `config.prompt` | **Task description only** — what the AI should do | "Extract expense data from the uploaded receipt" |
+| `config.instructions` | **Array of individual rules** — constraints and guardrails | Each string is one rule |
 
-### Rules:
+### Rules
 - **NEVER** put rules, constraints, or "IMPORTANT:" directives inside `config.prompt`.
 - **ALWAYS** put them as separate items in `config.instructions`.
 - Each instruction is a single, clear rule — one concern per item.
@@ -60,22 +61,27 @@ Every `"type": "ai"` node supports these configuration properties alongside `pro
 ### Bad Example (mixed — DO NOT do this):
 ```json
 {
-  "prompt": "Analyze customer feedback from: {{feedbackText}}. IMPORTANT: Classify sentiment as positive, negative, or neutral only. Do NOT extract more than 5 themes. If language is ambiguous, default to neutral. Always return results in English.",
+  "prompt": "Analyze customer feedback from: {{feedbackText}}. IMPORTANT: Classify sentiment as positive, negative, or neutral only. Do NOT extract more than 5 themes.",
   "instructions": []
 }
 ```
 
 ## Instructions (Array of Strings)
 
-Each instruction is a separate rule displayed as an individual item in the UI. Users see numbered rules with add/remove controls.
+Each instruction is a separate rule displayed as a numbered item in the UI.
 
-### When Generating Instructions:
-- For **data extraction** steps: include anti-hallucination rules, data format rules, handling of unclear values
-- For **content generation** steps: include tone/style rules, length constraints, format requirements
-- For **classification** steps: include the valid categories, default behavior for edge cases
-- For **any step**: include business-specific rules relevant to the workflow's domain
+### When Generating Instructions
 
-### Default Instructions for Common Patterns:
+| AI Task Type | Include These Instructions |
+|-------------|---------------------------|
+| **Data extraction** | Anti-hallucination rules, data format rules, null handling |
+| **Content generation** | Tone/style rules, length constraints, format requirements |
+| **Classification** | Valid categories, default for edge cases, confidence scoring |
+| **Summarization** | Length limits, language, key facts requirement |
+| **Batch analysis** | File counting rules, aggregation method, handling of missing data |
+| **Document creation** | Structure, formatting, sections, language |
+
+### Default Instructions for Common Patterns
 
 **Data extraction from documents:**
 ```json
@@ -105,71 +111,132 @@ Each instruction is a separate rule displayed as an individual item in the UI. U
 ]
 ```
 
-## Creativity (Integer 1-5)
-
-Controls how much the AI infers beyond the explicit data. Mapped to LLM temperature.
-
-| Level | Label | Temperature | Best For |
-|-------|-------|-------------|----------|
-| 1 | Very strict | 0.1 | Exact data extraction, OCR parsing |
-| 2 | Strict | 0.2 | Data extraction with minimal inference |
-| 3 | Balanced | 0.4 | General tasks, moderate inference |
-| 4 | Moderate | 0.6 | Content generation, summarization |
-| 5 | Creative | 0.8 | Creative writing, brainstorming |
-
-### Default values when generating:
-- File/image extraction (`aiMode: "extract_file"`): **creativity = 1** (Very strict — never hallucinate extracted data)
-- Other extraction/parsing steps with `output_variable`: **creativity = 2** (Strict)
-- General AI steps: **creativity = 3** (Balanced)
-
-## Confidence (Integer 1-5)
-
-Controls how the AI handles uncertain or ambiguous data. Injected as a `CONFIDENCE RULE:` in the system prompt.
-
-| Level | Label | Behavior |
-|-------|-------|----------|
-| 1 | Very cautious | Leaves unknowns empty (null). Never guesses. |
-| 2 | Cautious | Only fills values it's fairly sure about. |
-| 3 | Balanced | Uses reasonable judgment for ambiguous values. |
-| 4 | Confident | Makes best-guess decisions for ambiguous data. |
-| 5 | Very confident | Always provides a value, even with limited data. |
-
-### Default value when generating: **confidence = 3** (Balanced)
-
-## Output Fields (Array of Objects)
-
-Defines the individual data fields the AI step will produce. Each field gets a friendly label and a camelCase key.
-These fields appear as **selectable options** in all downstream steps (conditions, notifications, AI prompts, approvals, etc.) — just like form input fields.
-
-### Schema
-
+**Cross-file calculations:**
 ```json
-"outputFields": [
-  {"label": "Human Readable Name", "name": "camelCaseKey"}
+[
+  "Process data from EVERY file — do not skip any",
+  "Calculate totals from actual extracted numbers only",
+  "If a file cannot be read, report it in the output — do not silently ignore"
 ]
 ```
 
-### How it Works
+**Content generation (emails, reports):**
+```json
+[
+  "Use professional, business-appropriate tone",
+  "Keep the language clear and concise",
+  "Include all relevant data points from the input"
+]
+```
 
-- Each output field maps to a nested path: `{{output_variable.fieldName}}` (e.g., `{{parsedData.amount}}`)
-- Downstream steps show these as clickable chips — users never need to type `{{variable.field}}` syntax
-- Fields are **fully dynamic** — determined by the business context of each workflow, never hardcoded
-- The wizard auto-generates outputFields from downstream references during normalization
-- Users can add/remove fields manually from the AI step's properties panel
+## Creativity (Integer 1-5)
+
+Controls how much the AI infers beyond the explicit data. Mapped to LLM temperature by the engine.
+
+| Level | Label | Temperature | Best For |
+|-------|-------|-------------|----------|
+| 1 | Very strict | 0.1 | Exact data extraction, OCR parsing, invoice processing |
+| 2 | Strict | 0.2 | Data extraction with minimal inference, form parsing |
+| 3 | Balanced | 0.4 | General tasks, analysis, moderate inference |
+| 4 | Moderate | 0.6 | Content generation, summarization, reports |
+| 5 | Creative | 0.8 | Creative writing, brainstorming, marketing copy |
+
+### Default Values When Generating
+
+| Task | Creativity |
+|------|-----------|
+| File/image extraction (`aiMode: "extract_file"`) | **1** (Very strict) |
+| Batch file analysis (`aiMode: "batch_files"`) | **1** (Very strict) |
+| Other extraction/parsing with `output_variable` | **2** (Strict) |
+| Classification / routing | **2** (Strict) |
+| Analysis / summarization | **3** (Balanced) |
+| Content generation / reports | **4** (Moderate) |
+| General AI steps | **3** (Balanced) |
+
+## Confidence (Integer 1-5)
+
+Controls how the AI handles uncertain or ambiguous data. The engine injects a `CONFIDENCE RULE:` instruction into the system prompt.
+
+| Level | Label | Engine Behavior |
+|-------|-------|-----------------|
+| 1 | Very cautious | "If ANY value is uncertain or ambiguous, leave it empty (null). Never guess." |
+| 2 | Cautious | "Only fill in values you are fairly confident about. When in doubt, use null." |
+| 3 | Balanced | "Use reasonable judgment for ambiguous values. Leave truly unclear data as null." |
+| 4 | Confident | "Make your best-guess for ambiguous data based on context. Only use null for completely unknown values." |
+| 5 | Very confident | "Always provide a value, even for ambiguous data. Use your best judgment and context clues. Never leave fields empty." |
+
+### Default value: **3** (Balanced)
+
+## Output Fields (Array of Objects)
+
+Defines the individual data fields the AI step will produce.
+
+### Schema
+```json
+"outputFields": [
+  {"label": "Human Readable Name", "name": "camelCaseKey", "type": "text"}
+]
+```
+
+### Supported Output Field Types
+
+| Type | Description | Example Value |
+|------|-------------|---------------|
+| `text` | Free text | `"John Smith"` |
+| `number` | Numeric value | `42`, `3.14` |
+| `date` | Date value | `"2026-01-15"` |
+| `currency` | Monetary amount | `1250.00` |
+| `email` | Email address | `"john@example.com"` |
+| `boolean` | Yes/No | `true`, `false` |
+| `list` | Array of items | `["item1", "item2"]` |
+
+### How Output Fields Work
+
+- Each field maps to a nested path: `{{output_variable.fieldName}}` (e.g., `{{parsedData.totalAmount}}`).
+- Downstream steps show these as clickable chips — users never type `{{variable.field}}` syntax.
+- Fields are **fully dynamic** — determined by the business context of each workflow.
+- The wizard auto-generates `outputFields` from downstream references during normalization.
+- Users can add/remove fields manually from the AI step's properties panel.
+- The engine performs **type coercion** on AI output to match declared types (e.g., strings → numbers, date parsing).
 
 ### When Generating outputFields
 
-- **ALWAYS** derive fields from the workflow's business purpose — never use a fixed set
-- Include every field that downstream conditions, notifications, or approvals will reference
-- For multi-file workflows, include aggregate fields (totals, counts, item arrays) as appropriate
-- Label should be business-friendly (what a non-technical user would understand)
-- Name should be camelCase (the technical key used in variable interpolation)
+- **ALWAYS** derive fields from the workflow's business purpose — never use a fixed set.
+- Include every field that downstream conditions, notifications, or approvals will reference.
+- For multi-file workflows, include aggregate fields (totals, counts, item arrays) as appropriate.
+- Label: business-friendly (what a non-technical user would understand).
+- Name: lowerCamelCase (the technical key used in variable interpolation).
+- Type: most specific type that matches the data (prefer `currency` over `number` for monetary values).
+
+## Connected Tools
+
+AI steps can optionally connect to platform tools via `enabledToolIds`:
+
+```json
+{
+  "aiMode": "custom",
+  "prompt": "Research the customer and provide a summary",
+  "enabledToolIds": ["tool_crm_api", "tool_knowledge_base"],
+  "outputFields": [...]
+}
+```
+
+When connected:
+- The AI autonomously decides when and how to call each tool during execution.
+- Tool calls happen in a loop (up to 5 rounds) until the AI has all the data it needs.
+- The AI can call different tools in sequence, using results from one tool to query another.
+- Runtime permission checks ensure the tool is still allowed for the user.
+
+Only add `enabledToolIds` when the AI needs live data or external system interaction during its reasoning.
 
 ## How the Engine Applies These at Runtime
 
-1. **Instructions**: Joined with bullet points and injected into the system prompt inside a `=== STEP RULES ===` block.
-2. **Creativity**: Mapped to LLM `temperature` parameter. Only applies if the node doesn't have an explicit `temperature` in config.
-3. **Confidence**: Adds a `CONFIDENCE RULE:` instruction to the system prompt with the corresponding behavior.
-4. **Output Fields**: Stored in the node's `config.outputFields` array. The visual builder reads these to populate downstream step dropdowns and chips. The wizard normalization auto-generates them from downstream field references.
+1. **Prompt**: Used as the user message to the LLM. Variable references (`{{fieldName}}`) are interpolated with actual values.
+2. **Instructions**: Joined with bullet points and injected into the system prompt inside a `=== STEP RULES ===` block.
+3. **Creativity**: Mapped to LLM `temperature` parameter. Only applies if the node doesn't have an explicit `temperature` in config.
+4. **Confidence**: Adds a `CONFIDENCE RULE:` instruction to the system prompt with the corresponding behavior text.
+5. **Output Fields**: Stored in `config.outputFields`. The visual builder reads these to populate downstream step dropdowns and chips. The engine generates an `output_schema` for structured JSON output.
+6. **Connected Tools**: Resolved into OpenAI-format tool definitions. The LLM can call them during a tool-calling loop (max 5 rounds).
+7. **Source Fields** (`batch_files`): Files from selected fields are read and their contents injected into the system prompt as `=== FILE CONTENTS ===` block.
 
-All properties are stored in the node's `config` object and persist with the process definition — no separate storage needed.
+All properties persist in the node's `config` object with the process definition — no separate storage needed.

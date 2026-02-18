@@ -1,69 +1,168 @@
-# Process Builder Knowledge Base — Layout & Routing Rules (v4)
+# Process Builder Knowledge Base — Layout, Routing & Flow Patterns (v5)
 
-These rules define how workflows should look in the visual builder for business users.
+These rules define how workflows should look and flow in the visual builder.
 
-## Layout Rules
-- Top-to-bottom flow: Start near the top, end near the bottom.
-- Enough spacing between nodes to avoid overlaps.
-- Avoid line crossings.
+## Visual Layout Rules
 
-## Connection Rules
-- Connections must be orthogonal (horizontal/vertical).
-- Connections should not pass through nodes.
-- Decision nodes (`condition`) MUST have two visually separated paths (yes/no).
-- Parallel nodes (`parallel`) connect to multiple next steps — all connected paths run simultaneously.
+### Node Positioning
+- **Start node**: Center top (e.g., x=400, y=100).
+- **Sequential nodes**: Same x, increase y by ~200 each.
+- **Condition branches**: Offset x by ±300. "yes" path goes LEFT, "no" path goes RIGHT.
+- **Parallel branches**: Offset each branch by ±300 horizontally, same y level.
+- **Reconvergence node**: Back to center x, y below all branches.
+- **End node**: Center x, y well below everything else (at least 200px gap from last node). MUST be the LAST entry in the nodes array.
 
-## Process Design Best Practices
-- Prefer fewer nodes with clear, descriptive names over many small technical nodes.
-- Group related steps vertically.
-- For branching, offset the branches horizontally for visual clarity.
-- Every process needs exactly ONE trigger (start) and at least ONE end node.
-- Give every node a business-friendly name that describes WHAT it does, not HOW.
+### Spacing
+- Minimum vertical gap between sequential nodes: 180-200px.
+- Minimum horizontal gap between branches: 280-300px.
+- Enough space for labels, connection lines, and node shapes to be clearly readable.
 
-## Platform Auto-Layout
-The platform applies auto-layout after generation. If positions are imperfect, the platform adjusts them.
-Focus on correct flow logic rather than pixel-perfect positioning.
+### Connection Rules
+- Connection lines must NEVER pass through any node.
+- Connection lines must take the SHORTEST path between nodes.
+- Place nodes in a single vertical column when the flow is linear.
+- Only spread horizontally for condition or parallel branches.
 
-## Process Complexity Guidelines
-- Simple processes (1-5 steps): Linear flow — trigger → steps → end.
-- Medium processes (5-10 steps): May include conditions and approvals.
-- Complex processes (10+ steps): May include parallel execution, sub-processes (call_process), multiple conditions.
-- Always start with the simplest design that fulfills the user's goal. Add complexity only when needed.
+### Auto-Layout
+The platform applies auto-layout after generation. Focus on correct flow logic rather than pixel-perfect positioning.
 
-## Advanced Flow Patterns
+## Flow Patterns
+
+### Linear Flow (Simple — 1-5 steps)
+```
+trigger → form → ai/tool → notification → end
+```
+All nodes in a single vertical column (same x, increasing y by ~200).
+
+### Condition Branching (Medium — 5-10 steps)
+```
+trigger → form → condition
+                  ├── yes (LEFT, x-300) → path A → ──┐
+                  └── no  (RIGHT, x+300) → path B → ──┤
+                                                       └── shared node → end
+```
+Both branches reconverge to a shared node at center x below both branches.
+Both branches should have roughly equal vertical depth before reconverging.
+
+### Multi-Condition Cascade
+For multiple thresholds (e.g., amount < 500, 500-5000, > 5000):
+```
+trigger → form → condition1 (< 500?)
+                  ├── yes → auto-approve path → ──────────┐
+                  └── no → condition2 (< 5000?)            │
+                            ├── yes → manager approval → ──┤
+                            └── no → VP approval → ────────┤
+                                                           └── end
+```
 
 ### Parallel Execution
-When a workflow needs to do multiple things at the same time (e.g., send a notification AND create a document simultaneously):
-1. Add a `parallel` node
-2. Connect it to each path that should run simultaneously
-3. Each path eventually connects back to a shared next node
-4. The process continues only when all parallel paths complete (or any one, depending on strategy)
+```
+trigger → form → parallel
+                  ├── branch1 (x-300): notification to HR
+                  ├── branch2 (center): create document
+                  └── branch3 (x+300): tool call
+                            ↓ (all complete)
+                         merge → end
+```
 
-**Layout**: Place the parallel node centered, then each branch offset horizontally.
+### Sequential Multi-Level Approval
+```
+trigger → form → approval1 (direct manager)
+              → approval2 (department head)
+              → approval3 (VP/C-level)
+              → notification → end
+```
+
+### Auto-Approve Pattern (Condition-Based)
+```
+trigger → form → ai (parse data) → condition (amount < threshold?)
+                                     ├── yes → notification (auto-approved) → end
+                                     └── no → approval (manager) → notification → end
+```
 
 ### Sub-Process Invocation
-When a workflow needs to call another published process:
-1. Add a `call_process` node
-2. Set `processId` to the target process ID (from the PUBLISHED PROCESSES list)
-3. Map input data from the current process to the sub-process using `inputMapping`
-4. Set `outputVariable` to store the sub-process result
-5. The sub-process runs to completion, and its result is available as a variable
+```
+trigger → form → call_process (reusable sub-workflow)
+              → use subResult in downstream steps → end
+```
 
-**Use case**: Reusable business processes (e.g., "Standard Approval Flow", "Document Review Process") that multiple workflows call.
-**Important**: The list of available published processes is provided dynamically. Only use process IDs from this list — never invent them.
+### Data Pipeline (Scheduled)
+```
+trigger (scheduled) → tool (fetch data) → ai (analyze/transform) → notification (report) → end
+```
+
+### Document Processing
+```
+trigger → form (upload files) → ai extract_file (parse) → condition (route by content) → approval → ai create_doc (generate report) → notification → end
+```
+
+### Multi-File Calculation
+```
+trigger → form (upload multiple files) → ai batch_files (analyze across all) → condition (threshold?) → approval/notification → end
+```
+
+## Process Complexity Guidelines
+
+| Complexity | Steps | Includes | Example |
+|------------|-------|----------|---------|
+| Simple | 1-5 | Linear: trigger → form → action → end | Leave request, simple notification |
+| Medium | 5-10 | Conditions, approvals | Expense report, purchase request |
+| Complex | 10+ | Parallel, sub-processes, multi-condition, multi-approval | Onboarding, procurement, contract review |
+
+ALWAYS start with the simplest design that fulfills the user's goal. Add complexity only when needed.
+
+## Business Logic Rules
+
+### Notification Timing
+- Notifications about pending tasks: BEFORE or AT THE SAME TIME as the task.
+- Notifications about outcomes: AFTER the action completes.
+- Approval nodes auto-notify the assignee — separate notification only needed for OTHER people.
+
+### Smart Field Design
+- Use business knowledge to determine fields, even if the user didn't list them.
+- ALWAYS prefill profile data (name, email, department, etc.) with `readOnly: true`.
+- ALWAYS populate dropdown options using domain expertise.
+- NEVER add fields for data the AI will extract automatically.
+- NEVER add fields for data available from user profile.
+
+### Data Flow
+- Store AI/tool outputs in named variables (`output_variable`).
+- Reference variables in downstream steps: `{{parsedData.fieldName}}`.
+- Conditions can check any upstream variable or form field.
+- Notifications should reference specific scalar fields, never raw objects/arrays.
+
+## End Node — ABSOLUTE RULE
+
+- Exactly ONE end node per process.
+- MUST be the LAST entry in the nodes array.
+- ALL paths must eventually connect to this single end node.
+- NOTHING comes after the end node.
+- Positioned BELOW every other node.
+
+**WRONG:**
+```
+Condition → Yes → Notification → End
+         → No → Approval → Notification (AFTER End — broken!)
+```
+
+**CORRECT:**
+```
+Condition → Yes → Auto-Approval Notification ──→ End (single, at bottom)
+         → No → Manager Approval → Notification ──→ End (same End node)
+```
 
 ## Node Type Quick Reference
 
-| Node | Purpose | Connections |
-|------|---------|------------|
-| Start (`trigger`) | Begin the workflow | 1 outgoing |
-| Decision (`condition`) | Yes/No branching | Exactly 2 outgoing: yes + no |
-| Run in Parallel (`parallel`) | Simultaneous paths | Multiple outgoing (all run at once) |
-| Call Process (`call_process`) | Invoke another process | 1 outgoing (continues after sub-process) |
-| AI Step (`ai`) | Intelligent processing (extract files, create docs, analyze, classify, etc.) | 1 outgoing |
-| Send Message (`notification`) | Notify someone | 1 outgoing |
-| Request Approval (`approval`) | Wait for approval | 1 outgoing |
-| Collect Information (`form`) | Ask for form input | 1 outgoing |
-| Calculate (`calculate`) | Compute a value | 1 outgoing |
-| Connect to System (`tool`) | Call external API/tool | 1 outgoing |
-| Finish (`end`) | End the workflow | None (terminal) |
+| Node | Purpose | Outgoing |
+|------|---------|----------|
+| Start (`trigger`) | Begin the workflow | 1 |
+| Collect Information (`form`) | Ask for input | 1 |
+| Decision (`condition`) | Yes/No branching | 2 (yes + no) |
+| Run in Parallel (`parallel`) | Simultaneous paths | Multiple |
+| Call Process (`call_process`) | Invoke sub-process | 1 |
+| AI Step (`ai`) | Intelligent processing | 1 |
+| Send Message (`notification`) | Notify someone | 1 |
+| Request Approval (`approval`) | Wait for approval | 1 |
+| Calculate (`calculate`) | Compute a value | 1 |
+| Connect to System (`tool`) | Call external API | 1 |
+| Finish (`end`) | End the workflow | None |

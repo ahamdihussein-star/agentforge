@@ -214,9 +214,10 @@ IMPORTANT:
   - For iteration/repetition scenarios, use an "ai" node that handles the iteration internally.
   - For waiting/delays, the platform handles timing through approval timeouts and schedule triggers.
 - Always include exactly ONE start node of type "trigger".
-- The "trigger" node defines HOW the process starts (manual or schedule) — it does NOT have form fields.
+- The "trigger" node defines HOW the process starts (manual, schedule, or webhook) — it does NOT have form fields.
   - For manual processes that need user input: place a "form" (Collect Information) node immediately after the trigger.
   - For scheduled processes (data sync, reports, cleanup, API imports): do NOT add a form node — connect the trigger directly to action nodes.
+  - For webhook-triggered processes (external system calls): triggerType "webhook", with method ("POST"|"GET"|"PUT"|"PATCH"), path (e.g., "/trigger"), and auth ("none"|"api_key"|"bearer").
 - Always include at least ONE "end" node.
 - If you include a "condition" node, you MUST create exactly two outgoing edges from it:
   - one with type "yes"
@@ -244,6 +245,7 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
 - The trigger node is ONLY for how the process starts — do NOT put form fields on it.
   - Manual processes: trigger → form (Collect Information) → action steps → end
   - Scheduled processes: trigger → action steps (tool/AI/etc.) → end
+  - Webhook processes: trigger (webhook) → action steps (tool/AI/etc.) → end
 
 VISUAL LAYOUT RULES (CRITICAL — follow strictly for clean, professional diagrams):
 - Connection lines must NEVER pass through any node. Ensure enough spacing so edges route cleanly around nodes.
@@ -298,6 +300,10 @@ Schema to output:
 }}
 
 Node config rules:
+- trigger.config.triggerType is REQUIRED: "manual" | "schedule" | "webhook".
+  - "manual": For processes started by a user. Follow with a form node.
+  - "schedule": For recurring processes. Set cron (e.g., "0 9 * * *") and timezone (e.g., "UTC", "Africa/Cairo", "Asia/Dubai", "America/New_York").
+  - "webhook": For processes triggered by external systems. Set method ("POST"|"GET"|"PUT"|"PATCH"), path (e.g., "/trigger"), auth ("none"|"api_key"|"bearer").
 - trigger.config.fields is REQUIRED and must be a non-empty array when triggerType is "manual".
 - Each field MUST include:
   - name (lowerCamelCase internal key; used in {{name}} references)
@@ -333,7 +339,8 @@ Node config rules:
   Custom keys (from HR/LDAP): nationalId, hireDate, officeLocation, costCenter, badgeNumber, or ANY field the organization has configured in their HR system or LDAP directory.
   The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime. If a custom attribute exists in the directory, it will be available for prefill.
   BEST PRACTICE: For any process, ALWAYS prefill every piece of information the system already knows about the user (name, email, department, employee ID, phone, job title, manager, etc.). NEVER ask the user to manually enter data that is available from their profile. This eliminates manual entry and ensures accuracy.
-- condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|is_empty", "value": "<string or number>" }}
+- condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|not_contains|starts_with|is_empty|is_not_empty", "value": "<string or number>" }}
+  Note: For is_empty and is_not_empty operators, "value" can be empty — the operator only checks presence/absence.
 - form.config must include: fields (same schema as trigger fields). Use for collecting additional input mid-workflow (not the initial form).
 - ai.config must be: {{ "prompt": "<task description only — what to do, with {{{{field}}}} refs>", "model": "gpt-4o", "instructions": ["<rule 1>", "<rule 2>", ...] }}
   IMPORTANT — prompt vs instructions separation:
@@ -348,21 +355,25 @@ Node config rules:
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
+  assignee_source options: "platform_user" | "user_directory" | "platform_role" | "platform_group" | "tool".
   IMPORTANT — Identity-aware approvals (the engine resolves assignees automatically at runtime):
   - For direct manager/supervisor approval: assignee_source: "user_directory", directory_assignee_type: "dynamic_manager", assignee_ids: [].
   - For department head approval: assignee_source: "user_directory", directory_assignee_type: "department_manager".
   - For higher management (skip-level): assignee_source: "user_directory", directory_assignee_type: "management_chain", management_level: N (2=next level, 3=above that).
   - For role-based approval: assignee_source: "user_directory", directory_assignee_type: "role", role_ids: ["<role_id>"].
+    OR: assignee_source: "platform_role", assignee_ids: ["<role_id>"].
   - For group/team/committee approval: assignee_source: "user_directory", directory_assignee_type: "group", group_ids: ["<group_id>"].
+    OR: assignee_source: "platform_group", assignee_ids: ["<group_id>"].
   - For department-wide (all members of a department): assignee_source: "user_directory", directory_assignee_type: "department_members", and set EITHER:
       - assignee_department_name: "<department name>" (RECOMMENDED for LLM-generated workflows), OR
       - assignee_department_id: "<dept_id>".
   - For dynamic (form field selects approver): assignee_source: "user_directory", directory_assignee_type: "expression", expression: "{{{{ trigger_input.fieldName }}}}".
-  - For static (always same person): assignee_source: "platform_user".
+  - For static (always same person): assignee_source: "platform_user", assignee_ids: ["<user_id>"].
+  - For tool-resolved approval: assignee_source: "tool" (tool resolves the approver dynamically).
   - ALWAYS prefer "user_directory" over "platform_user" when the approval follows organizational hierarchy.
   - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence.
 - notification.config must include: channel, recipient (string), template (string).
-  - channel: "email" (default)
+  - channel: "email" (default) | "slack" | "teams" | "sms"
   - recipient: WHO receives this notification. Use ONE of these (string, not array):
     - "requester" → automatically sends to the person who submitted the form (PREFERRED for employee notifications)
     - "manager" → automatically sends to the requester's direct manager (PREFERRED for manager notifications)
@@ -1157,10 +1168,10 @@ class ProcessWizard:
             start = next((n for n in normalized_nodes if n.get("type") == "trigger"), None)
             if start:
                 cfg = start.get("config") if isinstance(start.get("config"), dict) else {}
-                # triggerType: manual (default), schedule
+                # triggerType: manual (default), schedule, webhook
                 ttype = str(cfg.get("triggerType") or "manual").strip().lower()
-                if ttype not in ("manual", "schedule"):
-                    ttype = "manual"  # webhook and other legacy types → manual
+                if ttype not in ("manual", "schedule", "webhook"):
+                    ttype = "manual"
                 cfg["triggerType"] = ttype
 
                 # Migrate any fields placed on trigger to a form node (backward compat + AI correction)
@@ -1177,7 +1188,13 @@ class ProcessWizard:
                         cfg["_schedFreq"] = "daily"
                     if not cfg.get("_schedTime"):
                         cfg["_schedTime"] = "09:00"
-                # webhook type is no longer user-facing; kept for backward compat in engine only
+                elif ttype == "webhook":
+                    if not cfg.get("method"):
+                        cfg["method"] = "POST"
+                    if not cfg.get("path"):
+                        cfg["path"] = "/trigger"
+                    if not cfg.get("auth"):
+                        cfg["auth"] = "none"
 
                 start["config"] = cfg
 

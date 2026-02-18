@@ -1,23 +1,23 @@
-# Process Builder Knowledge Base — Document & Image Handling (v4)
+# Process Builder Knowledge Base — Document & Image Handling (v5)
 
-Workflows may need to collect, read, or generate documents and images.
+Workflows may need to collect, read, analyze, or generate documents and images.
 
 ## Collecting Files (Input)
 
-Use a `file` field in the Start form (trigger):
+Use a `file` field in the Collect Information form:
 ```json
 {
   "name": "uploadedFile",
   "label": "Attach File",
   "type": "file",
   "required": false,
-  "placeholder": "Upload a file or image"
+  "placeholder": "Upload a file or image",
+  "multiple": true
 }
 ```
 
 The platform accepts ANY file type. There is no limitation on file formats.
-
-For multiple file uploads (receipts, attachments, etc.), add `"multiple": true`.
+For multiple file uploads (receipts, attachments, etc.), add `"multiple": true`. When in doubt, default to `multiple: true`.
 
 ## Extracting Content from Files
 
@@ -25,79 +25,111 @@ Use an **AI Step** (`ai`) with `aiMode: "extract_file"`:
 
 1. Set `sourceField` to the file field name (e.g., `"uploadedFile"`)
 2. Set `prompt` to describe what data to extract
-3. Define `outputFields` with typed fields the AI will produce (e.g., `[{"label":"Total","name":"total","type":"currency"}]`)
+3. Define `outputFields` with typed fields (e.g., `[{"label":"Total","name":"total","type":"currency"}]`)
 4. Set `output_variable` to store the structured result (e.g., `"parsedData"`)
 5. Set `creativity: 1` for strict data extraction
+6. Add `instructions` for extraction rules (anti-hallucination, format requirements)
 
-The platform automatically reads any file type (PDFs, Word, images via OCR, etc.) and the AI extracts the requested fields as structured data in one step.
+The platform automatically reads any file type and the AI extracts requested fields as structured data in one step.
 
 ### Supported File Types
 
 The platform handles file extraction with NO hardcoded format limitations:
 
-- **Documents**: PDF, Word (docx/doc), text files, markdown, HTML, XML, and any text-based format.
-- **Spreadsheets**: Excel (xlsx/xls), CSV — extracted as structured text with rows and columns.
-- **Presentations**: PowerPoint (pptx/ppt) — extracted slide by slide.
-- **Images**: PNG, JPG, GIF, WebP, BMP, TIFF, HEIC, and any image format — extracted via LLM vision/OCR.
-  The LLM reads the image and extracts all visible text, data, tables, forms, and information.
-- **Code files**: Python, JavaScript, Java, SQL, and any programming language — read as text.
-- **Any other text-readable file**: The engine attempts to read it as text automatically.
-
-The only limitation is the LLM's own capability for a given format, not a hardcoded list.
+| Category | Formats | How It Works |
+|----------|---------|-------------|
+| **Documents** | PDF, Word (docx/doc), text, markdown, HTML, XML | Text extraction |
+| **Spreadsheets** | Excel (xlsx/xls), CSV | Structured text with rows/columns |
+| **Presentations** | PowerPoint (pptx/ppt) | Slide-by-slide extraction |
+| **Images** | PNG, JPG, GIF, WebP, BMP, TIFF, HEIC, SVG | LLM vision / OCR |
+| **Code files** | Python, JavaScript, Java, SQL, etc. | Read as text |
+| **Any text file** | Any text-based format | Automatic text reading |
 
 ### Image OCR / Vision
 
-When an uploaded file is an image (receipt, invoice, form, ID card, screenshot, photo of a document, etc.),
-the platform uses the LLM's vision capability to extract content. This means:
+When an uploaded file is an image (receipt, invoice, form, ID card, screenshot, photo of a document):
 - Handwritten text can be read (OCR).
 - Tables and forms in images are extracted as structured data.
 - Charts and diagrams are described.
 - Any visible text, numbers, or data is captured.
 
+### Multi-File Upload Pattern
+
+When the file field has `multiple: true`:
+- The AI step processes ALL uploaded files automatically.
+- Each file's content is separated by `--- File: <name> ---` headers.
+- The AI MUST parse ALL files and return structured results (e.g., `items` array + aggregate fields).
+- Include instructions like: `"Each file section is exactly ONE item — count carefully"`.
+
+## Analyzing Across Multiple Files
+
+Use an **AI Step** (`ai`) with `aiMode: "batch_files"` when you need cross-file calculations:
+
+1. Set `sourceFields` to an array of file field names (e.g., `["invoices", "receipts"]`)
+2. `prompt` describes what to calculate (e.g., "Sum all invoice totals, find the highest amount")
+3. Define typed `outputFields` for results (e.g., `grandTotal: currency`, `highestAmount: currency`)
+4. The engine reads ALL files from all selected fields and sends contents to the AI
+
+**When to use `batch_files` vs `extract_file`:**
+
+| Scenario | Mode |
+|----------|------|
+| Extract data from a single file or one multi-file field | `extract_file` |
+| Calculations spanning multiple file fields | `batch_files` |
+| Compare data across different documents | `batch_files` |
+| Aggregate/summarize data from multiple sources | `batch_files` |
+| Simple file parsing into structured data | `extract_file` |
+
 ## Generating Documents (Output)
 
 Use an **AI Step** (`ai`) with `aiMode: "create_doc"`:
 
-- `docTitle` (string): Document title
-- `docFormat` (string): `docx` | `pdf` | `xlsx` | `pptx` | `txt`
-- `prompt` (string): What should be in the document (can use `{{fieldName}}` references)
-- `output_variable` (string): Store the document reference for later steps
+- `docTitle` (string): Document title.
+- `docFormat` (string): `"docx"` | `"pdf"` | `"xlsx"` | `"pptx"` | `"txt"`.
+- `prompt` (string): What should be in the document (can use `{{fieldName}}` references).
+- `output_variable` (string): Store the document reference for later steps.
 
-## Data Flow Pattern: Upload → AI Extract → Use
+### Document Formats
 
-When workflows involve document/image uploads, follow this pattern:
+| Format | Best For |
+|--------|----------|
+| `docx` | Reports, letters, memos, policies (default) |
+| `pdf` | Formal documents, certificates, contracts |
+| `xlsx` | Data tables, financial reports, calculations |
+| `pptx` | Presentations, slide decks |
+| `txt` | Simple text output, logs |
 
-1. **Collect Information**: Collect file(s) via `file` field (with `multiple: true` for multiple uploads)
-2. **AI Step** (`ai` with `aiMode: "extract_file"`): Extracts AND parses the file in one step
-   - Set `sourceField` to the file field name
-   - Define typed `outputFields` for all data the AI will produce
-   - Set `creativity: 1` for strict data extraction
-   - Set `output_variable` to store the structured result
-3. **Downstream steps**: Use the parsed structured data for routing, decisions, notifications
-   - All `outputFields` from the AI step appear as selectable options in downstream steps
+## Data Flow Patterns
 
-### Multi-File Pattern
+### Pattern 1: Upload → Extract → Route → Notify
+```
+form (file upload) → AI extract_file → condition (route by data) → notification
+```
+Example: Upload invoice → Extract amount/vendor → Check if > threshold → Route to manager approval or auto-approve.
 
-When the file field has `multiple: true`:
-- The AI step processes ALL uploaded files automatically
-- The AI MUST parse ALL files and return an `items` array + aggregate fields
+### Pattern 2: Upload → Extract → Calculate → Report
+```
+form (file upload) → AI extract_file → calculate (formula) → AI create_doc → notification
+```
+Example: Upload timesheet → Extract hours → Calculate total pay → Generate pay report → Send to HR.
 
-### Cross-File Calculations Pattern
+### Pattern 3: Multiple Files → Cross-File Analysis
+```
+form (multiple file uploads) → AI batch_files → condition → notification
+```
+Example: Upload all Q1 invoices → Sum totals, find highest, calculate average → Route for review.
 
-When the user needs calculations, comparisons, or aggregations across multiple uploaded files:
+### Pattern 4: Upload → Validate → Approve → Archive
+```
+form (file upload) → AI extract_file → condition (valid?) → approval → tool (archive to system)
+```
+Example: Upload contract → Extract terms → Check compliance → Legal approval → Archive in document system.
 
-1. **Collect Information**: Collect files via one or more `file` fields
-2. **AI Step** (`ai` with `aiMode: "batch_files"`):
-   - Set `sourceFields` to an array of file field names (e.g., `["invoices", "receipts"]`)
-   - `prompt` describes what to calculate (e.g., "Sum all invoice totals, find the highest amount")
-   - Define typed `outputFields` for the calculation results (e.g., `grandTotal: currency`, `highestAmount: currency`)
-   - The engine reads ALL files from all selected fields and sends contents to the AI
-3. **Downstream steps**: Use the calculated results for routing, decisions, notifications
-
-Use `batch_files` instead of `extract_file` when:
-- The user needs results that span MULTIPLE files (sums, comparisons, trends)
-- The user uploads several documents and wants aggregated insights
-- The calculation depends on data from more than one file
+### Pattern 5: Scheduled Data Collection → Report Generation
+```
+trigger (scheduled) → tool (fetch data) → AI analyze → AI create_doc → notification (send report)
+```
+Example: Weekly sales data sync → Analyze trends → Generate report → Email to management.
 
 ## Anti-Hallucination Rules
 
@@ -105,15 +137,14 @@ Use `batch_files` instead of `extract_file` when:
 - Use AI Step with `aiMode: "extract_file"` to read files — it handles extraction and parsing in one step.
 - Do NOT limit file types in the process design — the platform handles any format.
 - File fields should be optional unless the business requirement explicitly demands a file.
-- Do NOT hardcode what data to extract — let the AI determine it based on the workflow's purpose.
 
-### AI Parsing Rules (CRITICAL — Prevents Incorrect Data)
-- When the AI step parses extracted text into structured JSON, it MUST **only use values that appear in the actual extracted text**.
-- NEVER fabricate amounts, dates, vendor names, or any data — extract them verbatim from the source.
-- When multiple files are uploaded, the extracted text contains ALL files separated by `--- File: <name> ---` headers. The AI MUST process data from **every file**, not just the first.
-- Numeric totals MUST be calculated from the **actual numbers** in the extracted text, not estimated or invented.
-- If a requested field cannot be determined from the extracted text, return `null` — NEVER guess.
+### AI Parsing Rules (CRITICAL)
+- AI MUST **only use values that appear in the actual extracted text**.
+- NEVER fabricate amounts, dates, vendor names, or any data — extract verbatim.
+- When multiple files are uploaded, process data from **every file**, not just the first.
+- Numeric totals MUST be calculated from **actual numbers**, not estimated.
+- If a field cannot be determined from extracted text, return `null` — NEVER guess.
 
-### Error Handling Rules
-- If file extraction fails (file not found, empty, corrupted), the workflow MUST stop and report the actual error — not silently continue with empty data.
-- If the AI step receives empty or garbled input, it MUST report that parsing failed rather than producing hallucinated output.
+### Error Handling
+- If file extraction fails, report the actual error — do not continue with empty data.
+- If AI receives empty or garbled input, report parsing failure rather than hallucinating output.
