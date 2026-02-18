@@ -957,6 +957,10 @@ class ProcessWizard:
             nodes = []
         if not isinstance(edges, list):
             edges = []
+        
+        # Some validation steps need to rewire edges before the final normalization pass.
+        # Keep a working reference here to avoid UnboundLocalError in early branches.
+        normalized_edges: List[Dict[str, Any]] = edges if isinstance(edges, list) else []
 
         allowed_types = {
             "trigger", "condition", "ai", "tool", "approval",
@@ -1236,16 +1240,29 @@ class ProcessWizard:
                         # Re-wire: find edge from trigger → first_next and insert form in between
                         start_id = start.get("id")
                         for edge in normalized_edges:
-                            if edge.get("source") == start_id:
-                                original_target = edge["target"]
-                                edge["target"] = form_id
+                            if (edge.get("source") == start_id) or (edge.get("from") == start_id):
+                                original_target = edge.get("target") or edge.get("to")
+                                if not original_target:
+                                    continue
+                                # Update edge to point to the new form node
+                                if "target" in edge:
+                                    edge["target"] = form_id
+                                else:
+                                    edge["to"] = form_id
                                 # Add new edge from form to original target
-                                normalized_edges.append({
-                                    "id": "e_" + form_id + "_" + original_target,
-                                    "source": form_id,
-                                    "target": original_target,
-                                    "type": "default",
-                                })
+                                if "source" in edge or "target" in edge:
+                                    normalized_edges.append({
+                                        "id": "e_" + form_id + "_" + str(original_target),
+                                        "source": form_id,
+                                        "target": str(original_target),
+                                        "type": "default",
+                                    })
+                                else:
+                                    normalized_edges.append({
+                                        "from": form_id,
+                                        "to": str(original_target),
+                                        "type": "default",
+                                    })
                                 break
 
             # Normalize form nodes: ensure fields have proper labels and defaults
