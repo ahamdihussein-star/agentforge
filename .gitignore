@@ -48,3 +48,8 @@ core_backup/
 # === ChromaDB ===
 chroma_data/
 !AgentForge_Logo.png
+
+# === UI assets (optimized, safe to track) ===
+!agent-hub.png
+!agent-studio.png
+!tools-icon.png
