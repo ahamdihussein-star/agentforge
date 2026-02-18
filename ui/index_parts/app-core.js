@@ -1547,6 +1547,17 @@ const API='';
             const badge = document.getElementById('goal-ai-badge');
             if (badge) badge.textContent = isAI ? 'Drafted' : 'Manual';
         }
+
+        // Expose unified-create flow functions for inline onclick handlers
+        // (Some deployments load scripts in ways that don't automatically bind functions to window.)
+        try {
+            window.createFlowGo = createFlowGo;
+            window.createFlowContinue = createFlowContinue;
+            window.createFlowGenerate = createFlowGenerate;
+            window.selectBuildMode = selectBuildMode;
+            window.closeCreateWizardModal = closeCreateWizardModal;
+            window.createFlowReset = createFlowReset;
+        } catch (_) { /* ignore */ }
         
         // Generate Process/Workflow Configuration using AI
         async function generateProcessConfig() {
