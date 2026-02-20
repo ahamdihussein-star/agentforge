@@ -757,7 +757,15 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     failed_files = []
                     for idx, file_item in enumerate(source_value):
                         file_path = None
-                        if isinstance(file_item, dict):
+                        if isinstance(file_item, str) and file_item.strip():
+                            file_id = file_item.strip()
+                            file_name = f"file_{idx+1}"
+                            file_path = self._resolve_uploaded_file_path(
+                                {"kind": "uploadedFile", "id": file_id, "name": file_name},
+                                context
+                            )
+                            logs.append(f"  File {idx+1} '{file_name}' (id={str(file_id)[:8]}): resolved path = {file_path or '(not found)'}")
+                        elif isinstance(file_item, dict):
                             file_name = file_item.get("name") or f"file_{idx+1}"
                             file_id = file_item.get("id") or "?"
                             # Resolve the uploaded file to its physical path on disk
@@ -821,7 +829,31 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                             ),
                             logs=logs,
                         )
-                elif isinstance(source_value, dict) and source_value.get("kind") == "uploadedFile":
+                elif isinstance(source_value, str) and source_value.strip():
+                    # Single uploaded file provided as file_id
+                    file_id = source_value.strip()
+                    file_name = "file"
+                    logs.append("Single uploaded file detected (by ID)")
+                    path = self._resolve_uploaded_file_path(
+                        {"kind": "uploadedFile", "id": file_id, "name": file_name},
+                        context
+                    )
+                    logs.append(f"Resolved file path: {path}")
+                    if not path:
+                        return NodeResult.failure(
+                            error=ExecutionError(
+                                category=ErrorCategory.RESOURCE,
+                                code="FILE_NOT_FOUND",
+                                message=f"Could not resolve file path for uploaded file id '{file_id[:8]}...'.",
+                                business_message=(
+                                    "We couldn't find the uploaded file on the server. "
+                                    "Please upload the file again and try."
+                                ),
+                                is_user_fixable=True,
+                            ),
+                            logs=logs
+                        )
+                elif isinstance(source_value, dict) and (source_value.get("kind") == "uploadedFile" or source_value.get("download_url") or source_value.get("id")):
                     # Single uploaded file object — resolve to physical path
                     file_name = source_value.get("name") or "file"
                     logs.append(f"Single uploaded file detected: {file_name}")
@@ -853,16 +885,56 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     path = state.interpolate_string(path_template)
                     logs.append(f"Resolved path: {path}")
                     if not path or path == path_template or path.startswith('{{'):
-                        # Path didn't resolve — try sourceField as uploaded file object
-                        if isinstance(source_value, dict) and (source_value.get("download_url") or source_value.get("id")):
+                        # Path didn't resolve — try resolving from the referenced {{field.path}} token
+                        try:
+                            import re as _re
+                            m = _re.match(r'^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\.path\s*\}\}\s*$', str(path_template or ''))
+                            if m:
+                                key = m.group(1)
+                                v = state.get(key)
+                                if isinstance(v, str) and v.strip():
+                                    path = self._resolve_uploaded_file_path({"kind": "uploadedFile", "id": v.strip(), "name": key}, context)
+                                    logs.append(f"Fallback: resolved '{key}' (id) to: {path}")
+                                elif isinstance(v, dict) and (v.get("download_url") or v.get("id") or v.get("kind") == "uploadedFile"):
+                                    path = self._resolve_uploaded_file_path(v, context) or (v.get("path") or "")
+                                    logs.append(f"Fallback: resolved '{key}' (object) to: {path}")
+                                elif isinstance(v, list) and len(v) > 0:
+                                    first = v[0]
+                                    if isinstance(first, dict):
+                                        path = self._resolve_uploaded_file_path(first, context) or (first.get("path") or "")
+                                        logs.append(f"Fallback: resolved '{key}[0]' (object) to: {path}")
+                                    elif isinstance(first, str) and first.strip():
+                                        path = self._resolve_uploaded_file_path({"kind": "uploadedFile", "id": first.strip(), "name": key}, context)
+                                        logs.append(f"Fallback: resolved '{key}[0]' (id) to: {path}")
+                        except Exception:
+                            pass
+
+                        # Path didn't resolve — try sourceField as uploaded file object/id
+                        if (not path or path.startswith('{{')) and isinstance(source_value, dict) and (source_value.get("download_url") or source_value.get("id")):
                             path = self._resolve_uploaded_file_path(source_value, context)
                             logs.append(f"Fallback: resolved uploaded file to: {path}")
+                        if (not path or path.startswith('{{')) and isinstance(source_value, str) and source_value.strip():
+                            path = self._resolve_uploaded_file_path({"kind": "uploadedFile", "id": source_value.strip(), "name": "file"}, context)
+                            logs.append(f"Fallback: resolved uploaded file id to: {path}")
                         if not path or path.startswith('{{'):
                             return NodeResult.failure(
-                                error=ExecutionError.validation_error(
-                                    f"Could not resolve file path from '{path_template}'. "
-                                    f"Make sure the file upload field name matches the source field configuration. "
-                                    f"Resolved to: '{path}'"
+                                error=ExecutionError(
+                                    category=ErrorCategory.CONFIGURATION,
+                                    code="FILE_UPLOAD_FIELD_MISMATCH",
+                                    message=(
+                                        f"Could not resolve file path from '{path_template}'. "
+                                        f"Resolved to: '{path}'"
+                                    ),
+                                    business_message=(
+                                        "The workflow couldn't find the uploaded file needed for this step. "
+                                        "Please upload the file again and try. "
+                                        "If the issue continues, check that the upload field used in the workflow matches the file selected for this step."
+                                    ),
+                                    is_user_fixable=True,
+                                    details={
+                                        "path_template": str(path_template or ""),
+                                        "source_field": str(source_field or ""),
+                                    },
                                 ),
                                 logs=logs
                             )

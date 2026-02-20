@@ -1731,6 +1731,44 @@ class ProcessAPIService:
             nodes = [nn for nn in nodes if (nn or {}).get('id') not in removed_ids]
             data['nodes'] = nodes
             data['edges'] = edges
+
+        # Start node fields are the canonical "inputs" for file upload field matching.
+        nodes = data.get('nodes') or []
+        start_fields = _extract_fields_from_node(start_node) if start_node else []
+        file_field_keys: List[str] = []
+        file_field_labels: Dict[str, str] = {}
+        for f in start_fields:
+            if not isinstance(f, dict):
+                continue
+            k = str(f.get('name') or f.get('id') or '').strip()
+            t = str(f.get('type') or '').strip().lower()
+            if not k:
+                continue
+            if t == 'file':
+                file_field_keys.append(k)
+                file_field_labels[k] = str(f.get('label') or '').strip()
+
+        def _norm_token(s: Any) -> str:
+            s = str(s or '').strip().lower()
+            return re.sub(r'[^a-z0-9]+', '', s)
+
+        def _best_file_field(wanted: str) -> str:
+            w = str(wanted or '').strip()
+            if not w:
+                return file_field_keys[0] if len(file_field_keys) == 1 else ''
+            if w in file_field_keys:
+                return w
+            wn = _norm_token(w)
+            if not wn:
+                return file_field_keys[0] if len(file_field_keys) == 1 else ''
+            for k in file_field_keys:
+                if _norm_token(k) == wn:
+                    return k
+            for k in file_field_keys:
+                lab = file_field_labels.get(k) or ''
+                if lab and _norm_token(lab) == wn:
+                    return k
+            return file_field_keys[0] if len(file_field_keys) == 1 else ''
         
         # Build lookup: from (source, edge_type) -> target for condition branching
         edges_by_source = {}
@@ -2010,6 +2048,27 @@ class ProcessAPIService:
                 ov = type_cfg.get('outputVariable') or node.get('output_variable') or ''
                 if ov:
                     node['output_variable'] = ov
+
+            # File extraction: keep sourceField aligned with the actual upload field on the Start node.
+            # This prevents failures when AI-generated configs use a different field key than the Start/Form upload field.
+            try:
+                op = str(type_cfg.get('operation') or '').strip().lower()
+                if node.get('type') == 'file_operation' and op in ('extract_text', 'extract_document_text'):
+                    # Determine desired field from config
+                    source_field = str(type_cfg.get('sourceField') or type_cfg.get('source_field') or '').strip()
+                    if not source_field:
+                        pt = type_cfg.get('path')
+                        if isinstance(pt, str):
+                            m = re.match(r'^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\.path\s*\}\}\s*$', pt)
+                            if m:
+                                source_field = m.group(1)
+                    chosen = _best_file_field(source_field)
+                    if chosen:
+                        type_cfg['sourceField'] = chosen
+                        # Ensure path template references the chosen field for consistent engine behavior
+                        type_cfg['path'] = f"{{{{{chosen}.path}}}}"
+            except Exception:
+                pass
 
             # End node: treat plain output string as variable reference (e.g. "result" -> "{{result}}")
             if node_type == 'end':
