@@ -1626,6 +1626,111 @@ class ProcessAPIService:
                 'label': e.get('label'),
             })
         data['edges'] = edges
+
+        # Normalize and de-duplicate START semantics (Visual Builder may include both Trigger + Form shapes).
+        # Engine schema requires exactly one START node.
+        nodes = data.get('nodes') or []
+        start_like_types = {'trigger', 'form', 'schedule', 'webhook', 'start'}
+
+        def _node_type_lower(nn: Any) -> str:
+            try:
+                return str((nn or {}).get('type') or '').strip().lower()
+            except Exception:
+                return ''
+
+        def _extract_fields_from_node(nn: Any) -> List[Dict[str, Any]]:
+            if not nn or not isinstance(nn, dict):
+                return []
+            cfg = nn.get('config') or {}
+            if not isinstance(cfg, dict):
+                return []
+            type_cfg = cfg.get('type_config') if isinstance(cfg.get('type_config'), dict) else None
+            raw_fields = (type_cfg or cfg).get('fields') if isinstance((type_cfg or cfg), dict) else None
+            return raw_fields if isinstance(raw_fields, list) else []
+
+        def _first_node_by_type(t: str) -> Optional[Dict[str, Any]]:
+            tl = str(t or '').strip().lower()
+            for nn in nodes:
+                if _node_type_lower(nn) == tl:
+                    return nn
+            return None
+
+        start_node = (
+            _first_node_by_type('trigger')
+            or _first_node_by_type('start')
+            or _first_node_by_type('schedule')
+            or _first_node_by_type('webhook')
+            or _first_node_by_type('form')
+        )
+        start_node_id = (start_node or {}).get('id')
+
+        # If a separate Form shape holds the input fields, merge them into the chosen start node.
+        form_with_fields = next(
+            (nn for nn in nodes if _node_type_lower(nn) == 'form' and len(_extract_fields_from_node(nn)) > 0),
+            None
+        )
+        if start_node and start_node_id and form_with_fields and form_with_fields.get('id') != start_node_id:
+            start_fields = _extract_fields_from_node(start_node)
+            form_fields = _extract_fields_from_node(form_with_fields)
+            if not start_fields and form_fields:
+                cfg = start_node.get('config') or {}
+                if not isinstance(cfg, dict):
+                    cfg = {}
+                if isinstance(cfg.get('type_config'), dict):
+                    cfg['type_config'] = dict(cfg['type_config'])
+                    cfg['type_config'].setdefault('fields', form_fields)
+                else:
+                    cfg.setdefault('fields', form_fields)
+                start_node['config'] = cfg
+
+        # Remove extra start-like nodes, and rewire edges across them (usually trigger -> form -> next).
+        removed_ids = set()
+        if start_node_id:
+            for nn in list(nodes):
+                nt = _node_type_lower(nn)
+                nid = (nn or {}).get('id')
+                if nid and nid != start_node_id and nt in start_like_types:
+                    removed_ids.add(nid)
+
+        if removed_ids:
+            for rid in list(removed_ids):
+                incoming = [e for e in edges if e.get('target') == rid]
+                outgoing = [e for e in edges if e.get('source') == rid]
+                bridged = []
+                for inc in incoming:
+                    for out in outgoing:
+                        src = inc.get('source')
+                        tgt = out.get('target')
+                        if not src or not tgt:
+                            continue
+                        bridged.append({
+                            'id': f"edge_{src}_{tgt}_{len(bridged)}",
+                            'source': src,
+                            'target': tgt,
+                            'edge_type': out.get('edge_type', 'default'),
+                            'condition': out.get('condition') if out.get('condition') is not None else inc.get('condition'),
+                            'label': out.get('label') if out.get('label') is not None else inc.get('label'),
+                        })
+
+                edges = [e for e in edges if e.get('source') != rid and e.get('target') != rid]
+                edges.extend(bridged)
+
+            # Dedupe edges (keep first occurrence)
+            seen = set()
+            deduped = []
+            for e in edges:
+                k = (e.get('source'), e.get('target'), e.get('edge_type', 'default'))
+                if not k[0] or not k[1]:
+                    continue
+                if k in seen:
+                    continue
+                seen.add(k)
+                deduped.append(e)
+            edges = deduped
+
+            nodes = [nn for nn in nodes if (nn or {}).get('id') not in removed_ids]
+            data['nodes'] = nodes
+            data['edges'] = edges
         
         # Build lookup: from (source, edge_type) -> target for condition branching
         edges_by_source = {}
