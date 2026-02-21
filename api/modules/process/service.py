@@ -1827,26 +1827,29 @@ class ProcessAPIService:
                 field = type_cfg.get('field') or ''
                 operator = type_cfg.get('operator') or 'equals'
                 value = type_cfg.get('value')
+                existing_expr = str(type_cfg.get('expression') or '').strip()
                 try:
                     num_val = float(value) if value is not None and str(value).strip() != '' else None
                 except (TypeError, ValueError):
                     num_val = None
-                if not field:
+                if field:
+                    if operator == 'greater_than':
+                        type_cfg['expression'] = f"{{{{{field}}}}} > {num_val if num_val is not None else repr(value)}"
+                    elif operator == 'less_than':
+                        type_cfg['expression'] = f"{{{{{field}}}}} < {num_val if num_val is not None else repr(value)}"
+                    elif operator == 'equals':
+                        type_cfg['expression'] = f"{{{{{field}}}}} == {num_val if num_val is not None else repr(value)}"
+                    elif operator == 'not_equals':
+                        type_cfg['expression'] = f"{{{{{field}}}}} != {num_val if num_val is not None else repr(value)}"
+                    elif operator == 'contains':
+                        type_cfg['expression'] = f"{repr(value)} in str({{{{{field}}}}})"
+                    elif operator == 'is_empty':
+                        type_cfg['expression'] = f"{{{{{field}}}}} == '' or {{{{field}}}} == None"
+                    else:
+                        type_cfg['expression'] = f"{{{{{field}}}}} == {repr(value)}"
+                elif not existing_expr or existing_expr == 'True':
                     type_cfg['expression'] = 'True'
-                elif operator == 'greater_than':
-                    type_cfg['expression'] = f"{{{{{field}}}}} > {num_val if num_val is not None else repr(value)}"
-                elif operator == 'less_than':
-                    type_cfg['expression'] = f"{{{{{field}}}}} < {num_val if num_val is not None else repr(value)}"
-                elif operator == 'equals':
-                    type_cfg['expression'] = f"{{{{{field}}}}} == {num_val if num_val is not None else repr(value)}"
-                elif operator == 'not_equals':
-                    type_cfg['expression'] = f"{{{{{field}}}}} != {num_val if num_val is not None else repr(value)}"
-                elif operator == 'contains':
-                    type_cfg['expression'] = f"{repr(value)} in str({{{{{field}}}}})"
-                elif operator == 'is_empty':
-                    type_cfg['expression'] = f"{{{{{field}}}}} == '' or {{{{field}}}} == None"
-                else:
-                    type_cfg['expression'] = f"{{{{{field}}}}} == {repr(value)}"
+                # else: keep the existing expression (wizard-generated)
                 out = edges_by_source.get(node.get('id'), {})
                 type_cfg['true_branch'] = out.get('yes') or out.get('default')
                 type_cfg['false_branch'] = out.get('no')
