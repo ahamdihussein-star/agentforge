@@ -483,14 +483,17 @@ Node config rules:
   - Use this when the AI needs real-time data or must interact with external systems
   - Example: "enabledToolIds": ["tool_crm_api", "tool_hr_db"]
 
-- AUTOMATIC APPROVAL PATTERN (condition-based):
-  When a workflow should auto-approve under certain conditions (e.g., amount below a threshold), use a CONDITION node:
-  - Write the expression so that TRUE = the auto-approve case.
-    Example: expression "{{{{totalAmount}}}} < 500"  → TRUE when amount is under 500 (auto-approve), FALSE when 500 or more (manual approval).
-  - "yes" edge (expression is TRUE) → notification node telling the user the request was auto-approved.
-  - "no" edge (expression is FALSE) → approval node for manual review by a manager.
-  CRITICAL: Do NOT invert this. "yes" = condition is met = auto-approve. "no" = condition is not met = needs manual approval.
-  This lets workflows intelligently route based on data without requiring human intervention in every case.
+- CONDITION ROUTING — HOW YES/NO WORKS:
+  The condition expression is evaluated as a boolean. "yes" edge = expression is TRUE. "no" edge = expression is FALSE.
+  Always think about your expression result: if your expression is "{{{{totalAmount}}}} < 500", then:
+    - YES (TRUE): the amount IS under 500
+    - NO (FALSE): the amount is NOT under 500 (i.e., 500 or more)
+  Then connect each edge to the correct next step based on what TRUE and FALSE mean for YOUR specific logic.
+  This is fully generic — you can use any boolean expression for any business rule.
+  Example patterns:
+    - Auto-approval: "{{{{totalAmount}}}} < 500" → YES → auto-approve notification, NO → manual approval
+    - Urgency routing: "{{{{priority}}}} == 'high'" → YES → escalation, NO → normal queue
+    - Eligibility check: "{{{{score}}}} >= 80" → YES → approved, NO → rejected
 
 - CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
 
@@ -1498,24 +1501,6 @@ class ProcessWizard:
                     normalized_edges.append({"from": cid, "to": yes_target, "type": "yes"})
                 if not has_no:
                     normalized_edges.append({"from": cid, "to": no_target, "type": "no"})
-
-        # ENFORCE: Condition routing sanity — detect inverted auto-approval patterns.
-        # If a condition's YES edge targets an approval/human_task node while its NO edge
-        # targets a notification node, the branches are almost certainly swapped.
-        node_type_by_id = {n.get("id"): (n.get("type") or "").lower() for n in normalized_nodes}
-        for cid in cond_ids:
-            yes_edge = next((e for e in normalized_edges if e.get("from") == cid and e.get("type") == "yes"), None)
-            no_edge = next((e for e in normalized_edges if e.get("from") == cid and e.get("type") == "no"), None)
-            if not yes_edge or not no_edge:
-                continue
-            yes_target_type = node_type_by_id.get(yes_edge.get("to"), "")
-            no_target_type = node_type_by_id.get(no_edge.get("to"), "")
-            yes_is_approval = yes_target_type in ("approval", "human_task")
-            no_is_light = no_target_type in ("notification", "end")
-            no_is_approval = no_target_type in ("approval", "human_task")
-            yes_is_light = yes_target_type in ("notification", "end")
-            if yes_is_approval and no_is_light and not (no_is_approval and yes_is_light):
-                yes_edge["to"], no_edge["to"] = no_edge["to"], yes_edge["to"]
 
         # ENFORCE: Extract Document Text actions must have sourceField set.
         # Find file fields from the start/form nodes and auto-assign if missing.
