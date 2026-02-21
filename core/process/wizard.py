@@ -1489,21 +1489,28 @@ class ProcessWizard:
                     normalized_edges.append({"from": cid, "to": no_target, "type": "no"})
 
         # ENFORCE: Extract Document Text actions must have sourceField set.
-        # Find file fields from the trigger node and auto-assign if missing.
+        # Find file fields from the start/form nodes and auto-assign if missing.
         trigger_file_fields = []
         trigger_multi_file_fields = set()  # Track which file fields accept multiple files
         trigger_file_field_labels = {}     # name -> label (for best-match)
-        trigger_node = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
-        if trigger_node:
-            t_fields = (trigger_node.get("config") or {}).get("fields") or []
+        # Prefer the "Collect Information" form if it exists (it usually holds upload fields),
+        # but also scan the trigger node for backward compatibility.
+        start_nodes = [n for n in normalized_nodes if n.get("type") in ("form", "trigger")]
+        for sn in start_nodes:
+            t_fields = (sn.get("config") or {}).get("fields") or []
             for f in t_fields:
-                if isinstance(f, dict) and str(f.get("type", "")).lower() == "file":
-                    fname = f.get("name")
-                    if fname:
-                        trigger_file_fields.append(fname)
-                        trigger_file_field_labels[fname] = str(f.get("label") or "").strip()
-                        if f.get("multiple"):
-                            trigger_multi_file_fields.add(fname)
+                if not (isinstance(f, dict) and str(f.get("type", "")).lower() == "file"):
+                    continue
+                fname = f.get("name")
+                if not fname:
+                    continue
+                if fname not in trigger_file_fields:
+                    trigger_file_fields.append(fname)
+                # Keep the first non-empty label we see
+                if fname not in trigger_file_field_labels or not trigger_file_field_labels.get(fname):
+                    trigger_file_field_labels[fname] = str(f.get("label") or "").strip()
+                if f.get("multiple"):
+                    trigger_multi_file_fields.add(fname)
 
         def _norm_token(s: Any) -> str:
             s = str(s or "").strip().lower()
@@ -1846,8 +1853,9 @@ class ProcessWizard:
         # Assign positions if missing / invalid and snap to grid
         base_x = 400
         base_y = 100
-        gap_y = 220
-        branch_gap_x = 340
+        gap_y = 260
+        branch_gap_x = 520
+        min_gap_x = 320  # minimum horizontal distance between nodes on same row
 
         # Auto-layout pass (reduces edge overlap and keeps branches side-by-side)
         id_to_node = {n.get("id"): n for n in normalized_nodes if n.get("id")}
@@ -1922,31 +1930,40 @@ class ProcessWizard:
                 continue
             incs = in_edges.get(nid) or []
             parents = [e.get("from") for e in incs if e.get("from") in id_to_node]
-            if len(set(parents)) != 1:
+            uniq_parents = list(dict.fromkeys([p for p in parents if p]))
+            if not uniq_parents:
                 x_pos[nid] = base_x
                 continue
-            parent = parents[0]
-            px = x_pos.get(parent, base_x)
-            off = 0
-            for e in incs:
-                if e.get("from") == parent:
-                    off = child_offset.get((parent, nid), 0)
-                    break
-            x_pos[nid] = px + off
+            if len(uniq_parents) == 1:
+                parent = uniq_parents[0]
+                px = x_pos.get(parent, base_x)
+                off = 0
+                for e in incs:
+                    if e.get("from") == parent:
+                        off = child_offset.get((parent, nid), 0)
+                        break
+                x_pos[nid] = px + off
+            else:
+                # Merge node: center between parents (improves readability and avoids long cross-branch edges)
+                pxs = [x_pos.get(p, base_x) for p in uniq_parents]
+                x_pos[nid] = int(round(sum(pxs) / max(1, len(pxs))))
 
-        # Spread nodes that still collide at same (level,x)
-        occupied = {}
+        # Per-level spacing: ensure nodes in the same row don't overlap horizontally.
+        nodes_by_level: Dict[int, List[str]] = {}
         for nid in ordered_ids:
-            lx = (level.get(nid, 0), x_pos.get(nid, base_x))
-            occupied.setdefault(lx, 0)
-            occupied[lx] += 1
-        bump_counter = {k: 0 for k, v in occupied.items() if v > 1}
-        for nid in ordered_ids:
-            key = (level.get(nid, 0), x_pos.get(nid, base_x))
-            if key in bump_counter:
-                bump = bump_counter[key]
-                bump_counter[key] += 1
-                x_pos[nid] = x_pos.get(nid, base_x) + (bump * 120)
+            nodes_by_level.setdefault(int(level.get(nid, 0)), []).append(nid)
+        for lvl, nids in nodes_by_level.items():
+            nids_sorted = sorted(nids, key=lambda nid: (x_pos.get(nid, base_x), original_index.get(nid, 10_000), nid))
+            last_x = None
+            for nid in nids_sorted:
+                cur = x_pos.get(nid, base_x)
+                if last_x is None:
+                    last_x = cur
+                    continue
+                if cur - last_x < min_gap_x:
+                    cur = last_x + min_gap_x
+                    x_pos[nid] = cur
+                last_x = cur
 
         # Apply computed positions
         for nid in ordered_ids:
