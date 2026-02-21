@@ -1492,6 +1492,7 @@ class ProcessWizard:
         # Find file fields from the trigger node and auto-assign if missing.
         trigger_file_fields = []
         trigger_multi_file_fields = set()  # Track which file fields accept multiple files
+        trigger_file_field_labels = {}     # name -> label (for best-match)
         trigger_node = next((n for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
         if trigger_node:
             t_fields = (trigger_node.get("config") or {}).get("fields") or []
@@ -1500,8 +1501,39 @@ class ProcessWizard:
                     fname = f.get("name")
                     if fname:
                         trigger_file_fields.append(fname)
+                        trigger_file_field_labels[fname] = str(f.get("label") or "").strip()
                         if f.get("multiple"):
                             trigger_multi_file_fields.add(fname)
+
+        def _norm_token(s: Any) -> str:
+            s = str(s or "").strip().lower()
+            return re.sub(r"[^a-z0-9]+", "", s)
+
+        def _best_trigger_file_field(wanted: str) -> str:
+            w = str(wanted or "").strip()
+            if not trigger_file_fields:
+                return ""
+            if not w:
+                # Prefer deterministic default rather than leaving UI blank
+                return trigger_file_fields[0]
+            if w in trigger_file_fields:
+                return w
+            wn = _norm_token(w)
+            if wn:
+                for k in trigger_file_fields:
+                    if _norm_token(k) == wn:
+                        return k
+                for k in trigger_file_fields:
+                    lab = trigger_file_field_labels.get(k) or ""
+                    if lab and _norm_token(lab) == wn:
+                        return k
+            # Fallback: best-effort keyword contains match
+            wl = w.lower()
+            for k in trigger_file_fields:
+                lab = (trigger_file_field_labels.get(k) or "").lower()
+                if wl and (wl in k.lower() or wl in lab):
+                    return k
+            return trigger_file_fields[0]
 
         if not trigger_file_fields and any(
             str((n.get("config") or {}).get("actionType") or "").strip().lower().replace("_", "") in ("extractdocumenttext", "extracttext")
@@ -1560,6 +1592,26 @@ class ProcessWizard:
                     extraction_multi_file_vars[ov] = sf
                 n["config"] = cfg
 
+        # ENFORCE: AI nodes in extract_file mode must have sourceField selected (matches UI dropdown).
+        # This keeps AI-generated configs editable in the same way as manually-built configs.
+        for n in normalized_nodes:
+            if n.get("type") != "ai":
+                continue
+            cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+            ai_mode = str(cfg.get("aiMode") or cfg.get("mode") or "custom").strip().lower()
+            if ai_mode in ("extract_file", "extract"):
+                sf = str(cfg.get("sourceField") or "").strip()
+                sf = _best_trigger_file_field(sf)
+                if sf:
+                    cfg["sourceField"] = sf
+                    # Mirror manual builder behavior: path template derives from sourceField
+                    cfg["path"] = "{{" + sf + ".path}}"
+                # Ensure instructions list exists (prompt stays business-friendly)
+                if not isinstance(cfg.get("instructions"), list):
+                    raw = cfg.get("instructions")
+                    cfg["instructions"] = [str(raw).strip()] if isinstance(raw, str) and raw.strip() else []
+                n["config"] = cfg
+
         # ENFORCE: AI nodes that parse multi-file extraction output must handle ALL files.
         # When the extraction comes from a multi-file field, the AI node's prompt must
         # instruct it to parse every file and structure the data for downstream use.
@@ -1572,23 +1624,18 @@ class ProcessWizard:
                 # Check if this AI node references any multi-file extraction variable
                 for ext_var, file_field in extraction_multi_file_vars.items():
                     if "{{" + ext_var + "}}" in prompt or ext_var in prompt:
-                        # This AI node parses multi-file extraction — enhance prompt
-                        if "ALL documents" not in prompt and "all documents" not in prompt and "each document" not in prompt and "every file" not in prompt:
-                            multi_file_instruction = (
-                                "\n\nIMPORTANT: The input text may contain data from MULTIPLE uploaded files/documents "
-                                "(each separated by '--- File: <name> ---' headers). "
-                                "You MUST parse and extract data from EVERY file, not just the first one. "
-                                "Return a JSON object that includes: "
-                                "(1) 'items' — an array where each element contains the extracted data from one file "
-                                "(include 'fileName' and all relevant fields per file); "
-                                "(2) 'itemCount' — the number of files processed; "
-                                "(3) any additional computed or aggregated fields that downstream workflow steps "
-                                "might need based on the business context (e.g., totals, summaries, flags). "
-                                "Use your judgment to decide what aggregated fields are appropriate for this workflow."
-                            )
-                            cfg["prompt"] = prompt + multi_file_instruction
-                            n["config"] = cfg
-                            logger.info(f"Enhanced AI node '{n.get('name')}' prompt for multi-file processing (source: {file_field})")
+                        # This AI node parses multi-file extraction — enhance instructions (not prompt)
+                        instr = cfg.get("instructions") if isinstance(cfg.get("instructions"), list) else []
+                        multi_rule = (
+                            "If the input contains multiple uploaded files (separated by '--- File: <name> ---'), "
+                            "you MUST extract data from EVERY file, not just the first. "
+                            "Return per-file items when relevant, plus counts and totals needed by downstream steps."
+                        )
+                        if all(str(x or "").strip() != multi_rule for x in instr):
+                            instr.append(multi_rule)
+                        cfg["instructions"] = instr
+                        n["config"] = cfg
+                        logger.info(f"Enhanced AI node '{n.get('name')}' instructions for multi-file processing (source: {file_field})")
                         break
 
         # ENFORCE: AI nodes whose output_variable is referenced by downstream steps
@@ -1639,31 +1686,36 @@ class ProcessWizard:
                     # Force JSON output format and low temperature for accuracy
                     cfg["output_format"] = "json"
                     cfg["temperature"] = 0.1  # Low temp for data extraction — minimize hallucination
-                    # Enhance the prompt to instruct JSON output with ALL expected field names
+                    # Keep prompt business-friendly; put technical rules in instructions.
                     prompt = str(cfg.get("prompt") or "").strip()
+                    # Strip any previously-injected technical blocks from prompt (IMPORTANT / anti-hallucination).
+                    for marker in ("IMPORTANT:", "ANTI-HALLUCINATION", "Do NOT include any text outside the JSON"):
+                        mi = prompt.find(marker)
+                        if mi >= 0:
+                            prompt = prompt[:mi].rstrip()
+                    cfg["prompt"] = prompt
+
+                    instr = cfg.get("instructions") if isinstance(cfg.get("instructions"), list) else []
+                    # Ensure stable list of instructions
+                    instr = [str(x).strip() for x in instr if isinstance(x, str) and str(x).strip()]
                     # Collect all fields expected from this variable across all downstream steps
                     expected_fields = sorted(set(f.split(".", 1)[1] for f in referenced_fields if f.startswith(ov + ".")))
-                    json_instruction = (
-                        "\n\nIMPORTANT: You MUST respond with valid JSON only. Return a JSON object that includes AT LEAST these fields: "
-                        + ", ".join(f'"{fld}"' for fld in expected_fields)
-                        + ". Example: {"
-                        + ", ".join(f'"{fld}": <value>' for fld in expected_fields)
-                        + "}. Numbers must be numeric (not strings). "
-                        + "For 'details' or 'summary' fields, provide a brief human-readable description of the ACTUAL extracted data — "
-                        + "NEVER use generic placeholders like 'Extracted data from receipts' or 'Three transactions recorded'. "
-                        + "Include real values from the source text."
-                        + "\n\nANTI-HALLUCINATION RULES (CRITICAL):"
-                        + "\n- ONLY use data that is EXPLICITLY present in the input text. NEVER invent, fabricate, or guess values."
-                        + "\n- If the input contains numbers (amounts, totals, quantities), extract them EXACTLY as they appear."
-                        + "\n- If multiple documents/files are provided, sum or aggregate values ONLY from the actual text — never estimate."
-                        + "\n- If a value cannot be determined from the input, use null — NEVER make up a plausible-sounding value."
-                        + "\n- For the 'details' or 'summary' field, describe SPECIFIC items from the actual data "
-                        + "(e.g., 'Parking fee: 100 AED from City Parking, Flight ticket: 1500 AED from Emirates') "
-                        + "not vague descriptions."
-                        + "\nDo NOT include any text outside the JSON."
-                    )
-                    if "MUST respond with valid JSON" not in prompt:
-                        cfg["prompt"] = prompt + json_instruction
+                    if expected_fields:
+                        must_include = (
+                            "Return ONLY valid JSON (no extra text). "
+                            "Include at least these fields: " + ", ".join(expected_fields) + "."
+                        )
+                        if all(str(x or "").strip() != must_include for x in instr):
+                            instr.append(must_include)
+                    anti_hallucination = [
+                        "Only extract data that is explicitly present in the input. Never guess or invent values.",
+                        "If a value cannot be determined, use null (do not make up a plausible value).",
+                        "Keep numbers as numbers (not strings).",
+                    ]
+                    for rule in anti_hallucination:
+                        if all(str(x or "").strip() != rule for x in instr):
+                            instr.append(rule)
+                    cfg["instructions"] = instr
 
                     # Auto-generate outputFields for the visual builder so non-technical
                     # users can see and select individual fields in downstream steps.
@@ -1794,7 +1846,116 @@ class ProcessWizard:
         # Assign positions if missing / invalid and snap to grid
         base_x = 400
         base_y = 100
-        gap_y = 200
+        gap_y = 220
+        branch_gap_x = 340
+
+        # Auto-layout pass (reduces edge overlap and keeps branches side-by-side)
+        id_to_node = {n.get("id"): n for n in normalized_nodes if n.get("id")}
+        in_edges = {nid: [] for nid in id_to_node.keys()}
+        out_edges = {nid: [] for nid in id_to_node.keys()}
+        for e in normalized_edges:
+            frm = e.get("from")
+            to = e.get("to")
+            if frm in out_edges and to in in_edges:
+                out_edges[frm].append(e)
+                in_edges[to].append(e)
+
+        start_id = next((n.get("id") for n in normalized_nodes if n.get("type") in ("trigger", "form")), None)
+        if not start_id:
+            start_id = normalized_nodes[0].get("id") if normalized_nodes else None
+
+        # Level assignment: longest-path style relaxation (handles small DAGs; cycles degrade gracefully)
+        level = {nid: 0 for nid in id_to_node.keys()}
+        if start_id and start_id in level:
+            level[start_id] = 0
+        for _ in range(max(1, len(id_to_node) + 1)):
+            changed = False
+            for e in normalized_edges:
+                u = e.get("from")
+                v = e.get("to")
+                if u in level and v in level:
+                    cand = level[u] + 1
+                    if cand > level[v]:
+                        level[v] = cand
+                        changed = True
+            if not changed:
+                break
+
+        # Stable ordering by (level, original index) so layout is deterministic
+        original_index = {n.get("id"): i for i, n in enumerate(normalized_nodes) if n.get("id")}
+        ordered_ids = sorted(id_to_node.keys(), key=lambda nid: (level.get(nid, 0), original_index.get(nid, 10_000), nid))
+
+        # Precompute child offsets for condition/parallel nodes
+        child_offset = {}
+        for nid in ordered_ids:
+            n = id_to_node.get(nid) or {}
+            ntype = n.get("type")
+            outs = out_edges.get(nid) or []
+            if ntype == "condition":
+                for oe in outs:
+                    t = oe.get("to")
+                    et = oe.get("type") or "default"
+                    if t:
+                        if et == "yes":
+                            child_offset[(nid, t)] = -branch_gap_x
+                        elif et == "no":
+                            child_offset[(nid, t)] = branch_gap_x
+                        else:
+                            child_offset[(nid, t)] = 0
+            elif ntype == "parallel":
+                # Spread all outgoing targets evenly across X
+                targets = [oe.get("to") for oe in outs if oe.get("to")]
+                targets = [t for t in targets if t in id_to_node]
+                targets_sorted = sorted(targets)
+                k = len(targets_sorted)
+                for idx, t in enumerate(targets_sorted):
+                    off = int(round((idx - (k - 1) / 2) * branch_gap_x))
+                    child_offset[(nid, t)] = off
+
+        x_pos = {}
+        if start_id:
+            x_pos[start_id] = base_x
+
+        # Assign x by inheriting from single parent; merge nodes center back.
+        for nid in ordered_ids:
+            if nid == start_id:
+                continue
+            incs = in_edges.get(nid) or []
+            parents = [e.get("from") for e in incs if e.get("from") in id_to_node]
+            if len(set(parents)) != 1:
+                x_pos[nid] = base_x
+                continue
+            parent = parents[0]
+            px = x_pos.get(parent, base_x)
+            off = 0
+            for e in incs:
+                if e.get("from") == parent:
+                    off = child_offset.get((parent, nid), 0)
+                    break
+            x_pos[nid] = px + off
+
+        # Spread nodes that still collide at same (level,x)
+        occupied = {}
+        for nid in ordered_ids:
+            lx = (level.get(nid, 0), x_pos.get(nid, base_x))
+            occupied.setdefault(lx, 0)
+            occupied[lx] += 1
+        bump_counter = {k: 0 for k, v in occupied.items() if v > 1}
+        for nid in ordered_ids:
+            key = (level.get(nid, 0), x_pos.get(nid, base_x))
+            if key in bump_counter:
+                bump = bump_counter[key]
+                bump_counter[key] += 1
+                x_pos[nid] = x_pos.get(nid, base_x) + (bump * 120)
+
+        # Apply computed positions
+        for nid in ordered_ids:
+            n = id_to_node.get(nid)
+            if not n:
+                continue
+            n["x"] = x_pos.get(nid, base_x)
+            n["y"] = base_y + level.get(nid, 0) * gap_y
+
         for i, n in enumerate(normalized_nodes):
             x = n.get("x")
             y = n.get("y")
