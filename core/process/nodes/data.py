@@ -206,8 +206,24 @@ class TransformNodeExecutor(BaseNodeExecutor):
             items: list = val if isinstance(val, list) else [val]
             nums: List[float] = []
             for item in items:
+                if isinstance(item, str):
+                    m = re.search(r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?", item)
+                    if m:
+                        try:
+                            nums.append(float(m.group(0).replace(",", "")))
+                            continue
+                        except (TypeError, ValueError):
+                            pass
                 if isinstance(item, dict):
                     for v in item.values():
+                        if isinstance(v, str):
+                            m = re.search(r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?", v)
+                            if m:
+                                try:
+                                    nums.append(float(m.group(0).replace(",", "")))
+                                    continue
+                                except (TypeError, ValueError):
+                                    pass
                         try:
                             nums.append(float(v))
                         except (TypeError, ValueError):
@@ -242,6 +258,12 @@ class TransformNodeExecutor(BaseNodeExecutor):
                     return float(resolved) if '.' in resolved else int(resolved)
                 except (TypeError, ValueError):
                     pass
+                m = re.search(r"[-+]?\d+(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?", resolved)
+                if m:
+                    try:
+                        return float(m.group(0).replace(",", ""))
+                    except (TypeError, ValueError):
+                        pass
             return resolved
 
 
