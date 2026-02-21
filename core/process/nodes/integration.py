@@ -830,7 +830,6 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                             logs=logs,
                         )
                 elif isinstance(source_value, str) and source_value.strip():
-                    # Single uploaded file provided as file_id
                     file_id = source_value.strip()
                     file_name = "file"
                     logs.append("Single uploaded file detected (by ID)")
@@ -853,13 +852,14 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                             ),
                             logs=logs
                         )
+                    result = await self._execute_extract_text_local(
+                        path=path, encoding=encoding, logs=logs,
+                    )
                 elif isinstance(source_value, dict) and (source_value.get("kind") == "uploadedFile" or source_value.get("download_url") or source_value.get("id")):
-                    # Single uploaded file object — resolve to physical path
                     file_name = source_value.get("name") or "file"
                     logs.append(f"Single uploaded file detected: {file_name}")
                     path = self._resolve_uploaded_file_path(source_value, context)
                     if not path:
-                        # Fallback to legacy path
                         path = source_value.get("path") or ""
                     logs.append(f"Resolved file path: {path}")
                     if not path:
@@ -879,6 +879,9 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                             ),
                             logs=logs
                         )
+                    result = await self._execute_extract_text_local(
+                        path=path, encoding=encoding, logs=logs,
+                    )
                 else:
                     # Fallback: original template-based path resolution
                     logs.append(f"Path template: {path_template}")
