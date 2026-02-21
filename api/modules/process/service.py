@@ -7,6 +7,7 @@ Integrates with the platform's security module for access control.
 """
 
 import json
+import os
 import uuid
 import logging
 import re
@@ -15,6 +16,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from database.services.process_execution_service import ProcessExecutionService
+from database.services.process_settings_service import ProcessSettingsService
 from database.models import Agent
 from core.process import (
     ProcessEngine,
@@ -183,9 +185,6 @@ class ProcessAPIService:
         # =========================================================
         # MERGE SETTINGS: Org Defaults + Process Settings
         # =========================================================
-import os
-from database.services.process_settings_service import ProcessSettingsService
-        
         settings_service = ProcessSettingsService(self.db)
         org_settings = self._ensure_dict(settings_service.get_org_settings(org_id))
         process_settings = self._ensure_dict(agent.process_settings or {})
