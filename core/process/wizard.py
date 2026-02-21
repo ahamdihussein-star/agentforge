@@ -2173,113 +2173,54 @@ class ProcessWizard:
     def _generate_visual_from_template(self, goal: str) -> Dict[str, Any]:
         """
         Generate a basic Visual Builder workflow (no LLM fallback).
-        Uses the UI node/edge shape: nodes[{id,type,name,x,y,config}] and edges[{from,to,type?}].
+        Domain-agnostic — produces a generic Start → AI → End scaffold
+        that the user can customize for any process type.
         """
-        goal_lower = (goal or "").lower()
-        nodes: List[Dict[str, Any]] = []
-        edges: List[Dict[str, Any]] = []
-
-        # Always start with a trigger (form)
-        nodes.append({
-            "id": "node_1",
-            "type": "trigger",
-            "name": "Start",
-            "x": 400,
-            "y": 100,
-            "config": {
-                "triggerType": "manual",
-                "formTitle": "Request details",
-                "submitText": "Submit",
-                "fields": [{"name": "input", "type": "text", "required": True, "placeholder": "Enter details..."}],
+        nodes: List[Dict[str, Any]] = [
+            {
+                "id": "node_1",
+                "type": "trigger",
+                "name": "Start",
+                "x": 400,
+                "y": 100,
+                "config": {
+                    "triggerType": "manual",
+                    "formTitle": "Submit Request",
+                    "submitText": "Submit",
+                    "fields": [
+                        {"name": "requesterName", "label": "Name", "type": "text", "required": True,
+                         "readOnly": True, "prefill": {"source": "currentUser", "key": "name"}},
+                        {"name": "requesterEmail", "label": "Email", "type": "email", "required": True,
+                         "readOnly": True, "prefill": {"source": "currentUser", "key": "email"}},
+                        {"name": "details", "label": "Details", "type": "textarea", "required": True,
+                         "placeholder": "Describe your request..."},
+                    ],
+                },
             },
-        })
-
-        # Approval-oriented fallback
-        _approval_keywords = ["approval", "approve", "review", "manager", "vacation", "leave",
-                              "expense", "request", "إجازة", "مصروفات", "طلب"]
-        _is_hr_process = any(w in goal_lower for w in [
-            "vacation", "leave", "expense", "hr", "employee", "إجازة", "مصروفات", "موظف"
-        ])
-        # If HR process, replace the basic trigger with identity-prefilled fields
-        if _is_hr_process and any(w in goal_lower for w in _approval_keywords):
-            nodes[0]["config"]["fields"] = [
-                {"name": "employeeName", "label": "Employee Name", "type": "text", "required": True, "readOnly": True, "prefill": {"source": "currentUser", "key": "name"}},
-                {"name": "employeeEmail", "label": "Email", "type": "email", "required": True, "readOnly": True, "prefill": {"source": "currentUser", "key": "email"}},
-                {"name": "department", "label": "Department", "type": "text", "required": False, "readOnly": True, "prefill": {"source": "currentUser", "key": "departmentName"}},
-                {"name": "employeeId", "label": "Employee ID", "type": "text", "required": False, "readOnly": True, "prefill": {"source": "currentUser", "key": "employeeId"}},
-                {"name": "details", "label": "Details", "type": "textarea", "required": True, "placeholder": "Enter request details..."},
-            ]
-        if any(w in goal_lower for w in _approval_keywords):
-            # Use user_directory for manager-related goals; platform_user otherwise
-            is_manager_approval = any(w in goal_lower for w in [
-                "manager", "supervisor", "boss", "مدير", "موافقة المدير",
-                "vacation", "leave", "expense", "إجازة", "مصروفات",
-            ])
-            approval_config = {
-                "message": "Please review and approve this request.",
-                "timeout_hours": 24,
-            }
-            if is_manager_approval:
-                approval_config.update({
-                    "assignee_source": "user_directory",
-                    "directory_assignee_type": "dynamic_manager",
-                    "assignee_type": "user",
-                    "assignee_ids": [],
-                })
-            else:
-                approval_config.update({
-                    "assignee_source": "platform_user",
-                    "assignee_type": "user",
-                    "assignee_ids": [],
-                })
-            nodes.append({
-                "id": "node_2",
-                "type": "approval",
-                "name": "Manager Approval" if is_manager_approval else "Approval",
-                "x": 400,
-                "y": 240,
-                "config": approval_config,
-            })
-            edges.append({"from": "node_1", "to": "node_2"})
-            nodes.append({
-                "id": "node_3",
-                "type": "notification",
-                "name": "Notify Requester",
-                "x": 400,
-                "y": 380,
-                "config": {"channel": "email", "recipient": "{{email}}", "template": "Your request was processed."},
-            })
-            edges.append({"from": "node_2", "to": "node_3"})
-            nodes.append({
-                "id": "node_4",
-                "type": "end",
-                "name": "End",
-                "x": 400,
-                "y": 520,
-                "config": {"output": ""},
-            })
-            edges.append({"from": "node_3", "to": "node_4"})
-        else:
-            # Simple AI step fallback
-            nodes.append({
+            {
                 "id": "node_2",
                 "type": "ai",
                 "name": "Process Request",
                 "x": 400,
-                "y": 240,
+                "y": 360,
                 "output_variable": "result",
-                "config": {"prompt": "Process this request and return a short result.\n\nInput: {{input}}", "model": "gpt-4o"},
-            })
-            edges.append({"from": "node_1", "to": "node_2"})
-            nodes.append({
+                "config": {
+                    "prompt": "Analyse the following request and return a structured summary.\n\nDetails: {{details}}",
+                },
+            },
+            {
                 "id": "node_3",
                 "type": "end",
                 "name": "End",
                 "x": 400,
-                "y": 380,
+                "y": 620,
                 "config": {"output": ""},
-            })
-            edges.append({"from": "node_2", "to": "node_3"})
+            },
+        ]
+        edges: List[Dict[str, Any]] = [
+            {"from": "node_1", "to": "node_2"},
+            {"from": "node_2", "to": "node_3"},
+        ]
 
         return {
             "name": goal[:60] if goal else "Workflow",
