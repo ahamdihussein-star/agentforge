@@ -4792,7 +4792,19 @@
                     saveToUndo();
                     return;
                 }
+                const prevVal = node.config ? node.config[key] : undefined;
                 node.config[key] = value;
+
+                // Auto-publish named outputs for Calculate steps (so downstream dropdowns can select them).
+                // If the user edits the friendly label and hasn't set a custom output key, generate one.
+                if (node.type === 'calculate' && key === 'dataLabel') {
+                    const prevKey = toFieldKey(String(prevVal || '').trim());
+                    const nextKey = toFieldKey(String(value || '').trim()) || 'calculatedValue';
+                    const curOut = String(node.output_variable || '').trim();
+                    if (!curOut || (prevKey && curOut === prevKey)) {
+                        node.output_variable = nextKey;
+                    }
+                }
                 refreshNode(node);
                 // Re-render properties for recipient changes to update hint text
                 if (key === 'recipient' && node.type === 'notification') {

@@ -1452,6 +1452,20 @@ class ProcessWizard:
                         if isinstance(cf, str) and cf in mapping:
                             n["config"]["field"] = mapping[cf]
 
+        # ENFORCE: Calculate nodes must publish a named output variable so downstream steps can select it.
+        # If a friendly label exists, derive a stable lowerCamelCase key from it.
+        for n in normalized_nodes:
+            if (n.get("type") or "").strip().lower() != "calculate":
+                continue
+            if str(n.get("output_variable") or "").strip():
+                continue
+            cfg = n.get("config") or {}
+            if not isinstance(cfg, dict):
+                continue
+            dl = str(cfg.get("dataLabel") or "").strip()
+            if dl:
+                n["output_variable"] = _to_camel_key(dl) or "calculatedValue"
+
         # Ensure at least one end node
         if not any(n.get("type") == "end" for n in normalized_nodes):
             normalized_nodes.append({
