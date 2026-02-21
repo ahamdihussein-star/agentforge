@@ -6770,8 +6770,8 @@
                     }
                     if (fileList.length > 0) {
                         try {
-                            if (f.multiple && fileList.length > 1) {
-                                // Upload all files for multiple-file fields
+                            if (f.multiple) {
+                                // For multiple-file fields, ALWAYS pass an array (even if only one file selected)
                                 const uploaded = [];
                                 for (let fi = 0; fi < fileList.length; fi++) {
                                     uploaded.push(await uploadPbTestRunFile(fileList[fi]));
