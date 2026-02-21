@@ -220,8 +220,10 @@ IMPORTANT:
   - For webhook-triggered processes (external system calls): triggerType "webhook", with method ("POST"|"GET"|"PUT"|"PATCH"), path (e.g., "/trigger"), and auth ("none"|"api_key"|"bearer").
 - Always include at least ONE "end" node.
 - If you include a "condition" node, you MUST create exactly two outgoing edges from it:
-  - one with type "yes"
-  - one with type "no"
+  - one with type "yes" (taken when the expression is TRUE)
+  - one with type "no" (taken when the expression is FALSE)
+  IMPORTANT: "yes" means the expression evaluated to TRUE. "no" means it evaluated to FALSE.
+  Example: expression "{{{{totalAmount}}}} < 500"  →  yes (amount IS under 500)  →  no (amount is NOT under 500).
 - In prompts/templates, reference form fields using double braces like {{{{amount}}}} or {{{{email}}}}.
 - This platform is for business users: ALL labels shown to users must be business-friendly and human readable (no snake_case, no internal IDs).
 - For internal field keys, ALWAYS use lowerCamelCase (no underscores). Example: employeeEmail, startDate, endDate, numberOfDays.
@@ -483,9 +485,11 @@ Node config rules:
 
 - AUTOMATIC APPROVAL PATTERN (condition-based):
   When a workflow should auto-approve under certain conditions (e.g., amount below a threshold), use a CONDITION node:
-  - The condition checks the relevant value (e.g., field: "totalAmount", operator: "less_than", value: "500")
-  - "yes" branch → skip approval, go directly to a notification node (informing the user it was auto-approved)
-  - "no" branch → go to an approval node (for manual review)
+  - Write the expression so that TRUE = the auto-approve case.
+    Example: expression "{{{{totalAmount}}}} < 500"  → TRUE when amount is under 500 (auto-approve), FALSE when 500 or more (manual approval).
+  - "yes" edge (expression is TRUE) → notification node telling the user the request was auto-approved.
+  - "no" edge (expression is FALSE) → approval node for manual review by a manager.
+  CRITICAL: Do NOT invert this. "yes" = condition is met = auto-approve. "no" = condition is not met = needs manual approval.
   This lets workflows intelligently route based on data without requiring human intervention in every case.
 
 - CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
@@ -543,9 +547,10 @@ approval:
 
 condition:
 {{
-    "expression": "<boolean expression with variables>",
-    "true_branch": "<next_node_id>",
-    "false_branch": "<next_node_id>"
+    "expression": "<boolean expression — TRUE triggers the 'yes' edge, FALSE triggers the 'no' edge>",
+    "field": "<variable name to check, e.g. totalAmount>",
+    "operator": "<less_than|greater_than|equals|not_equals|contains|is_empty>",
+    "value": "<threshold value>"
 }}
 
 Generate the config for this node:"""
@@ -1494,6 +1499,24 @@ class ProcessWizard:
                 if not has_no:
                     normalized_edges.append({"from": cid, "to": no_target, "type": "no"})
 
+        # ENFORCE: Condition routing sanity — detect inverted auto-approval patterns.
+        # If a condition's YES edge targets an approval/human_task node while its NO edge
+        # targets a notification node, the branches are almost certainly swapped.
+        node_type_by_id = {n.get("id"): (n.get("type") or "").lower() for n in normalized_nodes}
+        for cid in cond_ids:
+            yes_edge = next((e for e in normalized_edges if e.get("from") == cid and e.get("type") == "yes"), None)
+            no_edge = next((e for e in normalized_edges if e.get("from") == cid and e.get("type") == "no"), None)
+            if not yes_edge or not no_edge:
+                continue
+            yes_target_type = node_type_by_id.get(yes_edge.get("to"), "")
+            no_target_type = node_type_by_id.get(no_edge.get("to"), "")
+            yes_is_approval = yes_target_type in ("approval", "human_task")
+            no_is_light = no_target_type in ("notification", "end")
+            no_is_approval = no_target_type in ("approval", "human_task")
+            yes_is_light = yes_target_type in ("notification", "end")
+            if yes_is_approval and no_is_light and not (no_is_approval and yes_is_light):
+                yes_edge["to"], no_edge["to"] = no_edge["to"], yes_edge["to"]
+
         # ENFORCE: Extract Document Text actions must have sourceField set.
         # Find file fields from the start/form nodes and auto-assign if missing.
         trigger_file_fields = []
@@ -2300,7 +2323,7 @@ class ProcessWizard:
             "database_query: Database operation (config: operation, query)",
             "approval: Approval gate (config: title, assignee_type, min_approvals, timeout_hours)",
             "notification: Send notification (config: channel, recipients, title, message)",
-            "condition: If/else branching (config: expression, true_branch, false_branch)",
+            "condition: If/else branching (config: field, operator, value — yes edge = TRUE, no edge = FALSE)",
             "loop: Iterate over items (config: items, item_variable, index_variable)",
             "parallel: Parallel execution (config: branches)",
             "transform: Data transformation (config: transform_type, mappings)",
