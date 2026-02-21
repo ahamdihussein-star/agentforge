@@ -10,6 +10,7 @@ Design Principles:
 """
 
 import copy
+import os
 import re
 import json
 from typing import Dict, Any, List, Optional, Set
@@ -18,6 +19,24 @@ from pydantic import BaseModel, Field
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _is_truthy_env(name: str) -> bool:
+    v = str(os.getenv(name, "")).strip().lower()
+    return v in ("1", "true", "yes", "y", "on")
+
+
+_DEBUG_PROCESS = _is_truthy_env("PROCESS_DEBUG")
+_DEBUG_CONDITIONS = _is_truthy_env("PROCESS_DEBUG_CONDITIONS") or _DEBUG_PROCESS
+
+
+def _truncate_for_log(value: Any, max_len: int = 240) -> str:
+    try:
+        s = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+    except Exception:
+        s = str(value)
+    s = s.replace("\n", "\\n")
+    return s if len(s) <= max_len else (s[:max_len] + "…")
 
 
 # =============================================================================
@@ -326,8 +345,14 @@ class ProcessState:
         if not expression:
             return True
         
+        if _DEBUG_CONDITIONS:
+            logger.info("[ConditionDebug] raw=%s", _truncate_for_log(expression))
+
         # First, substitute variables
         evaluated = self.evaluate(expression)
+
+        if _DEBUG_CONDITIONS:
+            logger.info("[ConditionDebug] evaluated=%s", _truncate_for_log(evaluated))
         
         # If result is already boolean, return it
         if isinstance(evaluated, bool):
@@ -352,9 +377,51 @@ class ProcessState:
         try:
             # Simple safe evaluation
             result = self._safe_eval(str(evaluated))
+            if _DEBUG_CONDITIONS:
+                logger.info("[ConditionDebug] safe_eval_result=%s", bool(result))
             return bool(result)
         except Exception as e:
-            logger.warning(f"Failed to evaluate condition '{expression}': {e}")
+            evaluated_str = str(evaluated).strip()
+            if _DEBUG_CONDITIONS:
+                logger.warning("[ConditionDebug] safe_eval_failed err=%s expr=%s", str(e), _truncate_for_log(evaluated_str))
+
+            # Generic fallback: try to compare numbers even if values include units/currency (e.g., "100 AED < 500").
+            # Only applied to single ordering comparisons (no and/or/not).
+            try:
+                if not re.search(r"\b(and|or|not)\b", evaluated_str, flags=re.IGNORECASE):
+                    m = re.search(r"(<=|>=|<|>)", evaluated_str)
+                    if m:
+                        op = m.group(1)
+                        left = evaluated_str[:m.start()].strip()
+                        right = evaluated_str[m.end():].strip()
+
+                        def _first_number(s: str) -> Optional[float]:
+                            mm = re.search(r"[-+]?\d+(?:\.\d+)?", s)
+                            if not mm:
+                                return None
+                            try:
+                                return float(mm.group(0))
+                            except Exception:
+                                return None
+
+                        ln = _first_number(left)
+                        rn = _first_number(right)
+                        if ln is not None and rn is not None:
+                            if op == "<":
+                                out = ln < rn
+                            elif op == "<=":
+                                out = ln <= rn
+                            elif op == ">":
+                                out = ln > rn
+                            else:
+                                out = ln >= rn
+                            if _DEBUG_CONDITIONS:
+                                logger.info("[ConditionDebug] numeric_fallback left=%s right=%s op=%s -> %s", ln, rn, op, out)
+                            return out
+            except Exception:
+                pass
+
+            logger.warning("Failed to evaluate condition '%s': %s", expression, e)
             return False
     
     def _resolve_path(self, path: str) -> Any:

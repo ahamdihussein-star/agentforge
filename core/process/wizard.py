@@ -18,11 +18,20 @@ Usage:
 
 import json
 import logging
+import os
 import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+
+def _is_truthy_env(name: str) -> bool:
+    v = str(os.getenv(name, "")).strip().lower()
+    return v in ("1", "true", "yes", "y", "on")
+
+
+_DEBUG_CONDITIONS = _is_truthy_env("PROCESS_DEBUG_CONDITIONS") or _is_truthy_env("PROCESS_DEBUG")
 
 from .platform_knowledge import retrieve_platform_knowledge, load_safe_taxonomies
 
@@ -1501,6 +1510,27 @@ class ProcessWizard:
                     normalized_edges.append({"from": cid, "to": yes_target, "type": "yes"})
                 if not has_no:
                     normalized_edges.append({"from": cid, "to": no_target, "type": "no"})
+
+        # Optional debug: log condition nodes with resolved yes/no targets (no values / PII).
+        if _DEBUG_CONDITIONS and cond_ids:
+            _type_by_id = {n.get("id"): str(n.get("type") or "") for n in normalized_nodes}
+            for cid in cond_ids:
+                _n = next((n for n in normalized_nodes if n.get("id") == cid), {}) or {}
+                _cfg = _n.get("config") or {}
+                _yes = next((e.get("to") for e in normalized_edges if e.get("from") == cid and e.get("type") == "yes"), None)
+                _no = next((e.get("to") for e in normalized_edges if e.get("from") == cid and e.get("type") == "no"), None)
+                logger.info(
+                    "[ConditionDebug] wizard_normalize id=%s expr=%s field=%s operator=%s value=%s yes=%s(%s) no=%s(%s)",
+                    cid,
+                    str(_cfg.get("expression") or ""),
+                    str(_cfg.get("field") or ""),
+                    str(_cfg.get("operator") or ""),
+                    str(_cfg.get("value") or ""),
+                    str(_yes or ""),
+                    str(_type_by_id.get(_yes, "") if _yes else ""),
+                    str(_no or ""),
+                    str(_type_by_id.get(_no, "") if _no else ""),
+                )
 
         # ENFORCE: Extract Document Text actions must have sourceField set.
         # Find file fields from the start/form nodes and auto-assign if missing.

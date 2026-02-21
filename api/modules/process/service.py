@@ -183,7 +183,8 @@ class ProcessAPIService:
         # =========================================================
         # MERGE SETTINGS: Org Defaults + Process Settings
         # =========================================================
-        from database.services.process_settings_service import ProcessSettingsService
+import os
+from database.services.process_settings_service import ProcessSettingsService
         
         settings_service = ProcessSettingsService(self.db)
         org_settings = self._ensure_dict(settings_service.get_org_settings(org_id))
@@ -212,19 +213,21 @@ class ProcessAPIService:
             )
 
             # --- [ProcessDebug] Definition used for execution (after normalize) ---
-            _norm_nodes = definition_data.get("nodes") or []
-            logger.info("[ProcessDebug] After normalize: nodes_count=%s", len(_norm_nodes))
-            for i, nn in enumerate(_norm_nodes):
-                _nc = nn.get("config") or {}
-                _ntc = _nc.get("type_config") or _nc
-                logger.info(
-                    "[ProcessDebug]   norm_node[%s] id=%s type=%s assignee_ids=%s expression=%s true_branch=%s false_branch=%s",
-                    i, nn.get("id"), nn.get("type"),
-                    _ntc.get("assignee_ids") if isinstance(_ntc, dict) else None,
-                    _ntc.get("expression") if isinstance(_ntc, dict) else None,
-                    _ntc.get("true_branch") if isinstance(_ntc, dict) else None,
-                    _ntc.get("false_branch") if isinstance(_ntc, dict) else None,
-                )
+            _dbg = str(os.getenv("PROCESS_DEBUG", "")).strip().lower() in ("1", "true", "yes", "y", "on")
+            if _dbg:
+                _norm_nodes = definition_data.get("nodes") or []
+                logger.info("[ProcessDebug] After normalize: nodes_count=%s", len(_norm_nodes))
+                for i, nn in enumerate(_norm_nodes):
+                    _nc = nn.get("config") or {}
+                    _ntc = _nc.get("type_config") or _nc
+                    logger.info(
+                        "[ProcessDebug]   norm_node[%s] id=%s type=%s assignee_ids=%s expression=%s true_branch=%s false_branch=%s",
+                        i, nn.get("id"), nn.get("type"),
+                        _ntc.get("assignee_ids") if isinstance(_ntc, dict) else None,
+                        _ntc.get("expression") if isinstance(_ntc, dict) else None,
+                        _ntc.get("true_branch") if isinstance(_ntc, dict) else None,
+                        _ntc.get("false_branch") if isinstance(_ntc, dict) else None,
+                    )
             # --- end ProcessDebug ---
             
             process_def = ProcessDefinition.from_dict(definition_data)
@@ -234,10 +237,11 @@ class ProcessAPIService:
         
         _trigger = self._ensure_dict(trigger_input or {})
         # --- [ProcessDebug] Execution input ---
-        logger.info(
-            "[ProcessDebug] Starting execution: agent_id=%s, trigger_type=%s, trigger_input_keys=%s (values not logged to avoid PII)",
-            agent_id, trigger_type, list(_trigger.keys())
-        )
+        if str(os.getenv("PROCESS_DEBUG", "")).strip().lower() in ("1", "true", "yes", "y", "on"):
+            logger.info(
+                "[ProcessDebug] Starting execution: agent_id=%s, trigger_type=%s, trigger_input_keys=%s (values not logged to avoid PII)",
+                agent_id, trigger_type, list(_trigger.keys())
+            )
         # --- end ProcessDebug ---
 
         # Create execution record (snapshot = normalized definition so resume/DB always get dict + normalizations)
@@ -1777,6 +1781,9 @@ class ProcessAPIService:
             if src not in edges_by_source:
                 edges_by_source[src] = {}
             edges_by_source[src][e.get('edge_type', 'default')] = e['target']
+
+        _dbg_cond = str(os.getenv("PROCESS_DEBUG_CONDITIONS", "")).strip().lower() in ("1", "true", "yes", "y", "on") or \
+            str(os.getenv("PROCESS_DEBUG", "")).strip().lower() in ("1", "true", "yes", "y", "on")
         
         # Normalize nodes: type trigger/form -> start; wrap config in type_config
         nodes = data.get('nodes') or []
@@ -1853,6 +1860,17 @@ class ProcessAPIService:
                 out = edges_by_source.get(node.get('id'), {})
                 type_cfg['true_branch'] = out.get('yes') or out.get('default')
                 type_cfg['false_branch'] = out.get('no')
+                if _dbg_cond:
+                    logger.info(
+                        "[ConditionDebug] normalize node_id=%s field=%s operator=%s value=%s expression=%s yes=%s no=%s",
+                        node.get("id"),
+                        str(field or ""),
+                        str(operator or ""),
+                        str(value or ""),
+                        str(type_cfg.get("expression") or ""),
+                        str(type_cfg.get("true_branch") or ""),
+                        str(type_cfg.get("false_branch") or ""),
+                    )
             # Notification node: Process Builder uses 'recipient' (single), 'template' (body); engine expects 'recipients' (list), 'message'
             if node_type == 'notification':
                 if not type_cfg.get('recipients') and type_cfg.get('recipient'):
