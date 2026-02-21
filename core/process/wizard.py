@@ -250,9 +250,15 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
 VISUAL LAYOUT RULES (CRITICAL — follow strictly for clean, professional diagrams):
 - Connection lines must NEVER pass through any node. Ensure enough spacing so edges route cleanly around nodes.
 - Connection lines must take the SHORTEST path between nodes. Never loop or take long detours.
-- Minimum spacing: 200px vertical gap between sequential nodes, 300px horizontal gap between branches.
-- For linear flows (no conditions): place ALL nodes in a single vertical column (same x, increasing y by ~200).
-- For condition branches: "yes" path goes LEFT (x - 300), "no" path goes RIGHT (x + 300). Both paths reconverge to a shared node at center x below both branches.
+- Minimum spacing: 260px vertical gap between sequential nodes, 520px horizontal gap between branches.
+- For linear flows (no conditions): place ALL nodes in a single vertical column (same x, increasing y by ~260).
+- For condition branches:
+  * "yes" branch nodes go LEFT (condition.x - 520).
+  * "no" branch nodes go RIGHT (condition.x + 520).
+  * ALL nodes on each branch MUST stay on their side (inherit x from the branch head, not the condition node).
+  * When both branches converge back to a shared node (e.g., End), place that node at the condition's x (center).
+  * If each branch has sub-steps (e.g., Approval → Notification), keep them vertically stacked on the same side.
+- NEVER stack two sibling branches on the same x position — they will overlap and edges will cross through nodes.
 - Keep the main flow linear when possible. Avoid unnecessary branching — it creates visual clutter.
 
 END NODE RULE (ABSOLUTE — NO EXCEPTIONS):
@@ -1924,7 +1930,9 @@ class ProcessWizard:
         if start_id:
             x_pos[start_id] = base_x
 
-        # Assign x by inheriting from single parent; merge nodes center back.
+        # Assign x positions top-down.
+        # Single-parent nodes inherit parent x + any branch offset.
+        # Multi-parent (merge) nodes center between their parents.
         for nid in ordered_ids:
             if nid == start_id:
                 continue
@@ -1937,18 +1945,13 @@ class ProcessWizard:
             if len(uniq_parents) == 1:
                 parent = uniq_parents[0]
                 px = x_pos.get(parent, base_x)
-                off = 0
-                for e in incs:
-                    if e.get("from") == parent:
-                        off = child_offset.get((parent, nid), 0)
-                        break
+                off = child_offset.get((parent, nid), 0)
                 x_pos[nid] = px + off
             else:
-                # Merge node: center between parents (improves readability and avoids long cross-branch edges)
                 pxs = [x_pos.get(p, base_x) for p in uniq_parents]
                 x_pos[nid] = int(round(sum(pxs) / max(1, len(pxs))))
 
-        # Per-level spacing: ensure nodes in the same row don't overlap horizontally.
+        # Per-level spacing: ensure nodes in the same row don't overlap.
         nodes_by_level: Dict[int, List[str]] = {}
         for nid in ordered_ids:
             nodes_by_level.setdefault(int(level.get(nid, 0)), []).append(nid)
@@ -1964,6 +1967,15 @@ class ProcessWizard:
                     cur = last_x + min_gap_x
                     x_pos[nid] = cur
                 last_x = cur
+
+        # Re-center the whole graph so the midpoint is at base_x.
+        all_xs = [x_pos.get(nid, base_x) for nid in ordered_ids]
+        if all_xs:
+            mid = (min(all_xs) + max(all_xs)) / 2
+            shift = int(round(base_x - mid))
+            if shift:
+                for nid in ordered_ids:
+                    x_pos[nid] = x_pos.get(nid, base_x) + shift
 
         # Apply computed positions
         for nid in ordered_ids:
@@ -1984,13 +1996,14 @@ class ProcessWizard:
             n["x"] = int(round(float(x) / 20) * 20)
             n["y"] = int(round(float(y) / 20) * 20)
 
-        # ENFORCE: End node positioned below all other nodes
+        # ENFORCE: End node positioned below all other nodes, centered under start
+        start_x_final = next((n.get("x", base_x) for n in normalized_nodes if n.get("type") in ("trigger", "form", "start")), base_x)
         if end_nodes:
             max_y = max((n.get("y", 0) for n in normalized_nodes if n.get("type") != "end"), default=100)
             for en in end_nodes:
                 if en.get("y", 0) <= max_y:
                     en["y"] = int(round((max_y + gap_y) / 20) * 20)
-                    en["x"] = base_x  # Center it
+                en["x"] = start_x_final
 
         out["nodes"] = normalized_nodes
         out["edges"] = normalized_edges

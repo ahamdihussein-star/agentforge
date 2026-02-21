@@ -6,15 +6,16 @@ These rules define how workflows should look and flow in the visual builder.
 
 ### Node Positioning
 - **Start node**: Center top (e.g., x=400, y=100).
-- **Sequential nodes**: Same x, increase y by ~200 each.
-- **Condition branches**: Offset x by ±300. "yes" path goes LEFT, "no" path goes RIGHT.
-- **Parallel branches**: Offset each branch by ±300 horizontally, same y level.
-- **Reconvergence node**: Back to center x, y below all branches.
-- **End node**: Center x, y well below everything else (at least 200px gap from last node). MUST be the LAST entry in the nodes array.
+- **Sequential nodes**: Same x, increase y by ~260 each.
+- **Condition branches**: Offset x by ±520. "yes" path goes LEFT (x−520), "no" path goes RIGHT (x+520).
+- **ALL sub-steps on a branch MUST inherit that branch's x**: If "Notify Auto-Approval" is on the YES path (x=condition−520), any node after it on the same path also uses the same x.
+- **Parallel branches**: Offset each branch by ±520 horizontally, same y level.
+- **Reconvergence/merge node**: Back to the condition's center x, y below all branches.
+- **End node**: Center x, y well below everything else (at least 260px gap from last node). MUST be the LAST entry in the nodes array.
 
 ### Spacing
-- Minimum vertical gap between sequential nodes: 180-200px.
-- Minimum horizontal gap between branches: 280-300px.
+- Minimum vertical gap between sequential nodes: 260px.
+- Minimum horizontal gap between branches: 520px.
 - Enough space for labels, connection lines, and node shapes to be clearly readable.
 
 ### Connection Rules
@@ -22,6 +23,7 @@ These rules define how workflows should look and flow in the visual builder.
 - Connection lines must take the SHORTEST path between nodes.
 - Place nodes in a single vertical column when the flow is linear.
 - Only spread horizontally for condition or parallel branches.
+- Sibling branches MUST NEVER share the same x position — they will overlap and edges will cross through nodes.
 
 ### Auto-Layout
 The platform applies auto-layout after generation. Focus on correct flow logic rather than pixel-perfect positioning.
@@ -37,12 +39,13 @@ All nodes in a single vertical column (same x, increasing y by ~200).
 ### Condition Branching (Medium — 5-10 steps)
 ```
 trigger → form → condition
-                  ├── yes (LEFT, x-300) → path A → ──┐
-                  └── no  (RIGHT, x+300) → path B → ──┤
-                                                       └── shared node → end
+                  ├── yes (LEFT, x-520) → path A → ──┐
+                  └── no  (RIGHT, x+520) → path B → ──┤
+                                                       └── shared node (center x) → end
 ```
 Both branches reconverge to a shared node at center x below both branches.
 Both branches should have roughly equal vertical depth before reconverging.
+ALL downstream nodes on a branch keep the same x as the branch head.
 
 ### Multi-Condition Cascade
 For multiple thresholds (e.g., amount < 500, 500-5000, > 5000):
@@ -58,9 +61,9 @@ trigger → form → condition1 (< 500?)
 ### Parallel Execution
 ```
 trigger → form → parallel
-                  ├── branch1 (x-300): notification to team A
+                  ├── branch1 (x-520): notification to team A
                   ├── branch2 (center): create document
-                  └── branch3 (x+300): tool call
+                  └── branch3 (x+520): tool call
                             ↓ (all complete)
                          merge → end
 ```

@@ -1977,13 +1977,11 @@ class ProcessAPIService:
                 if enabled_tool_ids and isinstance(enabled_tool_ids, list):
                     type_cfg['enabled_tool_ids'] = enabled_tool_ids
 
-            # New shape: calculate → transform
+            # New shape: calculate → transform (with calculate handler)
             if node_type == 'calculate':
-                op = type_cfg.get('operation') or 'custom'
-                expr = type_cfg.get('expression') or ''
-                type_cfg['transform_type'] = 'custom'
-                if not type_cfg.get('script'):
-                    type_cfg['script'] = expr
+                type_cfg['transform_type'] = 'calculate'
+                if not type_cfg.get('operation'):
+                    type_cfg['operation'] = 'custom'
 
             # Schedule/Webhook legacy nodes: map into START triggerType config
             if node_type in ('schedule', 'webhook'):

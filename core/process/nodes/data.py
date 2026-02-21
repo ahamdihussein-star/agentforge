@@ -27,13 +27,15 @@ class TransformNodeExecutor(BaseNodeExecutor):
     Performs data transformation using various strategies.
     
     Config:
-        transform_type: map, filter, aggregate, script, jq
+        transform_type: map, filter, aggregate, script, calculate, jq
         input_expression: Expression to get input data
         mapping: Field mapping for map transform
         filter_expression: Expression for filter transform
         script_language: python or javascript
         script: Transform script
         jq_expression: JQ-like expression
+        operation: (for calculate) sum, average, count, concat, custom
+        expression: (for calculate) formula with {{field}} refs
     """
     
     display_name = "Transform"
@@ -62,12 +64,10 @@ class TransformNodeExecutor(BaseNodeExecutor):
                     logs=logs
                 )
         else:
-            # Use all variables as input
             input_data = state.get_all()
         
         logs.append(f"Input type: {type(input_data).__name__}")
         
-        # Execute transform based on type
         try:
             if transform_type == 'map':
                 result = self._transform_map(input_data, mapping, state)
@@ -87,6 +87,11 @@ class TransformNodeExecutor(BaseNodeExecutor):
             elif transform_type == 'script':
                 script = self.get_config_value(node, 'script', '')
                 result = self._transform_script(input_data, script)
+            elif transform_type in ('calculate', 'custom'):
+                operation = self.get_config_value(node, 'operation', 'custom')
+                expression = self.get_config_value(node, 'expression', '')
+                result = self._transform_calculate(input_data, operation, expression, state)
+                logs.append(f"Calculate ({operation}): result = {result}")
             else:
                 return NodeResult.failure(
                     error=ExecutionError.validation_error(f"Unknown transform type: {transform_type}"),
@@ -171,7 +176,6 @@ class TransformNodeExecutor(BaseNodeExecutor):
     
     def _transform_script(self, data: Any, script: str) -> Any:
         """Execute transform script"""
-        # Create safe execution environment
         safe_globals = {
             '__builtins__': {
                 'len': len, 'str': str, 'int': int, 'float': float,
@@ -189,6 +193,56 @@ class TransformNodeExecutor(BaseNodeExecutor):
         local_vars = {'data': data, 'result': None}
         exec(script, safe_globals, local_vars)
         return local_vars.get('result', data)
+
+    def _transform_calculate(self, data: Any, operation: str, expression: str, state: ProcessState) -> Any:
+        """
+        Evaluate a calculate expression.
+        Resolves {{variable}} references via state, then applies the operation.
+        """
+        resolved = state.evaluate(expression) if expression else data
+
+        def _to_numbers(val: Any) -> List[float]:
+            """Coerce a value (or list of values) into a flat list of floats."""
+            items: list = val if isinstance(val, list) else [val]
+            nums: List[float] = []
+            for item in items:
+                if isinstance(item, dict):
+                    for v in item.values():
+                        try:
+                            nums.append(float(v))
+                        except (TypeError, ValueError):
+                            pass
+                else:
+                    try:
+                        nums.append(float(item))
+                    except (TypeError, ValueError):
+                        pass
+            return nums
+
+        op = str(operation).strip().lower()
+        if op == 'sum':
+            nums = _to_numbers(resolved)
+            return sum(nums)
+        elif op == 'average':
+            nums = _to_numbers(resolved)
+            return sum(nums) / max(1, len(nums))
+        elif op == 'count':
+            if isinstance(resolved, (list, tuple)):
+                return len(resolved)
+            if isinstance(resolved, dict):
+                return len(resolved)
+            return 1
+        elif op == 'concat':
+            if isinstance(resolved, list):
+                return ', '.join(str(v) for v in resolved)
+            return str(resolved)
+        else:
+            if isinstance(resolved, str):
+                try:
+                    return float(resolved) if '.' in resolved else int(resolved)
+                except (TypeError, ValueError):
+                    pass
+            return resolved
 
 
 @register_executor(NodeType.VALIDATE)
