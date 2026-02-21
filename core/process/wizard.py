@@ -510,6 +510,11 @@ Node config rules:
   - Use for computing totals, averages, counts, or combining text values.
   - Set node.output_variable to store the computed result.
   - Also set dataLabel (friendly display name for the result).
+  - CRITICAL NAMING RULE: The expression MUST use the EXACT variable paths from upstream nodes.
+    If an AI node has output_variable "extractedData" with outputField name "totalAmount",
+    the expression MUST be "{{{{extractedData.totalAmount}}}}".
+  - If a condition node follows a calculate node, the condition's "field" MUST match the calculate node's output_variable EXACTLY.
+    Example: if calculate has output_variable "totalAmount", the condition must use field "totalAmount" (not a sub-field of something else).
 
 - end.config must include: output. Use "" (empty string) to output ALL variables. If you want to output a single variable, use {{{{variable_name}}}}.
 
@@ -1545,6 +1550,124 @@ class ProcessWizard:
                     str(_no or ""),
                     str(_type_by_id.get(_no, "") if _no else ""),
                 )
+
+        # -------------------------------------------------------------------
+        # CROSS-REFERENCE: Verify that variable refs in calculate expressions
+        # and condition fields actually resolve to known upstream outputs.
+        # This is GENERIC — it does not assume any specific process or domain.
+        # -------------------------------------------------------------------
+        _known_vars: set = set()
+        _known_dot_paths: set = set()  # e.g. extractedData.totalAmount
+
+        # Collect form/trigger field names
+        for _n in normalized_nodes:
+            if _n.get("type") in ("form", "trigger", "start"):
+                for _f in (_n.get("config") or {}).get("fields") or []:
+                    _fname = _f.get("name") or _f.get("id")
+                    if _fname:
+                        _known_vars.add(str(_fname))
+
+        # Collect output_variables + AI outputField sub-paths
+        for _n in normalized_nodes:
+            _ov = str(_n.get("output_variable") or "").strip()
+            if _ov:
+                _known_vars.add(_ov)
+            _ncfg = _n.get("config") or {}
+            if isinstance(_ncfg, dict):
+                for _of in _ncfg.get("outputFields") or []:
+                    _ofname = (_of.get("name") or "").strip()
+                    if _ofname and _ov:
+                        _known_dot_paths.add(f"{_ov}.{_ofname}")
+
+        # Helper: check if a {{path}} is resolvable
+        def _is_known_path(p: str) -> bool:
+            p = p.strip()
+            if p in _known_vars:
+                return True
+            if p in _known_dot_paths:
+                return True
+            # Also check without leading braces (in case raw)
+            return False
+
+        # Cross-reference condition nodes: ensure 'field' resolves to a known upstream output.
+        for _n in normalized_nodes:
+            if _n.get("type") != "condition":
+                continue
+            _ccfg = _n.get("config") or {}
+            if not isinstance(_ccfg, dict):
+                continue
+            _field = str(_ccfg.get("field") or "").strip()
+            if not _field or _is_known_path(_field):
+                continue
+            # Field not found in registry — try to fix from upstream graph
+            _incoming = [e.get("from") for e in normalized_edges if e.get("to") == _n.get("id")]
+            _fixed = False
+            for _src_id in _incoming:
+                _src_node = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
+                if not _src_node:
+                    continue
+                _src_ov = str(_src_node.get("output_variable") or "").strip()
+                if _src_ov:
+                    logger.info(
+                        "Cross-ref fix: condition '%s' field '%s' not found, using upstream '%s' output_variable '%s'",
+                        _n.get("name", _n.get("id")),
+                        _field,
+                        _src_node.get("name", _src_id),
+                        _src_ov,
+                    )
+                    _ccfg["field"] = _src_ov
+                    # Also update the expression if it uses the old field name
+                    _old_expr = str(_ccfg.get("expression") or "").strip()
+                    if _old_expr and ("{{" + _field + "}}") in _old_expr:
+                        _ccfg["expression"] = _old_expr.replace("{{" + _field + "}}", "{{" + _src_ov + "}}")
+                    _fixed = True
+                    break
+            if not _fixed:
+                # Fallback: case-insensitive search in known vars
+                _fl = _field.lower()
+                for _kv in _known_vars:
+                    if _kv.lower() == _fl:
+                        _ccfg["field"] = _kv
+                        _fixed = True
+                        break
+
+        # Cross-reference calculate expressions: ensure {{path}} refs resolve
+        for _n in normalized_nodes:
+            if (str(_n.get("type") or "")).strip().lower() != "calculate":
+                continue
+            _ccfg = _n.get("config") or {}
+            if not isinstance(_ccfg, dict):
+                continue
+            _expr = str(_ccfg.get("expression") or "").strip()
+            if not _expr:
+                continue
+            _refs = re.findall(r"\{\{([^}]+)\}\}", _expr)
+            for _ref in _refs:
+                _ref = _ref.strip()
+                if _is_known_path(_ref):
+                    continue
+                # Ref not found — try fuzzy match
+                _rl = _ref.lower()
+                # Try dot-path match (e.g. extractedData.totalAmount → extractedData.amount)
+                if "." in _ref:
+                    _base, _tail = _ref.rsplit(".", 1)
+                    _tl = _tail.lower()
+                    _candidates = [dp for dp in _known_dot_paths if dp.startswith(_base + ".")]
+                    # Exact case-insensitive match on the leaf
+                    _match = next((c for c in _candidates if c.rsplit(".", 1)[1].lower() == _tl), None)
+                    if not _match:
+                        # Contains match
+                        _match = next((c for c in _candidates if _tl in c.rsplit(".", 1)[1].lower() or c.rsplit(".", 1)[1].lower() in _tl), None)
+                    if _match:
+                        _expr = _expr.replace("{{" + _ref + "}}", "{{" + _match + "}}")
+                        _ccfg["expression"] = _expr
+                        logger.info("Cross-ref fix: calculate expression ref '%s' → '%s'", _ref, _match)
+                else:
+                    # Simple var — case-insensitive
+                    _match = next((kv for kv in _known_vars if kv.lower() == _rl), None)
+                    if _match:
+                        _expr = _expr.replace("{{" + _ref + "}}", "{{" + _match + "}}")
+                        _ccfg["expression"] = _expr
 
         # ENFORCE: Extract Document Text actions must have sourceField set.
         # Find file fields from the start/form nodes and auto-assign if missing.

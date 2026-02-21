@@ -2969,6 +2969,20 @@
                         nodeId: n.id
                     });
                 }
+                // Generic fallback: any node with output_variable not handled above
+                else if (outVar) {
+                    const icons = { calculate: '🧮', tool: '🔗', parallel: '⚡', loop: '🔄' };
+                    const label = cfg.dataLabel || humanizeFieldLabel(outVar);
+                    outputs.push({
+                        name: outVar,
+                        label: label,
+                        type: 'data',
+                        source: n.name || humanizeFieldLabel(n.type) || 'Step',
+                        group: 'data',
+                        icon: icons[n.type] || '📦',
+                        nodeId: n.id
+                    });
+                }
             });
             return outputs;
         }

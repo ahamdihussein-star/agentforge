@@ -199,7 +199,11 @@ class TransformNodeExecutor(BaseNodeExecutor):
         Evaluate a calculate expression.
         Resolves {{variable}} references via state, then applies the operation.
         """
+        import logging as _logging
+        _calc_log = _logging.getLogger("process.calculate")
+
         resolved = state.evaluate(expression) if expression else data
+        _calc_log.info("Calculate: expression=%r → resolved=%r (type=%s)", expression, resolved, type(resolved).__name__)
 
         def _to_numbers(val: Any) -> List[float]:
             """Coerce a value (or list of values) into a flat list of floats."""
@@ -238,9 +242,13 @@ class TransformNodeExecutor(BaseNodeExecutor):
         op = str(operation).strip().lower()
         if op == 'sum':
             nums = _to_numbers(resolved)
+            if not nums and resolved is not None:
+                _calc_log.warning("Calculate sum: no numeric values extracted from resolved=%r", resolved)
             return sum(nums)
         elif op == 'average':
             nums = _to_numbers(resolved)
+            if not nums and resolved is not None:
+                _calc_log.warning("Calculate average: no numeric values extracted from resolved=%r", resolved)
             return sum(nums) / max(1, len(nums))
         elif op == 'count':
             if isinstance(resolved, (list, tuple)):

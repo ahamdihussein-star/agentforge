@@ -2099,6 +2099,55 @@ class ProcessAPIService:
             config['type_config'] = type_cfg
             node['config'] = config
             normalized_nodes.append(node)
+
+        # -------------------------------------------------------------------
+        # CROSS-REFERENCE: Verify condition fields resolve to known outputs.
+        # Generic safety net — no domain-specific assumptions.
+        # -------------------------------------------------------------------
+        _known_output_vars: set = set()
+        for _n in normalized_nodes:
+            # Form/trigger fields
+            _tc = (_n.get("config") or {}).get("type_config") or {}
+            if _n.get("type") in ("start",):
+                for _f in _tc.get("fields") or []:
+                    _fn = _f.get("name") or _f.get("id")
+                    if _fn:
+                        _known_output_vars.add(str(_fn))
+            _ov = str(_n.get("output_variable") or "").strip()
+            if _ov:
+                _known_output_vars.add(_ov)
+            # AI outputField sub-paths
+            for _of in _tc.get("outputFields") or []:
+                _ofn = (_of.get("name") or "").strip()
+                if _ofn and _ov:
+                    _known_output_vars.add(f"{_ov}.{_ofn}")
+
+        for _n in normalized_nodes:
+            if _n.get("type") != "condition":
+                continue
+            _tc = (_n.get("config") or {}).get("type_config") or {}
+            _fld = str(_tc.get("field") or "").strip()
+            if not _fld or _fld in _known_output_vars:
+                continue
+            # Field not found — look for immediate upstream node's output_variable
+            _nid = _n.get("id")
+            _incoming_ids = [e.get("source") or e.get("from") for e in (data.get("edges") or []) if (e.get("target") or e.get("to")) == _nid]
+            for _src_id in _incoming_ids:
+                _src = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
+                if not _src:
+                    continue
+                _src_ov = str(_src.get("output_variable") or "").strip()
+                if _src_ov and _src_ov in _known_output_vars:
+                    logger.info(
+                        "ServiceNorm cross-ref: condition '%s' field '%s' → upstream output_variable '%s'",
+                        _n.get("name", _nid), _fld, _src_ov,
+                    )
+                    _tc["field"] = _src_ov
+                    _old_expr = str(_tc.get("expression") or "").strip()
+                    if _old_expr and ("{{" + _fld + "}}") in _old_expr:
+                        _tc["expression"] = _old_expr.replace("{{" + _fld + "}}", "{{" + _src_ov + "}}")
+                    break
+
         data['nodes'] = normalized_nodes
         
         return data
