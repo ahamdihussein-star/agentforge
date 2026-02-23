@@ -766,7 +766,12 @@
             }
             const comments = (document.getElementById('process-inline-approval-comments')?.value || '').trim();
             if (!comments) {
-                const ok = confirm('Reject without a comment?');
+                const ok = await uiConfirm('Reject without a comment?', {
+                    title: 'Reject request',
+                    confirmText: 'Reject',
+                    cancelText: 'Cancel',
+                    danger: true
+                });
                 if (!ok) return;
             }
             try {
@@ -1794,7 +1799,7 @@
                     const historyHtml = executions.map(e => 
                         `${e.status === 'completed' ? '✅' : e.status === 'failed' ? '❌' : '🔄'} ${new Date(e.created_at).toLocaleString()} - ${e.status}`
                     ).join('\n');
-                    alert('Execution History:\n\n' + historyHtml);
+                    await uiAlert('Execution history:\n\n' + historyHtml, { title: 'Execution history', buttonText: 'Close' });
                 }
             } catch(e) {
                 showToast('Could not load history', 'error');

@@ -127,7 +127,14 @@
         
         // Approve Request
         async function approveRequest(approvalId) {
-            const comments = prompt('Add comments (optional):');
+            const comments = await uiPrompt('Add a comment (optional).', {
+                title: 'Approval comment',
+                confirmText: 'Submit',
+                cancelText: 'Skip',
+                multiline: true,
+                defaultValue: '',
+                placeholder: 'Optional…'
+            });
             
             try {
                 const response = await fetch(API + `/process/approvals/${approvalId}/decide`, {
@@ -156,7 +163,14 @@
         
         // Reject Request
         async function rejectRequest(approvalId) {
-            const comments = prompt('Reason for rejection:');
+            const comments = await uiPrompt('Add a reason for rejection (optional).', {
+                title: 'Rejection reason',
+                confirmText: 'Reject',
+                cancelText: 'Cancel',
+                multiline: true,
+                defaultValue: '',
+                placeholder: 'Optional…'
+            });
             if (comments === null) return; // User cancelled
             
             try {
@@ -487,17 +501,19 @@
         // Delete node
         function deleteNode(index) {
             if (!editingProcessAgent) return;
-            if (!confirm('Delete this step?')) return;
-            
-            const workflow = editingProcessAgent.process_definition;
-            workflow.nodes.splice(index, 1);
-            renderWorkflowNodes(workflow);
-            showToast('Step deleted', 'info');
+            uiConfirm('Remove this step?', { title: 'Remove step', confirmText: 'Remove', cancelText: 'Cancel', danger: true })
+                .then((ok) => {
+                    if (!ok) return;
+                    const workflow = editingProcessAgent.process_definition;
+                    workflow.nodes.splice(index, 1);
+                    renderWorkflowNodes(workflow);
+                    showToast('Step removed', 'success');
+                });
         }
         
         // Edit node configuration (approval node opens dedicated modal; others use JSON prompt)
         let approvalConfigNodeIndex = -1;
-        function editNodeConfig(index) {
+        async function editNodeConfig(index) {
             if (!editingProcessAgent) return;
             const workflow = editingProcessAgent.process_definition;
             const node = workflow.nodes[index];
@@ -506,7 +522,14 @@
                 openApprovalConfigModal(node.config || {});
                 return;
             }
-            const configStr = prompt('Edit configuration (JSON):', JSON.stringify(node.config || {}, null, 2));
+            const configStr = await uiPrompt('Advanced configuration (for administrators).', {
+                title: 'Advanced settings',
+                confirmText: 'Save',
+                cancelText: 'Cancel',
+                multiline: true,
+                defaultValue: JSON.stringify(node.config || {}, null, 2),
+                placeholder: ''
+            });
             if (configStr !== null) {
                 try {
                     node.config = JSON.parse(configStr);
@@ -936,13 +959,13 @@
             
             // Check file size (max 500KB)
             if (file.size > 500 * 1024) {
-                alert('Image too large. Maximum size is 500KB.');
+                uiAlert('This image is too large. Please upload an image up to 500 KB.', { title: 'Image too large' });
                 return;
             }
             
             // Check file type
             if (!file.type.startsWith('image/')) {
-                alert('Please upload an image file.');
+                uiAlert('Please upload an image file (PNG or JPG).', { title: 'Unsupported file type' });
                 return;
             }
             

@@ -113,7 +113,7 @@ function renderSecurityUsers() {
 
 // Resend verification email to user
 async function resendVerificationEmail(userId, email) {
-    if (!confirm(`Send verification email to ${email}?`)) return;
+    if (!(await uiConfirm(`Send a verification email to ${email}?`, { title: 'Send verification email', confirmText: 'Send', cancelText: 'Cancel' }))) return;
     
     try {
         const res = await fetch(`/api/security/users/${userId}/resend-verification`, {
@@ -136,7 +136,7 @@ async function resendVerificationEmail(userId, email) {
 
 // Delete security user
 async function deleteSecurityUser(userId) {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+    if (!(await uiConfirm('Remove this user?', { title: 'Remove user', confirmText: 'Remove', cancelText: 'Cancel', danger: true }))) return;
     
     try {
         const res = await fetch('/api/security/users/' + userId, {
@@ -355,7 +355,7 @@ async function saveGroup() {
 }
 
 async function deleteGroup(id) {
-    if (!confirm('Are you sure you want to delete this group?')) return;
+    if (!(await uiConfirm('Remove this group?', { title: 'Remove group', confirmText: 'Remove', cancelText: 'Cancel', danger: true }))) return;
     
     try {
         const res = await fetch('/api/security/groups/' + id, {
@@ -890,7 +890,7 @@ async function editDepartment(id) {
 }
 
 async function deleteDepartment(id) {
-    if (!confirm('Delete this department?')) return;
+    if (!(await uiConfirm('Remove this department?', { title: 'Remove department', confirmText: 'Remove', cancelText: 'Cancel', danger: true }))) return;
     try {
         const res = await fetch(`/api/identity/departments/${id}`, {
             method: 'DELETE', headers: getAuthHeaders()

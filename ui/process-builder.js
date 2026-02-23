@@ -50,6 +50,260 @@
             return div.innerHTML;
         }
 
+        // ===== MODERN UI MESSAGES (Toast / Confirm / Alert) =====
+        function _pbEnsureToastHost() {
+            let host = document.getElementById('pb-toast-host');
+            if (host) return host;
+            host = document.createElement('div');
+            host.id = 'pb-toast-host';
+            host.style.position = 'fixed';
+            host.style.right = '16px';
+            host.style.bottom = '16px';
+            host.style.zIndex = '100000';
+            host.style.display = 'flex';
+            host.style.flexDirection = 'column';
+            host.style.gap = '10px';
+            host.style.maxWidth = '420px';
+            document.body.appendChild(host);
+            return host;
+        }
+
+        function pbToast(message, type = 'info', opts = {}) {
+            const host = _pbEnsureToastHost();
+            const el = document.createElement('div');
+            const t = String(type || 'info').toLowerCase();
+            const isErr = t === 'error' || t === 'danger';
+            const isWarn = t === 'warning' || t === 'warn';
+            const isOk = t === 'success' || t === 'ok';
+            const bg = isErr ? 'rgba(239, 68, 68, 0.14)' : isWarn ? 'rgba(245, 158, 11, 0.14)' : isOk ? 'rgba(34, 197, 94, 0.14)' : 'rgba(99, 102, 241, 0.14)';
+            const bd = isErr ? 'rgba(239, 68, 68, 0.35)' : isWarn ? 'rgba(245, 158, 11, 0.35)' : isOk ? 'rgba(34, 197, 94, 0.35)' : 'rgba(99, 102, 241, 0.35)';
+            el.style.border = `1px solid ${bd}`;
+            el.style.background = bg;
+            el.style.backdropFilter = 'blur(8px)';
+            el.style.borderRadius = '14px';
+            el.style.padding = '10px 12px';
+            el.style.color = 'var(--pb-text, #e5e7eb)';
+            el.style.fontSize = '13px';
+            el.style.lineHeight = '1.45';
+            el.style.boxShadow = '0 18px 40px -18px rgba(0,0,0,0.55)';
+            el.style.display = 'flex';
+            el.style.gap = '10px';
+            el.style.alignItems = 'flex-start';
+            el.style.cursor = 'default';
+
+            const icon = document.createElement('div');
+            icon.textContent = isErr ? '!' : isWarn ? '!' : isOk ? '✓' : 'i';
+            icon.style.width = '20px';
+            icon.style.height = '20px';
+            icon.style.borderRadius = '999px';
+            icon.style.display = 'flex';
+            icon.style.alignItems = 'center';
+            icon.style.justifyContent = 'center';
+            icon.style.fontWeight = '900';
+            icon.style.background = bd;
+            icon.style.color = 'var(--pb-text, #e5e7eb)';
+
+            const body = document.createElement('div');
+            body.style.flex = '1';
+            body.textContent = String(message || '');
+
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.textContent = '×';
+            close.style.border = '1px solid rgba(255,255,255,0.10)';
+            close.style.background = 'rgba(255,255,255,0.06)';
+            close.style.color = 'var(--pb-text, #e5e7eb)';
+            close.style.borderRadius = '10px';
+            close.style.width = '30px';
+            close.style.height = '30px';
+            close.style.cursor = 'pointer';
+
+            close.addEventListener('click', () => { try { el.remove(); } catch (_) {} });
+            el.addEventListener('click', () => { try { el.remove(); } catch (_) {} });
+
+            el.appendChild(icon);
+            el.appendChild(body);
+            el.appendChild(close);
+            host.appendChild(el);
+
+            const duration = Math.max(1200, Math.min(12000, parseInt(opts.duration, 10) || (isErr ? 5200 : isWarn ? 4200 : 2600)));
+            setTimeout(() => { try { el.remove(); } catch (_) {} }, duration);
+        }
+
+        function _pbEnsureModalHost() {
+            let host = document.getElementById('pb-modal-host');
+            if (host) return host;
+            host = document.createElement('div');
+            host.id = 'pb-modal-host';
+            host.style.position = 'fixed';
+            host.style.inset = '0';
+            host.style.zIndex = '100001';
+            host.style.display = 'none';
+            document.body.appendChild(host);
+            return host;
+        }
+
+        function _pbOpenModal(opts = {}) {
+            const host = _pbEnsureModalHost();
+            host.style.display = 'block';
+            host.innerHTML = '';
+
+            const title = String(opts.title || 'Confirm');
+            const message = String(opts.message || '');
+            const variant = String(opts.variant || 'confirm'); // confirm | alert
+            const danger = !!opts.danger;
+            const confirmText = String(opts.confirmText || (variant === 'alert' ? 'OK' : 'Confirm'));
+            const cancelText = String(opts.cancelText || 'Cancel');
+
+            return new Promise((resolve) => {
+                const prevActive = document.activeElement;
+
+                const overlay = document.createElement('div');
+                overlay.style.position = 'absolute';
+                overlay.style.inset = '0';
+                overlay.style.background = 'rgba(0,0,0,0.55)';
+                overlay.style.backdropFilter = 'blur(6px)';
+
+                const modal = document.createElement('div');
+                modal.setAttribute('role', 'dialog');
+                modal.setAttribute('aria-modal', 'true');
+                modal.style.position = 'absolute';
+                modal.style.left = '50%';
+                modal.style.top = '16%';
+                modal.style.transform = 'translateX(-50%)';
+                modal.style.width = 'min(560px, calc(100% - 24px))';
+                modal.style.borderRadius = '16px';
+                modal.style.border = '1px solid rgba(255,255,255,0.12)';
+                modal.style.background = 'rgba(10, 12, 16, 0.92)';
+                modal.style.color = 'var(--pb-text, #e5e7eb)';
+                modal.style.boxShadow = '0 25px 50px -12px rgba(0,0,0,0.65)';
+                modal.style.overflow = 'hidden';
+
+                const header = document.createElement('div');
+                header.style.display = 'flex';
+                header.style.alignItems = 'center';
+                header.style.justifyContent = 'space-between';
+                header.style.padding = '16px 18px 10px 18px';
+
+                const hTitle = document.createElement('div');
+                hTitle.style.fontSize = '15px';
+                hTitle.style.fontWeight = '800';
+                hTitle.style.letterSpacing = '0.2px';
+                hTitle.textContent = title;
+
+                const closeBtn = document.createElement('button');
+                closeBtn.type = 'button';
+                closeBtn.setAttribute('aria-label', 'Close');
+                closeBtn.textContent = '×';
+                closeBtn.style.width = '34px';
+                closeBtn.style.height = '34px';
+                closeBtn.style.borderRadius = '10px';
+                closeBtn.style.border = '1px solid rgba(255,255,255,0.10)';
+                closeBtn.style.background = 'rgba(255,255,255,0.06)';
+                closeBtn.style.color = 'var(--pb-text, #e5e7eb)';
+                closeBtn.style.cursor = 'pointer';
+
+                const body = document.createElement('div');
+                body.style.padding = '0 18px 14px 18px';
+                const p = document.createElement('div');
+                p.style.fontSize = '13px';
+                p.style.lineHeight = '1.6';
+                p.style.color = 'rgba(229, 231, 235, 0.92)';
+                p.textContent = message;
+                body.appendChild(p);
+
+                const footer = document.createElement('div');
+                footer.style.display = 'flex';
+                footer.style.gap = '10px';
+                footer.style.justifyContent = 'flex-end';
+                footer.style.padding = '14px 18px 18px 18px';
+                footer.style.borderTop = '1px solid rgba(255,255,255,0.08)';
+
+                const cancel = document.createElement('button');
+                cancel.type = 'button';
+                cancel.textContent = cancelText;
+                cancel.style.borderRadius = '12px';
+                cancel.style.border = '1px solid rgba(255,255,255,0.12)';
+                cancel.style.background = 'rgba(255,255,255,0.06)';
+                cancel.style.color = 'var(--pb-text, #e5e7eb)';
+                cancel.style.padding = '10px 14px';
+                cancel.style.fontSize = '13px';
+                cancel.style.cursor = 'pointer';
+
+                const confirm = document.createElement('button');
+                confirm.type = 'button';
+                confirm.textContent = confirmText;
+                confirm.style.borderRadius = '12px';
+                confirm.style.border = '1px solid rgba(255,255,255,0.10)';
+                confirm.style.background = danger ? 'rgba(239, 68, 68, 0.95)' : 'rgba(99, 102, 241, 0.95)';
+                confirm.style.color = '#fff';
+                confirm.style.padding = '10px 14px';
+                confirm.style.fontSize = '13px';
+                confirm.style.fontWeight = '700';
+                confirm.style.cursor = 'pointer';
+
+                const cleanup = (result) => {
+                    try { host.style.display = 'none'; } catch (_) {}
+                    try { host.innerHTML = ''; } catch (_) {}
+                    try { document.removeEventListener('keydown', onKey, true); } catch (_) {}
+                    try { prevActive && prevActive.focus && prevActive.focus(); } catch (_) {}
+                    resolve(result);
+                };
+
+                const onKey = (e) => {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cleanup(false);
+                        return;
+                    }
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        confirm.click();
+                    }
+                };
+
+                overlay.addEventListener('click', () => cleanup(false));
+                closeBtn.addEventListener('click', () => cleanup(false));
+                cancel.addEventListener('click', () => cleanup(false));
+                confirm.addEventListener('click', () => cleanup(true));
+
+                header.appendChild(hTitle);
+                header.appendChild(closeBtn);
+                if (variant !== 'alert') footer.appendChild(cancel);
+                footer.appendChild(confirm);
+                modal.appendChild(header);
+                modal.appendChild(body);
+                modal.appendChild(footer);
+                host.appendChild(overlay);
+                host.appendChild(modal);
+
+                document.addEventListener('keydown', onKey, true);
+                setTimeout(() => { try { confirm.focus(); } catch (_) {} }, 0);
+            });
+        }
+
+        async function pbConfirm(message, options = {}) {
+            return !!(await _pbOpenModal({
+                variant: 'confirm',
+                title: options.title || 'Confirm',
+                message: String(message || ''),
+                confirmText: options.confirmText || 'Confirm',
+                cancelText: options.cancelText || 'Cancel',
+                danger: !!options.danger,
+            }));
+        }
+
+        async function pbAlert(message, options = {}) {
+            await _pbOpenModal({
+                variant: 'alert',
+                title: options.title || 'Notice',
+                message: String(message || ''),
+                confirmText: options.buttonText || 'OK',
+                danger: false,
+            });
+            return true;
+        }
+
         // ===== BUSINESS-FRIENDLY LABELS & FIELD KEYS =====
         function humanizeFieldLabel(key) {
             if (!key) return '';
@@ -2831,10 +3085,14 @@
             closeProperties();
             updateLabelFontSizeDisplay(state.labelFontSize);
         }
-        function deleteSelectedNodes() {
+        async function deleteSelectedNodes() {
             const ids = getSelectedNodeIds();
             if (ids.length === 0) return;
-            if (!confirm(ids.length > 1 ? `Delete ${ids.length} selected nodes?` : 'Delete this node?')) return;
+            const ok = await pbConfirm(
+                ids.length > 1 ? `Remove ${ids.length} selected steps?` : 'Remove this step?',
+                { title: 'Remove step', confirmText: 'Remove', cancelText: 'Cancel', danger: true }
+            );
+            if (!ok) return;
             ids.forEach(id => {
                 state.connections = state.connections.filter(c => c.from !== id && c.to !== id);
                 state.nodes = state.nodes.filter(n => n.id !== id);
@@ -5750,8 +6008,9 @@
             }
         }
         
-        function deleteNode(nodeId) {
-            if (!confirm('Delete this node?')) return;
+        async function deleteNode(nodeId) {
+            const ok = await pbConfirm('Remove this step?', { title: 'Remove step', confirmText: 'Remove', cancelText: 'Cancel', danger: true });
+            if (!ok) return;
             
             if (state.selectedNode && state.selectedNode.id === nodeId) state.selectedNode = null;
             if (state.selectedLabelNodeId === nodeId) state.selectedLabelNodeId = null;
@@ -5764,11 +6023,9 @@
             saveToUndo();
         }
         
-        function showNodeMenu(nodeId) {
+        async function showNodeMenu(nodeId) {
             // Simple delete for now
-            if (confirm('Delete this node?')) {
-                deleteNode(nodeId);
-            }
+            await deleteNode(nodeId);
         }
         
         // ===== TOOLS =====
@@ -6865,7 +7122,7 @@
                 }
             } catch (e) {
                 console.error('Load error:', e);
-                alert('Could not load workflow');
+                pbToast('Could not load this workflow. Please refresh and try again.', 'error');
             }
         }
         
@@ -6879,7 +7136,7 @@
             
             const token = getAuthToken();
             if (!token) {
-                alert('❌ Please sign in first. Save and Publish require authentication.\n\nIf you opened the Workflow Builder in a new tab, try opening it from the main app (Create → Workflow → Visual Builder) after signing in.');
+                pbAlert('Please sign in first to save or publish workflows.', { title: 'Sign in required', buttonText: 'OK' });
                 return;
             }
             
@@ -6933,10 +7190,10 @@
                     window.history.replaceState({}, '', '?agent=' + state.agentId);
                 }
                 
-                alert('✅ Workflow saved!');
+                pbToast('Workflow saved.', 'success');
             } catch (e) {
                 console.error('Save error:', e);
-                alert('❌ ' + (e.message || 'Could not save workflow'));
+                pbToast(String(e.message || 'Could not save workflow.'), 'error');
             }
         }
         
@@ -6950,7 +7207,7 @@
             
             const token = getAuthToken();
             if (!token) {
-                alert('❌ Please sign in first.');
+                pbAlert('Please sign in first to publish workflows.', { title: 'Sign in required', buttonText: 'OK' });
                 return;
             }
             
@@ -6976,10 +7233,10 @@
                     throw new Error(errMsg);
                 }
                 
-                alert('🚀 Workflow published!');
+                pbToast('Workflow published.', 'success');
             } catch (e) {
                 console.error('Publish error:', e);
-                alert('❌ ' + (e.message || 'Could not publish workflow'));
+                pbToast(String(e.message || 'Could not publish workflow.'), 'error');
             }
         }
         
@@ -7086,7 +7343,7 @@
         async function testWorkflow() {
             const startNode = getStartNodeForTest() || state.nodes.find(n => n && n.type === 'form') || null;
             if (!startNode) {
-                alert('No start node found. Add a Start/Form node first.');
+                pbToast('Add a “Start” step first, then try again.', 'warning');
                 return;
             }
             // Inputs may live on a Form node after Start, or there may be no inputs at all (e.g., schedule/webhook).
@@ -7475,7 +7732,7 @@
             // Basic required validation (business-friendly)
             for (const f of fieldDefs) {
                 if (f.required && String(f.type || '').toLowerCase() !== 'file' && !String(values[f.name] || '').trim()) {
-                    alert(`Please fill in: ${f.label}`);
+                    pbToast(`Please fill in: ${f.label}`, 'warning');
                     const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
                     if (el) el.focus();
                     return;
@@ -7490,7 +7747,7 @@
                     const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
                     const fileList = el && el.files ? el.files : [];
                     if (f.required && fileList.length === 0) {
-                        alert(`Please upload: ${f.label}`);
+                        pbToast(`Please upload: ${f.label}`, 'warning');
                         if (el) el.focus();
                         return;
                     }
@@ -7507,7 +7764,7 @@
                                 values[f.name] = await uploadPbTestRunFile(fileList[0]);
                             }
                         } catch (e) {
-                            alert(`Could not upload "${f.label}". Please try again.`);
+                            pbToast(`Could not upload “${f.label}”. Please try again.`, 'error');
                             return;
                         }
                     } else {
@@ -7652,7 +7909,7 @@
             const name = String(filename || '').trim() || `upload-${id}`;
             const token = getAuthToken();
             if (!token) {
-                alert('❌ Please sign in first.');
+                pbAlert('Please sign in first.', { title: 'Sign in required', buttonText: 'OK' });
                 return;
             }
             try {
@@ -7665,7 +7922,7 @@
                         const data = await res.json().catch(() => null);
                         if (data && (data.detail || data.message || data.error)) msg = data.detail || data.message || data.error;
                     } catch (_) {}
-                    alert('❌ ' + String(msg || 'Failed to download file'));
+                    pbToast(String(msg || 'Could not download the file.'), 'error');
                     return;
                 }
                 const blob = await res.blob();
@@ -7678,7 +7935,7 @@
                 document.body.removeChild(a);
                 setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1500);
             } catch (e) {
-                alert('❌ Unable to download file. Please try again.');
+                pbToast('Could not download the file. Please try again.', 'error');
             }
         }
 
@@ -8161,7 +8418,7 @@
         async function runWorkflowTestWithEngine(triggerInput, ctx) {
             const token = getAuthToken();
             if (!token) {
-                alert('❌ Please sign in first to run the real engine test.');
+                pbAlert('Please sign in first to run this test.', { title: 'Sign in required', buttonText: 'OK' });
                 return;
             }
 
@@ -8169,7 +8426,7 @@
             try {
                 await _ensureWorkflowSavedSilently();
             } catch (e) {
-                alert('❌ ' + (e?.message || 'Could not save workflow for test.'));
+                pbToast(String(e?.message || 'Could not save the workflow for testing.'), 'error');
                 return;
             }
 
@@ -8223,7 +8480,7 @@
                 if (!executionId) throw new Error('No execution id returned.');
             } catch (e) {
                 try { runningModal.remove(); } catch (_) {}
-                alert('❌ ' + (e?.message || 'Failed to start workflow'));
+                pbToast(String(e?.message || 'Could not start the workflow.'), 'error');
                 return;
             }
 
@@ -8255,7 +8512,7 @@
                     hideApproval();
                 } catch (e) {
                     approvalHandled = false;
-                    alert('❌ ' + (e?.message || 'Could not submit approval decision.'));
+                    pbToast(String(e?.message || 'Could not submit the approval decision.'), 'error');
                 }
             };
 
@@ -8298,7 +8555,7 @@
             try { runningModal.remove(); } catch (_) {}
 
             if (!finishedExecution) {
-                alert('Test run is taking longer than expected. You can check it from Runs in the portal.');
+                pbToast('This test is taking longer than expected. You can check it later from Runs.', 'info', { duration: 5200 });
                 return;
             }
 
@@ -8726,7 +8983,7 @@
             
             const startNode = getStartNodeForTest();
             if (!startNode) {
-                alert('No start node found');
+                pbToast('Add a “Start” step first, then try again.', 'warning');
                 return;
             }
             

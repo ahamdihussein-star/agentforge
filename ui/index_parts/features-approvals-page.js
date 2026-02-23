@@ -98,12 +98,23 @@ function renderApprovals() {
 }
 
 async function handleApproval(approvalId, decision) {
-    const comment = prompt(decision === 'approved' ? 'Add a comment (optional):' : 'Reason for rejection (optional):') || '';
+    const comment = await uiPrompt(
+        decision === 'approved' ? 'Add a comment (optional).' : 'Add a reason for rejection (optional).',
+        {
+            title: decision === 'approved' ? 'Approval comment' : 'Rejection reason',
+            confirmText: decision === 'approved' ? 'Approve' : 'Reject',
+            cancelText: 'Cancel',
+            multiline: true,
+            defaultValue: '',
+            placeholder: 'Optional…'
+        }
+    );
+    if (comment === null) return;
     try {
         const res = await fetch(`/process/approvals/${approvalId}/decide`, {
             method: 'POST',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ decision, comment })
+            body: JSON.stringify({ decision, comment: comment || '' })
         });
         if (res.ok) {
             showToast(`Request ${decision}!`, 'success');
@@ -526,7 +537,7 @@ async function resendInvitation(invId) {
 }
 
 async function deleteInvitation(invId) {
-    if (!confirm('Delete this invitation?')) return;
+    if (!(await uiConfirm('Remove this invitation?', { title: 'Remove invitation', confirmText: 'Remove', cancelText: 'Cancel', danger: true }))) return;
     try {
         const res = await fetch('/api/security/invitations/' + invId, {
             method: 'DELETE',
@@ -900,7 +911,7 @@ async function deleteRole(roleId) {
         return;
     }
     
-    if (!confirm('Are you sure you want to delete the role "' + role.name + '"?')) return;
+    if (!(await uiConfirm('Remove the role "' + role.name + '"?', { title: 'Remove role', confirmText: 'Remove', cancelText: 'Cancel', danger: true }))) return;
     
     try {
         const res = await fetch('/api/security/roles/' + roleId, {

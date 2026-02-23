@@ -188,9 +188,11 @@
             if (chatSelectedConvs.size === 0) return;
             
             const count = chatSelectedConvs.size;
-            if (!confirm(`Delete ${count} conversation${count > 1 ? 's' : ''}? This cannot be undone.`)) {
-                return;
-            }
+            const ok = await uiConfirm(
+                `Delete ${count} conversation${count > 1 ? 's' : ''}? This cannot be undone.`,
+                { title: 'Delete conversations', confirmText: 'Delete', cancelText: 'Cancel', danger: true }
+            );
+            if (!ok) return;
             
             const btn = document.getElementById('chat-delete-selected-btn');
             btn.textContent = 'Deleting...';
@@ -224,12 +226,12 @@
                 toggleChatSelectionMode();
                 
                 if (result.failed > 0) {
-                    alert(`Failed to delete ${result.failed} conversation(s)`);
+                    showToast(`Could not delete ${result.failed} conversation(s).`, 'error');
                 }
                 
             } catch(e) {
                 console.error('Delete error:', e);
-                alert('Failed to delete: ' + e.message);
+                showToast('Could not delete conversations. Please try again.', 'error');
                 updateChatDeleteButton();
             }
         }
@@ -868,11 +870,11 @@
             
             // Validation
             if (config.needsApiKey && !apiKey) {
-                alert('Please enter an API key');
+                showToast('Please enter an API key.', 'warning');
                 return;
             }
             if (config.needsApiBase && !apiBase) {
-                alert('Please enter an API base URL');
+                showToast('Please enter an API base URL.', 'warning');
                 return;
             }
             
@@ -907,16 +909,20 @@
             saveSettingsQuiet();
             
             // Show success message
-            showToast(`✅ ${config.name} added successfully!`, 'success');
+            showToast(`${config.name} added successfully.`, 'success');
         }
         
         // Toast notification - uses global NotificationSystem (defined earlier)
         // showToast function is defined in the NotificationSystem section
         
-        function removeLLMProvider(provider) {
-            if (!confirm('Are you sure you want to remove this provider?')) {
-                return;
-            }
+        async function removeLLMProvider(provider) {
+            const ok = await uiConfirm('Remove this provider?', {
+                title: 'Remove provider',
+                confirmText: 'Remove',
+                cancelText: 'Cancel',
+                danger: true
+            });
+            if (!ok) return;
             
             configuredLLMProviders = configuredLLMProviders.filter(p => p.provider !== provider);
             renderConfiguredProviders();
@@ -1089,7 +1095,7 @@
             const apiBase = document.getElementById('edit-api-base')?.value || '';
             
             if (!apiKey) {
-                alert('Please enter an API key');
+                showToast('Please enter an API key.', 'warning');
                 return;
             }
             
@@ -1107,7 +1113,7 @@
             renderConfiguredProviders();
             saveSettingsQuiet();
             
-            alert('✅ Provider updated successfully!');
+            showToast('Provider updated successfully.', 'success');
         }
         
         function getProviderIcon(provider) {
@@ -1196,7 +1202,7 @@
         async function testConfiguredProvider(providerName) {
             const providerData = configuredLLMProviders.find(p => p.provider === providerName);
             if (!providerData) {
-                alert('Provider not found');
+                showToast('Provider not found.', 'error');
                 return;
             }
             
@@ -1226,15 +1232,24 @@
                 }
                 
                 if (data.status === 'success') {
-                    alert(`✅ ${providerData.name} is working!\n\nResponse: "${data.response?.substring(0, 100)}..."`);
+                    await uiAlert(
+                        `${providerData.name} is working.\n\nResponse: "${String(data.response || '').substring(0, 160)}…"`,
+                        { title: 'Connection successful', buttonText: 'Close' }
+                    );
                 } else {
-                    alert(`❌ ${providerData.name} test failed:\n\n${data.message}`);
+                    await uiAlert(
+                        `${providerData.name} test failed.\n\n${data.message || 'Please check your settings and try again.'}`,
+                        { title: 'Connection failed', buttonText: 'Close' }
+                    );
                 }
             } catch (e) {
                 if (card) {
                     card.classList.remove('animate-pulse');
                 }
-                alert(`❌ Error testing ${providerData.name}:\n\n${e.message}`);
+                await uiAlert(
+                    `Could not test ${providerData.name}. Please try again.\n\n${e.message || ''}`,
+                    { title: 'Test failed', buttonText: 'Close' }
+                );
             }
         }
         
@@ -1456,19 +1471,23 @@
         }
         
         async function reindexKnowledgeBase() {
-            if (!confirm('This will reindex all documents with the current embedding settings. Continue?')) return;
+            const ok = await uiConfirm(
+                'This will reindex all documents using the current embedding settings. Continue?',
+                { title: 'Reindex knowledge base', confirmText: 'Reindex', cancelText: 'Cancel', danger: true }
+            );
+            if (!ok) return;
             
             try {
                 const r = await fetch(API + '/api/settings/reindex', { method: 'POST' });
                 const data = await r.json();
                 
                 if (data.status === 'success') {
-                    alert('✅ ' + data.message);
+                    await uiAlert(String(data.message || 'Reindex completed.'), { title: 'Reindex complete', buttonText: 'Close' });
                 } else {
-                    alert('❌ ' + (data.message || 'Reindex failed'));
+                    await uiAlert(String(data.message || 'Reindex failed.'), { title: 'Reindex failed', buttonText: 'Close' });
                 }
             } catch (e) {
-                alert('❌ Error: ' + e.message);
+                await uiAlert('Could not start reindexing. Please try again.', { title: 'Reindex failed', buttonText: 'Close' });
             }
         }
 
@@ -2262,13 +2281,19 @@ function wizBack() {
 }
 
 // Cancel tool edit/create
-function cancelToolWizard() {
+async function cancelToolWizard() {
     const isEditing = !!editingToolId;
     const confirmMsg = isEditing 
         ? 'Are you sure you want to cancel editing? Changes will not be saved.'
         : 'Are you sure you want to cancel? This tool will not be created.';
     
-    if (!confirm(confirmMsg)) return;
+    const ok = await uiConfirm(confirmMsg, {
+        title: 'Cancel?',
+        confirmText: 'Cancel',
+        cancelText: 'Keep working',
+        danger: true
+    });
+    if (!ok) return;
     
     // Close the modal
     hideModal('modal-tool');
@@ -2947,9 +2972,11 @@ async function rescrapeWebsite() {
     const recursive = document.getElementById('web-recursive')?.checked || false;
     const maxPages = parseInt(document.getElementById('web-max')?.value) || 10;
     
-    if (!confirm(`This will re-scrape the website and replace existing content.\n\nURL: ${url}\nRecursive: ${recursive}\nMax Pages: ${maxPages}\n\nContinue?`)) {
-        return;
-    }
+    const ok = await uiConfirm(
+        `This will re-scrape the website and replace existing content.\n\nURL: ${url}\nRecursive: ${recursive}\nMax Pages: ${maxPages}`,
+        { title: 'Re-scrape website?', confirmText: 'Continue', cancelText: 'Cancel', danger: true }
+    );
+    if (!ok) return;
     
     showProgressModal('Re-scraping website...');
     updateProgress(10, 'Starting scrape...');
