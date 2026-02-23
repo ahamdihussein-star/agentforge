@@ -978,6 +978,63 @@
             border-color: #6366f1;
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
         }
+
+        .friendly-textarea-wrapper {
+            position: relative;
+        }
+
+        .friendly-overlay {
+            width: 100%;
+            padding: 11px 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 10px;
+            color: var(--pb-text);
+            font-size: 13px;
+            min-height: 88px;
+            line-height: 1.7;
+            cursor: text;
+            word-break: break-word;
+            white-space: pre-wrap;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+
+        .friendly-overlay:hover {
+            border-color: color-mix(in srgb, var(--pb-primary) 50%, transparent);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--pb-primary) 10%, transparent);
+        }
+
+        .friendly-hidden {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+            height: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .ref-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 1px 8px;
+            margin: 0 1px;
+            border-radius: 10px;
+            background: color-mix(in srgb, #818cf8 12%, transparent);
+            border: 1px solid color-mix(in srgb, #818cf8 30%, transparent);
+            color: #a5b4fc;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            vertical-align: baseline;
+            cursor: default;
+        }
+
+        .ref-tag-at {
+            color: #6366f1;
+            font-weight: 700;
+        }
         
         /* Section block inside properties */
         .prop-section {

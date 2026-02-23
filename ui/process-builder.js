@@ -5300,7 +5300,28 @@
             }
         }
         
-        // Helper to insert field references into textareas
+        function friendlyRefLabel(ref) {
+            const raw = ref.replace(/^\{\{|\}\}$/g, '');
+            const knownMap = {};
+            (state.profileFieldsFlat || []).forEach(f => {
+                knownMap['trigger_input._user_context.' + f.key] = f.label || f.key;
+            });
+            if (knownMap[raw]) return knownMap[raw];
+            const formFields = [];
+            state.nodes.forEach(n => {
+                if ((n.type === 'trigger' || n.type === 'form') && n.config && n.config.fields) {
+                    n.config.fields.forEach(f => formFields.push({ name: f.name, label: f.label || humanizeFieldLabel(f.name) }));
+                }
+            });
+            const ff = formFields.find(f => f.name === raw);
+            if (ff) return ff.label;
+            const upFields = getUpstreamOutputFields();
+            const uf = upFields.find(d => d.name === raw);
+            if (uf) return uf.label + (uf.source ? ' (' + uf.source + ')' : '');
+            const parts = raw.split('.');
+            return humanizeFieldLabel(parts[parts.length - 1]);
+        }
+
         function insertFieldRef(nodeId, configKey, fieldRef) {
             const node = state.nodes.find(n => n.id === nodeId);
             if (node) {
@@ -5310,6 +5331,51 @@
                 showProperties(node);
                 saveToUndo();
             }
+        }
+
+        function _friendlyRefHtml(ref) {
+            const label = friendlyRefLabel(ref);
+            return `<span class="ref-tag" title="${escapeHtml(ref)}"><span class="ref-tag-at">@</span>${escapeHtml(label)}</span>`;
+        }
+
+        function _renderFriendlyOverlay(rawText) {
+            if (!rawText) return '';
+            return escapeHtml(rawText).replace(/\{\{([^}]+)\}\}/g, (match) => _friendlyRefHtml(match));
+        }
+
+        function _applyFriendlyTextareas() {
+            document.querySelectorAll('textarea.property-textarea').forEach(ta => {
+                if (ta._friendlyBound) return;
+                const raw = ta.value;
+                if (!raw || !raw.includes('{{')) return;
+                ta._friendlyBound = true;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'friendly-textarea-wrapper';
+                ta.parentNode.insertBefore(wrapper, ta);
+                wrapper.appendChild(ta);
+
+                const overlay = document.createElement('div');
+                overlay.className = 'friendly-overlay';
+                overlay.innerHTML = _renderFriendlyOverlay(raw);
+                wrapper.insertBefore(overlay, ta);
+
+                ta.classList.add('friendly-hidden');
+
+                overlay.addEventListener('click', function() {
+                    ta.classList.remove('friendly-hidden');
+                    overlay.style.display = 'none';
+                    ta.focus();
+                });
+
+                ta.addEventListener('blur', function() {
+                    overlay.innerHTML = _renderFriendlyOverlay(this.value);
+                    if (this.value && this.value.includes('{{')) {
+                        ta.classList.add('friendly-hidden');
+                        overlay.style.display = '';
+                    }
+                });
+            });
         }
         
         function refreshNode(node) {
@@ -5692,6 +5758,7 @@
                 }
             }
             body.innerHTML = html;
+            requestAnimationFrame(() => _applyFriendlyTextareas());
         }
 
         /**
