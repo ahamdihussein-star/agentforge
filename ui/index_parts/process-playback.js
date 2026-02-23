@@ -319,6 +319,93 @@
             }
         }
 
+        function _escapeHtmlCompat(s) {
+            try {
+                if (typeof escHtml === 'function') return escHtml(String(s ?? ''));
+            } catch (_) {}
+            const str = String(s ?? '');
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        /**
+         * Format the LLM's plain-text business summary into styled HTML.
+         * Handles OUTCOME:, SUMMARY:, KEY DETAILS: sections and bullet points.
+         *
+         * This mirrors the Process Builder's formatter so the UX stays consistent.
+         */
+        function _formatBusinessSummary(text) {
+            if (!text) return '';
+            let html = '';
+            const lines = String(text).split('\n');
+            const sectionIcons = { 'OUTCOME': '🎯', 'SUMMARY': '📋', 'KEY DETAILS': '📊' };
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                // Section headers
+                const sectionMatch = trimmed.match(/^(OUTCOME|SUMMARY|KEY DETAILS)\s*:\s*(.*)/i);
+                if (sectionMatch) {
+                    const sectionKey = sectionMatch[1].toUpperCase();
+                    const afterColon = (sectionMatch[2] || '').trim();
+                    const icon = sectionIcons[sectionKey] || '';
+                    if (sectionKey === 'OUTCOME' && afterColon) {
+                        html += `<div style="padding:12px 16px;background:color-mix(in srgb, var(--accent-primary) 12%, transparent);border:1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);border-radius:12px;margin-bottom:16px;font-size:15px;font-weight:750;color:var(--text-primary);line-height:1.4;">${icon} ${_escapeHtmlCompat(afterColon)}</div>`;
+                    } else {
+                        html += `<div style="font-weight:800;font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-top:14px;margin-bottom:8px;">${icon} ${_escapeHtmlCompat(sectionKey)}</div>`;
+                        if (afterColon) {
+                            html += `<div style="font-size:14px;color:var(--text-primary);line-height:1.55;margin-bottom:4px;">${_escapeHtmlCompat(afterColon)}</div>`;
+                        }
+                    }
+                    continue;
+                }
+
+                // Bullet points
+                const bulletMatch = trimmed.match(/^[•\-\*]\s+(.*)/);
+                if (bulletMatch) {
+                    html += `<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:7px;font-size:14px;line-height:1.55;color:color-mix(in srgb, var(--text-primary) 92%, var(--text-secondary));">
+                        <span style="color:var(--accent-primary);font-weight:800;flex-shrink:0;line-height:1.45;">●</span>
+                        <span>${_escapeHtmlCompat(bulletMatch[1])}</span>
+                    </div>`;
+                    continue;
+                }
+
+                // Regular text
+                html += `<div style="font-size:14px;color:color-mix(in srgb, var(--text-primary) 92%, var(--text-secondary));line-height:1.55;margin-bottom:4px;">${_escapeHtmlCompat(trimmed)}</div>`;
+            }
+            return html;
+        }
+
+        /**
+         * Fetch LLM-generated business summary for an execution and render it.
+         * Uses the same backend endpoint as the Process Builder for consistency.
+         */
+        async function _fetchBusinessSummary(executionId, targetEl) {
+            const execId = String(executionId || '').trim();
+            if (!execId || !targetEl) return;
+            try {
+                const headers = getAuthHeaders();
+                const res = await fetch(API + `/process/executions/${encodeURIComponent(execId)}/business-summary`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...headers }
+                });
+                const data = await res.json().catch(() => null);
+                if (data && data.success && data.summary) {
+                    targetEl.innerHTML = _formatBusinessSummary(data.summary);
+                } else {
+                    const errMsg = (data && data.error) ? String(data.error) : 'Could not generate summary.';
+                    targetEl.innerHTML = `<div style="color:var(--text-muted);font-size:13px;line-height:1.5;">${_escapeHtmlCompat(errMsg)}<br><span style="font-size:12px;">Open <b>Technical details</b> for full troubleshooting info.</span></div>`;
+                }
+            } catch (_) {
+                targetEl.innerHTML = `<div style="color:var(--text-muted);font-size:13px;line-height:1.5;">Could not load summary. Open <b>Technical details</b> for full troubleshooting info.</div>`;
+            }
+        }
+
         async function downloadProcessUploadFile(fileId, filename) {
             const id = String(fileId || '').trim();
             if (!id) return;
@@ -474,16 +561,26 @@
             const labelByKey = {};
             inputs.forEach(i => { if (i && i.id) labelByKey[i.id] = i.label || humanizeFieldLabel(i.id) || i.id; });
 
-            const inputRows = Object.keys(inputData || {}).map(k => {
+            const _buildInputRows = (keys) => (keys || []).map(k => {
                 const label = labelByKey[k] || humanizeFieldLabel(k) || k;
                 const val = _renderReportValue(inputData[k]);
                 return `
-                    <div class="flex items-start justify-between gap-4 py-2 border-b border-gray-700/50">
-                        <div class="text-sm text-gray-400">${escHtml(label)}</div>
-                        <div class="text-sm text-gray-200 font-medium max-w-[60%] text-right break-words">${escHtml(val)}</div>
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid color-mix(in srgb, var(--border-color) 28%, transparent);">
+                        <div style="font-size:13px;color:var(--text-secondary);">${_escapeHtmlCompat(label)}</div>
+                        <div style="font-size:13px;color:var(--text-primary);font-weight:650;max-width:60%;text-align:right;word-break:break-word;">${_escapeHtmlCompat(val)}</div>
                     </div>
                 `;
-            }).join('') || `<div class="text-sm text-gray-500">No inputs.</div>`;
+            }).join('') || `<div style="font-size:13px;color:var(--text-muted);">No submitted information.</div>`;
+
+            // Prefer showing only the user-facing form fields; fall back to sanitized trigger input keys.
+            const formKeys = Object.keys(labelByKey || {});
+            const dataKeys = Object.keys(inputData || {});
+            const sanitizedKeys = dataKeys
+                .filter(k => k && !String(k).startsWith('_') && String(k) !== '_user_context')
+                .filter(k => inputData[k] !== undefined && inputData[k] !== null && inputData[k] !== '');
+            const preferredKeys = formKeys.filter(k => k in (inputData || {}));
+            const displayKeys = preferredKeys.length ? preferredKeys : sanitizedKeys;
+            const inputRows = _buildInputRows(displayKeys);
 
             const statusBadge = isCompleted
                 ? `<span class="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-300 border border-green-500/30 font-semibold">Completed</span>`
@@ -565,47 +662,15 @@
                     ? `<div class="text-sm text-red-300">${escHtml(errorMsg || 'The workflow failed. Please check configuration and try again.')}</div>`
                     : `<div class="text-sm text-gray-500">Result will appear when the workflow completes.</div>`);
 
-            const _summaryLine = (() => {
-                const name = (currentProcessAgent && currentProcessAgent.name) ? String(currentProcessAgent.name) : 'Workflow';
-                if (isCompleted) return `${name} completed successfully.`;
-                if (isFailed) return `${name} failed.`;
-                return `${name} is running.`;
-            })();
-
-            const stepNames = (stepsResolved || []).map(s => s && (s.name || s.typeLabel) ? String(s.name || s.typeLabel) : '').filter(Boolean);
-            const didPart = stepNames.length
-                ? `Steps: ${stepNames.slice(0, 6).join(' → ')}${stepNames.length > 6 ? '…' : ''}`
-                : '';
-
-            const keyDetailsRows = (() => {
-                try {
-                    const rows = [];
-                    // Show up to 6 key input values as "Key details"
-                    const keys = Object.keys(inputData || {});
-                    for (const k of keys.slice(0, 6)) {
-                        const label = labelByKey[k] || humanizeFieldLabel(k) || k;
-                        const val = _renderReportValue(inputData[k]);
-                        if (!val) continue;
-                        rows.push(`<div class="flex gap-2"><span class="text-gray-500">${escHtml(label)}:</span><span class="text-gray-200 font-medium">${escHtml(val)}</span></div>`);
-                    }
-                    return rows.join('') || '';
-                } catch (_) { return ''; }
-            })();
-
+            const execId = execution?.id || execution?.execution_id || execution?.executionId;
             const whatHappenedBusiness = `
-                <div class="p-4 rounded-xl border border-indigo-500/25 bg-indigo-500/5">
-                    <div class="font-semibold text-gray-100 mb-2">${escHtml(_summaryLine)}</div>
-                    <ul class="text-sm text-gray-200 space-y-2">
-                        <li class="flex gap-2"><span class="text-indigo-300">•</span><span>The workflow started and validated the submitted information.</span></li>
-                        ${didPart ? `<li class="flex gap-2"><span class="text-indigo-300">•</span><span>${escHtml(didPart)}</span></li>` : ''}
-                        <li class="flex gap-2"><span class="text-indigo-300">•</span><span>${escHtml(businessOutcomeText)}</span></li>
-                    </ul>
-                    ${keyDetailsRows ? `
-                        <div class="mt-4">
-                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Key details</div>
-                            <div class="text-sm space-y-1">${keyDetailsRows}</div>
+                <div style="padding:16px;border-radius:16px;border:1px solid color-mix(in srgb, var(--border-color) 30%, transparent);background:var(--bg-input);">
+                    <div id="process-run-business-summary-body" style="color:color-mix(in srgb, var(--text-primary) 92%, var(--text-secondary));font-size:14px;line-height:1.6;">
+                        <div style="display:flex;align-items:center;gap:10px;padding:24px 0;justify-content:center;color:var(--text-muted);">
+                            <div class="spinner" style="width:18px;height:18px;border:2px solid color-mix(in srgb, var(--border-color) 40%, transparent);border-top-color:var(--accent-primary);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+                            Generating business summary...
                         </div>
-                    ` : ''}
+                    </div>
                 </div>
             `;
 
@@ -621,44 +686,44 @@
             body.innerHTML = `
                 <div class="flex items-start justify-between gap-3 mb-4">
                     <div>
-                        <div class="text-lg font-bold text-gray-100">${escHtml(currentProcessAgent?.name || 'Workflow')}</div>
-                        <div class="text-sm text-gray-400">${escHtml(headerDesc || '')}</div>
+                        <div style="font-size:18px;font-weight:850;color:var(--text-primary);">${_escapeHtmlCompat(currentProcessAgent?.name || 'Workflow')}</div>
+                        <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">${_escapeHtmlCompat(headerDesc || '')}</div>
                     </div>
                     <div>${statusBadge}</div>
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div class="p-4 rounded-xl border border-gray-700 bg-gray-900/40">
-                        <div class="font-semibold text-gray-100 mb-3">Submitted information</div>
+                    <div style="padding:16px;border-radius:16px;border:1px solid color-mix(in srgb, var(--border-color) 30%, transparent);background:var(--bg-input);">
+                        <div style="font-weight:850;color:var(--text-primary);margin-bottom:10px;">Submitted information</div>
                         <div>${inputRows}</div>
                     </div>
-                    <div class="p-4 rounded-xl border border-gray-700 bg-gray-900/40">
-                        <div class="font-semibold text-gray-100 mb-3">What happened</div>
+                    <div style="padding:16px;border-radius:16px;border:1px solid color-mix(in srgb, var(--border-color) 30%, transparent);background:var(--bg-input);">
+                        <div style="font-weight:850;color:var(--text-primary);margin-bottom:10px;">What happened</div>
                         ${whatHappenedBusiness}
                         <div class="mt-3">
-                            <details class="rounded-xl border border-gray-700 bg-black/10 p-3">
-                                <summary class="cursor-pointer text-sm font-semibold text-gray-200">Show step-by-step path</summary>
+                            <details style="border-radius:14px;border:1px solid color-mix(in srgb, var(--border-color) 26%, transparent);background:color-mix(in srgb, var(--bg-card) 45%, transparent);padding:12px;">
+                                <summary style="cursor:pointer;font-size:13px;font-weight:800;color:var(--text-primary);">Show step-by-step path</summary>
                                 <div class="space-y-2 mt-3">${stepsHtml}</div>
                             </details>
                         </div>
                     </div>
                 </div>
 
-                <div class="mt-4 p-4 rounded-xl border border-gray-700 bg-gray-900/40">
-                    <div class="font-semibold text-gray-100 mb-2">Outcome</div>
+                <div style="margin-top:16px;padding:16px;border-radius:16px;border:1px solid color-mix(in srgb, var(--border-color) 30%, transparent);background:var(--bg-input);">
+                    <div style="font-weight:850;color:var(--text-primary);margin-bottom:8px;">Outcome</div>
                     ${outcomeHtmlBusiness}
                 </div>
 
                 <div class="mt-4">
-                    <details class="p-4 rounded-xl border border-gray-700 bg-gray-900/40">
-                        <summary class="cursor-pointer font-semibold text-gray-100">Technical details</summary>
+                    <details style="padding:16px;border-radius:16px;border:1px solid color-mix(in srgb, var(--border-color) 30%, transparent);background:var(--bg-input);">
+                        <summary style="cursor:pointer;font-weight:850;color:var(--text-primary);">Technical details</summary>
                         <div class="mt-3">
-                            <div class="text-sm text-gray-400 mb-2">Result fields</div>
+                            <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Result fields</div>
                             ${outputHtmlTechnical}
                         </div>
                         <div class="mt-4">
-                            <div class="font-semibold text-gray-100 mb-3">Step inputs & outputs</div>
-                            <div id="process-test-report-stepio" class="text-sm text-gray-500">Loading…</div>
+                            <div style="font-weight:850;color:var(--text-primary);margin-bottom:10px;">Step inputs & outputs</div>
+                            <div id="process-test-report-stepio" style="font-size:13px;color:var(--text-muted);">Loading…</div>
                         </div>
                     </details>
                 </div>
@@ -667,12 +732,17 @@
             modal.classList.remove('hidden');
 
             // Load step I/O asynchronously (keeps UI snappy)
-            const execId = execution?.id || execution?.execution_id || execution?.executionId;
             if (execId) {
                 try { _loadAndRenderStepIo(execId); } catch (_) {}
+                try {
+                    const el = document.getElementById('process-run-business-summary-body');
+                    if (el) _fetchBusinessSummary(execId, el);
+                } catch (_) {}
             } else {
                 const el = document.getElementById('process-test-report-stepio');
                 if (el) el.innerHTML = `<div class="text-sm text-gray-500">Step details are not available.</div>`;
+                const b = document.getElementById('process-run-business-summary-body');
+                if (b) b.innerHTML = `<div style="color:var(--text-muted);font-size:13px;">${_escapeHtmlCompat(businessOutcomeText)}</div>`;
             }
         }
 
