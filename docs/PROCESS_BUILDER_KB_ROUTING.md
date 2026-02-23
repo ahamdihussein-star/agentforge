@@ -131,7 +131,7 @@ ALWAYS start with the simplest design that fulfills the user's goal. Add complex
 ### Data Flow
 - Store AI/tool outputs in named variables (`output_variable`).
 - Reference variables in downstream steps: `{{parsedData.fieldName}}`.
-- Conditions can check any upstream variable or form field.
+- Conditions can check any upstream variable or form field. Multiple rules can be combined with AND/OR logic.
 - Notifications should reference specific scalar fields, never raw objects/arrays.
 
 ## End Node — ABSOLUTE RULE

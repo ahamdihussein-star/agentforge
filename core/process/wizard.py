@@ -383,8 +383,13 @@ Node config rules:
   Custom keys (from HR/LDAP): nationalId, hireDate, officeLocation, costCenter, badgeNumber, or ANY field the organization has configured in their HR system or LDAP directory.
   The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime. If a custom attribute exists in the directory, it will be available for prefill.
   BEST PRACTICE: For any process, ALWAYS prefill every piece of information the system already knows about the user (name, email, department, employee ID, phone, job title, manager, etc.). NEVER ask the user to manually enter data that is available from their profile. This eliminates manual entry and ensures accuracy.
-- condition.config must be: {{ "field": "<field_name>", "operator": "equals|not_equals|greater_than|less_than|contains|not_contains|starts_with|is_empty|is_not_empty", "value": "<string or number>" }}
-  Note: For is_empty and is_not_empty operators, "value" can be empty — the operator only checks presence/absence.
+- condition.config must include a "rules" array and a "logic" field:
+  {{ "rules": [{{"field":"<field_name>","operator":"<op>","value":"<val>"}}, ...], "logic": "and"|"or" }}
+  Operators: equals, not_equals, greater_than, less_than, contains, not_contains, starts_with, is_empty, is_not_empty.
+  Use "logic": "and" when ALL rules must be true. Use "logic": "or" when ANY rule can be true.
+  For a single condition, use a rules array with one item: {{ "rules": [{{"field":"totalAmount","operator":"less_than","value":"500"}}], "logic": "and" }}
+  Also set legacy compat fields: "field" = first rule's field, "operator" = first rule's operator, "value" = first rule's value.
+  Note: For is_empty and is_not_empty operators, "value" can be empty.
 - form.config must include: fields (same schema as trigger fields). Use for collecting additional input mid-workflow (not the initial form).
 - ai.config must be: {{ "prompt": "<task description only — what to do, with {{{{field}}}} refs>", "model": "gpt-4o", "instructions": ["<rule 1>", "<rule 2>", ...] }}
   IMPORTANT — prompt vs instructions separation:
@@ -540,19 +545,23 @@ Node config rules:
   - Example: "enabledToolIds": ["tool_crm_api", "tool_hr_db"]
 
 - CONDITION ROUTING — HOW IT WORKS:
-  The condition expression is evaluated as a boolean.
+  The condition uses a "rules" array. Each rule has field, operator, and value.
+  "logic" controls how multiple rules combine: "and" (ALL must be true) or "or" (ANY can be true).
   In the condition config, you MUST include "onTrue" and "onFalse" — the node IDs the process goes to:
-    - "onTrue": the node ID to go to when the expression evaluates to TRUE
-    - "onFalse": the node ID to go to when the expression evaluates to FALSE
+    - "onTrue": the node ID to go to when the combined result is TRUE
+    - "onFalse": the node ID to go to when the combined result is FALSE
   You also MUST create two edges from the condition: one with type "yes" (TRUE path) to the onTrue node, one with type "no" (FALSE path) to the onFalse node.
-  THINK CAREFULLY about what TRUE and FALSE mean for your expression:
-    If expression is "{{{{totalAmount}}}} < 500":
+  THINK CAREFULLY about what TRUE and FALSE mean for your rules:
+    If rule is field=totalAmount, operator=less_than, value=500:
       - TRUE means the amount IS under 500 → onTrue should point to the step for small amounts (e.g., auto-approve)
       - FALSE means the amount is NOT under 500 → onFalse should point to the step for large amounts (e.g., manager approval)
-  Example patterns:
-    - Auto-approval: expression "{{{{totalAmount}}}} < 500", onTrue → auto-approve, onFalse → manager approval
-    - Urgency routing: expression "{{{{priority}}}} == 'high'", onTrue → escalation, onFalse → normal queue
-    - Eligibility check: expression "{{{{score}}}} >= 80", onTrue → approved, onFalse → rejected
+  Single-rule example:
+    "rules": [{{"field":"totalAmount","operator":"less_than","value":"500"}}], "logic":"and"
+    onTrue → auto-approve, onFalse → manager approval
+  Multi-rule AND example (employee is senior AND amount is high):
+    "rules": [{{"field":"parsedData.yearsOfService","operator":"greater_than","value":"5"}},{{"field":"parsedData.totalAmount","operator":"greater_than","value":"10000"}}], "logic":"and"
+  Multi-rule OR example (VIP status OR amount is small):
+    "rules": [{{"field":"trigger_input._user_context.isVIP","operator":"equals","value":"true"}},{{"field":"parsedData.totalAmount","operator":"less_than","value":"100"}}], "logic":"or"
 
 - CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
 
@@ -608,10 +617,14 @@ approval:
 
 condition:
 {{
-    "expression": "<boolean expression>",
-    "field": "<variable name to check, e.g. totalAmount>",
-    "operator": "<less_than|greater_than|equals|not_equals|contains|is_empty>",
-    "value": "<threshold value>",
+    "rules": [
+        {{"field": "<variable name, e.g. totalAmount>", "operator": "<less_than|greater_than|equals|not_equals|contains|is_empty|is_not_empty>", "value": "<threshold>"}},
+        {{"field": "<another field>", "operator": "<op>", "value": "<val>"}}
+    ],
+    "logic": "and|or",
+    "field": "<first rule's field (legacy compat)>",
+    "operator": "<first rule's operator (legacy compat)>",
+    "value": "<first rule's value (legacy compat)>",
     "onTrue": "<node_id to go to when expression is TRUE>",
     "onFalse": "<node_id to go to when expression is FALSE>"
 }}
@@ -1086,6 +1099,9 @@ class ProcessWizard:
             "10. AI NODE OUTPUT: AI nodes with outputFields must have output_format:'json' "
             "and an output_variable. outputFields used in conditions must be type 'number' "
             "(not 'currency').\n\n"
+            "11. CONDITION RULES: condition.config must have a 'rules' array (even for single conditions). "
+            "Each rule: {field, operator, value}. Also set 'logic' to 'and' or 'or'. "
+            "Set legacy fields: field/operator/value from the first rule.\n\n"
             "Return the CORRECTED process JSON (full object). No markdown, no explanation."
         )
 
@@ -1694,11 +1710,17 @@ class ProcessWizard:
                     ncfg = n.get("config")
                     if isinstance(ncfg, dict):
                         n["config"] = _rewrite_obj(ncfg, mapping)
-                    # Condition nodes may store raw field key outside {{ }}
                     if n.get("type") == "condition" and isinstance(n.get("config"), dict):
                         cf = n["config"].get("field")
                         if isinstance(cf, str) and cf in mapping:
                             n["config"]["field"] = mapping[cf]
+                        _cond_rules = n["config"].get("rules")
+                        if isinstance(_cond_rules, list):
+                            for _cr in _cond_rules:
+                                if isinstance(_cr, dict):
+                                    _crf = _cr.get("field")
+                                    if isinstance(_crf, str) and _crf in mapping:
+                                        _cr["field"] = mapping[_crf]
 
         # CONVERT: Any remaining calculate nodes → AI steps (calculate is deprecated).
         for n in normalized_nodes:
@@ -1760,6 +1782,28 @@ class ProcessWizard:
         if not normalized_edges and len(normalized_nodes) >= 2:
             for i in range(len(normalized_nodes) - 1):
                 normalized_edges.append({"from": normalized_nodes[i]["id"], "to": normalized_nodes[i + 1]["id"]})
+
+        # Normalize condition config: ensure rules[] array exists with backward compat
+        for _cn in normalized_nodes:
+            if _cn.get("type") != "condition":
+                continue
+            _cc = _cn.get("config") or {}
+            _rules = _cc.get("rules")
+            if not isinstance(_rules, list) or len(_rules) == 0:
+                _f = str(_cc.get("field") or "").strip()
+                _o = str(_cc.get("operator") or "equals").strip()
+                _v = _cc.get("value", "")
+                if _f:
+                    _cc["rules"] = [{"field": _f, "operator": _o, "value": _v}]
+                else:
+                    _cc["rules"] = [{"field": "", "operator": "equals", "value": ""}]
+            if not _cc.get("logic"):
+                _cc["logic"] = "and"
+            first_rule = _cc["rules"][0] if _cc["rules"] else {}
+            _cc["field"] = first_rule.get("field", "")
+            _cc["operator"] = first_rule.get("operator", "equals")
+            _cc["value"] = first_rule.get("value", "")
+            _cn["config"] = _cc
 
         # Ensure condition nodes have correct yes/no outgoing edges.
         # Priority: onTrue/onFalse config fields > existing edge types > fallback.
@@ -2912,7 +2956,7 @@ class ProcessWizard:
             "database_query: Database operation (config: operation, query)",
             "approval: Approval gate (config: title, assignee_type, min_approvals, timeout_hours)",
             "notification: Send notification (config: channel, recipients, title, message)",
-            "condition: If/else branching (config: field, operator, value — yes edge = TRUE, no edge = FALSE)",
+            "condition: If/else branching (config: rules[{field,operator,value},...], logic:'and'|'or' — yes edge = TRUE, no edge = FALSE)",
             "loop: Iterate over items (config: items, item_variable, index_variable)",
             "parallel: Parallel execution (config: branches)",
             "transform: Data transformation (config: transform_type, mappings)",

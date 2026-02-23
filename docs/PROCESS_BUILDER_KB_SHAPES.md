@@ -234,12 +234,15 @@ Note: `read_document` and `create_document` are legacy node types automatically 
 ## Category: Logic
 
 ### 7) Decision — `condition`
-Route the workflow based on a yes/no condition.
+Route the workflow based on one or more business rules (yes/no).
 
 Config (`condition.config`):
-- `field` (string): The field or variable to evaluate (e.g., `"totalAmount"`, `"parsedData.category"`).
-- `operator` (string): Comparison operator (see table below).
-- `value` (string|number): The value to compare against (leave empty for `is_empty`/`is_not_empty`).
+- `rules` (array): One or more rules to evaluate. Each rule has:
+  - `field` (string): The field or variable to evaluate (e.g., `"totalAmount"`, `"parsedData.category"`).
+  - `operator` (string): Comparison operator (see table below).
+  - `value` (string|number): The value to compare against (leave empty for `is_empty`/`is_not_empty`).
+- `logic` (string): `"and"` (ALL rules must be true) or `"or"` (ANY rule can be true). Default: `"and"`.
+- Legacy compat fields: `field`, `operator`, `value` (mirror the first rule).
 
 **Available Operators:**
 
@@ -254,6 +257,11 @@ Config (`condition.config`):
 | `starts_with` | Starts with |
 | `is_empty` | Is empty / null |
 | `is_not_empty` | Has a value |
+
+**Examples:**
+- Single rule: `"rules": [{"field":"totalAmount","operator":"less_than","value":"500"}], "logic":"and"`
+- Multi-rule AND: `"rules": [{"field":"amount","operator":"greater_than","value":"1000"},{"field":"department","operator":"equals","value":"Finance"}], "logic":"and"`
+- Multi-rule OR: `"rules": [{"field":"priority","operator":"equals","value":"urgent"},{"field":"amount","operator":"greater_than","value":"5000"}], "logic":"or"`
 
 Connection rules: MUST have exactly two outgoing edges — `type: "yes"` and `type: "no"`.
 Layout: "yes" path goes LEFT (x - 300), "no" path goes RIGHT (x + 300). Both reconverge to a shared node below.

@@ -519,11 +519,20 @@ class DatabaseQueryConfig(BaseModel):
     max_rows: int = Field(default=1000, description="Maximum rows to return")
 
 
+class ConditionRule(BaseModel):
+    """A single condition rule"""
+    field: str = Field(default="", description="Field to evaluate")
+    operator: str = Field(default="equals", description="Comparison operator")
+    value: Optional[str] = Field(default="", description="Value to compare against")
+
+
 class ConditionConfig(BaseModel):
     """Configuration for CONDITION nodes"""
-    expression: str = Field(..., description="Condition expression to evaluate")
-    true_branch: str = Field(..., description="Node ID if condition is true")
-    false_branch: str = Field(..., description="Node ID if condition is false")
+    expression: str = Field(default="", description="Condition expression to evaluate (auto-built from rules)")
+    true_branch: str = Field(default="", description="Node ID if condition is true")
+    false_branch: str = Field(default="", description="Node ID if condition is false")
+    rules: List[ConditionRule] = Field(default_factory=lambda: [ConditionRule()], description="Business rules to evaluate")
+    logic: str = Field(default="and", description="How to combine rules: 'and' (all true) or 'or' (any true)")
 
 
 class SwitchConfig(BaseModel):

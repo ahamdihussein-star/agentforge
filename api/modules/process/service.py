@@ -1828,34 +1828,61 @@ class ProcessAPIService:
             if 'type_config' not in config:
                 config = {'type_config': config}
             type_cfg = config.get('type_config') or {}
-            # Condition node: build expression from field/operator/value, set true_branch/false_branch from edges
+            # Condition node: build expression from rules[] or legacy field/operator/value
             if node_type == 'condition':
-                field = type_cfg.get('field') or ''
-                operator = type_cfg.get('operator') or 'equals'
-                value = type_cfg.get('value')
+                rules = type_cfg.get('rules')
+                if not isinstance(rules, list) or len(rules) == 0:
+                    legacy_field = type_cfg.get('field') or ''
+                    rules = [{'field': legacy_field, 'operator': type_cfg.get('operator') or 'equals', 'value': type_cfg.get('value')}] if legacy_field else []
+                condition_logic = str(type_cfg.get('logic') or 'and').strip().lower()
+                if condition_logic not in ('and', 'or'):
+                    condition_logic = 'and'
+
                 existing_expr = str(type_cfg.get('expression') or '').strip()
-                try:
-                    num_val = float(value) if value is not None and str(value).strip() != '' else None
-                except (TypeError, ValueError):
-                    num_val = None
-                if field:
-                    if operator == 'greater_than':
-                        type_cfg['expression'] = f"{{{{{field}}}}} > {num_val if num_val is not None else repr(value)}"
-                    elif operator == 'less_than':
-                        type_cfg['expression'] = f"{{{{{field}}}}} < {num_val if num_val is not None else repr(value)}"
-                    elif operator == 'equals':
-                        type_cfg['expression'] = f"{{{{{field}}}}} == {num_val if num_val is not None else repr(value)}"
-                    elif operator == 'not_equals':
-                        type_cfg['expression'] = f"{{{{{field}}}}} != {num_val if num_val is not None else repr(value)}"
-                    elif operator == 'contains':
-                        type_cfg['expression'] = f"{repr(value)} in str({{{{{field}}}}})"
-                    elif operator == 'is_empty':
-                        type_cfg['expression'] = f"{{{{{field}}}}} == '' or {{{{field}}}} == None"
+
+                def _build_rule_expr(r):
+                    rf = str(r.get('field') or '').strip()
+                    if not rf:
+                        return None
+                    ro = str(r.get('operator') or 'equals').strip()
+                    rv = r.get('value')
+                    try:
+                        rv_num = float(rv) if rv is not None and str(rv).strip() != '' else None
+                    except (TypeError, ValueError):
+                        rv_num = None
+                    rv_repr = rv_num if rv_num is not None else repr(rv)
+                    if ro == 'greater_than':
+                        return f"{{{{{rf}}}}} > {rv_repr}"
+                    elif ro == 'less_than':
+                        return f"{{{{{rf}}}}} < {rv_repr}"
+                    elif ro == 'equals':
+                        return f"{{{{{rf}}}}} == {rv_repr}"
+                    elif ro == 'not_equals':
+                        return f"{{{{{rf}}}}} != {rv_repr}"
+                    elif ro == 'contains':
+                        return f"{repr(rv)} in str({{{{{rf}}}}})"
+                    elif ro == 'not_contains':
+                        return f"{repr(rv)} not in str({{{{{rf}}}}})"
+                    elif ro == 'starts_with':
+                        return f"str({{{{{rf}}}}}).startswith({repr(rv)})"
+                    elif ro == 'is_empty':
+                        return f"({{{{{rf}}}}} == '' or {{{{{rf}}}}} == None)"
+                    elif ro == 'is_not_empty':
+                        return f"({{{{{rf}}}}} != '' and {{{{{rf}}}}} != None)"
                     else:
-                        type_cfg['expression'] = f"{{{{{field}}}}} == {repr(value)}"
+                        return f"{{{{{rf}}}}} == {rv_repr}"
+
+                rule_exprs = [_build_rule_expr(r) for r in rules if isinstance(r, dict)]
+                rule_exprs = [e for e in rule_exprs if e]
+
+                if rule_exprs:
+                    joiner = f" and " if condition_logic == 'and' else f" or "
+                    if len(rule_exprs) == 1:
+                        type_cfg['expression'] = rule_exprs[0]
+                    else:
+                        type_cfg['expression'] = joiner.join(f"({e})" for e in rule_exprs)
                 elif not existing_expr or existing_expr == 'True':
                     type_cfg['expression'] = 'True'
-                # else: keep the existing expression (wizard-generated)
 
                 # Determine true/false branches.
                 # Priority: onTrue/onFalse config fields (explicit) > edge types.
@@ -2134,49 +2161,56 @@ class ProcessAPIService:
         # Separate dot-paths for sub-field matching
         _known_dot_paths: set = {v for v in _known_output_vars if "." in v}
 
+        def _crossref_condition_field(_fld_val, _nid, _n_name, _tc_ref):
+            """Try to resolve a condition field to a known output variable. Returns resolved field or original."""
+            if not _fld_val or _fld_val in _known_output_vars:
+                return _fld_val
+            _fl = _fld_val.lower()
+            for _dp in _known_dot_paths:
+                _leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
+                if _leaf.lower() == _fl:
+                    logger.info("ServiceNorm cross-ref: condition '%s' field '%s' → dot-path '%s'", _n_name, _fld_val, _dp)
+                    _old_expr = str(_tc_ref.get("expression") or "").strip()
+                    if _old_expr and ("{{" + _fld_val + "}}") in _old_expr:
+                        _tc_ref["expression"] = _old_expr.replace("{{" + _fld_val + "}}", "{{" + _dp + "}}")
+                    return _dp
+            _incoming_ids = [e.get("source") or e.get("from") for e in (data.get("edges") or []) if (e.get("target") or e.get("to")) == _nid]
+            for _src_id in _incoming_ids:
+                _src = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
+                if not _src:
+                    continue
+                _src_ov = str(_src.get("output_variable") or "").strip()
+                if not _src_ov:
+                    continue
+                _candidate = f"{_src_ov}.{_fld_val}"
+                if _candidate in _known_output_vars:
+                    logger.info("ServiceNorm cross-ref: condition '%s' field '%s' → '%s'", _n_name, _fld_val, _candidate)
+                    _old_expr = str(_tc_ref.get("expression") or "").strip()
+                    if _old_expr and ("{{" + _fld_val + "}}") in _old_expr:
+                        _tc_ref["expression"] = _old_expr.replace("{{" + _fld_val + "}}", "{{" + _candidate + "}}")
+                    return _candidate
+            return _fld_val
+
         for _n in normalized_nodes:
             if _n.get("type") != "condition":
                 continue
             _tc = (_n.get("config") or {}).get("type_config") or {}
-            _fld = str(_tc.get("field") or "").strip()
-            if not _fld or _fld in _known_output_vars:
-                continue
-
             _nid = _n.get("id")
-            _fl = _fld.lower()
-            _fixed = False
+            _n_name = _n.get("name", _nid)
 
-            # Strategy 1: Match dot-path by leaf name
-            for _dp in _known_dot_paths:
-                _leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
-                if _leaf.lower() == _fl:
-                    logger.info("ServiceNorm cross-ref: condition '%s' field '%s' → dot-path '%s'", _n.get("name", _nid), _fld, _dp)
-                    _tc["field"] = _dp
-                    _old_expr = str(_tc.get("expression") or "").strip()
-                    if _old_expr and ("{{" + _fld + "}}") in _old_expr:
-                        _tc["expression"] = _old_expr.replace("{{" + _fld + "}}", "{{" + _dp + "}}")
-                    _fixed = True
-                    break
-
-            # Strategy 2: Upstream output_variable + field as sub-path
-            if not _fixed:
-                _incoming_ids = [e.get("source") or e.get("from") for e in (data.get("edges") or []) if (e.get("target") or e.get("to")) == _nid]
-                for _src_id in _incoming_ids:
-                    _src = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
-                    if not _src:
+            _rules = _tc.get("rules")
+            if isinstance(_rules, list) and len(_rules) > 0:
+                for _rule in _rules:
+                    if not isinstance(_rule, dict):
                         continue
-                    _src_ov = str(_src.get("output_variable") or "").strip()
-                    if not _src_ov:
-                        continue
-                    _candidate = f"{_src_ov}.{_fld}"
-                    if _candidate in _known_output_vars:
-                        logger.info("ServiceNorm cross-ref: condition '%s' field '%s' → '%s'", _n.get("name", _nid), _fld, _candidate)
-                        _tc["field"] = _candidate
-                        _old_expr = str(_tc.get("expression") or "").strip()
-                        if _old_expr and ("{{" + _fld + "}}") in _old_expr:
-                            _tc["expression"] = _old_expr.replace("{{" + _fld + "}}", "{{" + _candidate + "}}")
-                        _fixed = True
-                        break
+                    _rf = str(_rule.get("field") or "").strip()
+                    if _rf:
+                        _rule["field"] = _crossref_condition_field(_rf, _nid, _n_name, _tc)
+                _tc["field"] = str((_rules[0] or {}).get("field") or "").strip()
+            else:
+                _fld = str(_tc.get("field") or "").strip()
+                if _fld:
+                    _tc["field"] = _crossref_condition_field(_fld, _nid, _n_name, _tc)
 
         data['nodes'] = normalized_nodes
         

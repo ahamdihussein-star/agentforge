@@ -694,7 +694,7 @@
                 schedule: { name: 'Schedule', config: { cron: '0 9 * * *', timezone: 'UTC' } },
                 webhook: { name: 'Webhook', config: { method: 'POST', path: '/trigger' } },
                 action: { name: 'Action', config: { description: '', actionType: 'custom' } },
-                condition: { name: 'Decision', config: { field: '', operator: 'equals', value: '' } },
+                condition: { name: 'Decision', config: { rules: [{ field: '', operator: 'equals', value: '' }], logic: 'and' } },
                 loop: { name: 'Repeat', config: { collection: '', itemVar: 'item', maxIterations: 100 } },
                 delay: { name: 'Wait', config: { duration: 5, unit: 'minutes' } },
                 approval: { name: 'Request Approval', config: { assignee_source: 'platform_user', assignee_type: 'user', assignee_ids: [], timeout_hours: 24, message: '', notifyApprover: false, notificationMessage: '' } },
@@ -994,9 +994,18 @@
             let html = '';
             
             switch (node.type) {
-                case 'condition':
-                    html = `<div class="node-config-item"><span class="config-label">If</span><span class="config-value">${cfg.field || 'field'} ${cfg.operator || '='} ${cfg.value || 'value'}</span></div>`;
+                case 'condition': {
+                    const _rules = Array.isArray(cfg.rules) ? cfg.rules : [{ field: cfg.field, operator: cfg.operator, value: cfg.value }];
+                    const _logic = cfg.logic || 'and';
+                    const _opLabels = { equals: '=', not_equals: '\u2260', greater_than: '>', less_than: '<', contains: 'contains', not_contains: '!contains', starts_with: 'starts', is_empty: 'is empty', is_not_empty: 'has value' };
+                    const _ruleTexts = _rules.filter(r => r && r.field).map(r => {
+                        const _fLabel = friendlyRefLabel('{{' + (r.field || '') + '}}');
+                        return `${_fLabel} ${_opLabels[r.operator] || r.operator || '='} ${r.value || ''}`;
+                    });
+                    const preview = _ruleTexts.length > 0 ? _ruleTexts.join(` ${_logic.toUpperCase()} `) : 'Not configured';
+                    html = `<div class="node-config-item"><span class="config-label">If</span><span class="config-value">${preview}</span></div>`;
                     break;
+                }
                 case 'delay':
                     html = `<div class="node-config-item"><span class="config-label">Wait</span><span class="config-value">${cfg.duration || 5} ${cfg.unit || 'minutes'}</span></div>`;
                     break;
@@ -3053,83 +3062,123 @@
                         ...condPersonFields.map(pf => ({name: 'trigger_input._user_context.' + pf.key, label: pf.label || pf.key, _personInfo: true})),
                         ...condCustomFields.map(cf => ({name: 'trigger_input._user_context.' + cf.key, label: cf.label || cf.key, _custom: true})),
                     ];
-                    const condFieldVal = node.config.field || '';
-                    const condIsCustomField = condFieldVal && condFieldVal !== '_custom' && !allCondFields.find(f => f.name === condFieldVal);
+
+                    if (!Array.isArray(node.config.rules)) {
+                        node.config.rules = [{ field: node.config.field || '', operator: node.config.operator || 'equals', value: node.config.value || '' }];
+                        if (!node.config.logic) node.config.logic = 'and';
+                    }
+                    const condRules = node.config.rules;
+                    const condLogic = node.config.logic || 'and';
+
                     html += `
                         <div class="property-group">
-                            <label class="property-label">When is this true?</label>
+                            <label class="property-label">Business Rules</label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:8px;">
-                                If the condition below is true, the process goes down the <strong style="color:#22c55e;">Yes</strong> path. Otherwise, it goes down the <strong style="color:#ef4444;">No</strong> path.
+                                If ${condRules.length > 1 ? '<strong>' + (condLogic === 'and' ? 'all' : 'any') + '</strong> of the rules below are' : 'the rule below is'} true, the process goes down the <strong style="color:#22c55e;">Yes</strong> path. Otherwise, it goes down the <strong style="color:#ef4444;">No</strong> path.
                             </div>
                         </div>
-                        <div class="property-group">
-                            <div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:color-mix(in srgb,var(--pb-primary) 5%,transparent);border-radius:10px;border:1px solid color-mix(in srgb,var(--pb-primary) 15%,transparent);">
-                                ${allCondFields.length > 0 ? `
-                                    <div style="display:flex;gap:4px;align-items:center;">
-                                    <select class="property-select" onchange="updateNodeConfig('${node.id}', 'field', this.value)" style="flex:1;">
-                                        <option value="">-- Select a field --</option>
-                                        ${availableFields.length > 0 ? `<optgroup label="📝 Form fields">
-                                            ${availableFields.map(f => `
-                                                <option value="${f.name}" ${condFieldVal === f.name ? 'selected' : ''}>
-                                                    ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}
-                                                </option>
-                                            `).join('')}
-                                        </optgroup>` : ''}
-                                        ${upstreamData.length > 0 ? `<optgroup label="📦 Data from previous steps">
-                                            ${upstreamData.map(d => `
-                                                <option value="${d.name}" ${condFieldVal === d.name ? 'selected' : ''}>
-                                                    ${escapeHtml(d.label)} (from ${escapeHtml(d.source)})
-                                                </option>
-                                            `).join('')}
-                                        </optgroup>` : ''}
-                                        ${condPersonFields.length > 0 ? `<optgroup label="👤 User Profile">
-                                            ${condPersonFields.map(pf => `
-                                                <option value="trigger_input._user_context.${escapeHtml(pf.key)}" ${condFieldVal === 'trigger_input._user_context.' + pf.key ? 'selected' : ''}>
-                                                    ${escapeHtml(pf.label || pf.key)}
-                                                </option>
-                                            `).join('')}
-                                        </optgroup>` : ''}
-                                        ${condCustomFields.length > 0 ? `<optgroup label="🏷️ Custom Fields">
-                                            ${condCustomFields.map(cf => `
-                                                <option value="trigger_input._user_context.${escapeHtml(cf.key)}" ${condFieldVal === 'trigger_input._user_context.' + cf.key ? 'selected' : ''}>
-                                                    ${escapeHtml(cf.label || cf.key)}
-                                                </option>
-                                            `).join('')}
-                                        </optgroup>` : ''}
-                                        <option value="_custom" ${condFieldVal === '_custom' || condIsCustomField ? 'selected' : ''}>
-                                            Enter manually...
-                                        </option>
+                    `;
+
+                    if (condRules.length > 1) {
+                        html += `
+                            <div class="property-group">
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <label style="font-size:12px;color:var(--pb-text);font-weight:500;">Match</label>
+                                    <select class="property-select" style="width:auto;min-width:120px;" onchange="updateConditionLogic('${node.id}', this.value)">
+                                        <option value="and" ${condLogic === 'and' ? 'selected' : ''}>All rules (AND)</option>
+                                        <option value="or" ${condLogic === 'or' ? 'selected' : ''}>Any rule (OR)</option>
                                     </select>
-                                    <button type="button" class="org-pick-item-btn" style="padding:6px 10px;font-size:11px;"
-                                            onclick="openOrgDataPicker(function(ref,label){updateNodeConfig('${node.id}','field',ref.replace(/^\\{\\{|\\}\\}$/g,''));showProperties(state.nodes.find(n=>n.id==='${node.id}'));})">Browse\u2026</button>
-                                    </div>
-                                    ${condFieldVal === '_custom' || condIsCustomField ? `
-                                        <input type="text" class="property-input" placeholder="Field name" 
-                                               value="${condFieldVal === '_custom' ? '' : (condFieldVal || '')}"
-                                               onchange="updateNodeConfig('${node.id}', 'field', this.value)">
-                                    ` : ''}
-                                ` : `
-                                    <input type="text" class="property-input" placeholder="e.g. amount, status" 
-                                           value="${condFieldVal || ''}"
-                                           onchange="updateNodeConfig('${node.id}', 'field', this.value)">
-                                `}
-                                <select class="property-select" onchange="updateNodeConfig('${node.id}', 'operator', this.value)" style="width:100%;">
-                                    <option value="equals" ${node.config.operator === 'equals' ? 'selected' : ''}>is equal to</option>
-                                    <option value="not_equals" ${node.config.operator === 'not_equals' ? 'selected' : ''}>is not equal to</option>
-                                    <option value="greater_than" ${node.config.operator === 'greater_than' ? 'selected' : ''}>is greater than</option>
-                                    <option value="less_than" ${node.config.operator === 'less_than' ? 'selected' : ''}>is less than</option>
-                                    <option value="contains" ${node.config.operator === 'contains' ? 'selected' : ''}>contains</option>
-                                    <option value="not_contains" ${node.config.operator === 'not_contains' ? 'selected' : ''}>does not contain</option>
-                                    <option value="starts_with" ${node.config.operator === 'starts_with' ? 'selected' : ''}>starts with</option>
-                                    <option value="is_empty" ${node.config.operator === 'is_empty' ? 'selected' : ''}>is empty</option>
-                                    <option value="is_not_empty" ${node.config.operator === 'is_not_empty' ? 'selected' : ''}>is not empty</option>
-                                </select>
-                                ${node.config.operator !== 'is_empty' && node.config.operator !== 'is_not_empty' ? `
-                                    <input type="text" class="property-input" placeholder="Value to compare" 
-                                           value="${escapeHtml(node.config.value || '')}"
-                                           onchange="updateNodeConfig('${node.id}', 'value', this.value)">
-                                ` : ''}
+                                </div>
                             </div>
+                        `;
+                    }
+
+                    condRules.forEach((rule, rIdx) => {
+                        const rField = rule.field || '';
+                        const rOperator = rule.operator || 'equals';
+                        const rValue = rule.value || '';
+                        const rIsCustom = rField && rField !== '_custom' && !allCondFields.find(f => f.name === rField);
+                        const showBadge = condRules.length > 1;
+                        const logicBadge = rIdx > 0 ? `<div style="text-align:center;margin:-4px 0;"><span style="display:inline-block;padding:2px 10px;border-radius:8px;font-size:10px;font-weight:600;letter-spacing:0.5px;background:${condLogic === 'and' ? 'rgba(99,102,241,0.15)' : 'rgba(245,158,11,0.15)'};color:${condLogic === 'and' ? '#818cf8' : '#f59e0b'};">${condLogic.toUpperCase()}</span></div>` : '';
+
+                        html += `
+                            ${logicBadge}
+                            <div class="property-group" style="position:relative;">
+                                <div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:color-mix(in srgb,var(--pb-primary) 5%,transparent);border-radius:10px;border:1px solid color-mix(in srgb,var(--pb-primary) 15%,transparent);">
+                                    ${showBadge ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;"><span style="font-size:11px;font-weight:600;color:var(--pb-muted);">Rule ${rIdx + 1}</span><button type="button" onclick="removeConditionRule('${node.id}', ${rIdx})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px;line-height:1;" title="Remove rule">&times;</button></div>` : ''}
+                                    ${allCondFields.length > 0 ? `
+                                        <div style="display:flex;gap:4px;align-items:center;">
+                                        <select class="property-select" onchange="updateConditionRule('${node.id}', ${rIdx}, 'field', this.value)" style="flex:1;">
+                                            <option value="">-- Select a field --</option>
+                                            ${availableFields.length > 0 ? `<optgroup label="📝 Form fields">
+                                                ${availableFields.map(f => `
+                                                    <option value="${f.name}" ${rField === f.name ? 'selected' : ''}>
+                                                        ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}
+                                                    </option>
+                                                `).join('')}
+                                            </optgroup>` : ''}
+                                            ${upstreamData.length > 0 ? `<optgroup label="📦 Data from previous steps">
+                                                ${upstreamData.map(d => `
+                                                    <option value="${d.name}" ${rField === d.name ? 'selected' : ''}>
+                                                        ${escapeHtml(d.label)} (from ${escapeHtml(d.source)})
+                                                    </option>
+                                                `).join('')}
+                                            </optgroup>` : ''}
+                                            ${condPersonFields.length > 0 ? `<optgroup label="👤 User Profile">
+                                                ${condPersonFields.map(pf => `
+                                                    <option value="trigger_input._user_context.${escapeHtml(pf.key)}" ${rField === 'trigger_input._user_context.' + pf.key ? 'selected' : ''}>
+                                                        ${escapeHtml(pf.label || pf.key)}
+                                                    </option>
+                                                `).join('')}
+                                            </optgroup>` : ''}
+                                            ${condCustomFields.length > 0 ? `<optgroup label="🏷️ Custom Fields">
+                                                ${condCustomFields.map(cf => `
+                                                    <option value="trigger_input._user_context.${escapeHtml(cf.key)}" ${rField === 'trigger_input._user_context.' + cf.key ? 'selected' : ''}>
+                                                        ${escapeHtml(cf.label || cf.key)}
+                                                    </option>
+                                                `).join('')}
+                                            </optgroup>` : ''}
+                                            <option value="_custom" ${rField === '_custom' || rIsCustom ? 'selected' : ''}>
+                                                Enter manually...
+                                            </option>
+                                        </select>
+                                        <button type="button" class="org-pick-item-btn" style="padding:6px 10px;font-size:11px;"
+                                                onclick="openOrgDataPicker(function(ref,label){updateConditionRule('${node.id}',${rIdx},'field',ref.replace(/^\\{\\{|\\}\\}$/g,''));})">Browse\u2026</button>
+                                        </div>
+                                        ${rField === '_custom' || rIsCustom ? `
+                                            <input type="text" class="property-input" placeholder="Field name" 
+                                                   value="${rField === '_custom' ? '' : escapeHtml(rField)}"
+                                                   onchange="updateConditionRule('${node.id}', ${rIdx}, 'field', this.value)">
+                                        ` : ''}
+                                    ` : `
+                                        <input type="text" class="property-input" placeholder="e.g. amount, status" 
+                                               value="${escapeHtml(rField)}"
+                                               onchange="updateConditionRule('${node.id}', ${rIdx}, 'field', this.value)">
+                                    `}
+                                    <select class="property-select" onchange="updateConditionRule('${node.id}', ${rIdx}, 'operator', this.value)" style="width:100%;">
+                                        <option value="equals" ${rOperator === 'equals' ? 'selected' : ''}>is equal to</option>
+                                        <option value="not_equals" ${rOperator === 'not_equals' ? 'selected' : ''}>is not equal to</option>
+                                        <option value="greater_than" ${rOperator === 'greater_than' ? 'selected' : ''}>is greater than</option>
+                                        <option value="less_than" ${rOperator === 'less_than' ? 'selected' : ''}>is less than</option>
+                                        <option value="contains" ${rOperator === 'contains' ? 'selected' : ''}>contains</option>
+                                        <option value="not_contains" ${rOperator === 'not_contains' ? 'selected' : ''}>does not contain</option>
+                                        <option value="starts_with" ${rOperator === 'starts_with' ? 'selected' : ''}>starts with</option>
+                                        <option value="is_empty" ${rOperator === 'is_empty' ? 'selected' : ''}>is empty</option>
+                                        <option value="is_not_empty" ${rOperator === 'is_not_empty' ? 'selected' : ''}>is not empty</option>
+                                    </select>
+                                    ${rOperator !== 'is_empty' && rOperator !== 'is_not_empty' ? `
+                                        <input type="text" class="property-input" placeholder="Value to compare" 
+                                               value="${escapeHtml(rValue)}"
+                                               onchange="updateConditionRule('${node.id}', ${rIdx}, 'value', this.value)">
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    html += `
+                        <div class="property-group" style="text-align:center;">
+                            <button type="button" onclick="addConditionRule('${node.id}')" style="background:none;border:1px dashed color-mix(in srgb,var(--pb-primary) 40%,transparent);color:var(--pb-primary);padding:8px 16px;border-radius:10px;cursor:pointer;font-size:12px;font-weight:500;width:100%;transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--pb-primary)';this.style.background='color-mix(in srgb,var(--pb-primary) 8%,transparent)'" onmouseleave="this.style.borderColor='color-mix(in srgb,var(--pb-primary) 40%,transparent)';this.style.background='none'">+ Add another rule</button>
                         </div>
                     `;
                     break;
@@ -4875,6 +4924,62 @@
                 saveToUndo();
             }
         }
+
+        function updateConditionRule(nodeId, ruleIndex, key, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!Array.isArray(node.config.rules)) {
+                node.config.rules = [{ field: node.config.field || '', operator: node.config.operator || 'equals', value: node.config.value || '' }];
+            }
+            if (node.config.rules[ruleIndex]) {
+                node.config.rules[ruleIndex][key] = value;
+            }
+            node.config.field = (node.config.rules[0] || {}).field || '';
+            node.config.operator = (node.config.rules[0] || {}).operator || 'equals';
+            node.config.value = (node.config.rules[0] || {}).value || '';
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+        window.updateConditionRule = updateConditionRule;
+
+        function addConditionRule(nodeId) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!Array.isArray(node.config.rules)) {
+                node.config.rules = [{ field: node.config.field || '', operator: node.config.operator || 'equals', value: node.config.value || '' }];
+            }
+            node.config.rules.push({ field: '', operator: 'equals', value: '' });
+            if (!node.config.logic) node.config.logic = 'and';
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+        window.addConditionRule = addConditionRule;
+
+        function removeConditionRule(nodeId, ruleIndex) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !Array.isArray(node.config.rules)) return;
+            if (node.config.rules.length <= 1) return;
+            node.config.rules.splice(ruleIndex, 1);
+            node.config.field = (node.config.rules[0] || {}).field || '';
+            node.config.operator = (node.config.rules[0] || {}).operator || 'equals';
+            node.config.value = (node.config.rules[0] || {}).value || '';
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+        window.removeConditionRule = removeConditionRule;
+
+        function updateConditionLogic(nodeId, logic) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            node.config.logic = logic;
+            refreshNode(node);
+            showProperties(node);
+            saveToUndo();
+        }
+        window.updateConditionLogic = updateConditionLogic;
 
         function setTriggerType(nodeId, triggerType) {
             const node = state.nodes.find(n => n.id === nodeId);
