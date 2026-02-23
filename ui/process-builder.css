@@ -8,12 +8,18 @@
             color: var(--pb-text);
             overflow: hidden;
         }
+
+        /* Portal banner + toolbar heights */
+        :root {
+            --pb-banner-h: 48px;
+            --pb-toolbar-h: 60px;
+        }
         
         /* Canvas */
         #canvas-container {
             position: relative;
             width: 100%;
-            height: calc(100vh - 60px);
+            height: calc(100vh - var(--pb-banner-h) - var(--pb-toolbar-h));
             overflow: hidden;
             background: var(--canvas-bg);
             background-image: 
@@ -583,9 +589,131 @@
         .connection-label-badge.selected.yes rect { stroke: #166534; filter: drop-shadow(0 0 8px rgba(34,197,94,0.5)); }
         .connection-label-badge.selected.no rect { stroke: #b91c1c; filter: drop-shadow(0 0 8px rgba(239,68,68,0.5)); }
         
+        /* Admin portal banner (top) */
+        #pb-portal-banner {
+            height: var(--pb-banner-h);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 14px;
+            background: color-mix(in srgb, var(--pb-toolbar) 82%, transparent);
+            border-bottom: 1px solid var(--node-border);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            gap: 12px;
+        }
+        .pb-portal-left, .pb-portal-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .pb-portal-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: var(--pb-text);
+            border: 1px solid transparent;
+            background: transparent;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.1px;
+            white-space: nowrap;
+        }
+        .pb-portal-home:hover {
+            border-color: color-mix(in srgb, var(--pb-muted) 35%, transparent);
+            background: color-mix(in srgb, var(--pb-panel) 55%, transparent);
+        }
+        .pb-portal-home img { height: 24px; width: auto; }
+
+        .pb-portal-btn {
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 12px;
+            border-radius: 10px;
+            border: 1px solid color-mix(in srgb, var(--pb-muted) 25%, transparent);
+            background: color-mix(in srgb, var(--pb-panel) 65%, transparent);
+            color: var(--pb-text);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .pb-portal-btn:hover {
+            border-color: color-mix(in srgb, var(--pb-primary) 35%, transparent);
+            background: color-mix(in srgb, var(--pb-primary) 10%, var(--pb-panel));
+        }
+
+        .pb-portal-dd { position: relative; }
+        .pb-portal-dd-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            min-width: 220px;
+            background: color-mix(in srgb, var(--pb-panel) 92%, black);
+            border: 1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);
+            border-radius: 14px;
+            box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.75);
+            padding: 8px;
+            z-index: 200;
+        }
+        .pb-portal-right .pb-portal-dd-menu { left: auto; right: 0; }
+        .pb-portal-dd-menu.hidden { display: none; }
+        .pb-portal-dd-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 10px;
+            border-radius: 10px;
+            color: var(--pb-text);
+            text-decoration: none;
+            background: transparent;
+            border: 1px solid transparent;
+            font-size: 13px;
+            font-weight: 650;
+            cursor: pointer;
+            text-align: left;
+        }
+        .pb-portal-dd-item:hover {
+            background: color-mix(in srgb, var(--pb-primary) 10%, transparent);
+            border-color: color-mix(in srgb, var(--pb-primary) 18%, transparent);
+        }
+        .pb-portal-dd-item.danger { color: #fecaca; }
+        .pb-portal-dd-item.danger:hover {
+            background: color-mix(in srgb, #ef4444 12%, transparent);
+            border-color: color-mix(in srgb, #ef4444 22%, transparent);
+        }
+
+        .pb-user-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: color-mix(in srgb, var(--pb-primary) 18%, transparent);
+            border: 1px solid color-mix(in srgb, var(--pb-primary) 30%, transparent);
+            color: color-mix(in srgb, var(--pb-primary) 85%, white);
+            font-size: 12px;
+            font-weight: 900;
+        }
+        .pb-user-name {
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pb-user-caret { opacity: 0.7; }
+
         /* Toolbar */
         #top-toolbar {
-            height: 60px;
+            height: var(--pb-toolbar-h);
             background: var(--pb-toolbar);
             border-bottom: 1px solid var(--node-border);
             display: flex;
@@ -1529,6 +1657,7 @@
            - Used by Admin Portal "Play" / Test runs
            - Hides editing UI and keeps only the workflow canvas + playback animation
         ============================ */
+        body.pb-player-mode #pb-portal-banner,
         body.pb-player-mode #top-toolbar,
         body.pb-player-mode #node-palette,
         body.pb-player-mode #properties-panel,

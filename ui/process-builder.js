@@ -185,6 +185,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             initPlayerMode();
             loadPlatformTheme();
+            initPortalBanner();
             initCanvas();
             initPalette();
             initPaletteShapes();
@@ -199,6 +200,110 @@
             applyLabelFontSize();
             updateLabelFontSizeDisplay(state.labelFontSize);
         });
+
+        // ===== Admin Portal Banner (navigation + profile) =====
+        function initPortalBanner() {
+            const banner = document.getElementById('pb-portal-banner');
+            if (!banner) return;
+
+            const menuBtn = document.getElementById('pb-portal-menu-btn');
+            const menu = document.getElementById('pb-portal-menu');
+            const userBtn = document.getElementById('pb-portal-user-btn');
+            const userMenu = document.getElementById('pb-portal-user');
+            const avatarEl = document.getElementById('pb-user-avatar');
+            const nameEl = document.getElementById('pb-user-name');
+
+            const closeAll = () => {
+                try { menu?.classList.add('hidden'); } catch (_) {}
+                try { userMenu?.classList.add('hidden'); } catch (_) {}
+                try { if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false'); } catch (_) {}
+                try { if (userBtn) userBtn.setAttribute('aria-expanded', 'false'); } catch (_) {}
+            };
+
+            const toggle = (which) => {
+                const isMenu = which === 'menu';
+                const target = isMenu ? menu : userMenu;
+                const other = isMenu ? userMenu : menu;
+                const btn = isMenu ? menuBtn : userBtn;
+                const otherBtn = isMenu ? userBtn : menuBtn;
+                if (!target) return;
+
+                const willOpen = target.classList.contains('hidden');
+                try { other?.classList.add('hidden'); } catch (_) {}
+                try { if (otherBtn) otherBtn.setAttribute('aria-expanded', 'false'); } catch (_) {}
+
+                target.classList.toggle('hidden', !willOpen);
+                try { if (btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false'); } catch (_) {}
+            };
+
+            if (menuBtn) {
+                menuBtn.setAttribute('aria-haspopup', 'menu');
+                menuBtn.setAttribute('aria-expanded', 'false');
+                menuBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggle('menu');
+                });
+            }
+            if (userBtn) {
+                userBtn.setAttribute('aria-haspopup', 'menu');
+                userBtn.setAttribute('aria-expanded', 'false');
+                userBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggle('user');
+                });
+            }
+
+            // Close on outside click + ESC
+            document.addEventListener('click', (e) => {
+                if (!banner.contains(e.target)) closeAll();
+            }, { capture: true });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeAll();
+            });
+
+            // Render user info from storage (fast), then refresh from /me (authoritative)
+            const renderUser = (u) => {
+                const email = (u && (u.email || u.user_email || u.userEmail)) ? String(u.email || u.user_email || u.userEmail) : '';
+                const name = (u && (u.name || u.display_name || u.displayName)) ? String(u.name || u.display_name || u.displayName) : '';
+                const label = (name || (email ? email.split('@')[0] : '') || 'User').trim();
+                if (nameEl) nameEl.textContent = label.length > 28 ? (label.slice(0, 28) + '…') : label;
+                if (avatarEl) avatarEl.textContent = (label[0] || 'U').toUpperCase();
+            };
+
+            try {
+                const raw = localStorage.getItem('agentforge_user') || sessionStorage.getItem('agentforge_user');
+                if (raw) renderUser(JSON.parse(raw));
+            } catch (_) { /* ignore */ }
+
+            (async () => {
+                const me = await getCurrentUserProfile();
+                if (me) {
+                    renderUser(me);
+                    try {
+                        // Keep storage fresh for consistency across pages
+                        const raw = JSON.stringify(me);
+                        if (localStorage.getItem('agentforge_token')) localStorage.setItem('agentforge_user', raw);
+                        if (sessionStorage.getItem('agentforge_token')) sessionStorage.setItem('agentforge_user', raw);
+                    } catch (_) { /* ignore */ }
+                } else {
+                    // If not signed in, make the button act as "Sign in"
+                    const token = getAuthToken();
+                    if (!token && nameEl) nameEl.textContent = 'Sign in';
+                    if (!token && avatarEl) avatarEl.textContent = '؟';
+                }
+            })();
+        }
+
+        function pbSignOut() {
+            try { localStorage.removeItem('agentforge_token'); } catch (_) {}
+            try { localStorage.removeItem('agentforge_user'); } catch (_) {}
+            try { sessionStorage.removeItem('agentforge_token'); } catch (_) {}
+            try { sessionStorage.removeItem('agentforge_user'); } catch (_) {}
+            try { window.location.href = '/ui/'; } catch (_) { window.location.reload(); }
+        }
+        window.pbSignOut = pbSignOut;
 
         // Receive generated workflows from the main app (prevents popup blockers + enables instant cinematic build)
         function initDraftMessaging() {

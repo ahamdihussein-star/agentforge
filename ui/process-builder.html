@@ -8,13 +8,54 @@
     <meta http-equiv="Expires" content="0">
     <title>AgentForge - Workflow Builder</title>
     <link rel="stylesheet" href="/ui/theme.css?v=20260223d">
-    <link rel="stylesheet" href="/ui/process-builder.css?v=20260218h">
+    <link rel="stylesheet" href="/ui/process-builder.css?v=20260223h">
 
     <script src="/ui/theme.js?v=20260211f"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
 </head>
 <body>
+    <!-- Portal Banner (Admin Portal navigation + profile) -->
+    <div id="pb-portal-banner">
+        <div class="pb-portal-left">
+            <a class="pb-portal-home" href="/ui/#dashboard" title="Back to Admin Portal">
+                <img src="/AgentForge_Logo.png" alt="AgentForge" onerror="this.style.display='none'">
+                <span>Admin Portal</span>
+            </a>
+
+            <div class="pb-portal-dd">
+                <button id="pb-portal-menu-btn" class="pb-portal-btn" type="button" title="Menu">
+                    <span>☰</span> Menu
+                </button>
+                <div id="pb-portal-menu" class="pb-portal-dd-menu hidden" role="menu" aria-label="Admin Portal menu">
+                    <a href="/ui/#dashboard" class="pb-portal-dd-item">🏠 Dashboard</a>
+                    <a href="/ui/#agents" class="pb-portal-dd-item">🤖 Agents</a>
+                    <a href="/ui/#create" class="pb-portal-dd-item">✨ Create</a>
+                    <a href="/ui/#chat" class="pb-portal-dd-item">💬 Chat</a>
+                    <a href="/ui/#tools" class="pb-portal-dd-item">🔌 Tools</a>
+                    <a href="/ui/#security" class="pb-portal-dd-item">🛡️ Security</a>
+                    <a href="/ui/#settings" class="pb-portal-dd-item">⚙️ Settings</a>
+                    <a href="/lab" class="pb-portal-dd-item">🧪 Lab</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="pb-portal-right">
+            <div class="pb-portal-dd">
+                <button id="pb-portal-user-btn" class="pb-portal-btn" type="button" title="User menu">
+                    <span id="pb-user-avatar" class="pb-user-avatar">U</span>
+                    <span id="pb-user-name" class="pb-user-name">User</span>
+                    <span class="pb-user-caret">▾</span>
+                </button>
+                <div id="pb-portal-user" class="pb-portal-dd-menu hidden" role="menu" aria-label="User menu">
+                    <a href="/ui/#profile" class="pb-portal-dd-item">👤 Profile</a>
+                    <a href="/ui/#settings" class="pb-portal-dd-item">⚙️ Settings</a>
+                    <button type="button" class="pb-portal-dd-item danger" onclick="pbSignOut()">🚪 Sign out</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Top Toolbar -->
     <div id="top-toolbar">
         <div class="toolbar-logo">
@@ -318,6 +359,6 @@
     </div>
     
         <script src="/ui/dialogs.js?v=20260223c" defer></script>
-        <script src="/ui/process-builder.js?v=20260223g" defer></script>
+        <script src="/ui/process-builder.js?v=20260223h" defer></script>
 </body>
 </html>
