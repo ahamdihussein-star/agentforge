@@ -450,7 +450,9 @@ class ProcessState:
         expression = expression.replace(' and ', ' and ').replace(' or ', ' or ')
         
         # Only allow safe characters
-        allowed_chars = set('0123456789.+-*/<>=!andornotTrue False None"\'() ')
+        # Allow minimal additional JSON/list literal characters so org-scoped list fields
+        # (e.g., roles/groups) can be evaluated safely after interpolation.
+        allowed_chars = set('0123456789.+-*/<>=!andornotTrue False None"\'()[], ')
         if not all(c in allowed_chars or c.isalnum() or c == '_' for c in expression):
             raise ValueError(f"Unsafe expression: {expression}")
         

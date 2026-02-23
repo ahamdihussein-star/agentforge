@@ -889,6 +889,7 @@ class UserDirectoryService:
                                 "source": f.get("source") or "org_schema",
                                 "description": f.get("description"),
                                 "required": bool(f.get("required", False)),
+                                "options": f.get("options") if isinstance(f.get("options"), list) else None,
                             }
                 except Exception:
                     # Schema fields are optional; never fail discovery because of them

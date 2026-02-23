@@ -141,9 +141,10 @@ class ProfileFieldDefinition(BaseModel):
     """
     key: str = Field(..., description="Field key (prefer snake_case, e.g., cost_center)")
     label: Optional[str] = Field(default=None, description="Human label for UI (e.g., Cost Center)")
-    type: str = Field(default="string", description="string|number|boolean|array|object")
+    type: str = Field(default="string", description="string|number|boolean|array|object|select")
     description: Optional[str] = Field(default=None, description="Help text / meaning")
     required: bool = Field(default=False, description="If true, considered required by org policy")
+    options: Optional[List[str]] = Field(default=None, description="Optional list of allowed values (dropdown)")
 
 
 class ProfileFieldsSchemaResponse(BaseModel):

@@ -623,29 +623,51 @@ function renderOrgProfileFieldsSchema() {
         container.innerHTML = '<div class="text-sm text-gray-500">No global profile fields defined yet.</div>';
         return;
     }
-    container.innerHTML = orgProfileFieldsSchema.map((f, idx) => `
-        <div class="flex gap-2 items-center w-full">
-            <input class="input-field px-3 py-2 rounded-lg text-sm flex-1 min-w-0 org-pf-key" placeholder="key (snake_case)" value="${escHtml(f.key || '')}">
-            <input class="input-field px-3 py-2 rounded-lg text-sm flex-1 min-w-0 org-pf-label" placeholder="Label" value="${escHtml(f.label || '')}">
-            <select class="input-field px-3 py-2 rounded-lg text-sm org-pf-type">
-                ${['string','number','boolean','array','object'].map(t => `<option value="${t}" ${((f.type||'string')===t)?'selected':''}>${t}</option>`).join('')}
-            </select>
-            <label class="text-xs text-gray-400 flex items-center gap-2">
-                <input type="checkbox" class="accent-purple-500 org-pf-required" ${f.required ? 'checked' : ''}>
-                Required
-            </label>
-            <button onclick="removeOrgProfileFieldRow(${idx})" class="text-red-400 hover:text-red-300 px-2" title="Remove">✕</button>
+    container.innerHTML = orgProfileFieldsSchema.map((f, idx) => {
+        const t = (f.type || 'string');
+        const opts = Array.isArray(f.options) ? f.options : [];
+        const optsText = opts.join('\n');
+        return `
+        <div class="org-pf-row border border-gray-800/60 rounded-xl p-3 bg-gray-900/30 space-y-2">
+            <div class="flex gap-2 items-center w-full">
+                <input class="input-field px-3 py-2 rounded-lg text-sm flex-1 min-w-0 org-pf-key" placeholder="key (snake_case)" value="${escHtml(f.key || '')}">
+                <input class="input-field px-3 py-2 rounded-lg text-sm flex-1 min-w-0 org-pf-label" placeholder="Label" value="${escHtml(f.label || '')}">
+                <select class="input-field px-3 py-2 rounded-lg text-sm org-pf-type" onchange="toggleOrgProfileFieldOptions(this)">
+                    ${['string','number','boolean','array','object','select'].map(tt => `<option value="${tt}" ${((t||'string')===tt)?'selected':''}>${tt}</option>`).join('')}
+                </select>
+                <label class="text-xs text-gray-400 flex items-center gap-2">
+                    <input type="checkbox" class="accent-purple-500 org-pf-required" ${f.required ? 'checked' : ''}>
+                    Required
+                </label>
+                <button onclick="removeOrgProfileFieldRow(${idx})" class="text-red-400 hover:text-red-300 px-2" title="Remove">✕</button>
+            </div>
+            <div>
+                <input class="input-field px-3 py-2 rounded-lg text-sm w-full org-pf-desc" placeholder="Description (optional)" value="${escHtml(f.description || '')}">
+            </div>
+            <div class="org-pf-options-wrap" style="${t === 'select' ? '' : 'display:none;'}">
+                <label class="block text-xs text-gray-400 mb-1">Allowed values (optional)</label>
+                <textarea class="input-field px-3 py-2 rounded-lg text-sm w-full org-pf-options" rows="3" placeholder="One value per line">${escHtml(optsText)}</textarea>
+                <div class="text-[11px] text-gray-500 mt-1">These values will appear as a pick-list in workflows and decision rules.</div>
+            </div>
         </div>
-        <div class="pl-1 pb-2">
-            <input class="input-field px-3 py-2 rounded-lg text-sm w-full org-pf-desc" placeholder="Description (optional)" value="${escHtml(f.description || '')}">
-        </div>
-    `).join('');
+        `;
+    }).join('');
+}
+
+function toggleOrgProfileFieldOptions(typeSelectEl) {
+    try {
+        const row = typeSelectEl.closest('.org-pf-row');
+        if (!row) return;
+        const wrap = row.querySelector('.org-pf-options-wrap');
+        if (!wrap) return;
+        wrap.style.display = (String(typeSelectEl.value || '').toLowerCase() === 'select') ? '' : 'none';
+    } catch (e) { /* silent */ }
 }
 
 function addOrgProfileFieldRow() {
     // Preserve any unsaved edits before adding a new row
     orgProfileFieldsSchema = collectOrgProfileFieldsSchemaFromUI();
-    orgProfileFieldsSchema.push({ key: '', label: '', type: 'string', description: '', required: false });
+    orgProfileFieldsSchema.push({ key: '', label: '', type: 'string', description: '', required: false, options: [] });
     renderOrgProfileFieldsSchema();
 }
 
@@ -659,22 +681,41 @@ function removeOrgProfileFieldRow(idx) {
 function collectOrgProfileFieldsSchemaFromUI() {
     const container = document.getElementById('org-profilefields-list');
     if (!container) return [];
-    const rows = Array.from(container.querySelectorAll('.flex.gap-2.items-center.w-full'));
+    const rows = Array.from(container.querySelectorAll('.org-pf-row'));
     const defs = [];
     rows.forEach((row, i) => {
         const keyEl = row.querySelector('.org-pf-key');
         const labelEl = row.querySelector('.org-pf-label');
         const typeEl = row.querySelector('.org-pf-type');
         const reqEl = row.querySelector('.org-pf-required');
-        const descEl = container.querySelectorAll('.org-pf-desc')[i];
+        const descEl = row.querySelector('.org-pf-desc');
+        const optsEl = row.querySelector('.org-pf-options');
         const key = (keyEl?.value || '').trim().replace(/\s+/g, '_').toLowerCase();
         if (!key) return;
+        const type = (typeEl?.value || 'string');
+        let options = null;
+        if (String(type).toLowerCase() === 'select') {
+            const raw = (optsEl?.value || '').trim();
+            if (raw) {
+                const parts = raw.split(/\r?\n|,/g).map(s => (s || '').trim()).filter(Boolean);
+                const seen = new Set();
+                const cleaned = [];
+                parts.forEach(p => {
+                    const k = p.toLowerCase();
+                    if (seen.has(k)) return;
+                    seen.add(k);
+                    cleaned.push(p);
+                });
+                if (cleaned.length) options = cleaned.slice(0, 200);
+            }
+        }
         defs.push({
             key,
             label: (labelEl?.value || '').trim() || key.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            type: (typeEl?.value || 'string'),
+            type,
             description: (descEl?.value || '').trim() || null,
-            required: !!reqEl?.checked
+            required: !!reqEl?.checked,
+            options
         });
     });
     return defs;

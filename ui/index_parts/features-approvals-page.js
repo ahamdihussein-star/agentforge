@@ -286,6 +286,7 @@ async function editSecurityUser(userId) {
                                 const desc = (def?.description || '').trim();
                                 const required = !!def?.required;
                                 const val = meta && (key in meta) ? meta[key] : '';
+                                const optList = Array.isArray(def?.options) ? def.options.filter(Boolean) : [];
 
                                 const common = `class="schema-field-input input-field w-full px-3 py-2 rounded-lg text-sm" data-schema-key="${escHtml(key)}"`;
                                 let inputHtml = '';
@@ -296,6 +297,13 @@ async function editSecurityUser(userId) {
                                     </label>`;
                                 } else if (type === 'number') {
                                     inputHtml = `<input type="number" ${common} value="${escHtml(val === null || val === undefined ? '' : String(val))}" placeholder="${escHtml(label)}${required ? ' *' : ''}">`;
+                                } else if (type === 'select' || optList.length) {
+                                    inputHtml = `
+                                        <select ${common}>
+                                            <option value="">Select…</option>
+                                            ${optList.map(o => `<option value="${escHtml(o)}" ${String(val) === String(o) ? 'selected' : ''}>${escHtml(o)}</option>`).join('')}
+                                        </select>
+                                    `;
                                 } else if (type === 'array' || type === 'object') {
                                     inputHtml = `<textarea ${common} rows="2" placeholder="${escHtml(label)}${required ? ' *' : ''}">${escHtml(val === null || val === undefined ? '' : String(val))}</textarea>`;
                                 } else {

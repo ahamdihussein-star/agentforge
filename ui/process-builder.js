@@ -3100,10 +3100,20 @@
                         if (f && String(f.type || '').toLowerCase() === 'select' && Array.isArray(f.options) && f.options.length > 0) {
                             return f.options.filter(Boolean);
                         }
-                        // Departments (from directory)
+                        // User context fields (standard + custom) may have org-defined options
+                        const m = String(fieldName || '').match(/^trigger_input\._user_context\.(.+)$/);
+                        if (m) {
+                            const k = m[1];
+                            const pf = (state.profileFieldsFlat || []).find(x => x && x.key === k);
+                            if (pf && Array.isArray(pf.options) && pf.options.length > 0) {
+                                return pf.options.filter(Boolean);
+                            }
+                        }
+                        // Departments fallback (from directory)
                         if (fieldName === 'trigger_input._user_context.departmentName') {
                             const depts = ((state.builderContext || {}).departments) || [];
-                            return depts.map(d => d && d.name).filter(Boolean);
+                            const names = depts.map(d => d && d.name).filter(Boolean);
+                            if (names.length > 0) return names;
                         }
                         // Basic boolean heuristics (dynamic platform: still allow manual)
                         if (/(^|\.)(is[A-Z_]|has[A-Z_])/.test(fieldName) || /(Enabled|Active|Approved)$/.test(fieldName)) {
@@ -3142,7 +3152,8 @@
                             </div>
                         ` : '';
 
-                        const valueOptions = (rOperator === 'equals' || rOperator === 'not_equals') ? _valueOptionsForField(rField) : null;
+                        const _opNeedsValue = ['equals', 'not_equals', 'contains', 'not_contains', 'starts_with', 'greater_than', 'less_than'].includes(rOperator);
+                        const valueOptions = (_opNeedsValue) ? _valueOptionsForField(rField) : null;
                         const useValuePicker = Array.isArray(valueOptions) && valueOptions.length > 0;
                         const _valueInOptions = useValuePicker ? valueOptions.some(v => String(v) === String(rValue)) : false;
                         const rValueMode = String(rule.valueMode || (useValuePicker && rValue && !_valueInOptions ? 'custom' : 'pick'));
@@ -5807,10 +5818,22 @@
                 std.forEach(f => {
                     const cat = groupLabels[f.group] || 'User Profile';
                     if (!grouped[cat]) grouped[cat] = [];
-                    grouped[cat].push({ key: f.key, label: f.label || f.key, category: cat });
+                    grouped[cat].push({
+                        key: f.key,
+                        label: f.label || f.key,
+                        category: cat,
+                        type: f.type || 'string',
+                        options: Array.isArray(f.options) ? f.options : []
+                    });
                 });
                 if (custom.length > 0) {
-                    grouped['Custom Fields'] = custom.map(f => ({ key: f.key, label: f.label || f.key, category: 'Custom Fields' }));
+                    grouped['Custom Fields'] = custom.map(f => ({
+                        key: f.key,
+                        label: f.label || f.key,
+                        category: 'Custom Fields',
+                        type: f.type || 'string',
+                        options: Array.isArray(f.options) ? f.options : []
+                    }));
                 }
                 if (Object.keys(grouped).length === 0) {
                     grouped['User Profile'] = [

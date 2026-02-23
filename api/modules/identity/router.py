@@ -543,6 +543,23 @@ async def update_profile_fields_schema(body: UpdateProfileFieldsSchemaRequest, u
         if not key or key in seen:
             continue
         seen.add(key)
+        raw_opts = getattr(f, "options", None)
+        opts_clean = None
+        if isinstance(raw_opts, list):
+            tmp = []
+            seen_opt = set()
+            for o in raw_opts:
+                if not isinstance(o, str):
+                    continue
+                oo = o.strip()
+                if not oo or oo.lower() in seen_opt:
+                    continue
+                seen_opt.add(oo.lower())
+                tmp.append(oo)
+                if len(tmp) >= 200:
+                    break
+            if tmp:
+                opts_clean = tmp
         cleaned.append({
             "key": key,
             "label": (getattr(f, "label", None) or "").strip() or key.replace("_", " ").replace("-", " ").title(),
@@ -550,6 +567,7 @@ async def update_profile_fields_schema(body: UpdateProfileFieldsSchemaRequest, u
             "description": (getattr(f, "description", None) or "").strip() or None,
             "required": bool(getattr(f, "required", False)),
             "source": "org_schema",
+            "options": opts_clean,
         })
 
     with get_session() as session:
@@ -761,6 +779,36 @@ async def get_builder_context(user: User = Depends(require_auth)):
             })
     except Exception:
         pass
+
+    # Enrich standard fields with platform-known option lists (no hardcoding per-process).
+    # These are org-scoped and safe to show as pickers.
+    dept_names = [d.get("name") for d in departments if d.get("name")]
+    role_names: List[str] = []
+    group_names: List[str] = []
+    try:
+        from database.base import get_session
+        from database.models.role import Role
+        from database.models.user_group import UserGroup
+        with get_session() as session:
+            role_names = [r.name for r in session.query(Role).filter(Role.org_id == ctx["org_id"]).order_by(Role.name.asc()).all() if getattr(r, "name", None)]
+            group_names = [g.name for g in session.query(UserGroup).filter(UserGroup.org_id == ctx["org_id"]).order_by(UserGroup.name.asc()).all() if getattr(g, "name", None)]
+    except Exception:
+        role_names = role_names or []
+        group_names = group_names or []
+
+    for sf in standard_grouped:
+        k = (sf.get("key") or "").strip()
+        if not k:
+            continue
+        if k == "departmentName" and dept_names:
+            sf["options"] = dept_names
+            sf["type"] = sf.get("type") or "select"
+        elif k == "roles" and role_names:
+            sf["options"] = role_names
+        elif k == "groups" and group_names:
+            sf["options"] = group_names
+        elif k == "isManager":
+            sf["options"] = ["true", "false"]
 
     return {
         "user_fields": {
