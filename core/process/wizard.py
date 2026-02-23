@@ -1628,36 +1628,56 @@ class ProcessWizard:
             _field = str(_ccfg.get("field") or "").strip()
             if not _field or _is_known_path(_field):
                 continue
-            # Field not found in registry — try to fix from upstream graph
-            _incoming = [e.get("from") for e in normalized_edges if e.get("to") == _n.get("id")]
+
+            # Field not found in registry — try matching strategies
             _fixed = False
-            for _src_id in _incoming:
-                _src_node = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
-                if not _src_node:
-                    continue
-                _src_ov = str(_src_node.get("output_variable") or "").strip()
-                if _src_ov:
+            _fl = _field.lower()
+
+            # Strategy 1: Check if any dot-path ends with this field name
+            # e.g., field "totalAmount" → matches "extractedData.totalAmount"
+            for _dp in _known_dot_paths:
+                _leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
+                if _leaf.lower() == _fl:
                     logger.info(
-                        "Cross-ref fix: condition '%s' field '%s' not found, using upstream '%s' output_variable '%s'",
-                        _n.get("name", _n.get("id")),
-                        _field,
-                        _src_node.get("name", _src_id),
-                        _src_ov,
+                        "Cross-ref fix: condition '%s' field '%s' → dot-path '%s'",
+                        _n.get("name", _n.get("id")), _field, _dp,
                     )
-                    _ccfg["field"] = _src_ov
-                    # Also update the expression if it uses the old field name
+                    _ccfg["field"] = _dp
                     _old_expr = str(_ccfg.get("expression") or "").strip()
                     if _old_expr and ("{{" + _field + "}}") in _old_expr:
-                        _ccfg["expression"] = _old_expr.replace("{{" + _field + "}}", "{{" + _src_ov + "}}")
+                        _ccfg["expression"] = _old_expr.replace("{{" + _field + "}}", "{{" + _dp + "}}")
                     _fixed = True
                     break
+
+            # Strategy 2: Case-insensitive search in known vars
             if not _fixed:
-                # Fallback: case-insensitive search in known vars
-                _fl = _field.lower()
                 for _kv in _known_vars:
                     if _kv.lower() == _fl:
                         _ccfg["field"] = _kv
                         _fixed = True
+                        break
+
+            # Strategy 3: Upstream node's output_variable + field as sub-path
+            if not _fixed:
+                _incoming = [e.get("from") for e in normalized_edges if e.get("to") == _n.get("id")]
+                for _src_id in _incoming:
+                    _src_node = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
+                    if not _src_node:
+                        continue
+                    _src_ov = str(_src_node.get("output_variable") or "").strip()
+                    if not _src_ov:
+                        continue
+                    _candidate = f"{_src_ov}.{_field}"
+                    if _candidate in _known_dot_paths or _is_known_path(_candidate):
+                        _ccfg["field"] = _candidate
+                        _old_expr = str(_ccfg.get("expression") or "").strip()
+                        if _old_expr and ("{{" + _field + "}}") in _old_expr:
+                            _ccfg["expression"] = _old_expr.replace("{{" + _field + "}}", "{{" + _candidate + "}}")
+                        _fixed = True
+                        logger.info(
+                            "Cross-ref fix: condition '%s' field '%s' → '%s' (upstream '%s')",
+                            _n.get("name", _n.get("id")), _field, _candidate, _src_node.get("name", _src_id),
+                        )
                         break
 
         # ENFORCE: Extract Document Text actions must have sourceField set.

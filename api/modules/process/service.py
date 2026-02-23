@@ -2122,6 +2122,9 @@ class ProcessAPIService:
                 if _ofn and _ov:
                     _known_output_vars.add(f"{_ov}.{_ofn}")
 
+        # Separate dot-paths for sub-field matching
+        _known_dot_paths: set = {v for v in _known_output_vars if "." in v}
+
         for _n in normalized_nodes:
             if _n.get("type") != "condition":
                 continue
@@ -2129,24 +2132,42 @@ class ProcessAPIService:
             _fld = str(_tc.get("field") or "").strip()
             if not _fld or _fld in _known_output_vars:
                 continue
-            # Field not found — look for immediate upstream node's output_variable
+
             _nid = _n.get("id")
-            _incoming_ids = [e.get("source") or e.get("from") for e in (data.get("edges") or []) if (e.get("target") or e.get("to")) == _nid]
-            for _src_id in _incoming_ids:
-                _src = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
-                if not _src:
-                    continue
-                _src_ov = str(_src.get("output_variable") or "").strip()
-                if _src_ov and _src_ov in _known_output_vars:
-                    logger.info(
-                        "ServiceNorm cross-ref: condition '%s' field '%s' → upstream output_variable '%s'",
-                        _n.get("name", _nid), _fld, _src_ov,
-                    )
-                    _tc["field"] = _src_ov
+            _fl = _fld.lower()
+            _fixed = False
+
+            # Strategy 1: Match dot-path by leaf name
+            for _dp in _known_dot_paths:
+                _leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
+                if _leaf.lower() == _fl:
+                    logger.info("ServiceNorm cross-ref: condition '%s' field '%s' → dot-path '%s'", _n.get("name", _nid), _fld, _dp)
+                    _tc["field"] = _dp
                     _old_expr = str(_tc.get("expression") or "").strip()
                     if _old_expr and ("{{" + _fld + "}}") in _old_expr:
-                        _tc["expression"] = _old_expr.replace("{{" + _fld + "}}", "{{" + _src_ov + "}}")
+                        _tc["expression"] = _old_expr.replace("{{" + _fld + "}}", "{{" + _dp + "}}")
+                    _fixed = True
                     break
+
+            # Strategy 2: Upstream output_variable + field as sub-path
+            if not _fixed:
+                _incoming_ids = [e.get("source") or e.get("from") for e in (data.get("edges") or []) if (e.get("target") or e.get("to")) == _nid]
+                for _src_id in _incoming_ids:
+                    _src = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
+                    if not _src:
+                        continue
+                    _src_ov = str(_src.get("output_variable") or "").strip()
+                    if not _src_ov:
+                        continue
+                    _candidate = f"{_src_ov}.{_fld}"
+                    if _candidate in _known_output_vars:
+                        logger.info("ServiceNorm cross-ref: condition '%s' field '%s' → '%s'", _n.get("name", _nid), _fld, _candidate)
+                        _tc["field"] = _candidate
+                        _old_expr = str(_tc.get("expression") or "").strip()
+                        if _old_expr and ("{{" + _fld + "}}") in _old_expr:
+                            _tc["expression"] = _old_expr.replace("{{" + _fld + "}}", "{{" + _candidate + "}}")
+                        _fixed = True
+                        break
 
         data['nodes'] = normalized_nodes
         
