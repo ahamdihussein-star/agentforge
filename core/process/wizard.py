@@ -244,10 +244,12 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
 - APPROVAL NODE HAS BUILT-IN EMAIL NOTIFICATION:
   The approval node has an embedded notification feature. When configuring an approval node, set "notifyApprover": true and "notificationMessage": "<rich message>" to automatically email the approver(s) when the task is created.
   CRITICAL RULE: Do NOT create a separate notification node to notify the approver about a pending approval. Use the approval node's built-in notification instead.
-  - CORRECT: condition(No) → approval (with notifyApprover:true) → (after approval) → notify employee
-  - WRONG: condition(No) → parallel → [approval] + [notify manager] → notify employee
-  - WRONG: condition(No) → notify manager → approval → notify employee
-  Only use a separate notification node for notifying OTHER people (not the approver), such as notifying the requester/employee about the outcome.
+  - CORRECT: condition(No) → approval (with notifyApprover:true, notificationMessage:"...") → notify employee of result → end
+  - WRONG: condition(No) → approval → notify manager (notification AFTER approval is useless — they already approved!)
+  - WRONG: condition(No) → parallel → [approval] + [notify manager] → notify employee (redundant — use embedded notification)
+  - WRONG: condition(No) → notify manager → approval → notify employee (notification before approval is wrong order for embedded)
+  The ONLY notification nodes needed after an approval are notifications to OTHER people (e.g., notifying the employee/requester about the approval outcome).
+  NEVER create a notification node with recipient "manager" that comes AFTER an approval node assigned to the manager. That notification is redundant because the approval node already notifies them via notifyApprover.
 - Always ask yourself: "In a real office, what would happen first?" and design the flow accordingly.
 - PARALLEL TASKS — WHEN TO USE THE PARALLEL NODE:
   When the user mentions "parallel", "at the same time", "simultaneously", or when two or more INDEPENDENT actions (not approver notification) should run concurrently, you MUST use a "parallel" node.
@@ -419,10 +421,11 @@ Node config rules:
   - channel: "email" (default) | "slack" | "teams" | "sms"
   - recipient: WHO receives this notification. Use ONE of these (string, not array):
     - "requester" → automatically sends to the person who submitted the form (PREFERRED for employee notifications)
-    - "manager" → automatically sends to the requester's direct manager (PREFERRED for manager notifications)
+    - "manager" → automatically sends to the requester's direct manager (use ONLY for informational notifications, NOT for approval pending notifications — those use the approval node's notifyApprover feature)
     - "{{{{employeeEmail}}}}" → a form field reference (only if you need a custom email field)
     - "someone@example.com" → a hardcoded email (rarely used)
     BEST PRACTICE: Use "requester" and "manager" shortcuts. NEVER leave recipient empty. NEVER use "-- Select Field --".
+    IMPORTANT: If you are notifying the SAME person who is the approver about a PENDING approval, do NOT use a notification node — use the approval node's notifyApprover:true instead.
   - template: The full email body content. MUST be a rich, informative, business-friendly message.
     RULES FOR TEMPLATES:
     - Include: What happened (approved/rejected/pending/auto-approved) + key data + context
@@ -2165,6 +2168,81 @@ class ProcessWizard:
             if not cfg.get("channel"):
                 cfg["channel"] = "email"
             n["config"] = cfg
+
+        # -------------------------------------------------------------------
+        # MERGE: Notification nodes targeting the approver into the approval's
+        # embedded notification. Detects anti-pattern where a notification
+        # node with recipient "manager" follows an approval assigned to the
+        # manager, and merges it into notifyApprover + notificationMessage.
+        # -------------------------------------------------------------------
+        _edges_by_from: Dict[str, List[Dict]] = {}
+        for e in normalized_edges:
+            _edges_by_from.setdefault(e.get("from", ""), []).append(e)
+        _node_map: Dict[str, Dict] = {n["id"]: n for n in normalized_nodes if "id" in n}
+
+        _remove_node_ids: set = set()
+        for _aprv in normalized_nodes:
+            if _aprv.get("type") != "approval":
+                continue
+            _aprv_id = _aprv.get("id", "")
+            _aprv_cfg = _aprv.get("config") if isinstance(_aprv.get("config"), dict) else {}
+            if _aprv_cfg.get("notifyApprover"):
+                continue  # already has embedded notification
+
+            _aprv_assignee = _aprv_cfg.get("assignee_source", "")
+            _aprv_dir_type = _aprv_cfg.get("directory_assignee_type", "")
+            _is_manager_approval = (
+                _aprv_assignee == "user_directory"
+                and _aprv_dir_type in ("dynamic_manager", "department_manager")
+            )
+
+            for _out_edge in _edges_by_from.get(_aprv_id, []):
+                _next_id = _out_edge.get("to", "")
+                _next_node = _node_map.get(_next_id)
+                if not _next_node or _next_node.get("type") != "notification":
+                    continue
+                _ncfg = _next_node.get("config") or {}
+                _recipient = str(_ncfg.get("recipient") or "").strip().lower()
+                _name_lower = (_next_node.get("name") or "").lower()
+
+                _targets_approver = (
+                    (_recipient in ("manager", "supervisor", "direct_manager"))
+                    or (_is_manager_approval and "manager" in _name_lower)
+                )
+                if not _targets_approver:
+                    continue
+
+                _aprv_cfg["notifyApprover"] = True
+                _aprv_cfg["notificationMessage"] = (
+                    _ncfg.get("template")
+                    or _ncfg.get("message")
+                    or _ncfg.get("title")
+                    or ""
+                )
+                _aprv["config"] = _aprv_cfg
+
+                _remove_node_ids.add(_next_id)
+                _notif_outgoing = _edges_by_from.get(_next_id, [])
+                _notif_targets = [e.get("to") for e in _notif_outgoing if e.get("to")]
+
+                normalized_edges = [
+                    e for e in normalized_edges
+                    if e.get("from") != _next_id and e.get("to") != _next_id
+                ]
+                for _nt in _notif_targets:
+                    normalized_edges.append({"from": _aprv_id, "to": _nt, "type": "default"})
+
+                logger.info(
+                    "Merged redundant notification '%s' into approval '%s' as embedded notification",
+                    _next_node.get("name", _next_id), _aprv.get("name", _aprv_id),
+                )
+                break  # one merge per approval node
+
+        if _remove_node_ids:
+            normalized_nodes = [n for n in normalized_nodes if n.get("id") not in _remove_node_ids]
+            _edges_by_from = {}
+            for e in normalized_edges:
+                _edges_by_from.setdefault(e.get("from", ""), []).append(e)
 
         # ENFORCE: Exactly one end node. If multiple, merge into one. If none, create one.
         end_nodes = [n for n in normalized_nodes if n.get("type") == "end"]
