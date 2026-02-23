@@ -1338,15 +1338,18 @@
             if (state.connectionStart.nodeId === toNodeId) return false;
             let connType = state.connectionStart.portType;
             const fromNode = state.nodes.find(n => n.id === state.connectionStart.nodeId);
-            /* عقدة القرار: أول فرع دائماً Yes، الفرع التاني No – ممنوع فرعين No */
+            /* Decision node: keep YES/NO semantics from the port the user picked.
+               Enforce at most one YES edge and one NO edge (replace on reconnect). */
             if (fromNode && fromNode.type === 'condition') {
-                const existingFromCondition = state.connections.filter(c => c.from === state.connectionStart.nodeId);
-                if (existingFromCondition.length === 0) {
-                    connType = 'yes';
-                } else if (existingFromCondition.length === 1) {
-                    connType = 'no';
+                const existing = state.connections.filter(c => c.from === state.connectionStart.nodeId);
+                const hasYes = existing.some(c => c.type === 'yes');
+                const hasNo = existing.some(c => c.type === 'no');
+
+                // If some legacy/default port was used, fall back to first-missing branch
+                if (connType !== 'yes' && connType !== 'no') {
+                    if (!hasYes) connType = 'yes';
+                    else if (!hasNo) connType = 'no';
                 }
-                /* لو فيه فرعين فعلاً (yes و no) واليوزر بيضيف تالت نترك النوع من البورت */
             }
             const conn = {
                 from: state.connectionStart.nodeId,
@@ -1355,10 +1358,16 @@
                 fromPort: state.connectionStart.fromPort,
                 toPort: toPort
             };
-            /* استبدال الربط القديم لنفس المنفذ فقط – السماح بعدة أطراف من نفس العقدة */
-            state.connections = state.connections.filter(c => 
-                !(c.from === conn.from && c.type === conn.type && (c.fromPort || '') === (conn.fromPort || ''))
-            );
+            /* Replace existing edge for same decision branch (yes/no) or same port */
+            state.connections = state.connections.filter(c => {
+                if (c.from !== conn.from) return true;
+                // For condition nodes, one edge per branch type
+                if (fromNode && fromNode.type === 'condition' && (conn.type === 'yes' || conn.type === 'no')) {
+                    if (c.type === conn.type) return false;
+                }
+                // Otherwise replace only same port+type
+                return !(c.type === conn.type && (c.fromPort || '') === (conn.fromPort || ''));
+            });
             state.connections.push(conn);
             renderConnections();
             saveToUndo();
