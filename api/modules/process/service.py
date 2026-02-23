@@ -1795,11 +1795,11 @@ class ProcessAPIService:
             elif node_type in ('ai', 'ai_step'):
                 # Decide engine type based on AI mode
                 ai_mode = (n.get('config') or {}).get('aiMode', 'custom')
-                if ai_mode == 'extract_file':
-                    node['type'] = 'file_operation'
-                elif ai_mode == 'create_doc':
+                if ai_mode == 'create_doc':
                     node['type'] = 'file_operation'
                 else:
+                    # extract_file, analyze, generate, classify, batch_files, custom
+                    # all go through ai_task so the LLM parses into structured JSON
                     node['type'] = 'ai_task'
             elif node_type == 'tool':
                 node['type'] = 'tool_call'

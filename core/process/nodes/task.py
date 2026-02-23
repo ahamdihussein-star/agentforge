@@ -109,8 +109,12 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 logs=logs
             )
         
-        # ── Pre-read source files (batch_files mode) ─────────────────
+        # ── Pre-read source files (extract_file / batch_files mode) ───
         source_fields = self.get_config_value(node, 'source_fields') or []
+        # sourceField (singular) is used by extract_file mode; treat as single-element list
+        _single_source = self.get_config_value(node, 'sourceField') or ''
+        if _single_source and not source_fields:
+            source_fields = [_single_source]
         _file_context_block = ""
         if source_fields and isinstance(source_fields, list):
             from .integration import FileOperationNodeExecutor
