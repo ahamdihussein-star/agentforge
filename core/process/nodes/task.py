@@ -221,7 +221,42 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             if output_schema:
                 schema_instruction = f"\n\nRespond with valid JSON matching this schema:\n{json.dumps(output_schema, indent=2)}"
             else:
-                schema_instruction = "\n\nRespond with valid JSON only."
+                # Build a concrete schema from outputFields so the LLM knows
+                # exactly which keys and types to return.
+                _out_fields = self.get_config_value(node, 'outputFields') or []
+                if _out_fields and isinstance(_out_fields, list):
+                    _type_hint = {
+                        "text": "string", "string": "string",
+                        "number": "number", "currency": "number",
+                        "boolean": "true/false", "date": "date string",
+                        "email": "email string", "list": "array",
+                    }
+                    _field_lines = []
+                    _example_obj = {}
+                    for _f in _out_fields:
+                        _fn = _f.get("name") or ""
+                        _ft = str(_f.get("type") or "text").lower()
+                        _fl = _f.get("label") or _fn
+                        _hint = _type_hint.get(_ft, "value")
+                        _field_lines.append(f'  "{_fn}": <{_hint}>  // {_fl}')
+                        # Build a concrete example value for each type
+                        if _ft in ("number", "currency"):
+                            _example_obj[_fn] = 0
+                        elif _ft == "boolean":
+                            _example_obj[_fn] = False
+                        elif _ft == "list":
+                            _example_obj[_fn] = []
+                        else:
+                            _example_obj[_fn] = ""
+                    schema_instruction = (
+                        "\n\nIMPORTANT: You MUST respond with valid JSON only. "
+                        "Return a JSON object with EXACTLY these fields:\n{\n"
+                        + ",\n".join(_field_lines)
+                        + "\n}\n"
+                        + "Example structure: " + json.dumps(_example_obj)
+                    )
+                else:
+                    schema_instruction = "\n\nRespond with valid JSON only."
             prompt += schema_instruction
         
         # User prompt

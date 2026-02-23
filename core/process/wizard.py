@@ -1951,6 +1951,22 @@ class ProcessWizard:
                     logger.info(f"Enforced JSON output on AI node '{n.get('name')}' (output_variable={ov}) for fields: {expected_fields}")
 
         # -------------------------------------------------------------------
+        # ENFORCE: Any AI node with outputFields must use JSON output format
+        # so the executor builds a concrete schema for the LLM.
+        # -------------------------------------------------------------------
+        for _n in normalized_nodes:
+            if _n.get("type") != "ai":
+                continue
+            _cfg = _n.get("config") if isinstance(_n.get("config"), dict) else {}
+            if _cfg.get("outputFields") and isinstance(_cfg["outputFields"], list) and _cfg["outputFields"]:
+                if _cfg.get("output_format") != "json":
+                    _cfg["output_format"] = "json"
+                    _n["config"] = _cfg
+                if not _n.get("output_variable"):
+                    _name_key = re.sub(r'[^a-zA-Z0-9]', '', _n.get("name") or "aiOutput")
+                    _n["output_variable"] = _name_key[0].lower() + _name_key[1:] if _name_key else "aiOutput"
+
+        # -------------------------------------------------------------------
         # INTELLIGENCE: Ensure AI prompts cover all outputFields, especially
         # aggregates. Fix "currency" typed fields used in conditions → "number".
         # This is fully generic — no domain-specific assumptions.
