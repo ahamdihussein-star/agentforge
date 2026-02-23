@@ -263,6 +263,32 @@
             if (v == null) return '—';
             if (typeof v === 'string') return v.trim() ? v : '—';
             if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+            if (Array.isArray(v)) {
+                try {
+                    const arr = v.filter(x => x !== undefined && x !== null && x !== '');
+                    if (!arr.length) return '—';
+                    // Array of uploaded file references
+                    const looksLikeFile = (x) => {
+                        try {
+                            if (!x || typeof x !== 'object') return false;
+                            const kind = String(x.kind || '').toLowerCase();
+                            if (kind === 'uploadedfile' || kind === 'uploaded_file') return true;
+                            return !!(x.name && (x.id || x.file_type || x.content_type || x.path || x.download_url));
+                        } catch (_) { return false; }
+                    };
+                    if (arr.every(looksLikeFile)) {
+                        return arr.slice(0, 4).map(f => _renderReportValue(f)).filter(Boolean).join(', ') + (arr.length > 4 ? ` (+${arr.length - 4} more)` : '');
+                    }
+                    // Fallback: render a compact list
+                    return arr.slice(0, 6).map(x => {
+                        if (typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean') return String(x);
+                        if (x && typeof x === 'object') return JSON.stringify(x).slice(0, 120);
+                        return String(x);
+                    }).join(', ') + (arr.length > 6 ? '…' : '');
+                } catch (_) {
+                    return '—';
+                }
+            }
             if (typeof v === 'object') {
                 // Uploaded file reference (hide server path; show name only)
                 try {
@@ -282,6 +308,66 @@
             } catch (_) {
                 const s = String(v);
                 return s.length > 240 ? (s.slice(0, 240) + '…') : s;
+            }
+        }
+
+        function _renderSubmittedInfoValueHtml(v) {
+            const muted = (t) => `<span style="color:var(--text-muted);">${t}</span>`;
+            try {
+                if (v == null || v === '') return muted('—');
+
+                const looksLikeFile = (x) => {
+                    try {
+                        if (!x || typeof x !== 'object') return false;
+                        const kind = String(x.kind || '').toLowerCase();
+                        if (kind === 'uploadedfile' || kind === 'uploaded_file') return true;
+                        if (x.kind === 'uploadedFile') return true;
+                        return !!(x.name && (x.id || x.file_type || x.content_type || x.path || x.download_url));
+                    } catch (_) { return false; }
+                };
+
+                const renderFile = (f) => {
+                    const name = String(f?.name || 'Uploaded file');
+                    const size = (typeof f?.size === 'number') ? `${Math.round(f.size / 1024)} KB` : '';
+                    const typ = f?.file_type ? String(f.file_type).toUpperCase() : (f?.content_type ? String(f.content_type).toUpperCase() : '');
+                    const meta = [typ, size].filter(Boolean).join(' · ');
+                    const id = f?.id ? String(f.id) : '';
+                    const btn = id ? `
+                        <button type="button"
+                            onclick="afDownloadProcessUploadFile('${escHtml(id)}','${escHtml(name)}')"
+                            style="margin-left:10px;padding:6px 10px;border-radius:10px;border:1px solid color-mix(in srgb, var(--border-color) 55%, transparent);background:color-mix(in srgb, var(--bg-card) 40%, transparent);color:var(--text-primary);font-size:12px;font-weight:750;cursor:pointer;"
+                        >Download</button>
+                    ` : '';
+                    return `
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+                            <div style="color:var(--text-primary);font-weight:750;word-break:break-word;">${escHtml(name)}${meta ? ` <span style="color:var(--text-secondary);font-weight:650;font-size:12px;">(${escHtml(meta)})</span>` : ''}</div>
+                            ${btn ? `<div>${btn}</div>` : ''}
+                        </div>
+                    `;
+                };
+
+                // Single uploaded file object
+                if (typeof v === 'object' && !Array.isArray(v) && looksLikeFile(v)) {
+                    return renderFile(v);
+                }
+
+                // Array of uploaded file objects
+                if (Array.isArray(v)) {
+                    const arr = v.filter(x => x !== undefined && x !== null && x !== '');
+                    if (!arr.length) return muted('—');
+                    if (arr.every(looksLikeFile)) {
+                        const filesHtml = arr.slice(0, 6).map(renderFile).join('<div style="height:8px;"></div>');
+                        const more = arr.length > 6 ? `<div style="margin-top:8px;color:var(--text-secondary);font-size:12px;">+ ${arr.length - 6} more file(s)</div>` : '';
+                        return `<div style="text-align:right;">${filesHtml}${more}</div>`;
+                    }
+                }
+
+                // Fallback: plain text (escaped)
+                const s = _renderReportValue(v);
+                return `<span style="color:var(--text-primary);">${_escapeHtmlCompat(s)}</span>`;
+            } catch (_) {
+                try { return `<span style="color:var(--text-primary);">${_escapeHtmlCompat(_renderReportValue(v))}</span>`; } catch (__) {}
+                return muted('—');
             }
         }
 
@@ -563,11 +649,11 @@
 
             const _buildInputRows = (keys) => (keys || []).map(k => {
                 const label = labelByKey[k] || humanizeFieldLabel(k) || k;
-                const val = _renderReportValue(inputData[k]);
+                const valHtml = _renderSubmittedInfoValueHtml(inputData[k]);
                 return `
                     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid color-mix(in srgb, var(--border-color) 28%, transparent);">
                         <div style="font-size:13px;color:var(--text-secondary);">${_escapeHtmlCompat(label)}</div>
-                        <div style="font-size:13px;color:var(--text-primary);font-weight:650;max-width:60%;text-align:right;word-break:break-word;">${_escapeHtmlCompat(val)}</div>
+                        <div style="font-size:13px;color:var(--text-primary);font-weight:650;max-width:60%;text-align:right;word-break:break-word;">${valHtml}</div>
                     </div>
                 `;
             }).join('') || `<div style="font-size:13px;color:var(--text-muted);">No submitted information.</div>`;
