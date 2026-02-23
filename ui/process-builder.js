@@ -2831,6 +2831,7 @@
             
             body.innerHTML = generatePropertiesForm(node);
             panel.classList.add('active');
+            requestAnimationFrame(function() { _applyFriendlyTextareas(); });
         }
         
         // Helper function to get all available fields from trigger/form nodes
@@ -5333,49 +5334,67 @@
             }
         }
 
+        const _REF_TAG_STYLE = 'display:inline-flex;align-items:center;gap:3px;padding:1px 8px;margin:0 1px;border-radius:10px;background:rgba(129,140,248,0.12);border:1px solid rgba(129,140,248,0.3);color:#a5b4fc;font-size:12px;font-weight:500;white-space:nowrap;vertical-align:baseline;cursor:default;';
+        const _REF_AT_STYLE = 'color:#6366f1;font-weight:700;';
+
         function _friendlyRefHtml(ref) {
             const label = friendlyRefLabel(ref);
-            return `<span class="ref-tag" title="${escapeHtml(ref)}"><span class="ref-tag-at">@</span>${escapeHtml(label)}</span>`;
+            return '<span style="' + _REF_TAG_STYLE + '" title="' + escapeHtml(ref) + '"><span style="' + _REF_AT_STYLE + '">@</span>' + escapeHtml(label) + '</span>';
         }
 
         function _renderFriendlyOverlay(rawText) {
             if (!rawText) return '';
-            return escapeHtml(rawText).replace(/\{\{([^}]+)\}\}/g, (match) => _friendlyRefHtml(match));
+            return escapeHtml(rawText).replace(/\{\{([^}]+)\}\}/g, function(match) { return _friendlyRefHtml(match); });
         }
 
         function _applyFriendlyTextareas() {
-            document.querySelectorAll('textarea.property-textarea').forEach(ta => {
-                if (ta._friendlyBound) return;
-                const raw = ta.value;
-                if (!raw || !raw.includes('{{')) return;
+            var textareas = document.querySelectorAll('textarea.property-textarea');
+            for (var i = 0; i < textareas.length; i++) {
+                var ta = textareas[i];
+                if (ta._friendlyBound) continue;
+                var raw = ta.value;
+                if (!raw || raw.indexOf('{{') === -1) continue;
                 ta._friendlyBound = true;
 
-                const wrapper = document.createElement('div');
-                wrapper.className = 'friendly-textarea-wrapper';
+                var wrapper = document.createElement('div');
+                wrapper.style.cssText = 'position:relative;';
                 ta.parentNode.insertBefore(wrapper, ta);
                 wrapper.appendChild(ta);
 
-                const overlay = document.createElement('div');
-                overlay.className = 'friendly-overlay';
+                var overlay = document.createElement('div');
+                overlay.style.cssText = 'width:100%;padding:11px 14px;background:var(--node-bg,#1e1e2e);border:1px solid var(--node-border,#333);border-radius:10px;color:var(--pb-text,#e0e0e0);font-size:13px;min-height:88px;line-height:1.7;cursor:text;word-break:break-word;white-space:pre-wrap;box-sizing:border-box;transition:border-color 0.2s;';
                 overlay.innerHTML = _renderFriendlyOverlay(raw);
                 wrapper.insertBefore(overlay, ta);
 
-                ta.classList.add('friendly-hidden');
+                ta.style.cssText += ';position:absolute;opacity:0;pointer-events:none;height:0;min-height:0;overflow:hidden;';
 
-                overlay.addEventListener('click', function() {
-                    ta.classList.remove('friendly-hidden');
-                    overlay.style.display = 'none';
-                    ta.focus();
-                });
-
-                ta.addEventListener('blur', function() {
-                    overlay.innerHTML = _renderFriendlyOverlay(this.value);
-                    if (this.value && this.value.includes('{{')) {
-                        ta.classList.add('friendly-hidden');
-                        overlay.style.display = '';
-                    }
-                });
-            });
+                (function(textarea, overlayEl) {
+                    overlayEl.addEventListener('click', function() {
+                        textarea.style.cssText = textarea.style.cssText.replace(/position:absolute;opacity:0;pointer-events:none;height:0;min-height:0;overflow:hidden;/g, '');
+                        textarea.style.position = '';
+                        textarea.style.opacity = '';
+                        textarea.style.pointerEvents = '';
+                        textarea.style.height = '';
+                        textarea.style.minHeight = '';
+                        textarea.style.overflow = '';
+                        overlayEl.style.display = 'none';
+                        textarea.focus();
+                    });
+                    textarea.addEventListener('blur', function() {
+                        var val = this.value;
+                        overlayEl.innerHTML = _renderFriendlyOverlay(val);
+                        if (val && val.indexOf('{{') !== -1) {
+                            this.style.position = 'absolute';
+                            this.style.opacity = '0';
+                            this.style.pointerEvents = 'none';
+                            this.style.height = '0';
+                            this.style.minHeight = '0';
+                            this.style.overflow = 'hidden';
+                            overlayEl.style.display = '';
+                        }
+                    });
+                })(ta, overlay);
+            }
         }
         
         function refreshNode(node) {
@@ -5758,7 +5777,6 @@
                 }
             }
             body.innerHTML = html;
-            requestAnimationFrame(() => _applyFriendlyTextareas());
         }
 
         /**
