@@ -818,7 +818,7 @@
                 } else {
                     // Show error - no local fallback
                     const error = await response.json().catch(() => ({}));
-                    showToast('Could not create a draft. Please check your AI settings and try again.', 'error');
+                    showToast('Could not generate the agent. Please check your AI settings and try again.', 'error');
                     document.getElementById('wizard-generating').classList.add('hidden');
                     document.getElementById('wizard-step-0').classList.remove('hidden');
                     return;
