@@ -845,10 +845,14 @@ class UserDirectoryService:
             {"key": "phone", "label": "Phone", "type": "string"},
             {"key": "jobTitle", "label": "Job Title", "type": "string"},
             {"key": "employeeId", "label": "Employee ID", "type": "string"},
+            {"key": "departmentId", "label": "Department ID", "type": "string"},
             {"key": "departmentName", "label": "Department", "type": "string"},
             {"key": "managerId", "label": "Manager ID", "type": "string"},
             {"key": "managerName", "label": "Manager Name", "type": "string"},
             {"key": "managerEmail", "label": "Manager Email", "type": "string"},
+            {"key": "departmentHeadId", "label": "Department Head ID", "type": "string"},
+            {"key": "departmentHeadName", "label": "Department Head Name", "type": "string"},
+            {"key": "departmentHeadEmail", "label": "Department Head Email", "type": "string"},
             {"key": "roles", "label": "Roles", "type": "array"},
             {"key": "groups", "label": "Groups", "type": "array"},
             {"key": "isManager", "label": "Is Manager", "type": "boolean"},
@@ -1116,6 +1120,28 @@ class UserDirectoryService:
                     context[attr_key] = attr_val
             # Also keep the original dict for structured access
             context["custom_attributes"] = user.custom_attributes
+
+        # Add department head (department manager) details when available.
+        # This stays org-scoped and fully dynamic, enabling workflows like:
+        # "route to department head" or templates like "{{ trigger_input._user_context.departmentHeadEmail }}".
+        try:
+            dept_id = context.get("department_id")
+            if dept_id:
+                dept = self.get_department_info(str(dept_id), org_id)
+                mgr_id = getattr(dept, "manager_id", None) if dept else None
+                if mgr_id:
+                    mgr = self.get_user(str(mgr_id), org_id)
+                    context["department_head_id"] = str(mgr_id)
+                    if mgr:
+                        context["department_head_email"] = mgr.email
+                        context["department_head_name"] = (
+                            mgr.display_name
+                            or f"{mgr.first_name or ''} {mgr.last_name or ''}".strip()
+                            or mgr.email
+                        )
+        except Exception:
+            # Never fail context enrichment; department head is optional.
+            pass
         
         return {k: v for k, v in context.items() if v is not None}
     

@@ -235,7 +235,81 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         timeout_action = self.get_config_value(node, 'timeout_action', 'fail')
         escalation_enabled = self.get_config_value(node, 'escalation_enabled', False)
         escalation_after_hours = self.get_config_value(node, 'escalation_after_hours')
-        escalation_assignee_ids = self.get_config_value(node, 'escalation_assignee_ids', [])
+        if escalation_after_hours is None:
+            try:
+                val = self.get_config_value(node, 'escalation_after_value')
+                unit = self.get_config_value(node, 'escalation_after_unit') or 'hours'
+                if val is not None:
+                    v = max(0, int(val))
+                    u = str(unit).lower().strip()
+                    if u in ('minutes', 'minute'):
+                        escalation_after_hours = max(1, int((v + 59) / 60)) if v else None
+                    elif u in ('days', 'day'):
+                        escalation_after_hours = v * 24
+                    elif u in ('weeks', 'week'):
+                        escalation_after_hours = v * 24 * 7
+                    else:
+                        escalation_after_hours = v
+            except Exception:
+                escalation_after_hours = None
+
+        escalation_assignee_ids_raw = self.get_config_value(node, 'escalation_assignee_ids', [])
+        escalation_assignee_source = self.get_config_value(node, 'escalation_assignee_source') or ''
+        escalation_assignee_ids: List[str] = []
+        if escalation_enabled:
+            # Escalation recipients are always stored as concrete user IDs in the DB model.
+            # We resolve role/group/department/dynamic patterns here into user IDs.
+            try:
+                if escalation_assignee_source == 'user_directory' and self.deps and self.deps.user_directory:
+                    directory_config = {
+                        "type": self.get_config_value(node, 'escalation_directory_assignee_type', 'dynamic_manager'),
+                        "user_ids": escalation_assignee_ids_raw if isinstance(escalation_assignee_ids_raw, list) else [],
+                        "role_ids": self.get_config_value(node, 'escalation_assignee_role_ids', []),
+                        "group_ids": self.get_config_value(node, 'escalation_assignee_group_ids', []),
+                        "department_id": (
+                            self.get_config_value(node, 'escalation_department_id')
+                            or self.get_config_value(node, 'escalation_departmentId')
+                        ),
+                        "department_name": (
+                            self.get_config_value(node, 'escalation_department_name')
+                            or self.get_config_value(node, 'escalation_departmentName')
+                        ),
+                        "level": self.get_config_value(node, 'escalation_management_level', 1),
+                        "expression": self.get_config_value(node, 'escalation_assignee_expression', ''),
+                    }
+                    process_context = {
+                        "user_id": context.user_id,
+                        "trigger_input": state.trigger_input or {},
+                        "variables": state.get_all(),
+                    }
+                    escalation_assignee_ids = [
+                        str(x) for x in (self.deps.user_directory.resolve_process_assignee(directory_config, process_context, context.org_id) or [])
+                        if x
+                    ]
+                elif escalation_assignee_source in ('platform_role', 'platform_group') and self.deps and self.deps.user_directory:
+                    # Expand role/group to concrete users for escalation (DB stores only user IDs).
+                    directory_config = {
+                        "type": "role" if escalation_assignee_source == "platform_role" else "group",
+                        "role_ids": escalation_assignee_ids_raw if escalation_assignee_source == "platform_role" else [],
+                        "group_ids": escalation_assignee_ids_raw if escalation_assignee_source == "platform_group" else [],
+                    }
+                    process_context = {
+                        "user_id": context.user_id,
+                        "trigger_input": state.trigger_input or {},
+                        "variables": state.get_all(),
+                    }
+                    escalation_assignee_ids = [
+                        str(x) for x in (self.deps.user_directory.resolve_process_assignee(directory_config, process_context, context.org_id) or [])
+                        if x
+                    ]
+                else:
+                    # Platform users or raw IDs/expressions
+                    resolved = state.interpolate_object(escalation_assignee_ids_raw) if escalation_assignee_ids_raw else []
+                    escalation_assignee_ids = _to_assignee_id_list(resolved)
+            except Exception as e:
+                logs.append(f"⚠️ Escalation recipient resolution failed: {e}")
+                resolved = state.interpolate_object(escalation_assignee_ids_raw) if escalation_assignee_ids_raw else []
+                escalation_assignee_ids = _to_assignee_id_list(resolved)
         review_data_expr = self.get_config_value(node, 'review_data_expression')
         form_fields = self.get_config_value(node, 'form_fields', [])
         priority = self.get_config_value(node, 'priority', 'normal')
@@ -581,7 +655,7 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 interpolated_recipients.append(recipient)
         
         # SMART RECIPIENT RESOLUTION:
-        # 1. Resolve shortcuts ("requester", "manager", "department") to actual emails
+        # 1. Resolve shortcuts ("requester", "manager", "department_head", etc.) to actual emails
         # 2. Resolve user IDs (UUIDs) to email addresses via User Directory
         # 3. Pass through anything that looks like an email as-is
         resolved_recipients = []
@@ -655,6 +729,120 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                         "Check: Does this user have a manager assigned in the Identity Directory? "
                         "Go to Settings > Identity Directory > Users and verify the manager field."
                     )
+                continue
+
+            # Shortcut: department head (requester's department)
+            if r_lower in ("department_head", "dept_head", "departmenthead", "department_manager", "dept_manager"):
+                email = user_context.get("department_head_email") or user_context.get("departmentHeadEmail") or ""
+                if not email and self.deps and self.deps.user_directory:
+                    try:
+                        requester_id = user_context.get("user_id") or context.user_id
+                        dept_id = user_context.get("department_id") or user_context.get("departmentId")
+                        if not dept_id and requester_id:
+                            req_attrs = self.deps.user_directory.get_user(str(requester_id), context.org_id)
+                            dept_id = getattr(req_attrs, "department_id", None) if req_attrs else None
+                        if dept_id:
+                            dept = self.deps.user_directory.get_department_info(str(dept_id), context.org_id)
+                            mgr_id = getattr(dept, "manager_id", None) if dept else None
+                            if mgr_id:
+                                mgr_attrs = self.deps.user_directory.get_user(str(mgr_id), context.org_id)
+                                if mgr_attrs and mgr_attrs.email:
+                                    email = mgr_attrs.email
+                                    logs.append(f"Resolved '{r_str}' via department manager → {email}")
+                    except Exception as e:
+                        logs.append(f"⚠️ Failed to resolve '{r_str}' via department head: {e}")
+                if email:
+                    resolved_recipients.append(email)
+                    continue
+                logs.append(
+                    f"⚠️ Could not resolve '{r_str}' — no department head email found. "
+                    "Check: does the user have a department assigned, and does that department have a manager?"
+                )
+                continue
+
+            # Shortcut: department members (requester's department) → expands to multiple recipients
+            if r_lower in ("department_members", "dept_members", "departmentmembers"):
+                if self.deps and self.deps.user_directory:
+                    try:
+                        requester_id = user_context.get("user_id") or context.user_id
+                        dept_id = user_context.get("department_id") or user_context.get("departmentId")
+                        if not dept_id and requester_id:
+                            req_attrs = self.deps.user_directory.get_user(str(requester_id), context.org_id)
+                            dept_id = getattr(req_attrs, "department_id", None) if req_attrs else None
+                        if dept_id:
+                            members = self.deps.user_directory.get_department_members(str(dept_id), context.org_id) or []
+                            for m in members:
+                                em = getattr(m, "email", None)
+                                if em:
+                                    resolved_recipients.append(em)
+                            if members:
+                                logs.append(f"Resolved '{r_str}' → {len(members)} department member(s)")
+                            continue
+                    except Exception as e:
+                        logs.append(f"⚠️ Failed to resolve '{r_str}' via department members: {e}")
+                logs.append(
+                    f"⚠️ Could not resolve '{r_str}' — department members not available. "
+                    "Check: does the user have a department assigned?"
+                )
+                continue
+
+            # Explicit department routing patterns from the visual builder:
+            # - dept_manager:<department_id>
+            # - dept_members:<department_id>
+            if r_lower.startswith("dept_manager:") or r_lower.startswith("dept_head:"):
+                dept_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                if dept_id and self.deps and self.deps.user_directory:
+                    try:
+                        dept = self.deps.user_directory.get_department_info(str(dept_id), context.org_id)
+                        mgr_id = getattr(dept, "manager_id", None) if dept else None
+                        if mgr_id:
+                            mgr_attrs = self.deps.user_directory.get_user(str(mgr_id), context.org_id)
+                            if mgr_attrs and mgr_attrs.email:
+                                resolved_recipients.append(mgr_attrs.email)
+                                logs.append(f"Resolved '{r_str}' → {mgr_attrs.email}")
+                                continue
+                    except Exception as e:
+                        logs.append(f"⚠️ Failed to resolve '{r_str}': {e}")
+                logs.append(f"⚠️ Could not resolve '{r_str}' — department manager not found")
+                continue
+
+            if r_lower.startswith("dept_members:"):
+                dept_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                if dept_id and self.deps and self.deps.user_directory:
+                    try:
+                        members = self.deps.user_directory.get_department_members(str(dept_id), context.org_id) or []
+                        count = 0
+                        for m in members:
+                            em = getattr(m, "email", None)
+                            if em:
+                                resolved_recipients.append(em)
+                                count += 1
+                        logs.append(f"Resolved '{r_str}' → {count} department member(s)")
+                        continue
+                    except Exception as e:
+                        logs.append(f"⚠️ Failed to resolve '{r_str}': {e}")
+                logs.append(f"⚠️ Could not resolve '{r_str}' — department members not found")
+                continue
+
+            # Management chain shortcuts from the UI ("skip_level_2", "skip_level_3", ...)
+            if r_lower.startswith("skip_level_"):
+                if self.deps and self.deps.user_directory:
+                    try:
+                        level_str = r_lower.replace("skip_level_", "").strip()
+                        level = int(level_str)
+                        requester_id = user_context.get("user_id") or context.user_id
+                        if requester_id and level >= 1:
+                            chain = self.deps.user_directory.get_management_chain(str(requester_id), context.org_id, max_depth=level) or []
+                            if len(chain) >= level:
+                                mgr = chain[level - 1]
+                                em = getattr(mgr, "email", None)
+                                if em:
+                                    resolved_recipients.append(em)
+                                    logs.append(f"Resolved '{r_str}' → {em}")
+                                    continue
+                    except Exception as e:
+                        logs.append(f"⚠️ Failed to resolve '{r_str}' via management chain: {e}")
+                logs.append(f"⚠️ Could not resolve '{r_str}' — management chain not available")
                 continue
             
             # Looks like an email → pass through

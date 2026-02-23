@@ -1060,7 +1060,7 @@
                     const src = cfg.assignee_source || (cfg.approvers && cfg.approvers.length ? 'platform_user' : '');
                     const cnt = (cfg.assignee_ids || cfg.approvers || []).length;
                     const toolName = (cfg.assignee_source === 'tool' && cfg.assignee_tool_id && state.tools) ? (state.tools.find(t => t.id === cfg.assignee_tool_id) || {}).name : '';
-                    const dirLabel = {'dynamic_manager':'Direct Manager','department_manager':'Dept Head','management_chain':'Mgmt Chain'}[cfg.directory_assignee_type] || '';
+                    const dirLabel = {'dynamic_manager':'Direct Manager','department_manager':'Dept Head','department_members':'Dept Members','management_chain':'Mgmt Chain'}[cfg.directory_assignee_type] || '';
                     const approverSummary = src === 'user_directory' ? ('Auto: ' + (dirLabel || 'Directory')) : src === 'tool' ? (toolName ? 'Tool: ' + toolName : 'Tool') : (src ? (cnt + ' selected') : 'Not set');
                     html = `<div class="node-config-item"><span class="config-label">Approvers</span><span class="config-value">${src === 'user_directory' ? approverSummary : (src ? (src.replace('platform_','') + ': ' + approverSummary) : approverSummary)}</span></div>`;
                     break;
@@ -3410,9 +3410,27 @@
                     const aIds = aCfg.assignee_ids || aCfg.approvers || [];
                     const aToolId = aCfg.assignee_tool_id || '';
                     const timeoutVal = aCfg.timeout_hours != null ? aCfg.timeout_hours : (aCfg.timeout != null ? aCfg.timeout : 24);
-                    const dirLabels = {'dynamic_manager':'Their direct manager','department_manager':'Department head','management_chain':'Higher management (skip level)'};
+                    const dirLabels = {'dynamic_manager':'Their direct manager','department_manager':'Department head','department_members':'Department members','management_chain':'Higher management (skip level)'};
                     const dirTypeLabel = dirLabels[aCfg.directory_assignee_type] || '';
                     const approverLabel = aSrc === 'user_directory' ? (dirTypeLabel || 'Auto from directory') : aSrc === 'platform_role' ? (aIds.length + ' role(s)') : aSrc === 'platform_group' ? (aIds.length + ' group(s)') : aSrc === 'tool' ? ((state.tools.find(t => t.id === aToolId) || {}).name || 'Tool') : (aIds.length + ' person(s)');
+                    const eEnabled = !!aCfg.escalation_enabled;
+                    const eAfterValue = (aCfg.escalation_after_value != null ? aCfg.escalation_after_value : (aCfg.escalation_after_hours != null ? aCfg.escalation_after_hours : 12));
+                    const eAfterUnit = (aCfg.escalation_after_unit || 'hours');
+                    const eSrc = aCfg.escalation_assignee_source || 'platform_user';
+                    const eIds = aCfg.escalation_assignee_ids || [];
+                    const eToolId = aCfg.escalation_assignee_tool_id || '';
+                    const eDirType = aCfg.escalation_directory_assignee_type || '';
+                    const eDirLabels = {'dynamic_manager':'Direct manager','department_manager':'Department head','department_members':'Department members','management_chain':'Higher management'};
+                    const eDirTypeLabel = eDirLabels[eDirType] || '';
+                    const escalationToLabel = eSrc === 'user_directory'
+                        ? (eDirTypeLabel || 'Auto from directory')
+                        : eSrc === 'platform_role'
+                            ? (eIds.length + ' role(s)')
+                            : eSrc === 'platform_group'
+                                ? (eIds.length + ' group(s)')
+                                : eSrc === 'tool'
+                                    ? ((state.tools.find(t => t.id === eToolId) || {}).name || 'Tool')
+                                    : (eIds.length + ' person(s)');
                     html += `
                         <div class="property-group">
                             <label class="property-label">What needs to be approved?</label>
@@ -3435,6 +3453,38 @@
                                 <span style="font-size:12px;color:var(--pb-muted);">hours</span>
                             </div>
                         </div>
+                        <div class="property-group" style="border-top:1px solid var(--pb-border);padding-top:12px;margin-top:8px;">
+                            <label class="property-label" style="display:flex;align-items:center;gap:8px;">
+                                <input type="checkbox" ${eEnabled ? 'checked' : ''}
+                                       onchange="updateNodeConfig('${node.id}', 'escalation_enabled', this.checked); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
+                                Escalation (optional)
+                            </label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">If this approval is not completed on time, notify or escalate to someone else</div>
+                        </div>
+                        ${eEnabled ? `
+                        <div class="property-group">
+                            <label class="property-label">When to escalate</label>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <span style="font-size:12px;color:var(--pb-muted);white-space:nowrap;">Escalate after</span>
+                                <input type="number" class="property-input" style="width:96px;" value="${escapeHtml(eAfterValue)}" min="1"
+                                       onchange="updateNodeConfig('${node.id}', 'escalation_after_value', parseInt(this.value) || 12); setApprovalEscalationTiming('${node.id}')">
+                                <select class="property-select" style="width:140px;"
+                                        onchange="updateNodeConfig('${node.id}', 'escalation_after_unit', this.value); setApprovalEscalationTiming('${node.id}')">
+                                    <option value="hours" ${eAfterUnit === 'hours' ? 'selected' : ''}>Hours</option>
+                                    <option value="days" ${eAfterUnit === 'days' ? 'selected' : ''}>Days</option>
+                                    <option value="weeks" ${eAfterUnit === 'weeks' ? 'selected' : ''}>Weeks</option>
+                                    <option value="minutes" ${eAfterUnit === 'minutes' ? 'selected' : ''}>Minutes</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="property-group">
+                            <label class="property-label">Who to escalate to</label>
+                            <div style="font-size:12px;color:var(--pb-muted);margin-bottom:6px;">Currently: <strong>${escapeHtml(escalationToLabel)}</strong></div>
+                            <button type="button" onclick="openApprovalConfigModal('${node.id}', 'escalation')" class="property-input" style="cursor:pointer;text-align:center;border-radius:8px;font-weight:500;">
+                                Choose escalation recipient...
+                            </button>
+                        </div>
+                        ` : ''}
                         <div class="property-group" style="border-top:1px solid var(--pb-border);padding-top:12px;margin-top:8px;">
                             <label class="property-label" style="display:flex;align-items:center;gap:8px;">
                                 <input type="checkbox" ${aCfg.notifyApprover ? 'checked' : ''}
@@ -3474,9 +3524,25 @@
                                 <optgroup label="Dynamic Recipients">
                                     <option value="requester" ${node.config.recipient === 'requester' ? 'selected' : ''}>The person who started this process</option>
                                     <option value="manager" ${node.config.recipient === 'manager' ? 'selected' : ''}>Their direct manager</option>
+                                    <option value="department_head" ${node.config.recipient === 'department_head' ? 'selected' : ''}>Their department head</option>
+                                    <option value="department_members" ${node.config.recipient === 'department_members' ? 'selected' : ''}>Everyone in their department</option>
                                     ${(() => { const _mc = (state.builderContext || {}).management_chain || {}; const _lvs = Array.isArray(_mc.levels) ? _mc.levels : []; return _lvs.filter(l => l.level > 1).map(lv => `<option value="${escapeHtml(lv.ref)}" ${node.config.recipient === lv.ref ? 'selected' : ''}>${escapeHtml(lv.label)}</option>`).join(''); })()}
                                 </optgroup>
-                                ${(() => { const _depts = ((state.builderContext || {}).departments) || []; return _depts.length > 0 ? '<optgroup label="🏢 Department Managers">' + _depts.filter(d => d.manager_name).map(d => `<option value="dept_manager:${escapeHtml(d.id)}" ${node.config.recipient === 'dept_manager:' + d.id ? 'selected' : ''}>${escapeHtml(d.name)} Manager (${escapeHtml(d.manager_name)})</option>`).join('') + '</optgroup>' : ''; })()}
+                                ${(() => {
+                                    const _depts = ((state.builderContext || {}).departments) || [];
+                                    if (!_depts.length) return '';
+                                    const items = _depts
+                                        .filter(d => d && d.id && d.name)
+                                        .map(d => {
+                                            const headLabel = d.manager_name ? `Head (${escapeHtml(d.manager_name)})` : 'Head';
+                                            return [
+                                                `<option value="dept_manager:${escapeHtml(d.id)}" ${node.config.recipient === 'dept_manager:' + d.id ? 'selected' : ''}>${escapeHtml(d.name)} — ${headLabel}</option>`,
+                                                `<option value="dept_members:${escapeHtml(d.id)}" ${node.config.recipient === 'dept_members:' + d.id ? 'selected' : ''}>${escapeHtml(d.name)} — Members (everyone)</option>`
+                                            ].join('');
+                                        })
+                                        .join('');
+                                    return `<optgroup label="🏢 Departments">${items}</optgroup>`;
+                                })()}
                                 ${availableFields.filter(f => f.type === 'email' || f.type === 'text').length > 0 ? `<optgroup label="📝 From Form">
                                     ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
                                         <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
@@ -3484,9 +3550,9 @@
                                         </option>
                                     `).join('')}
                                 </optgroup>` : ''}
-                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('skip_level') ? 'selected' : ''}>A specific email address...</option>
+                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && node.config.recipient !== 'department_head' && node.config.recipient !== 'department_members' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('dept_members:') && !node.config.recipient.startsWith('skip_level') ? 'selected' : ''}>A specific email address...</option>
                             </select>
-                            ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('skip_level') && node.config.recipient !== '' ? `
+                            ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && node.config.recipient !== 'department_head' && node.config.recipient !== 'department_members' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('dept_members:') && !node.config.recipient.startsWith('skip_level') && node.config.recipient !== '' ? `
                                 <input type="text" class="property-input" style="margin-top:8px;" placeholder="email@example.com" 
                                        value="${escapeHtml(node.config.recipient || '')}"
                                        onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
@@ -5043,6 +5109,28 @@
             }
         }
 
+        function _durationToHours(value, unit) {
+            const v = Math.max(0, parseInt(value, 10) || 0);
+            const u = String(unit || 'hours').toLowerCase();
+            if (!v) return 0;
+            if (u === 'minutes' || u === 'minute') return Math.max(1, Math.ceil(v / 60));
+            if (u === 'days' || u === 'day') return v * 24;
+            if (u === 'weeks' || u === 'week') return v * 24 * 7;
+            return v; // hours default
+        }
+
+        function setApprovalEscalationTiming(nodeId) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!node.config || typeof node.config !== 'object') node.config = {};
+            const v = node.config.escalation_after_value != null ? node.config.escalation_after_value : 12;
+            const u = node.config.escalation_after_unit || 'hours';
+            const hours = _durationToHours(v, u);
+            node.config.escalation_after_hours = hours || undefined;
+            saveToUndo();
+        }
+        window.setApprovalEscalationTiming = setApprovalEscalationTiming;
+
         function updateConditionRule(nodeId, ruleIndex, key, value) {
             const node = state.nodes.find(n => n.id === nodeId);
             if (!node) return;
@@ -5304,17 +5392,27 @@
         
         // Approval config modal (Approvers from Platform User / Role / Group / Tool)
         let approvalConfigNodeId = null;
-        async function openApprovalConfigModal(nodeId) {
+        let approvalConfigPurpose = 'approver'; // 'approver' | 'escalation'
+        async function openApprovalConfigModal(nodeId, purpose = 'approver') {
             const node = state.nodes.find(n => n.id === nodeId);
             if (!node) return;
             approvalConfigNodeId = nodeId;
+            approvalConfigPurpose = purpose || 'approver';
             const modal = document.getElementById('approval-config-modal');
             const cfg = node.config || {};
-            let source = cfg.assignee_source || '';
-            if (!source && (cfg.approvers || []).length) source = 'platform_user';
+            const sourceKey = approvalConfigPurpose === 'escalation' ? 'escalation_assignee_source' : 'assignee_source';
+            const idsKey = approvalConfigPurpose === 'escalation' ? 'escalation_assignee_ids' : 'assignee_ids';
+            const legacyIdsKey = approvalConfigPurpose === 'escalation' ? null : 'approvers';
+            const toolKey = approvalConfigPurpose === 'escalation' ? 'escalation_assignee_tool_id' : 'assignee_tool_id';
+            const dirTypeKey = approvalConfigPurpose === 'escalation' ? 'escalation_directory_assignee_type' : 'directory_assignee_type';
+            const mgmtLevelKey = approvalConfigPurpose === 'escalation' ? 'escalation_management_level' : 'management_level';
+            const deptKey = approvalConfigPurpose === 'escalation' ? 'escalation_department_id' : 'department_id';
+
+            let source = cfg[sourceKey] || '';
+            if (!source && legacyIdsKey && (cfg[legacyIdsKey] || []).length) source = 'platform_user';
             if (!source) source = 'platform_user';
-            const assigneeIds = cfg.assignee_ids || cfg.approvers || [];
-            const assigneeToolId = cfg.assignee_tool_id || '';
+            const assigneeIds = cfg[idsKey] || (legacyIdsKey ? (cfg[legacyIdsKey] || []) : []) || [];
+            const assigneeToolId = cfg[toolKey] || '';
             const token = getAuthToken();
             const headers = { 'Authorization': 'Bearer ' + token };
             let users = [], roles = [], groups = [], tools = [];
@@ -5340,14 +5438,39 @@
             document.getElementById('approval-config-group-list').innerHTML = groupOpts;
             document.getElementById('approval-config-tool').innerHTML = '<option value="">— None —</option>' + toolOpts;
             document.getElementById('approval-config-tool').value = assigneeToolId;
+
+            // Modal copy (business-friendly)
+            const titleEl = document.getElementById('approval-config-modal-title');
+            const sourceLabelEl = document.getElementById('approval-config-modal-source-label');
+            if (titleEl) titleEl.textContent = (approvalConfigPurpose === 'escalation') ? 'Where should escalation go?' : 'Who should approve?';
+            if (sourceLabelEl) sourceLabelEl.textContent = (approvalConfigPurpose === 'escalation') ? 'Find escalation recipients by' : 'Find the approver by';
+
             // Restore user_directory config
             if (source === 'user_directory') {
-                document.getElementById('approval-config-directory-type').value = cfg.directory_assignee_type || 'dynamic_manager';
-                document.getElementById('approval-config-mgmt-level').value = cfg.management_level || 2;
+                document.getElementById('approval-config-directory-type').value = cfg[dirTypeKey] || 'dynamic_manager';
+                document.getElementById('approval-config-mgmt-level').value = cfg[mgmtLevelKey] || 2;
+                const deptSel = document.getElementById('approval-config-dept');
+                if (deptSel) {
+                    const deptOptions = (state.builderContext && Array.isArray(state.builderContext.departments))
+                        ? state.builderContext.departments
+                            .filter(d => d && d.id && d.name)
+                            .map(d => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)}</option>`)
+                            .join('')
+                        : '';
+                    deptSel.innerHTML = '<option value="">Use requester’s department</option>' + deptOptions;
+                    const existingDeptId = (cfg[deptKey] || cfg.departmentId || '').toString();
+                    deptSel.value = existingDeptId || '';
+                }
             }
-            // Add change listener for directory type to toggle management level
+            // Add change listener for directory type to toggle management level / department selector
             document.getElementById('approval-config-directory-type').onchange = function() {
-                document.getElementById('approval-config-mgmt-level-wrap').classList.toggle('hidden', this.value !== 'management_chain');
+                const dirType = this.value;
+                document.getElementById('approval-config-mgmt-level-wrap').classList.toggle('hidden', dirType !== 'management_chain');
+                const deptWrap = document.getElementById('approval-config-dept-wrap');
+                if (deptWrap) {
+                    const showDept = (dirType === 'department_manager' || dirType === 'department_members');
+                    deptWrap.classList.toggle('hidden', !showDept);
+                }
             };
             onApprovalConfigSourceChange();
             modal.classList.add('show');
@@ -5363,6 +5486,11 @@
             if (v === 'user_directory') {
                 const dirType = document.getElementById('approval-config-directory-type').value;
                 document.getElementById('approval-config-mgmt-level-wrap').classList.toggle('hidden', dirType !== 'management_chain');
+                const deptWrap = document.getElementById('approval-config-dept-wrap');
+                if (deptWrap) {
+                    const showDept = (dirType === 'department_manager' || dirType === 'department_members');
+                    deptWrap.classList.toggle('hidden', !showDept);
+                }
             }
         }
         function saveApprovalConfig() {
@@ -5379,17 +5507,49 @@
             else if (source === 'platform_role') { for (let i = 0; i < roleList.options.length; i++) if (roleList.options[i].selected) assigneeIds.push(roleList.options[i].value); }
             else if (source === 'platform_group') { for (let i = 0; i < groupList.options.length; i++) if (groupList.options[i].selected) assigneeIds.push(groupList.options[i].value); }
             const assigneeType = source === 'platform_user' ? 'user' : source === 'platform_role' ? 'role' : source === 'platform_group' ? 'group' : 'user';
-            node.config.assignee_source = source;
-            node.config.assignee_type = assigneeType;
-            node.config.assignee_ids = assigneeIds;
-            node.config.assignee_tool_id = source === 'tool' ? (toolSelect.value || '') : undefined;
-            // User Directory config
-            if (source === 'user_directory') {
-                node.config.directory_assignee_type = document.getElementById('approval-config-directory-type').value || 'dynamic_manager';
-                node.config.management_level = node.config.directory_assignee_type === 'management_chain' ? parseInt(document.getElementById('approval-config-mgmt-level').value) || 2 : undefined;
+
+            if (approvalConfigPurpose === 'escalation') {
+                node.config.escalation_assignee_source = source;
+                node.config.escalation_assignee_ids = assigneeIds;
+                node.config.escalation_assignee_tool_id = source === 'tool' ? (toolSelect.value || '') : undefined;
+                if (source === 'user_directory') {
+                    node.config.escalation_directory_assignee_type = document.getElementById('approval-config-directory-type').value || 'dynamic_manager';
+                    node.config.escalation_management_level = node.config.escalation_directory_assignee_type === 'management_chain'
+                        ? (parseInt(document.getElementById('approval-config-mgmt-level').value) || 2)
+                        : undefined;
+                    const deptSel = document.getElementById('approval-config-dept');
+                    const deptId = deptSel ? String(deptSel.value || '').trim() : '';
+                    if ((node.config.escalation_directory_assignee_type === 'department_manager' || node.config.escalation_directory_assignee_type === 'department_members') && deptId) {
+                        node.config.escalation_department_id = deptId;
+                    } else {
+                        delete node.config.escalation_department_id;
+                    }
+                } else {
+                    delete node.config.escalation_directory_assignee_type;
+                    delete node.config.escalation_management_level;
+                    delete node.config.escalation_department_id;
+                }
             } else {
-                delete node.config.directory_assignee_type;
-                delete node.config.management_level;
+                node.config.assignee_source = source;
+                node.config.assignee_type = assigneeType;
+                node.config.assignee_ids = assigneeIds;
+                node.config.assignee_tool_id = source === 'tool' ? (toolSelect.value || '') : undefined;
+                // User Directory config
+                if (source === 'user_directory') {
+                    node.config.directory_assignee_type = document.getElementById('approval-config-directory-type').value || 'dynamic_manager';
+                    node.config.management_level = node.config.directory_assignee_type === 'management_chain' ? parseInt(document.getElementById('approval-config-mgmt-level').value) || 2 : undefined;
+                    const deptSel = document.getElementById('approval-config-dept');
+                    const deptId = deptSel ? String(deptSel.value || '').trim() : '';
+                    if ((node.config.directory_assignee_type === 'department_manager' || node.config.directory_assignee_type === 'department_members') && deptId) {
+                        node.config.department_id = deptId;
+                    } else {
+                        delete node.config.department_id;
+                    }
+                } else {
+                    delete node.config.directory_assignee_type;
+                    delete node.config.management_level;
+                    delete node.config.department_id;
+                }
             }
             if (node.config.approvers !== undefined) delete node.config.approvers;
             document.getElementById('approval-config-modal').classList.remove('show');
@@ -8932,6 +9092,14 @@
                             recipientTpl = (ctx && ctx.currentUser && ctx.currentUser.email) ? ctx.currentUser.email : 'requester (auto-resolved at runtime)';
                         } else if (recipientTpl === 'manager' || recipientTpl === 'supervisor') {
                             recipientTpl = 'manager (auto-resolved at runtime)';
+                        } else if (recipientTpl === 'department_head') {
+                            recipientTpl = 'department head (auto-resolved at runtime)';
+                        } else if (recipientTpl === 'department_members') {
+                            recipientTpl = 'department members (auto-resolved at runtime)';
+                        } else if (String(recipientTpl || '').startsWith('dept_manager:')) {
+                            recipientTpl = 'department head (auto-resolved at runtime)';
+                        } else if (String(recipientTpl || '').startsWith('dept_members:')) {
+                            recipientTpl = 'department members (auto-resolved at runtime)';
                         }
                         const bodyTpl = cfg.message || cfg.template || '';
                         const recipientResolved = interpolateTemplate(recipientTpl || '', tplValues).trim();

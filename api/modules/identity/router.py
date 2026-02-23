@@ -749,10 +749,14 @@ async def get_builder_context(user: User = Depends(require_auth)):
         "email": "profile", "name": "profile", "firstName": "profile",
         "lastName": "profile", "phone": "profile", "jobTitle": "profile",
         "employeeId": "profile",
+        "departmentId": "organization",
         "departmentName": "organization", "roles": "organization",
         "groups": "organization",
         "managerId": "hierarchy", "managerName": "hierarchy",
         "managerEmail": "hierarchy", "isManager": "hierarchy",
+        "departmentHeadId": "hierarchy",
+        "departmentHeadName": "hierarchy",
+        "departmentHeadEmail": "hierarchy",
     }
     for f in attrs.get("standard", []):
         field = dict(f)
@@ -774,6 +778,7 @@ async def get_builder_context(user: User = Depends(require_auth)):
             departments.append({
                 "id": getattr(d, "id", ""),
                 "name": getattr(d, "name", ""),
+                "manager_id": getattr(d, "manager_id", None),
                 "manager_name": getattr(d, "manager_name", None),
                 "member_count": getattr(d, "member_count", 0),
             })

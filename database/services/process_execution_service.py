@@ -668,6 +668,64 @@ class ProcessExecutionService:
             self.db.commit()
         
         return expired
+
+    def apply_due_approval_escalations(self, org_id: str) -> int:
+        """
+        Apply escalation for approvals that have reached their escalation threshold.
+
+        Escalation is modeled as: add escalation_user_ids to assigned_user_ids, and mark
+        the approval as escalated. The approval remains in 'pending' status so it still
+        appears in the Pending Approvals list.
+
+        Returns:
+            Number of approvals escalated in this call.
+        """
+        now = datetime.utcnow()
+        try:
+            org_uuid = uuid.UUID(self._resolve_org_id(org_id))
+        except Exception:
+            return 0
+
+        candidates = self.db.query(ProcessApprovalRequest).filter(
+            and_(
+                ProcessApprovalRequest.org_id == org_uuid,
+                ProcessApprovalRequest.status == "pending",
+                ProcessApprovalRequest.escalated.is_(False),
+                ProcessApprovalRequest.escalate_after_hours.isnot(None),
+            )
+        ).all()
+
+        changed = 0
+        for approval in candidates or []:
+            try:
+                after_h = int(getattr(approval, "escalate_after_hours", None) or 0)
+            except Exception:
+                after_h = 0
+            if after_h <= 0:
+                continue
+            created_at = getattr(approval, "created_at", None)
+            if not created_at:
+                continue
+            if created_at + timedelta(hours=after_h) > now:
+                continue
+
+            esc_ids = getattr(approval, "escalation_user_ids", None) or []
+            if not esc_ids:
+                # If escalation is enabled but no recipients were resolved, skip safely.
+                continue
+
+            assigned = getattr(approval, "assigned_user_ids", None) or []
+            merged = list(dict.fromkeys([*(str(x) for x in assigned if x), *(str(x) for x in esc_ids if x)]))
+            approval.assigned_user_ids = merged
+            approval.escalated = True
+            approval.escalated_at = now
+            approval.updated_at = now
+            changed += 1
+
+        if changed:
+            self.db.commit()
+
+        return changed
     
     # =========================================================================
     # ANALYTICS

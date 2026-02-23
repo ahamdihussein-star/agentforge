@@ -1293,6 +1293,13 @@ class ProcessAPIService:
             "[ProcessApproval] list requested: user_id=%s org_id=%s user_role_ids_count=%s user_group_ids_count=%s include_all_for_admin=%s",
             user_id, org_id, len(user_role_ids or []), len(user_group_ids or []), include_all_for_org_admin,
         )
+        # Apply any due escalations so newly-added escalation recipients see tasks immediately.
+        try:
+            escalated = self.exec_service.apply_due_approval_escalations(org_id)
+            if escalated:
+                logger.info("[ProcessApproval] applied due escalations: count=%s org_id=%s", escalated, org_id)
+        except Exception as e:
+            logger.warning("[ProcessApproval] escalation check failed (non-blocking): %s", e)
         approvals = self.exec_service.get_pending_approvals_for_user(
             user_id=user_id,
             org_id=org_id,

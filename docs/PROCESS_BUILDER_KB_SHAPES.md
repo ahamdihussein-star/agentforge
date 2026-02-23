@@ -108,7 +108,7 @@ When in doubt, use `"select"` — the admin can always edit the options later.
 **Prefill System** (auto-fill from user profile):
 Set `readOnly: true` + `prefill: { "source": "currentUser", "key": "<key>" }`.
 The system is FULLY DYNAMIC — any attribute from the user's identity source is available.
-Common keys: `name`, `email`, `firstName`, `lastName`, `phone`, `jobTitle`, `employeeId`, `departmentName`, `departmentId`, `managerName`, `managerEmail`, `managerId`, `isManager`, `directReportCount`, `groupNames`, `roleNames`.
+Common keys: `name`, `email`, `firstName`, `lastName`, `phone`, `jobTitle`, `employeeId`, `departmentName`, `departmentId`, `managerName`, `managerEmail`, `managerId`, `departmentHeadName`, `departmentHeadEmail`, `departmentHeadId`, `isManager`, `directReportCount`, `groupNames`, `roleNames`.
 Custom keys (from HR/LDAP): `nationalId`, `hireDate`, `officeLocation`, `costCenter`, `badgeNumber`, or ANY field the organization configured.
 BEST PRACTICE: ALWAYS prefill every piece of information the system already knows. NEVER ask users to type what the system knows.
 
@@ -124,6 +124,11 @@ Config (`notification.config`):
 - `recipient` (string): Who receives the message:
   - `"requester"` — The person who started this process (PREFERRED for employee notifications).
   - `"manager"` — The requester's direct manager (PREFERRED for manager notifications).
+  - `"department_head"` — The requester's department head (department manager).
+  - `"department_members"` — Everyone in the requester's department.
+  - `"skip_level_2"` / `"skip_level_3"` — Higher management levels (manager’s manager, etc.).
+  - `"dept_manager:<department_id>"` — A specific department head.
+  - `"dept_members:<department_id>"` — Everyone in a specific department.
   - `"{{fieldName}}"` — From a form field (e.g., `"{{employeeEmail}}"`).
   - An email address — sent directly (rarely used).
 - `title` (string): Subject line / notification title.
@@ -151,6 +156,12 @@ Config (`approval.config`):
 - `assignee_type` (string): `"user"` | `"role"` | `"group"`.
 - `assignee_ids` (array): User/role/group IDs (can be empty for dynamic resolution).
 - `timeout_hours` (number): Hours before timeout (default: 24).
+- Optional escalation (business-friendly SLA):
+  - `escalation_enabled` (boolean): Enable escalation.
+  - `escalation_after_hours` (number): Escalate after N hours (engine field).
+  - (UI convenience) `escalation_after_value` + `escalation_after_unit`: Same timing but business-friendly units (`minutes|hours|days|weeks`).
+  - `escalation_assignee_ids` (array): Escalation recipients (resolved to user IDs at runtime).
+  - `escalation_assignee_source` (string): `"platform_user"` | `"platform_role"` | `"platform_group"` | `"user_directory"` (UI-only; engine resolves to concrete user IDs).
 
 **When `assignee_source` is `"user_directory"` (RECOMMENDED for organizational hierarchy):**
 - `directory_assignee_type` (string):
