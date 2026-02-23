@@ -2848,7 +2848,7 @@
             
             body.innerHTML = generatePropertiesForm(node);
             panel.classList.add('active');
-            requestAnimationFrame(function() { _applyFriendlyTextareas(); });
+            requestAnimationFrame(function() { _bindTemplateEditors(); });
         }
         
         // Helper function to get all available fields from trigger/form nodes
@@ -3364,8 +3364,7 @@
                     html += `
                         <div class="property-group">
                             <label class="property-label">What needs to be approved?</label>
-                            <textarea class="property-textarea" placeholder="Describe what the approver should review..."
-                                      onchange="updateNodeConfig('${node.id}', 'message', this.value)">${escapeHtml(aCfg.message || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'message', (aCfg.message || ''), 'Describe what the approver should review...', 88)}
                             ${buildInsertDataDropdown(node.id, 'message', availableFields, upstreamData)}
                         </div>
                         <div class="property-group">
@@ -3395,8 +3394,7 @@
                         ${aCfg.notifyApprover ? `
                         <div class="property-group">
                             <label class="property-label">Notification message</label>
-                            <textarea class="property-textarea" placeholder="Write a message to the approver about what needs their attention..."
-                                      onchange="updateNodeConfig('${node.id}', 'notificationMessage', this.value)">${escapeHtml(aCfg.notificationMessage || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'notificationMessage', (aCfg.notificationMessage || ''), 'Write a message to the approver about what needs their attention...', 88)}
                             ${buildInsertDataDropdown(node.id, 'notificationMessage', availableFields, upstreamData)}
                         </div>
                         ` : ''}
@@ -3450,8 +3448,7 @@
                         </div>
                         <div class="property-group">
                             <label class="property-label">Message</label>
-                            <textarea class="property-textarea" style="min-height:100px;" placeholder="Write the message to send..."
-                                      onchange="updateNodeConfig('${node.id}', 'template', this.value)">${escapeHtml(node.config.template || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'template', (node.config.template || ''), 'Write the message to send...', 100)}
                             ${buildInsertDataDropdown(node.id, 'template', availableFields, upstreamData)}
                         </div>
                     `;
@@ -3525,9 +3522,7 @@
                         </div>
                         <div class="property-group">
                             <label class="property-label">What information to extract</label>
-                            <textarea class="property-textarea" style="min-height:80px;" 
-                                      placeholder="Describe what data to extract (e.g., Extract invoice number, date, line items, and total from the uploaded document)"
-                                      onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'prompt', (node.config.prompt || ''), 'Describe what data to extract (e.g., Extract invoice number, date, line items, and total from the uploaded document)', 80)}
                             ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
                         </div>
 
@@ -3640,9 +3635,7 @@
                         </div>
                         <div class="property-group">
                             <label class="property-label">What to calculate or analyze</label>
-                            <textarea class="property-textarea" style="min-height:100px;"
-                                      placeholder="Describe what you want to calculate or analyze across all the selected files.\n\nExamples:\n• Sum all invoice totals and find the highest amount\n• Compare dates across all contracts\n• List all line items from every receipt and calculate the grand total\n• Summarize key findings from all uploaded reports"
-                                      onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'prompt', (node.config.prompt || ''), 'Describe what you want to calculate or analyze across all the selected files.\n\nExamples:\n• Sum all invoice totals and find the highest amount\n• Compare dates across all contracts\n• List all line items from every receipt and calculate the grand total\n• Summarize key findings from all uploaded reports', 100)}
                             ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
                         </div>
 
@@ -3735,9 +3728,7 @@
                         </div>
                         <div class="property-group">
                             <label class="property-label">What should be in the document?</label>
-                            <textarea class="property-textarea" style="min-height:100px;"
-                                      placeholder="Describe the document contents. You can insert data from previous steps."
-                                      onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || node.config.instructions || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'prompt', (node.config.prompt || node.config.instructions || ''), 'Describe the document contents. You can insert data from previous steps.', 100)}
                             ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
                         </div>`;
                     }
@@ -3746,9 +3737,7 @@
                         html += `
                         <div class="property-group">
                             <label class="property-label">Task description</label>
-                            <textarea class="property-textarea" style="min-height:120px;" 
-                                      placeholder="${{analyze:'Describe what to analyze (e.g., Summarize the key findings from the uploaded report)', generate:'Describe what to generate (e.g., Write a professional approval email with the request details)', classify:'Describe how to classify (e.g., Categorize this support ticket as Bug, Feature Request, or Question)', custom:'Describe what the AI should do...'}[_aiMode] || 'Describe what the AI should do...'}"
-                                      onchange="updateNodeConfig('${node.id}', 'prompt', this.value)">${escapeHtml(node.config.prompt || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'prompt', (node.config.prompt || ''), (${{analyze:'Describe what to analyze (e.g., Summarize the key findings from the uploaded report)', generate:'Describe what to generate (e.g., Write a professional approval email with the request details)', classify:'Describe how to classify (e.g., Categorize this support ticket as Bug, Feature Request, or Question)', custom:'Describe what the AI should do...'}[_aiMode] || 'Describe what the AI should do...'}), 120)}
                             ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
                         </div>`;
                     }
@@ -4304,7 +4293,7 @@
                                    value="${node.config.itemVar || 'item'}"
                                    onchange="updateNodeConfig('${node.id}', 'itemVar', this.value)">
                             <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-                                Access current item with: {{${node.config.itemVar || 'item'}}}
+                                You can reference the current item in later steps using the Insert Data menu.
                             </div>
                         </div>
                         <div class="property-group">
@@ -4434,8 +4423,7 @@
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
                                 A message shown to the person who started this process when it finishes.
                             </div>
-                            <textarea class="property-textarea" placeholder="e.g. Your request has been processed successfully."
-                                      onchange="updateNodeConfig('${node.id}', 'successMessage', this.value)">${escapeHtml(node.config.successMessage || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'successMessage', (node.config.successMessage || ''), 'e.g. Your request has been processed successfully.', 88)}
                             ${buildInsertDataDropdown(node.id, 'successMessage', availableFields, upstreamData)}
                         </div>
                     `;
@@ -4481,8 +4469,7 @@
                             </div>
                             <div class="property-group">
                                 <label class="property-label">Content instructions</label>
-                                <textarea class="property-textarea" placeholder="What should this document contain?"
-                                          onchange="updateNodeConfig('${node.id}', 'documentInstructions', this.value)">${escapeHtml(node.config.documentInstructions || '')}</textarea>
+                                ${buildTemplateEditor(node.id, 'documentInstructions', (node.config.documentInstructions || ''), 'What should this document contain?', 88)}
                                 ${availableFields.length > 0 ? `
                                     <div class="field-chips">
                                         <span class="field-chips-label">Insert from form:</span>
@@ -4504,7 +4491,7 @@
                                     </div>
                                 ` : `
                                     <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
-                                        You can reference form fields like <code>{{employeeName}}</code> or <code>{{startDate}}</code>.
+                                        Use the buttons above to insert information from the form or previous steps.
                                     </div>
                                 `}
                             </div>
@@ -4606,9 +4593,7 @@
                         ` : `
                         <div class="property-group">
                             <label class="property-label">Formula</label>
-                            <textarea class="property-textarea" style="min-height:60px;"
-                                      placeholder="e.g. {{parsedData.totalAmount}} * 1.05"
-                                      onchange="updateNodeConfig('${node.id}', 'expression', this.value)">${escapeHtml(node.config.expression || node.config.input || '')}</textarea>
+                            ${buildTemplateEditor(node.id, 'expression', (node.config.expression || node.config.input || ''), 'Example: Total Amount * 1.05', 60)}
                             ${buildInsertDataDropdown(node.id, 'expression', availableFields, upstreamData)}
                         </div>
                         `}
@@ -5523,77 +5508,206 @@
             return humanizeFieldLabel(parts[parts.length - 1]);
         }
 
-        function insertFieldRef(nodeId, configKey, fieldRef) {
+        // ================================================================
+        // Business-friendly template editor (never shows {{...}} to user)
+        // ================================================================
+        let _activeTemplateEditor = null; // { nodeId, configKey, el }
+        const _undoTimersByNode = {};
+        const _cssEscape = (s) => (window.CSS && typeof window.CSS.escape === 'function') ? window.CSS.escape(String(s)) : String(s).replace(/[^a-zA-Z0-9_\-]/g, '\\$&');
+
+        function _scheduleUndoSave(nodeId) {
+            const id = String(nodeId || '');
+            if (!id) return;
+            if (_undoTimersByNode[id]) clearTimeout(_undoTimersByNode[id]);
+            _undoTimersByNode[id] = setTimeout(() => {
+                try { saveToUndo(); } catch (e) { /* ignore */ }
+                _undoTimersByNode[id] = null;
+            }, 500);
+        }
+
+        function _templateRawToHtml(rawText) {
+            const raw = String(rawText || '');
+            if (!raw) return '';
+            const escaped = escapeHtml(raw);
+            return escaped.replace(/\{\{([^}]+)\}\}/g, function(match) {
+                const label = friendlyRefLabel(match);
+                return `<span class="tpl-token" contenteditable="false" data-ref="${escapeHtml(match)}" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+            }).replace(/\n/g, '<br>');
+        }
+
+        function _templateHtmlToRaw(editorEl) {
+            if (!editorEl) return '';
+            const out = [];
+
+            function walk(node) {
+                if (!node) return;
+                if (node.nodeType === Node.TEXT_NODE) {
+                    out.push(node.nodeValue || '');
+                    return;
+                }
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                const el = node;
+                if (el.classList && el.classList.contains('tpl-token')) {
+                    out.push(el.getAttribute('data-ref') || '');
+                    return;
+                }
+                if (el.tagName === 'BR') {
+                    out.push('\n');
+                    return;
+                }
+                // Block elements: add newline between blocks
+                const isBlock = ['DIV', 'P'].includes(el.tagName);
+                const children = Array.from(el.childNodes || []);
+                children.forEach(ch => walk(ch));
+                if (isBlock) out.push('\n');
+            }
+
+            Array.from(editorEl.childNodes || []).forEach(n => walk(n));
+            return out.join('').replace(/\n{3,}/g, '\n\n').trimEnd();
+        }
+
+        function buildTemplateEditor(nodeId, configKey, rawValue, placeholder, minHeightPx) {
+            const ph = escapeHtml(String(placeholder || ''));
+            const mh = Number(minHeightPx) || 88;
+            const html = _templateRawToHtml(rawValue);
+            return `
+                <div class="tpl-editor"
+                     data-node-id="${escapeHtml(nodeId)}"
+                     data-config-key="${escapeHtml(configKey)}"
+                     data-placeholder="${ph}"
+                     style="min-height:${mh}px;"
+                     contenteditable="true">${html}</div>
+            `;
+        }
+
+        function _syncTemplateEditorToConfig(editorEl, opts = {}) {
+            const nodeId = editorEl?.dataset?.nodeId;
+            const configKey = editorEl?.dataset?.configKey;
+            if (!nodeId || !configKey) return;
             const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            const raw = _templateHtmlToRaw(editorEl);
+            node.config[configKey] = raw;
+            // keep legacy preview nodes updated without re-rendering properties
+            try { refreshNode(node); } catch (e) { /* ignore */ }
+            if (!opts.skipUndo) _scheduleUndoSave(nodeId);
+        }
+
+        function _insertTokenAtCursor(editorEl, fieldRef) {
+            if (!editorEl) return false;
+            const ref = String(fieldRef || '').trim();
+            if (!ref) return false;
+            const label = friendlyRefLabel(ref);
+            const token = document.createElement('span');
+            token.className = 'tpl-token';
+            token.setAttribute('contenteditable', 'false');
+            token.setAttribute('data-ref', ref);
+            token.setAttribute('title', label);
+            token.textContent = label;
+
+            const sel = window.getSelection();
+            let range = null;
+            if (sel && sel.rangeCount > 0) {
+                range = sel.getRangeAt(0);
+                // ensure selection is inside editor
+                let p = range.commonAncestorContainer;
+                if (p && p.nodeType === 3) p = p.parentNode;
+                if (p && !editorEl.contains(p)) range = null;
+            }
+            if (!range) {
+                range = document.createRange();
+                range.selectNodeContents(editorEl);
+                range.collapse(false);
+            }
+            range.deleteContents();
+            range.insertNode(token);
+            // add a trailing space for natural typing
+            const space = document.createTextNode(' ');
+            token.after(space);
+            range.setStartAfter(space);
+            range.collapse(true);
+            if (sel) {
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+            return true;
+        }
+
+        function _bindTemplateEditors() {
+            const editors = document.querySelectorAll('.tpl-editor');
+            editors.forEach(ed => {
+                if (ed._tplBound) return;
+                ed._tplBound = true;
+
+                ed.addEventListener('focus', () => {
+                    _activeTemplateEditor = { nodeId: ed.dataset.nodeId, configKey: ed.dataset.configKey, el: ed };
+                });
+                ed.addEventListener('click', () => {
+                    _activeTemplateEditor = { nodeId: ed.dataset.nodeId, configKey: ed.dataset.configKey, el: ed };
+                });
+                ed.addEventListener('input', () => _syncTemplateEditorToConfig(ed));
+                ed.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+                    document.execCommand('insertText', false, text);
+                });
+                ed.addEventListener('keydown', (e) => {
+                    // Backspace/Delete should remove whole token if adjacent
+                    if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+                    const sel = window.getSelection();
+                    if (!sel || sel.rangeCount === 0) return;
+                    const r = sel.getRangeAt(0);
+                    if (!r.collapsed) return;
+                    const container = r.startContainer;
+                    const offset = r.startOffset;
+                    // If caret is in text node, check previous sibling for token
+                    let prev = null;
+                    if (container.nodeType === 3) {
+                        prev = container.previousSibling;
+                    } else if (container.nodeType === 1) {
+                        prev = container.childNodes[offset - 1];
+                    }
+                    if (prev && prev.nodeType === 1 && prev.classList && prev.classList.contains('tpl-token')) {
+                        e.preventDefault();
+                        prev.remove();
+                        _syncTemplateEditorToConfig(ed);
+                    }
+                });
+            });
+        }
+
+        function insertFieldRef(nodeId, configKey, fieldRef) {
+            const nid = String(nodeId || '');
+            const ck = String(configKey || '');
+            const ref = String(fieldRef || '');
+            // Prefer cursor insertion into the active template editor
+            if (_activeTemplateEditor && _activeTemplateEditor.el && _activeTemplateEditor.nodeId === nid && _activeTemplateEditor.configKey === ck) {
+                const ok = _insertTokenAtCursor(_activeTemplateEditor.el, ref);
+                if (ok) {
+                    _syncTemplateEditorToConfig(_activeTemplateEditor.el);
+                    return;
+                }
+            }
+            // Fallback: find editor in DOM (insert at end)
+            const ed = document.querySelector(`.tpl-editor[data-node-id="${_cssEscape(nid)}"][data-config-key="${_cssEscape(ck)}"]`);
+            if (ed) {
+                // move caret to end then insert
+                ed.focus();
+                const ok = _insertTokenAtCursor(ed, ref);
+                if (ok) {
+                    _activeTemplateEditor = { nodeId: nid, configKey: ck, el: ed };
+                    _syncTemplateEditorToConfig(ed);
+                    return;
+                }
+            }
+            // Last resort: append raw into config
+            const node = state.nodes.find(n => n.id === nid);
             if (node) {
-                const currentValue = node.config[configKey] || '';
-                node.config[configKey] = currentValue + (currentValue ? ' ' : '') + fieldRef;
+                const cur = String(node.config[ck] || '');
+                node.config[ck] = cur + (cur ? ' ' : '') + ref;
                 refreshNode(node);
                 showProperties(node);
                 saveToUndo();
-            }
-        }
-
-        const _REF_TAG_STYLE = 'display:inline-flex;align-items:center;gap:3px;padding:1px 8px;margin:0 1px;border-radius:10px;background:rgba(129,140,248,0.12);border:1px solid rgba(129,140,248,0.3);color:#a5b4fc;font-size:12px;font-weight:500;white-space:nowrap;vertical-align:baseline;cursor:default;';
-        const _REF_AT_STYLE = 'color:#6366f1;font-weight:700;';
-
-        function _friendlyRefHtml(ref) {
-            const label = friendlyRefLabel(ref);
-            return '<span style="' + _REF_TAG_STYLE + '" title="' + escapeHtml(ref) + '"><span style="' + _REF_AT_STYLE + '">@</span>' + escapeHtml(label) + '</span>';
-        }
-
-        function _renderFriendlyOverlay(rawText) {
-            if (!rawText) return '';
-            return escapeHtml(rawText).replace(/\{\{([^}]+)\}\}/g, function(match) { return _friendlyRefHtml(match); });
-        }
-
-        function _applyFriendlyTextareas() {
-            var textareas = document.querySelectorAll('textarea.property-textarea');
-            for (var i = 0; i < textareas.length; i++) {
-                var ta = textareas[i];
-                if (ta._friendlyBound) continue;
-                var raw = ta.value;
-                if (!raw || raw.indexOf('{{') === -1) continue;
-                ta._friendlyBound = true;
-
-                var wrapper = document.createElement('div');
-                wrapper.style.cssText = 'position:relative;';
-                ta.parentNode.insertBefore(wrapper, ta);
-                wrapper.appendChild(ta);
-
-                var overlay = document.createElement('div');
-                overlay.style.cssText = 'width:100%;padding:11px 14px;background:var(--node-bg,#1e1e2e);border:1px solid var(--node-border,#333);border-radius:10px;color:var(--pb-text,#e0e0e0);font-size:13px;min-height:88px;line-height:1.7;cursor:text;word-break:break-word;white-space:pre-wrap;box-sizing:border-box;transition:border-color 0.2s;';
-                overlay.innerHTML = _renderFriendlyOverlay(raw);
-                wrapper.insertBefore(overlay, ta);
-
-                ta.style.cssText += ';position:absolute;opacity:0;pointer-events:none;height:0;min-height:0;overflow:hidden;';
-
-                (function(textarea, overlayEl) {
-                    overlayEl.addEventListener('click', function() {
-                        textarea.style.cssText = textarea.style.cssText.replace(/position:absolute;opacity:0;pointer-events:none;height:0;min-height:0;overflow:hidden;/g, '');
-                        textarea.style.position = '';
-                        textarea.style.opacity = '';
-                        textarea.style.pointerEvents = '';
-                        textarea.style.height = '';
-                        textarea.style.minHeight = '';
-                        textarea.style.overflow = '';
-                        overlayEl.style.display = 'none';
-                        textarea.focus();
-                    });
-                    textarea.addEventListener('blur', function() {
-                        var val = this.value;
-                        overlayEl.innerHTML = _renderFriendlyOverlay(val);
-                        if (val && val.indexOf('{{') !== -1) {
-                            this.style.position = 'absolute';
-                            this.style.opacity = '0';
-                            this.style.pointerEvents = 'none';
-                            this.style.height = '0';
-                            this.style.minHeight = '0';
-                            this.style.overflow = 'hidden';
-                            overlayEl.style.display = '';
-                        }
-                    });
-                })(ta, overlay);
             }
         }
         
@@ -8807,7 +8921,7 @@
                     } else if (current.type === 'ai') {
                         const outVar = current.output_variable || '';
                         msg = `AI step will generate an output based on your inputs.`;
-                        if (outVar) msg += ` Output stored in {{${outVar}}}.`;
+                        if (outVar) msg += ` Output saved as “${outVar}”.`;
                         msg += ` ⚠️ Simulation cannot run AI — use "Run using real engine" for real results.`;
                         // Populate tplValues with placeholder so downstream notifications can interpolate
                         if (outVar) _populateSimulatedOutputVariable(outVar, tplValues, state.nodes);
@@ -8816,7 +8930,7 @@
                         if (at.includes('extract')) {
                             const outVar = current.output_variable || '';
                             msg = `Document extraction step (simulated).`;
-                            if (outVar) msg += ` Output stored in {{${outVar}}}.`;
+                            if (outVar) msg += ` Output saved as “${outVar}”.`;
                             msg += ` ⚠️ Simulation cannot extract real data — use "Run using real engine" for real results.`;
                             // Populate tplValues with placeholder so downstream notifications can interpolate
                             if (outVar) _populateSimulatedOutputVariable(outVar, tplValues, state.nodes);

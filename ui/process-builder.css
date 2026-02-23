@@ -979,6 +979,57 @@
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
         }
 
+        /* Business-friendly template editor (chips instead of {{...}}) */
+        .tpl-editor {
+            width: 100%;
+            padding: 11px 14px;
+            background: var(--node-bg);
+            border: 1px solid var(--node-border);
+            border-radius: 10px;
+            color: var(--pb-text);
+            font-size: 13px;
+            line-height: 1.7;
+            outline: none;
+            white-space: pre-wrap;
+            word-break: break-word;
+            cursor: text;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+
+        .tpl-editor:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .tpl-editor:empty:before {
+            content: attr(data-placeholder);
+            color: var(--pb-muted);
+        }
+
+        .tpl-token {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 1px 8px;
+            margin: 0 1px;
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--pb-primary) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--pb-primary) 30%, transparent);
+            color: color-mix(in srgb, var(--pb-primary) 80%, white);
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            vertical-align: baseline;
+            user-select: none;
+        }
+
+        .tpl-token:before {
+            content: "@";
+            color: var(--pb-primary);
+            font-weight: 800;
+        }
+
         .friendly-textarea-wrapper {
             position: relative;
         }
