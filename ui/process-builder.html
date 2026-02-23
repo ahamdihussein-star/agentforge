@@ -8,7 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>AgentForge - Workflow Builder</title>
     <link rel="stylesheet" href="/ui/theme.css?v=20260223d">
-    <link rel="stylesheet" href="/ui/process-builder.css?v=20260223h">
+    <link rel="stylesheet" href="/ui/process-builder.css?v=20260223i">
 
     <script src="/ui/theme.js?v=20260211f"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,21 +23,17 @@
                 <span>Admin Portal</span>
             </a>
 
-            <div class="pb-portal-dd">
-                <button id="pb-portal-menu-btn" class="pb-portal-btn" type="button" title="Menu">
-                    <span>☰</span> Menu
-                </button>
-                <div id="pb-portal-menu" class="pb-portal-dd-menu hidden" role="menu" aria-label="Admin Portal menu">
-                    <a href="/ui/#dashboard" class="pb-portal-dd-item">🏠 Dashboard</a>
-                    <a href="/ui/#agents" class="pb-portal-dd-item">🤖 Agents</a>
-                    <a href="/ui/#create" class="pb-portal-dd-item">✨ Create</a>
-                    <a href="/ui/#chat" class="pb-portal-dd-item">💬 Chat</a>
-                    <a href="/ui/#tools" class="pb-portal-dd-item">🔌 Tools</a>
-                    <a href="/ui/#security" class="pb-portal-dd-item">🛡️ Security</a>
-                    <a href="/ui/#settings" class="pb-portal-dd-item">⚙️ Settings</a>
-                    <a href="/lab" class="pb-portal-dd-item">🧪 Lab</a>
-                </div>
-            </div>
+            <nav class="pb-portal-nav" aria-label="Admin navigation">
+                <a class="pb-portal-nav-item active" data-nav="workflow" href="/ui/process-builder.html" title="Workflow Builder">Workflow</a>
+                <a class="pb-portal-nav-item" data-nav="dashboard" href="/ui/#dashboard">Dashboard</a>
+                <a class="pb-portal-nav-item" data-nav="agents" href="/ui/#agents">Agents</a>
+                <a class="pb-portal-nav-item" data-nav="create" href="/ui/#create">Create</a>
+                <a class="pb-portal-nav-item" data-nav="chat" href="/ui/#chat">Chat</a>
+                <a class="pb-portal-nav-item" data-nav="tools" href="/ui/#tools">Tools</a>
+                <a class="pb-portal-nav-item" data-nav="security" href="/ui/#security">Security</a>
+                <a class="pb-portal-nav-item" data-nav="settings" href="/ui/#settings">Settings</a>
+                <a class="pb-portal-nav-item" data-nav="lab" href="/lab">Lab</a>
+            </nav>
         </div>
 
         <div class="pb-portal-right">
@@ -359,6 +355,6 @@
     </div>
     
         <script src="/ui/dialogs.js?v=20260223c" defer></script>
-        <script src="/ui/process-builder.js?v=20260223h" defer></script>
+        <script src="/ui/process-builder.js?v=20260223i" defer></script>
 </body>
 </html>

@@ -206,52 +206,50 @@
             const banner = document.getElementById('pb-portal-banner');
             if (!banner) return;
 
-            const menuBtn = document.getElementById('pb-portal-menu-btn');
-            const menu = document.getElementById('pb-portal-menu');
             const userBtn = document.getElementById('pb-portal-user-btn');
             const userMenu = document.getElementById('pb-portal-user');
             const avatarEl = document.getElementById('pb-user-avatar');
             const nameEl = document.getElementById('pb-user-name');
 
+            // Inline navigation active highlight (this page = workflow)
+            try {
+                const navItems = Array.from(banner.querySelectorAll('.pb-portal-nav-item'));
+                const setActive = (key) => {
+                    navItems.forEach(a => {
+                        try { a.classList.toggle('active', String(a.getAttribute('data-nav') || '') === String(key || '')); } catch (_) {}
+                    });
+                };
+                setActive('workflow');
+
+                navItems.forEach(a => {
+                    a.addEventListener('click', () => {
+                        try {
+                            const key = String(a.getAttribute('data-nav') || '');
+                            if (key) sessionStorage.setItem('pb_portal_nav_last', key);
+                        } catch (_) { /* ignore */ }
+                    });
+                });
+            } catch (_) { /* ignore */ }
+
             const closeAll = () => {
-                try { menu?.classList.add('hidden'); } catch (_) {}
                 try { userMenu?.classList.add('hidden'); } catch (_) {}
-                try { if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false'); } catch (_) {}
                 try { if (userBtn) userBtn.setAttribute('aria-expanded', 'false'); } catch (_) {}
             };
 
-            const toggle = (which) => {
-                const isMenu = which === 'menu';
-                const target = isMenu ? menu : userMenu;
-                const other = isMenu ? userMenu : menu;
-                const btn = isMenu ? menuBtn : userBtn;
-                const otherBtn = isMenu ? userBtn : menuBtn;
-                if (!target) return;
-
-                const willOpen = target.classList.contains('hidden');
-                try { other?.classList.add('hidden'); } catch (_) {}
-                try { if (otherBtn) otherBtn.setAttribute('aria-expanded', 'false'); } catch (_) {}
-
-                target.classList.toggle('hidden', !willOpen);
-                try { if (btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false'); } catch (_) {}
+            const toggleUser = () => {
+                if (!userMenu || !userBtn) return;
+                const willOpen = userMenu.classList.contains('hidden');
+                userMenu.classList.toggle('hidden', !willOpen);
+                try { userBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false'); } catch (_) {}
             };
 
-            if (menuBtn) {
-                menuBtn.setAttribute('aria-haspopup', 'menu');
-                menuBtn.setAttribute('aria-expanded', 'false');
-                menuBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    toggle('menu');
-                });
-            }
             if (userBtn) {
                 userBtn.setAttribute('aria-haspopup', 'menu');
                 userBtn.setAttribute('aria-expanded', 'false');
                 userBtn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    toggle('user');
+                    toggleUser();
                 });
             }
 
