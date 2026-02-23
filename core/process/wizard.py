@@ -228,11 +228,11 @@ IMPORTANT:
   - For scheduled processes (data sync, reports, cleanup, API imports): do NOT add a form node — connect the trigger directly to action nodes.
   - For webhook-triggered processes (external system calls): triggerType "webhook", with method ("POST"|"GET"|"PUT"|"PATCH"), path (e.g., "/trigger"), and auth ("none"|"api_key"|"bearer").
 - Always include at least ONE "end" node.
-- If you include a "condition" node, you MUST create exactly two outgoing edges from it:
-  - one with type "yes" (taken when the expression is TRUE)
-  - one with type "no" (taken when the expression is FALSE)
-  IMPORTANT: "yes" means the expression evaluated to TRUE. "no" means it evaluated to FALSE.
-  Example: expression "{{{{totalAmount}}}} < 500"  →  yes (amount IS under 500)  →  no (amount is NOT under 500).
+- If you include a "condition" node:
+  1. In its config, set "onTrue" and "onFalse" to the node IDs for each branch.
+  2. Create exactly two outgoing edges: one with type "yes" pointing to the onTrue node, one with type "no" pointing to the onFalse node.
+  IMPORTANT: "onTrue" = the node to go to when the expression is TRUE. "onFalse" = when FALSE.
+  Example: expression "{{{{totalAmount}}}} < 500" → onTrue = auto-approve node (amount IS under 500), onFalse = manager approval node.
 - In prompts/templates, reference form fields using double braces like {{{{amount}}}} or {{{{email}}}}.
 - This platform is for business users: ALL labels shown to users must be business-friendly and human readable (no snake_case, no internal IDs).
 - For internal field keys, ALWAYS use lowerCamelCase (no underscores). Example: employeeEmail, startDate, endDate, numberOfDays.
@@ -502,17 +502,20 @@ Node config rules:
   - Use this when the AI needs real-time data or must interact with external systems
   - Example: "enabledToolIds": ["tool_crm_api", "tool_hr_db"]
 
-- CONDITION ROUTING — HOW YES/NO WORKS:
-  The condition expression is evaluated as a boolean. "yes" edge = expression is TRUE. "no" edge = expression is FALSE.
-  Always think about your expression result: if your expression is "{{{{totalAmount}}}} < 500", then:
-    - YES (TRUE): the amount IS under 500
-    - NO (FALSE): the amount is NOT under 500 (i.e., 500 or more)
-  Then connect each edge to the correct next step based on what TRUE and FALSE mean for YOUR specific logic.
-  This is fully generic — you can use any boolean expression for any business rule.
+- CONDITION ROUTING — HOW IT WORKS:
+  The condition expression is evaluated as a boolean.
+  In the condition config, you MUST include "onTrue" and "onFalse" — the node IDs the process goes to:
+    - "onTrue": the node ID to go to when the expression evaluates to TRUE
+    - "onFalse": the node ID to go to when the expression evaluates to FALSE
+  You also MUST create two edges from the condition: one with type "yes" (TRUE path) to the onTrue node, one with type "no" (FALSE path) to the onFalse node.
+  THINK CAREFULLY about what TRUE and FALSE mean for your expression:
+    If expression is "{{{{totalAmount}}}} < 500":
+      - TRUE means the amount IS under 500 → onTrue should point to the step for small amounts (e.g., auto-approve)
+      - FALSE means the amount is NOT under 500 → onFalse should point to the step for large amounts (e.g., manager approval)
   Example patterns:
-    - Auto-approval: "{{{{totalAmount}}}} < 500" → YES → auto-approve notification, NO → manual approval
-    - Urgency routing: "{{{{priority}}}} == 'high'" → YES → escalation, NO → normal queue
-    - Eligibility check: "{{{{score}}}} >= 80" → YES → approved, NO → rejected
+    - Auto-approval: expression "{{{{totalAmount}}}} < 500", onTrue → auto-approve, onFalse → manager approval
+    - Urgency routing: expression "{{{{priority}}}} == 'high'", onTrue → escalation, onFalse → normal queue
+    - Eligibility check: expression "{{{{score}}}} >= 80", onTrue → approved, onFalse → rejected
 
 - CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
 
@@ -566,10 +569,12 @@ approval:
 
 condition:
 {{
-    "expression": "<boolean expression — TRUE triggers the 'yes' edge, FALSE triggers the 'no' edge>",
+    "expression": "<boolean expression>",
     "field": "<variable name to check, e.g. totalAmount>",
     "operator": "<less_than|greater_than|equals|not_equals|contains|is_empty>",
-    "value": "<threshold value>"
+    "value": "<threshold value>",
+    "onTrue": "<node_id to go to when expression is TRUE>",
+    "onFalse": "<node_id to go to when expression is FALSE>"
 }}
 
 Generate the config for this node:"""
@@ -1537,14 +1542,29 @@ class ProcessWizard:
             for i in range(len(normalized_nodes) - 1):
                 normalized_edges.append({"from": normalized_nodes[i]["id"], "to": normalized_nodes[i + 1]["id"]})
 
-        # Ensure condition nodes have yes/no outgoing edges (best-effort)
+        # Ensure condition nodes have correct yes/no outgoing edges.
+        # Priority: onTrue/onFalse config fields > existing edge types > fallback.
         cond_ids = [n["id"] for n in normalized_nodes if n.get("type") == "condition"]
         for cid in cond_ids:
+            _cnode = next((n for n in normalized_nodes if n.get("id") == cid), None)
+            _ccfg = (_cnode.get("config") or {}) if _cnode else {}
+            _on_true = str(_ccfg.get("onTrue") or "").strip()
+            _on_false = str(_ccfg.get("onFalse") or "").strip()
+
             outs = [e for e in normalized_edges if e.get("from") == cid]
             has_yes = any(e.get("type") == "yes" for e in outs)
             has_no = any(e.get("type") == "no" for e in outs)
-            if not (has_yes and has_no):
-                # Choose two targets from existing edges or fall back to next nodes in list
+
+            if _on_true and _on_false:
+                # LLM provided explicit branch targets — rebuild edges to match.
+                normalized_edges = [e for e in normalized_edges if e.get("from") != cid]
+                normalized_edges.append({"from": cid, "to": _on_true, "type": "yes"})
+                normalized_edges.append({"from": cid, "to": _on_false, "type": "no"})
+                logger.info(
+                    "Condition '%s' edges set from onTrue/onFalse: yes→%s, no→%s",
+                    _cnode.get("name", cid) if _cnode else cid, _on_true, _on_false,
+                )
+            elif not (has_yes and has_no):
                 ordered_ids = [n["id"] for n in normalized_nodes]
                 try:
                     idx = ordered_ids.index(cid)
@@ -1552,7 +1572,6 @@ class ProcessWizard:
                     idx = -1
                 yes_target = outs[0]["to"] if outs else (ordered_ids[idx + 1] if idx >= 0 and idx + 1 < len(ordered_ids) else ordered_ids[-1])
                 no_target = (ordered_ids[idx + 2] if idx >= 0 and idx + 2 < len(ordered_ids) else ordered_ids[-1])
-                # Remove previous outs without explicit type to avoid confusion
                 normalized_edges = [e for e in normalized_edges if not (e.get("from") == cid and e.get("type") not in ("yes", "no"))]
                 if not has_yes:
                     normalized_edges.append({"from": cid, "to": yes_target, "type": "yes"})

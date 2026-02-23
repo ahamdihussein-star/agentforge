@@ -1856,9 +1856,18 @@ class ProcessAPIService:
                 elif not existing_expr or existing_expr == 'True':
                     type_cfg['expression'] = 'True'
                 # else: keep the existing expression (wizard-generated)
+
+                # Determine true/false branches.
+                # Priority: onTrue/onFalse config fields (explicit) > edge types.
+                _on_true = str(type_cfg.get('onTrue') or '').strip()
+                _on_false = str(type_cfg.get('onFalse') or '').strip()
                 out = edges_by_source.get(node.get('id'), {})
-                type_cfg['true_branch'] = out.get('yes') or out.get('default')
-                type_cfg['false_branch'] = out.get('no')
+                if _on_true and _on_false:
+                    type_cfg['true_branch'] = _on_true
+                    type_cfg['false_branch'] = _on_false
+                else:
+                    type_cfg['true_branch'] = out.get('yes') or out.get('default')
+                    type_cfg['false_branch'] = out.get('no')
                 if _dbg_cond:
                     logger.info(
                         "[ConditionDebug] normalize node_id=%s field=%s operator=%s value=%s expression=%s yes=%s no=%s",
