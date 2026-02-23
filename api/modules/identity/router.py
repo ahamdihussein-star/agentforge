@@ -705,3 +705,72 @@ async def resolve_process_assignees(body: ResolveAssigneeRequest, user: User = D
         user_ids=user_ids,
         resolved_users=resolved_users,
     )
+
+
+# ============================================================================
+# PROCESS BUILDER CONTEXT
+# ============================================================================
+
+@router.get("/builder-context")
+async def get_builder_context(user: User = Depends(require_auth)):
+    """
+    Return all organizational data the Process Builder needs in a single call.
+
+    Includes user profile fields (standard + custom), management chain
+    availability, and departments with their managers.
+    """
+    ctx = _extract_user_context(user)
+    service = get_directory_service()
+
+    attrs = service.discover_available_attributes(ctx["org_id"])
+    id_ctx = service.discover_identity_context(ctx["org_id"])
+    caps = id_ctx.get("capabilities", {})
+
+    standard_grouped: List[Dict[str, Any]] = []
+    _group_map = {
+        "email": "profile", "name": "profile", "firstName": "profile",
+        "lastName": "profile", "phone": "profile", "jobTitle": "profile",
+        "employeeId": "profile",
+        "departmentName": "organization", "roles": "organization",
+        "groups": "organization",
+        "managerId": "hierarchy", "managerName": "hierarchy",
+        "managerEmail": "hierarchy", "isManager": "hierarchy",
+    }
+    for f in attrs.get("standard", []):
+        field = dict(f)
+        field["group"] = _group_map.get(field.get("key", ""), "profile")
+        standard_grouped.append(field)
+
+    chain_levels = []
+    if caps.get("has_managers"):
+        chain_levels = [
+            {"level": 1, "label": "Direct Manager", "ref": "manager"},
+            {"level": 2, "label": "Manager\u2019s Manager", "ref": "skip_level_2"},
+            {"level": 3, "label": "Senior Management (Level 3)", "ref": "skip_level_3"},
+        ]
+
+    departments: List[Dict[str, Any]] = []
+    try:
+        dept_list = service.get_org_departments(ctx["org_id"])
+        for d in (dept_list or []):
+            departments.append({
+                "id": getattr(d, "id", ""),
+                "name": getattr(d, "name", ""),
+                "manager_name": getattr(d, "manager_name", None),
+                "member_count": getattr(d, "member_count", 0),
+            })
+    except Exception:
+        pass
+
+    return {
+        "user_fields": {
+            "standard": standard_grouped,
+            "custom": attrs.get("custom", []),
+        },
+        "management_chain": {
+            "available": caps.get("has_managers", False),
+            "manager_coverage_pct": caps.get("manager_coverage_pct", 0),
+            "levels": chain_levels,
+        },
+        "departments": departments,
+    }

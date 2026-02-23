@@ -36,7 +36,8 @@
             publishedProcesses: [],
             availableModels: [],
             profileFields: {},
-            profileFieldsFlat: []
+            profileFieldsFlat: [],
+            builderContext: null
         };
         
         // Node ID counter
@@ -158,7 +159,7 @@
             initDraftMessaging();
             initPlayerMessaging();
             loadTools();
-            loadProfileFields();
+            loadBuilderContext();
             loadPublishedProcesses();
             loadAvailableModels();
             loadWorkflowFromUrl();
@@ -3040,8 +3041,17 @@
             
             switch (node.type) {
                 case 'condition': {
-                    const condPersonFields = (state.profileFieldsFlat || []);
-                    const allCondFields = [...availableFields, ...upstreamData, ...condPersonFields.map(pf => ({name: 'trigger_input._user_context.' + pf.key, label: pf.label || pf.key, _personInfo: true}))];
+                    const condPersonFields = (state.profileFieldsFlat || []).filter(f => f.category !== 'Custom Fields');
+                    const condCustomFields = (state.profileFieldsFlat || []).filter(f => f.category === 'Custom Fields');
+                    const condCtx = state.builderContext || {};
+                    const condChain = (condCtx.management_chain || {}).levels || [];
+                    const condDepts = condCtx.departments || [];
+                    const allCondFields = [
+                        ...availableFields,
+                        ...upstreamData,
+                        ...condPersonFields.map(pf => ({name: 'trigger_input._user_context.' + pf.key, label: pf.label || pf.key, _personInfo: true})),
+                        ...condCustomFields.map(cf => ({name: 'trigger_input._user_context.' + cf.key, label: cf.label || cf.key, _custom: true})),
+                    ];
                     const condFieldVal = node.config.field || '';
                     const condIsCustomField = condFieldVal && condFieldVal !== '_custom' && !allCondFields.find(f => f.name === condFieldVal);
                     html += `
@@ -3054,7 +3064,8 @@
                         <div class="property-group">
                             <div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:color-mix(in srgb,var(--pb-primary) 5%,transparent);border-radius:10px;border:1px solid color-mix(in srgb,var(--pb-primary) 15%,transparent);">
                                 ${allCondFields.length > 0 ? `
-                                    <select class="property-select" onchange="updateNodeConfig('${node.id}', 'field', this.value)" style="width:100%;">
+                                    <div style="display:flex;gap:4px;align-items:center;">
+                                    <select class="property-select" onchange="updateNodeConfig('${node.id}', 'field', this.value)" style="flex:1;">
                                         <option value="">-- Select a field --</option>
                                         ${availableFields.length > 0 ? `<optgroup label="📝 Form fields">
                                             ${availableFields.map(f => `
@@ -3070,10 +3081,17 @@
                                                 </option>
                                             `).join('')}
                                         </optgroup>` : ''}
-                                        ${condPersonFields.length > 0 ? `<optgroup label="👤 Person information">
+                                        ${condPersonFields.length > 0 ? `<optgroup label="👤 User Profile">
                                             ${condPersonFields.map(pf => `
                                                 <option value="trigger_input._user_context.${escapeHtml(pf.key)}" ${condFieldVal === 'trigger_input._user_context.' + pf.key ? 'selected' : ''}>
                                                     ${escapeHtml(pf.label || pf.key)}
+                                                </option>
+                                            `).join('')}
+                                        </optgroup>` : ''}
+                                        ${condCustomFields.length > 0 ? `<optgroup label="🏷️ Custom Fields">
+                                            ${condCustomFields.map(cf => `
+                                                <option value="trigger_input._user_context.${escapeHtml(cf.key)}" ${condFieldVal === 'trigger_input._user_context.' + cf.key ? 'selected' : ''}>
+                                                    ${escapeHtml(cf.label || cf.key)}
                                                 </option>
                                             `).join('')}
                                         </optgroup>` : ''}
@@ -3081,6 +3099,9 @@
                                             Enter manually...
                                         </option>
                                     </select>
+                                    <button type="button" class="org-pick-item-btn" style="padding:6px 10px;font-size:11px;"
+                                            onclick="openOrgDataPicker(function(ref,label){updateNodeConfig('${node.id}','field',ref.replace(/^\\{\\{|\\}\\}$/g,''));showProperties(state.nodes.find(n=>n.id==='${node.id}'));})">Browse\u2026</button>
+                                    </div>
                                     ${condFieldVal === '_custom' || condIsCustomField ? `
                                         <input type="text" class="property-input" placeholder="Field name" 
                                                value="${condFieldVal === '_custom' ? '' : (condFieldVal || '')}"
@@ -3276,18 +3297,24 @@
                         </div>
                         <div class="property-group">
                             <label class="property-label">Who should receive this?</label>
-                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
+                            <select class="property-select" onchange="updateNodeConfig('${node.id}', 'recipient', this.value); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
                                 <option value="">-- Select --</option>
-                                <option value="requester" ${node.config.recipient === 'requester' ? 'selected' : ''}>The person who started this process</option>
-                                <option value="manager" ${node.config.recipient === 'manager' ? 'selected' : ''}>Their manager</option>
-                                ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
-                                    <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
-                                        ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)} (from form)
-                                    </option>
-                                `).join('')}
-                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') ? 'selected' : ''}>A specific email address...</option>
+                                <optgroup label="Dynamic Recipients">
+                                    <option value="requester" ${node.config.recipient === 'requester' ? 'selected' : ''}>The person who started this process</option>
+                                    <option value="manager" ${node.config.recipient === 'manager' ? 'selected' : ''}>Their direct manager</option>
+                                    ${(() => { const _mc = (state.builderContext || {}).management_chain || {}; const _lvs = Array.isArray(_mc.levels) ? _mc.levels : []; return _lvs.filter(l => l.level > 1).map(lv => `<option value="${escapeHtml(lv.ref)}" ${node.config.recipient === lv.ref ? 'selected' : ''}>${escapeHtml(lv.label)}</option>`).join(''); })()}
+                                </optgroup>
+                                ${(() => { const _depts = ((state.builderContext || {}).departments) || []; return _depts.length > 0 ? '<optgroup label="🏢 Department Managers">' + _depts.filter(d => d.manager_name).map(d => `<option value="dept_manager:${escapeHtml(d.id)}" ${node.config.recipient === 'dept_manager:' + d.id ? 'selected' : ''}>${escapeHtml(d.name)} Manager (${escapeHtml(d.manager_name)})</option>`).join('') + '</optgroup>' : ''; })()}
+                                ${availableFields.filter(f => f.type === 'email' || f.type === 'text').length > 0 ? `<optgroup label="📝 From Form">
+                                    ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
+                                        <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
+                                            ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}
+                                        </option>
+                                    `).join('')}
+                                </optgroup>` : ''}
+                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('skip_level') ? 'selected' : ''}>A specific email address...</option>
                             </select>
-                            ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') && node.config.recipient !== '' ? `
+                            ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('skip_level') && node.config.recipient !== '' ? `
                                 <input type="text" class="property-input" style="margin-top:8px;" placeholder="email@example.com" 
                                        value="${escapeHtml(node.config.recipient || '')}"
                                        onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
@@ -3970,9 +3997,13 @@
 
                                         <div style="margin-top:10px;">
                                             <label class="property-label">Prefill from user profile</label>
-                                            <select class="property-select" onchange="setFieldPrefill('${node.id}', ${idx}, this.value)">
-                                                ${buildProfileFieldOptions(f.prefill)}
-                                            </select>
+                                            <div style="display:flex;gap:4px;align-items:center;">
+                                                <select class="property-select" style="flex:1;" onchange="setFieldPrefill('${node.id}', ${idx}, this.value)">
+                                                    ${buildProfileFieldOptions(f.prefill)}
+                                                </select>
+                                                <button type="button" class="org-pick-item-btn" style="padding:6px 10px;font-size:11px;"
+                                                        onclick="openOrgDataPicker(function(ref,label){var key=ref.replace(/^\\{\\{trigger_input\\._user_context\\./,'').replace(/\\}\\}$/,'');setFieldPrefill('${node.id}',${idx},key);showProperties(state.nodes.find(n=>n.id==='${node.id}'));})">Browse\u2026</button>
+                                            </div>
                                             <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
                                                 Auto-fill this field with the logged-in user's profile information.
                                             </div>
@@ -5486,14 +5517,192 @@
             });
         }
 
+        function loadBuilderContext() {
+            const token = getAuthToken();
+            fetch('/api/identity/builder-context', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(data => {
+                state.builderContext = data;
+                const uf = data.user_fields || {};
+                const std = Array.isArray(uf.standard) ? uf.standard : [];
+                const custom = Array.isArray(uf.custom) ? uf.custom : [];
+                const grouped = {};
+                const groupLabels = { profile: 'User Profile', organization: 'Organization', hierarchy: 'Hierarchy' };
+                std.forEach(f => {
+                    const cat = groupLabels[f.group] || 'User Profile';
+                    if (!grouped[cat]) grouped[cat] = [];
+                    grouped[cat].push({ key: f.key, label: f.label || f.key, category: cat });
+                });
+                if (custom.length > 0) {
+                    grouped['Custom Fields'] = custom.map(f => ({ key: f.key, label: f.label || f.key, category: 'Custom Fields' }));
+                }
+                if (Object.keys(grouped).length === 0) {
+                    grouped['User Profile'] = [
+                        { key: 'name', label: 'Full Name', category: 'User Profile' },
+                        { key: 'email', label: 'Email', category: 'User Profile' },
+                        { key: 'phone', label: 'Phone', category: 'User Profile' },
+                        { key: 'jobTitle', label: 'Job Title', category: 'User Profile' },
+                        { key: 'employeeId', label: 'Employee ID', category: 'User Profile' },
+                    ];
+                    grouped['Organization'] = [
+                        { key: 'departmentName', label: 'Department', category: 'Organization' },
+                        { key: 'managerName', label: 'Manager Name', category: 'Organization' },
+                        { key: 'managerEmail', label: 'Manager Email', category: 'Organization' },
+                    ];
+                }
+                state.profileFields = grouped;
+                state.profileFieldsFlat = Object.values(grouped).flat();
+            })
+            .catch(e => {
+                console.warn('Builder context not available, falling back to profile-fields:', e);
+                loadProfileFields();
+            });
+        }
+
+        // ===== ORG DATA PICKER MODAL =====
+        let _orgPickerCallback = null;
+        let _orgPickerActiveTab = 'profile';
+
+        function openOrgDataPicker(callback) {
+            _orgPickerCallback = callback;
+            _orgPickerActiveTab = 'profile';
+            const modal = document.getElementById('org-data-picker-modal');
+            if (!modal) return;
+            modal.classList.add('show');
+            const searchInput = document.getElementById('org-data-search');
+            if (searchInput) { searchInput.value = ''; }
+            renderOrgPickerTab('profile');
+            document.querySelectorAll('.org-picker-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'profile'));
+        }
+        window.openOrgDataPicker = openOrgDataPicker;
+
+        function closeOrgDataPicker() {
+            const modal = document.getElementById('org-data-picker-modal');
+            if (modal) modal.classList.remove('show');
+            _orgPickerCallback = null;
+        }
+        window.closeOrgDataPicker = closeOrgDataPicker;
+
+        function switchOrgPickerTab(tab) {
+            _orgPickerActiveTab = tab;
+            document.querySelectorAll('.org-picker-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+            const searchInput = document.getElementById('org-data-search');
+            renderOrgPickerTab(tab, searchInput ? searchInput.value : '');
+        }
+        window.switchOrgPickerTab = switchOrgPickerTab;
+
+        function filterOrgDataPicker(query) {
+            renderOrgPickerTab(_orgPickerActiveTab, query);
+        }
+        window.filterOrgDataPicker = filterOrgDataPicker;
+
+        function _orgPickerSelect(ref, label) {
+            if (_orgPickerCallback) _orgPickerCallback(ref, label);
+            closeOrgDataPicker();
+        }
+        window._orgPickerSelect = _orgPickerSelect;
+
+        function renderOrgPickerTab(tab, searchQuery) {
+            const body = document.getElementById('org-data-picker-body');
+            if (!body) return;
+            const q = (searchQuery || '').toLowerCase().trim();
+            const ctx = state.builderContext || {};
+            let html = '';
+
+            if (tab === 'profile') {
+                const uf = ctx.user_fields || {};
+                const std = Array.isArray(uf.standard) ? uf.standard : [];
+                const custom = Array.isArray(uf.custom) ? uf.custom : [];
+                const groups = {};
+                const groupLabels = { profile: 'User Profile', organization: 'Organization', hierarchy: 'Hierarchy' };
+                std.forEach(f => {
+                    const cat = groupLabels[f.group] || 'User Profile';
+                    if (!groups[cat]) groups[cat] = [];
+                    groups[cat].push(f);
+                });
+                if (custom.length > 0) groups['Custom Fields'] = custom;
+                const groupIcons = { 'User Profile': '#818cf8', 'Organization': '#f59e0b', 'Hierarchy': '#22c55e', 'Custom Fields': '#ec4899' };
+                const fieldIcons = { string: '📝', email: '📧', boolean: '🔘', number: '#️⃣', array: '📋' };
+                let anyMatch = false;
+                for (const [gName, fields] of Object.entries(groups)) {
+                    const filtered = q ? fields.filter(f => (f.label || '').toLowerCase().includes(q) || (f.key || '').toLowerCase().includes(q)) : fields;
+                    if (filtered.length === 0) continue;
+                    anyMatch = true;
+                    html += `<div class="org-pick-group"><div class="org-pick-group-title">${escapeHtml(gName)}</div>`;
+                    filtered.forEach(f => {
+                        const ref = `{{trigger_input._user_context.${f.key}}}`;
+                        html += `<div class="org-pick-item" onclick="_orgPickerSelect('${escapeHtml(ref)}','${escapeHtml(f.label || f.key)}')">
+                            <div class="org-pick-item-left">
+                                <div class="org-pick-item-icon" style="background:${groupIcons[gName] || '#818cf8'}22;color:${groupIcons[gName] || '#818cf8'};">${fieldIcons[f.type] || '📝'}</div>
+                                <div class="org-pick-item-info"><div class="org-pick-item-label">${escapeHtml(f.label || f.key)}</div><div class="org-pick-item-meta">${escapeHtml(f.type || 'string')} &middot; ${escapeHtml(f.key)}</div></div>
+                            </div>
+                            <button class="org-pick-item-btn">Select</button>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+                if (!anyMatch) html = `<div class="org-pick-empty">${q ? 'No fields match your search.' : 'No user profile fields available.'}</div>`;
+
+            } else if (tab === 'hierarchy') {
+                const mc = ctx.management_chain || {};
+                const levels = Array.isArray(mc.levels) ? mc.levels : [];
+                if (!mc.available || levels.length === 0) {
+                    html = `<div class="org-pick-empty">Management chain is not configured. Assign managers in the Identity Directory to enable this feature.</div>`;
+                } else {
+                    html += `<div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">Manager coverage: ${mc.manager_coverage_pct || 0}% of users have a manager assigned.</div>`;
+                    html += `<div class="org-pick-group"><div class="org-pick-group-title">Management Levels</div>`;
+                    const levelIcons = ['👤', '👥', '🏢'];
+                    levels.forEach((lv, i) => {
+                        if (q && !(lv.label || '').toLowerCase().includes(q) && !(lv.ref || '').toLowerCase().includes(q)) return;
+                        const ref = lv.ref || 'manager';
+                        html += `<div class="org-pick-item" onclick="_orgPickerSelect('${escapeHtml(ref)}','${escapeHtml(lv.label)}')">
+                            <div class="org-pick-item-left">
+                                <div class="org-pick-item-icon" style="background:#22c55e22;color:#22c55e;">${levelIcons[i] || '🏢'}</div>
+                                <div class="org-pick-item-info"><div class="org-pick-item-label">${escapeHtml(lv.label)}</div><div class="org-pick-item-meta">Level ${lv.level} &middot; ref: ${escapeHtml(ref)}</div></div>
+                            </div>
+                            <button class="org-pick-item-btn">Select</button>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+
+            } else if (tab === 'departments') {
+                const depts = Array.isArray(ctx.departments) ? ctx.departments : [];
+                if (depts.length === 0) {
+                    html = `<div class="org-pick-empty">No departments configured. Create departments in the Identity Directory.</div>`;
+                } else {
+                    const filtered = q ? depts.filter(d => (d.name || '').toLowerCase().includes(q) || (d.manager_name || '').toLowerCase().includes(q)) : depts;
+                    if (filtered.length === 0) {
+                        html = `<div class="org-pick-empty">No departments match your search.</div>`;
+                    } else {
+                        html += `<div class="org-pick-group"><div class="org-pick-group-title">Departments (${filtered.length})</div>`;
+                        filtered.forEach(d => {
+                            html += `<div class="org-pick-item" onclick="_orgPickerSelect('department:${escapeHtml(d.id)}','${escapeHtml(d.name)}')">
+                                <div class="org-pick-item-left">
+                                    <div class="org-pick-item-icon" style="background:#f59e0b22;color:#f59e0b;">🏢</div>
+                                    <div class="org-pick-item-info"><div class="org-pick-item-label">${escapeHtml(d.name)}</div><div class="org-pick-item-meta">${d.member_count || 0} member${d.member_count !== 1 ? 's' : ''}${d.manager_name ? ' &middot; Manager: ' + escapeHtml(d.manager_name) : ''}</div></div>
+                                </div>
+                                <button class="org-pick-item-btn">Select</button>
+                            </div>`;
+                        });
+                        html += `</div>`;
+                    }
+                }
+            }
+            body.innerHTML = html;
+        }
+
         /**
          * Build the dynamic profile field prefill dropdown HTML.
-         * Used in form field prefill pickers - replaces the old hardcoded Email/Name dropdown.
+         * Includes standard fields, custom fields, and management chain from builder context.
          */
         function buildProfileFieldOptions(currentPrefill) {
             const groups = state.profileFields || {};
             const currentKey = (currentPrefill && currentPrefill.source === 'currentUser') ? currentPrefill.key : '';
             let html = '<option value="" ' + (!currentKey ? 'selected' : '') + '>None</option>';
+
             for (const [cat, fields] of Object.entries(groups)) {
                 html += '<optgroup label="' + escapeHtml(cat) + '">';
                 for (const f of fields) {
@@ -5501,34 +5710,49 @@
                 }
                 html += '</optgroup>';
             }
+
+            const mc = (state.builderContext || {}).management_chain || {};
+            const levels = Array.isArray(mc.levels) ? mc.levels : [];
+            if (levels.length > 0) {
+                html += '<optgroup label="Management Chain">';
+                levels.forEach(lv => {
+                    const refKey = lv.ref + '_email';
+                    html += '<option value="' + escapeHtml(refKey) + '" ' + (currentKey === refKey ? 'selected' : '') + '>' + escapeHtml(lv.label) + ' Email</option>';
+                });
+                html += '</optgroup>';
+            }
+
             return html;
         }
 
         /**
-         * Build Person Information chips for insertion into textareas (notifications, approval messages, AI prompts).
-         * Returns HTML string with clickable chips for inserting user context references.
-         */
-        /**
-         * Unified "Insert Data" dropdown — replaces form chips, extracted data chips, and person info chips
-         * with a single categorized dropdown grouped by source.
+         * Unified "Insert Data" dropdown — categorized by source with org data included.
          */
         function buildInsertDataDropdown(nodeId, configKey, formFields, upstreamData) {
             const profileFields = state.profileFieldsFlat || [];
             const hasForm = formFields && formFields.length > 0;
             const hasUpstream = upstreamData && upstreamData.length > 0;
             const hasProfile = profileFields.length > 0;
-            if (!hasForm && !hasUpstream && !hasProfile) return '';
+            const ctx = state.builderContext || {};
+            const customFields = ((ctx.user_fields || {}).custom) || [];
+            const mc = ctx.management_chain || {};
+            const chainLevels = Array.isArray(mc.levels) ? mc.levels : [];
+            const depts = Array.isArray(ctx.departments) ? ctx.departments : [];
+            const hasCustom = customFields.length > 0;
+            const hasChain = chainLevels.length > 0;
+            const hasDepts = depts.length > 0;
+
+            if (!hasForm && !hasUpstream && !hasProfile && !hasCustom && !hasChain && !hasDepts) return '';
 
             let options = '';
             if (hasForm) {
-                options += `<optgroup label="Form Fields">`;
+                options += `<optgroup label="📝 Form Fields">`;
                 formFields.forEach(f => {
                     options += `<option value="{{${f.name}}}">📝 ${escapeHtml(f.label || humanizeFieldLabel(f.name) || f.name)}</option>`;
                 });
                 options += `</optgroup>`;
             }
             if (hasUpstream) {
-                // Group upstream by source
                 const groups = {};
                 upstreamData.forEach(d => {
                     const src = d.source || 'Previous Step';
@@ -5536,7 +5760,7 @@
                     groups[src].push(d);
                 });
                 Object.keys(groups).forEach(src => {
-                    options += `<optgroup label="${escapeHtml(src)}">`;
+                    options += `<optgroup label="📦 ${escapeHtml(src)}">`;
                     groups[src].forEach(d => {
                         options += `<option value="{{${d.name}}}">${d.icon || '📦'} ${escapeHtml(d.label)}</option>`;
                     });
@@ -5544,20 +5768,44 @@
                 });
             }
             if (hasProfile) {
-                options += `<optgroup label="Person Information">`;
+                options += `<optgroup label="👤 User Profile">`;
                 profileFields.forEach(f => {
+                    if (f.category === 'Custom Fields') return;
                     options += `<option value="{{trigger_input._user_context.${f.key}}}">👤 ${escapeHtml(f.label || f.key)}</option>`;
+                });
+                options += `</optgroup>`;
+            }
+            if (hasCustom) {
+                options += `<optgroup label="🏷️ Custom Fields">`;
+                customFields.forEach(f => {
+                    options += `<option value="{{trigger_input._user_context.${f.key}}}">🏷️ ${escapeHtml(f.label || f.key)}</option>`;
+                });
+                options += `</optgroup>`;
+            }
+            if (hasChain) {
+                options += `<optgroup label="👥 Management Chain">`;
+                chainLevels.forEach(lv => {
+                    options += `<option value="${escapeHtml(lv.ref)}">👥 ${escapeHtml(lv.label)}</option>`;
+                });
+                options += `</optgroup>`;
+            }
+            if (hasDepts) {
+                options += `<optgroup label="🏢 Departments">`;
+                depts.forEach(d => {
+                    options += `<option value="department:${escapeHtml(d.id)}">🏢 ${escapeHtml(d.name)}${d.manager_name ? ' (Mgr: ' + escapeHtml(d.manager_name) + ')' : ''}</option>`;
                 });
                 options += `</optgroup>`;
             }
 
             return `
-                <div style="margin-top:6px;">
-                    <select class="property-select" style="font-size:11px;color:var(--pb-muted);padding:6px 8px;"
+                <div style="margin-top:6px;display:flex;gap:4px;align-items:center;">
+                    <select class="property-select" style="font-size:11px;color:var(--pb-muted);padding:6px 8px;flex:1;"
                             onchange="if(this.value){insertFieldRef('${nodeId}','${configKey}',this.value);this.selectedIndex=0;}">
                         <option value="">+ Insert data...</option>
                         ${options}
                     </select>
+                    <button type="button" class="org-pick-item-btn" style="padding:6px 10px;font-size:11px;"
+                            onclick="openOrgDataPicker(function(ref){insertFieldRef('${nodeId}','${configKey}',ref);})">Browse all\u2026</button>
                 </div>
             `;
         }

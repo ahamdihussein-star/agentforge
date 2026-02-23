@@ -260,6 +260,46 @@
         </div>
     </div>
     
+    <!-- Organization Data Picker Modal -->
+    <div id="org-data-picker-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:110;" onclick="if(event.target===this)closeOrgDataPicker()">
+        <div class="card rounded-xl w-full max-w-2xl mx-4" style="background:#1f2937;border-radius:14px;max-height:80vh;display:flex;flex-direction:column;" onclick="event.stopPropagation()">
+            <div style="padding:20px 24px 0;flex-shrink:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h3 style="font-size:16px;font-weight:700;color:#f3f4f6;">Browse Organization Data</h3>
+                    <button onclick="closeOrgDataPicker()" style="background:none;border:none;color:#9ca3af;font-size:20px;cursor:pointer;">&times;</button>
+                </div>
+                <input id="org-data-search" type="text" placeholder="Search fields..." style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #374151;background:#111827;color:#f3f4f6;font-size:13px;outline:none;margin-bottom:12px;" oninput="filterOrgDataPicker(this.value)">
+                <div style="display:flex;gap:4px;border-bottom:1px solid #374151;padding-bottom:0;">
+                    <button class="org-picker-tab active" data-tab="profile" onclick="switchOrgPickerTab('profile')">User Profile</button>
+                    <button class="org-picker-tab" data-tab="hierarchy" onclick="switchOrgPickerTab('hierarchy')">Management Chain</button>
+                    <button class="org-picker-tab" data-tab="departments" onclick="switchOrgPickerTab('departments')">Departments</button>
+                </div>
+            </div>
+            <div id="org-data-picker-body" style="overflow-y:auto;padding:16px 24px 20px;flex:1;">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+    <style>
+        #org-data-picker-modal{display:none;}
+        #org-data-picker-modal.show{display:flex;}
+        .org-picker-tab{background:none;border:none;color:#9ca3af;font-size:13px;font-weight:500;padding:8px 14px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;}
+        .org-picker-tab:hover{color:#e5e7eb;}
+        .org-picker-tab.active{color:#818cf8;border-bottom-color:#818cf8;}
+        .org-pick-group{margin-bottom:16px;}
+        .org-pick-group-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:6px;padding:0 4px;}
+        .org-pick-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;cursor:pointer;transition:background .12s;gap:8px;}
+        .org-pick-item:hover{background:#374151;}
+        .org-pick-item-left{display:flex;align-items:center;gap:10px;min-width:0;flex:1;}
+        .org-pick-item-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+        .org-pick-item-info{min-width:0;flex:1;}
+        .org-pick-item-label{font-size:13px;font-weight:500;color:#e5e7eb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .org-pick-item-meta{font-size:11px;color:#6b7280;}
+        .org-pick-item-btn{font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid #4b5563;background:transparent;color:#a5b4fc;cursor:pointer;white-space:nowrap;transition:all .12s;}
+        .org-pick-item-btn:hover{background:#4338ca;color:#fff;border-color:#4338ca;}
+        .org-pick-empty{text-align:center;padding:32px 16px;color:#6b7280;font-size:13px;}
+    </style>
+
     <!-- Zoom Controls -->
     <div id="zoom-controls">
         <button class="zoom-btn" onclick="zoomOut()">−</button>
@@ -269,6 +309,6 @@
         <button class="zoom-btn" onclick="zoomFit()" title="Fit all steps in view">⊡</button>
     </div>
     
-        <script src="/ui/process-builder.js?v=20260211f" defer></script>
+        <script src="/ui/process-builder.js?v=20260218a" defer></script>
 </body>
 </html>
