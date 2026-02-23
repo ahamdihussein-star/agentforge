@@ -1557,9 +1557,147 @@ const API='';
             window.selectBuildMode = selectBuildMode;
             window.closeCreateWizardModal = closeCreateWizardModal;
             window.createFlowReset = createFlowReset;
+            // Helpers for the generating animation (used across modules)
+            window._setGeneratingLabels = _setGeneratingLabels;
         } catch (_) { /* ignore */ }
         
         // Generate Process/Workflow Configuration using AI
+        function _resetGeneratingSteps() {
+            const steps = ['gen-step-1', 'gen-step-2', 'gen-step-3', 'gen-step-4', 'gen-step-5'];
+            steps.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const icon = el.querySelector('span');
+                if (!icon) return;
+                if (idx === 0) {
+                    el.classList.remove('text-gray-500');
+                    icon.className = 'w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center animate-pulse';
+                    icon.textContent = '✓';
+                } else {
+                    el.classList.add('text-gray-500');
+                    icon.className = 'w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center';
+                    icon.textContent = '○';
+                }
+            });
+        }
+
+        function _setGeneratingLabels(mode) {
+            const titleEl = document.getElementById('generating-title');
+            const labels = {
+                conversational: {
+                    title: 'Configuring Your Agent...',
+                    status0: 'Analyzing your goal...',
+                    steps: [
+                        'Understanding your requirements',
+                        'Selecting optimal AI model',
+                        'Defining tasks & capabilities',
+                        'Recommending tools',
+                        'Setting up guardrails',
+                    ],
+                    statuses: [
+                        'Understanding your requirements...',
+                        'Selecting optimal AI model...',
+                        'Defining tasks & capabilities...',
+                        'Recommending tools...',
+                        'Setting up guardrails...',
+                    ]
+                },
+                process: {
+                    title: 'Building Your Workflow...',
+                    status0: 'Designing your workflow...',
+                    steps: [
+                        'Understanding your workflow goal',
+                        'Designing the steps',
+                        'Preparing forms & data fields',
+                        'Setting approvals & messages',
+                        'Finalizing the layout',
+                    ],
+                    statuses: [
+                        'Understanding your workflow goal...',
+                        'Designing the steps...',
+                        'Preparing forms & data fields...',
+                        'Setting approvals & messages...',
+                        'Finalizing the layout...',
+                    ]
+                }
+            };
+            const cfg = labels[mode] || labels.conversational;
+            if (titleEl) titleEl.textContent = cfg.title;
+            for (let i = 1; i <= 5; i++) {
+                const lab = document.getElementById('gen-label-' + i);
+                if (lab) lab.textContent = cfg.steps[i - 1] || lab.textContent;
+            }
+            const statusEl = document.getElementById('generating-status');
+            if (statusEl && cfg.status0) statusEl.textContent = cfg.status0;
+            return cfg;
+        }
+
+        function _startGeneratingAnimation(mode) {
+            const cfg = _setGeneratingLabels(mode);
+            _resetGeneratingSteps();
+            const statusEl = document.getElementById('generating-status');
+            let idx = 0;
+            let stopped = false;
+
+            // advance steps every 700ms but don't block API call
+            const tick = () => {
+                if (stopped) return;
+                try {
+                    if (statusEl) statusEl.textContent = cfg.statuses[idx] || cfg.status0;
+                    // mark previous as done
+                    if (idx > 0) {
+                        const prev = document.getElementById('gen-step-' + idx);
+                        if (prev) {
+                            const icon = prev.querySelector('span');
+                            if (icon) {
+                                icon.className = 'w-5 h-5 rounded-full bg-green-500 flex items-center justify-center';
+                                icon.textContent = '✓';
+                            }
+                            prev.classList.remove('text-gray-500');
+                        }
+                    }
+                    // activate current
+                    const cur = document.getElementById('gen-step-' + (idx + 1));
+                    if (cur) {
+                        const icon = cur.querySelector('span');
+                        if (icon) {
+                            icon.className = 'w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center animate-pulse';
+                            icon.textContent = '✓';
+                        }
+                        cur.classList.remove('text-gray-500');
+                    }
+                } catch (_) { /* ignore */ }
+                idx = (idx + 1) % 5;
+            };
+
+            const intervalId = setInterval(tick, 700);
+            tick();
+
+            return {
+                complete: () => {
+                    stopped = true;
+                    clearInterval(intervalId);
+                    try {
+                        // mark all as done
+                        for (let i = 1; i <= 5; i++) {
+                            const el = document.getElementById('gen-step-' + i);
+                            if (!el) continue;
+                            const icon = el.querySelector('span');
+                            if (icon) {
+                                icon.className = 'w-5 h-5 rounded-full bg-green-500 flex items-center justify-center';
+                                icon.textContent = '✓';
+                            }
+                            el.classList.remove('text-gray-500');
+                        }
+                    } catch (_) { /* ignore */ }
+                },
+                stop: () => {
+                    stopped = true;
+                    clearInterval(intervalId);
+                }
+            };
+        }
+
         async function generateProcessConfig() {
             const goal = document.getElementById('w-process-goal')?.value.trim();
             if(!goal) {
@@ -1569,20 +1707,11 @@ const API='';
             
             wizard.originalGoal = goal;
             wizard.agentType = 'process';
-
-            // Open the visual builder immediately (prevents popup blockers) and show "waiting" state there.
-            // We'll send the generated workflow via postMessage once the API returns.
-            let builderWin = null;
-            try {
-                builderWin = window.open('/ui/process-builder.html?draft=wait', '_blank');
-            } catch (_) {
-                builderWin = null;
-            }
             
             // Show generating animation
             document.getElementById('wizard-step-0').classList.add('hidden');
             document.getElementById('wizard-generating').classList.remove('hidden');
-            document.getElementById('generating-status').textContent = 'Creating your workflow...';
+            const anim = _startGeneratingAnimation('process');
             
             try {
                 // Provide available tools context to the wizard (sanitized: no secrets)
@@ -1642,42 +1771,25 @@ const API='';
                             animate: true
                         }));
                     } catch (_) { /* ignore */ }
-                    
-                    document.getElementById('wizard-generating').classList.add('hidden');
-                    document.getElementById('wizard-step-0').classList.remove('hidden');
-                    
-                    // Send the workflow to the builder (cinematic build starts there immediately)
-                    const payload = {
-                        type: 'agentforge.workflow_draft',
-                        workflow: data.workflow,
-                        meta: {
-                            goal: goal,
-                            name: data.workflow.name || 'My Workflow',
-                            animate: true
-                        }
-                    };
-                    try {
-                        if (builderWin && !builderWin.closed) {
-                            builderWin.postMessage(payload, window.location.origin);
-                            showToast('Opening the visual builder…', 'success');
-                        } else {
-                            // Popup was blocked or closed → open builder using stored draft
-                            openVisualEditor();
-                        }
-                    } catch (e) {
-                        // Fallback
-                        openVisualEditor();
-                    }
+
+                    try { anim.complete(); } catch (_) {}
+                    document.getElementById('generating-status').textContent = 'Opening your workflow builder...';
+                    // Open builder in the SAME tab (better UX)
+                    setTimeout(() => {
+                        window.location.href = '/ui/process-builder.html?draft=1';
+                    }, 250);
                 } else {
                     showToast(data.detail || 'Could not create the workflow. Please try again.', 'error');
                     document.getElementById('wizard-generating').classList.add('hidden');
                     document.getElementById('wizard-step-0').classList.remove('hidden');
+                    try { anim.stop(); } catch (_) {}
                 }
             } catch(e) {
                 console.error('Process generation error:', e);
                 showToast('Could not connect to the server. Please try again.', 'error');
                 document.getElementById('wizard-generating').classList.add('hidden');
                 document.getElementById('wizard-step-0').classList.remove('hidden');
+                try { anim.stop(); } catch (_) {}
             }
         }
         

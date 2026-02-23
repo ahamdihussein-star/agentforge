@@ -728,6 +728,10 @@
             // Show generating animation
             document.getElementById('wizard-step-0').classList.add('hidden');
             document.getElementById('wizard-generating').classList.remove('hidden');
+            // Ensure conversational labels are shown (process uses a different set)
+            try {
+                if (typeof window._setGeneratingLabels === 'function') window._setGeneratingLabels('conversational');
+            } catch (_) { /* ignore */ }
             
             // Animate steps
             const steps = ['gen-step-1', 'gen-step-2', 'gen-step-3', 'gen-step-4', 'gen-step-5'];
