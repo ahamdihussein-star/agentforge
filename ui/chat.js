@@ -2216,19 +2216,22 @@
             if (titleEl) titleEl.textContent = title;
             if (subEl) subEl.textContent = desc ? desc : 'Review details and approve/reject.';
 
-            const detailsHtml = detailEntries.length ? `
-                <div class="kv-grid" style="margin-top: 10px;">
-                    ${detailEntries.filter(([k]) => {
-                        const lk = k.toLowerCase();
-                        return lk !== '_user_context' && !lk.startsWith('_');
-                    }).map(([k, v]) => `
-                        <div class="kv">
-                            <div class="k">${escapeHtml(humanizeFieldLabel(k) || k)}</div>
-                            <div class="v">${escapeHtml(typeof v === 'string' ? v : JSON.stringify(v))}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : `<div style="color: var(--text-muted); margin-top: 8px;">No additional details provided.</div>`;
+            const detailsHtml = (() => {
+                try {
+                    if (typeof window.afRenderReviewData === 'function') {
+                        const html = window.afRenderReviewData(details, { maxRows: 24 }) || '';
+                        if (html) return html;
+                    }
+                } catch (_) {}
+                // Fallback: keep safe and non-technical
+                if (!detailEntries.length) return `<div style="color: var(--text-muted); margin-top: 8px;">No additional details provided.</div>`;
+                const safe = detailEntries
+                    .filter(([k]) => { const lk = String(k || '').toLowerCase(); return lk !== '_user_context' && !lk.startsWith('_'); })
+                    .slice(0, 10)
+                    .map(([k, v]) => `<div class="kv"><div class="k">${escapeHtml(humanizeFieldLabel(k) || k)}</div><div class="v">${escapeHtml(String(v ?? ''))}</div></div>`)
+                    .join('');
+                return safe ? `<div class="kv-grid" style="margin-top: 10px;">${safe}</div>` : `<div style="color: var(--text-muted); margin-top: 8px;">No additional details provided.</div>`;
+            })();
 
             bodyEl.innerHTML = `
                 <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">

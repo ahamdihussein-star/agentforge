@@ -24,6 +24,271 @@ const API='';
             div.textContent = String(text);
             return div.innerHTML;
         }
+
+        // =============================================================================
+        // Business-friendly rendering helpers (Approvals, Reports, etc.)
+        // =============================================================================
+
+        function _afLooksLikeUuid(s) {
+            try {
+                const t = String(s || '').trim();
+                return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
+            } catch (_) { return false; }
+        }
+
+        function _afKeyNorm(k) {
+            try { return String(k || '').trim().toLowerCase().replace(/\s+/g, '_'); } catch (_) { return ''; }
+        }
+
+        function _afIsInternalKey(k) {
+            const nk = _afKeyNorm(k);
+            if (!nk) return true;
+            if (nk.startsWith('_')) return true;
+            if (nk === '_user_context' || nk === 'user_context') return true;
+            if (nk === 'org_id' || nk === 'orgid' || nk === 'org') return true;
+            if (nk === 'current_user' || nk === 'currentuser') return true;
+            if (nk === 'submitted_information' || nk === 'submittedinformation') return true;
+            if (nk === 'download_url' || nk === 'path' || nk === 'content_type' || nk === 'contenttype') return true;
+            return false;
+        }
+
+        function _afHumanizeLabel(k) {
+            try {
+                if (typeof window.humanizeFieldLabel === 'function') {
+                    const r = window.humanizeFieldLabel(k);
+                    if (r) return String(r);
+                }
+            } catch (_) {}
+            const raw = String(k || '').trim();
+            if (!raw) return '';
+            return raw
+                .replace(/[_\-]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .replace(/^\w/, c => c.toUpperCase());
+        }
+
+        function _afTryParseJsonString(v) {
+            try {
+                if (typeof v !== 'string') return v;
+                const s = v.trim();
+                if (!s) return v;
+                if (s.length > 20000) return v;
+                if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {
+                    return JSON.parse(s);
+                }
+                return v;
+            } catch (_) {
+                return v;
+            }
+        }
+
+        function _afIsUploadedFileObj(v) {
+            try {
+                if (!v || typeof v !== 'object') return false;
+                const kind = String(v.kind || '').toLowerCase();
+                if (kind === 'uploadedfile' || kind === 'uploaded_file') return true;
+                // Support legacy-ish shapes coming from approvals/review data
+                if (v.name && (v.id || v.file_type || v.content_type || v.download_url || v.path)) return true;
+                return false;
+            } catch (_) { return false; }
+        }
+
+        function _afRenderFileLine(file) {
+            try {
+                const name = String(file?.name || 'Uploaded file');
+                const typ = file?.file_type ? String(file.file_type).toUpperCase() : '';
+                const size = (typeof file?.size === 'number') ? `${Math.round(file.size / 1024)} KB` : '';
+                const meta = [typ, size].filter(Boolean).join(' · ');
+                const id = file?.id ? String(file.id) : '';
+                const btn = id ? `
+                    <button type="button"
+                        onclick="afDownloadProcessUploadFile('${escHtml(id)}','${escHtml(name)}')"
+                        style="margin-left:10px;padding:6px 10px;border-radius:10px;border:1px solid color-mix(in srgb, var(--border-color) 55%, transparent);background:color-mix(in srgb, var(--bg-card) 40%, transparent);color:var(--text-primary);font-size:12px;font-weight:700;cursor:pointer;"
+                    >Download</button>
+                ` : '';
+                return `
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid color-mix(in srgb, var(--border-color) 22%, transparent);">
+                        <div style="min-width:0;">
+                            <div style="color:var(--text-primary);font-weight:750;word-break:break-word;">${escHtml(name)}</div>
+                            ${meta ? `<div style="margin-top:2px;color:var(--text-secondary);font-size:12px;">${escHtml(meta)}</div>` : ''}
+                        </div>
+                        <div style="flex-shrink:0;">${btn}</div>
+                    </div>
+                `;
+            } catch (_) {
+                return '';
+            }
+        }
+
+        function _afRenderValueBusiness(v, depth = 0) {
+            const maxDepth = 2;
+            try {
+                if (v === undefined || v === null || v === '') return '';
+                v = _afTryParseJsonString(v);
+
+                if (typeof v === 'boolean') return escHtml(v ? 'Yes' : 'No');
+                if (typeof v === 'number') return escHtml(String(v));
+                if (typeof v === 'string') {
+                    const s = v.trim();
+                    if (!s) return '';
+                    // Hide raw UUIDs (most are internal references)
+                    if (_afLooksLikeUuid(s)) return '';
+                    const t = (s.length > 260) ? (s.slice(0, 260) + '…') : s;
+                    return escHtml(t);
+                }
+
+                if (Array.isArray(v)) {
+                    const arr = v.filter(x => x !== undefined && x !== null && x !== '');
+                    if (arr.length === 0) return '';
+                    // Files list
+                    if (arr.every(_afIsUploadedFileObj)) {
+                        return `<div>${arr.slice(0, 10).map(_afRenderFileLine).join('')}${arr.length > 10 ? `<div style="margin-top:8px;color:var(--text-secondary);font-size:12px;">Showing 10 of ${arr.length} files.</div>` : ''}</div>`;
+                    }
+                    // Compact list of items
+                    const items = arr.slice(0, 6).map((it, idx) => {
+                        if (typeof it === 'string' || typeof it === 'number' || typeof it === 'boolean') {
+                            const r = _afRenderValueBusiness(it, depth + 1);
+                            return r ? `<div style="color:var(--text-primary);">• ${r}</div>` : '';
+                        }
+                        if (it && typeof it === 'object') {
+                            const pickKeys = ['name', 'title', 'type', 'category', 'date', 'amount', 'total', 'vendor', 'status', 'decision'];
+                            const parts = [];
+                            for (const k of pickKeys) {
+                                if (it[k] !== undefined && it[k] !== null && it[k] !== '') {
+                                    const r = _afRenderValueBusiness(it[k], depth + 1);
+                                    if (r) parts.push(r);
+                                }
+                                if (parts.length >= 3) break;
+                            }
+                            const line = parts.length ? parts.join(' — ') : `Item ${idx + 1}`;
+                            return `<div style="color:var(--text-primary);">• ${line}</div>`;
+                        }
+                        return '';
+                    }).filter(Boolean).join('');
+                    const more = arr.length > 6 ? `<div style="margin-top:8px;color:var(--text-secondary);font-size:12px;">+ ${arr.length - 6} more</div>` : '';
+                    return items ? `<div>${items}${more}</div>` : escHtml(`${arr.length} item${arr.length !== 1 ? 's' : ''}`);
+                }
+
+                if (typeof v === 'object') {
+                    if (_afIsUploadedFileObj(v)) return _afRenderFileLine(v);
+                    if (depth >= maxDepth) return '';
+
+                    const entries = Object.entries(v)
+                        .filter(([k, val]) => !_afIsInternalKey(k))
+                        .filter(([, val]) => val !== undefined && val !== null && val !== '');
+
+                    if (!entries.length) return '';
+
+                    // Render a small, readable list of fields (no JSON)
+                    const rows = entries.slice(0, 8).map(([k, val]) => {
+                        const rendered = _afRenderValueBusiness(val, depth + 1);
+                        if (!rendered) return '';
+                        return `
+                            <div style="display:flex;gap:10px;align-items:flex-start;">
+                                <div style="min-width:140px;color:var(--text-secondary);font-size:12px;font-weight:650;">${escHtml(_afHumanizeLabel(k))}</div>
+                                <div style="color:var(--text-primary);font-size:13px;line-height:1.5;word-break:break-word;">${rendered}</div>
+                            </div>
+                        `;
+                    }).filter(Boolean).join('');
+
+                    const more = entries.length > 8 ? `<div style="margin-top:8px;color:var(--text-secondary);font-size:12px;">+ ${entries.length - 8} more details</div>` : '';
+                    return rows ? `<div style="display:flex;flex-direction:column;gap:8px;">${rows}${more}</div>` : '';
+                }
+
+                return '';
+            } catch (_) {
+                return '';
+            }
+        }
+
+        /**
+         * Render "Details to review" in a non-technical, business-friendly format.
+         * - No raw JSON
+         * - Hides internal keys and most UUID references
+         * - Shows file uploads as attachments with download buttons
+         */
+        function afRenderReviewData(rd, opts = {}) {
+            const maxRows = (opts && typeof opts.maxRows === 'number') ? opts.maxRows : 24;
+            if (!rd) return '';
+            rd = _afTryParseJsonString(rd);
+            if (typeof rd === 'string') {
+                const s = rd.trim();
+                if (!s) return '';
+                // If it was a JSON string that we couldn't parse, show a safe short message
+                return `<div style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${escHtml(s.length > 320 ? (s.slice(0, 320) + '…') : s)}</div>`;
+            }
+            if (typeof rd !== 'object' || rd === null) return '';
+
+            const entries = Object.entries(rd).filter(([k, v]) => {
+                if (_afIsInternalKey(k)) return false;
+                if (v === undefined || v === null || v === '') return false;
+                // Hide internal reference IDs by default
+                if (typeof v === 'string' && _afLooksLikeUuid(v) && /(^|_|\s)(id|uuid)(_|$)/i.test(String(k))) return false;
+                return true;
+            });
+            if (!entries.length) return '';
+
+            const rows = entries.slice(0, maxRows).map(([k, v]) => {
+                const rendered = _afRenderValueBusiness(v, 0);
+                if (!rendered) return '';
+                return `
+                    <tr style="border-bottom:1px solid color-mix(in srgb, var(--border-color) 22%, transparent);">
+                        <td style="padding:10px 14px 10px 0;color:var(--text-secondary);font-weight:750;white-space:nowrap;vertical-align:top;">${escHtml(_afHumanizeLabel(k) || k)}</td>
+                        <td style="padding:10px 0;color:var(--text-primary);vertical-align:top;">${rendered}</td>
+                    </tr>
+                `;
+            }).filter(Boolean).join('');
+
+            if (!rows) return '';
+
+            const moreNote = entries.length > maxRows
+                ? `<div style="margin-top:10px;color:var(--text-secondary);font-size:12px;">Showing ${maxRows} fields. Ask your administrator if you need more details.</div>`
+                : '';
+
+            return `
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;font-size:13px;">
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+                ${moreNote}
+            `;
+        }
+
+        async function afDownloadProcessUploadFile(fileId, filename) {
+            const id = String(fileId || '').trim();
+            if (!id) return;
+            const name = String(filename || '').trim() || `upload-${id}`;
+            try {
+                const headers = (typeof getAuthHeaders === 'function') ? getAuthHeaders() : {};
+                const res = await fetch(API + `/process/uploads/${encodeURIComponent(id)}/download`, { headers });
+                if (!res.ok) {
+                    let msg = res.statusText || 'Failed to download file';
+                    try {
+                        const data = await res.json().catch(() => null);
+                        if (data && (data.detail || data.message || data.error)) msg = data.detail || data.message || data.error;
+                    } catch (_) {}
+                    try { if (typeof showToast === 'function') showToast(String(msg || 'Failed to download file'), 'error'); } catch (_) {}
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1500);
+            } catch (e) {
+                try { if (typeof showToast === 'function') showToast('Unable to download file', 'error'); } catch (_) {}
+            }
+        }
+
+        // Expose helpers for other parts (approvals, chat, playback)
+        try { window.afRenderReviewData = afRenderReviewData; } catch (_) {}
+        try { window.afDownloadProcessUploadFile = afDownloadProcessUploadFile; } catch (_) {}
         
         let step=0,wizard={name:'',icon:'',goal:'',originalGoal:'',personality:null,tasks:[],tool_ids:[],suggestedTools:[],guardrails:{},model:'',modelReason:'',editId:null,deployTarget:'cloud',cloudProvider:''},allTools=[],toolType=null,uploadedFiles=[],agentTab='published',conv=null,testAgent=null,apiStep=1,apiParams=[],configMode='manual',chatAttachments=[],testAttachments=[];
         

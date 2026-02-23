@@ -56,22 +56,16 @@
                     return humanizeFieldLabel(key) || String(key).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                 }
                 function renderReviewData(rd) {
-                    if (!rd) return '';
-                    if (typeof rd === 'string') {
-                        try { rd = JSON.parse(rd); } catch (_) { return `<div class="text-gray-300 text-sm">${escapeHtml(rd)}</div>`; }
-                    }
-                    if (typeof rd !== 'object' || rd === null) return '';
-                    const entries = Object.entries(rd).filter(([k, v]) => {
-                        if (v === undefined || v === null || v === '') return false;
-                        const lk = k.toLowerCase();
-                        return lk !== '_user_context' && !lk.startsWith('_');
-                    });
-                    if (entries.length === 0) return '';
-                    const rows = entries.map(([k, v]) => {
-                        const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
-                        return `<tr class="border-b border-gray-700/50"><td class="py-2 pr-4 text-gray-400 font-medium whitespace-nowrap">${escapeHtml(friendlyLabel(k))}</td><td class="py-2 text-gray-200">${escapeHtml(val)}</td></tr>`;
-                    }).join('');
-                    return `<div class="overflow-x-auto"><table class="w-full text-sm"><tbody>${rows}</tbody></table></div>`;
+                    try {
+                        if (typeof window.afRenderReviewData === 'function') {
+                            return window.afRenderReviewData(rd, { maxRows: 24 }) || '';
+                        }
+                    } catch (_) {}
+                    // Fallback: safe plain text only
+                    try {
+                        const s = (rd == null) ? '' : String(rd);
+                        return s ? `<div class="text-gray-300 text-sm">${escapeHtml(s)}</div>` : '';
+                    } catch (_) { return ''; }
                 }
                 
                 document.getElementById('approval-count-subtitle').textContent = 
