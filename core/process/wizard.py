@@ -215,10 +215,10 @@ IMPORTANT:
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
   - trigger, condition, ai, tool, approval, notification, form, end
-  - calculate (compute totals, averages, formulas — replaces action with transformData)
   - parallel (run multiple paths at the same time — connect to multiple next steps)
   - call_process (invoke another published process as a sub-step)
-  NOTE: The old "action", "delay", "loop", "read_document", and "create_document" types are DEPRECATED. Do NOT use them.
+  NOTE: The old "action", "delay", "loop", "read_document", "create_document", and "calculate" types are DEPRECATED. Do NOT use them.
+  - For ANY computation (totals, averages, counts, formulas), use an "ai" node — NEVER a separate calculate step.
   - For file extraction or document generation, use an "ai" node with the appropriate aiMode (see below).
   - For iteration/repetition scenarios, use an "ai" node that handles the iteration internally.
   - For waiting/delays, the platform handles timing through approval timeouts and schedule triggers.
@@ -368,6 +368,10 @@ Node config rules:
   - If the step has no special rules, instructions can be an empty array [].
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
 - AI nodes are POWERFUL: They can parse unstructured text into structured JSON, summarize data, make classifications, calculate totals, detect languages/currencies, validate data, and more. Use them whenever the workflow needs intelligence beyond simple conditions.
+- CALCULATIONS INSIDE AI STEPS: When the workflow needs to compute totals, averages, counts, or any aggregate, do NOT create a separate step. Instead, include the computed values as additional outputFields in the AI step that processes the data.
+  Example: An AI step extracting expense receipts should include outputFields like:
+  [{{"label":"Expense Type","name":"expenseType","type":"text"}}, {{"label":"Amount","name":"amount","type":"currency"}}, {{"label":"Total Amount","name":"totalAmount","type":"currency"}}, {{"label":"Expense Count","name":"expenseCount","type":"number"}}]
+  The AI computes the totals during extraction — no separate step needed. This keeps the workflow simple and avoids variable naming issues.
 - When an AI node parses data into JSON, subsequent condition nodes can reference fields from the parsed output (e.g., if AI stores result in "parsedData", a condition can check "parsedData.totalAmount").
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
@@ -506,15 +510,7 @@ Node config rules:
 
 - CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
 
-- calculate.config must include: operation ("sum"|"average"|"count"|"concat"|"custom"), expression (formula with {{{{field}}}} refs).
-  - Use for computing totals, averages, counts, or combining text values.
-  - Set node.output_variable to store the computed result.
-  - Also set dataLabel (friendly display name for the result).
-  - CRITICAL NAMING RULE: The expression MUST use the EXACT variable paths from upstream nodes.
-    If an AI node has output_variable "extractedData" with outputField name "totalAmount",
-    the expression MUST be "{{{{extractedData.totalAmount}}}}".
-  - If a condition node follows a calculate node, the condition's "field" MUST match the calculate node's output_variable EXACTLY.
-    Example: if calculate has output_variable "totalAmount", the condition must use field "totalAmount" (not a sub-field of something else).
+- DEPRECATED — DO NOT USE "calculate" nodes. Use an AI step with calculation outputFields instead.
 
 - end.config must include: output. Use "" (empty string) to output ALL variables. If you want to output a single variable, use {{{{variable_name}}}}.
 
@@ -721,7 +717,24 @@ class ProcessWizard:
                     cfg.setdefault("docFormat", "docx")
                     cfg.setdefault("enabledToolIds", [])
                 elif n_type == "calculate":
-                    cfg.setdefault("operation", "custom")
+                    # Convert calculate → ai step (calculate is deprecated)
+                    n["type"] = "ai"
+                    expr = cfg.get("expression", "")
+                    dl = cfg.get("dataLabel", "Calculated Value")
+                    op = cfg.get("operation", "custom")
+                    op_label = {"sum": "sum", "average": "average", "count": "count"}.get(op, "calculate")
+                    prompt = f"Compute the {op_label} of: {expr}" if expr else f"Compute the {op_label} of the provided data"
+                    out_name = n.get("output_variable") or _to_camel_key(dl) or "calculatedValue"
+                    n["output_variable"] = out_name
+                    n["config"] = {
+                        "aiMode": "analyze",
+                        "prompt": prompt,
+                        "outputFields": [{"label": dl, "name": out_name, "type": "number"}],
+                        "instructions": [f"Return a JSON object with a single field \"{out_name}\" containing the numeric result."],
+                        "creativity": 1,
+                        "confidence": 5,
+                    }
+                    cfg = n["config"]
             
             return process_def
             
@@ -1457,19 +1470,29 @@ class ProcessWizard:
                         if isinstance(cf, str) and cf in mapping:
                             n["config"]["field"] = mapping[cf]
 
-        # ENFORCE: Calculate nodes must publish a named output variable so downstream steps can select it.
-        # If a friendly label exists, derive a stable lowerCamelCase key from it.
+        # CONVERT: Any remaining calculate nodes → AI steps (calculate is deprecated).
         for n in normalized_nodes:
             if (n.get("type") or "").strip().lower() != "calculate":
                 continue
-            if str(n.get("output_variable") or "").strip():
-                continue
             cfg = n.get("config") or {}
             if not isinstance(cfg, dict):
-                continue
-            dl = str(cfg.get("dataLabel") or "").strip()
-            if dl:
-                n["output_variable"] = _to_camel_key(dl) or "calculatedValue"
+                cfg = {}
+            expr = str(cfg.get("expression") or "").strip()
+            dl = str(cfg.get("dataLabel") or "Calculated Value").strip()
+            op = str(cfg.get("operation") or "custom").strip().lower()
+            op_label = {"sum": "sum", "average": "average", "count": "count"}.get(op, "calculate")
+            out_name = str(n.get("output_variable") or "").strip() or _to_camel_key(dl) or "calculatedValue"
+            n["type"] = "ai"
+            n["output_variable"] = out_name
+            n["config"] = {
+                "aiMode": "analyze",
+                "prompt": f"Compute the {op_label} of: {expr}" if expr else f"Compute the {op_label} of the provided data",
+                "outputFields": [{"label": dl, "name": out_name, "type": "number"}],
+                "instructions": [f"Return a JSON object with \"{out_name}\" containing the numeric result."],
+                "creativity": 1,
+                "confidence": 5,
+            }
+            logger.info("Converted deprecated calculate node '%s' → AI step (output_variable=%s)", n.get("name", n.get("id")), out_name)
 
         # Ensure at least one end node
         if not any(n.get("type") == "end" for n in normalized_nodes):
@@ -1630,44 +1653,6 @@ class ProcessWizard:
                         _ccfg["field"] = _kv
                         _fixed = True
                         break
-
-        # Cross-reference calculate expressions: ensure {{path}} refs resolve
-        for _n in normalized_nodes:
-            if (str(_n.get("type") or "")).strip().lower() != "calculate":
-                continue
-            _ccfg = _n.get("config") or {}
-            if not isinstance(_ccfg, dict):
-                continue
-            _expr = str(_ccfg.get("expression") or "").strip()
-            if not _expr:
-                continue
-            _refs = re.findall(r"\{\{([^}]+)\}\}", _expr)
-            for _ref in _refs:
-                _ref = _ref.strip()
-                if _is_known_path(_ref):
-                    continue
-                # Ref not found — try fuzzy match
-                _rl = _ref.lower()
-                # Try dot-path match (e.g. extractedData.totalAmount → extractedData.amount)
-                if "." in _ref:
-                    _base, _tail = _ref.rsplit(".", 1)
-                    _tl = _tail.lower()
-                    _candidates = [dp for dp in _known_dot_paths if dp.startswith(_base + ".")]
-                    # Exact case-insensitive match on the leaf
-                    _match = next((c for c in _candidates if c.rsplit(".", 1)[1].lower() == _tl), None)
-                    if not _match:
-                        # Contains match
-                        _match = next((c for c in _candidates if _tl in c.rsplit(".", 1)[1].lower() or c.rsplit(".", 1)[1].lower() in _tl), None)
-                    if _match:
-                        _expr = _expr.replace("{{" + _ref + "}}", "{{" + _match + "}}")
-                        _ccfg["expression"] = _expr
-                        logger.info("Cross-ref fix: calculate expression ref '%s' → '%s'", _ref, _match)
-                else:
-                    # Simple var — case-insensitive
-                    _match = next((kv for kv in _known_vars if kv.lower() == _rl), None)
-                    if _match:
-                        _expr = _expr.replace("{{" + _ref + "}}", "{{" + _match + "}}")
-                        _ccfg["expression"] = _expr
 
         # ENFORCE: Extract Document Text actions must have sourceField set.
         # Find file fields from the start/form nodes and auto-assign if missing.
