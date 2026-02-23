@@ -3445,12 +3445,15 @@
                             </button>
                         </div>
                         <div class="property-group">
-                            <label class="property-label">What happens if no one responds?</label>
+                            <label class="property-label">Approval deadline</label>
                             <div style="display:flex;gap:8px;align-items:center;">
-                                <span style="font-size:12px;color:var(--pb-muted);white-space:nowrap;">Auto-timeout after</span>
+                                <span style="font-size:12px;color:var(--pb-muted);white-space:nowrap;">Deadline in</span>
                                 <input type="number" class="property-input" style="width:80px;" value="${timeoutVal}" min="1"
                                        onchange="updateNodeConfig('${node.id}', 'timeout_hours', parseInt(this.value) || 24)">
                                 <span style="font-size:12px;color:var(--pb-muted);">hours</span>
+                            </div>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;line-height:1.45;">
+                                If the deadline passes with no decision, the approval is marked as expired so the workflow doesn’t stay stuck forever.
                             </div>
                         </div>
                         <div class="property-group" style="border-top:1px solid var(--pb-border);padding-top:12px;margin-top:8px;">
@@ -3459,7 +3462,7 @@
                                        onchange="updateNodeConfig('${node.id}', 'escalation_enabled', this.checked); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
                                 Escalation (optional)
                             </label>
-                            <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">If this approval is not completed on time, notify or escalate to someone else</div>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">If this approval isn’t completed, notify or add someone else before the deadline</div>
                         </div>
                         ${eEnabled ? `
                         <div class="property-group">
