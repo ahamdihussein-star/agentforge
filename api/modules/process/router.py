@@ -40,6 +40,8 @@ from .schemas import (
     EnrichFormFieldsRequest,
     EnrichFormFieldsResponse,
     EnrichedFormField,
+    SummarizeProcessRequest,
+    SummarizeProcessResponse,
 )
 from .service import ProcessAPIService
 
@@ -900,6 +902,35 @@ async def enrich_form_fields(
     return EnrichFormFieldsResponse(
         fields=[EnrichedFormField(**f) for f in enriched]
     )
+
+
+@router.post("/summarize", response_model=SummarizeProcessResponse)
+async def summarize_process(
+    request: SummarizeProcessRequest,
+    service: ProcessAPIService = Depends(get_service),
+    user: User = Depends(require_auth),
+):
+    """
+    Create a short, business-friendly summary for a workflow.
+    Used by the Admin Portal "Play" modal to show what the workflow does
+    without exposing the original generation prompt.
+    """
+    process_definition = request.process_definition
+    goal = request.goal or ''
+    name = request.name or 'Workflow'
+    if request.agent_id:
+        from database.services import AgentService
+        org_id = getattr(user, 'org_id', None) or 'org_default'
+        agent_dict = AgentService.get_agent_by_id(request.agent_id, org_id)
+        if agent_dict:
+            process_definition = agent_dict.get('process_definition')
+            goal = agent_dict.get('goal') or goal
+            name = agent_dict.get('name') or name
+    if process_definition is None and not request.agent_id:
+        return SummarizeProcessResponse(summary='')
+    process_definition = service._ensure_dict(process_definition)
+    summary = await service.summarize_process(name=name, goal=goal, process_definition=process_definition)
+    return SummarizeProcessResponse(summary=summary or '')
 
 
 @router.get("/executions", response_model=ProcessExecutionListResponse)

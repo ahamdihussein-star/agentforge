@@ -243,3 +243,20 @@ class EnrichedFormField(BaseModel):
 class EnrichFormFieldsResponse(BaseModel):
     """Enriched form fields for the process run form"""
     fields: List[EnrichedFormField] = Field(default_factory=list, description="Fields with professional labels")
+
+
+# =============================================================================
+# PROCESS SUMMARY (business-friendly subtitle for published workflows)
+# =============================================================================
+
+class SummarizeProcessRequest(BaseModel):
+    """Request a business-friendly summary for a workflow/process"""
+    agent_id: Optional[str] = Field(default=None, description="Agent ID to load process context from")
+    process_definition: Optional[Dict[str, Any]] = Field(default=None, description="Process definition (if not using agent_id)")
+    goal: Optional[str] = Field(default=None, description="Original goal/prompt for context")
+    name: Optional[str] = Field(default=None, description="Workflow name for context")
+
+
+class SummarizeProcessResponse(BaseModel):
+    """Business-friendly one-paragraph summary"""
+    summary: str = Field(..., description="Short non-technical summary of what the workflow does")

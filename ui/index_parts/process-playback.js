@@ -812,7 +812,65 @@
                 
                 // Update modal header
                 document.getElementById('process-modal-title').textContent = currentProcessAgent.name || 'Workflow';
-                document.getElementById('process-modal-subtitle').textContent = currentProcessAgent.goal || 'Submit data to run this workflow';
+                const subtitleEl = document.getElementById('process-modal-subtitle');
+                const _fallbackSubtitle = (() => {
+                    try {
+                        const name = (currentProcessAgent && currentProcessAgent.name) ? String(currentProcessAgent.name) : 'This workflow';
+                        let def = currentProcessAgent ? currentProcessAgent.process_definition : null;
+                        if (typeof def === 'string') { try { def = def ? JSON.parse(def) : {}; } catch (_) { def = {}; } }
+                        if (!def || typeof def !== 'object') def = {};
+                        const nodes = Array.isArray(def.nodes) ? def.nodes : [];
+                        const types = new Set(nodes.map(n => String(n?.type || '').toLowerCase().trim()).filter(Boolean));
+                        // Extract input labels when possible
+                        let fields = [];
+                        try {
+                            const nodeType = (n) => String(n?.type || '').toLowerCase().trim();
+                            const startLike = nodes.find(n => nodeType(n) === 'form') || nodes.find(n => ['trigger', 'start'].includes(nodeType(n)));
+                            const cfg = startLike ? (startLike.config || {}) : {};
+                            const typeCfg = cfg.type_config || cfg.typeConfig || cfg;
+                            fields = (typeCfg.fields || cfg.fields || typeCfg.input_fields || cfg.input_fields || typeCfg.inputFields || cfg.inputFields || []) || [];
+                        } catch (_) { fields = []; }
+                        const labels = (Array.isArray(fields) ? fields : [])
+                            .map(f => f && (f.label || f.name || f.id) ? String(f.label || f.name || f.id) : '')
+                            .filter(Boolean)
+                            .slice(0, 3);
+                        const inputPart = labels.length
+                            ? (labels.length === 1 ? `collects ${labels[0]}` : `collects ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`)
+                            : 'collects the required information';
+                        const parts = [inputPart];
+                        if (types.has('ai') || types.has('ai_task') || types.has('extract_file')) parts.push('uses AI to extract or analyze information');
+                        if (types.has('condition') || types.has('decision')) parts.push('checks the rules and routes the request accordingly');
+                        if (types.has('approval')) parts.push('requests approval when needed');
+                        if (types.has('notification')) parts.push('sends messages to keep people informed');
+                        const txt = `${name} ${parts.join(', then ')}.`;
+                        return txt.length > 220 ? (txt.slice(0, 217).trimEnd() + '…') : txt;
+                    } catch (_) {
+                        return 'Submit information to run this workflow.';
+                    }
+                })();
+
+                // Prefer stored description if it looks like a short summary (not a full generation prompt)
+                try {
+                    const desc = (currentProcessAgent && currentProcessAgent.description) ? String(currentProcessAgent.description).trim() : '';
+                    if (subtitleEl) subtitleEl.textContent = (desc && desc.length <= 220) ? desc : _fallbackSubtitle;
+                } catch (_) {
+                    if (subtitleEl) subtitleEl.textContent = _fallbackSubtitle;
+                }
+
+                // Try AI-generated summary (rephrased, business-friendly)
+                (async () => {
+                    try {
+                        const sumRes = await fetch(API + '/process/summarize', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                            body: JSON.stringify({ agent_id: agentId })
+                        });
+                        if (!sumRes.ok) return;
+                        const data = await sumRes.json().catch(() => ({}));
+                        const summary = (data && data.summary) ? String(data.summary).trim() : '';
+                        if (summary && subtitleEl) subtitleEl.textContent = summary;
+                    } catch (_) { /* ignore */ }
+                })();
                 
                 // Try LLM-enriched form fields (professional labels from process context)
                 let enrichedFields = null;
@@ -1162,44 +1220,61 @@
             }
             if (!processDef || typeof processDef !== 'object') processDef = {};
 
-            // Process Builder: trigger or form node with config.fields (source of truth for ordering + derived fields)
+            // Process Builder: form/trigger/start node with input fields (source of truth for ordering + derived fields)
             if (processDef.nodes && Array.isArray(processDef.nodes)) {
-                const triggerNode = processDef.nodes.find(n => (n.type === 'trigger' || n.type === 'form' || n.type === 'start'));
-                if (triggerNode) {
-                    const config = triggerNode.config || {};
-                    const typeConfig = config.type_config || config;
-                    const fields = typeConfig.fields || config.fields || [];
-                    if (Array.isArray(fields) && fields.length) {
-                        triggerInputs = fields
-                            .filter(f => f && (f.name || f.id))
-                            .map(f => {
-                                const id = f.name || f.id;
-                                const label = f.label || humanizeFieldLabel(id) || id;
-                                const derived = (f.derived && f.derived.expression) ? { expression: String(f.derived.expression).trim() } : null;
-                                const prefill = (f.prefill && f.prefill.source === 'currentUser' && f.prefill.key)
-                                    ? { source: 'currentUser', key: String(f.prefill.key).trim() }
-                                    : null;
-                                const readOnly = !!f.readOnly || !!derived || !!prefill;
-                                const required = !!f.required && !readOnly;
-                                const options = Array.isArray(f.options) ? f.options : undefined;
-                                const placeholder = f.placeholder || (label ? `Enter ${label}...` : '');
-                                const out = {
-                                    id,
-                                    label,
-                                    type: f.type || 'text',
-                                    required,
-                                    placeholder,
-                                    options,
-                                    description: f.description,
-                                    derived,
-                                    prefill,
-                                    readOnly,
-                                    multiple: !!f.multiple
-                                };
-                                startFieldMap[id] = out;
-                                return out;
-                            });
+                const nodes = processDef.nodes;
+                const nodeType = (n) => String(n?.type || '').toLowerCase().trim();
+                const pickNodeWithFields = (preferredTypes) => {
+                    for (const t of preferredTypes) {
+                        const found = nodes.find(n => nodeType(n) === t);
+                        if (!found) continue;
+                        const cfg = found.config || {};
+                        const typeCfg = cfg.type_config || cfg.typeConfig || cfg;
+                        const fields =
+                            typeCfg.fields || cfg.fields ||
+                            typeCfg.input_fields || cfg.input_fields ||
+                            typeCfg.inputFields || cfg.inputFields ||
+                            typeCfg.form_fields || cfg.form_fields ||
+                            typeCfg.formFields || cfg.formFields ||
+                            typeCfg.inputs || cfg.inputs ||
+                            [];
+                        if (Array.isArray(fields) && fields.length) return { node: found, fields };
                     }
+                    return null;
+                };
+
+                // Prefer explicit form node first, then trigger/start
+                const picked = pickNodeWithFields(['form', 'trigger', 'start']);
+                if (picked && Array.isArray(picked.fields) && picked.fields.length) {
+                    triggerInputs = picked.fields
+                        .filter(f => f && (f.name || f.id))
+                        .map(f => {
+                            const id = f.name || f.id;
+                            const label = f.label || humanizeFieldLabel(id) || id;
+                            const derived = (f.derived && f.derived.expression) ? { expression: String(f.derived.expression).trim() } : null;
+                            const prefill = (f.prefill && f.prefill.source === 'currentUser' && f.prefill.key)
+                                ? { source: 'currentUser', key: String(f.prefill.key).trim() }
+                                : null;
+                            const readOnly = !!f.readOnly || !!derived || !!prefill;
+                            const required = !!f.required && !readOnly;
+                            const options = Array.isArray(f.options) ? f.options : undefined;
+                            const placeholder = f.placeholder || (label ? `Enter ${label}...` : '');
+                            const out = {
+                                id,
+                                label,
+                                type: f.type || 'text',
+                                required,
+                                placeholder,
+                                options,
+                                description: f.description,
+                                derived,
+                                prefill,
+                                readOnly,
+                                multiple: !!f.multiple
+                            };
+                            startFieldMap[id] = out;
+                            return out;
+                        });
                 }
             }
 

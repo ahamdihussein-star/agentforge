@@ -2334,8 +2334,16 @@ class ProcessAPIService:
         if not trigger_node:
             return []
         config = trigger_node.get('config') or {}
-        type_config = config.get('type_config') or config
-        fields = type_config.get('fields') or config.get('fields') or []
+        type_config = config.get('type_config') or config.get('typeConfig') or config
+        fields = (
+            type_config.get('fields') or config.get('fields') or
+            type_config.get('input_fields') or config.get('input_fields') or
+            type_config.get('inputFields') or config.get('inputFields') or
+            type_config.get('form_fields') or config.get('form_fields') or
+            type_config.get('formFields') or config.get('formFields') or
+            type_config.get('inputs') or config.get('inputs') or
+            []
+        )
         return [
             {
                 'id': f.get('name') or f.get('id') or ('field_' + str(i)),
@@ -2348,6 +2356,142 @@ class ProcessAPIService:
             for i, f in enumerate(fields)
             if f and (f.get('name') or f.get('id'))
         ]
+
+    def _fallback_summarize_process(
+        self,
+        name: str,
+        goal: str,
+        process_definition: Dict[str, Any],
+    ) -> str:
+        """
+        Deterministic, non-technical summary when LLM is unavailable.
+        Keeps the platform dynamic: no domain hardcoding.
+        """
+        pd = self._ensure_dict(process_definition)
+        nodes = pd.get('nodes') or []
+        type_counts: Dict[str, int] = {}
+        node_types = []
+        for n in nodes:
+            t = str((n or {}).get('type') or '').lower().strip()
+            if not t:
+                continue
+            type_counts[t] = type_counts.get(t, 0) + 1
+            node_types.append(t)
+
+        raw_fields = self._extract_form_fields_from_definition(pd)
+        field_labels = []
+        for f in raw_fields[:4]:
+            label = (f.get('label') or f.get('id') or '').strip()
+            if label:
+                field_labels.append(label)
+
+        bits = []
+        if field_labels:
+            if len(field_labels) == 1:
+                bits.append(f"collects {field_labels[0]}")
+            else:
+                bits.append("collects " + ", ".join(field_labels[:-1]) + f", and {field_labels[-1]}")
+        else:
+            bits.append("collects the required information")
+
+        if any(t in ('ai', 'extract_file', 'ai_task') for t in node_types):
+            bits.append("uses AI to extract or analyze information")
+        if any(t in ('condition', 'decision') for t in node_types):
+            bits.append("checks the rules and routes the request accordingly")
+        if any(t in ('approval',) for t in node_types):
+            bits.append("requests approval when needed")
+        if any(t in ('notification', 'send_message') for t in node_types):
+            bits.append("sends messages to keep people informed")
+
+        if not bits:
+            return (goal or '').strip()[:160] or f"{name or 'Workflow'} runs and completes based on your inputs."
+
+        sentence = f"{name or 'This workflow'} " + ", then ".join([bits[0]] + bits[1:]) + "."
+        # Keep it short for the UI subtitle
+        sentence = sentence.replace("This workflow This workflow", "This workflow")
+        if len(sentence) > 220:
+            sentence = sentence[:217].rstrip() + "…"
+        return sentence
+
+    async def summarize_process(
+        self,
+        name: str,
+        goal: str,
+        process_definition: Dict[str, Any],
+    ) -> str:
+        """
+        Generate a short, business-friendly summary for a workflow.
+        Uses LLM when available; falls back to a deterministic summary otherwise.
+        """
+        pd = self._ensure_dict(process_definition)
+        if not self.llm_registry:
+            return self._fallback_summarize_process(name, goal, pd)
+        models = self.llm_registry.list_all(active_only=True)
+        if not models:
+            return self._fallback_summarize_process(name, goal, pd)
+        config = models[0]
+        try:
+            llm = LLMFactory.create(config)
+        except Exception as e:
+            logger.warning("LLM not available for process summary: %s", e)
+            return self._fallback_summarize_process(name, goal, pd)
+
+        # Compact, non-technical context to avoid huge prompts
+        raw_fields = self._extract_form_fields_from_definition(pd)
+        inputs_compact = [
+            {"id": f.get("id"), "label": f.get("label") or f.get("id"), "type": f.get("type")}
+            for f in (raw_fields or [])
+        ][:8]
+        nodes = pd.get("nodes") or []
+        steps_compact = []
+        for n in nodes[:30]:
+            if not isinstance(n, dict):
+                continue
+            t = str(n.get("type") or "").lower().strip()
+            if not t:
+                continue
+            steps_compact.append({
+                "type": t,
+                "name": n.get("name") or "",
+            })
+
+        system_prompt = (
+            "You are a product copywriter for an enterprise workflow platform. "
+            "Write a short, non-technical summary of what the workflow does for business users. "
+            "Use the same language as the goal if it's not English. "
+            "Do NOT mention JSON, IDs, schemas, endpoints, or implementation details. "
+            "Keep it to 1–2 sentences, max 220 characters."
+        )
+        user_payload = json.dumps(
+            {
+                "name": name or "Workflow",
+                "goal": goal or "",
+                "inputs": inputs_compact,
+                "steps": steps_compact,
+            },
+            ensure_ascii=False,
+        )
+        user_prompt = (
+            "Summarize this workflow for the run screen subtitle.\n"
+            f"{user_payload}\n\n"
+            "Return only the summary text."
+        )
+        try:
+            messages = [
+                Message(role=MessageRole.SYSTEM, content=system_prompt),
+                Message(role=MessageRole.USER, content=user_prompt),
+            ]
+            response = await llm.chat(messages, temperature=0.2, max_tokens=128)
+            content = (response.content or "").strip()
+            if not content:
+                return self._fallback_summarize_process(name, goal, pd)
+            # Hard cap to UI expectations
+            if len(content) > 220:
+                content = content[:217].rstrip() + "…"
+            return content
+        except Exception as e:
+            logger.warning("Process summary LLM call failed: %s", e)
+            return self._fallback_summarize_process(name, goal, pd)
     
     async def enrich_form_fields(
         self,
