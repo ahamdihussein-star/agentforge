@@ -718,6 +718,8 @@ class ProcessWizard:
             # Step 2: Generate process definition
             if output_format == "visual_builder":
                 process_def = await self._generate_visual_builder_process(goal, analysis, additional_context)
+                # Step 2.5: LLM Review Pass — focused self-check for common mistakes
+                process_def = await self._review_and_fix_process(process_def, goal)
                 process_def = self._validate_and_enhance_visual_builder(process_def, analysis)
             else:
                 process_def = await self._generate_process(goal, analysis)
@@ -999,7 +1001,7 @@ class ProcessWizard:
             "Return ONLY valid JSON that matches the schema exactly. No markdown, no explanation."
         )
         try:
-            data = await self._chat_json(system_prompt, user_prompt, temperature=0.25, max_tokens=3500)
+            data = await self._chat_json(system_prompt, user_prompt, temperature=0.25, max_tokens=4500)
         except Exception as e:
             # Repair pass: ask again with stricter instruction (avoid falling back to templates)
             repair_prompt = (
@@ -1008,10 +1010,90 @@ class ProcessWizard:
                 + "Return ONLY valid JSON now (no markdown, no commentary)."
             )
             logger.warning("Visual builder JSON parse failed, running repair pass: %s", e)
-            data = await self._chat_json(system_prompt, repair_prompt, temperature=0.1, max_tokens=3500)
+            data = await self._chat_json(system_prompt, repair_prompt, temperature=0.1, max_tokens=4500)
         if not isinstance(data, dict):
             raise ValueError("Visual builder process definition must be a JSON object")
         return data
+
+    async def _review_and_fix_process(
+        self,
+        process_def: Dict[str, Any],
+        goal: str,
+    ) -> Dict[str, Any]:
+        """
+        LLM Review Pass — a focused second call that checks the generated
+        process against a short checklist of common mistakes and returns
+        the corrected JSON.  This dramatically improves quality because
+        the reviewer sees the concrete output (not abstract rules) and
+        the review prompt is short enough to maintain full attention.
+        """
+        if not self.llm or not isinstance(process_def, dict):
+            return process_def
+
+        process_json = json.dumps(process_def, ensure_ascii=False, indent=2)
+
+        review_system = (
+            "You are a QA reviewer for AI-generated business process workflows. "
+            "You receive a process JSON and the original user goal, then check for "
+            "common mistakes and return the CORRECTED JSON. Fix any issues you find. "
+            "If no issues, return the JSON unchanged. Return ONLY valid JSON."
+        )
+
+        review_user = (
+            f"ORIGINAL USER GOAL:\n{goal}\n\n"
+            f"GENERATED PROCESS JSON:\n{process_json}\n\n"
+            "REVIEW CHECKLIST — fix any violations:\n\n"
+            "1. FORM NODE: If the user goal mentions collecting information, entering data, "
+            "uploading files, or filling in details, there MUST be a 'form' node with properly "
+            "configured fields (name, label, type, required, placeholder). The form node must "
+            "come right after the trigger/start node. If the form is missing, ADD it with "
+            "appropriate fields inferred from the goal.\n\n"
+            "2. DATA FLOW: Every variable referenced in later nodes (conditions, notifications, "
+            "AI steps) must be produced by an earlier node. Check that output_variable names "
+            "match what downstream nodes reference.\n\n"
+            "3. EDGES: Every node (except end) must have at least one outgoing edge. Every "
+            "node (except trigger/start) must have at least one incoming edge. Condition "
+            "nodes must have both 'yes' and 'no' edges with correct onTrue/onFalse targets.\n\n"
+            "4. APPROVER NOTIFICATION: If an approval node is meant to notify the approver, "
+            "it must use notifyApprover:true with a notificationMessage — NOT a separate "
+            "notification node targeting the same approver. Remove redundant notification "
+            "nodes and merge their message into the approval's notificationMessage.\n\n"
+            "5. NOTIFICATION CONTENT: Every notification node must have a non-empty recipient "
+            "and a non-empty template with a business-friendly message using {{variable}} "
+            "interpolation. Never leave template empty.\n\n"
+            "6. CONDITION LOGIC: Verify that condition expressions and onTrue/onFalse targets "
+            "match the business intent described in the goal. The 'yes' path should match "
+            "what is TRUE (e.g., 'totalAmount < 500' being TRUE means auto-approve).\n\n"
+            "7. PARALLEL NODES: Parallel nodes should only be used when truly independent "
+            "tasks run concurrently. Each parallel branch must connect back to a shared "
+            "next node. Do NOT use parallel just for approver notification.\n\n"
+            "8. END NODE: Exactly one end node. All paths must eventually reach it.\n\n"
+            "9. NODE CONFIGS: Every node must have a properly filled config object — no "
+            "empty prompts, no empty messages, no missing required fields.\n\n"
+            "10. AI NODE OUTPUT: AI nodes with outputFields must have output_format:'json' "
+            "and an output_variable. outputFields used in conditions must be type 'number' "
+            "(not 'currency').\n\n"
+            "Return the CORRECTED process JSON (full object). No markdown, no explanation."
+        )
+
+        try:
+            reviewed = await self._chat_json(
+                review_system, review_user,
+                temperature=0.1,
+                max_tokens=4500,
+            )
+            if isinstance(reviewed, dict) and reviewed.get("nodes"):
+                logger.info(
+                    "Review pass applied: %d nodes (was %d)",
+                    len(reviewed.get("nodes", [])),
+                    len(process_def.get("nodes", [])),
+                )
+                return reviewed
+            logger.warning("Review pass returned invalid structure, keeping original")
+            return process_def
+        except Exception as e:
+            logger.warning("Review pass failed (non-blocking): %s", e)
+            return process_def
 
     def _validate_and_enhance_visual_builder(
         self,
