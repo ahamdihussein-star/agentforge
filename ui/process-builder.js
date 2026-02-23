@@ -3464,11 +3464,11 @@
                         ${eEnabled ? `
                         <div class="property-group">
                             <label class="property-label">When to escalate</label>
-                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap;">
                                 <span style="font-size:12px;color:var(--pb-muted);white-space:nowrap;">Escalate after</span>
-                                <input type="number" class="property-input" style="width:96px;" value="${escapeHtml(eAfterValue)}" min="1"
+                                <input type="number" class="property-input" style="width:84px;flex:0 0 auto;" value="${escapeHtml(eAfterValue)}" min="1"
                                        onchange="updateNodeConfig('${node.id}', 'escalation_after_value', parseInt(this.value) || 12); setApprovalEscalationTiming('${node.id}')">
-                                <select class="property-select" style="width:140px;"
+                                <select class="property-select" style="width:124px;flex:0 0 auto;"
                                         onchange="updateNodeConfig('${node.id}', 'escalation_after_unit', this.value); setApprovalEscalationTiming('${node.id}')">
                                     <option value="hours" ${eAfterUnit === 'hours' ? 'selected' : ''}>Hours</option>
                                     <option value="days" ${eAfterUnit === 'days' ? 'selected' : ''}>Days</option>
