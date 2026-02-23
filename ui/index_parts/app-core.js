@@ -2009,24 +2009,24 @@ const API='';
             if (empty) empty.classList.toggle('hidden', filtered.length > 0);
             grid.innerHTML = filtered.map(t => {
                 const tagHtml = (t.tags || []).slice(0, 4).map(x =>
-                    `<span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700">${_createTplEsc(String(x))}</span>`
+                    `<span class="text-[11px] px-2 py-0.5 rounded-full" style="background:var(--bg-input);color:var(--text-secondary);border:1px solid color-mix(in srgb, var(--border-color) 70%, transparent);">${_createTplEsc(String(x))}</span>`
                 ).join(' ');
                 const snippet = String(t.prompt || '').trim().replace(/\s+/g, ' ');
                 const short = snippet.length > 160 ? (snippet.slice(0, 160) + '…') : snippet;
                 return `
-                    <div class="p-4 rounded-xl border border-gray-800 bg-gray-900/40 hover:bg-gray-900/60 transition">
+                    <div class="card p-4 rounded-xl transition-transform" style="cursor:default;">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex items-start gap-3 min-w-0">
-                                <div class="w-11 h-11 rounded-xl bg-gray-800 flex items-center justify-center text-xl flex-shrink-0">${t.icon || '✨'}</div>
+                                <div class="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style="background:var(--bg-input);border:1px solid color-mix(in srgb, var(--border-color) 65%, transparent);">${t.icon || '✨'}</div>
                                 <div class="min-w-0">
-                                    <div class="font-semibold text-gray-100 leading-tight">${_createTplEsc(t.title || 'Template')}</div>
-                                    <div class="text-xs text-gray-400 mt-0.5">${_createTplEsc(t.subtitle || '')}</div>
+                                    <div class="font-semibold leading-tight" style="color:var(--text-primary);">${_createTplEsc(t.title || 'Template')}</div>
+                                    <div class="text-xs mt-0.5" style="color:var(--text-secondary);">${_createTplEsc(t.subtitle || '')}</div>
                                 </div>
                             </div>
-                            <button onclick="applyCreateTemplate('${t.id}'); closeCreateTemplateGallery()" class="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition flex-shrink-0">Use</button>
+                            <button onclick="applyCreateTemplate('${t.id}'); closeCreateTemplateGallery()" class="btn-primary px-3 py-2 rounded-lg text-sm font-medium transition flex-shrink-0">Use</button>
                         </div>
                         <div class="mt-3 flex flex-wrap gap-1.5">${tagHtml}</div>
-                        <div class="mt-3 text-xs text-gray-400 leading-relaxed">${_createTplEsc(short)}</div>
+                        <div class="mt-3 text-xs leading-relaxed" style="color:var(--text-secondary);">${_createTplEsc(short)}</div>
                     </div>
                 `;
             }).join('');
