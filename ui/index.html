@@ -1967,13 +1967,14 @@
                                 <textarea id="w-initial-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4 text-lg" placeholder="Example: Help employees submit leave requests, answer policy questions, and route complex cases to HR..."></textarea>
 
                                 <div class="mt-5 pt-5 border-t border-gray-800">
-                                    <p class="text-sm text-gray-500 mb-3">Or start from a template:</p>
-                                    <div class="flex flex-wrap gap-2">
-                                        <button onclick="useAgentTemplate('customer_support')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🎧 Customer Support</button>
-                                        <button onclick="useAgentTemplate('sales')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">💼 Sales Assistant</button>
-                                        <button onclick="useAgentTemplate('hr')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">👥 HR Helper</button>
-                                        <button onclick="useAgentTemplate('research')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔬 Research Analyst</button>
+                                    <div class="flex items-center justify-between gap-3 mb-3">
+                                        <p class="text-sm text-gray-500">Start from a template (optional):</p>
+                                        <button onclick="openCreateTemplateGallery('conversational')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition flex items-center gap-2">
+                                            <span>✨</span> Browse templates
+                                        </button>
                                     </div>
+                                    <div id="conv-template-chips" class="flex flex-wrap gap-2"></div>
+                                    <p class="text-xs text-gray-500 mt-3">Choosing a template only fills the text above — you can edit it before you press “Generate with AI”.</p>
                                 </div>
                             </div>
 
@@ -1986,25 +1987,14 @@
                                 <label class="text-sm text-gray-400 mb-2 block">Workflow description *</label>
                                 <textarea id="w-process-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4" placeholder="Example: When an expense over $500 is submitted, send it to the requester’s manager for approval, then notify Finance and update the system..."></textarea>
                                 <div class="mt-5 pt-5 border-t border-gray-800">
-                                    <p class="text-sm text-gray-500 mb-3">Quick start templates:</p>
-                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        <button onclick="openBuilderWithTemplate('approval')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
-                                            <span class="text-lg">✅</span>
-                                            <div class="text-sm font-medium mt-1">Approval</div>
-                                        </button>
-                                        <button onclick="openBuilderWithTemplate('onboarding')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
-                                            <span class="text-lg">👋</span>
-                                            <div class="text-sm font-medium mt-1">Onboarding</div>
-                                        </button>
-                                        <button onclick="openBuilderWithTemplate('notification')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
-                                            <span class="text-lg">🔔</span>
-                                            <div class="text-sm font-medium mt-1">Notifications</div>
-                                        </button>
-                                        <button onclick="openBuilderWithTemplate('integration')" class="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 text-left transition">
-                                            <span class="text-lg">🔗</span>
-                                            <div class="text-sm font-medium mt-1">Integration</div>
+                                    <div class="flex items-center justify-between gap-3 mb-3">
+                                        <p class="text-sm text-gray-500">Start from a template (optional):</p>
+                                        <button onclick="openCreateTemplateGallery('process')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition flex items-center gap-2">
+                                            <span>✨</span> Browse templates
                                         </button>
                                     </div>
+                                    <div id="proc-template-chips" class="flex flex-wrap gap-2"></div>
+                                    <p class="text-xs text-gray-500 mt-3">Choosing a template only fills the description above — you can edit it before you press “Generate with AI”.</p>
                                 </div>
                             </div>
                         </div>
@@ -2018,6 +2008,32 @@
                             </button>
                         </div>
                         <p class="text-xs text-gray-500 mt-3 text-center">You can review and edit everything after generation.</p>
+                    </div>
+                </div>
+
+                <!-- Create Templates Gallery Modal -->
+                <div id="create-template-modal" class="hidden fixed inset-0 z-[9998] bg-black/60 items-center justify-center p-4" onclick="if(event.target===this)closeCreateTemplateGallery()">
+                    <div class="card rounded-2xl w-full max-w-4xl border border-gray-800 bg-gray-900/95" style="max-height:85vh;display:flex;flex-direction:column;" onclick="event.stopPropagation()">
+                        <div class="p-5 border-b border-gray-800 flex items-start justify-between gap-4">
+                            <div>
+                                <div class="text-lg font-bold" id="create-template-modal-title">Templates</div>
+                                <div class="text-xs text-gray-400" id="create-template-modal-subtitle">Pick one to prefill your description. You can edit it before generating.</div>
+                            </div>
+                            <button onclick="closeCreateTemplateGallery()" class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition">✕</button>
+                        </div>
+                        <div class="p-5 border-b border-gray-800 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+                            <div class="flex gap-2">
+                                <button id="create-template-tab-conv" onclick="switchCreateTemplateTab('conversational')" class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">💬 Conversational</button>
+                                <button id="create-template-tab-proc" onclick="switchCreateTemplateTab('process')" class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">🔄 Process</button>
+                            </div>
+                            <div class="flex-1 md:max-w-md">
+                                <input id="create-template-search" type="text" class="input-field w-full rounded-lg px-4 py-2" placeholder="Search templates..." oninput="filterCreateTemplateGallery(this.value)">
+                            </div>
+                        </div>
+                        <div class="p-5 overflow-auto" style="flex:1;">
+                            <div id="create-template-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+                            <div id="create-template-empty" class="hidden text-center text-sm text-gray-500 py-10">No templates match your search.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -6991,16 +7007,16 @@ Option 3"></textarea>
     </div>
 
     <script src="/ui/dialogs.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/app-core.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/process-playback.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/approvals.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/agent-wizard.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/features-demo-tools.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/features-tools-wizard.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/features-chat.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/features-auth-permissions.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/features-security-identity.js?v=20260223c" defer></script>
-    <script src="/ui/index_parts/features-approvals-page.js?v=20260223c" defer></script>
+    <script src="/ui/index_parts/app-core.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/process-playback.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/approvals.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/agent-wizard.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/features-demo-tools.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/features-tools-wizard.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/features-chat.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/features-auth-permissions.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/features-security-identity.js?v=20260223h" defer></script>
+    <script src="/ui/index_parts/features-approvals-page.js?v=20260223h" defer></script>
 <!-- Tool Edit Slide-over Panel -->
 <div id="tool-edit-panel" class="fixed inset-0 z-[9999] hidden">
     <div class="absolute inset-0 bg-black/60" onclick="closeToolEditPanel()"></div>

@@ -1374,18 +1374,408 @@ const API='';
             return out === null ? null : String(out);
         }
         
-        // Agent Templates
-        function useAgentTemplate(template) {
-            const templates = {
-                customer_support: "Help customers with their inquiries about orders, products, returns, and general support questions. Provide accurate information, track order status, and escalate complex issues when needed.",
-                sales: "Assist potential customers in finding the right products, answer pricing questions, provide product comparisons, and help close sales. Be persuasive but honest.",
-                hr: "Help employees with HR-related questions about policies, benefits, leave requests, and company procedures. Maintain confidentiality and direct sensitive matters to HR staff.",
-                research: "Research topics thoroughly, analyze information from multiple sources, summarize findings, and provide well-structured reports with citations.",
-                coding: "Help developers write, debug, and improve code. Explain programming concepts, suggest best practices, and assist with technical documentation."
-            };
-            
-            document.getElementById('w-initial-goal').value = templates[template] || '';
+        // =========================================================================
+        // CREATE WIZARD — TEMPLATE GALLERY (conversational + process)
+        // =========================================================================
+
+        const AF_CREATE_TEMPLATES = {
+            conversational: [
+                {
+                    id: "invoice_intake_assistant",
+                    icon: "🧾",
+                    title: "Invoice Intake Assistant",
+                    subtitle: "Extract invoice fields and prepare a clean summary",
+                    tags: ["Invoice", "Extraction", "Finance"],
+                    prompt:
+                        "Act as an Invoice Intake Assistant.\n\n" +
+                        "Users will upload invoices (PDF or scanned images) and ask questions.\n" +
+                        "Your job:\n" +
+                        "- Extract key fields: vendor, invoice number, invoice date, due date, currency, total amount, tax amount (if present), and line items (if available).\n" +
+                        "- If a field is missing, say \"Not found\" and ask one clear follow-up question.\n" +
+                        "- Provide a simple, business-friendly summary and a structured table of extracted fields.\n" +
+                        "- Draft a short email to Accounts Payable with the extracted details.\n"
+                },
+                {
+                    id: "claims_document_reader",
+                    icon: "🩺",
+                    title: "Healthcare Document Reader",
+                    subtitle: "Summarize a medical document and extract key values",
+                    tags: ["Healthcare", "Documents", "Extraction"],
+                    prompt:
+                        "Act as a Healthcare Document Reader.\n\n" +
+                        "Users will upload medical documents (lab reports, discharge summaries, referrals).\n" +
+                        "Your job:\n" +
+                        "- Extract patient name (if present), document date, facility, key findings, and any critical values.\n" +
+                        "- Provide a clear summary in plain language.\n" +
+                        "- If the document contains measurements, list them in a table (test, value, unit, reference range if present).\n" +
+                        "- Always add a final section: \"Questions to confirm\" with any missing items.\n"
+                },
+                {
+                    id: "supply_chain_doc_extractor",
+                    icon: "📦",
+                    title: "Shipment Document Extractor",
+                    subtitle: "Extract shipment details from packing lists / BOLs",
+                    tags: ["Supply Chain", "Extraction", "Logistics"],
+                    prompt:
+                        "Act as a Shipment Document Extractor.\n\n" +
+                        "Users will upload a packing list, bill of lading, or delivery note (PDF or scanned image).\n" +
+                        "Your job:\n" +
+                        "- Extract shipment ID, PO number (if present), supplier, destination, ship date, expected delivery date, and item list.\n" +
+                        "- Provide a clean summary and a table of items (SKU/description, quantity, unit).\n" +
+                        "- If anything is missing, ask concise follow-up questions.\n"
+                },
+                {
+                    id: "contract_clause_finder",
+                    icon: "📄",
+                    title: "Contract Clause Finder",
+                    subtitle: "Find key clauses and explain them clearly",
+                    tags: ["Legal", "Contracts", "Extraction"],
+                    prompt:
+                        "Act as a Contract Clause Finder.\n\n" +
+                        "Users will upload a contract and ask for specific clauses.\n" +
+                        "Your job:\n" +
+                        "- Extract and quote the exact text for: payment terms, renewal/termination, confidentiality, liability, and governing law (if present).\n" +
+                        "- Explain each clause in simple business language.\n" +
+                        "- List any risky or unusual terms the user should review.\n"
+                },
+                {
+                    id: "receipt_organizer",
+                    icon: "🧾",
+                    title: "Receipt Organizer",
+                    subtitle: "Turn receipts into a clean expense summary",
+                    tags: ["Extraction", "Finance", "Receipts"],
+                    prompt:
+                        "Act as a Receipt Organizer.\n\n" +
+                        "Users will upload one or more receipts (images or PDFs).\n" +
+                        "Your job:\n" +
+                        "- For each receipt, extract vendor, date, currency, and amount.\n" +
+                        "- Categorize each receipt into a practical expense category.\n" +
+                        "- Provide a total amount and a clean table of all receipts.\n" +
+                        "- Ask follow-up questions only when necessary.\n"
+                },
+                {
+                    id: "compliance_policy_qa",
+                    icon: "🛡️",
+                    title: "Policy Q&A Assistant",
+                    subtitle: "Answer policy questions from uploaded documents",
+                    tags: ["Compliance", "Knowledge", "Documents"],
+                    prompt:
+                        "Act as a Policy Q&A Assistant.\n\n" +
+                        "Users will upload policy documents and ask questions.\n" +
+                        "Your job:\n" +
+                        "- Answer using only what is stated in the uploaded document.\n" +
+                        "- Quote the relevant section (short excerpt) to support your answer.\n" +
+                        "- If the document does not contain the answer, say so and suggest what to check next.\n"
+                },
+                {
+                    id: "it_ticket_triage_extractor",
+                    icon: "🧰",
+                    title: "IT Ticket Triage Assistant",
+                    subtitle: "Extract key info from screenshots and messages",
+                    tags: ["IT", "Extraction", "Triage"],
+                    prompt:
+                        "Act as an IT Ticket Triage Assistant.\n\n" +
+                        "Users will describe an issue and may upload screenshots or error messages (images or PDFs).\n" +
+                        "Your job:\n" +
+                        "- Extract: impacted system, user impact, error message (exact), time observed, and urgency.\n" +
+                        "- Ask only the minimum follow-up questions needed to proceed.\n" +
+                        "- Produce a clean ticket summary and a short recommended next step.\n"
+                },
+                {
+                    id: "customs_docs_helper",
+                    icon: "🛃",
+                    title: "Customs Documents Helper",
+                    subtitle: "Extract shipment and HS details from paperwork",
+                    tags: ["Customs", "Supply Chain", "Extraction"],
+                    prompt:
+                        "Act as a Customs Documents Helper.\n\n" +
+                        "Users will upload shipping paperwork (commercial invoice, packing list, certificate of origin).\n" +
+                        "Your job:\n" +
+                        "- Extract: exporter, importer, origin country, destination, item list, quantities, and declared values.\n" +
+                        "- If an HS code is present, extract it; if not, ask what product category it belongs to.\n" +
+                        "- Provide a clear checklist of missing items required for customs clearance.\n"
+                },
+                {
+                    id: "equipment_manual_qna",
+                    icon: "📘",
+                    title: "Equipment Manual Q&A",
+                    subtitle: "Answer questions from a manual and extract procedures",
+                    tags: ["Operations", "Documents", "Knowledge"],
+                    prompt:
+                        "Act as an Equipment Manual Q&A Assistant.\n\n" +
+                        "Users will upload an equipment manual and ask how to perform a procedure.\n" +
+                        "Your job:\n" +
+                        "- Provide step-by-step instructions using only what’s written in the manual.\n" +
+                        "- Quote a short relevant excerpt.\n" +
+                        "- List safety warnings and required tools/materials if mentioned.\n"
+                },
+                {
+                    id: "bank_statement_extractor",
+                    icon: "🏦",
+                    title: "Bank Statement Extractor",
+                    subtitle: "Extract transactions into a clean table",
+                    tags: ["Finance", "Extraction", "Reconciliation"],
+                    prompt:
+                        "Act as a Bank Statement Extractor.\n\n" +
+                        "Users will upload a bank statement (PDF or scanned image).\n" +
+                        "Your job:\n" +
+                        "- Extract transactions into a table: date, description, debit, credit, balance (if present).\n" +
+                        "- Summarize totals for debits and credits.\n" +
+                        "- If some pages are unreadable, state what is missing.\n"
+                }
+            ],
+            process: [
+                {
+                    id: "expense_approval_aed",
+                    icon: "💳",
+                    title: "Expense Approval (Receipts + Auto-approve)",
+                    subtitle: "Extract from receipts and route by total threshold",
+                    tags: ["Finance", "Approvals", "Extraction"],
+                    prompt:
+                        "Generate an Expense Approval process, process start with use input of Expense Report Name + Upload Receipts (images, multiple files), then Extract from each receipt/invoice expense type, date, vendor, amount (detect currency) after that Calculate total Amount across all receipts. if total Amount < 500 AED the process auto-approve and email employee a friendly summary with all extracted expenses otherwise send to employee’s manager for approval and notify the manager about the pending task (parallel). Once manager approved the task email employee a friendly confirmation with the expense details."
+                },
+                {
+                    id: "invoice_processing_3way_match",
+                    icon: "🧾",
+                    title: "Invoice Processing (3‑way check)",
+                    subtitle: "Extract invoice fields and route exceptions for approval",
+                    tags: ["Invoice", "Approvals", "Extraction"],
+                    prompt:
+                        "Generate an Invoice Processing workflow. Start with Accounts Payable entering invoice reference and uploading the invoice file (PDF or scanned image). Extract vendor, invoice number, invoice date, due date, currency, total, tax, and line items. Ask for a Purchase Order number if not found. If total amount is under 10,000, route to auto-approve and email AP a summary. If 10,000 or more, route to Finance Manager for approval and notify them about the pending approval (use the approval step’s built-in notification). After approval, email AP with the extracted invoice details and the decision."
+                },
+                {
+                    id: "supplier_delivery_delay",
+                    icon: "🚚",
+                    title: "Supplier Delivery Delay Management",
+                    subtitle: "Capture a delay and escalate by severity and time",
+                    tags: ["Supply Chain", "SLA", "Escalation"],
+                    prompt:
+                        "Generate a Supplier Delivery Delay workflow. Start with a user submitting a delay report: supplier name, PO number, expected delivery date, new estimated date, and reason. Classify severity (low/medium/high) based on delay length and criticality. Notify the requester immediately with a summary. If severity is high, route to Supply Chain Manager for approval/decision and enable escalation after 8 hours to Department Head. If severity is low, send a notification to the supply chain team and finish."
+                },
+                {
+                    id: "quality_nonconformance_report",
+                    icon: "✅",
+                    title: "Quality Non‑Conformance Report",
+                    subtitle: "Record an issue and route corrective action approvals",
+                    tags: ["Quality", "Compliance", "Approvals"],
+                    prompt:
+                        "Generate a Quality Non‑Conformance workflow. Start with a user submitting an issue: product, batch/lot number, issue description, photos/documents (multiple files), and severity. Extract key details from uploaded documents if present. If severity is high, route to Quality Manager for approval and notify them immediately. In parallel, notify the production team. After approval, send a confirmation to the requester and log the final decision in a summary message."
+                },
+                {
+                    id: "healthcare_prior_auth",
+                    icon: "🏥",
+                    title: "Healthcare Prior Authorization",
+                    subtitle: "Collect request info, extract from referral, route approval",
+                    tags: ["Healthcare", "Documents", "Approvals"],
+                    prompt:
+                        "Generate a Prior Authorization workflow. Start with a user submitting patient name, policy/member ID, requested service, and uploading supporting documents (referral / medical report). Extract key details from the documents. If required information is missing, route to Collect Information to request it. Then route to Medical Director for approval and notify them about the pending approval using the approval step notification. After decision, notify the requester with a friendly summary including key extracted details."
+                },
+                {
+                    id: "maintenance_work_order",
+                    icon: "🛠️",
+                    title: "Maintenance Work Order",
+                    subtitle: "Request, classify urgency, approve, and notify",
+                    tags: ["Operations", "SLA", "Approvals"],
+                    prompt:
+                        "Generate a Maintenance Work Order process. Start with a user submitting asset/location, problem description, preferred time window, and photos (optional). Classify urgency (low/medium/high). If high, route to Facilities Manager for approval and enable escalation after 4 hours to Department Head. If medium/low, notify the facilities team and send the requester a confirmation with the ticket summary."
+                },
+                {
+                    id: "vendor_onboarding_compliance",
+                    icon: "🤝",
+                    title: "Vendor Onboarding (Compliance Check)",
+                    subtitle: "Collect documents and route compliance approval",
+                    tags: ["Compliance", "Supply Chain", "Documents"],
+                    prompt:
+                        "Generate a Vendor Onboarding workflow. Start with a user entering vendor name, contact email, and uploading required documents (registration certificate, tax documents, bank details). Extract the key details from the documents. If anything is missing, request it. Route to Compliance for approval and notify them. After approval, notify Procurement with the vendor summary and notify the requester that onboarding is complete."
+                },
+                {
+                    id: "inventory_replenishment_approval",
+                    icon: "📊",
+                    title: "Inventory Replenishment Approval",
+                    subtitle: "Request replenishment and route approvals by value",
+                    tags: ["Supply Chain", "Approvals", "Operations"],
+                    prompt:
+                        "Generate an Inventory Replenishment workflow. Start with a user requesting replenishment: item name/SKU, quantity, target warehouse, and justification. Calculate the total estimated value (user provides unit price or total). If total value is under 50,000, auto-approve and notify the requester and warehouse team. If 50,000 or more, route to Supply Chain Manager for approval and enable escalation after 12 hours to Department Head. After decision, notify the requester with a friendly summary."
+                },
+                {
+                    id: "it_incident_change_approval",
+                    icon: "🚨",
+                    title: "IT Incident + Emergency Change Approval",
+                    subtitle: "Capture incident, notify stakeholders, approve emergency fix",
+                    tags: ["IT", "Parallel", "Approvals"],
+                    prompt:
+                        "Generate an IT Incident workflow. Start with a user reporting an incident: impacted service, incident summary, screenshots/logs (optional upload), and severity (low/medium/high). If severity is high, run in parallel: (1) notify the on-call team, (2) notify the department head, and (3) request approval from the IT Manager for an emergency fix (use approval built-in notification). After approval or rejection, notify the requester with the outcome and a short summary."
+                },
+                {
+                    id: "insurance_claim_intake_review",
+                    icon: "🧾",
+                    title: "Insurance Claim Intake & Review",
+                    subtitle: "Collect claim details, extract from documents, route review",
+                    tags: ["Insurance", "Documents", "Approvals"],
+                    prompt:
+                        "Generate an Insurance Claim Intake workflow. Start with a user entering claim type, policy number, claimant contact, incident date, and uploading supporting documents (photos, reports, invoices). Extract key details from the documents (amounts, vendor, dates). If claim total is under 20,000, route to auto-approve and notify the requester. If 20,000 or more, route to Claims Manager for approval and enable escalation after 24 hours to Department Head. After decision, send a friendly summary with extracted details."
+                },
+                {
+                    id: "customs_clearance_review",
+                    icon: "🛃",
+                    title: "Customs Clearance Review",
+                    subtitle: "Extract shipment details and route compliance approval",
+                    tags: ["Customs", "Supply Chain", "Compliance"],
+                    prompt:
+                        "Generate a Customs Clearance workflow. Start with a user uploading shipment documents (commercial invoice, packing list, certificate of origin) and entering shipment reference. Extract exporter/importer, origin, destination, item list, and declared values. If required information is missing, request it via Collect Information. Route to Compliance for approval and notify them. After approval, notify the requester and logistics team with a clear shipment summary."
+                }
+            ]
+        };
+
+        let _createTemplateTab = 'conversational';
+        let _createTemplateQuery = '';
+        const _createTplEsc = (input) => {
+            const s = String(input ?? '');
+            return s
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        };
+
+        function _findCreateTemplateById(id) {
+            const all = [...(AF_CREATE_TEMPLATES.conversational || []), ...(AF_CREATE_TEMPLATES.process || [])];
+            return all.find(t => t && t.id === id) || null;
         }
+
+        function _setCreatePromptText(kind, text) {
+            const el = document.getElementById(kind === 'process' ? 'w-process-goal' : 'w-initial-goal');
+            if (!el) return false;
+            el.value = String(text || '');
+            try {
+                el.focus();
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const prev = el.style.boxShadow;
+                el.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.25)';
+                setTimeout(() => { el.style.boxShadow = prev; }, 900);
+            } catch (_) { /* ignore */ }
+            return true;
+        }
+
+        function applyCreateTemplate(templateId) {
+            const tpl = _findCreateTemplateById(templateId);
+            if (!tpl) return;
+            const kind = (tpl && (AF_CREATE_TEMPLATES.process || []).some(p => p.id === tpl.id)) ? 'process' : 'conversational';
+            _setCreatePromptText(kind, tpl.prompt);
+            try { showToast('Template loaded. You can edit it, then press “Generate with AI”.', 'success'); } catch (_) {}
+        }
+        window.applyCreateTemplate = applyCreateTemplate;
+
+        function _renderTemplateChips() {
+            const convWrap = document.getElementById('conv-template-chips');
+            const procWrap = document.getElementById('proc-template-chips');
+            if (convWrap) {
+                const picks = (AF_CREATE_TEMPLATES.conversational || []).slice(0, 6);
+                convWrap.innerHTML = picks.map(t =>
+                    `<button onclick="applyCreateTemplate('${t.id}')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">${t.icon} ${t.title}</button>`
+                ).join('');
+            }
+            if (procWrap) {
+                const picks = (AF_CREATE_TEMPLATES.process || []).slice(0, 6);
+                procWrap.innerHTML = picks.map(t =>
+                    `<button onclick="applyCreateTemplate('${t.id}')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">${t.icon} ${t.title}</button>`
+                ).join('');
+            }
+        }
+
+        function openCreateTemplateGallery(kind = null) {
+            const modal = document.getElementById('create-template-modal');
+            if (!modal) return;
+            _createTemplateTab = (kind === 'process' || kind === 'conversational') ? kind : (selectedAgentType === 'process' ? 'process' : 'conversational');
+            _createTemplateQuery = '';
+            const search = document.getElementById('create-template-search');
+            if (search) search.value = '';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            switchCreateTemplateTab(_createTemplateTab);
+            _renderCreateTemplateGallery();
+        }
+        window.openCreateTemplateGallery = openCreateTemplateGallery;
+
+        function closeCreateTemplateGallery() {
+            const modal = document.getElementById('create-template-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        window.closeCreateTemplateGallery = closeCreateTemplateGallery;
+
+        function switchCreateTemplateTab(tab) {
+            _createTemplateTab = (tab === 'process') ? 'process' : 'conversational';
+            const convBtn = document.getElementById('create-template-tab-conv');
+            const procBtn = document.getElementById('create-template-tab-proc');
+            const setBtn = (btn, active) => {
+                if (!btn) return;
+                btn.classList.toggle('bg-gray-700', !!active);
+                btn.classList.toggle('bg-gray-800', !active);
+                btn.classList.toggle('text-white', !!active);
+            };
+            setBtn(convBtn, _createTemplateTab === 'conversational');
+            setBtn(procBtn, _createTemplateTab === 'process');
+            _renderCreateTemplateGallery();
+        }
+        window.switchCreateTemplateTab = switchCreateTemplateTab;
+
+        function filterCreateTemplateGallery(q) {
+            _createTemplateQuery = String(q || '');
+            _renderCreateTemplateGallery();
+        }
+        window.filterCreateTemplateGallery = filterCreateTemplateGallery;
+
+        function _renderCreateTemplateGallery() {
+            const grid = document.getElementById('create-template-grid');
+            const empty = document.getElementById('create-template-empty');
+            const titleEl = document.getElementById('create-template-modal-title');
+            if (!grid) return;
+            const list = (_createTemplateTab === 'process' ? AF_CREATE_TEMPLATES.process : AF_CREATE_TEMPLATES.conversational) || [];
+            const q = _createTemplateQuery.trim().toLowerCase();
+            const filtered = list.filter(t => {
+                if (!q) return true;
+                const hay = `${t.title} ${t.subtitle} ${(t.tags || []).join(' ')} ${t.prompt}`.toLowerCase();
+                return hay.includes(q);
+            });
+            if (titleEl) titleEl.textContent = _createTemplateTab === 'process' ? 'Process Templates' : 'Conversational Templates';
+            if (empty) empty.classList.toggle('hidden', filtered.length > 0);
+            grid.innerHTML = filtered.map(t => {
+                const tagHtml = (t.tags || []).slice(0, 4).map(x =>
+                    `<span class="text-[11px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700">${_createTplEsc(String(x))}</span>`
+                ).join(' ');
+                const snippet = String(t.prompt || '').trim().replace(/\s+/g, ' ');
+                const short = snippet.length > 160 ? (snippet.slice(0, 160) + '…') : snippet;
+                return `
+                    <div class="p-4 rounded-xl border border-gray-800 bg-gray-900/40 hover:bg-gray-900/60 transition">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-start gap-3 min-w-0">
+                                <div class="w-11 h-11 rounded-xl bg-gray-800 flex items-center justify-center text-xl flex-shrink-0">${t.icon || '✨'}</div>
+                                <div class="min-w-0">
+                                    <div class="font-semibold text-gray-100 leading-tight">${_createTplEsc(t.title || 'Template')}</div>
+                                    <div class="text-xs text-gray-400 mt-0.5">${_createTplEsc(t.subtitle || '')}</div>
+                                </div>
+                            </div>
+                            <button onclick="applyCreateTemplate('${t.id}'); closeCreateTemplateGallery()" class="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition flex-shrink-0">Use</button>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-1.5">${tagHtml}</div>
+                        <div class="mt-3 text-xs text-gray-400 leading-relaxed">${_createTplEsc(short)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Backward-compatible wrappers for older buttons (kept intentionally).
+        function useAgentTemplate(templateId) {
+            applyCreateTemplate(String(templateId || '').trim());
+        }
+        function useProcessTemplate(templateId) {
+            applyCreateTemplate(String(templateId || '').trim());
+        }
+        window.useAgentTemplate = useAgentTemplate;
+        window.useProcessTemplate = useProcessTemplate;
         
         // =========================================================================
         // AGENT TYPE SELECTION (Conversational vs Workflow)
@@ -1491,6 +1881,8 @@ const API='';
             
             // Ensure the correct AI prompt is visible for current agent type
             try { selectAgentType(selectedAgentType); } catch (_) {}
+            // Ensure template chips are rendered (safe no-op if not present)
+            try { _renderTemplateChips(); } catch (_) { /* ignore */ }
         }
         
         function selectBuildMode(mode) {
