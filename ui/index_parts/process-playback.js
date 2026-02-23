@@ -638,29 +638,29 @@
                     ? (errorMsg || 'The workflow could not complete. Please review the configuration and try again.')
                     : 'Workflow is running. The result will appear when it completes.');
 
-            const outcomeHtmlBusiness = `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(businessOutcomeText)}</div>`;
+            const outcomeHtmlBusiness = `<div style="font-size:14px;color:var(--text-primary);white-space:pre-wrap;line-height:1.55;">${_escapeHtmlCompat(businessOutcomeText)}</div>`;
 
             const outputHtmlTechnical = isCompleted
                 ? (output == null
-                    ? `<div class="text-sm text-gray-500">No output was produced.</div>`
+                    ? `<div style="font-size:13px;color:var(--text-primary);">No output was produced.</div>`
                     : (typeof output === 'string'
-                        ? `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(output)}</div>`
+                        ? `<div style="font-size:13px;color:var(--text-primary);white-space:pre-wrap;line-height:1.55;">${_escapeHtmlCompat(output)}</div>`
                         : (() => {
                             const entries = (output && typeof output === 'object') ? Object.entries(output) : [];
                             if (!entries.length) {
-                                return `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(_renderReportValue(output))}</div>`;
+                                return `<div style="font-size:13px;color:var(--text-primary);white-space:pre-wrap;line-height:1.55;">${_escapeHtmlCompat(_renderReportValue(output))}</div>`;
                             }
                             const rows = entries.slice(0, 48).map(([k, v]) => `
-                                <tr class="border-b border-gray-700/50">
-                                    <td class="py-2 pr-4 text-gray-400 font-medium whitespace-nowrap">${escHtml(humanizeFieldLabel(k) || k)}</td>
-                                    <td class="py-2 text-gray-200">${escHtml(_renderReportValue(v))}</td>
+                                <tr style="border-bottom:1px solid color-mix(in srgb, var(--border-color) 28%, transparent);">
+                                    <td style="padding:10px 14px 10px 0;color:var(--text-secondary);font-weight:650;white-space:nowrap;">${_escapeHtmlCompat(humanizeFieldLabel(k) || k)}</td>
+                                    <td style="padding:10px 0;color:var(--text-primary);">${_escapeHtmlCompat(_renderReportValue(v))}</td>
                                 </tr>
                             `).join('');
-                            return `<div class="overflow-x-auto"><table class="w-full text-sm"><tbody>${rows}</tbody></table></div>`;
+                            return `<div style="overflow-x:auto;"><table style="width:100%;font-size:13px;"><tbody>${rows}</tbody></table></div>`;
                         })()))
                 : (isFailed
-                    ? `<div class="text-sm text-red-300">${escHtml(errorMsg || 'The workflow failed. Please check configuration and try again.')}</div>`
-                    : `<div class="text-sm text-gray-500">Result will appear when the workflow completes.</div>`);
+                    ? `<div style="font-size:13px;color:color-mix(in srgb, var(--danger) 92%, var(--text-primary));line-height:1.55;">${_escapeHtmlCompat(errorMsg || 'The workflow failed. Please check configuration and try again.')}</div>`
+                    : `<div style="font-size:13px;color:var(--text-primary);">Result will appear when the workflow completes.</div>`);
 
             const execId = execution?.id || execution?.execution_id || execution?.executionId;
             const whatHappenedBusiness = `
