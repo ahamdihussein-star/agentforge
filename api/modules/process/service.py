@@ -1834,9 +1834,13 @@ class ProcessAPIService:
                 if not isinstance(rules, list) or len(rules) == 0:
                     legacy_field = type_cfg.get('field') or ''
                     rules = [{'field': legacy_field, 'operator': type_cfg.get('operator') or 'equals', 'value': type_cfg.get('value')}] if legacy_field else []
-                condition_logic = str(type_cfg.get('logic') or 'and').strip().lower()
-                if condition_logic not in ('and', 'or'):
-                    condition_logic = 'and'
+                connectors = type_cfg.get('connectors')
+                if not isinstance(connectors, list):
+                    connectors = []
+                # Backward compat: if old global logic exists, expand to connector list
+                legacy_logic = str(type_cfg.get('logic') or 'and').strip().lower()
+                if legacy_logic not in ('and', 'or'):
+                    legacy_logic = 'and'
 
                 existing_expr = str(type_cfg.get('expression') or '').strip()
 
@@ -1872,15 +1876,56 @@ class ProcessAPIService:
                     else:
                         return f"{{{{{rf}}}}} == {rv_repr}"
 
-                rule_exprs = [_build_rule_expr(r) for r in rules if isinstance(r, dict)]
-                rule_exprs = [e for e in rule_exprs if e]
+                # Normalize connectors length to rules length (n-1)
+                needed = max(0, len(rules) - 1)
+                norm_connectors = [str(c or '').strip().lower() for c in connectors[:needed]]
+                while len(norm_connectors) < needed:
+                    norm_connectors.append(legacy_logic)
+                norm_connectors = [('or' if c == 'or' else 'and') for c in norm_connectors]
+                type_cfg['connectors'] = norm_connectors
+
+                # Build expressions for each rule (keep index alignment with connectors)
+                rule_exprs = []
+                for _i, _r in enumerate(rules):
+                    if not isinstance(_r, dict):
+                        rule_exprs.append(None)
+                        continue
+                    rule_exprs.append(_build_rule_expr(_r))
 
                 if rule_exprs:
-                    joiner = f" and " if condition_logic == 'and' else f" or "
-                    if len(rule_exprs) == 1:
-                        type_cfg['expression'] = rule_exprs[0]
+                    # Create a compound expression using standard boolean precedence:
+                    # AND groups are evaluated before OR groups.
+                    # We do this by grouping contiguous AND-connected rules, then OR-joining those groups.
+                    groups: list[list[str]] = []
+                    cur: list[str] = []
+                    for i, expr in enumerate(rule_exprs):
+                        if not expr:
+                            continue
+                        if not cur:
+                            cur = [expr]
+                        else:
+                            conn = norm_connectors[i - 1] if i - 1 < len(norm_connectors) else 'and'
+                            if conn == 'or':
+                                groups.append(cur)
+                                cur = [expr]
+                            else:
+                                cur.append(expr)
+                    if cur:
+                        groups.append(cur)
+
+                    if len(groups) == 0:
+                        if not existing_expr or existing_expr == 'True':
+                            type_cfg['expression'] = 'True'
+                    elif len(groups) == 1 and len(groups[0]) == 1:
+                        type_cfg['expression'] = groups[0][0]
                     else:
-                        type_cfg['expression'] = joiner.join(f"({e})" for e in rule_exprs)
+                        group_exprs = []
+                        for g in groups:
+                            if len(g) == 1:
+                                group_exprs.append(f"({g[0]})")
+                            else:
+                                group_exprs.append("(" + " and ".join(f"({x})" for x in g) + ")")
+                        type_cfg['expression'] = " or ".join(group_exprs)
                 elif not existing_expr or existing_expr == 'True':
                     type_cfg['expression'] = 'True'
 
@@ -1896,12 +1941,18 @@ class ProcessAPIService:
                     type_cfg['true_branch'] = out.get('yes') or out.get('default')
                     type_cfg['false_branch'] = out.get('no')
                 if _dbg_cond:
+                    _fr = None
+                    for _r in rules:
+                        if isinstance(_r, dict) and str(_r.get('field') or '').strip():
+                            _fr = _r
+                            break
                     logger.info(
-                        "[ConditionDebug] normalize node_id=%s field=%s operator=%s value=%s expression=%s yes=%s no=%s",
+                        "[ConditionDebug] normalize node_id=%s field=%s operator=%s value=%s connectors=%s expression=%s yes=%s no=%s",
                         node.get("id"),
-                        str(field or ""),
-                        str(operator or ""),
-                        str(value or ""),
+                        str((_fr or {}).get("field") or ""),
+                        str((_fr or {}).get("operator") or ""),
+                        str((_fr or {}).get("value") or ""),
+                        str(type_cfg.get("connectors") or ""),
                         str(type_cfg.get("expression") or ""),
                         str(type_cfg.get("true_branch") or ""),
                         str(type_cfg.get("false_branch") or ""),

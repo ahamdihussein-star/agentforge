@@ -383,11 +383,15 @@ Node config rules:
   Custom keys (from HR/LDAP): nationalId, hireDate, officeLocation, costCenter, badgeNumber, or ANY field the organization has configured in their HR system or LDAP directory.
   The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime. If a custom attribute exists in the directory, it will be available for prefill.
   BEST PRACTICE: For any process, ALWAYS prefill every piece of information the system already knows about the user (name, email, department, employee ID, phone, job title, manager, etc.). NEVER ask the user to manually enter data that is available from their profile. This eliminates manual entry and ensures accuracy.
-- condition.config must include a "rules" array and a "logic" field:
-  {{ "rules": [{{"field":"<field_name>","operator":"<op>","value":"<val>"}}, ...], "logic": "and"|"or" }}
+- condition.config must include a "rules" array and may include "connectors" for mixed AND/OR:
+  {{
+    "rules": [{{"field":"<field_name>","operator":"<op>","value":"<val>"}}, ...],
+    "connectors": ["and"|"or", ...]   # optional; length = rules.length - 1
+  }}
   Operators: equals, not_equals, greater_than, less_than, contains, not_contains, starts_with, is_empty, is_not_empty.
-  Use "logic": "and" when ALL rules must be true. Use "logic": "or" when ANY rule can be true.
-  For a single condition, use a rules array with one item: {{ "rules": [{{"field":"totalAmount","operator":"less_than","value":"500"}}], "logic": "and" }}
+  - If you want a single global mode: set connectors to all "and" or all "or".
+  - If you want mixed logic: set connectors per-join, and the engine evaluates with standard precedence (AND groups before OR groups).
+  Backward compat (optional): you may also set "logic":"and|or" and the system will expand it into connectors.
   Also set legacy compat fields: "field" = first rule's field, "operator" = first rule's operator, "value" = first rule's value.
   Note: For is_empty and is_not_empty operators, "value" can be empty.
 - form.config must include: fields (same schema as trigger fields). Use for collecting additional input mid-workflow (not the initial form).
@@ -546,7 +550,8 @@ Node config rules:
 
 - CONDITION ROUTING — HOW IT WORKS:
   The condition uses a "rules" array. Each rule has field, operator, and value.
-  "logic" controls how multiple rules combine: "and" (ALL must be true) or "or" (ANY can be true).
+  Multiple rules can be combined using "connectors" between rules (AND/OR). Connectors can be mixed.
+  The engine evaluates with standard boolean precedence (AND before OR).
   In the condition config, you MUST include "onTrue" and "onFalse" — the node IDs the process goes to:
     - "onTrue": the node ID to go to when the combined result is TRUE
     - "onFalse": the node ID to go to when the combined result is FALSE
@@ -556,12 +561,14 @@ Node config rules:
       - TRUE means the amount IS under 500 → onTrue should point to the step for small amounts (e.g., auto-approve)
       - FALSE means the amount is NOT under 500 → onFalse should point to the step for large amounts (e.g., manager approval)
   Single-rule example:
-    "rules": [{{"field":"totalAmount","operator":"less_than","value":"500"}}], "logic":"and"
+    "rules": [{{"field":"totalAmount","operator":"less_than","value":"500"}}]
     onTrue → auto-approve, onFalse → manager approval
   Multi-rule AND example (employee is senior AND amount is high):
-    "rules": [{{"field":"parsedData.yearsOfService","operator":"greater_than","value":"5"}},{{"field":"parsedData.totalAmount","operator":"greater_than","value":"10000"}}], "logic":"and"
-  Multi-rule OR example (VIP status OR amount is small):
-    "rules": [{{"field":"trigger_input._user_context.isVIP","operator":"equals","value":"true"}},{{"field":"parsedData.totalAmount","operator":"less_than","value":"100"}}], "logic":"or"
+    "rules": [{{"field":"parsedData.yearsOfService","operator":"greater_than","value":"5"}},{{"field":"parsedData.totalAmount","operator":"greater_than","value":"10000"}}],
+    "connectors": ["and"]
+  Mixed example ((VIP) OR (amount < 100 AND department == Finance)):
+    "rules": [{{"field":"trigger_input._user_context.isVIP","operator":"equals","value":"true"}},{{"field":"parsedData.totalAmount","operator":"less_than","value":"100"}},{{"field":"trigger_input._user_context.departmentName","operator":"equals","value":"Finance"}}],
+    "connectors": ["or","and"]
 
 - CURRENCY AND UNITS: When the workflow involves monetary values, the AI parsing step should infer or extract the currency from the uploaded documents. If the user specifies a currency in their goal, use that currency in conditions and notifications. Do NOT hardcode currency — let the AI determine it from context.
 
@@ -621,7 +628,7 @@ condition:
         {{"field": "<variable name, e.g. totalAmount>", "operator": "<less_than|greater_than|equals|not_equals|contains|is_empty|is_not_empty>", "value": "<threshold>"}},
         {{"field": "<another field>", "operator": "<op>", "value": "<val>"}}
     ],
-    "logic": "and|or",
+    "connectors": ["and|or", "..."],
     "field": "<first rule's field (legacy compat)>",
     "operator": "<first rule's operator (legacy compat)>",
     "value": "<first rule's value (legacy compat)>",
@@ -1100,7 +1107,7 @@ class ProcessWizard:
             "and an output_variable. outputFields used in conditions must be type 'number' "
             "(not 'currency').\n\n"
             "11. CONDITION RULES: condition.config must have a 'rules' array (even for single conditions). "
-            "Each rule: {field, operator, value}. Also set 'logic' to 'and' or 'or'. "
+            "Each rule: {field, operator, value}. Use 'connectors' to join rules (and/or), and allow mixed logic. "
             "Set legacy fields: field/operator/value from the first rule.\n\n"
             "Return the CORRECTED process JSON (full object). No markdown, no explanation."
         )
@@ -1783,7 +1790,7 @@ class ProcessWizard:
             for i in range(len(normalized_nodes) - 1):
                 normalized_edges.append({"from": normalized_nodes[i]["id"], "to": normalized_nodes[i + 1]["id"]})
 
-        # Normalize condition config: ensure rules[] array exists with backward compat
+        # Normalize condition config: ensure rules[] and connectors[] exist with backward compat
         for _cn in normalized_nodes:
             if _cn.get("type") != "condition":
                 continue
@@ -1797,8 +1804,18 @@ class ProcessWizard:
                     _cc["rules"] = [{"field": _f, "operator": _o, "value": _v}]
                 else:
                     _cc["rules"] = [{"field": "", "operator": "equals", "value": ""}]
-            if not _cc.get("logic"):
-                _cc["logic"] = "and"
+            # connectors: per-join AND/OR (mixed allowed)
+            _cons = _cc.get("connectors")
+            if not isinstance(_cons, list):
+                _cons = []
+            _needed = max(0, len(_cc["rules"]) - 1)
+            _logic = str(_cc.get("logic") or "and").strip().lower()
+            if _logic not in ("and", "or"):
+                _logic = "and"
+            _cons = [str(c or "").strip().lower() for c in _cons[:_needed]]
+            while len(_cons) < _needed:
+                _cons.append(_logic)
+            _cc["connectors"] = [("or" if c == "or" else "and") for c in _cons]
             first_rule = _cc["rules"][0] if _cc["rules"] else {}
             _cc["field"] = first_rule.get("field", "")
             _cc["operator"] = first_rule.get("operator", "equals")
@@ -2956,7 +2973,7 @@ class ProcessWizard:
             "database_query: Database operation (config: operation, query)",
             "approval: Approval gate (config: title, assignee_type, min_approvals, timeout_hours)",
             "notification: Send notification (config: channel, recipients, title, message)",
-            "condition: If/else branching (config: rules[{field,operator,value},...], logic:'and'|'or' — yes edge = TRUE, no edge = FALSE)",
+            "condition: If/else branching (config: rules[{field,operator,value},...], connectors:['and'|'or',...], mixed allowed — yes edge = TRUE, no edge = FALSE)",
             "loop: Iterate over items (config: items, item_variable, index_variable)",
             "parallel: Parallel execution (config: branches)",
             "transform: Data transformation (config: transform_type, mappings)",

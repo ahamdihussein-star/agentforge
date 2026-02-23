@@ -241,7 +241,9 @@ Config (`condition.config`):
   - `field` (string): The field or variable to evaluate (e.g., `"totalAmount"`, `"parsedData.category"`).
   - `operator` (string): Comparison operator (see table below).
   - `value` (string|number): The value to compare against (leave empty for `is_empty`/`is_not_empty`).
-- `logic` (string): `"and"` (ALL rules must be true) or `"or"` (ANY rule can be true). Default: `"and"`.
+- `connectors` (array, optional): Connectors between rules. Each item is `"and"` or `"or"`. Length must be `rules.length - 1`.
+  - Mixed logic is allowed. The engine evaluates with standard precedence: AND groups are evaluated before OR groups.
+  - If omitted, the system defaults to AND between rules.
 - Legacy compat fields: `field`, `operator`, `value` (mirror the first rule).
 
 **Available Operators:**
@@ -259,9 +261,10 @@ Config (`condition.config`):
 | `is_not_empty` | Has a value |
 
 **Examples:**
-- Single rule: `"rules": [{"field":"totalAmount","operator":"less_than","value":"500"}], "logic":"and"`
-- Multi-rule AND: `"rules": [{"field":"amount","operator":"greater_than","value":"1000"},{"field":"department","operator":"equals","value":"Finance"}], "logic":"and"`
-- Multi-rule OR: `"rules": [{"field":"priority","operator":"equals","value":"urgent"},{"field":"amount","operator":"greater_than","value":"5000"}], "logic":"or"`
+- Single rule: `"rules": [{"field":"totalAmount","operator":"less_than","value":"500"}]`
+- Multi-rule AND: `"rules": [{"field":"amount","operator":"greater_than","value":"1000"},{"field":"department","operator":"equals","value":"Finance"}], "connectors":["and"]`
+- Multi-rule OR: `"rules": [{"field":"priority","operator":"equals","value":"urgent"},{"field":"amount","operator":"greater_than","value":"5000"}], "connectors":["or"]`
+- Mixed: `"rules": [{"field":"isVIP","operator":"equals","value":"true"},{"field":"amount","operator":"less_than","value":"100"},{"field":"department","operator":"equals","value":"Finance"}], "connectors":["or","and"]`
 
 Connection rules: MUST have exactly two outgoing edges — `type: "yes"` and `type: "no"`.
 Layout: "yes" path goes LEFT (x - 300), "no" path goes RIGHT (x + 300). Both reconverge to a shared node below.

@@ -523,7 +523,7 @@ class ConditionRule(BaseModel):
     """A single condition rule"""
     field: str = Field(default="", description="Field to evaluate")
     operator: str = Field(default="equals", description="Comparison operator")
-    value: Optional[str] = Field(default="", description="Value to compare against")
+    value: Optional[Any] = Field(default="", description="Value to compare against")
 
 
 class ConditionConfig(BaseModel):
@@ -532,7 +532,8 @@ class ConditionConfig(BaseModel):
     true_branch: str = Field(default="", description="Node ID if condition is true")
     false_branch: str = Field(default="", description="Node ID if condition is false")
     rules: List[ConditionRule] = Field(default_factory=lambda: [ConditionRule()], description="Business rules to evaluate")
-    logic: str = Field(default="and", description="How to combine rules: 'and' (all true) or 'or' (any true)")
+    connectors: List[str] = Field(default_factory=list, description="Connectors between rules (and/or). Length must be rules.length - 1")
+    logic: str = Field(default="and", description="Backward compatible global logic (expanded into connectors when needed)")
 
 
 class SwitchConfig(BaseModel):
