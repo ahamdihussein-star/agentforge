@@ -368,10 +368,16 @@ Node config rules:
   - If the step has no special rules, instructions can be an empty array [].
 - ai nodes SHOULD include: "output_variable": "<variable_name>" to store the AI output (e.g. "result" or "analysis")
 - AI nodes are POWERFUL: They can parse unstructured text into structured JSON, summarize data, make classifications, calculate totals, detect languages/currencies, validate data, and more. Use them whenever the workflow needs intelligence beyond simple conditions.
-- CALCULATIONS INSIDE AI STEPS: When the workflow needs to compute totals, averages, counts, or any aggregate, do NOT create a separate step. Instead, include the computed values as additional outputFields in the AI step that processes the data.
-  Example: An AI step extracting expense receipts should include outputFields like:
-  [{{"label":"Expense Type","name":"expenseType","type":"text"}}, {{"label":"Amount","name":"amount","type":"currency"}}, {{"label":"Total Amount","name":"totalAmount","type":"currency"}}, {{"label":"Expense Count","name":"expenseCount","type":"number"}}]
-  The AI computes the totals during extraction — no separate step needed. This keeps the workflow simple and avoids variable naming issues.
+- CALCULATIONS INSIDE AI STEPS: When the workflow needs to compute totals, averages, counts, or any aggregate, do NOT create a separate step. Include the computed values as additional outputFields in the AI step that processes the data.
+  CRITICAL RULES:
+  1. The config.prompt MUST explicitly describe how to derive EVERY outputField — especially aggregates.
+     BAD:  "Extract expense data from receipts."  (does NOT mention calculating totals)
+     GOOD: "Extract expense data from each receipt (type, date, vendor, amount). Calculate the total amount across all receipts and count the number of receipts."
+  2. For fields that will be compared in downstream conditions (less than, greater than, equals), use type "number" — NEVER "currency". Store the currency code in a separate text field.
+     BAD:  {{"name":"totalAmount","type":"currency"}}  (condition {{{{totalAmount}}}} < 500 would fail)
+     GOOD: {{"name":"totalAmount","type":"number"}}, {{"name":"currency","type":"text"}}
+  3. Add an instruction: "Return numeric fields as pure numbers (e.g., 500), not as formatted strings (e.g., '500 AED')."
+  4. For multi-file inputs: the prompt MUST say "across ALL files/receipts/documents" (not just "from the receipt").
 - When an AI node parses data into JSON, subsequent condition nodes can reference fields from the parsed output (e.g., if AI stores result in "parsedData", a condition can check "parsedData.totalAmount").
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
@@ -458,9 +464,9 @@ Node config rules:
        config.instructions = array of individual rule strings (injected as system prompt).
      Example:
        "aiMode": "extract_file", "sourceField": "receipt",
-       "prompt": "Extract expense data from: {{{{extractedData}}}}",
-       "outputFields": [{{"label":"Total Amount","name":"totalAmount","type":"currency"}},{{"label":"Vendor","name":"vendor","type":"text"}}],
-       "instructions": ["Only extract explicitly present data","Return amounts as numbers"],
+       "prompt": "Extract expense data from each receipt (type, date, vendor, amount). Calculate the total amount across all receipts.",
+       "outputFields": [{{"label":"Total Amount","name":"totalAmount","type":"number"}},{{"label":"Vendor","name":"vendor","type":"text"}},{{"label":"Currency","name":"currency","type":"text"}}],
+       "instructions": ["Only extract explicitly present data","Return numeric fields as pure numbers (e.g., 500 not '500 AED')"],
        "creativity": 1
 
   2. aiMode: "create_doc" — Generate a document
@@ -1904,6 +1910,103 @@ class ProcessWizard:
 
                     n["config"] = cfg
                     logger.info(f"Enforced JSON output on AI node '{n.get('name')}' (output_variable={ov}) for fields: {expected_fields}")
+
+        # -------------------------------------------------------------------
+        # INTELLIGENCE: Ensure AI prompts cover all outputFields, especially
+        # aggregates. Fix "currency" typed fields used in conditions → "number".
+        # This is fully generic — no domain-specific assumptions.
+        # -------------------------------------------------------------------
+
+        # Collect fields referenced in condition comparisons
+        _condition_ref_fields: set = set()
+        for _n in normalized_nodes:
+            if _n.get("type") != "condition":
+                continue
+            _ccfg = _n.get("config") or {}
+            _fld = str(_ccfg.get("field") or "").strip()
+            if _fld:
+                _condition_ref_fields.add(_fld)
+            _expr = str(_ccfg.get("expression") or "").strip()
+            if _expr:
+                for _m in re.finditer(r"\{\{\s*([A-Za-z_][\w.]*)\s*\}\}", _expr):
+                    _condition_ref_fields.add(_m.group(1))
+
+        # Aggregate signal words (generic, not tied to any domain)
+        _AGG_WORDS = {"total", "sum", "count", "average", "avg", "overall", "grand", "net", "gross", "cumulative", "aggregate"}
+
+        for _n in normalized_nodes:
+            if _n.get("type") != "ai":
+                continue
+            _cfg = _n.get("config") if isinstance(_n.get("config"), dict) else {}
+            _output_fields = _cfg.get("outputFields") or []
+            if not _output_fields:
+                continue
+            _ov = str(_n.get("output_variable") or "").strip()
+            _prompt = str(_cfg.get("prompt") or "").strip()
+            _instr = _cfg.get("instructions") if isinstance(_cfg.get("instructions"), list) else []
+            _instr = [str(x).strip() for x in _instr if isinstance(x, str) and str(x).strip()]
+            _changed = False
+
+            # A) Fix "currency" typed outputFields referenced by conditions → "number"
+            for _of in _output_fields:
+                _ofn = str(_of.get("name") or "").strip()
+                _oft = str(_of.get("type") or "").strip().lower()
+                _full_path = f"{_ov}.{_ofn}" if _ov else _ofn
+                if _oft == "currency" and (_ofn in _condition_ref_fields or _full_path in _condition_ref_fields):
+                    _of["type"] = "number"
+                    _changed = True
+                    logger.info("Intelligence fix: AI outputField '%s' type 'currency' → 'number' (used in condition comparison)", _ofn)
+
+            # B) Check if aggregate outputFields are described in the prompt
+            _agg_fields_not_in_prompt = []
+            for _of in _output_fields:
+                _ofl = str(_of.get("label") or _of.get("name") or "").strip().lower()
+                _ofn = str(_of.get("name") or "").strip().lower()
+                _is_agg = any(w in _ofl.split() or w in _ofn for w in _AGG_WORDS)
+                if not _is_agg:
+                    continue
+                _prompt_lower = _prompt.lower()
+                _label_words = set(_ofl.split())
+                # Check if the prompt mentions the aggregate concept
+                if not any(w in _prompt_lower for w in _label_words & _AGG_WORDS):
+                    _agg_fields_not_in_prompt.append(_of.get("label") or _of.get("name"))
+
+            if _agg_fields_not_in_prompt:
+                _agg_instruction = (
+                    "You MUST compute these aggregate values from all the provided data: "
+                    + ", ".join(_agg_fields_not_in_prompt)
+                    + ". Include them in your output."
+                )
+                if all(_agg_instruction != x for x in _instr):
+                    _instr.append(_agg_instruction)
+                    _changed = True
+                    logger.info("Intelligence fix: added aggregation instruction for fields: %s", _agg_fields_not_in_prompt)
+
+            # C) Ensure numeric return instruction exists when any condition field is present
+            _has_numeric = any(
+                str(_of.get("type") or "").strip().lower() in ("number", "currency")
+                for _of in _output_fields
+            )
+            if _has_numeric:
+                _num_rule = "Return numeric fields as pure numbers (e.g., 500), not formatted strings (e.g., '500 AED')."
+                if all(_num_rule != x for x in _instr):
+                    _instr.append(_num_rule)
+                    _changed = True
+
+            # D) Multi-file source: ensure prompt says "all" not just singular
+            _src_field = str(_cfg.get("sourceField") or "").strip()
+            _is_multi = _src_field and _src_field in trigger_multi_file_fields
+            if _is_multi and _prompt:
+                _prompt_lower = _prompt.lower()
+                if not any(kw in _prompt_lower for kw in ("all ", "each ", "every ", "across ")):
+                    _prompt = _prompt.rstrip(". ") + ". Process ALL uploaded files and aggregate results across all of them."
+                    _cfg["prompt"] = _prompt
+                    _changed = True
+                    logger.info("Intelligence fix: enhanced multi-file AI prompt to mention all files")
+
+            if _changed:
+                _cfg["instructions"] = _instr
+                _n["config"] = _cfg
 
         # ENFORCE: Notification nodes must have recipient and template populated.
         # The LLM may use engine format (recipients/message) instead of visual builder format (recipient/template),
