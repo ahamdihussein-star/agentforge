@@ -1340,256 +1340,39 @@ const API='';
             return NotificationSystem.show(message, type, options);
         }
 
-        // =========================================================================
-        // MODERN MODALS (Confirm / Alert / Prompt)
-        // =========================================================================
-        function _afEnsureModalHost() {
-            let host = document.getElementById('af-modal-host');
-            if (host) return host;
-            host = document.createElement('div');
-            host.id = 'af-modal-host';
-            host.style.position = 'fixed';
-            host.style.inset = '0';
-            host.style.zIndex = '100000';
-            host.style.display = 'none';
-            document.body.appendChild(host);
-            return host;
-        }
-
-        function _afOpenModal(opts = {}) {
-            const host = _afEnsureModalHost();
-            host.style.display = 'block';
-            host.innerHTML = '';
-
-            const title = String(opts.title || 'Confirm');
-            const message = String(opts.message || '');
-            const variant = String(opts.variant || 'confirm'); // confirm | alert | prompt
-            const danger = !!opts.danger;
-            const confirmText = String(opts.confirmText || (variant === 'alert' ? 'OK' : 'Confirm'));
-            const cancelText = String(opts.cancelText || 'Cancel');
-            const defaultValue = (opts.defaultValue != null) ? String(opts.defaultValue) : '';
-            const placeholder = String(opts.placeholder || '');
-            const multiline = !!opts.multiline;
-            const required = !!opts.required;
-
-            return new Promise((resolve) => {
-                const prevActive = document.activeElement;
-
-                const overlay = document.createElement('div');
-                overlay.style.position = 'absolute';
-                overlay.style.inset = '0';
-                let _theme = '';
-                try {
-                    _theme = (document.documentElement.getAttribute('data-theme') || localStorage.getItem('agentforge-theme') || '').toLowerCase();
-                } catch (_) { _theme = ''; }
-                overlay.style.background = _theme === 'light' ? 'rgba(2, 6, 23, 0.35)' : 'rgba(0,0,0,0.55)';
-                overlay.style.backdropFilter = 'blur(6px)';
-
-                const modal = document.createElement('div');
-                modal.setAttribute('role', 'dialog');
-                modal.setAttribute('aria-modal', 'true');
-                modal.style.position = 'absolute';
-                modal.style.left = '50%';
-                modal.style.top = '18%';
-                modal.style.transform = 'translateX(-50%)';
-                modal.style.width = 'min(560px, calc(100% - 24px))';
-                modal.style.borderRadius = '16px';
-                modal.style.border = '1px solid color-mix(in srgb, var(--border-color, #94a3b8) 30%, transparent)';
-                modal.style.background = 'color-mix(in srgb, var(--bg-card, #111827) 92%, transparent)';
-                modal.style.color = 'var(--text-primary, #f1f5f9)';
-                modal.style.boxShadow = '0 25px 50px -12px rgba(0,0,0,0.65)';
-                modal.style.overflow = 'hidden';
-
-                const header = document.createElement('div');
-                header.style.display = 'flex';
-                header.style.alignItems = 'center';
-                header.style.justifyContent = 'space-between';
-                header.style.padding = '16px 18px 10px 18px';
-                header.style.borderBottom = '1px solid color-mix(in srgb, var(--border-color, #94a3b8) 22%, transparent)';
-
-                const hTitle = document.createElement('div');
-                hTitle.id = 'af-modal-title';
-                hTitle.style.fontSize = '15px';
-                hTitle.style.fontWeight = '800';
-                hTitle.style.letterSpacing = '0.2px';
-                hTitle.textContent = title;
-
-                const closeBtn = document.createElement('button');
-                closeBtn.type = 'button';
-                closeBtn.setAttribute('aria-label', 'Close');
-                closeBtn.textContent = '×';
-                closeBtn.style.width = '34px';
-                closeBtn.style.height = '34px';
-                closeBtn.style.borderRadius = '10px';
-                closeBtn.style.border = '1px solid color-mix(in srgb, var(--border-color, #94a3b8) 26%, transparent)';
-                closeBtn.style.background = 'color-mix(in srgb, var(--border-color, #94a3b8) 10%, var(--bg-card, #111827))';
-                closeBtn.style.color = 'var(--text-primary, #f1f5f9)';
-                closeBtn.style.cursor = 'pointer';
-
-                const body = document.createElement('div');
-                body.style.padding = '0 18px 14px 18px';
-
-                const p = document.createElement('div');
-                p.id = 'af-modal-message';
-                p.style.fontSize = '13px';
-                p.style.lineHeight = '1.6';
-                p.style.color = 'color-mix(in srgb, var(--text-primary, #f1f5f9) 86%, transparent)';
-                p.textContent = message;
-                body.appendChild(p);
-
-                let inputEl = null;
-                if (variant === 'prompt') {
-                    inputEl = document.createElement(multiline ? 'textarea' : 'input');
-                    if (!multiline) inputEl.type = 'text';
-                    inputEl.value = defaultValue;
-                    inputEl.placeholder = placeholder;
-                    inputEl.style.marginTop = '12px';
-                    inputEl.style.width = '100%';
-                    inputEl.style.borderRadius = '12px';
-                    inputEl.style.border = '1px solid color-mix(in srgb, var(--border-color, #94a3b8) 35%, transparent)';
-                    inputEl.style.background = 'color-mix(in srgb, var(--bg-input, #0b1220) 92%, transparent)';
-                    inputEl.style.color = 'var(--text-primary, #f1f5f9)';
-                    inputEl.style.padding = '10px 12px';
-                    inputEl.style.fontSize = '13px';
-                    inputEl.style.outline = 'none';
-                    if (multiline) {
-                        inputEl.rows = 3;
-                        inputEl.style.resize = 'vertical';
-                        inputEl.style.minHeight = '92px';
-                    }
-                    body.appendChild(inputEl);
-                }
-
-                const footer = document.createElement('div');
-                footer.style.display = 'flex';
-                footer.style.gap = '10px';
-                footer.style.justifyContent = 'flex-end';
-                footer.style.padding = '14px 18px 18px 18px';
-                footer.style.borderTop = '1px solid color-mix(in srgb, var(--border-color, #94a3b8) 22%, transparent)';
-
-                const cancel = document.createElement('button');
-                cancel.type = 'button';
-                cancel.textContent = cancelText;
-                cancel.style.borderRadius = '12px';
-                cancel.style.border = '1px solid color-mix(in srgb, var(--border-color, #94a3b8) 30%, transparent)';
-                cancel.style.background = 'color-mix(in srgb, var(--border-color, #94a3b8) 10%, var(--bg-card, #111827))';
-                cancel.style.color = 'var(--text-primary, #f1f5f9)';
-                cancel.style.padding = '10px 14px';
-                cancel.style.fontSize = '13px';
-                cancel.style.cursor = 'pointer';
-
-                const confirm = document.createElement('button');
-                confirm.type = 'button';
-                confirm.textContent = confirmText;
-                confirm.style.borderRadius = '12px';
-                confirm.style.border = '1px solid color-mix(in srgb, var(--border-color, #94a3b8) 20%, transparent)';
-                confirm.style.background = danger ? 'rgba(239, 68, 68, 0.95)' : 'rgba(99, 102, 241, 0.95)';
-                confirm.style.color = '#fff';
-                confirm.style.padding = '10px 14px';
-                confirm.style.fontSize = '13px';
-                confirm.style.fontWeight = '700';
-                confirm.style.cursor = 'pointer';
-
-                const cleanup = (result) => {
-                    try { host.style.display = 'none'; } catch (_) {}
-                    try { host.innerHTML = ''; } catch (_) {}
-                    try { document.removeEventListener('keydown', onKey, true); } catch (_) {}
-                    try { prevActive && prevActive.focus && prevActive.focus(); } catch (_) {}
-                    resolve(result);
-                };
-
-                const onKey = (e) => {
-                    if (e.key === 'Escape') {
-                        e.preventDefault();
-                        cleanup(variant === 'prompt' ? null : false);
-                        return;
-                    }
-                    if (e.key === 'Enter') {
-                        // Allow newline in textarea
-                        if (variant === 'prompt' && multiline && e.target === inputEl) return;
-                        e.preventDefault();
-                        confirm.click();
-                    }
-                };
-
-                overlay.addEventListener('click', () => cleanup(variant === 'prompt' ? null : false));
-                closeBtn.addEventListener('click', () => cleanup(variant === 'prompt' ? null : false));
-                cancel.addEventListener('click', () => cleanup(variant === 'prompt' ? null : false));
-
-                confirm.addEventListener('click', () => {
-                    if (variant === 'alert') return cleanup(true);
-                    if (variant === 'confirm') return cleanup(true);
-                    const val = inputEl ? String(inputEl.value || '').trim() : '';
-                    if (required && !val) {
-                        try { inputEl.focus(); } catch (_) {}
-                        return;
-                    }
-                    cleanup(val);
-                });
-
-                header.appendChild(hTitle);
-                header.appendChild(closeBtn);
-
-                if (variant !== 'alert') footer.appendChild(cancel);
-                footer.appendChild(confirm);
-
-                modal.appendChild(header);
-                modal.appendChild(body);
-                modal.appendChild(footer);
-
-                host.appendChild(overlay);
-                host.appendChild(modal);
-
-                document.addEventListener('keydown', onKey, true);
-                setTimeout(() => {
-                    try { (inputEl || confirm).focus(); } catch (_) {}
-                }, 0);
-            });
-        }
-
+        // Modern dialogs are provided by `/ui/dialogs.js` (reusable component).
+        // We keep small, local fallbacks so the app remains resilient if the
+        // shared component fails to load for any reason.
         async function uiConfirm(message, options = {}) {
-            return !!(await _afOpenModal({
-                variant: 'confirm',
-                title: options.title || 'Confirm',
-                message: String(message || ''),
-                confirmText: options.confirmText || 'Confirm',
-                cancelText: options.cancelText || 'Cancel',
-                danger: !!options.danger,
-            }));
+            try {
+                if (typeof window !== 'undefined' && typeof window.afConfirm === 'function') {
+                    return !!(await window.afConfirm(message, options));
+                }
+            } catch (_) { /* ignore */ }
+            return !!confirm(String(message || 'Are you sure?'));
         }
 
         async function uiAlert(message, options = {}) {
-            await _afOpenModal({
-                variant: 'alert',
-                title: options.title || 'Notice',
-                message: String(message || ''),
-                confirmText: options.buttonText || 'OK',
-                danger: false,
-            });
+            try {
+                if (typeof window !== 'undefined' && typeof window.afAlert === 'function') {
+                    await window.afAlert(message, options);
+                    return true;
+                }
+            } catch (_) { /* ignore */ }
+            alert(String(message || ''));
             return true;
         }
 
         async function uiPrompt(message, options = {}) {
-            const out = await _afOpenModal({
-                variant: 'prompt',
-                title: options.title || 'Add a note',
-                message: String(message || ''),
-                confirmText: options.confirmText || 'Save',
-                cancelText: options.cancelText || 'Cancel',
-                danger: !!options.danger,
-                defaultValue: options.defaultValue || '',
-                placeholder: options.placeholder || '',
-                multiline: options.multiline !== false,
-                required: !!options.required,
-            });
+            try {
+                if (typeof window !== 'undefined' && typeof window.afPrompt === 'function') {
+                    return await window.afPrompt(message, options);
+                }
+            } catch (_) { /* ignore */ }
+            // Fallback prompt: single-line only
+            const out = prompt(String(message || ''), String(options.defaultValue || ''));
             return out === null ? null : String(out);
         }
-
-        try {
-            window.uiConfirm = uiConfirm;
-            window.uiAlert = uiAlert;
-            window.uiPrompt = uiPrompt;
-        } catch (_) { /* ignore */ }
         
         // Agent Templates
         function useAgentTemplate(template) {

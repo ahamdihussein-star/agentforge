@@ -325,6 +325,196 @@
     --tb-btn-success-hover: #059669;
 }
 
+/* ============================================================================
+ * Reusable Dialogs + Toasts (single component)
+ * Theme is controlled from THIS file using variables below.
+ * Used by: Admin Portal + Process Builder (via /ui/dialogs.js)
+ * ========================================================================== */
+
+:root {
+    --af-overlay-bg: rgba(0, 0, 0, 0.55);
+    --af-modal-bg: color-mix(in srgb, var(--bg-card, #111827) 92%, transparent);
+    --af-modal-border: color-mix(in srgb, var(--border-color, #94a3b8) 30%, transparent);
+    --af-modal-text: var(--text-primary, #f1f5f9);
+    --af-modal-subtext: color-mix(in srgb, var(--text-primary, #f1f5f9) 86%, transparent);
+
+    --af-btn-secondary-bg: color-mix(in srgb, var(--border-color, #94a3b8) 10%, var(--bg-card, #111827));
+    --af-btn-secondary-border: color-mix(in srgb, var(--border-color, #94a3b8) 30%, transparent);
+    --af-btn-secondary-text: var(--text-primary, #f1f5f9);
+
+    --af-btn-primary-bg: rgba(99, 102, 241, 0.95);
+    --af-btn-primary-text: #ffffff;
+    --af-btn-danger-bg: rgba(239, 68, 68, 0.95);
+    --af-btn-danger-text: #ffffff;
+
+    --af-toast-max-width: 420px;
+}
+
+[data-theme="light"] {
+    --af-overlay-bg: rgba(2, 6, 23, 0.35);
+}
+
+.af-modal-host {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: none;
+}
+.af-modal-host.af-modal-host--open { display: block; }
+
+.af-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--af-overlay-bg);
+    backdrop-filter: blur(6px);
+}
+
+.af-modal {
+    position: absolute;
+    left: 50%;
+    top: 18%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100% - 24px));
+    border-radius: 16px;
+    border: 1px solid var(--af-modal-border);
+    background: var(--af-modal-bg);
+    color: var(--af-modal-text);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.65);
+    overflow: hidden;
+}
+.af-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 10px 18px;
+    border-bottom: 1px solid color-mix(in srgb, var(--af-modal-border) 70%, transparent);
+}
+.af-modal__title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+.af-modal__close {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid var(--af-btn-secondary-border);
+    background: var(--af-btn-secondary-bg);
+    color: var(--af-btn-secondary-text);
+    cursor: pointer;
+}
+.af-modal__body { padding: 0 18px 14px 18px; }
+.af-modal__message {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--af-modal-subtext);
+}
+.af-modal__input {
+    margin-top: 12px;
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--af-btn-secondary-border);
+    background: color-mix(in srgb, var(--bg-input, #0b1220) 92%, transparent);
+    color: var(--af-modal-text);
+    padding: 10px 12px;
+    font-size: 13px;
+    outline: none;
+    resize: vertical;
+    min-height: 92px;
+}
+.af-modal__footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 14px 18px 18px 18px;
+    border-top: 1px solid color-mix(in srgb, var(--af-modal-border) 70%, transparent);
+}
+
+.af-btn {
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+.af-btn--secondary {
+    border: 1px solid var(--af-btn-secondary-border);
+    background: var(--af-btn-secondary-bg);
+    color: var(--af-btn-secondary-text);
+}
+.af-btn--primary {
+    border: 1px solid color-mix(in srgb, var(--af-modal-border) 60%, transparent);
+    background: var(--af-btn-primary-bg);
+    color: var(--af-btn-primary-text);
+    font-weight: 700;
+}
+.af-btn--danger {
+    border: 1px solid color-mix(in srgb, var(--af-modal-border) 60%, transparent);
+    background: var(--af-btn-danger-bg);
+    color: var(--af-btn-danger-text);
+    font-weight: 700;
+}
+
+.af-toast-host {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 100000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: var(--af-toast-max-width);
+}
+.af-toast {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    border-radius: 14px;
+    padding: 10px 12px;
+    color: var(--af-modal-text);
+    font-size: 13px;
+    line-height: 1.45;
+    box-shadow: 0 18px 40px -18px rgba(0,0,0,0.55);
+    border: 1px solid color-mix(in srgb, var(--af-modal-border) 70%, transparent);
+    background: color-mix(in srgb, var(--af-modal-bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+}
+.af-toast__icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    background: color-mix(in srgb, var(--af-modal-border) 75%, transparent);
+    color: var(--af-modal-text);
+}
+.af-toast__body { flex: 1; }
+.af-toast__close {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    border: 1px solid var(--af-btn-secondary-border);
+    background: var(--af-btn-secondary-bg);
+    color: var(--af-btn-secondary-text);
+    cursor: pointer;
+}
+
+.af-toast--success {
+    background: color-mix(in srgb, rgba(34, 197, 94, 0.16) 70%, var(--af-modal-bg));
+    border-color: color-mix(in srgb, rgba(34, 197, 94, 0.45) 55%, var(--af-modal-border));
+}
+.af-toast--warning {
+    background: color-mix(in srgb, rgba(245, 158, 11, 0.16) 70%, var(--af-modal-bg));
+    border-color: color-mix(in srgb, rgba(245, 158, 11, 0.45) 55%, var(--af-modal-border));
+}
+.af-toast--error,
+.af-toast--danger {
+    background: color-mix(in srgb, rgba(239, 68, 68, 0.16) 70%, var(--af-modal-bg));
+    border-color: color-mix(in srgb, rgba(239, 68, 68, 0.45) 55%, var(--af-modal-border));
+}
+
 /* ========== إلغاء الخلفيات السوداء + تناسق النص مع الخلفية ========== */
 .bg-black {
     background: var(--bg-primary) !important;

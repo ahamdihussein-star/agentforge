@@ -50,264 +50,35 @@
             return div.innerHTML;
         }
 
-        // ===== MODERN UI MESSAGES (Toast / Confirm / Alert) =====
-        function _pbEnsureToastHost() {
-            let host = document.getElementById('pb-toast-host');
-            if (host) return host;
-            host = document.createElement('div');
-            host.id = 'pb-toast-host';
-            host.style.position = 'fixed';
-            host.style.right = '16px';
-            host.style.bottom = '16px';
-            host.style.zIndex = '100000';
-            host.style.display = 'flex';
-            host.style.flexDirection = 'column';
-            host.style.gap = '10px';
-            host.style.maxWidth = '420px';
-            document.body.appendChild(host);
-            return host;
-        }
-
+        // ===== MODERN UI MESSAGES (reusable component) =====
+        // Provided by `/ui/dialogs.js` (single source of truth for styling + behavior).
         function pbToast(message, type = 'info', opts = {}) {
-            const host = _pbEnsureToastHost();
-            const el = document.createElement('div');
-            const t = String(type || 'info').toLowerCase();
-            const isErr = t === 'error' || t === 'danger';
-            const isWarn = t === 'warning' || t === 'warn';
-            const isOk = t === 'success' || t === 'ok';
-            const bg = isErr ? 'rgba(239, 68, 68, 0.14)' : isWarn ? 'rgba(245, 158, 11, 0.14)' : isOk ? 'rgba(34, 197, 94, 0.14)' : 'rgba(99, 102, 241, 0.14)';
-            const bd = isErr ? 'rgba(239, 68, 68, 0.35)' : isWarn ? 'rgba(245, 158, 11, 0.35)' : isOk ? 'rgba(34, 197, 94, 0.35)' : 'rgba(99, 102, 241, 0.35)';
-            el.style.border = `1px solid ${bd}`;
-            el.style.background = bg;
-            el.style.backdropFilter = 'blur(8px)';
-            el.style.borderRadius = '14px';
-            el.style.padding = '10px 12px';
-            el.style.color = 'var(--pb-text, #e5e7eb)';
-            el.style.fontSize = '13px';
-            el.style.lineHeight = '1.45';
-            el.style.boxShadow = '0 18px 40px -18px rgba(0,0,0,0.55)';
-            el.style.display = 'flex';
-            el.style.gap = '10px';
-            el.style.alignItems = 'flex-start';
-            el.style.cursor = 'default';
-
-            const icon = document.createElement('div');
-            icon.textContent = isErr ? '!' : isWarn ? '!' : isOk ? '✓' : 'i';
-            icon.style.width = '20px';
-            icon.style.height = '20px';
-            icon.style.borderRadius = '999px';
-            icon.style.display = 'flex';
-            icon.style.alignItems = 'center';
-            icon.style.justifyContent = 'center';
-            icon.style.fontWeight = '900';
-            icon.style.background = bd;
-            icon.style.color = 'var(--pb-text, #e5e7eb)';
-
-            const body = document.createElement('div');
-            body.style.flex = '1';
-            body.textContent = String(message || '');
-
-            const close = document.createElement('button');
-            close.type = 'button';
-            close.textContent = '×';
-            close.style.border = '1px solid rgba(255,255,255,0.10)';
-            close.style.background = 'rgba(255,255,255,0.06)';
-            close.style.color = 'var(--pb-text, #e5e7eb)';
-            close.style.borderRadius = '10px';
-            close.style.width = '30px';
-            close.style.height = '30px';
-            close.style.cursor = 'pointer';
-
-            close.addEventListener('click', () => { try { el.remove(); } catch (_) {} });
-            el.addEventListener('click', () => { try { el.remove(); } catch (_) {} });
-
-            el.appendChild(icon);
-            el.appendChild(body);
-            el.appendChild(close);
-            host.appendChild(el);
-
-            const duration = Math.max(1200, Math.min(12000, parseInt(opts.duration, 10) || (isErr ? 5200 : isWarn ? 4200 : 2600)));
-            setTimeout(() => { try { el.remove(); } catch (_) {} }, duration);
-        }
-
-        function _pbEnsureModalHost() {
-            let host = document.getElementById('pb-modal-host');
-            if (host) return host;
-            host = document.createElement('div');
-            host.id = 'pb-modal-host';
-            host.style.position = 'fixed';
-            host.style.inset = '0';
-            host.style.zIndex = '100001';
-            host.style.display = 'none';
-            document.body.appendChild(host);
-            return host;
-        }
-
-        function _pbOpenModal(opts = {}) {
-            const host = _pbEnsureModalHost();
-            host.style.display = 'block';
-            host.innerHTML = '';
-
-            const title = String(opts.title || 'Confirm');
-            const message = String(opts.message || '');
-            const variant = String(opts.variant || 'confirm'); // confirm | alert
-            const danger = !!opts.danger;
-            const confirmText = String(opts.confirmText || (variant === 'alert' ? 'OK' : 'Confirm'));
-            const cancelText = String(opts.cancelText || 'Cancel');
-
-            return new Promise((resolve) => {
-                const prevActive = document.activeElement;
-
-                const overlay = document.createElement('div');
-                overlay.style.position = 'absolute';
-                overlay.style.inset = '0';
-                // Slightly lighter overlay in light theme for readability
-                let _theme = '';
-                try {
-                    _theme = (document.documentElement.getAttribute('data-theme') || localStorage.getItem('agentforge-theme') || '').toLowerCase();
-                } catch (_) { _theme = ''; }
-                overlay.style.background = _theme === 'light' ? 'rgba(2, 6, 23, 0.35)' : 'rgba(0,0,0,0.55)';
-                overlay.style.backdropFilter = 'blur(6px)';
-
-                const modal = document.createElement('div');
-                modal.setAttribute('role', 'dialog');
-                modal.setAttribute('aria-modal', 'true');
-                modal.style.position = 'absolute';
-                modal.style.left = '50%';
-                modal.style.top = '16%';
-                modal.style.transform = 'translateX(-50%)';
-                modal.style.width = 'min(560px, calc(100% - 24px))';
-                modal.style.borderRadius = '16px';
-                // Use theme variables so it works in both dark & light modes
-                modal.style.border = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 28%, transparent)';
-                modal.style.background = 'color-mix(in srgb, var(--pb-panel, #111827) 92%, transparent)';
-                modal.style.color = 'var(--pb-text, #e5e7eb)';
-                modal.style.boxShadow = '0 25px 50px -12px rgba(0,0,0,0.65)';
-                modal.style.overflow = 'hidden';
-
-                const header = document.createElement('div');
-                header.style.display = 'flex';
-                header.style.alignItems = 'center';
-                header.style.justifyContent = 'space-between';
-                header.style.padding = '16px 18px 10px 18px';
-                header.style.borderBottom = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 18%, transparent)';
-
-                const hTitle = document.createElement('div');
-                hTitle.style.fontSize = '15px';
-                hTitle.style.fontWeight = '800';
-                hTitle.style.letterSpacing = '0.2px';
-                hTitle.textContent = title;
-
-                const closeBtn = document.createElement('button');
-                closeBtn.type = 'button';
-                closeBtn.setAttribute('aria-label', 'Close');
-                closeBtn.textContent = '×';
-                closeBtn.style.width = '34px';
-                closeBtn.style.height = '34px';
-                closeBtn.style.borderRadius = '10px';
-                closeBtn.style.border = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 24%, transparent)';
-                closeBtn.style.background = 'color-mix(in srgb, var(--pb-muted, #94a3b8) 10%, var(--pb-panel, #111827))';
-                closeBtn.style.color = 'var(--pb-text, #e5e7eb)';
-                closeBtn.style.cursor = 'pointer';
-
-                const body = document.createElement('div');
-                body.style.padding = '0 18px 14px 18px';
-                const p = document.createElement('div');
-                p.style.fontSize = '13px';
-                p.style.lineHeight = '1.6';
-                p.style.color = 'color-mix(in srgb, var(--pb-text, #e5e7eb) 92%, transparent)';
-                p.textContent = message;
-                body.appendChild(p);
-
-                const footer = document.createElement('div');
-                footer.style.display = 'flex';
-                footer.style.gap = '10px';
-                footer.style.justifyContent = 'flex-end';
-                footer.style.padding = '14px 18px 18px 18px';
-                footer.style.borderTop = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 18%, transparent)';
-
-                const cancel = document.createElement('button');
-                cancel.type = 'button';
-                cancel.textContent = cancelText;
-                cancel.style.borderRadius = '12px';
-                cancel.style.border = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 28%, transparent)';
-                cancel.style.background = 'color-mix(in srgb, var(--pb-muted, #94a3b8) 10%, var(--pb-panel, #111827))';
-                cancel.style.color = 'var(--pb-text, #e5e7eb)';
-                cancel.style.padding = '10px 14px';
-                cancel.style.fontSize = '13px';
-                cancel.style.cursor = 'pointer';
-
-                const confirm = document.createElement('button');
-                confirm.type = 'button';
-                confirm.textContent = confirmText;
-                confirm.style.borderRadius = '12px';
-                confirm.style.border = '1px solid rgba(255,255,255,0.10)';
-                confirm.style.background = danger ? 'rgba(239, 68, 68, 0.95)' : 'rgba(99, 102, 241, 0.95)';
-                confirm.style.color = '#fff';
-                confirm.style.padding = '10px 14px';
-                confirm.style.fontSize = '13px';
-                confirm.style.fontWeight = '700';
-                confirm.style.cursor = 'pointer';
-
-                const cleanup = (result) => {
-                    try { host.style.display = 'none'; } catch (_) {}
-                    try { host.innerHTML = ''; } catch (_) {}
-                    try { document.removeEventListener('keydown', onKey, true); } catch (_) {}
-                    try { prevActive && prevActive.focus && prevActive.focus(); } catch (_) {}
-                    resolve(result);
-                };
-
-                const onKey = (e) => {
-                    if (e.key === 'Escape') {
-                        e.preventDefault();
-                        cleanup(false);
-                        return;
-                    }
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        confirm.click();
-                    }
-                };
-
-                overlay.addEventListener('click', () => cleanup(false));
-                closeBtn.addEventListener('click', () => cleanup(false));
-                cancel.addEventListener('click', () => cleanup(false));
-                confirm.addEventListener('click', () => cleanup(true));
-
-                header.appendChild(hTitle);
-                header.appendChild(closeBtn);
-                if (variant !== 'alert') footer.appendChild(cancel);
-                footer.appendChild(confirm);
-                modal.appendChild(header);
-                modal.appendChild(body);
-                modal.appendChild(footer);
-                host.appendChild(overlay);
-                host.appendChild(modal);
-
-                document.addEventListener('keydown', onKey, true);
-                setTimeout(() => { try { confirm.focus(); } catch (_) {} }, 0);
-            });
+            try {
+                if (typeof window !== 'undefined' && typeof window.afToast === 'function') {
+                    return window.afToast(message, type, opts);
+                }
+            } catch (_) { /* ignore */ }
+            // Fallback (should be rare)
+            try { console.log('[toast]', type, message); } catch (_) {}
         }
 
         async function pbConfirm(message, options = {}) {
-            return !!(await _pbOpenModal({
-                variant: 'confirm',
-                title: options.title || 'Confirm',
-                message: String(message || ''),
-                confirmText: options.confirmText || 'Confirm',
-                cancelText: options.cancelText || 'Cancel',
-                danger: !!options.danger,
-            }));
+            try {
+                if (typeof window !== 'undefined' && typeof window.afConfirm === 'function') {
+                    return !!(await window.afConfirm(message, options));
+                }
+            } catch (_) { /* ignore */ }
+            return !!confirm(String(message || 'Are you sure?'));
         }
 
         async function pbAlert(message, options = {}) {
-            await _pbOpenModal({
-                variant: 'alert',
-                title: options.title || 'Notice',
-                message: String(message || ''),
-                confirmText: options.buttonText || 'OK',
-                danger: false,
-            });
+            try {
+                if (typeof window !== 'undefined' && typeof window.afAlert === 'function') {
+                    await window.afAlert(message, options);
+                    return true;
+                }
+            } catch (_) { /* ignore */ }
+            alert(String(message || ''));
             return true;
         }
 
