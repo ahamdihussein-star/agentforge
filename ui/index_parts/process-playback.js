@@ -437,32 +437,7 @@
             }).join('');
             el.innerHTML = `<div class="space-y-3">${cards}</div>`;
 
-            // Enrich the "What happened" step cards with brief output summaries
-            try {
-                steps.forEach((s, idx) => {
-                    const stepCard = document.querySelector(`[data-report-step-idx="${idx}"] .report-step-output`);
-                    if (!stepCard) return;
-                    const outputs = (s && s.output) ? s.output : {};
-                    if (!outputs || typeof outputs !== 'object' || !Object.keys(outputs).length) return;
-                    // Build a concise summary (max 5 key-value pairs, skip internal keys)
-                    const skipKeys = new Set(['sent', 'channel', 'recipients_count', 'result', 'error', 'logs', '_internal']);
-                    const entries = Object.entries(outputs).filter(([k]) => !skipKeys.has(k));
-                    if (!entries.length) return;
-                    const summaryRows = entries.slice(0, 5).map(([k, v]) => {
-                        const label = humanizeFieldLabel ? humanizeFieldLabel(k) : k;
-                        let val = v;
-                        if (val && typeof val === 'object') {
-                            try { val = JSON.stringify(val); } catch (_) { val = String(val); }
-                        }
-                        val = String(val || '');
-                        if (val.length > 120) val = val.slice(0, 120) + '…';
-                        return `<div class="flex gap-2"><span class="text-gray-500 flex-shrink-0">${escHtml(label)}:</span><span class="text-gray-300 truncate">${escHtml(val)}</span></div>`;
-                    }).join('');
-                    const moreText = entries.length > 5 ? `<div class="text-gray-500 text-xs mt-1">+${entries.length - 5} more fields</div>` : '';
-                    stepCard.innerHTML = `<div class="text-xs space-y-1 pl-9 border-t border-gray-700/50 pt-2 mt-1">${summaryRows}${moreText}</div>`;
-                    stepCard.classList.remove('hidden');
-                });
-            } catch (_) {}
+            // Keep step cards business-friendly by default (no raw output summaries injected).
 
             // Wire up authenticated downloads for uploaded file buttons
             try {
@@ -541,7 +516,34 @@
                 `;
             }).join('') || `<div class="text-sm text-gray-500">No steps yet.</div>`;
 
-            const outputHtml = isCompleted
+            const _pickBusinessOutcomeText = (out) => {
+                try {
+                    if (out == null) return '';
+                    if (typeof out === 'string') return String(out).trim();
+                    if (typeof out !== 'object') return String(out);
+                    // Prefer common business fields if present
+                    const keys = ['message', 'summary', 'result', 'outcome', 'status_message', 'details'];
+                    for (const k of keys) {
+                        if (out && out[k] != null) {
+                            const v = out[k];
+                            if (typeof v === 'string' && v.trim()) return v.trim();
+                        }
+                    }
+                    return '';
+                } catch (_) {
+                    return '';
+                }
+            };
+
+            const businessOutcomeText = isCompleted
+                ? (_pickBusinessOutcomeText(output) || 'Workflow completed successfully.')
+                : (isFailed
+                    ? (errorMsg || 'The workflow could not complete. Please review the configuration and try again.')
+                    : 'Workflow is running. The result will appear when it completes.');
+
+            const outcomeHtmlBusiness = `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(businessOutcomeText)}</div>`;
+
+            const outputHtmlTechnical = isCompleted
                 ? (output == null
                     ? `<div class="text-sm text-gray-500">No output was produced.</div>`
                     : (typeof output === 'string'
@@ -551,7 +553,7 @@
                             if (!entries.length) {
                                 return `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(_renderReportValue(output))}</div>`;
                             }
-                            const rows = entries.slice(0, 24).map(([k, v]) => `
+                            const rows = entries.slice(0, 48).map(([k, v]) => `
                                 <tr class="border-b border-gray-700/50">
                                     <td class="py-2 pr-4 text-gray-400 font-medium whitespace-nowrap">${escHtml(humanizeFieldLabel(k) || k)}</td>
                                     <td class="py-2 text-gray-200">${escHtml(_renderReportValue(v))}</td>
@@ -563,11 +565,64 @@
                     ? `<div class="text-sm text-red-300">${escHtml(errorMsg || 'The workflow failed. Please check configuration and try again.')}</div>`
                     : `<div class="text-sm text-gray-500">Result will appear when the workflow completes.</div>`);
 
+            const _summaryLine = (() => {
+                const name = (currentProcessAgent && currentProcessAgent.name) ? String(currentProcessAgent.name) : 'Workflow';
+                if (isCompleted) return `${name} completed successfully.`;
+                if (isFailed) return `${name} failed.`;
+                return `${name} is running.`;
+            })();
+
+            const stepNames = (stepsResolved || []).map(s => s && (s.name || s.typeLabel) ? String(s.name || s.typeLabel) : '').filter(Boolean);
+            const didPart = stepNames.length
+                ? `Steps: ${stepNames.slice(0, 6).join(' → ')}${stepNames.length > 6 ? '…' : ''}`
+                : '';
+
+            const keyDetailsRows = (() => {
+                try {
+                    const rows = [];
+                    // Show up to 6 key input values as "Key details"
+                    const keys = Object.keys(inputData || {});
+                    for (const k of keys.slice(0, 6)) {
+                        const label = labelByKey[k] || humanizeFieldLabel(k) || k;
+                        const val = _renderReportValue(inputData[k]);
+                        if (!val) continue;
+                        rows.push(`<div class="flex gap-2"><span class="text-gray-500">${escHtml(label)}:</span><span class="text-gray-200 font-medium">${escHtml(val)}</span></div>`);
+                    }
+                    return rows.join('') || '';
+                } catch (_) { return ''; }
+            })();
+
+            const whatHappenedBusiness = `
+                <div class="p-4 rounded-xl border border-indigo-500/25 bg-indigo-500/5">
+                    <div class="font-semibold text-gray-100 mb-2">${escHtml(_summaryLine)}</div>
+                    <ul class="text-sm text-gray-200 space-y-2">
+                        <li class="flex gap-2"><span class="text-indigo-300">•</span><span>The workflow started and validated the submitted information.</span></li>
+                        ${didPart ? `<li class="flex gap-2"><span class="text-indigo-300">•</span><span>${escHtml(didPart)}</span></li>` : ''}
+                        <li class="flex gap-2"><span class="text-indigo-300">•</span><span>${escHtml(businessOutcomeText)}</span></li>
+                    </ul>
+                    ${keyDetailsRows ? `
+                        <div class="mt-4">
+                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Key details</div>
+                            <div class="text-sm space-y-1">${keyDetailsRows}</div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            const headerDesc = (() => {
+                try {
+                    const desc = (currentProcessAgent && currentProcessAgent.description) ? String(currentProcessAgent.description).trim() : '';
+                    // Avoid showing the raw generation prompt (usually long)
+                    if (desc && desc.length <= 220) return desc;
+                    return '';
+                } catch (_) { return ''; }
+            })();
+
             body.innerHTML = `
                 <div class="flex items-start justify-between gap-3 mb-4">
                     <div>
                         <div class="text-lg font-bold text-gray-100">${escHtml(currentProcessAgent?.name || 'Workflow')}</div>
-                        <div class="text-sm text-gray-400">${escHtml(currentProcessAgent?.goal || '')}</div>
+                        <div class="text-sm text-gray-400">${escHtml(headerDesc || '')}</div>
                     </div>
                     <div>${statusBadge}</div>
                 </div>
@@ -579,18 +634,33 @@
                     </div>
                     <div class="p-4 rounded-xl border border-gray-700 bg-gray-900/40">
                         <div class="font-semibold text-gray-100 mb-3">What happened</div>
-                        <div class="space-y-2">${stepsHtml}</div>
+                        ${whatHappenedBusiness}
+                        <div class="mt-3">
+                            <details class="rounded-xl border border-gray-700 bg-black/10 p-3">
+                                <summary class="cursor-pointer text-sm font-semibold text-gray-200">Show step-by-step path</summary>
+                                <div class="space-y-2 mt-3">${stepsHtml}</div>
+                            </details>
+                        </div>
                     </div>
                 </div>
 
                 <div class="mt-4 p-4 rounded-xl border border-gray-700 bg-gray-900/40">
                     <div class="font-semibold text-gray-100 mb-2">Outcome</div>
-                    ${outputHtml}
+                    ${outcomeHtmlBusiness}
                 </div>
 
-                <div class="mt-4 p-4 rounded-xl border border-gray-700 bg-gray-900/40">
-                    <div class="font-semibold text-gray-100 mb-3">Step inputs & outputs</div>
-                    <div id="process-test-report-stepio" class="text-sm text-gray-500">Loading…</div>
+                <div class="mt-4">
+                    <details class="p-4 rounded-xl border border-gray-700 bg-gray-900/40">
+                        <summary class="cursor-pointer font-semibold text-gray-100">Technical details</summary>
+                        <div class="mt-3">
+                            <div class="text-sm text-gray-400 mb-2">Result fields</div>
+                            ${outputHtmlTechnical}
+                        </div>
+                        <div class="mt-4">
+                            <div class="font-semibold text-gray-100 mb-3">Step inputs & outputs</div>
+                            <div id="process-test-report-stepio" class="text-sm text-gray-500">Loading…</div>
+                        </div>
+                    </details>
                 </div>
             `;
 
