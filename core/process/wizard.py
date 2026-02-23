@@ -245,6 +245,15 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
   - Example: "Notify employee of approval" should happen AFTER the manager approves, not before.
 - Approval nodes have built-in notification capability — when an approval is assigned to someone, the platform notifies them automatically. You only need a separate notification node for custom messages or for notifying OTHER people (like the requester).
 - Always ask yourself: "In a real office, what would happen first?" and design the flow accordingly.
+- PARALLEL TASKS — WHEN TO USE THE PARALLEL NODE:
+  When the user mentions "parallel", "at the same time", "simultaneously", or when two or more actions should run concurrently, you MUST use a "parallel" node.
+  Common patterns that REQUIRE a parallel node:
+    - "Send for approval AND notify the manager" → parallel → [approval branch] + [notification branch]
+    - "Send email AND create a document" → parallel → [notification branch] + [ai/create_doc branch]
+    - "Notify multiple people at the same time" → parallel → [notification1] + [notification2]
+  IMPORTANT: NEVER place a notification about a pending task AFTER the task node. If someone needs to be notified about a task, the notification must be BEFORE or IN PARALLEL with the task — NEVER sequential after it.
+  Example (correct): condition(No) → parallel → [approval] + [notify manager] → (after parallel) → notify employee
+  Example (WRONG): condition(No) → approval → notify manager → notify employee
 - Smart field inference:
   - Use your business/industry knowledge to determine what fields are needed, even if the user didn't list them explicitly. Think like a business analyst: what information would a real-world form for this process collect? Add those fields.
   - IMPORTANT: Do NOT limit the Collect Information form to only what the user explicitly mentioned. If the user says "upload expense receipts", you should ALSO add fields like expense description/purpose, expense category (dropdown), date of expense, etc. — any field that is standard practice for that type of business process. But do NOT add fields for data that will be extracted automatically (e.g., amounts from receipts) or data from the user's profile (prefilled).
@@ -431,8 +440,13 @@ Node config rules:
   CRITICAL: Every notification node MUST have a non-empty recipient and a non-empty template. The AI must fill both — they are NEVER left for the user to configure manually.
 - parallel.config: Connect the parallel node to multiple next steps — the platform auto-builds branches from the edges.
   - Optional: merge_strategy ("wait_all" = wait for all paths, "wait_any" = continue when any finishes). Default: "wait_all".
-  - Use parallel when the workflow needs to do multiple things at the same time (e.g., send a notification AND create a document simultaneously).
+  - Use parallel when the workflow needs to do multiple things at the same time.
   - After the parallel paths complete, connect them back to a shared next node to continue the flow.
+  - CRITICAL: You MUST use a parallel node when:
+    * User says "parallel", "at the same time", or "simultaneously"
+    * An approval needs a custom notification sent to the approver at the same time
+    * Multiple independent actions should run concurrently
+  - Example edges for parallel: parallel_node → approval_node (edge1), parallel_node → notify_node (edge2)
   - LAYOUT: Place parallel branches side by side horizontally, each branch offset by ±300px from the parallel node's x position.
 
 - call_process.config must include: processId (ID of the published process to invoke — MUST match an ID from the PUBLISHED PROCESSES list in the platform knowledge).
