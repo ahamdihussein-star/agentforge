@@ -224,7 +224,20 @@ IMPORTANT:
   - For waiting/delays, the platform handles timing through approval timeouts and schedule triggers.
 - Always include exactly ONE start node of type "trigger".
 - The "trigger" node defines HOW the process starts (manual, schedule, or webhook) — it does NOT have form fields.
-  - For manual processes that need user input: place a "form" (Collect Information) node immediately after the trigger.
+
+FORM NODE RULE (CRITICAL — MOST COMMON MISTAKE):
+  When the user's goal involves ANYONE entering, submitting, uploading, or providing information, you MUST include a "form" node (type: "form") with properly configured fields.
+  - The form node type is LITERALLY "form" — NOT "ai", NOT "action", NOT "tool".
+  - The form node must come IMMEDIATELY after the trigger node.
+  - The form config MUST include a "fields" array with every field the user needs to fill in.
+  - Each field must have: name (camelCase), label (human-readable), type (text/email/date/select/file/number/textarea), required (true/false), placeholder.
+  - NEVER create an AI node or any other node type for collecting user input. The "form" node is the ONLY way to collect information from users.
+  - If the goal says "enter", "fill in", "provide", "submit", "upload", "input", "collect", or describes any human data entry → you NEED a form node.
+  Examples:
+    - "HR entering employee name and email" → form node with name and email fields
+    - "Employee uploads receipts" → form node with file upload field
+    - "User submits a request" → form node with request details fields
+  - For manual processes: trigger → form (Collect Information) → action steps → end
   - For scheduled processes (data sync, reports, cleanup, API imports): do NOT add a form node — connect the trigger directly to action nodes.
   - For webhook-triggered processes (external system calls): triggerType "webhook", with method ("POST"|"GET"|"PUT"|"PATCH"), path (e.g., "/trigger"), and auth ("none"|"api_key"|"bearer").
 - Always include at least ONE "end" node.
@@ -332,10 +345,10 @@ Schema to output:
 
 Node config rules:
 - trigger.config.triggerType is REQUIRED: "manual" | "schedule" | "webhook".
-  - "manual": For processes started by a user. Follow with a form node.
+  - "manual": For processes started by a user. You MUST ALSO create a form node (type: "form") right after the trigger with all input fields. Do NOT put fields on the trigger — put them on the form node.
   - "schedule": For recurring processes. Set cron (e.g., "0 9 * * *") and timezone (e.g., "UTC", "Africa/Cairo", "Asia/Dubai", "America/New_York").
   - "webhook": For processes triggered by external systems. Set method ("POST"|"GET"|"PUT"|"PATCH"), path (e.g., "/trigger"), auth ("none"|"api_key"|"bearer").
-- trigger.config.fields is REQUIRED and must be a non-empty array when triggerType is "manual".
+- trigger.config.fields: Put all input fields on the form node (type: "form"), NOT on the trigger. The trigger only defines how the process starts.
 - Each field MUST include:
   - name (lowerCamelCase internal key; used in {{name}} references)
   - label (business-friendly label shown to users)
@@ -1424,6 +1437,104 @@ class ProcessWizard:
                                         "type": "default",
                                     })
                                 break
+
+            # DETECT: Non-form nodes that should be forms (LLM sometimes uses
+            # ai/action type for "Collect Information" or "Enter Details" nodes).
+            _form_name_signals = (
+                "collect", "enter", "input", "submit", "fill", "request form",
+                "gather", "provide details", "employee details", "user details",
+                "application form", "request details",
+            )
+            _trigger_node = next(
+                (n for n in normalized_nodes if n.get("type") == "trigger"), None
+            )
+            _has_form = any(
+                n.get("type") == "form" for n in normalized_nodes
+            )
+            if not _has_form and _trigger_node:
+                for n in normalized_nodes:
+                    if n.get("type") in ("trigger", "end", "form"):
+                        continue
+                    _name_lower = (n.get("name") or "").lower()
+                    _cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+                    _has_fields = isinstance(_cfg.get("fields"), list) and _cfg["fields"]
+                    _has_empty_config = not _cfg or (
+                        not _cfg.get("prompt") and not _cfg.get("toolId")
+                        and not _cfg.get("expression") and not _has_fields
+                    )
+                    _name_matches = any(sig in _name_lower for sig in _form_name_signals)
+
+                    if _name_matches or (_has_fields and n.get("type") != "form"):
+                        n["type"] = "form"
+                        if not _has_fields:
+                            n["config"] = n.get("config") or {}
+                        _has_form = True
+                        logger.info(
+                            "Converted node '%s' (was type '%s') → 'form' "
+                            "(name matched form-like pattern)",
+                            n.get("name"), n.get("type"),
+                        )
+                        break
+
+            # ENSURE: Manual processes have a form node. If none exists after
+            # all normalization, create one with fields inferred from the goal.
+            _ttype = "manual"
+            if _trigger_node:
+                _ttype = ((_trigger_node.get("config") or {}).get("triggerType") or "manual").strip().lower()
+            if _ttype == "manual" and not any(n.get("type") == "form" for n in normalized_nodes):
+                _goal_text = (analysis.get("summary") or "") if isinstance(analysis, dict) else ""
+                _suggested = (analysis.get("variables") or []) if isinstance(analysis, dict) else []
+                _inferred_fields = []
+                for v in _suggested:
+                    if isinstance(v, dict) and v.get("name"):
+                        vname = str(v["name"]).strip()
+                        vtype = str(v.get("type") or "text").strip().lower()
+                        ui_type = {
+                            "string": "text", "number": "number", "date": "date",
+                            "email": "email", "boolean": "select", "file": "file",
+                        }.get(vtype, "text")
+                        _inferred_fields.append({
+                            "name": _to_camel_key(vname) or vname,
+                            "label": _humanize_label(vname) or vname,
+                            "type": ui_type,
+                            "required": True,
+                            "placeholder": f"Enter {_humanize_label(vname) or vname}",
+                        })
+                if not _inferred_fields:
+                    _inferred_fields = [
+                        {"name": "details", "label": "Details", "type": "textarea",
+                         "required": True, "placeholder": "Enter details..."}
+                    ]
+                import uuid as _uuid
+                _form_id = "form_" + str(_uuid.uuid4())[:8]
+                _trig_id = _trigger_node["id"] if _trigger_node else ""
+                _trig_y = _trigger_node.get("y") or _trigger_node.get("position", {}).get("y", 100) if _trigger_node else 100
+                _form_node = {
+                    "id": _form_id,
+                    "type": "form",
+                    "name": "Collect Information",
+                    "config": {"fields": _inferred_fields},
+                    "x": _trigger_node.get("x", 400) if _trigger_node else 400,
+                    "y": _trig_y + 200,
+                }
+                trig_idx = normalized_nodes.index(_trigger_node) if _trigger_node in normalized_nodes else 0
+                normalized_nodes.insert(trig_idx + 1, _form_node)
+                # Re-wire edges: trigger → (old next) becomes trigger → form → (old next)
+                for edge in normalized_edges:
+                    if (edge.get("source") == _trig_id or edge.get("from") == _trig_id):
+                        original_target = edge.get("target") or edge.get("to")
+                        if not original_target:
+                            continue
+                        if "target" in edge:
+                            edge["target"] = _form_id
+                        else:
+                            edge["to"] = _form_id
+                        if "source" in edge:
+                            normalized_edges.append({"source": _form_id, "target": str(original_target), "type": "default"})
+                        else:
+                            normalized_edges.append({"from": _form_id, "to": str(original_target), "type": "default"})
+                        break
+                logger.info("Injected missing form node with %d inferred fields", len(_inferred_fields))
 
             # Normalize form nodes: ensure fields have proper labels and defaults
             for fn in normalized_nodes:
