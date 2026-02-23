@@ -161,7 +161,12 @@
                 const overlay = document.createElement('div');
                 overlay.style.position = 'absolute';
                 overlay.style.inset = '0';
-                overlay.style.background = 'rgba(0,0,0,0.55)';
+                // Slightly lighter overlay in light theme for readability
+                let _theme = '';
+                try {
+                    _theme = (document.documentElement.getAttribute('data-theme') || localStorage.getItem('agentforge-theme') || '').toLowerCase();
+                } catch (_) { _theme = ''; }
+                overlay.style.background = _theme === 'light' ? 'rgba(2, 6, 23, 0.35)' : 'rgba(0,0,0,0.55)';
                 overlay.style.backdropFilter = 'blur(6px)';
 
                 const modal = document.createElement('div');
@@ -173,8 +178,9 @@
                 modal.style.transform = 'translateX(-50%)';
                 modal.style.width = 'min(560px, calc(100% - 24px))';
                 modal.style.borderRadius = '16px';
-                modal.style.border = '1px solid rgba(255,255,255,0.12)';
-                modal.style.background = 'rgba(10, 12, 16, 0.92)';
+                // Use theme variables so it works in both dark & light modes
+                modal.style.border = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 28%, transparent)';
+                modal.style.background = 'color-mix(in srgb, var(--pb-panel, #111827) 92%, transparent)';
                 modal.style.color = 'var(--pb-text, #e5e7eb)';
                 modal.style.boxShadow = '0 25px 50px -12px rgba(0,0,0,0.65)';
                 modal.style.overflow = 'hidden';
@@ -184,6 +190,7 @@
                 header.style.alignItems = 'center';
                 header.style.justifyContent = 'space-between';
                 header.style.padding = '16px 18px 10px 18px';
+                header.style.borderBottom = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 18%, transparent)';
 
                 const hTitle = document.createElement('div');
                 hTitle.style.fontSize = '15px';
@@ -198,8 +205,8 @@
                 closeBtn.style.width = '34px';
                 closeBtn.style.height = '34px';
                 closeBtn.style.borderRadius = '10px';
-                closeBtn.style.border = '1px solid rgba(255,255,255,0.10)';
-                closeBtn.style.background = 'rgba(255,255,255,0.06)';
+                closeBtn.style.border = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 24%, transparent)';
+                closeBtn.style.background = 'color-mix(in srgb, var(--pb-muted, #94a3b8) 10%, var(--pb-panel, #111827))';
                 closeBtn.style.color = 'var(--pb-text, #e5e7eb)';
                 closeBtn.style.cursor = 'pointer';
 
@@ -208,7 +215,7 @@
                 const p = document.createElement('div');
                 p.style.fontSize = '13px';
                 p.style.lineHeight = '1.6';
-                p.style.color = 'rgba(229, 231, 235, 0.92)';
+                p.style.color = 'color-mix(in srgb, var(--pb-text, #e5e7eb) 92%, transparent)';
                 p.textContent = message;
                 body.appendChild(p);
 
@@ -217,14 +224,14 @@
                 footer.style.gap = '10px';
                 footer.style.justifyContent = 'flex-end';
                 footer.style.padding = '14px 18px 18px 18px';
-                footer.style.borderTop = '1px solid rgba(255,255,255,0.08)';
+                footer.style.borderTop = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 18%, transparent)';
 
                 const cancel = document.createElement('button');
                 cancel.type = 'button';
                 cancel.textContent = cancelText;
                 cancel.style.borderRadius = '12px';
-                cancel.style.border = '1px solid rgba(255,255,255,0.12)';
-                cancel.style.background = 'rgba(255,255,255,0.06)';
+                cancel.style.border = '1px solid color-mix(in srgb, var(--pb-muted, #94a3b8) 28%, transparent)';
+                cancel.style.background = 'color-mix(in srgb, var(--pb-muted, #94a3b8) 10%, var(--pb-panel, #111827))';
                 cancel.style.color = 'var(--pb-text, #e5e7eb)';
                 cancel.style.padding = '10px 14px';
                 cancel.style.fontSize = '13px';
