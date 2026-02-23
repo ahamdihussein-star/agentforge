@@ -3470,6 +3470,15 @@
                     const _aiCreativity = node.config.creativity ?? 3;
                     const _aiConfidence = node.config.confidence ?? 3;
                     const _aiMode = node.config.aiMode || 'custom';
+                    const _aiPromptPlaceholder = ({
+                        analyze: 'Describe what to analyze (e.g., Summarize the key findings from the uploaded report)',
+                        generate: 'Describe what to generate (e.g., Write a professional approval email with the request details)',
+                        classify: 'Describe how to classify (e.g., Categorize this support ticket as Bug, Feature Request, or Question)',
+                        custom: 'Describe what the AI should do...',
+                        extract_file: 'Describe what data to extract from the selected file(s).',
+                        batch_files: 'Describe what to calculate or analyze across all selected files.',
+                        create_doc: 'Describe what the document should contain.',
+                    })[_aiMode] || 'Describe what the AI should do...';
                     // Normalise instructions: always work with an array
                     const _instrArr = Array.isArray(node.config.instructions)
                         ? node.config.instructions
@@ -3737,7 +3746,7 @@
                         html += `
                         <div class="property-group">
                             <label class="property-label">Task description</label>
-                            ${buildTemplateEditor(node.id, 'prompt', (node.config.prompt || ''), (${{analyze:'Describe what to analyze (e.g., Summarize the key findings from the uploaded report)', generate:'Describe what to generate (e.g., Write a professional approval email with the request details)', classify:'Describe how to classify (e.g., Categorize this support ticket as Bug, Feature Request, or Question)', custom:'Describe what the AI should do...'}[_aiMode] || 'Describe what the AI should do...'}), 120)}
+                            ${buildTemplateEditor(node.id, 'prompt', (node.config.prompt || ''), _aiPromptPlaceholder, 120)}
                             ${buildInsertDataDropdown(node.id, 'prompt', availableFields, upstreamData)}
                         </div>`;
                     }
