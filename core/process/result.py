@@ -349,6 +349,7 @@ class NodeResult(BaseModel):
         output: Any = None,
         variables_update: Dict[str, Any] = None,
         next_node_id: str = None,
+        next_node_ids: List[str] = None,
         duration_ms: float = 0,
         tokens_used: int = 0,
         logs: List[str] = None
@@ -359,6 +360,7 @@ class NodeResult(BaseModel):
             output=output,
             variables_update=variables_update or {},
             next_node_id=next_node_id,
+            next_node_ids=next_node_ids,
             duration_ms=duration_ms,
             tokens_used=tokens_used,
             logs=logs or []
