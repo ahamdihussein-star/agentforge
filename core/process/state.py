@@ -184,12 +184,55 @@ class ProcessState:
     
     def _get_nested(self, path: str, default: Any = None) -> Any:
         """Get nested value using dot notation"""
+        def _to_snake(name: str) -> str:
+            # lowerCamelCase / PascalCase -> snake_case
+            # Example: displayName -> display_name, managerEmail -> manager_email
+            s1 = re.sub(r'(.)([A-Z][a-z]+)', r'\1_\2', name)
+            s2 = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s1)
+            return s2.lower()
+
+        def _to_camel(name: str) -> str:
+            # snake_case -> lowerCamelCase
+            # Example: display_name -> displayName
+            parts_ = [p for p in str(name).split('_') if p]
+            if not parts_:
+                return name
+            return parts_[0].lower() + ''.join(p[:1].upper() + p[1:] for p in parts_[1:])
+
+        def _alias_keys(key: str) -> List[str]:
+            # Provide a small set of reversible aliases so templates/configs
+            # can use either snake_case or camelCase for dynamic contexts.
+            alts: List[str] = []
+            if not key:
+                return alts
+            if '_' in key:
+                c = _to_camel(key)
+                if c != key:
+                    alts.append(c)
+            else:
+                # Only attempt camel->snake when there's an uppercase boundary
+                if re.search(r'[A-Z]', key):
+                    s = _to_snake(key)
+                    if s != key:
+                        alts.append(s)
+            return alts
+
         parts = path.split('.')
         value = self._variables
         
         for part in parts:
             if isinstance(value, dict):
-                value = value.get(part)
+                if part in value:
+                    value = value.get(part)
+                else:
+                    found = False
+                    for alt in _alias_keys(part):
+                        if alt in value:
+                            value = value.get(alt)
+                            found = True
+                            break
+                    if not found:
+                        return default
             elif isinstance(value, list):
                 try:
                     index = int(part)
