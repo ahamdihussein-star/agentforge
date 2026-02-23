@@ -583,7 +583,14 @@
             
             // Keyboard: Undo, Redo, Delete, Select All
             document.addEventListener('keydown', (e) => {
-                if (e.target.closest('input') || e.target.closest('textarea') || e.target.closest('select')) return;
+                // Only allow canvas-level shortcuts when the canvas is focused.
+                // If the user is editing any properties field (including rich template editors),
+                // Backspace/Delete must act as text deletion and MUST NOT delete nodes.
+                const t = e.target;
+                const inProperties = !!(t && t.closest && t.closest('#properties-panel'));
+                const inFormControl = !!(t && t.closest && t.closest('input,textarea,select'));
+                const inRichEditor = !!(t && (t.isContentEditable || (t.closest && (t.closest('.tpl-editor') || t.closest('[contenteditable="true"]')))));
+                if (inProperties || inFormControl || inRichEditor) return;
                 const ctrl = e.ctrlKey || e.metaKey;
                 if (ctrl && e.key === 'z') {
                     e.preventDefault();
