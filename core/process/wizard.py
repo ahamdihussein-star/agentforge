@@ -240,20 +240,23 @@ IMPORTANT:
 BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text parser):
 - Do NOT follow the user's prompt word-by-word as a sequence. Instead, UNDERSTAND the business intent and design the logically correct workflow.
 - Think about WHEN each step should happen in real life:
-  - Notifications about pending tasks should be sent BEFORE or AT THE SAME TIME as the task, not after it is completed.
-  - Example: If a manager needs to approve something, the notification to the manager should be sent BEFORE the approval step (or as part of it), because the manager needs to KNOW there is something to approve. Do NOT place a "notify manager" step AFTER the approval step — that would mean notifying them after they already approved.
-  - Example: "Notify employee of approval" should happen AFTER the manager approves, not before.
-- Approval nodes have built-in notification capability — when an approval is assigned to someone, the platform notifies them automatically. You only need a separate notification node for custom messages or for notifying OTHER people (like the requester).
+  - "Notify employee of approval" should happen AFTER the manager approves, not before.
+- APPROVAL NODE HAS BUILT-IN EMAIL NOTIFICATION:
+  The approval node has an embedded notification feature. When configuring an approval node, set "notifyApprover": true and "notificationMessage": "<rich message>" to automatically email the approver(s) when the task is created.
+  CRITICAL RULE: Do NOT create a separate notification node to notify the approver about a pending approval. Use the approval node's built-in notification instead.
+  - CORRECT: condition(No) → approval (with notifyApprover:true) → (after approval) → notify employee
+  - WRONG: condition(No) → parallel → [approval] + [notify manager] → notify employee
+  - WRONG: condition(No) → notify manager → approval → notify employee
+  Only use a separate notification node for notifying OTHER people (not the approver), such as notifying the requester/employee about the outcome.
 - Always ask yourself: "In a real office, what would happen first?" and design the flow accordingly.
 - PARALLEL TASKS — WHEN TO USE THE PARALLEL NODE:
-  When the user mentions "parallel", "at the same time", "simultaneously", or when two or more actions should run concurrently, you MUST use a "parallel" node.
+  When the user mentions "parallel", "at the same time", "simultaneously", or when two or more INDEPENDENT actions (not approver notification) should run concurrently, you MUST use a "parallel" node.
   Common patterns that REQUIRE a parallel node:
-    - "Send for approval AND notify the manager" → parallel → [approval branch] + [notification branch]
     - "Send email AND create a document" → parallel → [notification branch] + [ai/create_doc branch]
     - "Notify multiple people at the same time" → parallel → [notification1] + [notification2]
-  IMPORTANT: NEVER place a notification about a pending task AFTER the task node. If someone needs to be notified about a task, the notification must be BEFORE or IN PARALLEL with the task — NEVER sequential after it.
-  Example (correct): condition(No) → parallel → [approval] + [notify manager] → (after parallel) → notify employee
-  Example (WRONG): condition(No) → approval → notify manager → notify employee
+    - "Run two approvals in parallel" → parallel → [approval1] + [approval2]
+  Pattern that does NOT need a parallel node:
+    - "Send for approval AND notify the approver" → single approval node with notifyApprover:true (no parallel needed)
 - Smart field inference:
   - Use your business/industry knowledge to determine what fields are needed, even if the user didn't list them explicitly. Think like a business analyst: what information would a real-world form for this process collect? Add those fields.
   - IMPORTANT: Do NOT limit the Collect Information form to only what the user explicitly mentioned. If the user says "upload expense receipts", you should ALSO add fields like expense description/purpose, expense category (dropdown), date of expense, etc. — any field that is standard practice for that type of business process. But do NOT add fields for data that will be extracted automatically (e.g., amounts from receipts) or data from the user's profile (prefilled).
@@ -390,8 +393,12 @@ Node config rules:
 - When an AI node parses data into JSON, subsequent condition nodes can reference fields from the parsed output (e.g., if AI stores result in "parsedData", a condition can check "parsedData.totalAmount").
 - tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
 - tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
-- approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message.
+- approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message, notifyApprover, notificationMessage.
   assignee_source options: "platform_user" | "user_directory" | "platform_role" | "platform_group" | "tool".
+  notifyApprover: true | false — when true, the platform automatically sends an email to the approver(s) with the notificationMessage.
+  notificationMessage: A rich, business-friendly email body for the approver. Use variable interpolation (e.g., {{{{fieldName}}}}).
+    Write it like the notification template: include what needs approval, key data, and context. The approver should understand WHAT they need to do without logging in.
+    If notifyApprover is true, notificationMessage MUST NOT be empty.
   IMPORTANT — Identity-aware approvals (the engine resolves assignees automatically at runtime):
   - For direct manager/supervisor approval: assignee_source: "user_directory", directory_assignee_type: "dynamic_manager", assignee_ids: [].
   - For department head approval: assignee_source: "user_directory", directory_assignee_type: "department_manager".
@@ -443,10 +450,10 @@ Node config rules:
   - Use parallel when the workflow needs to do multiple things at the same time.
   - After the parallel paths complete, connect them back to a shared next node to continue the flow.
   - CRITICAL: You MUST use a parallel node when:
-    * User says "parallel", "at the same time", or "simultaneously"
-    * An approval needs a custom notification sent to the approver at the same time
-    * Multiple independent actions should run concurrently
-  - Example edges for parallel: parallel_node → approval_node (edge1), parallel_node → notify_node (edge2)
+    * User says "parallel", "at the same time", or "simultaneously" for truly independent actions
+    * Multiple independent actions should run concurrently (e.g., two notifications, two approvals)
+  - Do NOT use a parallel node just to notify the approver — use the approval node's built-in notifyApprover feature instead.
+  - Example edges for parallel: parallel_node → branch1_node (edge1), parallel_node → branch2_node (edge2)
   - LAYOUT: Place parallel branches side by side horizontally, each branch offset by ±300px from the parallel node's x position.
 
 - call_process.config must include: processId (ID of the published process to invoke — MUST match an ID from the PUBLISHED PROCESSES list in the platform knowledge).
@@ -578,7 +585,9 @@ approval:
     "assignee_ids": [],
     "min_approvals": 1,
     "timeout_hours": 24,
-    "timeout_action": "fail|skip|escalate"
+    "timeout_action": "fail|skip|escalate",
+    "notifyApprover": true,
+    "notificationMessage": "<rich email body to the approver with {{{{variable}}}} interpolation>"
 }}
 
 condition:

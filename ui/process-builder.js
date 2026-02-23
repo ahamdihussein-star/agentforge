@@ -696,7 +696,7 @@
                 condition: { name: 'Decision', config: { field: '', operator: 'equals', value: '' } },
                 loop: { name: 'Repeat', config: { collection: '', itemVar: 'item', maxIterations: 100 } },
                 delay: { name: 'Wait', config: { duration: 5, unit: 'minutes' } },
-                approval: { name: 'Request Approval', config: { assignee_source: 'platform_user', assignee_type: 'user', assignee_ids: [], timeout_hours: 24, message: '' } },
+                approval: { name: 'Request Approval', config: { assignee_source: 'platform_user', assignee_type: 'user', assignee_ids: [], timeout_hours: 24, message: '', notifyApprover: false, notificationMessage: '' } },
                 form: { name: 'Collect Information', config: { fields: [] } },
                 notification: { name: 'Send Message', config: { channel: 'email', template: '' } },
                 tool: { name: 'Connect to System', config: { toolId: toolId || '', params: {} } },
@@ -3241,6 +3241,22 @@
                                 <span style="font-size:12px;color:var(--pb-muted);">hours</span>
                             </div>
                         </div>
+                        <div class="property-group" style="border-top:1px solid var(--pb-border);padding-top:12px;margin-top:8px;">
+                            <label class="property-label" style="display:flex;align-items:center;gap:8px;">
+                                <input type="checkbox" ${aCfg.notifyApprover ? 'checked' : ''}
+                                       onchange="updateNodeConfig('${node.id}', 'notifyApprover', this.checked); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
+                                Notify approver by email
+                            </label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:2px;">Send an email to the approver when this task is created</div>
+                        </div>
+                        ${aCfg.notifyApprover ? `
+                        <div class="property-group">
+                            <label class="property-label">Notification message</label>
+                            <textarea class="property-textarea" placeholder="Write a message to the approver about what needs their attention..."
+                                      onchange="updateNodeConfig('${node.id}', 'notificationMessage', this.value)">${escapeHtml(aCfg.notificationMessage || '')}</textarea>
+                            ${buildInsertDataDropdown(node.id, 'notificationMessage', availableFields, upstreamData)}
+                        </div>
+                        ` : ''}
                     `;
                     break;
                 }

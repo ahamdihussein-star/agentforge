@@ -288,12 +288,117 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         logs.append(f"Assignees ({assignee_type}): {assignee_ids}")
         logs.append(f"Deadline: {deadline}")
         
+        # ── Embedded notification: optionally email the approver(s) ──
+        notify_approver = (
+            self.get_config_value(node, 'notifyApprover', False)
+            or self.get_config_value(node, 'notify_approver', False)
+        )
+        if notify_approver and self.deps and getattr(self.deps, 'notification_service', None):
+            notif_msg = (
+                self.get_config_value(node, 'notificationMessage', '')
+                or self.get_config_value(node, 'notification_message', '')
+                or description
+                or f"You have a pending approval task: {title}"
+            )
+            notif_channel = (
+                self.get_config_value(node, 'notificationChannel', 'email')
+                or self.get_config_value(node, 'notification_channel', 'email')
+                or 'email'
+            )
+            notif_msg = state.interpolate_string(notif_msg)
+            notif_title = state.interpolate_string(f"Action Required: {title}")
+
+            approver_emails = self._resolve_assignee_emails(
+                assignee_ids, assignee_type, state, context, logs
+            )
+            if approver_emails:
+                try:
+                    await self.deps.notification_service.send(
+                        channel=notif_channel,
+                        recipients=approver_emails,
+                        title=notif_title,
+                        message=notif_msg,
+                        priority=priority,
+                    )
+                    logs.append(
+                        f"📧 Sent {notif_channel} notification to "
+                        f"{len(approver_emails)} approver(s)"
+                    )
+                except Exception as e:
+                    logs.append(
+                        f"⚠️ Approver notification failed (non-blocking): {e}"
+                    )
+            else:
+                logs.append(
+                    "⚠️ Embedded notification enabled but no approver "
+                    "emails could be resolved"
+                )
+        
         # Return waiting result - the engine will create the DB record
         return NodeResult.waiting(
             waiting_for='approval',
             waiting_metadata=approval_request
         )
     
+    def _resolve_assignee_emails(
+        self,
+        assignee_ids: List[str],
+        assignee_type: str,
+        state: ProcessState,
+        context: ProcessContext,
+        logs: list,
+    ) -> List[str]:
+        """Resolve assignee IDs / shortcuts to email addresses for notification."""
+        emails: List[str] = []
+        _trigger_input = getattr(context, 'trigger_input', None) or {}
+        user_ctx = _trigger_input.get("_user_context", {})
+
+        for aid in assignee_ids:
+            aid_str = str(aid).strip() if aid else ""
+            if not aid_str:
+                continue
+            aid_lower = aid_str.lower()
+
+            if aid_lower in ("manager", "supervisor", "direct_manager"):
+                email = user_ctx.get("manager_email") or ""
+                if not email and self.deps and getattr(self.deps, 'user_directory', None):
+                    try:
+                        req_id = user_ctx.get("user_id") or context.user_id
+                        if req_id:
+                            req_attrs = self.deps.user_directory.get_user(req_id, context.org_id)
+                            if req_attrs and req_attrs.manager_id:
+                                mgr = self.deps.user_directory.get_user(req_attrs.manager_id, context.org_id)
+                                if mgr and mgr.email:
+                                    email = mgr.email
+                    except Exception:
+                        pass
+                if email:
+                    emails.append(email)
+                continue
+
+            if aid_lower in ("requester", "submitter", "initiator", "self"):
+                email = user_ctx.get("email") or getattr(context, 'user_email', None) or ""
+                if email:
+                    emails.append(email)
+                continue
+
+            if "@" in aid_str:
+                emails.append(aid_str)
+                continue
+
+            if self.deps and getattr(self.deps, 'user_directory', None) and len(aid_str) >= 20 and "-" in aid_str:
+                try:
+                    user_attrs = self.deps.user_directory.get_user(aid_str, context.org_id)
+                    if user_attrs and user_attrs.email:
+                        emails.append(user_attrs.email)
+                        continue
+                except Exception:
+                    pass
+
+            logs.append(f"⚠️ Could not resolve approver '{aid_str[:12]}…' to email")
+
+        return [e for e in emails if e and e.strip()]
+
     def validate(self, node: ProcessNode) -> Optional[ExecutionError]:
         """Validate approval node. Empty assignees are allowed (treated as 'any' - visible to all)."""
         base_error = super().validate(node)
