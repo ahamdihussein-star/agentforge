@@ -51,6 +51,11 @@ class StartNodeExecutor(BaseNodeExecutor):
                 state.set(key, value, changed_by=node.id)
                 logs.append(f"Set {key} from trigger input")
 
+        # Store the entire trigger_input dict as a variable so templates
+        # referencing {{trigger_input._user_context.display_name}} resolve correctly.
+        if context.trigger_input:
+            state.set("trigger_input", dict(context.trigger_input), changed_by=node.id)
+
         # Add current user context as variables (business workflows often need this)
         # This avoids asking users to re-type profile information like email/name.
         try:
