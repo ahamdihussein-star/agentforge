@@ -3999,7 +3999,7 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     # Add instruction enforcement if available
     if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
         # Detect language for enforcement
-        enforce_lang = 'ar' if any('\u0600' <= c <= '\u06FF' for c in (request.message if hasattr(request, 'message') else '')) else 'en'
+        enforce_lang = 'ar' if any('\u0600' <= c <= '\u06FF' for c in (message or '')) else 'en'
         phrases = InstructionEnforcer.ENFORCEMENT_PHRASES.get(enforce_lang, InstructionEnforcer.ENFORCEMENT_PHRASES['en'])
         
         system_prompt += f"""
