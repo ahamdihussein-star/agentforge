@@ -2440,8 +2440,7 @@
                 // Check if current conversation was deleted
                 if (currentConversation && selectedChats.has(currentConversation.id)) {
                     currentConversation = null;
-                    document.getElementById('messages-container').innerHTML = '';
-                    document.getElementById('welcome-screen').style.display = 'flex';
+                    startNewChat();
                 }
                 
                 // Clear selection
@@ -2475,14 +2474,14 @@
                 });
                 const conv = await response.json();
                 currentConversation = conv;
-                
-                // Render messages
+
                 const container = document.getElementById('messages-container');
-                document.getElementById('welcome-screen').style.display = 'none';
-                
-                container.innerHTML = conv.messages.map(msg => createMessageHTML(msg.role, msg.content)).join('');
+                const welcome = document.getElementById('welcome-screen');
+                if (welcome) welcome.style.display = 'none';
+
+                container.innerHTML = (conv.messages || []).map(msg => createMessageHTML(msg.role, msg.content)).join('');
                 container.scrollTop = container.scrollHeight;
-                
+
                 renderHistory();
             } catch (e) {
                 console.error('Failed to load conversation:', e);
