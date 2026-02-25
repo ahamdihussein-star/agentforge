@@ -13944,7 +13944,7 @@ async def generate_document_content_with_llm(name: str, content_type: str, descr
         
         # Build specialized prompts based on document type
         if "invoice" in content_lower:
-            system_prompt = """You are creating a REALISTIC invoice for a demo/showcase. Generate professional, believable invoice data.
+            system_prompt = """You are creating a REALISTIC invoice. Generate professional, believable invoice data with all fields filled in.
 
 CRITICAL: Analyze the request context to determine the appropriate industry and items:
 - "consulting invoice" -> Professional services, hourly rates ($150-300/hr), project phases
@@ -13991,9 +13991,9 @@ RULES:
 - Do NOT use Unicode characters"""""
 
         elif "policy" in content_lower or "hr" in content_lower:
-            system_prompt = """You are an expert HR policy writer creating REAL, DETAILED policy documents for a demo/showcase.
+            system_prompt = """You are an expert HR policy writer creating REAL, DETAILED policy documents.
 
-CRITICAL: This is for a DEMO - generate REALISTIC, SPECIFIC content as if this were an actual company policy.
+CRITICAL: Generate REALISTIC, SPECIFIC content as if this were an actual company policy.
 DO NOT write generic descriptions or placeholders. Write ACTUAL policy content with real numbers, dates, and procedures.
 
 EXAMPLES OF WHAT TO INCLUDE:
@@ -14050,9 +14050,9 @@ RULES:
 - Do NOT use Unicode characters - use "-" for bullets, regular quotes only"""
 
         elif "report" in content_lower or "analysis" in content_lower:
-            system_prompt = """You are creating a REALISTIC business report for a demo/showcase. Generate professional, data-driven content.
+            system_prompt = """You are creating a REALISTIC business report. Generate professional, data-driven content.
 
-CRITICAL: This is for a DEMO - include REAL-LOOKING data, statistics, and insights. Not placeholders!
+CRITICAL: Include REAL-LOOKING data, statistics, and insights. NEVER use placeholders or bracketed text.
 
 Analyze the request to determine report type:
 - "Sales Report" -> Revenue figures, growth rates, top products, regional breakdown
@@ -14139,9 +14139,9 @@ RULES:
 
         else:
             # Generic document - but still make it realistic!
-            system_prompt = """You are creating a REALISTIC professional document for a demo/showcase.
+            system_prompt = """You are creating a REALISTIC professional document.
 
-CRITICAL: Generate ACTUAL content, not placeholders or descriptions. This should look like a real document.
+CRITICAL: Generate ACTUAL content with all data filled in. NEVER use placeholders like [Name] or [Value]. This must look like a real document.
 
 Analyze the request to determine document type and generate appropriate content:
 - Proposals: Include pricing, timelines, deliverables, terms

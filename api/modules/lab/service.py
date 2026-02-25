@@ -411,36 +411,54 @@ Return only valid JSON, no markdown or explanation."""
         org_id: str = None
     ) -> Dict[str, Any]:
         """
-        Generate a professional document using AI
+        Generate a professional document using AI.
+        Financial documents (invoices, receipts) use a structured JSON pipeline
+        with proper table rendering; other documents use markdown content.
         """
         cls._ensure_storage()
-        
+
         item_id = str(uuid.uuid4())
         filename = f"{item_id}.{format}"
         filepath = os.path.join(cls.STORAGE_PATH, filename)
-        
-        # Get content from AI
-        content = await cls._generate_document_content(description)
-        
-        # Generate the document based on format
+
+        is_financial = cls._is_financial_document(description, name)
         size = 0
-        
-        if format == "docx" and DOCX_AVAILABLE:
-            size = cls._create_docx(filepath, name, content)
-        elif format == "pdf" and PDF_AVAILABLE:
-            size = cls._create_pdf(filepath, name, content)
-        elif format == "xlsx" and XLSX_AVAILABLE:
-            size = cls._create_xlsx(filepath, name, content)
-        elif format == "pptx" and PPTX_AVAILABLE:
-            size = cls._create_pptx(filepath, name, content)
+
+        if is_financial:
+            fin_data = await cls._generate_financial_document_data(name, description)
+            if format == "docx" and DOCX_AVAILABLE:
+                size = cls._create_financial_docx(filepath, fin_data)
+            elif format == "pdf" and PDF_AVAILABLE:
+                size = cls._create_financial_pdf(filepath, fin_data)
+            elif format == "xlsx" and XLSX_AVAILABLE:
+                size = cls._create_financial_xlsx(filepath, fin_data)
+            elif format == "pptx" and PPTX_AVAILABLE:
+                content = await cls._generate_document_content(description)
+                size = cls._create_pptx(filepath, name, content)
+            else:
+                content = await cls._generate_document_content(description)
+                with open(filepath.replace(f'.{format}', '.txt'), 'w') as f:
+                    f.write(f"# {name}\n\n{content}")
+                filepath = filepath.replace(f'.{format}', '.txt')
+                format = 'txt'
+                size = os.path.getsize(filepath)
         else:
-            # Create a simple text file as fallback
-            with open(filepath.replace(f'.{format}', '.txt'), 'w') as f:
-                f.write(f"# {name}\n\n{content}")
-            filepath = filepath.replace(f'.{format}', '.txt')
-            format = 'txt'
-            size = os.path.getsize(filepath)
-        
+            content = await cls._generate_document_content(description)
+            if format == "docx" and DOCX_AVAILABLE:
+                size = cls._create_docx(filepath, name, content)
+            elif format == "pdf" and PDF_AVAILABLE:
+                size = cls._create_pdf(filepath, name, content)
+            elif format == "xlsx" and XLSX_AVAILABLE:
+                size = cls._create_xlsx(filepath, name, content)
+            elif format == "pptx" and PPTX_AVAILABLE:
+                size = cls._create_pptx(filepath, name, content)
+            else:
+                with open(filepath.replace(f'.{format}', '.txt'), 'w') as f:
+                    f.write(f"# {name}\n\n{content}")
+                filepath = filepath.replace(f'.{format}', '.txt')
+                format = 'txt'
+                size = os.path.getsize(filepath)
+
         result = {
             "id": item_id,
             "name": name,
@@ -450,25 +468,39 @@ Return only valid JSON, no markdown or explanation."""
             "created_at": datetime.utcnow().isoformat(),
             "org_id": org_id
         }
-        
-        # Save metadata
+
         with open(os.path.join(cls.STORAGE_PATH, f"{item_id}_meta.json"), 'w') as f:
             json.dump(result, f, indent=2)
-        
+
         return result
     
+    _FINANCIAL_KEYWORDS = ['invoice', 'receipt', 'bill', 'purchase order', 'quotation', 'estimate']
+
+    @classmethod
+    def _is_financial_document(cls, description: str, name: str = "") -> bool:
+        combined = f"{name} {description}".lower()
+        return any(kw in combined for kw in cls._FINANCIAL_KEYWORDS)
+
     @classmethod
     async def _generate_document_content(cls, description: str) -> str:
-        """Generate document content using AI"""
+        """Generate document content using AI -- always with realistic filled-in data."""
         client = cls._get_ai_client()
-        
+
         if client:
             try:
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
-                        {"role": "system", "content": "You are a professional document writer. Create well-structured, detailed content with proper sections, paragraphs, and formatting. Use markdown for structure."},
-                        {"role": "user", "content": f"Create professional document content for:\n\n{description}"}
+                        {"role": "system", "content": (
+                            "You are a professional document writer. "
+                            "Generate a COMPLETE, FINISHED document with ALL data filled in. "
+                            "Use realistic company names, people names, addresses, dates, numbers, and details. "
+                            "NEVER use placeholders like [Company Name], [Date], [Value], or any bracketed text. "
+                            "Every field must contain a realistic value. "
+                            "Use markdown for structure (headings, lists, bold). "
+                            "The document must look like a real business document ready to use."
+                        )},
+                        {"role": "user", "content": f"Write a complete, professional document with all data filled in for:\n\n{description}"}
                     ],
                     temperature=0.7,
                     max_tokens=3000
@@ -476,7 +508,7 @@ Return only valid JSON, no markdown or explanation."""
                 return response.choices[0].message.content
             except Exception as e:
                 print(f"AI content generation failed: {e}")
-        
+
         # Fallback content
         return f"""# {description[:60] if description else 'Document'}
 
@@ -484,27 +516,403 @@ Return only valid JSON, no markdown or explanation."""
 {description}
 
 ## Details
-This document provides a comprehensive overview of the subject matter outlined above. 
+This document provides a comprehensive overview of the subject matter outlined above.
 All information has been compiled from relevant sources and reviewed for accuracy.
 
 ## Summary
 For further details or inquiries, please contact the responsible department.
 """
-    
+
+    @classmethod
+    async def _generate_financial_document_data(cls, name: str, description: str) -> Dict[str, Any]:
+        """Generate structured JSON data for financial documents (invoices, receipts, etc.)."""
+        client = cls._get_ai_client()
+
+        prompt = f"""Generate realistic financial document data for this request:
+
+Name: {name}
+Description: {description}
+
+Return a JSON object with this structure:
+{{
+    "company": "Realistic company name",
+    "company_address": "Full street address\\nCity, State ZIP",
+    "company_phone": "+1 (XXX) XXX-XXXX",
+    "company_email": "billing@company.com",
+    "document_number": "INV-2025-XXXXX",
+    "document_date": "February 25, 2025",
+    "due_date": "March 27, 2025",
+    "customer_name": "Realistic customer name",
+    "customer_address": "Full street address\\nCity, State ZIP",
+    "customer_email": "contact@customer.com",
+    "items": [
+        {{"description": "Specific detailed item/service description", "qty": 1, "price": 1500.00}},
+        {{"description": "Another specific item", "qty": 5, "price": 200.00}}
+    ],
+    "subtotal": 2500.00,
+    "tax_rate": "8%",
+    "tax": 200.00,
+    "total": 2700.00,
+    "payment_terms": "Net 30",
+    "notes": "Thank you for your business!"
+}}
+
+RULES:
+- Generate 3-6 line items that are SPECIFIC to the context described
+- Use realistic pricing (not round numbers -- use $97.50, $1,247.00, etc.)
+- Calculate subtotal, tax, and total CORRECTLY
+- Item descriptions must be detailed: "Strategic Planning Workshop (8 hours)" not just "Consulting"
+- NEVER use placeholders. Every field must have a realistic value.
+- Return ONLY valid JSON, no markdown or explanation."""
+
+        if client:
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "You generate realistic financial document data in JSON format. Never use placeholders. Output valid JSON only."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000
+                )
+                content = response.choices[0].message.content.strip()
+                if '```' in content:
+                    content = content.split('```')[1]
+                    if content.startswith('json'):
+                        content = content[4:]
+                return json.loads(content)
+            except Exception as e:
+                print(f"Financial document AI generation failed: {e}")
+
+        return cls._get_fallback_financial_data(name, description)
+
+    @classmethod
+    def _get_fallback_financial_data(cls, name: str, description: str) -> Dict[str, Any]:
+        """Realistic fallback data for invoices/receipts when AI is unavailable."""
+        import random
+        from datetime import timedelta
+
+        first_names = ["Ahmed", "Sarah", "Michael", "Emily", "James", "Maria", "David", "Olivia"]
+        last_names = ["Al-Rashid", "Johnson", "Chen", "Garcia", "Müller", "Williams", "Patel", "Santos"]
+        companies = ["Apex Technologies Inc.", "Meridian Partners LLC", "Blue Ocean Trading Co.",
+                      "Pinnacle Holdings Group", "Vantage Consulting Ltd.", "Silverline Financial Corp."]
+
+        company = random.choice(companies)
+        customer = f"{random.choice(first_names)} {random.choice(last_names)}"
+        inv_num = f"INV-{datetime.utcnow().year}-{random.randint(10000, 99999)}"
+        inv_date = datetime.utcnow().strftime("%B %d, %Y")
+        due_date = (datetime.utcnow() + timedelta(days=30)).strftime("%B %d, %Y")
+
+        all_items = [
+            {"description": "Professional Consulting Services - Phase 1", "qty": 24, "price": 175.00},
+            {"description": "Software License (Enterprise, Annual)", "qty": 1, "price": 4800.00},
+            {"description": "Cloud Infrastructure Setup & Configuration", "qty": 1, "price": 3250.00},
+            {"description": "Technical Documentation Package", "qty": 1, "price": 1500.00},
+            {"description": "Quality Assurance & Testing (40 hours)", "qty": 40, "price": 95.00},
+            {"description": "Project Management - Monthly Retainer", "qty": 3, "price": 2200.00},
+            {"description": "Data Migration & Integration Services", "qty": 1, "price": 5750.00},
+            {"description": "Staff Training Workshop (2 days)", "qty": 1, "price": 3400.00},
+        ]
+        items = random.sample(all_items, random.randint(3, 5))
+        subtotal = sum(i["qty"] * i["price"] for i in items)
+        tax = round(subtotal * 0.08, 2)
+        total = round(subtotal + tax, 2)
+
+        short = company.split()[0].lower().replace(".", "")
+        return {
+            "company": company,
+            "company_address": f"{random.randint(100, 9999)} Commerce Blvd\nSuite {random.randint(100, 800)}\nNew York, NY 10017",
+            "company_phone": f"+1 ({random.randint(200,999)}) {random.randint(100,999)}-{random.randint(1000,9999)}",
+            "company_email": f"billing@{short}.com",
+            "document_number": inv_num,
+            "document_date": inv_date,
+            "due_date": due_date,
+            "customer_name": customer,
+            "customer_address": f"{random.randint(100, 9999)} {random.choice(['Park Ave', 'Oak Street', 'Main Blvd'])}\n{random.choice(['Los Angeles, CA 90001', 'Chicago, IL 60601', 'Houston, TX 77001'])}",
+            "customer_email": f"{customer.lower().replace(' ', '.')}@{random.choice(['corp.com', 'company.com', 'group.io'])}",
+            "items": items,
+            "subtotal": subtotal,
+            "tax_rate": "8%",
+            "tax": tax,
+            "total": total,
+            "payment_terms": "Net 30",
+            "notes": "Thank you for your business!"
+        }
+
+    # ------------------------------------------------------------------
+    # Structured document renderers (for financial docs with tables)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _create_financial_docx(cls, filepath: str, data: Dict[str, Any]) -> int:
+        """Create a professional Word invoice/receipt with tables."""
+        doc = Document()
+
+        style = doc.styles['Normal']
+        style.font.name = 'Calibri'
+        style.font.size = Pt(11)
+
+        # Company header
+        header = doc.add_paragraph()
+        run = header.add_run(data.get("company", ""))
+        run.bold = True
+        run.font.size = Pt(22)
+
+        addr_lines = (data.get("company_address") or "").split('\n')
+        for line in addr_lines:
+            doc.add_paragraph(line)
+        phone = data.get("company_phone", "")
+        email = data.get("company_email", "")
+        if phone or email:
+            doc.add_paragraph(f"Phone: {phone}   |   Email: {email}")
+
+        doc.add_paragraph()
+
+        # Title (INVOICE / RECEIPT)
+        title_p = doc.add_paragraph()
+        title_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        title_run = title_p.add_run("INVOICE")
+        title_run.bold = True
+        title_run.font.size = Pt(26)
+
+        # Metadata
+        meta_items = [
+            ("Invoice #:", data.get("document_number", "")),
+            ("Date:", data.get("document_date", "")),
+            ("Due Date:", data.get("due_date", "")),
+        ]
+        for label, val in meta_items:
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            p.add_run(f"{label} ").bold = True
+            p.add_run(val)
+
+        doc.add_paragraph()
+
+        # Bill To
+        bt = doc.add_paragraph()
+        bt.add_run("BILL TO:").bold = True
+        cust = doc.add_paragraph()
+        cust.add_run(data.get("customer_name", "")).bold = True
+        for line in (data.get("customer_address") or "").split('\n'):
+            doc.add_paragraph(line)
+        cust_email = data.get("customer_email", "")
+        if cust_email:
+            doc.add_paragraph(f"Email: {cust_email}")
+
+        doc.add_paragraph()
+
+        # Items table
+        items = data.get("items", [])
+        table = doc.add_table(rows=1 + len(items) + 3, cols=4)
+        table.style = 'Table Grid'
+
+        headers = ["Description", "Quantity", "Unit Price", "Amount"]
+        for i, h in enumerate(headers):
+            cell = table.rows[0].cells[i]
+            cell.text = h
+            for p in cell.paragraphs:
+                for r in p.runs:
+                    r.bold = True
+
+        for idx, item in enumerate(items):
+            row = table.rows[idx + 1].cells
+            row[0].text = item.get("description", "")
+            row[1].text = str(item.get("qty", 0))
+            row[2].text = f"${item.get('price', 0):,.2f}"
+            row[3].text = f"${item.get('qty', 0) * item.get('price', 0):,.2f}"
+
+        # Totals
+        st_row = len(items) + 1
+        table.rows[st_row].cells[2].text = "Subtotal:"
+        table.rows[st_row].cells[3].text = f"${data.get('subtotal', 0):,.2f}"
+        table.rows[st_row + 1].cells[2].text = f"Tax ({data.get('tax_rate', '8%')}):"
+        table.rows[st_row + 1].cells[3].text = f"${data.get('tax', 0):,.2f}"
+        total_cell = table.rows[st_row + 2].cells[2]
+        total_cell.text = "TOTAL:"
+        for p in total_cell.paragraphs:
+            for r in p.runs:
+                r.bold = True
+        total_val = table.rows[st_row + 2].cells[3]
+        total_val.text = f"${data.get('total', 0):,.2f}"
+        for p in total_val.paragraphs:
+            for r in p.runs:
+                r.bold = True
+
+        doc.add_paragraph()
+        terms = doc.add_paragraph()
+        terms.add_run(f"Payment Terms: {data.get('payment_terms', 'Net 30')}").bold = True
+        doc.add_paragraph()
+        notes = doc.add_paragraph(data.get("notes", ""))
+        notes.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        doc.save(filepath)
+        return os.path.getsize(filepath)
+
+    @classmethod
+    def _create_financial_pdf(cls, filepath: str, data: Dict[str, Any]) -> int:
+        """Create a professional PDF invoice/receipt with tables."""
+        doc = SimpleDocTemplate(filepath, pagesize=A4)
+        styles = getSampleStyleSheet()
+        story = []
+
+        company_style = ParagraphStyle('Company', parent=styles['Heading1'], fontSize=22, textColor=colors.HexColor('#003366'), spaceAfter=6)
+        subtitle_style = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=10, textColor=colors.grey)
+        title_style = ParagraphStyle('InvTitle', parent=styles['Heading1'], fontSize=28, textColor=colors.grey, alignment=2)
+        meta_style = ParagraphStyle('Meta', parent=styles['Normal'], fontSize=10, alignment=2)
+        bold_style = ParagraphStyle('Bold', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold')
+
+        story.append(Paragraph(data.get("company", ""), company_style))
+        for line in (data.get("company_address") or "").split('\n'):
+            story.append(Paragraph(line, subtitle_style))
+        phone = data.get("company_phone", "")
+        email = data.get("company_email", "")
+        if phone or email:
+            story.append(Paragraph(f"Phone: {phone}  |  Email: {email}", subtitle_style))
+        story.append(Spacer(1, 20))
+
+        story.append(Paragraph("INVOICE", title_style))
+        story.append(Paragraph(f"Invoice #: {data.get('document_number', '')}", meta_style))
+        story.append(Paragraph(f"Date: {data.get('document_date', '')}", meta_style))
+        story.append(Paragraph(f"Due: {data.get('due_date', '')}", meta_style))
+        story.append(Spacer(1, 20))
+
+        story.append(Paragraph("<b>BILL TO:</b>", bold_style))
+        story.append(Paragraph(f"<b>{data.get('customer_name', '')}</b>", styles['Normal']))
+        for line in (data.get("customer_address") or "").split('\n'):
+            story.append(Paragraph(line, styles['Normal']))
+        cust_email = data.get("customer_email", "")
+        if cust_email:
+            story.append(Paragraph(f"Email: {cust_email}", styles['Normal']))
+        story.append(Spacer(1, 20))
+
+        # Items table
+        items = data.get("items", [])
+        table_data = [["Description", "Qty", "Unit Price", "Amount"]]
+        for item in items:
+            table_data.append([
+                item.get("description", ""),
+                str(item.get("qty", 0)),
+                f"${item.get('price', 0):,.2f}",
+                f"${item.get('qty', 0) * item.get('price', 0):,.2f}",
+            ])
+        table_data.append(["", "", "Subtotal:", f"${data.get('subtotal', 0):,.2f}"])
+        table_data.append(["", "", f"Tax ({data.get('tax_rate', '8%')}):", f"${data.get('tax', 0):,.2f}"])
+        table_data.append(["", "", "TOTAL:", f"${data.get('total', 0):,.2f}"])
+
+        t = Table(table_data, colWidths=[250, 50, 80, 80])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -4), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -4), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('FONTNAME', (2, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 30))
+
+        story.append(Paragraph(f"<b>Payment Terms:</b> {data.get('payment_terms', 'Net 30')}", styles['Normal']))
+        story.append(Spacer(1, 12))
+        story.append(Paragraph(data.get("notes", ""), ParagraphStyle('Notes', parent=styles['Normal'], alignment=1, textColor=colors.grey)))
+
+        doc.build(story)
+        return os.path.getsize(filepath)
+
+    @classmethod
+    def _create_financial_xlsx(cls, filepath: str, data: Dict[str, Any]) -> int:
+        """Create a professional Excel invoice/receipt."""
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Invoice"
+
+        header_font = Font(bold=True, size=12, color="FFFFFF")
+        header_fill = PatternFill(start_color="003366", end_color="003366", fill_type="solid")
+        bold_font = Font(bold=True)
+        thin_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+
+        ws['A1'] = data.get("company", "")
+        ws['A1'].font = Font(bold=True, size=18, color="003366")
+        ws.merge_cells('A1:D1')
+
+        ws['A2'] = (data.get("company_address") or "").replace('\n', ', ')
+        ws['A3'] = f"Phone: {data.get('company_phone', '')}  |  Email: {data.get('company_email', '')}"
+
+        ws['C5'] = "INVOICE"
+        ws['C5'].font = Font(bold=True, size=16)
+        ws['A6'] = "Invoice #:"
+        ws['A6'].font = bold_font
+        ws['B6'] = data.get("document_number", "")
+        ws['A7'] = "Date:"
+        ws['A7'].font = bold_font
+        ws['B7'] = data.get("document_date", "")
+        ws['A8'] = "Due Date:"
+        ws['A8'].font = bold_font
+        ws['B8'] = data.get("due_date", "")
+
+        ws['A10'] = "Bill To:"
+        ws['A10'].font = bold_font
+        ws['A11'] = data.get("customer_name", "")
+        ws['A11'].font = bold_font
+        ws['A12'] = (data.get("customer_address") or "").replace('\n', ', ')
+
+        headers = ["Description", "Qty", "Unit Price", "Amount"]
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=14, column=col, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center')
+            cell.border = thin_border
+
+        items = data.get("items", [])
+        for idx, item in enumerate(items):
+            r = 15 + idx
+            ws.cell(row=r, column=1, value=item.get("description", "")).border = thin_border
+            ws.cell(row=r, column=2, value=item.get("qty", 0)).border = thin_border
+            ws.cell(row=r, column=3, value=f"${item.get('price', 0):,.2f}").border = thin_border
+            ws.cell(row=r, column=4, value=f"${item.get('qty', 0) * item.get('price', 0):,.2f}").border = thin_border
+
+        tr = 15 + len(items) + 1
+        ws.cell(row=tr, column=3, value="Subtotal:").font = bold_font
+        ws.cell(row=tr, column=4, value=f"${data.get('subtotal', 0):,.2f}")
+        ws.cell(row=tr + 1, column=3, value=f"Tax ({data.get('tax_rate', '8%')}):").font = bold_font
+        ws.cell(row=tr + 1, column=4, value=f"${data.get('tax', 0):,.2f}")
+        ws.cell(row=tr + 2, column=3, value="TOTAL:").font = Font(bold=True, size=12)
+        ws.cell(row=tr + 2, column=4, value=f"${data.get('total', 0):,.2f}").font = Font(bold=True, size=12)
+
+        ws.column_dimensions['A'].width = 45
+        ws.column_dimensions['B'].width = 10
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 15
+
+        wb.save(filepath)
+        return os.path.getsize(filepath)
+
+    # ------------------------------------------------------------------
+    # Markdown-based renderers (for general/non-financial docs)
+    # ------------------------------------------------------------------
+
     @classmethod
     def _create_docx(cls, filepath: str, title: str, content: str) -> int:
-        """Create a Word document"""
+        """Create a Word document from markdown content."""
         doc = Document()
-        
-        # Add title
+
         doc.add_heading(title, 0)
-        
-        # Parse markdown-like content
+
         for line in content.split('\n'):
             line = line.strip()
             if not line:
                 continue
-            
+
             if line.startswith('# '):
                 doc.add_heading(line[2:], 1)
             elif line.startswith('## '):
@@ -517,7 +925,7 @@ For further details or inquiries, please contact the responsible department.
                 doc.add_paragraph(line[3:], style='List Number')
             else:
                 doc.add_paragraph(line)
-        
+
         doc.save(filepath)
         return os.path.getsize(filepath)
     
