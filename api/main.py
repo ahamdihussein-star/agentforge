@@ -10760,31 +10760,51 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
     """
     user_id = str(current_user.id) if current_user else None
     
+    db_conv = None
     # Try database first
     try:
         from database.services import ConversationService
-        conv = ConversationService.get_conversation_by_id(conversation_id)
-        if conv:
+        db_conv = ConversationService.get_conversation_by_id(conversation_id)
+        if db_conv:
             # PRIVACY CHECK: Verify user owns this conversation
-            if conv.get('user_id') and conv.get('user_id') != user_id:
+            if db_conv.get('user_id') and db_conv.get('user_id') != user_id:
                 raise HTTPException(403, "You don't have access to this conversation")
-            return conv
     except HTTPException:
         raise
     except Exception as e:
         print(f"⚠️  Database error, falling back to memory: {e}")
     
-    # Fallback to memory
-    if conversation_id not in app_state.conversations:
+    # If DB returned the conversation with messages, return it directly
+    if db_conv and db_conv.get('messages'):
+        return db_conv
+    
+    # If DB has the conversation but no messages, check in-memory for messages
+    # (handles cases where DB persistence failed but messages exist in memory)
+    mem_conv = app_state.conversations.get(conversation_id)
+    if mem_conv:
+        conv_user_id = getattr(mem_conv, 'user_id', None) or (mem_conv.access_cache.user_id if hasattr(mem_conv, 'access_cache') and mem_conv.access_cache else None)
+        if conv_user_id and conv_user_id != user_id:
+            raise HTTPException(403, "You don't have access to this conversation")
+        
+        mem_dict = mem_conv.dict()
+        
+        if mem_dict.get('messages') and len(mem_dict['messages']) > 0:
+            # Merge: use DB metadata but in-memory messages
+            if db_conv:
+                db_conv['messages'] = mem_dict['messages']
+                db_conv['message_count'] = len(mem_dict['messages'])
+                return db_conv
+            return mem_dict
+    
+    # Return DB conversation even with empty messages
+    if db_conv:
+        return db_conv
+    
+    # No conversation found anywhere
+    if not mem_conv:
         raise HTTPException(404, "Conversation not found")
     
-    conv = app_state.conversations[conversation_id]
-    # PRIVACY CHECK for memory-based conversations
-    conv_user_id = getattr(conv, 'user_id', None) or (conv.access_cache.user_id if hasattr(conv, 'access_cache') and conv.access_cache else None)
-    if conv_user_id and conv_user_id != user_id:
-        raise HTTPException(403, "You don't have access to this conversation")
-    
-    return conv.dict()
+    return mem_conv.dict()
 
 
 @app.delete("/api/conversations/{conversation_id}")
@@ -12051,13 +12071,17 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             # Save user message
             try:
                 from database.services import ConversationService
-                ConversationService.add_message(conversation.id, {
+                result = ConversationService.add_message(conversation.id, {
                     'id': user_msg.id,
                     'role': 'user',
                     'content': request.message
                 }, org_id, user_id)
-            except Exception:
-                pass
+                if not result:
+                    print(f"⚠️ [STREAM] Failed to persist user message to DB (conv={conversation.id[:8]})")
+            except Exception as e:
+                print(f"❌ [STREAM] Exception saving user message: {e}")
+                import traceback
+                traceback.print_exc()
             
             # ========================================================================
             # KNOWLEDGE BASE SEARCH
@@ -12516,14 +12540,18 @@ If user asks "مين مدير فادي" respond:
             
             try:
                 from database.services import ConversationService
-                ConversationService.add_message(conversation.id, {
+                result = ConversationService.add_message(conversation.id, {
                     'id': assistant_msg.id,
                     'role': 'assistant',
                     'content': final_content,
                     'sources': sources
                 }, org_id, user_id)
-            except Exception:
-                pass
+                if not result:
+                    print(f"⚠️ [STREAM] Failed to persist assistant message to DB (conv={conversation.id[:8]})")
+            except Exception as e:
+                print(f"❌ [STREAM] Exception saving assistant message: {e}")
+                import traceback
+                traceback.print_exc()
             
             app_state.save_to_disk()
             
