@@ -11,6 +11,7 @@ anthropic==0.18.1
 
 # HTTP Client
 httpx==0.26.0
+requests>=2.32.0
 
 # Document Processing
 pymupdf==1.23.8
