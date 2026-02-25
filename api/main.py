@@ -5880,35 +5880,34 @@ async def generate_demo_data_for_agent(request: DemoDataRequest):
         items = []
         
         if request.type == "apis":
-            # Create mock APIs based on agent goal
             if "customer" in goal_lower or "order" in goal_lower:
                 items.append({
                     "name": "Orders API",
                     "endpoint": "/api/mock/orders",
                     "method": "GET",
-                    "sample_response": {"orders": [{"id": "ORD-001", "status": "shipped", "total": 99.99}]}
+                    "sample_response": {"orders": [{"id": "ORD-2024-48271", "customer": "Sarah Johnson", "status": "shipped", "total": 349.97, "tracking": "1Z999BB20234567895"}]}
                 })
             if "product" in goal_lower:
                 items.append({
                     "name": "Products API",
                     "endpoint": "/api/mock/products",
                     "method": "GET",
-                    "sample_response": {"products": [{"id": "P001", "name": "Sample Product", "price": 49.99}]}
+                    "sample_response": {"products": [{"id": "PROD-4812", "name": "Wireless Bluetooth Headphones", "price": 79.99, "category": "Electronics", "stock": 150}]}
                 })
             if "employee" in goal_lower or "hr" in goal_lower:
                 items.append({
                     "name": "Employees API",
                     "endpoint": "/api/mock/employees",
                     "method": "GET",
-                    "sample_response": {"employees": [{"id": "E001", "name": "John Doe", "department": "Engineering"}]}
+                    "sample_response": {"employees": [{"id": "EMP-10234", "name": "Ahmed Hassan", "department": "Engineering", "position": "Senior Developer"}]}
                 })
-            
+
             if not items:
                 items.append({
-                    "name": "Sample Data API",
+                    "name": "Records API",
                     "endpoint": "/api/mock/data",
                     "method": "GET",
-                    "sample_response": {"data": [{"id": 1, "value": "sample"}]}
+                    "sample_response": {"data": [{"id": 1, "name": "Annual Budget Review", "status": "active", "updated_at": "2025-11-14"}]}
                 })
         
         elif request.type == "documents":
@@ -5935,15 +5934,15 @@ async def generate_demo_data_for_agent(request: DemoDataRequest):
                 ]
         
         elif request.type == "images":
-            # Generate image placeholders
             if "product" in goal_lower:
+                product_img_names = ["Wireless Headphones", "Smart Watch", "Laptop Stand", "USB Hub", "Desk Lamp"]
                 items = [
-                    {"name": f"Product Image {i+1}", "url": f"/demo/images/product_{i+1}.png"} 
+                    {"name": product_img_names[i], "url": f"/api/lab/generate/image"}
                     for i in range(5)
                 ]
             else:
                 items = [
-                    {"name": "Placeholder Image", "url": "/demo/images/placeholder.png"}
+                    {"name": "Document Image", "url": "/api/lab/generate/image"}
                 ]
         
         return {
@@ -13820,7 +13819,7 @@ async def generate_programmatic_document_image(name: str, description: str, imag
         draw.text((width // 2 - 200, height - 35), f"Questions? Contact us at billing@{company.lower().replace(' ', '')[:10]}.com", fill='#999999', font=font_small)
         
         # Save image
-        filename = f"demo_{name.lower().replace(' ', '_')}_{uuid.uuid4().hex[:6]}.png"
+        filename = f"img_{name.lower().replace(' ', '_')}_{uuid.uuid4().hex[:6]}.png"
         filepath = os.path.join(output_dir, filename)
         img.save(filepath, 'PNG', quality=95)
         
@@ -14235,7 +14234,7 @@ async def generate_demo_document(name: str, doc_type: str, content_type: str, sa
         print(f"[Demo Lab] Output directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
         
-        filename = f"demo_{name.lower().replace(' ', '_')}_{uuid.uuid4().hex[:6]}"
+        filename = f"doc_{name.lower().replace(' ', '_')}_{uuid.uuid4().hex[:6]}"
         content_lower = content_type.lower() if content_type else ""
         print(f"[Demo Lab] Filename base: {filename}, content_lower: {content_lower}")
         

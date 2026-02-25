@@ -267,57 +267,104 @@ Return only valid JSON, no markdown or explanation."""
     
     @classmethod
     def _generate_sample_data(cls, description: str, count: int) -> List[Dict]:
-        """Generate sample data when AI is not available"""
+        """Generate realistic fallback data when AI is not available"""
         import random
-        
-        # Detect what type of data based on description
+        from datetime import timedelta
+
+        first_names = ["Ahmed", "Sarah", "Michael", "Emily", "James", "Maria", "David",
+                        "Jessica", "Robert", "Laura", "Daniel", "Sophia", "Omar", "Lina",
+                        "William", "Olivia", "Hassan", "Nora", "Thomas", "Fatima"]
+        last_names = ["Al-Rashid", "Johnson", "Chen", "Garcia", "Müller", "Tanaka",
+                       "Petrov", "Williams", "Kim", "Santos", "Ali", "Martin",
+                       "Anderson", "Lee", "Hernandez", "Smith", "Patel", "Brown"]
+        companies = ["Apex Technologies Inc.", "GlobalTech Solutions", "Premier Services LLC",
+                      "Quantum Dynamics Corp.", "Nexus Industries", "Blue Ocean Trading",
+                      "Pinnacle Holdings", "Vantage Consulting", "Meridian Partners",
+                      "Atlas Logistics", "Silverline Financial", "Nova Enterprises"]
+        domains = ["company.com", "corp.com", "group.io", "global.com", "hq.com"]
+        departments = ["Engineering", "Finance", "Marketing", "Operations", "Sales",
+                        "Human Resources", "Legal", "Product", "Customer Success"]
+
+        def _rand_name():
+            return f"{random.choice(first_names)} {random.choice(last_names)}"
+
+        def _rand_email(name: str):
+            local = name.lower().replace(" ", ".")
+            return f"{local}@{random.choice(domains)}"
+
+        def _rand_date(days_back=365):
+            d = datetime.utcnow() - timedelta(days=random.randint(0, days_back))
+            return d.strftime("%Y-%m-%d")
+
         desc_lower = description.lower()
-        
+
         if any(w in desc_lower for w in ['customer', 'user', 'person', 'employee']):
-            return [
-                {
+            results = []
+            for i in range(count):
+                name = _rand_name()
+                results.append({
                     "id": i + 1,
-                    "name": f"Sample Person {i + 1}",
-                    "email": f"person{i + 1}@example.com",
-                    "phone": f"+1-555-{random.randint(100, 999)}-{random.randint(1000, 9999)}",
-                    "company": f"Company {chr(65 + (i % 26))}",
-                    "created_at": datetime.utcnow().isoformat()
-                }
-                for i in range(count)
-            ]
+                    "name": name,
+                    "email": _rand_email(name),
+                    "phone": f"+1-{random.randint(200,999)}-{random.randint(100,999)}-{random.randint(1000,9999)}",
+                    "company": random.choice(companies),
+                    "department": random.choice(departments),
+                    "created_at": _rand_date(730)
+                })
+            return results
+
         elif any(w in desc_lower for w in ['product', 'item', 'inventory']):
+            product_names = [
+                "Wireless Bluetooth Headphones", "Smart Watch Pro", "4K Ultra Monitor",
+                "Ergonomic Office Chair", "Portable SSD 1TB", "Mechanical Keyboard",
+                "Noise-Canceling Earbuds", "USB-C Hub Adapter", "LED Desk Lamp",
+                "Webcam HD 1080p", "Standing Desk Converter", "Laptop Backpack",
+                "Wireless Charging Pad", "External Battery Pack", "Graphics Tablet",
+                "Smart Thermostat", "Security Camera Kit", "Robot Vacuum Cleaner",
+                "Air Purifier HEPA", "Espresso Machine Pro"
+            ]
+            random.shuffle(product_names)
             return [
                 {
                     "id": i + 1,
-                    "name": f"Product {i + 1}",
+                    "name": product_names[i % len(product_names)],
                     "sku": f"SKU-{random.randint(10000, 99999)}",
-                    "price": round(random.uniform(10, 500), 2),
-                    "quantity": random.randint(0, 100),
-                    "category": random.choice(["Electronics", "Clothing", "Food", "Home"])
+                    "price": round(random.uniform(19.99, 599.99), 2),
+                    "quantity": random.randint(0, 250),
+                    "category": random.choice(["Electronics", "Office", "Home & Garden", "Audio", "Computing"])
                 }
                 for i in range(count)
             ]
+
         elif any(w in desc_lower for w in ['order', 'transaction', 'sale']):
+            statuses = ["pending", "processing", "shipped", "delivered", "completed"]
             return [
                 {
                     "id": i + 1,
                     "order_number": f"ORD-{random.randint(100000, 999999)}",
-                    "customer_id": random.randint(1, 100),
-                    "total": round(random.uniform(50, 1000), 2),
-                    "status": random.choice(["pending", "processing", "shipped", "delivered"]),
-                    "created_at": datetime.utcnow().isoformat()
+                    "customer": _rand_name(),
+                    "total": round(random.uniform(45, 2500), 2),
+                    "status": random.choice(statuses),
+                    "created_at": _rand_date(90)
                 }
                 for i in range(count)
             ]
+
         else:
-            # Generic data
+            record_names = [
+                "Annual Budget Review", "Q4 Performance Report", "Client Onboarding",
+                "Maintenance Schedule", "Compliance Audit", "Partnership Agreement",
+                "Training Program", "Market Analysis", "Supply Chain Update",
+                "Risk Assessment", "Strategic Plan", "Resource Allocation"
+            ]
+            random.shuffle(record_names)
             return [
                 {
                     "id": i + 1,
-                    "name": f"Item {i + 1}",
+                    "name": record_names[i % len(record_names)],
                     "value": random.randint(1, 100),
                     "active": random.choice([True, False]),
-                    "created_at": datetime.utcnow().isoformat()
+                    "created_at": _rand_date(180)
                 }
                 for i in range(count)
             ]
@@ -431,16 +478,17 @@ Return only valid JSON, no markdown or explanation."""
                 print(f"AI content generation failed: {e}")
         
         # Fallback content
-        return f"""# Document
+        return f"""# {description[:60] if description else 'Document'}
 
 ## Overview
 {description}
 
 ## Details
-This is a generated document based on your requirements.
+This document provides a comprehensive overview of the subject matter outlined above. 
+All information has been compiled from relevant sources and reviewed for accuracy.
 
-## Conclusion
-Document generated by AgentForge Lab.
+## Summary
+For further details or inquiries, please contact the responsible department.
 """
     
     @classmethod
@@ -559,7 +607,7 @@ Document generated by AgentForge Lab.
         title_slide_layout = prs.slide_layouts[0]
         slide = prs.slides.add_slide(title_slide_layout)
         slide.shapes.title.text = title
-        slide.placeholders[1].text = "Generated by AgentForge Lab"
+        slide.placeholders[1].text = datetime.utcnow().strftime("%B %Y")
         
         # Content slides
         bullet_slide_layout = prs.slide_layouts[1]
@@ -797,7 +845,7 @@ Document generated by AgentForge Lab.
         
         # Footer
         draw.line([(0, height - 60), (width, height - 60)], fill='#eeeeee')
-        footer_text = footer or doc_data.get('company', 'Generated by AgentForge Lab')
+        footer_text = footer or doc_data.get('company', doc_data.get('subtitle', ''))
         draw.text((margin, height - 45), footer_text[:60], font=font_small, fill='#999999')
         
         # Save
@@ -901,77 +949,96 @@ Return ONLY the JSON, no explanation or markdown."""
     @classmethod
     def _get_fallback_structure(cls, description: str, document_type: str) -> Dict[str, Any]:
         """Fallback structure when AI is not available"""
+        import random
         desc_lower = description.lower()
-        
+
+        first_names = ["Ahmed", "Sarah", "Michael", "Emily", "James", "Maria", "David", "Olivia"]
+        last_names = ["Al-Rashid", "Johnson", "Chen", "Garcia", "Müller", "Williams", "Patel", "Santos"]
+        companies = ["Apex Technologies Inc.", "Meridian Partners", "Blue Ocean Trading",
+                      "Pinnacle Holdings", "Vantage Consulting", "Silverline Financial"]
+
+        def _name():
+            return f"{random.choice(first_names)} {random.choice(last_names)}"
+
+        def _company():
+            return random.choice(companies)
+
         if 'airline' in desc_lower or 'flight' in desc_lower or 'ticket' in desc_lower:
+            passenger = _name()
             return {
                 "title": "AIRLINE TICKET",
                 "subtitle": "E-Ticket Receipt",
                 "reference": f"TKT-{cls._random_number(10)}",
                 "header_color": "#0066cc",
                 "sections": [
-                    {"title": "Passenger", "lines": ["John Smith", "Passport: AB1234567"]},
-                    {"title": "Flight Details", "lines": ["Flight: AA 1234", "Date: 2024-03-15", "Route: NYC → LAX"]}
+                    {"title": "Passenger", "lines": [passenger, f"Passport: {chr(random.randint(65,90))}{chr(random.randint(65,90))}{cls._random_number(7)}"]},
+                    {"title": "Flight Details", "lines": [f"Flight: EK {random.randint(100,999)}", f"Date: {datetime.now().strftime('%Y-%m-%d')}", "Route: DXB \u2192 LHR"]}
                 ],
                 "columns": ["Segment", "Class", "Status", "Fare"],
                 "items": [
-                    ["NYC - LAX", "Economy", "Confirmed", "$450.00"],
-                    ["Taxes & Fees", "-", "-", "$65.00"]
+                    ["DXB - LHR", "Business", "Confirmed", "$1,850.00"],
+                    ["Taxes & Fees", "-", "-", "$124.50"]
                 ],
-                "total": "$515.00",
-                "notes": ["Check-in opens 24 hours before departure", "Baggage allowance: 1 x 23kg"],
+                "total": "$1,974.50",
+                "notes": ["Check-in opens 24 hours before departure", "Baggage allowance: 2 x 32kg"],
                 "footer": "Thank you for flying with us"
             }
         elif 'receipt' in desc_lower:
+            store = _company()
             return {
                 "title": "RECEIPT",
-                "subtitle": "Payment Confirmation",
+                "subtitle": store,
                 "reference": f"RCP-{cls._random_number(8)}",
                 "header_color": "#2d2d2d",
                 "sections": [
-                    {"title": "Store", "lines": ["Sample Store", "123 Main Street"]}
+                    {"title": "Store", "lines": [store, f"{random.randint(100,999)} Market Street, Suite {random.randint(100,400)}"]}
                 ],
                 "columns": ["Item", "Qty", "Price", "Total"],
                 "items": [
-                    ["Product 1", "1", "$29.99", "$29.99"],
-                    ["Product 2", "2", "$15.00", "$30.00"]
+                    ["Wireless Keyboard", "1", "$79.99", "$79.99"],
+                    ["USB-C Cable (2m)", "3", "$12.50", "$37.50"],
+                    ["Monitor Stand", "1", "$45.00", "$45.00"]
                 ],
-                "total": "$59.99",
-                "notes": ["Thank you for your purchase"],
-                "footer": "Keep this receipt for your records"
+                "total": "$162.49",
+                "notes": ["Returns accepted within 30 days with receipt"],
+                "footer": store
             }
         elif 'invoice' in desc_lower:
+            company = _company()
+            customer = _name()
             return {
                 "title": "INVOICE",
-                "subtitle": "Tax Invoice",
+                "subtitle": company,
                 "reference": f"INV-{cls._random_number(8)}",
                 "header_color": "#1e3a5f",
                 "sections": [
-                    {"title": "Bill To", "lines": ["Customer Name", "123 Customer Street", "City, Country"]}
+                    {"title": "Bill To", "lines": [customer, f"{random.randint(100,9999)} Commerce Blvd, Suite {random.randint(100,800)}", "New York, NY 10017"]}
                 ],
                 "columns": ["Description", "Qty", "Unit Price", "Amount"],
                 "items": [
-                    ["Service/Product A", "1", "$100.00", "$100.00"],
-                    ["Service/Product B", "2", "$50.00", "$100.00"]
+                    ["Consulting Services - Phase 1", "40", "$150.00", "$6,000.00"],
+                    ["Software License (Annual)", "1", "$2,400.00", "$2,400.00"],
+                    ["Technical Support Plan", "12", "$200.00", "$2,400.00"]
                 ],
-                "total": "$200.00",
-                "notes": ["Payment due within 30 days"],
-                "footer": "Thank you for your business"
+                "total": "$10,800.00",
+                "notes": ["Payment due within 30 days", "Wire transfer or ACH preferred"],
+                "footer": company
             }
         else:
+            company = _company()
             return {
                 "title": document_type.upper() if document_type else "DOCUMENT",
-                "subtitle": description[:50] if description else "",
+                "subtitle": company,
                 "reference": f"DOC-{cls._random_number(6)}",
                 "header_color": "#1e3a5f",
                 "sections": [
-                    {"title": "Details", "lines": [description[:100] if description else "Document details"]}
+                    {"title": "Details", "lines": [description[:100] if description else "Refer to the attached documentation for full details."]}
                 ],
                 "columns": [],
                 "items": [],
                 "total": "",
                 "notes": [],
-                "footer": "Generated by AgentForge Lab"
+                "footer": company
             }
     
     @classmethod
