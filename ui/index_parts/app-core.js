@@ -585,12 +585,29 @@ const API='';
             }
             
             try {
+                // Fetch available tools so the AI can recommend relevant ones
+                let toolsForContext = [];
+                try {
+                    const toolsRes = await fetch('/api/tools', { headers: getAuthHeaders() });
+                    const toolsJson = await toolsRes.json().catch(() => ({}));
+                    const tools = Array.isArray(toolsJson?.tools) ? toolsJson.tools : [];
+                    toolsForContext = tools.slice(0, 40).map(t => {
+                        const apiParams = t?.api_config?.input_parameters || t?.api_config?.inputParameters || [];
+                        const safeParams = Array.isArray(apiParams) ? apiParams.map(p => ({
+                            name: p?.name, description: p?.description,
+                            data_type: p?.data_type || p?.type, required: !!p?.required, location: p?.location
+                        })) : [];
+                        return { id: t?.id, name: t?.name, type: t?.type, description: t?.description || '', input_parameters: safeParams };
+                    }).filter(t => t.id && t.name);
+                } catch (_) { /* ignore */ }
+
                 const response = await fetch(API + '/api/agents/generate-config', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     body: JSON.stringify({ 
                         goal: goal,
-                        update_mode: true  // Flag to indicate this is an update, not initial creation
+                        update_mode: true,
+                        context: { tools: toolsForContext }
                     })
                 });
                 

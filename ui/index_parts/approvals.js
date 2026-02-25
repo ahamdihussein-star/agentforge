@@ -788,10 +788,7 @@
                 // Provide available tools context to the wizard (sanitized: no secrets)
                 let toolsForContext = [];
                 try {
-                    const token = authToken || localStorage.getItem('agentforge_token');
-                    const toolsRes = await fetch('/api/tools', {
-                        headers: token ? { 'Authorization': 'Bearer ' + token } : {}
-                    });
+                    const toolsRes = await fetch('/api/tools', { headers: getAuthHeaders() });
                     const toolsJson = await toolsRes.json().catch(() => ({}));
                     const tools = Array.isArray(toolsJson?.tools) ? toolsJson.tools : [];
                     toolsForContext = tools.slice(0, 40).map(t => {
@@ -814,13 +811,9 @@
                 } catch (_) { /* ignore */ }
 
                 // Call AI to generate configuration - 100% dynamic, no fallback
-                const token = authToken || localStorage.getItem('agentforge_token');
                 const response = await fetch(API + '/api/agents/generate-config', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(token ? { 'Authorization': 'Bearer ' + token } : {})
-                    },
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     body: JSON.stringify({
                         goal,
                         context: {
