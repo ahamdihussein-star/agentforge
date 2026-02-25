@@ -6,9 +6,9 @@
 // AUTHENTICATION & SECURITY FUNCTIONS
 // ============================================================================
 
-// Auth state
-let authToken = localStorage.getItem('agentforge_token') || null;
-let currentUser = JSON.parse(localStorage.getItem('agentforge_user') || 'null');
+// Auth state — check both localStorage (remember-me) and sessionStorage (session-only)
+let authToken = localStorage.getItem('agentforge_token') || sessionStorage.getItem('agentforge_token') || null;
+let currentUser = JSON.parse(localStorage.getItem('agentforge_user') || sessionStorage.getItem('agentforge_user') || 'null');
 let securityUsers = [];
 let securityRoles = [];
 // ============================================================================
@@ -1310,14 +1310,14 @@ async function fetchCurrentUser() {
 function getAuthHeaders() {
     const headers = authToken ? { 'Authorization': 'Bearer ' + authToken } : {};
     if (!authToken) {
-        console.warn('⚠️ [getAuthHeaders] No authToken available. Checking localStorage...');
-        const storedToken = localStorage.getItem('agentforge_token');
+        console.warn('⚠️ [getAuthHeaders] No authToken available. Checking storage...');
+        const storedToken = localStorage.getItem('agentforge_token') || sessionStorage.getItem('agentforge_token');
         if (storedToken) {
-            console.log('✅ [getAuthHeaders] Found token in localStorage, updating authToken');
+            console.log('✅ [getAuthHeaders] Found token in storage, updating authToken');
             authToken = storedToken;
             return { 'Authorization': 'Bearer ' + authToken };
         } else {
-            console.warn('⚠️ [getAuthHeaders] No token found in localStorage either');
+            console.warn('⚠️ [getAuthHeaders] No token found in any storage');
         }
     }
     return headers;

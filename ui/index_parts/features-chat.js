@@ -2984,7 +2984,7 @@ async function rescrapeWebsite() {
     try {
         const response = await fetch(API + '/api/tools/' + editingToolId + '/scrape', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify({
                 url: url,
                 recursive: recursive,
@@ -3213,7 +3213,7 @@ async function wizCreate() {
                 
                 const fd = new FormData();
                 fd.append('file', file);
-                await fetch(API + '/api/tools/' + toolId + '/documents', { method: 'POST', body: fd });
+                await fetch(API + '/api/tools/' + toolId + '/documents', { method: 'POST', headers: getAuthHeaders(), body: fd });
             }
         }
         
@@ -3225,7 +3225,7 @@ async function wizCreate() {
                 
                 await fetch(API + '/api/tools/' + toolId + '/scrape', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     body: JSON.stringify({ url, recursive: false, max_pages: 1 })
                 });
             }

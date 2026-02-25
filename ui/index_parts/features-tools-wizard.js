@@ -1320,7 +1320,7 @@
                 }, 4000);
                 
                 try {
-                    await fetch(API+'/api/tools/'+tid+'/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,recursive:rec,max_pages:max})});
+                    await fetch(API+'/api/tools/'+tid+'/scrape',{method:'POST',headers:{'Content-Type':'application/json',...getAuthHeaders()},body:JSON.stringify({url,recursive:rec,max_pages:max})});
                     clearInterval(progressInterval);
                     updateProgress(100, '✅ Scraping complete!');
                     await new Promise(r => setTimeout(r, 1000));
@@ -1334,7 +1334,7 @@
             } else {
                 updateProgress(30, '📄 Fetching page content...');
                 try {
-                    await fetch(API+'/api/tools/'+tid+'/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,recursive:rec,max_pages:max})});
+                    await fetch(API+'/api/tools/'+tid+'/scrape',{method:'POST',headers:{'Content-Type':'application/json',...getAuthHeaders()},body:JSON.stringify({url,recursive:rec,max_pages:max})});
                     updateProgress(100, '✅ Scraping complete!');
                     await new Promise(r => setTimeout(r, 1000));
                     hideProgressModal();
@@ -1389,7 +1389,7 @@
         
         async function editTool(id) {
             try {
-                const r = await fetch(API + '/api/tools/' + id);
+                const r = await fetch(API + '/api/tools/' + id, { headers: getAuthHeaders() });
                 if (!r.ok) {
                     showToast('Failed to load tool', 'error');
                     return;
@@ -1707,7 +1707,7 @@
         
         async function duplicateTool(toolId) {
             try {
-                const r = await fetch(API + '/api/tools/' + toolId);
+                const r = await fetch(API + '/api/tools/' + toolId, { headers: getAuthHeaders() });
                 const tool = await r.json();
                 const newTool = {
                     name: tool.name + ' (Copy)',
@@ -1717,7 +1717,7 @@
                 };
                 const resp = await fetch(API + '/api/tools', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', ...getAuthHeaders()},
                     body: JSON.stringify(newTool)
                 });
                 if(resp.ok) {
@@ -1820,7 +1820,7 @@ let currentEditTool = null;
 
 async function openToolEditPanel(toolId) {
     try {
-        const r = await fetch(API + '/api/tools/' + toolId);
+        const r = await fetch(API + '/api/tools/' + toolId, { headers: getAuthHeaders() });
         if (!r.ok) throw new Error('Failed to load tool');
         currentEditTool = await r.json();
         
@@ -2634,7 +2634,7 @@ async function saveToolChanges() {
     try {
         const r = await fetch(API + '/api/tools/' + toolId, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify(updates)
         });
         
@@ -2688,7 +2688,7 @@ function removeEditPage(pageId) {
 }
 async function showEditToolModal(toolId) {
     try {
-        const r = await fetch(API + '/api/tools/' + toolId);
+        const r = await fetch(API + '/api/tools/' + toolId, { headers: getAuthHeaders() });
         if (!r.ok) {
             showToast('Failed to load tool', 'error');
             return;
@@ -2746,7 +2746,7 @@ async function saveToolEdit() {
     try {
         const r = await fetch(API + '/api/tools/' + toolId, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
             body: JSON.stringify({ name, description })
         });
         
@@ -2778,7 +2778,7 @@ async function saveToolEdit() {
             document.getElementById('data-viewer-content').innerHTML = '<div class="text-center text-gray-500 py-10"><div class="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent mx-auto mb-3"></div>Loading all tool data...</div>';
             
             try {
-                const r = await fetch(API + '/api/tools/' + toolId + '/data');
+                const r = await fetch(API + '/api/tools/' + toolId + '/data', { headers: getAuthHeaders() });
                 const data = await r.json();
                 currentToolData = data;
                 currentPageData = null;
@@ -3602,7 +3602,7 @@ async function saveToolEdit() {
                 const method = isEditing ? 'PUT' : 'POST';
                 const url = isEditing ? API+'/api/tools/'+editingToolId : API+'/api/tools';
                 
-                const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify({type:toolType,name,description:desc,config,api_config})});
+                const r=await fetch(url,{method,headers:{'Content-Type':'application/json',...getAuthHeaders()},body:JSON.stringify({type:toolType,name,description:desc,config,api_config})});
                 
                 // Check for errors (including duplicate name)
                 if(!r.ok) {
@@ -3622,7 +3622,7 @@ async function saveToolEdit() {
                         updateProgress(30 + (i/uploadedFiles.length)*60, `📄 Uploading ${f.name}...`);
                         const fd=new FormData();
                         fd.append('file',f);
-                        await fetch(API+'/api/tools/'+d.tool_id+'/documents',{method:'POST',body:fd});
+                        await fetch(API+'/api/tools/'+d.tool_id+'/documents',{method:'POST',headers:getAuthHeaders(),body:fd});
                     }
                     updateProgress(100, '✅ Documents uploaded!');
                 }
@@ -3672,7 +3672,7 @@ async function saveToolEdit() {
                     try {
                         const scrapeResult = await fetch(API+'/api/tools/'+d.tool_id+'/scrape',{
                             method:'POST',
-                            headers:{'Content-Type':'application/json'},
+                            headers:{'Content-Type':'application/json',...getAuthHeaders()},
                             body:JSON.stringify({url:config.url,recursive:config.recursive,max_pages:config.max_pages})
                         });
                         

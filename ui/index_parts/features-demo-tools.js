@@ -1741,7 +1741,7 @@
 
         }
         async function viewTool(id){
-            const r=await fetch(API+'/api/tools/'+id);
+            const r=await fetch(API+'/api/tools/'+id, { headers: getAuthHeaders() });
             const t=await r.json();
             const icons={document:'📄',website:'🌐',api:'🔌',knowledge:'📚',email:'📧',webhook:'🔗',websearch:'🔍',slack:'💬',calendar:'📅',database:'🗄️'};
             
@@ -2248,7 +2248,7 @@
         // View Demo KB full content
         async function viewDemoKbFullContent(toolId) {
             try {
-                const r = await fetch(API + '/api/tools/' + toolId);
+                const r = await fetch(API + '/api/tools/' + toolId, { headers: getAuthHeaders() });
                 const t = await r.json();
                 
                 const sections = t.config?.sections || [];
