@@ -3256,22 +3256,22 @@
                                         finishThinking(true);
                                         playNotificationSound();
                                         
-                                        // Add sources if any
-                                        if (sources && sources.length > 0) {
+                                        // Add sources if any are relevant
+                                        const meaningfulSources = (sources || []).filter(s => (s.relevance || 0) >= 30);
+                                        if (meaningfulSources.length > 0) {
                                             const contentDiv = document.getElementById('streaming-content');
                                             if (contentDiv) {
-                                                let sourcesHTML = `
-                                                    <div class="sources-section">
-                                                        <div class="sources-title">📚 Sources</div>
-                                                        <div class="sources-list">
-                                                `;
-                                                sources.forEach(s => {
-                                                    sourcesHTML += `
-                                                        <span class="source-chip">
-                                                            ${s.source}
-                                                            <span class="relevance">${s.relevance}%</span>
-                                                        </span>
-                                                    `;
+                                                const seen = new Set();
+                                                const unique = meaningfulSources.filter(s => {
+                                                    const k = s.source;
+                                                    if (seen.has(k)) return false;
+                                                    seen.add(k);
+                                                    return true;
+                                                });
+                                                let sourcesHTML = `<div class="sources-section"><div class="sources-title">Based on</div><div class="sources-list">`;
+                                                unique.forEach(s => {
+                                                    const name = s.source.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
+                                                    sourcesHTML += `<span class="source-chip">${name}</span>`;
                                                 });
                                                 sourcesHTML += '</div></div>';
                                                 contentDiv.innerHTML += sourcesHTML;

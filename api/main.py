@@ -3338,14 +3338,17 @@ async def process_test_agent_chat(agent: AgentData, message: str, conversation: 
     context = ""
     sources = []
     
-    # Search regular knowledge bases
+    # Search regular knowledge bases (only include results above relevance threshold)
+    _MIN_RELEVANCE = 0.30
     tool_ids = [t.id for t in agent_tools]
     search_results = search_documents(message, tool_ids, top_k=5)
     if search_results:
-        context = "\n\n=== KNOWLEDGE BASE ===\n"
-        for i, result in enumerate(search_results):
-            context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
-            sources.append({"source": result['source'], "type": result['type'], "relevance": round(result['score'] * 100)})
+        relevant_results = [r for r in search_results if r.get('score', 0) >= _MIN_RELEVANCE]
+        if relevant_results:
+            context = "\n\n=== KNOWLEDGE BASE ===\n"
+            for i, result in enumerate(relevant_results):
+                context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
+                sources.append({"source": result['source'], "type": result['type'], "relevance": round(result['score'] * 100)})
     
     # Add Knowledge Base content with inline sections
     for tool in agent_tools:
@@ -3805,11 +3808,14 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
     search_results = search_documents(message, tool_ids, top_k=5)
     context = ""
     sources = []
+    _MIN_RELEVANCE = 0.30
     if search_results:
-        context = "\n\nRELEVANT INFORMATION FROM KNOWLEDGE BASE:\n"
-        for i, result in enumerate(search_results):
-            context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
-            sources.append({"source": result['source'], "type": result['type'], "relevance": round(result['score'] * 100)})
+        relevant_results = [r for r in search_results if r.get('score', 0) >= _MIN_RELEVANCE]
+        if relevant_results:
+            context = "\n\nRELEVANT INFORMATION FROM KNOWLEDGE BASE:\n"
+            for i, result in enumerate(relevant_results):
+                context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
+                sources.append({"source": result['source'], "type": result['type'], "relevance": round(result['score'] * 100)})
     
     # Build system prompt with guardrails and FULL personality
     g = agent.guardrails
@@ -12154,15 +12160,18 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
             search_results = search_documents(request.message, tool_ids, top_k=5)
             context = ""
             sources = []
+            _MIN_RELEVANCE = 0.30
             if search_results:
-                context = "\n\nRELEVANT INFORMATION FROM KNOWLEDGE BASE:\n"
-                for i, result in enumerate(search_results):
-                    context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
-                    sources.append({
-                        "source": result['source'], 
-                        "type": result['type'], 
-                        "relevance": round(result['score'] * 100)
-                    })
+                relevant_results = [r for r in search_results if r.get('score', 0) >= _MIN_RELEVANCE]
+                if relevant_results:
+                    context = "\n\nRELEVANT INFORMATION FROM KNOWLEDGE BASE:\n"
+                    for i, result in enumerate(relevant_results):
+                        context += f"\n[Source {i+1}: {result['source']}]\n{result['text'][:800]}\n"
+                        sources.append({
+                            "source": result['source'], 
+                            "type": result['type'], 
+                            "relevance": round(result['score'] * 100)
+                        })
             
             # ========================================================================
             # BUILD SYSTEM PROMPT
