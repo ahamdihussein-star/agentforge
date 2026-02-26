@@ -857,6 +857,15 @@ class ProcessAPIService:
                 await svc.run_execution_from_db(execution_id=str(execution.id))
             except Exception as e:
                 logger.exception("[ProcessFast] Background run failed: %s", e)
+                try:
+                    svc.exec_service.update_execution_status(
+                        str(execution.id),
+                        status="failed",
+                        error_message="There was an issue processing your request. Please try again.",
+                        error_details={"code": "BACKGROUND_RUN_FAILED"},
+                    )
+                except Exception:
+                    pass
             finally:
                 try:
                     db.close()
@@ -924,6 +933,15 @@ class ProcessAPIService:
                     await svc.run_execution_from_db(execution_id=str(execution.id))
                 except Exception as e:
                     logger.exception("[ProcessFast] Background run failed (finalize): %s", e)
+                    try:
+                        svc.exec_service.update_execution_status(
+                            str(execution.id),
+                            status="failed",
+                            error_message="There was an issue processing your request. Please try again.",
+                            error_details={"code": "BACKGROUND_RUN_FAILED"},
+                        )
+                    except Exception:
+                        pass
                 finally:
                     try:
                         db.close()
@@ -963,6 +981,15 @@ class ProcessAPIService:
         agent = self.db.query(Agent).filter(Agent.id == execution.agent_id).first()
         if not agent:
             logger.warning("[ProcessFast] Agent not found for execution: %s", execution_id)
+            try:
+                self.exec_service.update_execution_status(
+                    str(execution.id),
+                    status="failed",
+                    error_message="This request could not be processed. Please try again.",
+                    error_details={"code": "AGENT_NOT_FOUND"},
+                )
+            except Exception:
+                pass
             return
 
         raw_def = execution.process_definition_snapshot or agent.process_definition

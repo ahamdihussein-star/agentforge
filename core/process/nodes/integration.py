@@ -1135,42 +1135,56 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     # Try to use LLM for OCR — this requires a vision-capable model
                     try:
                         from openai import OpenAI
+                        import os
+                        import asyncio
                         api_key = os.environ.get("OPENAI_API_KEY")
                         if api_key:
                             client = OpenAI(api_key=api_key)
-                            response = client.chat.completions.create(
-                                model="gpt-4o",
-                                messages=[
-                                    {
-                                        "role": "system",
-                                        "content": (
-                                            "You are a strict OCR and transcription engine.\n"
-                                            "Rules:\n"
-                                            "- Transcribe ONLY what is visible in the image.\n"
-                                            "- Do NOT guess, infer, or add any values.\n"
-                                            "- Preserve the original numbers, dates, currencies, and spelling.\n"
-                                            "- If a part is unreadable, write [illegible].\n"
-                                            "- Output plain text with line breaks. No explanations."
-                                        ),
-                                    },
-                                    {
-                                        "role": "user",
-                                        "content": [
-                                            {
-                                                "type": "text",
-                                                "text": (
-                                                    "Transcribe the image exactly. "
-                                                    "Do not invent missing fields or values."
-                                                ),
-                                            },
-                                            {"type": "image_url", "image_url": {"url": data_uri}},
-                                        ],
-                                    },
-                                ],
-                                temperature=0,
-                                top_p=1,
-                                max_tokens=4096
-                            )
+                            # OpenAI Python client call is synchronous; run it in a thread to avoid
+                            # blocking the event loop, and enforce a strict timeout to prevent
+                            # executions getting stuck in "processing".
+                            timeout_s = float(os.environ.get("LLM_TIMEOUT_SECONDS") or os.environ.get("OPENAI_TIMEOUT_SECONDS") or 90)
+
+                            def _call_ocr():
+                                return client.chat.completions.create(
+                                    model="gpt-4o",
+                                    messages=[
+                                        {
+                                            "role": "system",
+                                            "content": (
+                                                "You are a strict OCR and transcription engine.\n"
+                                                "Rules:\n"
+                                                "- Transcribe ONLY what is visible in the image.\n"
+                                                "- Do NOT guess, infer, or add any values.\n"
+                                                "- Preserve the original numbers, dates, currencies, and spelling.\n"
+                                                "- If a part is unreadable, write [illegible].\n"
+                                                "- Output plain text with line breaks. No explanations."
+                                            ),
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": [
+                                                {
+                                                    "type": "text",
+                                                    "text": (
+                                                        "Transcribe the image exactly. "
+                                                        "Do not invent missing fields or values."
+                                                    ),
+                                                },
+                                                {"type": "image_url", "image_url": {"url": data_uri}},
+                                            ],
+                                        },
+                                    ],
+                                    temperature=0,
+                                    top_p=1,
+                                    max_tokens=4096,
+                                )
+
+                            try:
+                                response = await asyncio.wait_for(asyncio.to_thread(_call_ocr), timeout=timeout_s)
+                            except asyncio.TimeoutError:
+                                logs.append(f"OCR timed out after {timeout_s:.0f}s")
+                                return {"success": False, "error": "Image processing timed out. Please try again with a clearer image or try again later."}
                             text = response.choices[0].message.content or ""
                             logs.append(f"LLM OCR extracted {len(text)} characters")
                         else:
