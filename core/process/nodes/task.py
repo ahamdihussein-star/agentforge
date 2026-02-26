@@ -313,7 +313,7 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         try:
             from ...llm.base import Message, MessageRole
             _timeout_s = float(self.get_config_value(node, "timeout_seconds") or 0) or float(
-                (context.settings or {}).get("llm_timeout_seconds") if hasattr(context, "settings") else 0
+                ((context.settings or {}).get("llm_timeout_seconds") or 0) if hasattr(context, "settings") else 0
             ) or float(__import__("os").environ.get("LLM_TIMEOUT_SECONDS", "90") or 90)
             
             llm_messages = [
