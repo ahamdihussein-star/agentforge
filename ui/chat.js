@@ -934,18 +934,25 @@
             const catSet = new Set();
             items.forEach(a => catSet.add(_getConvCategory(a)));
             const cats = Array.from(catSet).sort((a, b) => a.localeCompare(b));
-            const allCats = ['All', ...cats];
+            const showCategoryChips = cats.length >= 2;
+            const allCats = showCategoryChips ? ['All', ...cats] : cats;
+            if (!allCats.includes(convCategoryFilter)) convCategoryFilter = allCats.includes('All') ? 'All' : (cats[0] || 'All');
 
             const chipsEl = document.getElementById('conv-category-chips');
             if (chipsEl) {
                 chipsEl.innerHTML = '';
-                allCats.slice(0, 18).forEach(cat => {
-                    const chip = document.createElement('div');
-                    chip.className = 'chip' + (cat === convCategoryFilter ? ' active' : '');
-                    chip.textContent = cat;
-                    chip.onclick = () => { convCategoryFilter = cat; renderConversationalDirectory(); };
-                    chipsEl.appendChild(chip);
-                });
+                if (!showCategoryChips) {
+                    chipsEl.style.display = 'none';
+                } else {
+                    chipsEl.style.display = '';
+                    allCats.slice(0, 18).forEach(cat => {
+                        const chip = document.createElement('div');
+                        chip.className = 'chip' + (cat === convCategoryFilter ? ' active' : '');
+                        chip.textContent = cat;
+                        chip.onclick = () => { convCategoryFilter = cat; renderConversationalDirectory(); };
+                        chipsEl.appendChild(chip);
+                    });
+                }
             }
 
             const filtered = items
@@ -1692,7 +1699,8 @@
                     const id = String(a?.id || '');
                     const icon = escapeHtml(a?.icon || '🧩');
                     const name = escapeHtml(a?.name || 'Process AI Agent');
-                    const desc = escapeHtml(a?.description || _buildWorkflowSubtitle(a));
+                    // Never show internal generation prompts/descriptions in the end-user portal.
+                    const desc = escapeHtml(_buildWorkflowSubtitle(a));
                     const category = escapeHtml(_getWorkflowCategory(a));
                     const trig = _getWorkflowTriggerInfo(a);
                     const appr = _getWorkflowApprovalInfo(a);
@@ -1769,7 +1777,7 @@
             }
         }
 
-        function openWorkflowRunModal(agentId) {
+        async function openWorkflowRunModal(agentId) {
             const agent = (workflowAgents || []).find(a => a.id === agentId);
             if (!agent) {
                 showToast('Process not found', 'error');
@@ -1790,7 +1798,7 @@
             if (statusEl) statusEl.textContent = '';
             if (btn) { btn.style.display = ''; btn.disabled = false; btn.textContent = _serviceCtaLabel(agent); }
 
-            buildWorkflowRunForm(agent);
+            await buildWorkflowRunForm(agent);
             if (modal) modal.classList.add('open');
         }
 
@@ -2021,11 +2029,12 @@
             recompute();
         }
 
-        function buildWorkflowRunForm(agent) {
+        async function buildWorkflowRunForm(agent) {
             const formContainer = document.getElementById('workflow-form-fields');
             if (!formContainer) return;
 
             let triggerInputs = [];
+            let enrichedFields = [];
             let processDef = agent?.process_definition;
             if (typeof processDef === 'string') {
                 try { processDef = processDef ? JSON.parse(processDef) : null; } catch (_) { processDef = null; }
@@ -2088,6 +2097,32 @@
 
             if (!triggerInputs.length && processDef && processDef.trigger && processDef.trigger.inputs) {
                 triggerInputs = processDef.trigger.inputs;
+            }
+
+            // Fallback: use LLM-enriched fields when the definition doesn't expose fields cleanly
+            if (!triggerInputs.length) {
+                try {
+                    const res = await fetch(`${API}/process/enrich-form-fields`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                        body: JSON.stringify({ agent_id: String(agent?.id || '') })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok) {
+                        enrichedFields = Array.isArray(data) ? data : (data.fields || []);
+                    }
+                } catch (_) {}
+                if (enrichedFields && enrichedFields.length) {
+                    triggerInputs = enrichedFields.map(f => ({
+                        id: f.id,
+                        label: f.label || humanizeFieldLabel(f.id) || f.id,
+                        type: f.type || 'text',
+                        required: !!f.required,
+                        placeholder: f.placeholder || '',
+                        options: f.options,
+                        description: f.description
+                    }));
+                }
             }
 
             if (!triggerInputs.length) {

@@ -211,7 +211,8 @@
             padding: 36px 32px 28px;
             background: var(--gradient-1);
             position: relative;
-            overflow: hidden;
+            /* Avoid clipping large text ascenders in some browsers */
+            overflow: visible;
         }
         .home-banner::after {
             content: '';
@@ -220,7 +221,14 @@
             pointer-events: none;
         }
         .home-banner-inner { max-width: 1080px; margin: 0 auto; position: relative; z-index: 1; }
-        .home-greeting { font-size: 1.85rem; font-weight: 850; color: #fff; letter-spacing: -0.02em; }
+        .home-greeting {
+            font-size: 1.85rem;
+            font-weight: 850;
+            color: #fff;
+            letter-spacing: -0.02em;
+            line-height: 1.18;
+            padding-top: 2px;
+        }
         .home-tagline { margin-top: 6px; font-size: 1rem; color: rgba(255,255,255,0.82); }
         .home-stats {
             display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap;
@@ -2253,7 +2261,7 @@
 
         .input-container {
             display: flex;
-            align-items: flex-end;
+            align-items: stretch;
             gap: 12px;
             background: var(--bg-dark);
             border: 1px solid var(--border);
@@ -2272,11 +2280,13 @@
             border: none;
             outline: none;
             color: var(--text-primary);
-            font-size: 0.95rem;
+            font-size: 1rem;
             font-family: inherit;
             resize: none;
-            max-height: 120px;
-            min-height: 24px;
+            line-height: 1.45;
+            max-height: 180px;
+            min-height: 44px;
+            overflow-y: auto;
         }
 
         .message-input::placeholder {

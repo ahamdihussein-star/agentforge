@@ -602,14 +602,8 @@ class ProcessExecutionService:
                 continue
 
             # Anyone can approve: assignee_type is 'any' OR no assignees configured (workflow creator often approves their own run)
-            if (approval.assignee_type == 'any' or
-                    (not assigned_users and not assigned_roles and not assigned_groups)):
-                result.append(approval)
-                logger.info(
-                    "[ApprovalDB] include approval_id=%s reason=any_or_empty (assignee_type=%s assigned_users=%s assigned_roles=%s assigned_groups=%s)",
-                    str(approval.id), approval.assignee_type, len(assigned_users), len(assigned_roles), len(assigned_groups),
-                )
-                continue
+            # Enterprise safety: do NOT include unassigned approvals in a user's inbox.
+            # If routing failed (e.g., missing manager), the approval should be handled by admins/config, not any end user.
             logger.info(
                 "[ApprovalDB] exclude approval_id=%s (user_id not in %s, roles %s not in %s, groups %s not in %s, assignee_type=%s)",
                 str(approval.id), assigned_users_str, list(user_role_set), assigned_roles_str, list(user_group_set), assigned_groups_str, approval.assignee_type,

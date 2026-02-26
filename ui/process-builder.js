@@ -8104,7 +8104,7 @@
 
         async function _fetchPendingApprovalForExecution(executionId) {
             const token = getAuthToken();
-            const res = await fetch('/process/approvals?status=pending', {
+            const res = await fetch('/process/approvals?include_org=true&status=pending', {
                 headers: { 'Authorization': 'Bearer ' + token }
             });
             let data = null;

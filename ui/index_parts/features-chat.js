@@ -1505,7 +1505,7 @@
         // Load pending approvals count for badge
         async function loadPendingApprovalsCount() {
             try {
-                const response = await fetch(API + '/process/approvals?status=pending&limit=1', {
+                const response = await fetch(API + '/process/approvals?include_org=true&status=pending&limit=1', {
                     headers: getAuthHeaders()
                 });
                 

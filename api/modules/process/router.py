@@ -130,8 +130,10 @@ def _is_approval_visible_to_user(approval: Any, user_dict: Dict[str, Any]) -> bo
         return False
     try:
         assignee_type = str(getattr(approval, "assignee_type", "") or "").strip().lower()
+        # Enterprise safety: never allow "anyone can approve" in the end-user portal.
+        # If an approval is unassigned (e.g., missing manager), treat it as not actionable.
         if assignee_type == "any":
-            return True
+            return False
         user_id = str(user_dict.get("id") or "")
         role_ids = set(str(x) for x in (user_dict.get("role_ids") or []) if x)
         group_ids = set(str(x) for x in (user_dict.get("group_ids") or []) if x)
@@ -1308,6 +1310,10 @@ async def get_execution_pending_approvals(
 
 @router.get("/approvals", response_model=ApprovalListResponse)
 async def list_pending_approvals(
+    include_org: bool = Query(
+        False,
+        description="If true (admins only), include all pending approvals in the organization",
+    ),
     service: ProcessAPIService = Depends(get_service),
     user: User = Depends(require_auth)
 ):
@@ -1330,7 +1336,7 @@ async def list_pending_approvals(
         user_role_ids=user_dict.get("role_ids", []),
         user_group_ids=user_dict.get("group_ids", []),
         user_email=user_dict.get("email"),
-        include_all_for_org_admin=is_platform_admin
+        include_all_for_org_admin=(include_org and is_platform_admin),
     )
     return ApprovalListResponse(items=approvals, total=len(approvals))
 

@@ -854,7 +854,7 @@
             try {
                 const headers = getAuthHeaders();
                 const [approvalRes, usersRes, rolesRes, groupsRes] = await Promise.all([
-                    fetch(API + '/process/approvals?status=pending', { headers }),
+                    fetch(API + '/process/approvals?include_org=true&status=pending', { headers }),
                     fetch(API + '/api/security/users', { headers }).catch(() => ({ ok: false })),
                     fetch(API + '/api/security/roles', { headers }).catch(() => ({ ok: false })),
                     fetch(API + '/api/security/groups', { headers }).catch(() => ({ ok: false }))
