@@ -2973,9 +2973,23 @@
                                 const role = escapeHtml(String(a?.label || 'Approver'));
                                 const name = escapeHtml(String(a?.name || ''));
                                 const email = escapeHtml(String(a?.email || ''));
-                                const person = (name || email) ? `${name || 'Approver'}${email ? ` <span class="detail-muted">&lt;${email}&gt;</span>` : ''}` : 'Approver';
+                                const displayName = (name || '').trim() || 'Approver';
+                                const emailHtml = email ? `<div class="approver-email">${email}</div>` : '';
                                 const step = escapeHtml(String(it?.step_name || 'Approval'));
-                                return `<div class="detail-row"><div class="detail-label">${step}</div><div class="detail-value">${person} <span class="detail-muted">— ${role}</span></div></div>`;
+                                return `
+                                    <div class="detail-row">
+                                        <div class="detail-label">${step}</div>
+                                        <div class="detail-value">
+                                            <div class="approver-card">
+                                                <div class="approver-main">
+                                                    <div class="approver-name">${displayName}</div>
+                                                    ${emailHtml}
+                                                </div>
+                                                <span class="approver-role">${role}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
                             });
                         });
                         if (rows.length) {

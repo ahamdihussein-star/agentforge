@@ -900,84 +900,95 @@
             color: var(--text-primary);
         }
 
-        /* Work area tabs (Process AI Agents / My Requests / Inbox) — innovative ribbon */
+        /* Work area tabs (Process AI Agents / My Requests / Inbox) — segmented rail */
         .work-tabs {
             margin-top: 10px;
-            padding: 6px;
-            border-radius: 999px;
+            padding: 0;
+            border-radius: 16px;
             border: 1px solid var(--border);
-            background: color-mix(in srgb, var(--bg-card) 86%, var(--bg-primary));
+            background: var(--bg-card);
             box-shadow: var(--shadow-sm);
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: 1fr;
             width: fit-content;
             max-width: 100%;
-            overflow-x: auto;
-            scrollbar-width: none;
-        }
-        .work-tabs::-webkit-scrollbar {
-            display: none;
+            overflow: hidden;
         }
 
         .work-tabs .work-tab {
-            height: 38px;
-            padding: 0 14px 0 10px;
-            border-radius: 999px;
-            border: 1px solid transparent;
+            height: 44px;
+            padding: 0 14px;
+            border-radius: 0;
+            border: 0;
             background: transparent;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
             white-space: nowrap;
             position: relative;
+            color: var(--text-secondary);
+        }
+        .work-tabs .work-tab + .work-tab {
+            border-left: 1px solid var(--border);
         }
         .work-tabs .work-tab:hover {
-            background: color-mix(in srgb, var(--bg-hover) 85%, transparent);
+            background: color-mix(in srgb, var(--bg-hover) 70%, transparent);
+            color: var(--text-primary);
         }
         .work-tabs .work-tab:focus-visible {
             outline: none;
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+            box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 38%, transparent);
         }
         .work-tabs .work-tab.active {
-            background: #fff;
-            border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
-            box-shadow: var(--shadow-md);
+            background: color-mix(in srgb, var(--primary) 10%, transparent);
             color: var(--text-primary);
         }
-        body.dark-mode .work-tabs .work-tab.active {
-            background: color-mix(in srgb, var(--bg-card) 92%, var(--bg-primary));
+        .work-tabs .work-tab.active::after {
+            content: "";
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            bottom: 6px;
+            height: 3px;
+            border-radius: 999px;
+            background: var(--gradient-1);
+            opacity: 0.95;
         }
 
         .work-tab-icon {
-            width: 26px;
-            height: 26px;
+            width: 28px;
+            height: 28px;
             border-radius: 10px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: color-mix(in srgb, var(--primary) 10%, var(--bg-dark));
-            border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+            background: color-mix(in srgb, var(--primary) 9%, var(--bg-dark));
+            border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--border));
             font-size: 14px;
             flex-shrink: 0;
         }
         .work-tabs .work-tab.active .work-tab-icon {
-            background: color-mix(in srgb, var(--primary) 16%, var(--bg-dark));
-            border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+            background: color-mix(in srgb, var(--primary) 14%, var(--bg-dark));
+            border-color: color-mix(in srgb, var(--primary) 26%, var(--border));
         }
         .work-tab-label {
-            font-weight: 850;
-            font-size: 0.84rem;
+            font-weight: 900;
+            font-size: 0.86rem;
             letter-spacing: -0.01em;
         }
         .work-tab-badge {
             display: none;
-            min-width: 22px;
-            height: 22px;
+            min-width: 24px;
+            height: 24px;
             padding: 0 8px;
             border-radius: 999px;
-            background: color-mix(in srgb, var(--primary) 12%, transparent);
-            border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+            background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+            border: 1px solid var(--border);
             color: var(--text-primary);
             font-size: 0.75rem;
-            font-weight: 850;
+            font-weight: 900;
             align-items: center;
             justify-content: center;
         }
@@ -985,8 +996,53 @@
             display: inline-flex;
         }
         .work-tabs .work-tab.active .work-tab-badge {
-            background: color-mix(in srgb, var(--primary) 16%, transparent);
-            border-color: color-mix(in srgb, var(--primary) 32%, var(--border));
+            background: color-mix(in srgb, var(--primary) 14%, transparent);
+            border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
+        }
+
+        @media (max-width: 980px) {
+            .work-tabs {
+                width: 100%;
+            }
+            .work-tab-label {
+                font-size: 0.82rem;
+            }
+        }
+
+        /* Approver display (tracking) */
+        .approver-card {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .approver-main {
+            min-width: 0;
+        }
+        .approver-name {
+            font-weight: 900;
+            line-height: 1.2;
+        }
+        .approver-email {
+            margin-top: 2px;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            line-height: 1.2;
+            word-break: break-word;
+        }
+        .approver-role {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            height: 24px;
+            padding: 0 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: color-mix(in srgb, var(--primary) 10%, transparent);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            font-weight: 900;
+            white-space: nowrap;
         }
 
         /* Process detail navigation (innovative action tiles) */
