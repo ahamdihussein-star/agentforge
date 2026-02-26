@@ -93,39 +93,23 @@
                 </div>
                 <div class="nav-item" data-view="chat" onclick="switchView('chat')">
                     <span class="nav-icon">💬</span>
-                    <span class="nav-label">Assistants</span>
+                    <span class="nav-label">Conversational AI Agents</span>
                 </div>
-
-                <div class="nav-group" id="nav-group-processes">
-                    <div class="nav-group-header" onclick="toggleNavGroup('processes')" title="Processes and automation">
-                        <span class="nav-icon">🧩</span>
-                        <span class="nav-label">Processes</span>
-                        <svg class="nav-group-chevron" id="nav-chevron-processes" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </div>
-                    <div class="nav-subitems open" id="nav-subitems-processes" data-group="processes">
-                        <div class="nav-item nav-sub" data-view="workflows" onclick="switchView('workflows')">
-                            <span class="nav-icon">📋</span>
-                            <span class="nav-label">Services</span>
-                        </div>
-                        <div class="nav-item nav-sub" data-view="requests" onclick="switchView('requests')">
-                            <span class="nav-icon">📄</span>
-                            <span class="nav-label">My Requests</span>
-                        </div>
-                        <div class="nav-item nav-sub" data-view="inbox" onclick="switchView('inbox')">
-                            <span class="nav-icon">✅</span>
-                            <span class="nav-label">Inbox</span>
-                            <span class="nav-badge" id="nav-inbox-badge"></span>
-                        </div>
-                    </div>
+                <div class="nav-item" data-view="work" onclick="switchView('workflows')">
+                    <span class="nav-icon">🧩</span>
+                    <span class="nav-label">Work</span>
+                </div>
+                <div class="nav-item" data-view="inbox" onclick="switchView('inbox')">
+                    <span class="nav-icon">✅</span>
+                    <span class="nav-label">Inbox</span>
+                    <span class="nav-badge" id="nav-inbox-badge"></span>
                 </div>
             </div>
 
             <div id="chat-sidebar-panels">
                 <!-- Agent Selector -->
                 <div class="agent-section">
-                    <div class="section-label">Assistants</div>
+                    <div class="section-label">Conversational AI Agents</div>
                     <div class="agent-selector" id="agent-list">
                         <!-- Conversational agents loaded dynamically -->
                     </div>
@@ -134,7 +118,7 @@
                 <!-- Conversation History -->
                 <div class="history-section">
                     <div class="section-label" style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>Recent Chats</span>
+                        <span>Recent Conversations</span>
                         <span id="edit-chats-btn" onclick="toggleSelectionMode()" style="font-size: 0.75rem; color: var(--primary); cursor: pointer;">Edit</span>
                     </div>
                     <div id="history-actions" class="history-actions hidden">
@@ -148,6 +132,39 @@
                     <div id="history-list">
                         <!-- History loaded dynamically -->
                     </div>
+                </div>
+            </div>
+
+            <div id="work-sidebar-panels" class="hidden">
+                <div class="agent-section">
+                    <div class="section-label">Work</div>
+                    <div class="work-shortcuts">
+                        <button class="work-shortcut" onclick="switchView('workflows')">
+                            <span class="work-shortcut-icon">🧩</span>
+                            <span class="work-shortcut-text">
+                                <span class="work-shortcut-title">Process AI Agents</span>
+                                <span class="work-shortcut-subtitle">Browse &amp; submit requests</span>
+                            </span>
+                        </button>
+                        <button class="work-shortcut" onclick="switchView('requests')">
+                            <span class="work-shortcut-icon">📄</span>
+                            <span class="work-shortcut-text">
+                                <span class="work-shortcut-title">My Requests</span>
+                                <span class="work-shortcut-subtitle">Track status &amp; outcomes</span>
+                            </span>
+                        </button>
+                        <button class="work-shortcut" onclick="switchView('inbox')">
+                            <span class="work-shortcut-icon">✅</span>
+                            <span class="work-shortcut-text">
+                                <span class="work-shortcut-title">Inbox</span>
+                                <span class="work-shortcut-subtitle">Approvals &amp; action items</span>
+                            </span>
+                            <span class="work-shortcut-badge" id="work-inbox-badge"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="sidebar-powered-by">
+                    <span>Powered by</span> <strong>AgentForge</strong>
                 </div>
             </div>
 
@@ -201,19 +218,19 @@
                 <div class="home-banner" id="home-banner">
                     <div class="home-banner-inner">
                         <div class="home-greeting" id="home-greeting">Welcome</div>
-                        <div class="home-tagline" id="home-tagline">Your AI workspace — chat with assistants or run business processes.</div>
+                        <div class="home-tagline" id="home-tagline">Your AI workspace — use Conversational and Process AI Agents to get work done.</div>
                         <div class="home-stats" id="home-stats">
                             <div class="home-stat">
                                 <div class="home-stat-value" id="home-stat-assistants">0</div>
-                                <div class="home-stat-label">Assistants</div>
+                                <div class="home-stat-label">Conversational Agents</div>
                             </div>
                             <div class="home-stat">
                                 <div class="home-stat-value" id="home-stat-processes">0</div>
-                                <div class="home-stat-label">Processes</div>
+                                <div class="home-stat-label">Process Agents</div>
                             </div>
                             <div class="home-stat">
                                 <div class="home-stat-value" id="home-stat-inbox">0</div>
-                                <div class="home-stat-label">Pending</div>
+                                <div class="home-stat-label">Action Required</div>
                             </div>
                         </div>
                     </div>
@@ -225,11 +242,11 @@
                             <div class="home-card-header">
                                 <div class="home-card-icon chat">💬</div>
                                 <div>
-                                    <div class="home-card-title">AI Assistants</div>
+                                    <div class="home-card-title">Conversational AI Agents</div>
                                     <div class="home-card-count" id="home-assistants-label">Conversational AI</div>
                                 </div>
                             </div>
-                            <div class="home-card-desc">Ask questions, draft content, analyze documents, and collaborate with your AI assistants in real time.</div>
+                            <div class="home-card-desc">Ask questions, draft content, analyze documents, and get help from Conversational AI Agents in real time.</div>
                             <div class="home-card-footer">
                                 <span class="home-badge">Chat &bull; Real-time</span>
                                 <span class="home-card-arrow">&rarr;</span>
@@ -239,8 +256,8 @@
                             <div class="home-card-header">
                                 <div class="home-card-icon process">📋</div>
                                 <div>
-                                    <div class="home-card-title">Services</div>
-                                    <div class="home-card-count" id="home-processes-label">Forms &amp; Requests</div>
+                                    <div class="home-card-title">Process AI Agents</div>
+                                    <div class="home-card-count" id="home-processes-label">Requests &amp; Approvals</div>
                                 </div>
                             </div>
                             <div class="home-card-desc">Submit requests, fill out forms, and track approvals — everything you need in one place.</div>
@@ -249,11 +266,30 @@
                                 <span class="home-card-arrow">&rarr;</span>
                             </div>
                         </div>
+                        <div class="home-card" onclick="switchView('inbox')">
+                            <div class="home-card-header">
+                                <div class="home-card-icon inbox">✅</div>
+                                <div>
+                                    <div class="home-card-title">Inbox</div>
+                                    <div class="home-card-count" id="home-inbox-label">Approvals &amp; Action Items</div>
+                                </div>
+                            </div>
+                            <div class="home-card-desc">Review and approve requests that need your attention. You’ll always see what’s urgent first.</div>
+                            <div class="home-card-footer">
+                                <span class="home-badge">Approvals &bull; Tasks</span>
+                                <span class="home-card-arrow">&rarr;</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="home-section-title">Action Required</div>
+                    <div class="home-inbox" id="home-inbox">
+                        <div class="home-empty">Loading your inbox…</div>
                     </div>
 
                     <div class="home-section-title">Quick Access</div>
                     <div class="home-recent" id="home-recent">
-                        <div class="home-empty">Your recent activity will appear here once you start chatting or running processes.</div>
+                        <div class="home-empty">Your recent activity will appear here once you start chatting or submitting requests.</div>
                     </div>
                 </div>
             </div>
@@ -272,7 +308,7 @@
                         </button>
                         <div class="chat-agent-icon" id="current-agent-icon">🤖</div>
                         <div class="chat-agent-details">
-                            <h2 id="current-agent-name">Select an Assistant</h2>
+                            <h2 id="current-agent-name">Select a Conversational AI Agent</h2>
                             <div class="chat-agent-status">
                                 <span class="status-dot"></span>
                                 <span>Online</span>
@@ -336,11 +372,16 @@
             <div id="view-workflows" class="portal-view hidden">
                 <div class="portal-header">
                     <div class="portal-header-left">
-                        <div class="portal-title">📋 Services</div>
-                        <div class="portal-subtitle">Browse available services and submit your requests.</div>
+                        <div class="portal-title">🧩 Process AI Agents</div>
+                        <div class="portal-subtitle">Browse available Process AI Agents and submit your requests.</div>
+                        <div class="portal-tabs work-tabs">
+                            <button class="portal-tab" data-target="workflows" onclick="switchView('workflows')">Process AI Agents</button>
+                            <button class="portal-tab" data-target="requests" onclick="switchView('requests')">My Requests</button>
+                            <button class="portal-tab" data-target="inbox" onclick="switchView('inbox')">Inbox</button>
+                        </div>
                     </div>
                     <div class="portal-toolbar">
-                        <input id="workflow-search" class="search-input" placeholder="Search services…" oninput="renderWorkflows()">
+                        <input id="workflow-search" class="search-input" placeholder="Search process agents…" oninput="renderWorkflows()">
                         <button class="portal-btn" onclick="refreshWorkflows()">Refresh</button>
                     </div>
                 </div>
@@ -355,7 +396,12 @@
                 <div class="portal-header">
                     <div class="portal-header-left">
                         <div class="portal-title">📄 My Requests</div>
-                        <div class="portal-subtitle">Track the status of your submitted requests and forms.</div>
+                        <div class="portal-subtitle">Track requests submitted to Process AI Agents — status, updates, and outcomes.</div>
+                        <div class="portal-tabs work-tabs">
+                            <button class="portal-tab" data-target="workflows" onclick="switchView('workflows')">Process AI Agents</button>
+                            <button class="portal-tab" data-target="requests" onclick="switchView('requests')">My Requests</button>
+                            <button class="portal-tab" data-target="inbox" onclick="switchView('inbox')">Inbox</button>
+                        </div>
                     </div>
                     <div class="portal-toolbar">
                         <input id="requests-search" class="search-input" placeholder="Search my requests…" oninput="renderRequests()">
@@ -394,7 +440,12 @@
                 <div class="portal-header">
                     <div class="portal-header-left">
                         <div class="portal-title">✅ Inbox</div>
-                        <div class="portal-subtitle">Review pending approvals and tasks that require your action.</div>
+                        <div class="portal-subtitle">Review approvals and tasks that require your action — with clear next steps.</div>
+                        <div class="portal-tabs work-tabs">
+                            <button class="portal-tab" data-target="workflows" onclick="switchView('workflows')">Process AI Agents</button>
+                            <button class="portal-tab" data-target="requests" onclick="switchView('requests')">My Requests</button>
+                            <button class="portal-tab" data-target="inbox" onclick="switchView('inbox')">Inbox</button>
+                        </div>
                     </div>
                     <div class="portal-toolbar">
                         <input id="inbox-search" class="search-input" placeholder="Search inbox…" oninput="renderInbox()">

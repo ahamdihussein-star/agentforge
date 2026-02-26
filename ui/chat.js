@@ -733,6 +733,11 @@
             const n = Math.max(0, parseInt(String(count || '0'), 10) || 0);
             el.textContent = n > 99 ? '99+' : String(n);
             el.classList.toggle('show', n > 0);
+            const el2 = document.getElementById('work-inbox-badge');
+            if (el2) {
+                el2.textContent = n > 99 ? '99+' : String(n);
+                el2.classList.toggle('show', n > 0);
+            }
         }
 
         function toggleNavGroup(groupId) {
@@ -761,7 +766,9 @@
 
             // Nav active state
             document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.toggle('active', item.dataset.view === v);
+                const key = String(item.dataset.view || '');
+                const isWork = key === 'work' && (v === 'workflows' || v === 'requests');
+                item.classList.toggle('active', key === v || isWork);
             });
 
             // Show/hide view containers
@@ -771,28 +778,47 @@
                 el.classList.toggle('hidden', name !== v);
             });
 
-            // Sidebar: hide chat-only panels when not in chat
+            // Sidebar: show chat panels only in chat view
             const panels = document.getElementById('chat-sidebar-panels');
             if (panels) panels.classList.toggle('hidden', v !== 'chat');
+            const workPanels = document.getElementById('work-sidebar-panels');
+            if (workPanels) workPanels.classList.toggle('hidden', v === 'chat');
             const newChatBtn = document.getElementById('new-chat-btn');
             if (newChatBtn) newChatBtn.classList.toggle('hidden', v !== 'chat');
 
             // Close sidebar on mobile when navigating
             try { closeSidebar(); } catch (_) { /* ignore */ }
 
+            // Work tabs active state (Process AI Agents area)
+            try {
+                document.querySelectorAll('.work-tabs .portal-tab').forEach(btn => {
+                    btn.classList.toggle('active', String(btn.dataset.target || '') === v);
+                });
+            } catch (_) { /* ignore */ }
+
             // Lazy load data
             if (v === 'home') {
                 renderHomeDashboard();
             } else if (v === 'workflows') {
-                openNavGroup('processes');
                 renderWorkflows();
             } else if (v === 'requests') {
-                openNavGroup('processes');
                 renderRequestsScopeAndFilterChips();
                 refreshRequests();
             } else if (v === 'inbox') {
-                openNavGroup('processes');
                 refreshInbox();
+            }
+        }
+
+        async function _loadInboxForHome() {
+            try {
+                const res = await fetch(`${API}/process/approvals`, { headers: { ...getAuthHeaders() } });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) return [];
+                myApprovals = Array.isArray(data) ? data : (data.items || []);
+                _setInboxBadge(myApprovals.length);
+                return myApprovals;
+            } catch (_) {
+                return [];
             }
         }
 
@@ -810,8 +836,53 @@
 
             const aLabel = document.getElementById('home-assistants-label');
             const pLabel = document.getElementById('home-processes-label');
-            if (aLabel) aLabel.textContent = aCount ? `${aCount} assistant${aCount > 1 ? 's' : ''} available` : 'Conversational AI';
-            if (pLabel) pLabel.textContent = pCount ? `${pCount} service${pCount > 1 ? 's' : ''} available` : 'Forms & Requests';
+            if (aLabel) aLabel.textContent = aCount ? `${aCount} agent${aCount > 1 ? 's' : ''} available` : 'Conversational AI';
+            if (pLabel) pLabel.textContent = pCount ? `${pCount} agent${pCount > 1 ? 's' : ''} available` : 'Requests & Approvals';
+            const iLabel = document.getElementById('home-inbox-label');
+            if (iLabel) iLabel.textContent = iCount ? `${iCount} item${iCount > 1 ? 's' : ''} waiting` : 'Approvals & Action Items';
+
+            // Inbox preview (innovation: action cards)
+            const inboxEl = document.getElementById('home-inbox');
+            if (inboxEl) {
+                const draw = (items) => {
+                    const arr = Array.isArray(items) ? items.slice() : [];
+                    const top = arr.slice(0, 4);
+                    if (!top.length) {
+                        inboxEl.innerHTML = `<div class="home-empty">No approvals waiting right now.</div>`;
+                        return;
+                    }
+                    inboxEl.innerHTML = top.map(a => {
+                        const id = String(a?.id || '');
+                        const title = escapeHtml(a?.title || 'Approval');
+                        const desc = escapeHtml(a?.description || '');
+                        const rawUrgency = String(a?.urgency || '').toLowerCase();
+                        const urgCls = (rawUrgency === 'high' || rawUrgency === 'critical') ? 'danger' : (rawUrgency ? 'warning' : 'muted');
+                        const urgencyLabel = escapeHtml(humanizeUrgency(a?.urgency));
+                        const dueRelative = _formatRelativeTime(a?.due_by || a?.deadline_at);
+                        const dueText = dueRelative ? `Due ${escapeHtml(dueRelative)}` : 'Review required';
+                        return `
+                            <div class="home-inbox-card" onclick="switchView('inbox'); setTimeout(() => selectApproval('${id}'), 120);">
+                                <div class="home-inbox-top">
+                                    <div class="home-inbox-title" title="${title}">${title}</div>
+                                    <span class="home-inbox-pill ${urgCls}">${urgencyLabel}</span>
+                                </div>
+                                <div class="home-inbox-desc">${desc || 'Review details and take action.'}</div>
+                                <div class="home-inbox-cta">
+                                    <span>${dueText}</span>
+                                    <span class="arrow">→</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                };
+
+                if (!Array.isArray(myApprovals) || myApprovals.length === 0) {
+                    inboxEl.innerHTML = `<div class="home-empty">Loading your inbox…</div>`;
+                    _loadInboxForHome().then(draw).catch(() => draw([]));
+                } else {
+                    draw(myApprovals);
+                }
+            }
 
             // Quick access: show recent conversational agents + process agents
             const container = document.getElementById('home-recent');
@@ -824,7 +895,7 @@
                         <div class="home-recent-icon chat-type">${a.icon || '💬'}</div>
                         <div class="home-recent-info">
                             <div class="home-recent-name">${escapeHtml(a.name)}</div>
-                            <div class="home-recent-meta">AI Assistant</div>
+                            <div class="home-recent-meta">Conversational AI Agent</div>
                         </div>
                     </div>
                 `);
@@ -836,13 +907,13 @@
                         <div class="home-recent-icon process-type">${a.icon || '🧩'}</div>
                         <div class="home-recent-info">
                             <div class="home-recent-name">${escapeHtml(a.name)}</div>
-                            <div class="home-recent-meta">Process</div>
+                            <div class="home-recent-meta">Process AI Agent</div>
                         </div>
                     </div>
                 `);
             });
             if (items.length === 0) {
-                container.innerHTML = '<div class="home-empty">Your recent activity will appear here once you start chatting or running processes.</div>';
+                container.innerHTML = '<div class="home-empty">Your recent activity will appear here once you start chatting or submitting requests.</div>';
             } else {
                 container.innerHTML = items.join('');
             }
@@ -887,7 +958,7 @@
             const container = document.getElementById('agent-list');
             if (!container) return;
             if (agents.length === 0) {
-                container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center; border: 1px dashed var(--border); border-radius: 12px;">No assistants available</div>';
+                container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center; border: 1px dashed var(--border); border-radius: 12px;">No Conversational AI Agents available</div>';
                 return;
             }
             
@@ -896,7 +967,7 @@
                     <div class="agent-icon">${agent.icon || '💬'}</div>
                     <div class="agent-info">
                         <div class="agent-name">${escapeHtml(agent.name)}</div>
-                        <div class="agent-desc">${escapeHtml(agent.description || 'AI Assistant')}</div>
+                        <div class="agent-desc">${escapeHtml(agent.description || 'Conversational AI Agent')}</div>
                     </div>
                 </div>
             `).join('');
@@ -1116,9 +1187,9 @@
                 cardsEl.innerHTML = `
                     <div style="grid-column: 1 / -1;">
                         <div class="empty-state">
-                            <div class="empty-state-icon">📋</div>
-                            <div class="empty-state-title">No services available</div>
-                            <div class="empty-state-desc">There are no services published yet, or you don't have access. Contact your administrator for assistance.</div>
+                            <div class="empty-state-icon">🧩</div>
+                            <div class="empty-state-title">No Process AI Agents available</div>
+                            <div class="empty-state-desc">There are no Process AI Agents published yet, or you don't have access. Contact your administrator for help.</div>
                         </div>
                     </div>
                 `;
@@ -4282,7 +4353,7 @@
             // Apply Home dashboard branding
             if (brandName) {
                 const homeTagline = document.getElementById('home-tagline');
-                if (homeTagline) homeTagline.textContent = `Your ${brandName} AI workspace — chat with assistants or run business processes.`;
+                if (homeTagline) homeTagline.textContent = `Your ${brandName} AI workspace — use Conversational and Process AI Agents to get work done.`;
             }
         }
 
