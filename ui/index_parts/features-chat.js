@@ -63,7 +63,7 @@
                     headers: getAuthHeaders()
                 });
                 const d = await r.json();
-                chatConversations = d.conversations || [];
+                chatConversations = (d.conversations || []).filter(c => (c.message_count || 0) > 0);
                 renderChatConvList();
             } catch(e) {
                 console.error('Failed to load conversations:', e);
@@ -73,47 +73,42 @@
         }
         
         async function loadChatConversation(convId) {
-            console.log('📥 [loadChatConversation] Loading conversation:', convId);
             conv = convId;
             try {
                 const r = await fetch(API+'/api/conversations/'+convId, {
                     headers: getAuthHeaders()
                 });
                 const c = await r.json();
-                
-                console.log('📥 [loadChatConversation] Loaded conversation:', {
-                    id: c.id,
-                    title: c.title,
-                    messageCount: (c.messages || []).length,
-                    messages: (c.messages || []).map(m => ({role: m.role, contentPreview: m.content?.substring(0, 50)}))
-                });
-                
-                // Render messages - Modern UI
                 const container = document.getElementById('chat-messages');
-                if (!container) {
-                    console.error('❌ [loadChatConversation] chat-messages container not found!');
+                if (!container) return;
+
+                const msgs = (c.messages || []).filter(m => m.role === 'user' || m.role === 'assistant');
+
+                if (msgs.length === 0) {
+                    // Empty conversation - show welcome instead of blank screen
+                    const agentId = document.getElementById('chat-agent').value;
+                    if (agentId) {
+                        await startChatWithWelcome(agentId);
+                    } else {
+                        clearMsgs();
+                    }
+                    renderChatConvList();
                     return;
                 }
-                
-                const messagesHtml = (c.messages || []).map(m => {
+
+                container.innerHTML = msgs.map(m => {
                     if (m.role === 'user') {
                         return `<div class="msg-row user"><div class="msg-bubble user">${esc(m.content)}</div></div>`;
                     } else {
                         return `<div class="msg-row assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble assistant chat-content">${fmt(m.content)}</div></div>`;
                     }
                 }).join('');
-                
-                console.log('📥 [loadChatConversation] Rendering', (c.messages || []).length, 'messages to container');
-                container.innerHTML = messagesHtml;
                 container.scrollTop = container.scrollHeight;
-                
-                // Highlight code blocks
+
                 container.querySelectorAll('pre code').forEach(b=>hljs.highlightElement(b));
-                
                 renderChatConvList();
-                console.log('✅ [loadChatConversation] Done! Messages displayed.');
             } catch(e) {
-                console.error('❌ [loadChatConversation] Failed to load conversation:', e);
+                console.error('Failed to load conversation:', e);
             }
         }
         

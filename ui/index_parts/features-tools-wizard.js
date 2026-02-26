@@ -3864,8 +3864,8 @@ async function saveToolEdit() {
                 
                 const d=await r.json();
                 
-                // Update conversation list sidebar
-                chatConversations = d.conversations || [];
+                // Filter out empty conversations (created but never had messages)
+                chatConversations = (d.conversations || []).filter(c => (c.message_count || 0) > 0);
                 renderChatConvList();
                 
                 // Sync mobile selector
