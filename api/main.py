@@ -4272,6 +4272,28 @@ You have access to a special security tool called 'check_user_permissions'.
 async def lifespan(app: FastAPI):
     try:
         print("🔥 Starting AgentForge v3.1...")
+
+        # Ensure all database tables exist (idempotent, safe to call every startup)
+        try:
+            from database import init_db
+            init_db()
+            print("✅ Database tables verified")
+        except Exception as db_init_err:
+            print(f"⚠️ Database init warning: {db_init_err}")
+
+        # Verify messages table specifically
+        try:
+            from database.base import get_engine
+            from sqlalchemy import inspect
+            inspector = inspect(get_engine())
+            tables = inspector.get_table_names()
+            if 'messages' in tables:
+                print(f"✅ Messages table exists ({len(tables)} tables total)")
+            else:
+                print(f"❌ CRITICAL: 'messages' table NOT found! Tables: {tables}")
+        except Exception as insp_err:
+            print(f"⚠️ Table inspection failed: {insp_err}")
+
         app_state.load_from_disk()
         upload_dir = os.environ.get("UPLOAD_PATH", "data/uploads")
         os.makedirs(upload_dir, exist_ok=True)
@@ -4440,6 +4462,41 @@ async def health():
         import traceback
         traceback.print_exc()
         raise
+
+
+@app.get("/api/debug/db-messages")
+async def debug_db_messages():
+    """Diagnostic: check if messages table works and show recent message counts."""
+    result = {"messages_table_exists": False, "write_test": False, "conversations_with_messages": 0, "error": None}
+    try:
+        from database.base import get_engine
+        from sqlalchemy import inspect, text
+        inspector = inspect(get_engine())
+        tables = inspector.get_table_names()
+        result["messages_table_exists"] = "messages" in tables
+        result["all_tables"] = sorted(tables)
+
+        if "messages" in tables:
+            with get_engine().connect() as conn:
+                row = conn.execute(text("SELECT COUNT(*) FROM messages")).fetchone()
+                result["total_messages"] = row[0] if row else 0
+                row2 = conn.execute(text("SELECT COUNT(DISTINCT conversation_id) FROM messages")).fetchone()
+                result["conversations_with_messages"] = row2[0] if row2 else 0
+
+            # Test write
+            import uuid as _uuid
+            from database.services import ConversationService
+            test_conv_id = str(_uuid.uuid4())
+            test_msg = ConversationService.add_message(test_conv_id, {
+                'role': 'system',
+                'content': '__diagnostic_test__'
+            }, 'org_default', 'system')
+            result["write_test"] = test_msg is not None
+            result["write_result"] = str(test_msg) if test_msg else "None (failed)"
+
+    except Exception as e:
+        result["error"] = f"{type(e).__name__}: {str(e)}"
+    return result
 
 
 @app.get("/api/debug/agents-ownership")
