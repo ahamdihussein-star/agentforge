@@ -85,9 +85,16 @@ def add_google_oauth_credentials():
         
         session.commit()
         
-        print(f"✅ Added Google OAuth credentials:")
+        # Never print secrets to logs (Railway logs are treated as sensitive audit data)
+        def _mask_secret(s: str, show: int = 4) -> str:
+            s = str(s or "")
+            if len(s) <= show:
+                return "*" * len(s)
+            return ("*" * (len(s) - show)) + s[-show:]
+
+        print("✅ Added Google OAuth credentials:")
         print(f"   Client ID: {GOOGLE_CLIENT_ID[:30]}...")
-        print(f"   Client Secret: {GOOGLE_CLIENT_SECRET[:10]}...")
+        print(f"   Client Secret: {_mask_secret(GOOGLE_CLIENT_SECRET)}")
         print(f"   Allowed providers: {allowed_providers}")
         
         print("\n" + "="*60)
