@@ -3146,11 +3146,17 @@
         }
         
         function finishThinking(success = true) {
-            // Simply hide/remove the thinking container
             const container = document.getElementById('thinking-container');
             if (container) {
                 container.style.display = 'none';
             }
+        }
+        
+        function clearStreamingIds() {
+            ['streaming-msg', 'streaming-content', 'thinking-container', 'thinking-text'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.removeAttribute('id');
+            });
         }
         
         async function sendMessageStreaming(message) {
@@ -3278,6 +3284,8 @@
                                             }
                                         }
                                         
+                                        clearStreamingIds();
+                                        
                                         // Reload conversations
                                         loadConversations();
                                         break;
@@ -3285,6 +3293,7 @@
                                     case 'error':
                                         addThinkingStep('error', data.content);
                                         finishThinking(false);
+                                        clearStreamingIds();
                                         break;
                                 }
                             } catch (e) {
@@ -3304,6 +3313,7 @@
                     contentDiv.style.display = 'block';
                     contentDiv.innerHTML = `<p style="color: var(--error);">Failed to get a response. Please try again.</p>`;
                 }
+                clearStreamingIds();
             }
         }
         
