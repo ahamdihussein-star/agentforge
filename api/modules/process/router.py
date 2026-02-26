@@ -44,6 +44,7 @@ from .schemas import (
     SummarizeProcessResponse,
     UpdateProcessScheduleRequest,
     UpdateProcessScheduleResponse,
+    PendingApprovalDisplayResponse,
 )
 from .service import ProcessAPIService
 
@@ -872,6 +873,52 @@ async def start_execution(
         )
 
 
+@router.post("/execute-fast", response_model=ProcessExecutionResponse)
+async def start_execution_fast(
+    request: ProcessExecutionCreate,
+    service: ProcessAPIService = Depends(get_service),
+    user: User = Depends(require_auth)
+):
+    """
+    Fast-start a new workflow run for the Chat Portal.
+    Returns immediately with a reference/run ID, while the process continues in background.
+    """
+    user_dict = _user_to_dict(user)
+    try:
+        return await service.start_execution_fast(
+            agent_id=request.agent_id,
+            org_id=user_dict["org_id"],
+            user_id=user_dict["id"],
+            trigger_input=request.trigger_input,
+            trigger_type="manual",
+            conversation_id=request.conversation_id,
+            correlation_id=request.correlation_id,
+            user_info=user_dict
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=403,
+            detail=problem_details_rfc9457(403, ErrorCode.ACCESS_DENIED),
+        )
+    except ValueError as e:
+        sanitized = sanitize_for_user(str(e))
+        raise HTTPException(
+            status_code=400,
+            detail=problem_details_rfc9457(
+                400, ErrorCode.VALIDATION_FAILED,
+                detail_override=sanitized,
+            ),
+        )
+    except Exception as e:
+        logging.getLogger(__name__).exception(
+            "Process execution fast-start failed: %s", type(e).__name__
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=problem_details_rfc9457(500, ErrorCode.EXECUTION_FAILED),
+        )
+
+
 @router.post("/enrich-form-fields", response_model=EnrichFormFieldsResponse)
 async def enrich_form_fields(
     request: EnrichFormFieldsRequest,
@@ -1234,6 +1281,25 @@ async def get_step_executions(
         ],
         "total": len(nodes)
     }
+
+
+@router.get("/executions/{execution_id}/pending-approvals", response_model=PendingApprovalDisplayResponse)
+async def get_execution_pending_approvals(
+    execution_id: str,
+    service: ProcessAPIService = Depends(get_service),
+    user: User = Depends(require_auth),
+):
+    """
+    Request tracking helper: show who the request is waiting with (name/email + routing meaning).
+    """
+    user_dict = _user_to_dict(user)
+    items = service.get_execution_pending_approvals_display(
+        execution_id=execution_id,
+        org_id=user_dict["org_id"],
+        requester_user_id=user_dict["id"],
+        is_platform_admin=_is_platform_admin(user),
+    )
+    return PendingApprovalDisplayResponse(items=items)
 
 
 # =============================================================================

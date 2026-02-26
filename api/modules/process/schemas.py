@@ -173,6 +173,30 @@ class ApprovalListResponse(BaseModel):
 
 
 # =============================================================================
+# REQUEST TRACKING: WHO IS IT WAITING WITH?
+# =============================================================================
+
+class ApprovalAssigneeDisplay(BaseModel):
+    """User-facing assignee display"""
+    kind: str = Field(..., description="person or group")
+    label: str = Field(..., description="Role/group meaning, e.g. Direct manager")
+    name: Optional[str] = Field(default=None, description="Person name (if available)")
+    email: Optional[str] = Field(default=None, description="Person email (if available)")
+
+
+class PendingApprovalDisplay(BaseModel):
+    """Pending approval summary for request tracking"""
+    approval_id: str
+    step_name: Optional[str] = None
+    assignees: List[ApprovalAssigneeDisplay] = Field(default_factory=list)
+
+
+class PendingApprovalDisplayResponse(BaseModel):
+    """List of pending approvals for an execution"""
+    items: List[PendingApprovalDisplay] = Field(default_factory=list)
+
+
+# =============================================================================
 # PROCESS CONTROL SCHEMAS
 # =============================================================================
 

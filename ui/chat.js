@@ -1195,6 +1195,13 @@
                         </div>
                     </div>
 
+                    <div class="portal-tabs" style="margin-top:14px;">
+                        <button class="portal-tab active" data-proc-tab="overview" onclick="setProcessDetailTab('overview')">Overview</button>
+                        ${canRunNow ? `<button class="portal-tab" data-proc-tab="submit" onclick="setProcessDetailTab('submit')">${escapeHtml(cta)}</button>` : ''}
+                        <button class="portal-tab" data-proc-tab="tracking" onclick="setProcessDetailTab('tracking')">Tracking</button>
+                        ${(isSchedule && _canEditSchedules()) ? `<button class="portal-tab" data-proc-tab="schedule" onclick="setProcessDetailTab('schedule')">Schedule</button>` : ''}
+                    </div>
+
                     <div class="detail-section">
                         <div class="detail-section-header">Overview</div>
                         <div class="detail-section-body">
@@ -1203,11 +1210,6 @@
                     </div>
 
                     ${scheduleEditor}
-
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
-                        ${canRunNow ? `<button class="portal-btn portal-btn-primary" onclick="openWorkflowRunModal('${id}')">${cta}</button>` : `<button class="portal-btn" onclick="switchView('requests')">View My Requests</button>`}
-                        <button class="portal-btn" onclick="switchView('requests')">Track My Requests</button>
-                    </div>
                 `;
 
                 // Replace overview with LLM summary (cached), without exposing generation prompt text
@@ -1217,6 +1219,38 @@
                 }).catch(() => {});
             }
             renderWorkflows();
+        }
+
+        function setProcessDetailTab(tab) {
+            const t = String(tab || '').trim().toLowerCase();
+            const bodyEl = document.getElementById('workflow-detail-body');
+            if (!bodyEl) return;
+            try {
+                bodyEl.querySelectorAll('.portal-tab[data-proc-tab]').forEach(b => {
+                    b.classList.toggle('active', String(b.getAttribute('data-proc-tab') || '').toLowerCase() === t);
+                });
+            } catch (_) {}
+
+            if (!currentWorkflowAgent) return;
+            const id = String(currentWorkflowAgent.id || '').trim();
+            if (t === 'submit') {
+                openWorkflowRunModal(id);
+                // keep Overview selected after closing modal
+                return;
+            }
+            if (t === 'tracking') {
+                requestsWorkflowFilterId = id;
+                selectedExecutionId = null;
+                switchView('requests');
+                // best-effort refresh
+                try { refreshRequests(); } catch (_) {}
+                return;
+            }
+            if (t === 'schedule') {
+                openScheduleModal(id);
+                return;
+            }
+            // overview: no-op
         }
 
         function selectProcessAgent(agentId) {
@@ -1252,7 +1286,7 @@
             }
             try {
                 showToast('Starting process…', 'info', { duration: 1500 });
-                const response = await fetch(`${API}/process/execute`, {
+                const response = await fetch(`${API}/process/execute-fast`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1548,7 +1582,8 @@
         }
 
         function setWorkflowCategoryFilter(category) {
-            workflowCategoryFilter = category || 'All';
+            // If category chips are hidden (single category), avoid forcing 'All'
+            workflowCategoryFilter = category || workflowCategoryFilter || 'All';
             renderWorkflows();
         }
 
@@ -1573,18 +1608,25 @@
             const catSet = new Set();
             items.forEach(a => catSet.add(_getWorkflowCategory(a)));
             const cats = Array.from(catSet).sort((a, b) => a.localeCompare(b));
-            const allCats = ['All', ...cats];
-            if (!allCats.includes(workflowCategoryFilter)) workflowCategoryFilter = 'All';
+            const showCategoryChips = cats.length >= 2;
+            const allCats = showCategoryChips ? ['All', ...cats] : cats;
+            if (!allCats.includes(workflowCategoryFilter)) workflowCategoryFilter = allCats.includes('All') ? 'All' : (cats[0] || 'All');
 
             // Chips
             chipsEl.innerHTML = '';
-            allCats.forEach(cat => {
-                const chip = document.createElement('div');
-                chip.className = 'chip' + (cat === workflowCategoryFilter ? ' active' : '');
-                chip.textContent = cat;
-                chip.onclick = () => setWorkflowCategoryFilter(cat);
-                chipsEl.appendChild(chip);
-            });
+            if (!showCategoryChips) {
+                // If there is only one category (often "General"), chips add no value.
+                chipsEl.style.display = 'none';
+            } else {
+                chipsEl.style.display = '';
+                allCats.forEach(cat => {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip' + (cat === workflowCategoryFilter ? ' active' : '');
+                    chip.textContent = cat;
+                    chip.onclick = () => setWorkflowCategoryFilter(cat);
+                    chipsEl.appendChild(chip);
+                });
+            }
 
             // Quick filters (trigger + approvals)
             if (quickEl) {
@@ -2162,7 +2204,7 @@
                     triggerData[input.id] = input.type === 'number' ? (parseFloat(value) || 0) : value;
                 }
 
-                const response = await fetch(`${API}/process/execute`, {
+                const response = await fetch(`${API}/process/execute-fast`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2524,7 +2566,7 @@
                 else myRequests = [exData].concat(myRequests || []);
 
                 const steps = Array.isArray(stepsData) ? stepsData : (stepsData.items || stepsData.steps || []);
-                _renderRequestDetail(exData, steps);
+                await _renderRequestDetail(exData, steps);
                 renderRequests();
             } catch (e) {
                 console.error('refreshSelectedRequest error:', e);
@@ -2577,6 +2619,42 @@
             'custom_attributes', 'cost_center', 'identity_source', 'internal',
             'role_ids', 'group_ids', 'is_manager', 'employee_id',
         ]);
+
+        const _agentFieldLabelCache = new Map(); // agent_id -> { fieldId: label }
+
+        async function _getAgentFieldLabelMap(agentId) {
+            const id = String(agentId || '').trim();
+            if (!id) return {};
+            if (_agentFieldLabelCache.has(id)) return _agentFieldLabelCache.get(id) || {};
+            try {
+                const res = await fetch(`${API}/process/enrich-form-fields`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    body: JSON.stringify({ agent_id: id })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error('enrich failed');
+                const fields = Array.isArray(data) ? data : (data.fields || []);
+                const map = {};
+                (fields || []).forEach(f => {
+                    const key = String(f?.id || '').trim();
+                    const label = String(f?.label || '').trim();
+                    if (key && label) map[key] = label;
+                });
+                _agentFieldLabelCache.set(id, map);
+                return map;
+            } catch (_) {
+                _agentFieldLabelCache.set(id, {});
+                return {};
+            }
+        }
+
+        function _labelForInputKey(key, labelMap) {
+            const k = String(key || '').trim();
+            if (!k) return '';
+            if (labelMap && typeof labelMap === 'object' && labelMap[k]) return String(labelMap[k]);
+            return humanizeFieldLabel(k) || k;
+        }
 
         function _isHiddenField(key, allKeys) {
             const k = String(key || '').toLowerCase();
@@ -2711,7 +2789,7 @@
             return `<div class="progress-timeline">${humanSteps}</div>`;
         }
 
-        function _renderRequestDetail(ex, steps) {
+        async function _renderRequestDetail(ex, steps) {
             const titleEl = document.getElementById('request-detail-title');
             const subEl = document.getElementById('request-detail-subtitle');
             const bodyEl = document.getElementById('request-detail-body');
@@ -2737,14 +2815,52 @@
             const inputsEntries = (inputData && typeof inputData === 'object')
                 ? Object.entries(inputData).filter(([k]) => !_isHiddenField(k, allInputKeys))
                 : [];
+            const labelMap = await _getAgentFieldLabelMap(agentId);
 
             const stepsArr = Array.isArray(steps) ? steps : [];
             const progressSteps = _buildProgressTimeline(stepsArr, status);
 
+            // Waiting with (pending approvals)
+            let waitingHtml = '';
+            if (status === 'waiting' || status === 'paused') {
+                try {
+                    const exId = String(ex?.id || '').trim();
+                    if (exId) {
+                        const res = await fetch(`${API}/process/executions/${exId}/pending-approvals`, { headers: { ...getAuthHeaders() } });
+                        const data = await res.json().catch(() => ({}));
+                        const items = Array.isArray(data) ? data : (data.items || []);
+                        const rows = (items || []).flatMap(it => {
+                            const ass = Array.isArray(it?.assignees) ? it.assignees : [];
+                            return ass.map(a => {
+                                const role = escapeHtml(String(a?.label || 'Approver'));
+                                const name = escapeHtml(String(a?.name || ''));
+                                const email = escapeHtml(String(a?.email || ''));
+                                const person = (name || email) ? `${name || 'Approver'}${email ? ` <span class="detail-muted">&lt;${email}&gt;</span>` : ''}` : 'Approver';
+                                const step = escapeHtml(String(it?.step_name || 'Approval'));
+                                return `<div class="detail-row"><div class="detail-label">${step}</div><div class="detail-value">${person} <span class="detail-muted">— ${role}</span></div></div>`;
+                            });
+                        });
+                        if (rows.length) {
+                            waitingHtml = `
+                                <div class="detail-section">
+                                    <div class="detail-section-header">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="10"/></svg>
+                                        Waiting with
+                                    </div>
+                                    <div class="detail-section-body">${rows.join('')}</div>
+                                </div>
+                            `;
+                        }
+                    }
+                } catch (_) {
+                    // non-blocking
+                }
+            }
+
             const inputsHtml = inputsEntries.length ? inputsEntries.map(([k, v]) => {
                 const rendered = _renderPortalValue(v, k);
                 if (rendered.includes('detail-empty')) return '';
-                return `<div class="detail-row"><div class="detail-label">${escapeHtml(humanizeFieldLabel(k) || k)}</div><div class="detail-value">${rendered}</div></div>`;
+                return `<div class="detail-row"><div class="detail-label">${escapeHtml(_labelForInputKey(k, labelMap))}</div><div class="detail-value">${rendered}</div></div>`;
             }).filter(Boolean).join('') : '';
 
             let outcomeHtml = '';
@@ -2788,6 +2904,8 @@
                     ${createdAt ? `<div class="detail-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${escapeHtml(createdAt)}</div>` : ''}
                     ${refId ? `<div class="detail-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3L8 21"/><path d="M16 3l-2 18"/></svg>${escapeHtml(refId)}</div>` : ''}
                 </div>
+
+                ${waitingHtml}
 
                 ${progressSteps ? `
                     <div class="detail-section">

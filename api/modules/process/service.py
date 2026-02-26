@@ -19,6 +19,7 @@ from fastapi import HTTPException
 from database.services.process_execution_service import ProcessExecutionService
 from database.services.process_settings_service import ProcessSettingsService
 from database.models import Agent
+from database.config import get_db_session
 from core.process import (
     ProcessEngine,
     ProcessDefinition,
@@ -712,6 +713,283 @@ class ProcessAPIService:
             )
         
         return self._to_response(execution)
+
+    async def start_execution_fast(
+        self,
+        agent_id: str,
+        org_id: str,
+        user_id: str,
+        trigger_input: Dict[str, Any] = None,
+        trigger_type: str = "manual",
+        conversation_id: str = None,
+        correlation_id: str = None,
+        user_info: Dict[str, Any] = None,
+    ) -> ProcessExecutionResponse:
+        """
+        Fast submit path for the portal:
+        - Create the execution record
+        - Return immediately (status=running)
+        - Continue engine execution in the background
+        """
+        # Create record using the same validation/normalization as the sync path, but do not run engine here.
+        agent = self.db.query(Agent).filter(
+            Agent.id == uuid.UUID(agent_id),
+            Agent.org_id == uuid.UUID(org_id)
+        ).first()
+        if not agent:
+            raise ValueError(f"Agent not found: {agent_id}")
+        if agent.agent_type != "process":
+            raise ValueError(f"Agent is not a process type: {agent.agent_type}")
+        if not agent.process_definition:
+            raise ValueError("Agent has no process definition")
+
+        # Access control (same as sync start)
+        owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+        is_owner = user_id == owner_id
+        denied_tool_ids: List[str] = []
+        if not is_owner:
+            user_roles = user_info.get('roles', []) if user_info else []
+            user_groups = user_info.get('groups', []) if user_info else []
+            access_result = AccessControlService.check_user_access(
+                user_id=user_id,
+                user_role_ids=user_roles,
+                user_group_ids=user_groups,
+                agent_id=agent_id,
+                org_id=org_id
+            )
+            if not access_result.has_access:
+                raise PermissionError(
+                    f"Access denied: {access_result.reason or 'You do not have permission to execute this process'}"
+                )
+            denied_tool_ids = access_result.denied_tools or []
+
+        # Normalize definition (store snapshot)
+        settings_service = ProcessSettingsService(self.db)
+        org_settings = self._ensure_dict(settings_service.get_org_settings(org_id))
+        process_settings = self._ensure_dict(agent.process_settings or {})
+        merged_settings = self._merge_settings(org_settings, process_settings)
+        definition_data = self._ensure_dict(agent.process_definition).copy()
+        if 'settings' not in definition_data:
+            definition_data['settings'] = {}
+        definition_data['settings'] = self._merge_settings(
+            merged_settings,
+            definition_data.get('settings', {})
+        )
+        definition_data = self._normalize_visual_builder_definition(
+            definition_data,
+            agent_name=getattr(agent, 'name', 'Workflow')
+        )
+        # Validate
+        _ = ProcessDefinition.from_dict(definition_data)
+
+        _trigger = self._ensure_dict(trigger_input or {})
+        execution = self.exec_service.create_execution(
+            agent_id=agent_id,
+            org_id=org_id,
+            created_by=user_id,
+            trigger_type=trigger_type,
+            trigger_input=_trigger,
+            conversation_id=conversation_id,
+            correlation_id=correlation_id,
+            process_definition_snapshot=definition_data,
+        )
+
+        execution = self.exec_service.update_execution_status(
+            str(execution.id),
+            status="running"
+        )
+
+        # Enrich + persist minimal identity context for downstream use (also keeps portal display consistent)
+        user_context = {}
+        try:
+            user_context = _user_directory.enrich_process_context(user_id, org_id) or {}
+        except Exception as e:
+            logger.warning("[ProcessIdentity] Fast path enrich failed: %s", e)
+            user_context = {}
+        # Persist portal-relevant security/context without exposing it in UI (hidden via _user_context)
+        try:
+            user_context["_denied_tool_ids"] = denied_tool_ids
+            user_context["_user_roles"] = (user_info.get("roles", []) if user_info else []) or []
+            user_context["_user_groups"] = (user_info.get("groups", []) if user_info else []) or []
+        except Exception:
+            pass
+
+        enriched_trigger = dict(_trigger)
+        enriched_trigger["_user_context"] = user_context
+        try:
+            _exec_obj = self.exec_service.get_execution(str(execution.id))
+            if _exec_obj:
+                _exec_obj.trigger_input = enriched_trigger
+                self.db.add(_exec_obj)
+                self.db.commit()
+        except Exception as e:
+            logger.warning("[ProcessIdentity] Fast path failed to persist enriched trigger: %s", e)
+
+        # Background run (fresh DB session)
+        import asyncio
+
+        async def _runner():
+            db = get_db_session()
+            try:
+                svc = ProcessAPIService(db=db, llm_registry=self.llm_registry)
+                await svc.run_execution_from_db(execution_id=str(execution.id))
+            except Exception as e:
+                logger.exception("[ProcessFast] Background run failed: %s", e)
+            finally:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+        try:
+            asyncio.create_task(_runner())
+        except RuntimeError:
+            # Fallback: run inline if no running loop (rare under ASGI)
+            await _runner()
+
+        return self._to_response(execution)
+
+    async def run_execution_from_db(self, execution_id: str) -> None:
+        """
+        Continue an existing execution (created by start_execution_fast) until it reaches waiting/completed/failed.
+        """
+        execution = self.exec_service.get_execution(execution_id)
+        if not execution:
+            logger.warning("[ProcessFast] Execution not found: %s", execution_id)
+            return
+
+        agent = self.db.query(Agent).filter(Agent.id == execution.agent_id).first()
+        if not agent:
+            logger.warning("[ProcessFast] Agent not found for execution: %s", execution_id)
+            return
+
+        raw_def = execution.process_definition_snapshot or agent.process_definition
+        process_def = ProcessDefinition.from_dict(self._ensure_dict(raw_def))
+
+        trigger = self._ensure_dict(execution.trigger_input or {})
+        uc = trigger.get("_user_context") if isinstance(trigger, dict) else None
+        uc = uc if isinstance(uc, dict) else {}
+        denied_tool_ids = uc.get("_denied_tool_ids") or []
+        if not isinstance(denied_tool_ids, list):
+            denied_tool_ids = []
+
+        filtered_tool_ids = [t for t in (agent.tool_ids or []) if t not in denied_tool_ids]
+        deps = await self._build_dependencies(agent, filtered_tool_ids)
+
+        context = ProcessContext(
+            execution_id=str(execution.id),
+            agent_id=str(agent.id),
+            org_id=str(execution.org_id),
+            trigger_type=str(getattr(execution, "trigger_type", "manual") or "manual"),
+            trigger_input=trigger,
+            conversation_id=str(getattr(execution, "conversation_id", "") or "") or None,
+            user_id=str(getattr(execution, "created_by", "") or ""),
+            user_name=uc.get("display_name") or None,
+            user_email=uc.get("email") or None,
+            user_roles=uc.get("_user_roles") or [],
+            user_groups=uc.get("_user_groups") or [],
+            available_tool_ids=filtered_tool_ids,
+            denied_tool_ids=denied_tool_ids,
+            settings=self._ensure_dict(agent.process_settings or {}),
+        )
+
+        engine = ProcessEngine(
+            process_definition=process_def,
+            context=context,
+            dependencies=deps,
+            execution_id=str(execution.id)
+        )
+
+        # Persist checkpoints for resume
+        async def checkpoint_callback(
+            _execution_id: str,
+            checkpoint_data: Dict[str, Any],
+            variables: Dict[str, Any],
+            completed_nodes: List[str]
+        ):
+            self.exec_service.update_execution_state(
+                execution_id=_execution_id,
+                checkpoint_data=checkpoint_data,
+                variables=variables,
+                completed_nodes=completed_nodes
+            )
+
+        engine.set_checkpoint_callback(checkpoint_callback)
+
+        # Run engine using the same status persistence semantics as sync path
+        try:
+            result = await engine.execute(trigger)
+            if result.is_success:
+                self.exec_service.update_execution_status(str(execution.id), status="completed")
+                self.exec_service.update_execution_state(
+                    str(execution.id),
+                    variables=result.final_variables,
+                    completed_nodes=result.nodes_executed,
+                    output=result.output,
+                    node_count_executed=result.node_count,
+                    tokens_used=result.total_tokens_used
+                )
+            elif result.is_waiting:
+                meta = getattr(result, "waiting_metadata", None)
+                self.exec_service.update_execution_status(
+                    str(execution.id),
+                    status="waiting",
+                    current_node_id=result.resume_node_id
+                )
+                self.exec_service.update_execution_state(
+                    str(execution.id),
+                    variables=result.final_variables,
+                    completed_nodes=result.nodes_executed,
+                    checkpoint_data=engine.get_checkpoint()
+                )
+                if result.waiting_for == 'approval' and meta and deps.approval_service:
+                    try:
+                        org_id_val = meta.get('org_id') or str(getattr(execution, 'org_id', ''))
+                        assignee_ids_val = meta.get('assignee_ids') or []
+                        assignee_type_val = meta.get('assignee_type', 'user')
+                        if not assignee_ids_val:
+                            assignee_type_val = 'any'
+                        deadline_iso = meta.get('deadline')
+                        timeout_hours = 24
+                        if deadline_iso:
+                            try:
+                                from datetime import datetime as dt
+                                end = dt.fromisoformat(deadline_iso.replace('Z', '+00:00'))
+                                timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
+                            except Exception:
+                                pass
+                        await deps.approval_service.create_approval_request(
+                            execution_id=str(execution.id),
+                            org_id=org_id_val,
+                            node_id=meta.get('node_id', result.resume_node_id or ''),
+                            node_name=meta.get('node_name', 'Approval'),
+                            title=meta.get('title', 'Approval Required'),
+                            description=meta.get('description'),
+                            review_data=meta.get('review_data') or {},
+                            assignee_type=assignee_type_val,
+                            assignee_ids=assignee_ids_val,
+                            min_approvals=meta.get('min_approvals', 1),
+                            priority=meta.get('priority', 'normal'),
+                            timeout_hours=int(timeout_hours),
+                            escalation_config=meta.get('escalation'),
+                        )
+                    except Exception as e:
+                        logger.exception("[ProcessFast] Failed to create approval request: %s", e)
+            else:
+                self.exec_service.update_execution_status(
+                    str(execution.id),
+                    status="failed",
+                    error_message=result.error.message if result.error else "Unknown error",
+                    error_node_id=result.failed_node_id,
+                    error_details=result.error.to_dict() if result.error else None
+                )
+        except Exception as e:
+            logger.error("[ProcessFast] execution error: %s", e)
+            self.exec_service.update_execution_status(
+                str(execution.id),
+                status="failed",
+                error_message=str(e)
+            )
     
     async def resume_execution(
         self,
@@ -1320,6 +1598,132 @@ class ProcessAPIService:
         out = [self._approval_to_response(a) for a in approvals]
         logger.info("[ProcessApproval] list response: count=%s approval_ids=%s", len(out), [a.id for a in approvals])
         return out
+
+    def get_execution_pending_approvals_display(
+        self,
+        execution_id: str,
+        org_id: str,
+        requester_user_id: str,
+        is_platform_admin: bool = False,
+    ):
+        """
+        For request tracking: show who the request is waiting with (name/email + routing meaning).
+        Only the execution creator or platform admin can access.
+        """
+        from .schemas import PendingApprovalDisplay, ApprovalAssigneeDisplay
+        from database.services.process_execution_service import ProcessExecutionService
+        from database.models.user import User as DBUser
+        import uuid as uuid_lib
+
+        exec_service = ProcessExecutionService(self.db)
+        execution = exec_service.get_execution(execution_id)
+        if not execution or str(execution.org_id) != str(org_id):
+            raise ValueError("not found")
+
+        is_creator = str(getattr(execution, "created_by", "")) == str(requester_user_id)
+        if not is_creator and not is_platform_admin:
+            raise HTTPException(status_code=403, detail="Permission denied")
+
+        # Pull pending approvals for this execution (DB truth)
+        pending = []
+        try:
+            reqs = getattr(execution, "approval_requests", None) or []
+            pending = [a for a in reqs if getattr(a, "status", "") == "pending"]
+        except Exception:
+            pending = []
+
+        # Map approval node routing meaning from definition snapshot
+        def _routing_label_for_node(node_id: str) -> str:
+            pd = getattr(execution, "process_definition_snapshot", None) or {}
+            pd = self._ensure_dict(pd)
+            nodes = pd.get("nodes") or []
+            if not isinstance(nodes, list):
+                return "Approver"
+            for n in nodes:
+                if not isinstance(n, dict):
+                    continue
+                if str(n.get("id") or "") != str(node_id or ""):
+                    continue
+                cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+                tc = cfg.get("type_config") if isinstance(cfg.get("type_config"), dict) else cfg
+                src = str(tc.get("assignee_source") or cfg.get("assignee_source") or "").strip().lower()
+                dir_type = str(tc.get("directory_assignee_type") or cfg.get("directory_assignee_type") or "").strip().lower()
+                if src == "user_directory":
+                    return {
+                        "dynamic_manager": "Direct manager",
+                        "department_manager": "Department head",
+                        "department_members": "Department members",
+                        "management_chain": "Management chain",
+                        "role": "Role-based approver",
+                        "group": "Group-based approver",
+                        "expression": "Dynamic approver",
+                    }.get(dir_type, "Directory-based approver")
+                if src == "platform_role":
+                    return "Role-based approver"
+                if src == "platform_group":
+                    return "Group-based approver"
+                if src == "tool":
+                    return "Automatically assigned"
+                if src == "platform_user":
+                    return "Assigned approver"
+                return "Approver"
+
+        # Resolve assigned users to name/email (batch)
+        user_ids: List[str] = []
+        for a in pending:
+            for uid in (getattr(a, "assigned_user_ids", None) or [])[:50]:
+                if uid is None:
+                    continue
+                user_ids.append(str(uid))
+        # Deduplicate + validate UUIDs
+        uniq_uuid = []
+        seen = set()
+        for s in user_ids:
+            if s in seen:
+                continue
+            seen.add(s)
+            try:
+                uniq_uuid.append(uuid_lib.UUID(str(s)))
+            except Exception:
+                continue
+
+        user_map = {}
+        if uniq_uuid:
+            try:
+                org_uuid = uuid_lib.UUID(str(org_id))
+            except Exception:
+                org_uuid = None
+            q = self.db.query(DBUser).filter(DBUser.id.in_(uniq_uuid))
+            if org_uuid is not None:
+                q = q.filter(DBUser.org_id == org_uuid)
+            for u in q.all():
+                name = (u.display_name or '').strip() or f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}".strip() or None
+                user_map[str(u.id)] = {"name": name, "email": (u.email or '').strip() or None}
+
+        items = []
+        for a in pending:
+            node_id = getattr(a, "node_id", None)
+            label = _routing_label_for_node(node_id)
+            assignees = []
+            assigned_user_ids = getattr(a, "assigned_user_ids", None) or []
+            # show people (requested)
+            for uid in assigned_user_ids[:10]:
+                d = user_map.get(str(uid))
+                assignees.append(ApprovalAssigneeDisplay(
+                    kind="person",
+                    label=label,
+                    name=(d.get("name") if d else None),
+                    email=(d.get("email") if d else None),
+                ))
+            if not assignees:
+                assignees.append(ApprovalAssigneeDisplay(kind="group", label=label, name=None, email=None))
+
+            items.append(PendingApprovalDisplay(
+                approval_id=str(getattr(a, "id", "")),
+                step_name=getattr(a, "node_name", None),
+                assignees=assignees,
+            ))
+        return items
     
     # =========================================================================
     # STATISTICS
