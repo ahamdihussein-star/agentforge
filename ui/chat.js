@@ -94,12 +94,44 @@
             if (lower in knownLabels) {
                 return knownLabels[lower] === null ? '' : knownLabels[lower];
             }
-            return raw
+            const basic = raw
                 .replace(/[_-]+/g, ' ')
                 .replace(/([a-z])([A-Z])/g, '$1 $2')
                 .replace(/\s+/g, ' ')
                 .trim()
                 .split(' ')
+                .map(w => w ? (w[0].toUpperCase() + w.slice(1)) : '')
+                .join(' ');
+
+            // Heuristic: for legacy keys that are "stuck together" (e.g., "Expensereportname"),
+            // split on common business tokens to avoid exposing technical-looking labels.
+            // This remains generic and domain-agnostic.
+            const looksStuck = basic && !basic.includes(' ') && /^[A-Za-z0-9]+$/.test(raw) && raw.length >= 10;
+            if (!looksStuck) return basic;
+
+            const tokens = [
+                // identity
+                'requester', 'employee', 'manager', 'department', 'user',
+                // common fields
+                'email', 'phone', 'address', 'title', 'type', 'status', 'code', 'number', 'id', 'name',
+                // time
+                'start', 'end', 'due', 'date', 'time',
+                // money/data
+                'amount', 'total', 'currency',
+                // common business artifacts
+                'report', 'request', 'approval',
+            ].sort((a, b) => b.length - a.length);
+
+            let s = raw.toLowerCase();
+            for (const t of tokens) {
+                // word-ish replacement (not regex word boundary since the string has no separators)
+                s = s.replaceAll(t, ` ${t} `);
+            }
+            const cleaned = s.replace(/\s+/g, ' ').trim();
+            if (!cleaned || cleaned.replace(/\s/g, '').length < 4) return basic;
+            return cleaned
+                .split(' ')
+                .filter(Boolean)
                 .map(w => w ? (w[0].toUpperCase() + w.slice(1)) : '')
                 .join(' ');
         }
