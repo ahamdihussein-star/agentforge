@@ -13063,11 +13063,16 @@ async def get_available_process_models_api(current_user: User = Depends(get_curr
 @app.get("/chat", response_class=HTMLResponse)
 @app.get("/chat/", response_class=HTMLResponse)
 @app.get("/chat/{path:path}", response_class=HTMLResponse)
-async def serve_chat_portal(path: str = ""):
+async def serve_chat_portal(response: Response, path: str = ""):
     """End User Chat Portal - Modern chat interface for using agents"""
+    # Force no-cache to ensure users always get latest version (managed hosting/CDNs)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
     chat_file = "ui/chat.html"
     if os.path.exists(chat_file):
-        with open(chat_file) as f:
+        with open(chat_file, "r", encoding="utf-8") as f:
             return f.read()
     return "<html><body><h1>Chat Portal not found</h1></body></html>"
 
