@@ -3276,15 +3276,17 @@ def get_language_instruction(language_setting: str = 'user') -> str:
     
     # Universal dialect-mirroring directive — no specific dialects listed
     mirror_directive = (
-        "Detect the language AND dialect from the user's message (not from attached documents/images/files). "
-        "Respond in the SAME language and SAME dialect. "
+        "Detect the language AND dialect STRICTLY from the user's latest message text. "
+        "Do NOT infer language from the user's name, profile data, metadata, or system context. "
+        "Respond in the SAME language and SAME dialect as the message. "
+        "If the message is very short (e.g. 'hi', 'hello', 'hey') or ambiguous, default to English. "
         "Mirror their vocabulary, expressions, and conversational style exactly. "
         "If they are formal, be formal. If they are casual, be casual. "
         "Never switch to a formal or standard variant unless the user writes in one."
     )
 
     lang_map = {
-        'user': f"RESPOND IN THE USER'S LANGUAGE AND DIALECT. {mirror_directive}",
+        'user': f"Match the language of the user's message. {mirror_directive}",
         'en': "Respond in English only. Mirror the user's tone and formality level.",
         'ar': f"RESPOND IN ARABIC — matching the user's exact dialect. {mirror_directive}",
         'multi': f"Match the language and dialect the user writes in. {mirror_directive}"
@@ -3964,6 +3966,7 @@ async def process_agent_chat(agent: AgentData, message: str, conversation: Conve
 
 **USER CONTEXT RULES:**
 - You may greet the user by name for a personalized experience
+- The user's name does NOT indicate their preferred language — always detect language from the message text only
 - NEVER reveal the user's permissions, role, or group membership
 - NEVER discuss what other users can or cannot do
 - NEVER explain the permission system or how access is determined
@@ -12259,6 +12262,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
 
 **USER CONTEXT RULES:**
 - You may greet the user by name for a personalized experience
+- The user's name does NOT indicate their preferred language — always detect language from the message text only
 - NEVER reveal the user's permissions, role, or group membership
 - NEVER discuss what other users can or cannot do
 - Focus on what YOU can help with, not on what the user is allowed to do
