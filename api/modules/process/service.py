@@ -1018,6 +1018,165 @@ class ProcessAPIService:
 
         engine.set_checkpoint_callback(checkpoint_callback)
 
+        # =========================================================
+        # AUDIT TRAIL: Persist node executions (for Tracking UI)
+        # This is intentionally lightweight and truncates large values.
+        # =========================================================
+        def _json_safe(value: Any) -> Any:
+            try:
+                return json.loads(json.dumps(value, default=str))
+            except Exception:
+                return str(value)
+
+        def _truncate(value: Any, max_str: int = 6000, max_items: int = 80, max_depth: int = 4, _depth: int = 0) -> Any:
+            if _depth >= max_depth:
+                return "[truncated]"
+            if isinstance(value, str):
+                if len(value) <= max_str:
+                    return value
+                return value[:max_str] + "…"
+            if isinstance(value, list):
+                out = [_truncate(v, max_str=max_str, max_items=max_items, max_depth=max_depth, _depth=_depth + 1) for v in value[:max_items]]
+                if len(value) > max_items:
+                    out.append("…")
+                return out
+            if isinstance(value, dict):
+                out = {}
+                for i, (k, v) in enumerate(list(value.items())[:max_items]):
+                    out[str(k)] = _truncate(v, max_str=max_str, max_items=max_items, max_depth=max_depth, _depth=_depth + 1)
+                if len(value) > max_items:
+                    out["…"] = f"+{len(value) - max_items} more"
+                return out
+            return value
+
+        def _map_node_status(node_result: Any) -> str:
+            try:
+                s = getattr(node_result, "status", None)
+                sv = getattr(s, "value", None) or str(s or "")
+                sv = str(sv).strip().lower()
+            except Exception:
+                sv = ""
+            return {
+                "success": "completed",
+                "skipped": "skipped",
+                "waiting": "waiting",
+                "failure": "failed",
+                "failed": "failed",
+            }.get(sv, "completed")
+
+        def _build_node_input_data(node: Any, state: Any, ctx: Any) -> Dict[str, Any]:
+            node_type = getattr(getattr(node, "type", None), "value", None) or str(getattr(node, "type", "")).strip()
+            type_cfg = getattr(getattr(node, "config", None), "type_config", None) or {}
+            out: Dict[str, Any] = {"node_type": node_type, "node_name": getattr(node, "name", None)}
+            if node_type == "start":
+                out["trigger_input"] = _truncate(_json_safe(getattr(ctx, "trigger_input", {}) or {}))
+                return out
+            out["config"] = _truncate(_json_safe(type_cfg))
+            try:
+                resolved = state.interpolate_object(type_cfg) if state and type_cfg else {}
+            except Exception:
+                resolved = {}
+            out["resolved"] = _truncate(_json_safe(resolved))
+            return out
+
+        def _build_node_output_data(node_result: Any) -> Dict[str, Any]:
+            try:
+                status_val = getattr(getattr(node_result, "status", None), "value", None) or str(getattr(node_result, "status", "") or "")
+            except Exception:
+                status_val = ""
+            out: Dict[str, Any] = {
+                "status": str(status_val),
+                "output": _truncate(_json_safe(getattr(node_result, "output", None))),
+                "variables_update": _truncate(_json_safe(getattr(node_result, "variables_update", {}) or {})),
+            }
+            waiting_for = getattr(node_result, "waiting_for", None)
+            if waiting_for:
+                out["waiting_for"] = str(waiting_for)
+                out["waiting_metadata"] = _truncate(_json_safe(getattr(node_result, "waiting_metadata", None)))
+            try:
+                logs = getattr(node_result, "logs", None) or []
+                if isinstance(logs, list) and logs:
+                    out["logs"] = _truncate(_json_safe(logs[-25:]), max_str=1200, max_items=50, max_depth=3)
+            except Exception:
+                pass
+            err = getattr(node_result, "error", None)
+            if err:
+                error_detail = {}
+                biz = getattr(err, "business_message", None)
+                if biz:
+                    error_detail["business_message"] = str(biz)
+                fixable = getattr(err, "is_user_fixable", None)
+                if fixable is not None:
+                    error_detail["is_user_fixable"] = bool(fixable)
+                details = getattr(err, "details", None)
+                if isinstance(details, dict) and details.get("action_hint"):
+                    error_detail["action_hint"] = str(details["action_hint"])
+                if error_detail:
+                    out["error_detail"] = error_detail
+            return out
+
+        try:
+            existing_node_execs = self.exec_service.get_node_executions(str(execution.id)) or []
+        except Exception:
+            existing_node_execs = []
+
+        async def _on_node_start(node: Any, state: Any, context: Any, execution_order: int = 0):
+            input_data = _build_node_input_data(node, state, context)
+            try:
+                variables_before = state.get_masked_variables() if state else {}
+            except Exception:
+                variables_before = {}
+            node_exec = self.exec_service.create_node_execution(
+                process_execution_id=str(execution.id),
+                node_id=str(getattr(node, "id", "")),
+                node_type=str(getattr(getattr(node, "type", None), "value", None) or getattr(node, "type", "") or ""),
+                node_name=str(getattr(node, "name", "") or "") or None,
+                execution_order=int(execution_order or 0),
+                input_data=_json_safe(input_data) or {},
+                variables_before=_json_safe(variables_before) or {},
+            )
+            return str(node_exec.id)
+
+        async def _on_node_complete(node: Any, state: Any, context: Any, result: Any, execution_order: int = 0, handle: Any = None):
+            if not handle:
+                return
+            status = _map_node_status(result)
+            try:
+                variables_after = state.get_masked_variables() if state else {}
+            except Exception:
+                variables_after = {}
+            out_data = _build_node_output_data(result)
+            err_message = None
+            err_type = None
+            try:
+                if getattr(result, "error", None):
+                    err_message = getattr(result.error, "message", None) or None
+                    err_type = getattr(result.error, "code", None) or None
+            except Exception:
+                err_message = None
+                err_type = None
+            branch_taken = getattr(result, "next_node_id", None)
+            try:
+                self.exec_service.complete_node_execution(
+                    node_execution_id=str(handle),
+                    status=status,
+                    output_data=_json_safe(out_data),
+                    variables_after=_json_safe(variables_after) or {},
+                    branch_taken=str(branch_taken) if branch_taken else None,
+                    error_message=err_message,
+                    error_type=err_type,
+                    duration_ms=getattr(result, "duration_ms", None),
+                    tokens_used=getattr(result, "tokens_used", None),
+                )
+            except Exception as e:
+                logger.exception("[ProcessFast] Failed to persist node execution: %s", e)
+
+        engine.set_node_execution_callbacks(
+            on_node_start=_on_node_start,
+            on_node_complete=_on_node_complete,
+            initial_execution_order=len(existing_node_execs),
+        )
+
         # Run engine using the same status persistence semantics as sync path
         try:
             result = await engine.execute(trigger)

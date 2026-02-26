@@ -20,6 +20,8 @@ from fastapi.responses import FileResponse
 import os
 import re
 import uuid
+import json
+from datetime import datetime
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, EmailStr
 
@@ -1093,6 +1095,36 @@ async def get_execution(
                 status_code=403,
                 detail=format_error_for_user(ErrorCode.PERMISSION_DENIED),
             )
+
+        # Fail-safe: if an execution has been "running" far longer than its configured limit,
+        # mark it as timed_out so Tracking doesn't remain stuck forever (e.g., hung LLM call).
+        try:
+            if str(getattr(execution, "status", "") or "").lower() == "running":
+                started_at = getattr(execution, "started_at", None) or getattr(execution, "created_at", None)
+                if started_at:
+                    max_s = 3600
+                    raw_def = getattr(execution, "process_definition_snapshot", None)
+                    if raw_def:
+                        try:
+                            d = json.loads(raw_def) if isinstance(raw_def, str) else raw_def
+                            if isinstance(d, dict):
+                                settings = d.get("settings") or {}
+                                if isinstance(settings, dict):
+                                    max_s = int(settings.get("max_execution_time_seconds") or max_s)
+                        except Exception:
+                            pass
+                    elapsed = (datetime.utcnow() - started_at).total_seconds()
+                    # Allow a small buffer for slow services.
+                    if elapsed > (max_s + 300):
+                        execution = service.exec_service.update_execution_status(
+                            str(execution.id),
+                            status="timed_out",
+                            error_message="This request took longer than expected and was stopped.",
+                            error_details={"code": "EXECUTION_TIMEOUT", "max_execution_time_seconds": max_s},
+                        )
+        except Exception:
+            pass
+
         return service._to_response(execution)
     except ValueError as e:
         raise HTTPException(

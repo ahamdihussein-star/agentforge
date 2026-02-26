@@ -9,6 +9,7 @@ These nodes perform actual work:
 """
 
 import json
+import asyncio
 import re
 import time
 from typing import Optional, Dict, Any
@@ -311,17 +312,23 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         start_time = time.time()
         try:
             from ...llm.base import Message, MessageRole
+            _timeout_s = float(self.get_config_value(node, "timeout_seconds") or 0) or float(
+                (context.settings or {}).get("llm_timeout_seconds") if hasattr(context, "settings") else 0
+            ) or float(__import__("os").environ.get("LLM_TIMEOUT_SECONDS", "90") or 90)
             
             llm_messages = [
                 Message(role=MessageRole(m['role']), content=m['content'])
                 for m in messages
             ]
             
-            response = await self.deps.llm.chat(
-                messages=llm_messages,
-                tools=llm_tools if llm_tools else None,
-                temperature=temperature,
-                max_tokens=max_tokens
+            response = await asyncio.wait_for(
+                self.deps.llm.chat(
+                    messages=llm_messages,
+                    tools=llm_tools if llm_tools else None,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                ),
+                timeout=_timeout_s
             )
             
             # ── Tool-calling loop (max 5 rounds to prevent infinite loops) ──
@@ -360,17 +367,36 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                         tool_call_id=tc.id
                     ))
                 # Re-call LLM with tool results
-                response = await self.deps.llm.chat(
-                    messages=llm_messages,
-                    tools=llm_tools,
-                    temperature=temperature,
-                    max_tokens=max_tokens
+                response = await asyncio.wait_for(
+                    self.deps.llm.chat(
+                        messages=llm_messages,
+                        tools=llm_tools,
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    ),
+                    timeout=_timeout_s
                 )
             # ── End tool-calling loop ──────────────────────────────────────
             
             duration_ms = (time.time() - start_time) * 1000
             logs.append(f"LLM response received in {duration_ms:.0f}ms{' (with ' + str(_tool_rounds) + ' tool round(s))' if _tool_rounds > 0 else ''}")
             
+        except asyncio.TimeoutError:
+            return NodeResult.failure(
+                error=ExecutionError(
+                    category=ErrorCategory.EXTERNAL,
+                    code="LLM_TIMEOUT",
+                    message="LLM call timed out",
+                    business_message=(
+                        f"The step \"{node.name}\" is taking longer than expected. "
+                        "Please try again in a moment."
+                    ),
+                    is_user_fixable=False,
+                    is_retryable=True,
+                    retry_after_seconds=5,
+                ),
+                logs=logs + [f"LLM timeout after {_timeout_s:.0f}s"],
+            )
         except Exception as e:
             return NodeResult.failure(
                 error=ExecutionError(
