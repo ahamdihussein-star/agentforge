@@ -1202,11 +1202,47 @@
                         </div>
                     </div>
 
-                    <div class="portal-tabs" style="margin-top:14px;">
-                        <button class="portal-tab active" data-proc-tab="overview" onclick="setProcessDetailTab('overview')">Overview</button>
-                        ${canRunNow ? `<button class="portal-tab" data-proc-tab="submit" onclick="setProcessDetailTab('submit')">${escapeHtml(cta)}</button>` : ''}
-                        <button class="portal-tab" data-proc-tab="tracking" onclick="setProcessDetailTab('tracking')">Tracking</button>
-                        ${(isSchedule && _canEditSchedules()) ? `<button class="portal-tab" data-proc-tab="schedule" onclick="setProcessDetailTab('schedule')">Schedule</button>` : ''}
+                    <div class="proc-nav" role="tablist" aria-label="Process actions" style="margin-top:14px;">
+                        <button class="proc-nav-item active" type="button" data-proc-tab="overview" role="tab" aria-selected="true" onclick="setProcessDetailTab('overview')">
+                            <div class="proc-nav-top">
+                                <div class="proc-nav-icon">ℹ️</div>
+                                <div class="proc-nav-text">
+                                    <div class="proc-nav-title">Overview</div>
+                                    <div class="proc-nav-sub">What this process does, in plain language.</div>
+                                </div>
+                            </div>
+                        </button>
+                        ${canRunNow ? `
+                            <button class="proc-nav-item primary" type="button" onclick="openWorkflowRunModal('${id}')">
+                                <div class="proc-nav-top">
+                                    <div class="proc-nav-icon">📝</div>
+                                    <div class="proc-nav-text">
+                                        <div class="proc-nav-title">${escapeHtml(cta)}</div>
+                                        <div class="proc-nav-sub">Submit a new request with the right information.</div>
+                                    </div>
+                                </div>
+                            </button>
+                        ` : ''}
+                        <button class="proc-nav-item" type="button" data-proc-tab="tracking" role="tab" aria-selected="false" onclick="setProcessDetailTab('tracking')">
+                            <div class="proc-nav-top">
+                                <div class="proc-nav-icon">🧾</div>
+                                <div class="proc-nav-text">
+                                    <div class="proc-nav-title">Tracking</div>
+                                    <div class="proc-nav-sub">See what’s happening and who it’s waiting with.</div>
+                                </div>
+                            </div>
+                        </button>
+                        ${(isSchedule && _canEditSchedules()) ? `
+                            <button class="proc-nav-item" type="button" data-proc-tab="schedule" role="tab" aria-selected="false" onclick="setProcessDetailTab('schedule')">
+                                <div class="proc-nav-top">
+                                    <div class="proc-nav-icon">📅</div>
+                                    <div class="proc-nav-text">
+                                        <div class="proc-nav-title">Schedule</div>
+                                        <div class="proc-nav-sub">Adjust when this process runs automatically.</div>
+                                    </div>
+                                </div>
+                            </button>
+                        ` : ''}
                     </div>
 
                     <div class="detail-section">
@@ -1233,18 +1269,15 @@
             const bodyEl = document.getElementById('workflow-detail-body');
             if (!bodyEl) return;
             try {
-                bodyEl.querySelectorAll('.portal-tab[data-proc-tab]').forEach(b => {
-                    b.classList.toggle('active', String(b.getAttribute('data-proc-tab') || '').toLowerCase() === t);
+                bodyEl.querySelectorAll('.proc-nav-item[data-proc-tab]').forEach(b => {
+                    const isActive = String(b.getAttribute('data-proc-tab') || '').toLowerCase() === t;
+                    b.classList.toggle('active', isActive);
+                    b.setAttribute('aria-selected', isActive ? 'true' : 'false');
                 });
             } catch (_) {}
 
             if (!currentWorkflowAgent) return;
             const id = String(currentWorkflowAgent.id || '').trim();
-            if (t === 'submit') {
-                openWorkflowRunModal(id);
-                // keep Overview selected after closing modal
-                return;
-            }
             if (t === 'tracking') {
                 requestsWorkflowFilterId = id;
                 selectedExecutionId = null;
@@ -2667,6 +2700,13 @@
 
         const _agentFieldLabelCache = new Map(); // agent_id -> { fieldId: label }
 
+        function _normInputKey(key) {
+            return String(key || '')
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '');
+        }
+
         function _localFieldLabelsFromDefinition(agentId) {
             const id = String(agentId || '').trim();
             if (!id) return {};
@@ -2717,6 +2757,8 @@
                 Object.entries(map).forEach(([k, v]) => {
                     const lk = String(k || '').toLowerCase();
                     if (lk && !map[lk]) map[lk] = v;
+                    const nk = _normInputKey(k);
+                    if (nk && !map[nk]) map[nk] = v;
                 });
                 _agentFieldLabelCache.set(id, map);
                 return map;
@@ -2729,6 +2771,8 @@
                 Object.entries(map).forEach(([k, v]) => {
                     const lk = String(k || '').toLowerCase();
                     if (lk && !map[lk]) map[lk] = v;
+                    const nk = _normInputKey(k);
+                    if (nk && !map[nk]) map[nk] = v;
                 });
                 _agentFieldLabelCache.set(id, map);
                 return map;
@@ -2742,6 +2786,8 @@
                 if (labelMap[k]) return String(labelMap[k]);
                 const lk = k.toLowerCase();
                 if (labelMap[lk]) return String(labelMap[lk]);
+                const nk = _normInputKey(k);
+                if (labelMap[nk]) return String(labelMap[nk]);
             }
             return humanizeFieldLabel(k) || k;
         }
@@ -2868,7 +2914,8 @@
                 const isDone = ['completed', 'success', 'approved'].includes(sStatus);
                 const isActive = ['running', 'pending', 'waiting', 'in_progress'].includes(sStatus);
                 const isFailed = ['failed', 'error', 'rejected'].includes(sStatus);
-                const stepName = s.step_name || s.node_name || humanizeNodeType(s.step_type || s.node_type);
+                const rawName = s.step_name || s.node_name || humanizeNodeType(s.step_type || s.node_type);
+                const stepName = humanizeFieldLabel(rawName) || String(rawName || '').trim() || 'Step';
                 let cls = '';
                 if (isDone) cls = 'completed';
                 else if (isActive) cls = 'active';
