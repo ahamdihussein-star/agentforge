@@ -946,6 +946,20 @@ class ProcessAPIService:
             logger.warning("[ProcessFast] Execution not found: %s", execution_id)
             return
 
+        # Guard: executions created by fast-submit may wait for attachments
+        try:
+            meta = self._ensure_dict(getattr(execution, "extra_metadata", None) or {})
+            awaiting = meta.get("awaiting_uploads") or []
+            if isinstance(awaiting, list) and any(str(x or "").strip() for x in awaiting):
+                logger.info(
+                    "[ProcessFast] Execution %s awaiting uploads (%s) — skipping run until finalized",
+                    str(execution.id),
+                    ",".join([str(x) for x in awaiting if x]),
+                )
+                return
+        except Exception:
+            pass
+
         agent = self.db.query(Agent).filter(Agent.id == execution.agent_id).first()
         if not agent:
             logger.warning("[ProcessFast] Agent not found for execution: %s", execution_id)

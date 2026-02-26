@@ -628,6 +628,11 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         if not isinstance(file_obj, dict):
             return ""
 
+        # Portal fast-submit placeholder — files not uploaded yet
+        kind = str(file_obj.get("kind") or "").strip().lower()
+        if kind == "pendingupload":
+            return ""
+
         file_id = str(file_obj.get("id") or "").strip()
         file_name = file_obj.get("name") or ""
         dl_url = str(file_obj.get("download_url") or "").strip()
