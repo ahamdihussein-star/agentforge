@@ -1313,7 +1313,7 @@
                 return;
             }
             try {
-                showToast('Starting process…', 'info', { duration: 1500 });
+                showToast('Submitting…', 'info', { duration: 1200 });
                 const response = await fetch(`${API}/process/execute-fast`, {
                     method: 'POST',
                     headers: {
@@ -2234,8 +2234,8 @@
             const statusEl = document.getElementById('workflow-run-status');
 
             try {
-                if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
-                if (statusEl) statusEl.textContent = 'Starting…';
+                if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+                if (statusEl) statusEl.textContent = 'Submitting…';
 
                 // Ensure derived fields are up to date before collecting values
                 recomputeWorkflowDerivedFields(workflowRunInputs);
@@ -2249,7 +2249,7 @@
                         const fileObj = field.files && field.files[0] ? field.files[0] : null;
                         if (input.required && !fileObj) {
                             showToast(`Please upload: ${input.label}`, 'error');
-                            if (btn) { btn.disabled = false; btn.textContent = 'Start'; }
+                            if (btn) { btn.disabled = false; btn.textContent = _serviceCtaLabel(currentWorkflowAgent); }
                             field.focus();
                             return;
                         }
@@ -2264,7 +2264,7 @@
                     const value = (field.value || '').trim();
                     if (input.required && !value) {
                         showToast(`Please fill in: ${input.label}`, 'error');
-                        if (btn) { btn.disabled = false; btn.textContent = 'Start'; }
+                        if (btn) { btn.disabled = false; btn.textContent = _serviceCtaLabel(currentWorkflowAgent); }
                         field.focus();
                         return;
                     }

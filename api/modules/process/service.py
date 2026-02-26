@@ -1628,7 +1628,10 @@ class ProcessAPIService:
         pending = []
         try:
             reqs = getattr(execution, "approval_requests", None) or []
-            pending = [a for a in reqs if getattr(a, "status", "") == "pending"]
+            # relationship is configured as lazy="dynamic" in some deployments (returns a Query)
+            if hasattr(reqs, "all") and callable(getattr(reqs, "all")):
+                reqs = reqs.all()
+            pending = [a for a in (reqs or []) if getattr(a, "status", "") == "pending"]
         except Exception:
             pending = []
 
@@ -1658,6 +1661,66 @@ class ProcessAPIService:
                 lab = str(label or "").strip().lower()
             except Exception:
                 lab = ""
+
+            # Most reliable: use org chart fields from the requester record
+            try:
+                import uuid as uuid_lib2
+                from database.models.user import User as DBUser2
+                from database.models.department import Department as DBDepartment
+
+                org_uuid2 = None
+                try:
+                    org_uuid2 = uuid_lib2.UUID(str(org_id))
+                except Exception:
+                    org_uuid2 = None
+
+                req_id_raw = getattr(execution, "created_by", None)
+                req_uuid = None
+                try:
+                    req_uuid = uuid_lib2.UUID(str(req_id_raw))
+                except Exception:
+                    req_uuid = None
+
+                requester = None
+                if req_uuid is not None:
+                    q = self.db.query(DBUser2).filter(DBUser2.id == req_uuid)
+                    if org_uuid2 is not None:
+                        q = q.filter(DBUser2.org_id == org_uuid2)
+                    requester = q.first()
+
+                def _user_to_name_email(u) -> Dict[str, Optional[str]]:
+                    name = (u.display_name or '').strip() or f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}".strip() or None
+                    return {"name": name, "email": (u.email or '').strip() or None}
+
+                if requester and lab in ("direct manager", "management chain"):
+                    mid = getattr(requester, "manager_id", None)
+                    if mid:
+                        q = self.db.query(DBUser2).filter(DBUser2.id == mid)
+                        if org_uuid2 is not None:
+                            q = q.filter(DBUser2.org_id == org_uuid2)
+                        mgr = q.first()
+                        if mgr:
+                            return _user_to_name_email(mgr)
+
+                if requester and lab == "department head":
+                    dep_id = getattr(requester, "department_id", None)
+                    if dep_id:
+                        qd = self.db.query(DBDepartment).filter(DBDepartment.id == dep_id)
+                        if org_uuid2 is not None:
+                            qd = qd.filter(DBDepartment.org_id == org_uuid2)
+                        dep = qd.first()
+                        dep_mgr_id = getattr(dep, "manager_id", None) if dep else None
+                        if dep_mgr_id:
+                            q = self.db.query(DBUser2).filter(DBUser2.id == dep_mgr_id)
+                            if org_uuid2 is not None:
+                                q = q.filter(DBUser2.org_id == org_uuid2)
+                            mgr = q.first()
+                            if mgr:
+                                return _user_to_name_email(mgr)
+            except Exception:
+                # fall back to trigger_input/variables heuristics below
+                pass
+
             ti = _as_dict(getattr(execution, "trigger_input", None) or {})
             vars_ = _as_dict(getattr(execution, "variables", None) or {})
             ctx = {}
