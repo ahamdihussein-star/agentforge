@@ -2667,6 +2667,28 @@
 
         const _agentFieldLabelCache = new Map(); // agent_id -> { fieldId: label }
 
+        function _localFieldLabelsFromDefinition(agentId) {
+            const id = String(agentId || '').trim();
+            if (!id) return {};
+            const agent = (workflowAgents || []).find(a => String(a?.id || '') === id);
+            if (!agent) return {};
+            const def = _parseProcessDefinition(agent);
+            const nodes = Array.isArray(def?.nodes) ? def.nodes : [];
+            const triggerNode = nodes.find(n => ['trigger', 'form', 'start'].includes(String(n?.type || '').trim().toLowerCase()));
+            if (!triggerNode) return {};
+            const cfg = (triggerNode && typeof triggerNode === 'object') ? (triggerNode.config || {}) : {};
+            const tc = (cfg && typeof cfg === 'object') ? (cfg.type_config || cfg.typeConfig || cfg) : {};
+            const fields = (tc.fields || cfg.fields || tc.input_fields || cfg.input_fields || tc.inputFields || cfg.inputFields || tc.form_fields || cfg.form_fields || tc.formFields || cfg.formFields || tc.inputs || cfg.inputs || []);
+            if (!Array.isArray(fields)) return {};
+            const map = {};
+            fields.forEach(f => {
+                const key = String(f?.name || f?.id || '').trim();
+                const label = String(f?.label || '').trim();
+                if (key && label) map[key] = label;
+            });
+            return map;
+        }
+
         async function _getAgentFieldLabelMap(agentId) {
             const id = String(agentId || '').trim();
             if (!id) return {};
@@ -2686,18 +2708,41 @@
                     const label = String(f?.label || '').trim();
                     if (key && label) map[key] = label;
                 });
+                // Fallback: ensure we still match the run form labels even if enrichment is partial.
+                const local = _localFieldLabelsFromDefinition(id);
+                Object.entries(local).forEach(([k, v]) => {
+                    if (!map[k] && v) map[k] = v;
+                });
+                // Also add lowercase aliases to survive casing differences.
+                Object.entries(map).forEach(([k, v]) => {
+                    const lk = String(k || '').toLowerCase();
+                    if (lk && !map[lk]) map[lk] = v;
+                });
                 _agentFieldLabelCache.set(id, map);
                 return map;
             } catch (_) {
-                _agentFieldLabelCache.set(id, {});
-                return {};
+                const local = _localFieldLabelsFromDefinition(id);
+                const map = {};
+                Object.entries(local || {}).forEach(([k, v]) => {
+                    if (k && v) map[String(k)] = String(v);
+                });
+                Object.entries(map).forEach(([k, v]) => {
+                    const lk = String(k || '').toLowerCase();
+                    if (lk && !map[lk]) map[lk] = v;
+                });
+                _agentFieldLabelCache.set(id, map);
+                return map;
             }
         }
 
         function _labelForInputKey(key, labelMap) {
             const k = String(key || '').trim();
             if (!k) return '';
-            if (labelMap && typeof labelMap === 'object' && labelMap[k]) return String(labelMap[k]);
+            if (labelMap && typeof labelMap === 'object') {
+                if (labelMap[k]) return String(labelMap[k]);
+                const lk = k.toLowerCase();
+                if (labelMap[lk]) return String(labelMap[lk]);
+            }
             return humanizeFieldLabel(k) || k;
         }
 

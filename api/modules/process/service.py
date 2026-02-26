@@ -1632,6 +1632,95 @@ class ProcessAPIService:
         except Exception:
             pending = []
 
+        def _as_dict(v: Any) -> Dict[str, Any]:
+            try:
+                return self._ensure_dict(v)
+            except Exception:
+                return {}
+
+        def _ci_get(d: Dict[str, Any], *keys: str) -> Optional[Any]:
+            """Case-insensitive, snake/camel tolerant key lookup."""
+            if not d:
+                return None
+            lowered = {str(k).strip().lower(): v for k, v in d.items()}
+            for k in keys:
+                kk = str(k).strip().lower()
+                if kk in lowered:
+                    return lowered.get(kk)
+            return None
+
+        def _resolve_person_from_execution(label: str) -> Optional[Dict[str, Optional[str]]]:
+            """
+            Best-effort: dynamic approvers (e.g., Direct manager) may not have assigned_user_ids.
+            Use execution.trigger_input/variables (identity context) to resolve a real person.
+            """
+            try:
+                lab = str(label or "").strip().lower()
+            except Exception:
+                lab = ""
+            ti = _as_dict(getattr(execution, "trigger_input", None) or {})
+            vars_ = _as_dict(getattr(execution, "variables", None) or {})
+            ctx = {}
+            ctx.update(vars_)
+            ctx.update(ti)
+
+            # Common identity keys (vary across builders / legacy)
+            if lab in ("direct manager", "management chain", "department head"):
+                # Prefer id, then email, then name
+                mgr_id = _ci_get(ctx, "manager_id", "managerId", "direct_manager_id", "directManagerId")
+                mgr_email = _ci_get(ctx, "manager_email", "managerEmail", "direct_manager_email", "directManagerEmail")
+                mgr_name = _ci_get(ctx, "manager_name", "managerName", "direct_manager_name", "directManagerName")
+
+                # Department head variants
+                if lab == "department head":
+                    mgr_id = _ci_get(ctx, "department_manager_id", "departmentManagerId") or mgr_id
+                    mgr_email = _ci_get(ctx, "department_manager_email", "departmentManagerEmail") or mgr_email
+                    mgr_name = _ci_get(ctx, "department_manager_name", "departmentManagerName") or mgr_name
+
+                # Query by id/email if available
+                from database.models.user import User as DBUser
+                import uuid as uuid_lib2
+                try:
+                    org_uuid2 = uuid_lib2.UUID(str(org_id))
+                except Exception:
+                    org_uuid2 = None
+
+                # By ID
+                if mgr_id:
+                    try:
+                        uid = uuid_lib2.UUID(str(mgr_id))
+                        q = self.db.query(DBUser).filter(DBUser.id == uid)
+                        if org_uuid2 is not None:
+                            q = q.filter(DBUser.org_id == org_uuid2)
+                        u = q.first()
+                        if u:
+                            name = (u.display_name or '').strip() or f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}".strip() or None
+                            return {"name": name, "email": (u.email or '').strip() or None}
+                    except Exception:
+                        pass
+
+                # By email
+                if mgr_email:
+                    try:
+                        em = str(mgr_email).strip().lower()
+                        q = self.db.query(DBUser).filter(DBUser.email == em)
+                        if org_uuid2 is not None:
+                            q = q.filter(DBUser.org_id == org_uuid2)
+                        u = q.first()
+                        if u:
+                            name = (u.display_name or '').strip() or f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}".strip() or None
+                            return {"name": name, "email": (u.email or '').strip() or None}
+                    except Exception:
+                        pass
+
+                # As-is from context
+                name = str(mgr_name).strip() if mgr_name else None
+                email = str(mgr_email).strip().lower() if mgr_email else None
+                if name or email:
+                    return {"name": name, "email": email}
+
+            return None
+
         # Map approval node routing meaning from definition snapshot
         def _routing_label_for_node(node_id: str) -> str:
             pd = getattr(execution, "process_definition_snapshot", None) or {}
@@ -1734,6 +1823,17 @@ class ProcessAPIService:
                     name=(d.get("name") if d else None),
                     email=(d.get("email") if d else None),
                 ))
+            # If dynamic approver (e.g., direct manager) isn't materialized in assigned_user_ids,
+            # resolve a concrete person from execution identity context.
+            if not assignees:
+                resolved = _resolve_person_from_execution(label)
+                if resolved:
+                    assignees.append(ApprovalAssigneeDisplay(
+                        kind="person",
+                        label=label,
+                        name=resolved.get("name"),
+                        email=resolved.get("email"),
+                    ))
             if not assignees:
                 assignees.append(ApprovalAssigneeDisplay(kind="group", label=label, name=None, email=None))
 
