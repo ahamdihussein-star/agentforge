@@ -18,10 +18,27 @@ branch_labels = None
 depends_on = None
 
 
+def _col_exists(conn, table, column):
+    """Check if a column already exists (PostgreSQL)."""
+    result = conn.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = :t AND column_name = :c"
+    ), {"t": table, "c": column})
+    return result.fetchone() is not None
+
+
+def _idx_exists(conn, index_name):
+    """Check if an index already exists (PostgreSQL)."""
+    result = conn.execute(text(
+        "SELECT 1 FROM pg_indexes WHERE indexname = :i"
+    ), {"i": index_name})
+    return result.fetchone() is not None
+
+
 def upgrade():
     """
     Add identity management columns:
-    - users.manager_id: Direct reporting manager (User ID) — must be UUID to match model
+    - users.manager_id: Direct reporting manager (User ID) — UUID
     - users.employee_id: HR system employee identifier
     - organizations.directory_source: Identity directory source
     - organizations.hr_api_config: HR API configuration
@@ -30,78 +47,65 @@ def upgrade():
     dialect = conn.dialect.name
 
     # --- USERS TABLE ---
-    # Add manager_id column — use dialect-appropriate UUID type
-    try:
-        if dialect == 'postgresql':
-            # Use native UUID on PostgreSQL (matches GUID/UUID column_type)
-            op.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id UUID"))
-        else:
-            op.add_column('users', sa.Column('manager_id', sa.String(36), nullable=True))
-        try:
-            op.create_index('ix_users_manager_id', 'users', ['manager_id'])
-        except Exception:
-            pass  # index may already exist
-    except Exception as e:
-        print(f"Note: manager_id column may already exist: {e}")
 
-    # If manager_id already exists as VARCHAR, alter it to UUID (PostgreSQL only)
+    # manager_id
     if dialect == 'postgresql':
-        try:
+        if not _col_exists(conn, 'users', 'manager_id'):
+            op.execute(text("ALTER TABLE users ADD COLUMN manager_id UUID"))
+        else:
+            # If it exists as VARCHAR, convert to UUID
             result = conn.execute(text(
                 "SELECT data_type FROM information_schema.columns "
                 "WHERE table_name = 'users' AND column_name = 'manager_id'"
             ))
             row = result.fetchone()
             if row and row[0] == 'character varying':
-                print("  Fixing manager_id: converting VARCHAR → UUID ...")
-                # Drop DEFAULT first to prevent cast error
+                print("  Fixing manager_id: converting VARCHAR -> UUID ...")
                 try:
                     op.execute(text("ALTER TABLE users ALTER COLUMN manager_id DROP DEFAULT"))
                 except Exception:
                     pass
                 op.execute(text(
-                    "ALTER TABLE users ALTER COLUMN manager_id TYPE UUID USING NULLIF(manager_id, '')::uuid"
+                    "ALTER TABLE users ALTER COLUMN manager_id "
+                    "TYPE UUID USING NULLIF(manager_id, '')::uuid"
                 ))
                 print("  ✅ manager_id converted to UUID")
-        except Exception as e:
-            print(f"  Note: manager_id type check/fix: {e}")
 
-    # Add employee_id column (String(100), nullable, indexed)
-    try:
-        if dialect == 'postgresql':
-            op.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id VARCHAR(100)"))
-        else:
-            op.add_column('users', sa.Column('employee_id', sa.String(100), nullable=True))
-        try:
-            op.create_index('ix_users_employee_id', 'users', ['employee_id'])
-        except Exception:
-            pass  # index may already exist
-    except Exception as e:
-        print(f"Note: employee_id column may already exist: {e}")
+        if not _idx_exists(conn, 'ix_users_manager_id'):
+            op.execute(text("CREATE INDEX ix_users_manager_id ON users (manager_id)"))
+    else:
+        op.add_column('users', sa.Column('manager_id', sa.String(36), nullable=True))
+
+    # employee_id
+    if dialect == 'postgresql':
+        if not _col_exists(conn, 'users', 'employee_id'):
+            op.execute(text("ALTER TABLE users ADD COLUMN employee_id VARCHAR(100)"))
+        if not _idx_exists(conn, 'ix_users_employee_id'):
+            op.execute(text("CREATE INDEX ix_users_employee_id ON users (employee_id)"))
+    else:
+        op.add_column('users', sa.Column('employee_id', sa.String(100), nullable=True))
 
     # --- ORGANIZATIONS TABLE ---
-    # Add directory_source column
-    try:
-        if dialect == 'postgresql':
-            op.execute(text("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS directory_source VARCHAR(20) DEFAULT 'internal'"))
-        else:
-            op.add_column('organizations', sa.Column('directory_source', sa.String(20), server_default='internal'))
-    except Exception as e:
-        print(f"Note: directory_source column may already exist: {e}")
 
-    # Add hr_api_config column (JSON/JSONB)
-    try:
-        if dialect == 'postgresql':
-            op.execute(text("ALTER TABLE organizations ADD COLUMN IF NOT EXISTS hr_api_config TEXT"))
-        else:
-            op.add_column('organizations', sa.Column('hr_api_config', sa.Text(), nullable=True))
-    except Exception as e:
-        print(f"Note: hr_api_config column may already exist: {e}")
+    # directory_source
+    if dialect == 'postgresql':
+        if not _col_exists(conn, 'organizations', 'directory_source'):
+            op.execute(text(
+                "ALTER TABLE organizations ADD COLUMN directory_source VARCHAR(20) DEFAULT 'internal'"
+            ))
+    else:
+        op.add_column('organizations', sa.Column('directory_source', sa.String(20), server_default='internal'))
+
+    # hr_api_config
+    if dialect == 'postgresql':
+        if not _col_exists(conn, 'organizations', 'hr_api_config'):
+            op.execute(text("ALTER TABLE organizations ADD COLUMN hr_api_config TEXT"))
+    else:
+        op.add_column('organizations', sa.Column('hr_api_config', sa.Text(), nullable=True))
 
 
 def downgrade():
     """Remove identity management columns"""
-    # --- ORGANIZATIONS TABLE ---
     try:
         op.drop_column('organizations', 'hr_api_config')
     except Exception:
@@ -112,7 +116,6 @@ def downgrade():
     except Exception:
         pass
 
-    # --- USERS TABLE ---
     try:
         op.drop_index('ix_users_employee_id', table_name='users')
         op.drop_column('users', 'employee_id')
