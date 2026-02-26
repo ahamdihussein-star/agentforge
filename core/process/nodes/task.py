@@ -186,6 +186,23 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             )
             _combined_system = (_combined_system + _instruction_block) if _combined_system else _instruction_block.strip()
             logs.append(f"Injected step instructions ({len(_node_instructions)} chars)")
+
+        # Extraction safety: if this AI step is reading uploaded files and producing structured data,
+        # enforce strict "no guessing" rules regardless of node configuration.
+        # This reduces hallucinations under load/model variability.
+        _is_file_extraction = bool(source_fields) and (output_format == "json" or output_schema or bool(self.get_config_value(node, "outputFields")))
+        if _is_file_extraction:
+            _combined_system += (
+                "\n\nEXTRACTION SAFETY RULES:\n"
+                "- Use ONLY the provided FILE CONTENTS. Do not use outside knowledge.\n"
+                "- Do NOT invent or assume any values.\n"
+                "- If a value is missing or unclear, return null (or an empty string if the field is typed as text).\n"
+                "- Keep numbers as pure numbers (no extra words).\n"
+            )
+            # Clamp temperature for extraction (unless explicitly overridden)
+            if self.get_config_value(node, "temperature") is None:
+                temperature = min(float(temperature or 0.2), 0.2)
+                logs.append(f"Extraction mode: clamped temperature={temperature}")
         
         # Inject confidence guidance
         if _node_confidence is not None and isinstance(_node_confidence, (int, float)):

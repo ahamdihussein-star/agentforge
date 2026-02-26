@@ -1135,13 +1135,35 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                             client = OpenAI(api_key=api_key)
                             response = client.chat.completions.create(
                                 model="gpt-4o",
-                                messages=[{
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "text", "text": "Extract ALL text, data, numbers, and information visible in this image. If it contains a form, table, receipt, invoice, or document, extract every field and value. Return the extracted content as structured text."},
-                                        {"type": "image_url", "image_url": {"url": data_uri}}
-                                    ]
-                                }],
+                                messages=[
+                                    {
+                                        "role": "system",
+                                        "content": (
+                                            "You are a strict OCR and transcription engine.\n"
+                                            "Rules:\n"
+                                            "- Transcribe ONLY what is visible in the image.\n"
+                                            "- Do NOT guess, infer, or add any values.\n"
+                                            "- Preserve the original numbers, dates, currencies, and spelling.\n"
+                                            "- If a part is unreadable, write [illegible].\n"
+                                            "- Output plain text with line breaks. No explanations."
+                                        ),
+                                    },
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": (
+                                                    "Transcribe the image exactly. "
+                                                    "Do not invent missing fields or values."
+                                                ),
+                                            },
+                                            {"type": "image_url", "image_url": {"url": data_uri}},
+                                        ],
+                                    },
+                                ],
+                                temperature=0,
+                                top_p=1,
                                 max_tokens=4096
                             )
                             text = response.choices[0].message.content or ""
