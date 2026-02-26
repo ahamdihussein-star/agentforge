@@ -5,6 +5,13 @@ Complete API with Wizard-based Agent Creation, RAG Support, and Multi-Provider C
 
 import os
 import json
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG if os.environ.get('DEBUG_MODE', 'false').lower() == 'true' else logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 # Production mode - set to False to reduce logging
 DEBUG_MODE = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'

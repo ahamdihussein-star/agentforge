@@ -732,6 +732,7 @@ class ProcessAPIService:
         - Return immediately (status=running)
         - Continue engine execution in the background
         """
+        logger.info("[ExecuteFast-svc] CALLED agent_id=%s user_id=%s org_id=%s", agent_id, user_id, org_id)
         def _pending_upload_fields(t: Dict[str, Any]) -> List[str]:
             out: List[str] = []
             if not isinstance(t, dict):
@@ -841,12 +842,14 @@ class ProcessAPIService:
         # If there are pending uploads, return immediately without starting the engine yet.
         pending_fields = _pending_upload_fields(_trigger)
         if pending_fields:
+            logger.info("[ExecuteFast-svc] Execution %s has pending uploads %s — NOT starting engine", execution.id, pending_fields)
             return self._to_response(execution), False
 
         execution = self.exec_service.update_execution_status(
             str(execution.id),
             status="running"
         )
+        logger.info("[ExecuteFast-svc] Execution %s marked RUNNING — should_run=True", execution.id)
 
         return self._to_response(execution), True
 
@@ -861,6 +864,7 @@ class ProcessAPIService:
         """
         Attach uploaded files to an execution created by start_execution_fast, then start processing.
         """
+        logger.info("[FinalizeUploads-svc] CALLED execution_id=%s files=%s", execution_id, list(files.keys()) if isinstance(files, dict) else '?')
         execution = self.exec_service.get_execution(str(execution_id))
         if not execution or str(getattr(execution, "org_id", "")) != str(org_id):
             raise ValueError("not found")
@@ -896,6 +900,9 @@ class ProcessAPIService:
         if not remaining:
             execution = self.exec_service.update_execution_status(str(execution.id), status="running")
             should_run = True
+            logger.info("[FinalizeUploads-svc] All uploads attached for %s — should_run=True", execution_id)
+        else:
+            logger.info("[FinalizeUploads-svc] Still awaiting uploads for %s: %s", execution_id, remaining)
 
         return self._to_response(execution), should_run
 
@@ -903,11 +910,14 @@ class ProcessAPIService:
         """
         Continue an existing execution (created by start_execution_fast) until it reaches waiting/completed/failed.
         """
-        logger.info("[ProcessFast] run_execution_from_db STARTED: %s", execution_id)
+        logger.info("[ProcessRun] ===== run_execution_from_db CALLED for %s =====", execution_id)
         execution = self.exec_service.get_execution(execution_id)
         if not execution:
-            logger.warning("[ProcessFast] Execution not found: %s", execution_id)
+            logger.error("[ProcessRun] Execution NOT FOUND in DB: %s", execution_id)
             return
+        logger.info("[ProcessRun] Execution found: id=%s status=%s agent_id=%s org_id=%s",
+                     execution.id, getattr(execution, 'status', '?'),
+                     getattr(execution, 'agent_id', '?'), getattr(execution, 'org_id', '?'))
 
         # Guard: executions created by fast-submit may wait for attachments
         try:
@@ -925,7 +935,7 @@ class ProcessAPIService:
 
         agent = self.db.query(Agent).filter(Agent.id == execution.agent_id).first()
         if not agent:
-            logger.warning("[ProcessFast] Agent not found for execution: %s", execution_id)
+            logger.error("[ProcessRun] Agent NOT FOUND for execution=%s agent_id=%s", execution_id, getattr(execution, 'agent_id', '?'))
             try:
                 self.exec_service.update_execution_status(
                     str(execution.id),
@@ -936,9 +946,12 @@ class ProcessAPIService:
             except Exception:
                 pass
             return
+        logger.info("[ProcessRun] Agent found: name=%s type=%s", getattr(agent, 'name', '?'), getattr(agent, 'agent_type', '?'))
 
         raw_def = execution.process_definition_snapshot or agent.process_definition
+        logger.info("[ProcessRun] Parsing process definition (using %s)", "snapshot" if execution.process_definition_snapshot else "agent.process_definition")
         process_def = ProcessDefinition.from_dict(self._ensure_dict(raw_def))
+        logger.info("[ProcessRun] ProcessDefinition parsed: %d nodes", len(process_def.nodes) if hasattr(process_def, 'nodes') else -1)
 
         trigger = self._ensure_dict(execution.trigger_input or {})
         uc = trigger.get("_user_context") if isinstance(trigger, dict) else None
@@ -948,7 +961,9 @@ class ProcessAPIService:
             denied_tool_ids = []
 
         filtered_tool_ids = [t for t in (agent.tool_ids or []) if t not in denied_tool_ids]
+        logger.info("[ProcessRun] Building dependencies (tool_ids=%d, denied=%d)", len(filtered_tool_ids), len(denied_tool_ids))
         deps = await self._build_dependencies(agent, filtered_tool_ids)
+        logger.info("[ProcessRun] Dependencies built successfully")
 
         context = ProcessContext(
             execution_id=str(execution.id),
@@ -1149,12 +1164,11 @@ class ProcessAPIService:
             initial_execution_order=len(existing_node_execs),
         )
 
-        # Run engine using the same status persistence semantics as sync path
-        logger.info("[ProcessFast] Engine.execute() STARTING for %s", execution_id)
+        logger.info("[ProcessRun] ===== Engine.execute() STARTING for %s =====", execution_id)
         try:
             result = await engine.execute(trigger)
             logger.info(
-                "[ProcessFast] Engine.execute() FINISHED for %s: success=%s waiting=%s error=%s",
+                "[ProcessRun] ===== Engine.execute() FINISHED for %s: success=%s waiting=%s error=%s =====",
                 execution_id, result.is_success, result.is_waiting,
                 getattr(getattr(result, "error", None), "message", None),
             )
@@ -1223,12 +1237,13 @@ class ProcessAPIService:
                     error_details=result.error.to_dict() if result.error else None
                 )
         except Exception as e:
-            logger.error("[ProcessFast] execution error: %s", e)
+            logger.exception("[ProcessRun] !!!!! Engine.execute() EXCEPTION for %s: %s", execution_id, e)
             self.exec_service.update_execution_status(
                 str(execution.id),
                 status="failed",
                 error_message=str(e)
             )
+        logger.info("[ProcessRun] ===== run_execution_from_db COMPLETE for %s =====", execution_id)
     
     async def resume_execution(
         self,

@@ -195,7 +195,8 @@ class ProcessEngine:
         self.started_at = datetime.utcnow()
         trigger_input = trigger_input or {}
         
-        logger.info(f"Starting process execution: {self.execution_id}")
+        logger.info("[Engine] ===== execute() CALLED for %s (nodes=%d, max_nodes=%d, max_time=%ds) =====",
+                    self.execution_id, len(self.definition.nodes), self.max_nodes, self.max_time)
         
         # Update context with trigger input
         self.context.trigger_input = trigger_input
@@ -204,6 +205,7 @@ class ProcessEngine:
             # Find start node
             start_node = self.definition.get_start_node()
             if not start_node:
+                logger.error("[Engine] No START node found for %s", self.execution_id)
                 return ProcessResult.failure(
                     error=ExecutionError.validation_error("Process has no START node"),
                     execution_id=self.execution_id
@@ -211,8 +213,11 @@ class ProcessEngine:
             
             # Execute from start node
             current_node = start_node
+            logger.info("[Engine] Start node: id=%s type=%s name=%s", start_node.id, start_node.type.value, start_node.name)
             
             while current_node:
+                logger.info("[Engine] >>> NODE %d: id=%s type=%s name='%s'",
+                            self.nodes_executed + 1, current_node.id, current_node.type.value, current_node.name)
                 # Check execution limits
                 if self.nodes_executed >= self.max_nodes:
                     return ProcessResult.failure(
@@ -247,7 +252,11 @@ class ProcessEngine:
                 )
 
                 # Execute current node
+                logger.info("[Engine] Executing node %s ...", current_node.id)
                 result = await self._execute_node(current_node)
+                logger.info("[Engine] Node %s result: status=%s is_failure=%s is_waiting=%s",
+                            current_node.id, result.status.value if result.status else '?',
+                            result.is_failure, result.is_waiting)
                 
                 # Handle result
                 if result.is_failure:
@@ -313,10 +322,16 @@ class ProcessEngine:
                         await self._save_checkpoint()
                 
                 # Find next node
-                current_node = await self._get_next_node(current_node, result)
+                next_node = await self._get_next_node(current_node, result)
+                logger.info("[Engine] Next node after %s: %s",
+                            current_node.id,
+                            f"id={next_node.id} type={next_node.type.value}" if next_node else "NONE (end)")
+                current_node = next_node
             
             # Process completed
             total_duration = (datetime.utcnow() - self.started_at).total_seconds() * 1000
+            logger.info("[Engine] ===== Process COMPLETED for %s in %.1fms (%d nodes) =====",
+                        self.execution_id, total_duration, self.nodes_executed)
             
             return ProcessResult.success(
                 output=self.state.get_all(),
@@ -327,8 +342,7 @@ class ProcessEngine:
             )
             
         except Exception as e:
-            logger.error(f"Process execution error: {e}")
-            logger.error(traceback.format_exc())
+            logger.exception("[Engine] !!!!! UNHANDLED EXCEPTION in execute() for %s: %s", self.execution_id, e)
             
             return ProcessResult.failure(
                 error=ExecutionError.internal_error(str(e), traceback.format_exc()),
@@ -433,23 +447,24 @@ class ProcessEngine:
     async def _execute_node(self, node: ProcessNode) -> NodeResult:
         """Execute a single node"""
         
-        logger.debug(f"Executing node: {node.id} ({node.type})")
-        # [ProcessDebug] Config passed to executor (for approval/condition debugging)
         tc = getattr(node.config, "type_config", None) or {}
+        logger.info("[Engine._execute_node] id=%s type=%s name='%s' enabled=%s",
+                    node.id, node.type.value, node.name, node.config.enabled)
         if node.type.value in ("approval", "human_task", "condition"):
             logger.info(
-                "[ProcessDebug] Executing node id=%s type=%s assignee_ids=%s approvers=%s expression=%s",
-                node.id, node.type.value, tc.get("assignee_ids"), tc.get("approvers"), tc.get("expression")
+                "[Engine._execute_node] detail: assignee_ids=%s approvers=%s expression=%s",
+                tc.get("assignee_ids"), tc.get("approvers"), tc.get("expression")
             )
         
         # Skip if disabled
         if not node.config.enabled:
-            logger.debug(f"Node {node.id} is disabled, skipping")
+            logger.info("[Engine._execute_node] Node %s is disabled, skipping", node.id)
             return NodeResult.skipped(reason="Node is disabled")
         
         # Validate node
         executor = self._get_executor(node.type)
         if not executor:
+            logger.error("[Engine._execute_node] No executor for type %s", node.type)
             return NodeResult.failure(
                 error=ExecutionError(
                     category=ErrorCategory.CONFIGURATION,
@@ -460,6 +475,7 @@ class ProcessEngine:
         
         validation_error = executor.validate(node)
         if validation_error:
+            logger.error("[Engine._execute_node] Validation error for %s: %s", node.id, validation_error)
             return NodeResult.failure(error=validation_error)
         
         # Set current node in state
@@ -467,11 +483,15 @@ class ProcessEngine:
         
         # Execute with timeout and retry handling
         try:
+            _start_ts = time.time()
             result = await executor.execute_with_timeout(node, self.state, self.context)
+            _dur = time.time() - _start_ts
+            logger.info("[Engine._execute_node] Node %s finished in %.2fs status=%s",
+                        node.id, _dur, result.status.value if result.status else '?')
             return result
             
         except Exception as e:
-            logger.error(f"Node {node.id} execution failed: {e}")
+            logger.exception("[Engine._execute_node] EXCEPTION in node %s: %s", node.id, e)
             
             if node.config.skip_on_error:
                 return NodeResult.skipped(reason=f"Error: {e}")

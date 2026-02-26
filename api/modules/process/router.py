@@ -72,40 +72,42 @@ router = APIRouter(prefix="/process", tags=["Process Execution"])
 _logger = logging.getLogger(__name__)
 
 
-def _run_engine_background(execution_id: str, llm_registry: LLMRegistry):
+async def _run_engine_background(execution_id: str, llm_registry: LLMRegistry):
     """
-    Synchronous function executed by FastAPI BackgroundTasks.
+    Async function executed by FastAPI BackgroundTasks.
     Opens its own DB session, runs the engine to completion, then closes.
-    FastAPI guarantees this runs after the response is sent and will NOT be GC'd.
+    FastAPI awaits this after the response is sent.
     """
-    import asyncio
-
-    async def _inner():
-        _logger.info("[ProcessBG] Engine run STARTED for %s", execution_id)
+    _logger.info("[ProcessBG] ENTER _run_engine_background for %s", execution_id)
+    db = None
+    try:
         db = get_db_session()
-        try:
-            svc = ProcessAPIService(db=db, llm_registry=llm_registry)
-            await svc.run_execution_from_db(execution_id=execution_id)
-        except Exception as exc:
-            _logger.exception("[ProcessBG] Engine run FAILED for %s: %s", execution_id, exc)
+        _logger.info("[ProcessBG] DB session opened for %s", execution_id)
+        svc = ProcessAPIService(db=db, llm_registry=llm_registry)
+        _logger.info("[ProcessBG] Service created, calling run_execution_from_db for %s", execution_id)
+        await svc.run_execution_from_db(execution_id=execution_id)
+        _logger.info("[ProcessBG] run_execution_from_db returned OK for %s", execution_id)
+    except Exception as exc:
+        _logger.exception("[ProcessBG] EXCEPTION for %s: %s", execution_id, exc)
+        if db:
             try:
                 from database.services.process_execution_service import ProcessExecutionService
                 ProcessExecutionService(db).update_execution_status(
                     execution_id,
                     status="failed",
                     error_message="There was an issue processing your request. Please try again.",
-                    error_details={"code": "BACKGROUND_RUN_FAILED"},
+                    error_details={"code": "BACKGROUND_RUN_FAILED", "error": str(exc)[:500]},
                 )
-            except Exception:
-                pass
-        finally:
-            _logger.info("[ProcessBG] Engine run ENDED for %s", execution_id)
+                _logger.info("[ProcessBG] Marked execution %s as FAILED", execution_id)
+            except Exception as inner_exc:
+                _logger.exception("[ProcessBG] Could not mark %s as failed: %s", execution_id, inner_exc)
+    finally:
+        _logger.info("[ProcessBG] EXIT _run_engine_background for %s", execution_id)
+        if db:
             try:
                 db.close()
             except Exception:
                 pass
-
-    asyncio.run(_inner())
 
 
 # Global LLM registry instance (initialized on first request)
@@ -931,6 +933,7 @@ async def start_execution_fast(
     """
     user_dict = _user_to_dict(user)
     try:
+        _logger.info("[ExecuteFast] endpoint called for agent=%s user=%s", request.agent_id, user_dict["id"])
         response, should_run = await service.start_execution_fast(
             agent_id=request.agent_id,
             org_id=user_dict["org_id"],
@@ -941,7 +944,9 @@ async def start_execution_fast(
             correlation_id=request.correlation_id,
             user_info=user_dict
         )
+        _logger.info("[ExecuteFast] execution_id=%s should_run=%s status=%s", response.id, should_run, response.status)
         if should_run:
+            _logger.info("[ExecuteFast] scheduling bg.add_task for %s", response.id)
             bg.add_task(_run_engine_background, str(response.id), _get_llm_registry())
         return response
     except PermissionError:
@@ -1397,6 +1402,8 @@ async def finalize_execution_uploads(
     """
     user_dict = _user_to_dict(user)
     try:
+        _logger.info("[FinalizeUploads] endpoint called for execution=%s user=%s files=%s",
+                      execution_id, user_dict["id"], list((request.files or {}).keys()))
         response, should_run = await service.finalize_execution_uploads(
             execution_id=execution_id,
             org_id=user_dict["org_id"],
@@ -1404,7 +1411,9 @@ async def finalize_execution_uploads(
             files=request.files or {},
             is_platform_admin=_is_platform_admin(user),
         )
+        _logger.info("[FinalizeUploads] execution_id=%s should_run=%s status=%s", response.id, should_run, response.status)
         if should_run:
+            _logger.info("[FinalizeUploads] scheduling bg.add_task for %s", response.id)
             bg.add_task(_run_engine_background, str(response.id), _get_llm_registry())
         return response
     except PermissionError:
