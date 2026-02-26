@@ -717,12 +717,16 @@ class ProcessAPIService:
         execution_id: str,
         user_id: str,
         user_info: Dict[str, Any] = None,
-        resume_input: Dict[str, Any] = None
+        resume_input: Dict[str, Any] = None,
+        is_approval_resume: bool = False
     ) -> ProcessExecutionResponse:
         """
         Resume a paused execution
         
-        Security: User must have access to the agent and appropriate permissions
+        Security: User must have access to the agent and appropriate permissions.
+        When is_approval_resume=True, the permission check is skipped because the
+        caller (handle_approval_decision) has already verified that the user is
+        an authorized approver for this execution.
         """
         execution = self.exec_service.get_execution(execution_id)
         if not execution:
@@ -744,27 +748,30 @@ class ProcessAPIService:
         
         # =========================================================
         # SECURITY CHECK: User must have access or be owner
+        # When resuming after an approval decision, the approval
+        # endpoint has already verified the user is an authorized
+        # assignee — skip the agent-level permission check.
         # =========================================================
-        owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
-        is_owner = user_id == owner_id
-        created_by_user = str(execution.created_by) == user_id
-        
-        if not is_owner and not created_by_user:
-            # Check if user has EXECUTE_PROCESS permission
-            user_roles = user_info.get('roles', []) if user_info else []
-            user_groups = user_info.get('groups', []) if user_info else []
+        if not is_approval_resume:
+            owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+            is_owner = user_id == owner_id
+            created_by_user = str(execution.created_by) == user_id
             
-            perm_result = AccessControlService.check_agent_permission(
-                user_id=user_id,
-                user_role_ids=user_roles,
-                user_group_ids=user_groups,
-                agent_id=str(agent.id),
-                org_id=str(agent.org_id),
-                permission="execute_process"
-            )
-            
-            if not perm_result.get("has_permission"):
-                raise PermissionError("You don't have permission to resume this execution")
+            if not is_owner and not created_by_user:
+                user_roles = user_info.get('roles', []) if user_info else []
+                user_groups = user_info.get('groups', []) if user_info else []
+                
+                perm_result = AccessControlService.check_agent_permission(
+                    user_id=user_id,
+                    user_role_ids=user_roles,
+                    user_group_ids=user_groups,
+                    agent_id=str(agent.id),
+                    org_id=str(agent.org_id),
+                    permission="execute_process"
+                )
+                
+                if not perm_result.get("has_permission"):
+                    raise PermissionError("You don't have permission to resume this execution")
         
         # Parse process definition from snapshot (support JSON string from DB)
         raw_def = execution.process_definition_snapshot or agent.process_definition
@@ -1272,7 +1279,8 @@ class ProcessAPIService:
                         'approval_decision': decision,
                         'approval_comments': comments,
                         'approval_data': decision_data or {}
-                    }
+                    },
+                    is_approval_resume=True
                 )
             except Exception as e:
                 logger.error(f"Failed to resume after approval: {e}")

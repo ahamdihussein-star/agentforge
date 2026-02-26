@@ -2543,9 +2543,11 @@
             const statusEl = document.getElementById('approval-action-status');
             const commentsEl = document.getElementById('approval-comments');
             const comments = commentsEl ? String(commentsEl.value || '').trim() : '';
+            const btns = document.querySelectorAll('.approval-btn');
+            btns.forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
 
             try {
-                if (statusEl) statusEl.textContent = (d === 'approved') ? 'Approving…' : 'Rejecting…';
+                if (statusEl) statusEl.textContent = (d === 'approved') ? 'Submitting your approval…' : 'Submitting your decision…';
                 const res = await fetch(`${API}/process/approvals/${id}/decide`, {
                     method: 'POST',
                     headers: {
@@ -2556,18 +2558,20 @@
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
-                    const msg = (data && (data.detail || data.message)) ? (data.detail || data.message) : 'Failed to submit decision';
-                    throw new Error(String(msg));
+                    const rawMsg = (data && (data.detail || data.message)) ? (data.detail || data.message) : '';
+                    throw new Error(friendlyErrorMessage(rawMsg, 'Unable to submit your decision. Please try again.'));
                 }
-                showToast('Decision submitted', 'success');
+                const label = (d === 'approved') ? 'Request approved successfully' : 'Request declined';
+                showToast(label, 'success');
                 if (statusEl) statusEl.textContent = '';
                 selectedApprovalId = null;
                 await refreshInbox();
                 await refreshRequests();
             } catch (e) {
                 console.error('decideApproval error:', e);
-                showToast(e?.message || 'Failed to submit decision', 'error');
+                showToast(e?.message || 'Unable to submit your decision. Please try again.', 'error');
                 if (statusEl) statusEl.textContent = '';
+                btns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
             }
         }
 
