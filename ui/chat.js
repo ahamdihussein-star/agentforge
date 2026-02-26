@@ -811,7 +811,7 @@
             const aLabel = document.getElementById('home-assistants-label');
             const pLabel = document.getElementById('home-processes-label');
             if (aLabel) aLabel.textContent = aCount ? `${aCount} assistant${aCount > 1 ? 's' : ''} available` : 'Conversational AI';
-            if (pLabel) pLabel.textContent = pCount ? `${pCount} process${pCount > 1 ? 'es' : ''} available` : 'Workflows & Automation';
+            if (pLabel) pLabel.textContent = pCount ? `${pCount} process${pCount > 1 ? 'es' : ''} available` : 'Forms & Automation';
 
             // Quick access: show recent conversational agents + process agents
             const container = document.getElementById('home-recent');
@@ -896,7 +896,7 @@
                     <div class="agent-icon">${agent.icon || '💬'}</div>
                     <div class="agent-info">
                         <div class="agent-name">${escapeHtml(agent.name)}</div>
-                        <div class="agent-desc">${escapeHtml(agent.description || agent.goal || 'AI Assistant')}</div>
+                        <div class="agent-desc">${escapeHtml(agent.description || 'AI Assistant')}</div>
                     </div>
                 </div>
             `).join('');
@@ -921,7 +921,7 @@
                 if (isPortalAdmin()) {
                     runWorkflowDirectly(agentId);
                 } else {
-                    showToast('Automation workflows run on schedule. Use Workflows tab to view runs.', 'info');
+                    showToast('This process runs on a schedule. Use the Runs tab to view progress.', 'info');
                     switchView('workflows');
                 }
                 return;
@@ -936,7 +936,7 @@
                 return;
             }
             try {
-                showToast('Starting workflow…', 'info', { duration: 1500 });
+                showToast('Starting process…', 'info', { duration: 1500 });
                 const response = await fetch(`${API}/process/execute`, {
                     method: 'POST',
                     headers: {
@@ -955,14 +955,14 @@
                     throw new Error(friendlyErrorMessage(rawMsg, 'Failed to start this process. Please try again.'));
                 }
                 const executionId = data?.id || data?.execution_id || data?.executionId;
-                showToast('Workflow started', 'success');
+                showToast('Process started successfully', 'success');
                 if (executionId) {
                     selectedExecutionId = String(executionId);
                     switchView('requests');
                 }
             } catch (e) {
                 console.error('runWorkflowDirectly error:', e);
-                showToast(e?.message || 'Failed to start workflow', 'error');
+                showToast(e?.message || 'Failed to start this process. Please try again.', 'error');
             }
         }
 
@@ -1062,7 +1062,7 @@
         }
 
         function refreshWorkflows() {
-            showToast('Refreshing workflows…', 'info', { duration: 1000 });
+            showToast('Refreshing…', 'info', { duration: 1000 });
             loadAgents();
         }
 
@@ -1094,7 +1094,7 @@
                 const cat = _getWorkflowCategory(a);
                 if (workflowCategoryFilter !== 'All' && cat !== workflowCategoryFilter) return false;
                 if (!q) return true;
-                const hay = `${a.name || ''} ${a.description || ''} ${a.goal || ''} ${cat}`.toLowerCase();
+                const hay = `${a.name || ''} ${a.description || ''} ${cat}`.toLowerCase();
                 return hay.includes(q);
             });
 
@@ -1114,7 +1114,7 @@
             cardsEl.innerHTML = filtered.map(a => {
                 const icon = escapeHtml(a.icon || '🧩');
                 const name = escapeHtml(a.name || 'Workflow');
-                const desc = escapeHtml(a.description || a.goal || '');
+                const desc = escapeHtml(a.description || '');
                 const category = escapeHtml(_getWorkflowCategory(a));
                 const trig = _getWorkflowTriggerInfo(a);
                 const appr = _getWorkflowApprovalInfo(a);
@@ -1158,10 +1158,47 @@
             return 'wf-' + String(fieldId || '').trim().replace(/[^A-Za-z0-9_-]/g, '-');
         }
 
+        function _buildWorkflowSubtitle(agent) {
+            const desc = (agent && agent.description) ? String(agent.description).trim() : '';
+            if (desc && desc.length <= 220) return desc;
+            try {
+                const name = (agent && agent.name) ? String(agent.name) : 'This process';
+                let def = agent ? agent.process_definition : null;
+                if (typeof def === 'string') { try { def = def ? JSON.parse(def) : {}; } catch (_) { def = {}; } }
+                if (!def || typeof def !== 'object') def = {};
+                const nodes = Array.isArray(def.nodes) ? def.nodes : [];
+                const types = new Set(nodes.map(n => String(n?.type || '').toLowerCase().trim()).filter(Boolean));
+                let fields = [];
+                try {
+                    const nodeType = (n) => String(n?.type || '').toLowerCase().trim();
+                    const startLike = nodes.find(n => nodeType(n) === 'form') || nodes.find(n => ['trigger', 'start'].includes(nodeType(n)));
+                    const cfg = startLike ? (startLike.config || {}) : {};
+                    const typeCfg = cfg.type_config || cfg.typeConfig || cfg;
+                    fields = (typeCfg.fields || cfg.fields || typeCfg.input_fields || cfg.input_fields || typeCfg.inputFields || cfg.inputFields || []) || [];
+                } catch (_) { fields = []; }
+                const labels = (Array.isArray(fields) ? fields : [])
+                    .map(f => f && (f.label || f.name || f.id) ? String(f.label || f.name || f.id) : '')
+                    .filter(Boolean)
+                    .slice(0, 3);
+                const inputPart = labels.length
+                    ? (labels.length === 1 ? `collects ${labels[0]}` : `collects ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`)
+                    : 'collects the required information';
+                const parts = [inputPart];
+                if (types.has('ai') || types.has('ai_task') || types.has('extract_file')) parts.push('uses AI to process the information');
+                if (types.has('condition') || types.has('decision')) parts.push('routes the request based on the rules');
+                if (types.has('approval')) parts.push('requests approval when needed');
+                if (types.has('notification')) parts.push('sends notifications to keep you informed');
+                const txt = `${name} ${parts.join(', then ')}.`;
+                return txt.length > 220 ? (txt.slice(0, 217).trimEnd() + '…') : txt;
+            } catch (_) {
+                return 'Fill in the form below to start this process.';
+            }
+        }
+
         function openWorkflowRunModal(agentId) {
             const agent = (workflowAgents || []).find(a => a.id === agentId);
             if (!agent) {
-                showToast('Workflow not found', 'error');
+                showToast('Process not found', 'error');
                 return;
             }
 
@@ -1174,8 +1211,8 @@
             const statusEl = document.getElementById('workflow-run-status');
             const btn = document.getElementById('workflow-run-btn');
 
-            if (titleEl) titleEl.textContent = agent.name || 'Run Workflow';
-            if (descEl) descEl.textContent = agent.description || agent.goal || '';
+            if (titleEl) titleEl.textContent = agent.name || 'Start Process';
+            if (descEl) descEl.textContent = _buildWorkflowSubtitle(agent);
             if (statusEl) statusEl.textContent = '';
             if (btn) { btn.disabled = false; btn.textContent = 'Start'; }
 
@@ -1419,50 +1456,64 @@
             }
             if (!processDef || typeof processDef !== 'object') processDef = {};
 
-            // Process Builder definition: start/trigger/form node config.fields
             if (processDef.nodes && Array.isArray(processDef.nodes)) {
-                const triggerNode = processDef.nodes.find(n => (n.type === 'trigger' || n.type === 'form' || n.type === 'start'));
-                if (triggerNode) {
-                    const config = triggerNode.config || {};
-                    const typeConfig = config.type_config || config;
-                    const fields = typeConfig.fields || config.fields || [];
-                    if (Array.isArray(fields) && fields.length) {
-                        triggerInputs = fields
-                            .filter(f => f && (f.name || f.id))
-                            .map(f => {
-                                const id = f.name || f.id;
-                                const label = f.label || humanizeFieldLabel(id) || id;
-                                const derived = (f.derived && f.derived.expression) ? { expression: String(f.derived.expression).trim() } : null;
-                                const prefill = (f.prefill && f.prefill.source === 'currentUser' && f.prefill.key)
-                                    ? { source: 'currentUser', key: String(f.prefill.key).trim() }
-                                    : null;
-                                const readOnly = !!f.readOnly || !!derived || !!prefill;
-                                const required = !!f.required && !readOnly;
-                                const options = Array.isArray(f.options) ? f.options : undefined;
-                                const placeholder = f.placeholder || (label ? `Enter ${label}…` : '');
-                                return {
-                                    id,
-                                    label,
-                                    type: f.type || 'text',
-                                    required,
-                                    placeholder,
-                                    options,
-                                    description: f.description,
-                                    derived,
-                                    prefill,
-                                    readOnly
-                                };
-                            });
+                const nodes = processDef.nodes;
+                const nodeType = (n) => String(n?.type || '').toLowerCase().trim();
+                const pickNodeWithFields = (preferredTypes) => {
+                    for (const t of preferredTypes) {
+                        const found = nodes.find(n => nodeType(n) === t);
+                        if (!found) continue;
+                        const cfg = found.config || {};
+                        const typeCfg = cfg.type_config || cfg.typeConfig || cfg;
+                        const fields =
+                            typeCfg.fields || cfg.fields ||
+                            typeCfg.input_fields || cfg.input_fields ||
+                            typeCfg.inputFields || cfg.inputFields ||
+                            typeCfg.form_fields || cfg.form_fields ||
+                            typeCfg.formFields || cfg.formFields ||
+                            typeCfg.inputs || cfg.inputs ||
+                            [];
+                        if (Array.isArray(fields) && fields.length) return { node: found, fields };
                     }
+                    return null;
+                };
+
+                const picked = pickNodeWithFields(['form', 'trigger', 'start']);
+                if (picked && Array.isArray(picked.fields) && picked.fields.length) {
+                    triggerInputs = picked.fields
+                        .filter(f => f && (f.name || f.id))
+                        .map(f => {
+                            const id = f.name || f.id;
+                            const label = f.label || humanizeFieldLabel(id) || id;
+                            const derived = (f.derived && f.derived.expression) ? { expression: String(f.derived.expression).trim() } : null;
+                            const prefill = (f.prefill && f.prefill.source === 'currentUser' && f.prefill.key)
+                                ? { source: 'currentUser', key: String(f.prefill.key).trim() }
+                                : null;
+                            const readOnly = !!f.readOnly || !!derived || !!prefill;
+                            const required = !!f.required && !readOnly;
+                            const options = Array.isArray(f.options) ? f.options : undefined;
+                            const placeholder = f.placeholder || (label ? `Enter ${label}…` : '');
+                            return {
+                                id,
+                                label,
+                                type: f.type || 'text',
+                                required,
+                                placeholder,
+                                options,
+                                description: f.description,
+                                derived,
+                                prefill,
+                                readOnly,
+                                multiple: !!f.multiple
+                            };
+                        });
                 }
             }
 
-            // Legacy: processDef.trigger.inputs
             if (!triggerInputs.length && processDef && processDef.trigger && processDef.trigger.inputs) {
                 triggerInputs = processDef.trigger.inputs;
             }
 
-            // Fallback: minimal business-friendly form
             if (!triggerInputs.length) {
                 triggerInputs = [
                     { id: 'details', label: 'Details', type: 'textarea', required: true, placeholder: 'Enter details…' }
@@ -1491,9 +1542,11 @@
                             ${(input.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
                         </select>`;
                         break;
-                    case 'file':
-                        fieldHtml = `<input type="file" id="${fieldId}" class="modal-form-input" ${input.required ? 'required' : ''}>`;
+                    case 'file': {
+                        const multiFile = input.multiple ? 'multiple' : '';
+                        fieldHtml = `<input type="file" id="${fieldId}" class="modal-form-input" ${input.required ? 'required' : ''} ${multiFile}>`;
                         break;
+                    }
                     case 'number':
                         fieldHtml = `<input type="number" id="${fieldId}" class="modal-form-input" placeholder="${escapeHtml(input.placeholder || '')}" ${input.required ? 'required' : ''} ${readOnly ? 'readonly' : ''} ${readOnlyStyle}>`;
                         break;
@@ -1531,7 +1584,7 @@
 
         async function executeWorkflow() {
             if (!currentWorkflowAgent) {
-                showToast('No workflow selected', 'error');
+                showToast('No process selected', 'error');
                 return;
             }
             const btn = document.getElementById('workflow-run-btn');
@@ -1539,7 +1592,7 @@
 
             try {
                 if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
-                if (statusEl) statusEl.textContent = 'Starting workflow…';
+                if (statusEl) statusEl.textContent = 'Starting…';
 
                 // Ensure derived fields are up to date before collecting values
                 recomputeWorkflowDerivedFields(workflowRunInputs);
@@ -1597,7 +1650,7 @@
                 }
 
                 const executionId = data?.id || data?.execution_id || data?.executionId;
-                showToast('Workflow started', 'success');
+                showToast('Process started successfully', 'success');
                 closeWorkflowRunModal();
 
                 if (executionId) {
@@ -1606,7 +1659,7 @@
                 }
             } catch (e) {
                 console.error('executeWorkflow error:', e);
-                showToast(e?.message || 'Failed to start workflow', 'error');
+                showToast(e?.message || 'Failed to start this process. Please try again.', 'error');
                 if (statusEl) statusEl.textContent = '';
                 if (btn) { btn.disabled = false; btn.textContent = 'Start'; }
             }
@@ -2554,7 +2607,7 @@
                         <div class="welcome-screen" id="welcome-screen">
                             <div class="welcome-icon">${currentAgent?.icon || '👋'}</div>
                             <h1 class="welcome-title">How can I help you today?</h1>
-                            <p class="welcome-subtitle">${currentAgent?.goal || 'Start a conversation with me!'}</p>
+                            <p class="welcome-subtitle">${currentAgent?.description || 'Start a conversation with me!'}</p>
                             <div class="suggestions">
                                 <div class="suggestion-chip" onclick="sendSuggestion(this)">What can you help me with?</div>
                                 <div class="suggestion-chip" onclick="sendSuggestion(this)">Tell me about your capabilities</div>
