@@ -51,6 +51,14 @@ logger = logging.getLogger(__name__)
 # Singleton User Directory Service for process identity resolution
 _user_directory = UserDirectoryService()
 
+# --------------------------------------------------------------------------- #
+# Background‑task reference keeper                                             #
+# asyncio.create_task() returns a Task that Python's GC may collect if no      #
+# strong reference is held.  We keep them in a set and remove them on done.    #
+# See: https://docs.python.org/3/library/asyncio-task.html#creating-tasks      #
+# --------------------------------------------------------------------------- #
+_background_tasks: set = set()
+
 
 def _approvers_to_ids(value: Any) -> List[str]:
     """Normalize approvers/assignees to a list of string IDs. Handles list of IDs, list of objects with id/value, or single ID."""
@@ -849,17 +857,20 @@ class ProcessAPIService:
 
         # Background run (fresh DB session)
         import asyncio
+        _exec_id = str(execution.id)
 
         async def _runner():
+            logger.info("[ProcessFast] _runner STARTED (start_execution_fast) for %s", _exec_id)
             db = get_db_session()
             try:
                 svc = ProcessAPIService(db=db, llm_registry=self.llm_registry)
-                await svc.run_execution_from_db(execution_id=str(execution.id))
+                await svc.run_execution_from_db(execution_id=_exec_id)
             except Exception as e:
                 logger.exception("[ProcessFast] Background run failed: %s", e)
                 try:
-                    svc.exec_service.update_execution_status(
-                        str(execution.id),
+                    from database.services.process_execution_service import ProcessExecutionService
+                    ProcessExecutionService(db).update_execution_status(
+                        _exec_id,
                         status="failed",
                         error_message="There was an issue processing your request. Please try again.",
                         error_details={"code": "BACKGROUND_RUN_FAILED"},
@@ -867,15 +878,17 @@ class ProcessAPIService:
                 except Exception:
                     pass
             finally:
+                logger.info("[ProcessFast] _runner FINISHED (start_execution_fast) for %s", _exec_id)
                 try:
                     db.close()
                 except Exception:
                     pass
 
         try:
-            asyncio.create_task(_runner())
+            task = asyncio.create_task(_runner())
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
         except RuntimeError:
-            # Fallback: run inline if no running loop (rare under ASGI)
             await _runner()
 
         return self._to_response(execution)
@@ -925,17 +938,20 @@ class ProcessAPIService:
         if not remaining:
             execution = self.exec_service.update_execution_status(str(execution.id), status="running")
             import asyncio
+            _exec_id_fin = str(execution.id)
 
             async def _runner():
+                logger.info("[ProcessFast] _runner STARTED (finalize) for %s", _exec_id_fin)
                 db = get_db_session()
                 try:
                     svc = ProcessAPIService(db=db, llm_registry=self.llm_registry)
-                    await svc.run_execution_from_db(execution_id=str(execution.id))
+                    await svc.run_execution_from_db(execution_id=_exec_id_fin)
                 except Exception as e:
                     logger.exception("[ProcessFast] Background run failed (finalize): %s", e)
                     try:
-                        svc.exec_service.update_execution_status(
-                            str(execution.id),
+                        from database.services.process_execution_service import ProcessExecutionService
+                        ProcessExecutionService(db).update_execution_status(
+                            _exec_id_fin,
                             status="failed",
                             error_message="There was an issue processing your request. Please try again.",
                             error_details={"code": "BACKGROUND_RUN_FAILED"},
@@ -943,13 +959,16 @@ class ProcessAPIService:
                     except Exception:
                         pass
                 finally:
+                    logger.info("[ProcessFast] _runner FINISHED (finalize) for %s", _exec_id_fin)
                     try:
                         db.close()
                     except Exception:
                         pass
 
             try:
-                asyncio.create_task(_runner())
+                task = asyncio.create_task(_runner())
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
             except RuntimeError:
                 await _runner()
 
@@ -959,6 +978,7 @@ class ProcessAPIService:
         """
         Continue an existing execution (created by start_execution_fast) until it reaches waiting/completed/failed.
         """
+        logger.info("[ProcessFast] run_execution_from_db STARTED: %s", execution_id)
         execution = self.exec_service.get_execution(execution_id)
         if not execution:
             logger.warning("[ProcessFast] Execution not found: %s", execution_id)
@@ -1205,8 +1225,14 @@ class ProcessAPIService:
         )
 
         # Run engine using the same status persistence semantics as sync path
+        logger.info("[ProcessFast] Engine.execute() STARTING for %s", execution_id)
         try:
             result = await engine.execute(trigger)
+            logger.info(
+                "[ProcessFast] Engine.execute() FINISHED for %s: success=%s waiting=%s error=%s",
+                execution_id, result.is_success, result.is_waiting,
+                getattr(getattr(result, "error", None), "message", None),
+            )
             if result.is_success:
                 self.exec_service.update_execution_status(str(execution.id), status="completed")
                 self.exec_service.update_execution_state(
