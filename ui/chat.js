@@ -11,7 +11,7 @@
         // Portal view state
         let currentView = 'home';
         let workflowCategoryFilter = 'All';
-        let workflowTriggerFilter = 'all'; // all | manual | automated
+        let workflowTriggerFilter = 'all'; // all | manual | schedule | webhook
         let workflowApprovalFilter = 'all'; // all | approvals | no_approvals
         let currentWorkflowAgent = null;
         let workflowRunInputs = [];
@@ -807,6 +807,35 @@
         // DIRECTORY UX (Virtual list + filters)
         // =============================================================================
 
+        const processSummaryCache = new Map(); // agent_id -> summary string
+
+        async function _fetchProcessSummary(agentId) {
+            const id = String(agentId || '').trim();
+            if (!id) return '';
+            if (processSummaryCache.has(id)) return processSummaryCache.get(id) || '';
+            try {
+                const res = await fetch(`${API}/process/summarize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    body: JSON.stringify({ agent_id: id })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) return '';
+                const summary = String(data?.summary || '').trim();
+                if (summary) processSummaryCache.set(id, summary);
+                return summary;
+            } catch (_) {
+                return '';
+            }
+        }
+
+        function _canEditSchedules() {
+            const perms = (currentUser && Array.isArray(currentUser.permissions)) ? currentUser.permissions : [];
+            const set = new Set(perms.map(p => String(p || '').trim().toLowerCase()).filter(Boolean));
+            // Delegated admins or platform admins
+            return set.has('agents:edit') || set.has('system:admin') || set.has('users:edit');
+        }
+
         function _debounce(fn, delayMs = 160) {
             let t = null;
             return (...args) => {
@@ -1132,7 +1161,7 @@
             if (subEl) subEl.textContent = 'Review details, then submit a request.';
             if (bodyEl) {
                 const icon = escapeHtml(agent.icon || '🧩');
-                const desc = escapeHtml(agent.description || _buildWorkflowSubtitle(agent));
+                const baseDesc = escapeHtml(_buildWorkflowSubtitle(agent));
                 const category = escapeHtml(_getWorkflowCategory(agent));
                 const trig = _getWorkflowTriggerInfo(agent);
                 const appr = _getWorkflowApprovalInfo(agent);
@@ -1140,6 +1169,18 @@
                 const cta = canRunNow ? _serviceCtaLabel(agent) : 'View';
                 const triggerLabel = escapeHtml(trig.label || '');
                 const triggerDetail = escapeHtml(trig.detail || '');
+                const isSchedule = trig.triggerType === 'schedule';
+                const scheduleEditor = (isSchedule && _canEditSchedules()) ? `
+                    <div style="margin-top:12px; padding:12px; border:1px solid var(--border); border-radius:12px; background: color-mix(in srgb, var(--bg-card) 92%, var(--bg-primary));">
+                        <div style="font-weight:850; font-size:0.9rem; margin-bottom:6px;">Schedule</div>
+                        <div style="color: var(--text-muted); font-size:0.85rem; line-height:1.4;">
+                            ${triggerDetail ? `Current schedule: <strong>${triggerDetail}</strong>` : 'Current schedule is configured.'}
+                        </div>
+                        <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+                            <button class="portal-btn" onclick="openScheduleModal('${id}')">Edit schedule</button>
+                        </div>
+                    </div>
+                ` : '';
                 bodyEl.innerHTML = `
                     <div class="request-hero ${canRunNow ? 'success' : 'muted'}">
                         <div class="request-hero-icon">${icon}</div>
@@ -1157,15 +1198,23 @@
                     <div class="detail-section">
                         <div class="detail-section-header">Overview</div>
                         <div class="detail-section-body">
-                            <div style="color:var(--text-secondary); line-height:1.55;">${desc}</div>
+                            <div id="workflow-overview-text" style="color:var(--text-secondary); line-height:1.55;">${baseDesc}</div>
                         </div>
                     </div>
+
+                    ${scheduleEditor}
 
                     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
                         ${canRunNow ? `<button class="portal-btn portal-btn-primary" onclick="openWorkflowRunModal('${id}')">${cta}</button>` : `<button class="portal-btn" onclick="switchView('requests')">View My Requests</button>`}
                         <button class="portal-btn" onclick="switchView('requests')">Track My Requests</button>
                     </div>
                 `;
+
+                // Replace overview with LLM summary (cached), without exposing generation prompt text
+                _fetchProcessSummary(id).then(summary => {
+                    const el = document.getElementById('workflow-overview-text');
+                    if (el && summary) el.textContent = summary;
+                }).catch(() => {});
             }
             renderWorkflows();
         }
@@ -1288,10 +1337,28 @@
             let label = 'Manual (Form)';
             let detail = '';
             if (triggerType === 'schedule') {
-                label = 'Automation (Schedule)';
-                const cron = cfg.cron || cfg.cron_expression || cfg.cronExpression || '';
-                const tz = cfg.timezone || 'UTC';
-                detail = cron ? `${cron} • ${tz}` : tz;
+                label = 'Scheduled';
+                const cron = String(cfg.cron || cfg.cron_expression || cfg.cronExpression || '').trim();
+                const tz = String(cfg.timezone || 'UTC').trim() || 'UTC';
+                // Business-friendly schedule text (avoid exposing cron)
+                const m = cron.match(/^(\d+)\s+(\d+)\s+(\*|\d+)\s+(\*|\d+)\s+(\*|\d+)$/);
+                if (m) {
+                    const mm = String(m[1]).padStart(2, '0');
+                    const hh = String(m[2]).padStart(2, '0');
+                    const domPart = m[3];
+                    const dowPart = m[5];
+                    const time = `${hh}:${mm}`;
+                    const dowNames = { '0': 'Sunday', '1': 'Monday', '2': 'Tuesday', '3': 'Wednesday', '4': 'Thursday', '5': 'Friday', '6': 'Saturday' };
+                    if (domPart !== '*' && dowPart === '*') {
+                        detail = `Every month on day ${domPart} at ${time} (${tz})`;
+                    } else if (domPart === '*' && dowPart !== '*') {
+                        detail = `Every ${dowNames[String(dowPart)] || 'week'} at ${time} (${tz})`;
+                    } else {
+                        detail = `Every day at ${time} (${tz})`;
+                    }
+                } else if (tz) {
+                    detail = `Scheduled (${tz})`;
+                }
             } else if (triggerType === 'webhook') {
                 label = 'Integration (Webhook)';
                 const method = String(cfg.method || 'POST').toUpperCase();
@@ -1299,6 +1366,150 @@
                 detail = `${method} ${path}`;
             }
             return { triggerType, label, detail, raw: cfg };
+        }
+
+        // =============================================================================
+        // SCHEDULE EDIT (Process AI Agents)
+        // =============================================================================
+
+        let _scheduleEditingAgentId = null;
+
+        function _ensureScheduleDomOptions() {
+            const domEl = document.getElementById('schedule-dom');
+            if (!domEl || domEl.options.length > 0) return;
+            for (let d = 1; d <= 28; d++) {
+                const opt = document.createElement('option');
+                opt.value = String(d);
+                opt.textContent = String(d);
+                domEl.appendChild(opt);
+            }
+            domEl.value = '1';
+        }
+
+        function openScheduleModal(agentId) {
+            const id = String(agentId || '').trim();
+            if (!id) return;
+            const agent = (workflowAgents || []).find(a => String(a.id) === id);
+            if (!agent) return;
+            const trig = _getWorkflowTriggerInfo(agent);
+            if (trig.triggerType !== 'schedule') {
+                showToast('This agent is not scheduled.', 'info');
+                return;
+            }
+            if (!_canEditSchedules()) {
+                showToast('You do not have permission to edit schedules.', 'error');
+                return;
+            }
+            _scheduleEditingAgentId = id;
+            _ensureScheduleDomOptions();
+
+            const modal = document.getElementById('schedule-modal');
+            const enabledToggle = document.getElementById('schedule-enabled-toggle');
+            const freqEl = document.getElementById('schedule-frequency');
+            const timeEl = document.getElementById('schedule-time');
+            const dowEl = document.getElementById('schedule-dow');
+            const domEl = document.getElementById('schedule-dom');
+            const tzEl = document.getElementById('schedule-timezone');
+            const statusEl = document.getElementById('schedule-status');
+
+            const cfg = (trig.raw && typeof trig.raw === 'object') ? trig.raw : {};
+            const cron = String(cfg.cron || cfg.cron_expression || cfg.cronExpression || '').trim();
+            const tz = String(cfg.timezone || 'UTC').trim() || 'UTC';
+            const enabled = (cfg.enabled === undefined) ? true : !!cfg.enabled;
+            if (enabledToggle) enabledToggle.classList.toggle('active', enabled);
+            if (tzEl) tzEl.value = tz;
+            if (statusEl) statusEl.textContent = '';
+
+            // Parse simple cron patterns: "M H * * *" daily, "M H * * D" weekly, "M H DOM * *" monthly
+            let freq = 'daily';
+            let hhmm = '09:00';
+            let dow = '1';
+            let dom = '1';
+            const m = cron.match(/^(\d+)\s+(\d+)\s+(\*|\d+)\s+(\*|\d+)\s+(\*|\d+)$/);
+            if (m) {
+                const mm = String(m[1]).padStart(2, '0');
+                const hh = String(m[2]).padStart(2, '0');
+                hhmm = `${hh}:${mm}`;
+                const domPart = m[3];
+                const dowPart = m[5];
+                if (domPart !== '*' && dowPart === '*') {
+                    freq = 'monthly';
+                    dom = String(domPart);
+                } else if (domPart === '*' && dowPart !== '*') {
+                    freq = 'weekly';
+                    dow = String(dowPart);
+                } else {
+                    freq = 'daily';
+                }
+            }
+            if (freqEl) freqEl.value = freq;
+            if (timeEl) timeEl.value = hhmm;
+            if (dowEl) dowEl.value = dow;
+            if (domEl) domEl.value = dom;
+
+            if (modal) modal.classList.add('open');
+        }
+
+        function closeScheduleModal() {
+            const modal = document.getElementById('schedule-modal');
+            if (modal) modal.classList.remove('open');
+            _scheduleEditingAgentId = null;
+        }
+
+        async function saveSchedule() {
+            const id = String(_scheduleEditingAgentId || '').trim();
+            if (!id) return;
+            const enabledToggle = document.getElementById('schedule-enabled-toggle');
+            const freqEl = document.getElementById('schedule-frequency');
+            const timeEl = document.getElementById('schedule-time');
+            const dowEl = document.getElementById('schedule-dow');
+            const domEl = document.getElementById('schedule-dom');
+            const tzEl = document.getElementById('schedule-timezone');
+            const statusEl = document.getElementById('schedule-status');
+            const btn = document.getElementById('schedule-save-btn');
+
+            const enabled = enabledToggle ? enabledToggle.classList.contains('active') : true;
+            const freq = String(freqEl?.value || 'daily');
+            const hhmm = String(timeEl?.value || '09:00');
+            const tz = String(tzEl?.value || 'UTC').trim() || 'UTC';
+            const [hh, mm] = hhmm.split(':').map(x => parseInt(x, 10));
+            const safeH = Number.isFinite(hh) ? hh : 9;
+            const safeM = Number.isFinite(mm) ? mm : 0;
+
+            let cron = `${safeM} ${safeH} * * *`; // daily default
+            if (freq === 'weekly') {
+                const dow = String(dowEl?.value || '1');
+                cron = `${safeM} ${safeH} * * ${dow}`;
+            } else if (freq === 'monthly') {
+                const dom = String(domEl?.value || '1');
+                cron = `${safeM} ${safeH} ${dom} * *`;
+            }
+
+            try {
+                if (btn) btn.disabled = true;
+                if (statusEl) statusEl.textContent = 'Saving…';
+                const res = await fetch(`${API}/process/agents/${id}/schedule`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    body: JSON.stringify({ cron, timezone: tz, enabled })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const msg = (data && (data.detail || data.message)) ? (data.detail || data.message) : 'Failed to update schedule';
+                    throw new Error(friendlyErrorMessage(msg, 'Unable to update schedule. Please try again.'));
+                }
+                if (statusEl) statusEl.textContent = 'Saved successfully.';
+                showToast('Schedule updated', 'success');
+                closeScheduleModal();
+                await loadAgents();
+                selectWorkflowDirectoryItem(id);
+            } catch (e) {
+                console.error('saveSchedule error:', e);
+                showToast(e?.message || 'Unable to update schedule', 'error');
+                if (statusEl) statusEl.textContent = '';
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         }
 
         function _getWorkflowApprovalInfo(agent) {
@@ -1386,8 +1597,9 @@
                 };
                 quickEl.innerHTML = '';
                 quickEl.appendChild(mk('all', 'All', workflowTriggerFilter === 'all', () => { workflowTriggerFilter = 'all'; renderWorkflows(); }));
-                quickEl.appendChild(mk('manual', 'Form', workflowTriggerFilter === 'manual', () => { workflowTriggerFilter = 'manual'; renderWorkflows(); }));
-                quickEl.appendChild(mk('automated', 'Automation', workflowTriggerFilter === 'automated', () => { workflowTriggerFilter = 'automated'; renderWorkflows(); }));
+                quickEl.appendChild(mk('manual', 'Request-based', workflowTriggerFilter === 'manual', () => { workflowTriggerFilter = 'manual'; renderWorkflows(); }));
+                quickEl.appendChild(mk('schedule', 'Scheduled', workflowTriggerFilter === 'schedule', () => { workflowTriggerFilter = 'schedule'; renderWorkflows(); }));
+                quickEl.appendChild(mk('webhook', 'Integration', workflowTriggerFilter === 'webhook', () => { workflowTriggerFilter = 'webhook'; renderWorkflows(); }));
                 quickEl.appendChild(mk('ap_all', 'Approvals: Any', workflowApprovalFilter === 'all', () => { workflowApprovalFilter = 'all'; renderWorkflows(); }));
                 quickEl.appendChild(mk('ap_yes', 'Approvals: Required', workflowApprovalFilter === 'approvals', () => { workflowApprovalFilter = 'approvals'; renderWorkflows(); }));
                 quickEl.appendChild(mk('ap_no', 'Approvals: None', workflowApprovalFilter === 'no_approvals', () => { workflowApprovalFilter = 'no_approvals'; renderWorkflows(); }));
@@ -1399,9 +1611,11 @@
                 const trig = _getWorkflowTriggerInfo(a);
                 const appr = _getWorkflowApprovalInfo(a);
                 const isManual = trig.triggerType === 'manual';
-                const isAutomated = trig.triggerType === 'schedule' || trig.triggerType === 'webhook';
+                const isSchedule = trig.triggerType === 'schedule';
+                const isWebhook = trig.triggerType === 'webhook';
                 if (workflowTriggerFilter === 'manual' && !isManual) return false;
-                if (workflowTriggerFilter === 'automated' && !isAutomated) return false;
+                if (workflowTriggerFilter === 'schedule' && !isSchedule) return false;
+                if (workflowTriggerFilter === 'webhook' && !isWebhook) return false;
                 if (workflowApprovalFilter === 'approvals' && !appr.hasApproval) return false;
                 if (workflowApprovalFilter === 'no_approvals' && appr.hasApproval) return false;
                 if (!q) return true;
@@ -1442,7 +1656,7 @@
                     const appr = _getWorkflowApprovalInfo(a);
                     const isManual = trig.triggerType === 'manual';
                     const canRunNow = isManual || isPortalAdmin();
-                    const chip = isManual ? `<span class="dir-chip success">Form</span>` : `<span class="dir-chip warning">Automation</span>`;
+                    const chip = isManual ? `<span class="dir-chip success">Request</span>` : (trig.triggerType === 'schedule' ? `<span class="dir-chip warning">Scheduled</span>` : `<span class="dir-chip warning">Integration</span>`);
                     const chip2 = appr.hasApproval ? `<span class="dir-chip">Approvals</span>` : '';
                     const active = (currentWorkflowAgent && String(currentWorkflowAgent.id) === id);
                     return `

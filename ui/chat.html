@@ -768,6 +768,76 @@
             </div>
         </div>
     </div>
+
+    <!-- Schedule Edit Modal (Process AI Agents) -->
+    <div id="schedule-modal" class="modal-overlay" onclick="if(event.target===this)closeScheduleModal()">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Schedule</h2>
+                <button class="modal-close" onclick="closeScheduleModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: -6px; margin-bottom: 14px;">
+                    Update when this Process AI Agent runs automatically.
+                </div>
+
+                <div class="modal-section" style="margin-bottom: 14px;">
+                    <div class="setting-item" style="padding: 10px 0;">
+                        <div>
+                            <div class="setting-label">Enable schedule</div>
+                            <div class="setting-desc">Turn automation on or off</div>
+                        </div>
+                        <div class="toggle" id="schedule-enabled-toggle" onclick="this.classList.toggle('active')"></div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="modal-form-group" style="margin-bottom: 0;">
+                        <label class="modal-form-label">Frequency</label>
+                        <select id="schedule-frequency" class="modal-form-input">
+                            <option value="daily">Every day</option>
+                            <option value="weekly">Every week</option>
+                            <option value="monthly">Every month</option>
+                        </select>
+                    </div>
+                    <div class="modal-form-group" style="margin-bottom: 0;">
+                        <label class="modal-form-label">Time</label>
+                        <input id="schedule-time" type="time" class="modal-form-input" value="09:00">
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+                    <div class="modal-form-group" style="margin-bottom: 0;">
+                        <label class="modal-form-label">Day of week (weekly)</label>
+                        <select id="schedule-dow" class="modal-form-input">
+                            <option value="1">Monday</option>
+                            <option value="2">Tuesday</option>
+                            <option value="3">Wednesday</option>
+                            <option value="4">Thursday</option>
+                            <option value="5">Friday</option>
+                            <option value="6">Saturday</option>
+                            <option value="0">Sunday</option>
+                        </select>
+                    </div>
+                    <div class="modal-form-group" style="margin-bottom: 0;">
+                        <label class="modal-form-label">Day of month (monthly)</label>
+                        <select id="schedule-dom" class="modal-form-input"></select>
+                    </div>
+                </div>
+
+                <div class="modal-form-group" style="margin-top: 12px;">
+                    <label class="modal-form-label">Timezone</label>
+                    <input id="schedule-timezone" class="modal-form-input" placeholder="e.g., Africa/Cairo" value="UTC">
+                </div>
+
+                <div class="modal-actions" style="margin-top: 14px;">
+                    <button class="modal-btn" onclick="closeScheduleModal()">Cancel</button>
+                    <button class="modal-btn modal-btn-primary" id="schedule-save-btn" onclick="saveSchedule()">Save Schedule</button>
+                </div>
+                <div id="schedule-status" style="margin-top: 10px; color: var(--text-muted); font-size: 0.85rem;"></div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
 

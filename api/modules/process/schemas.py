@@ -260,3 +260,19 @@ class SummarizeProcessRequest(BaseModel):
 class SummarizeProcessResponse(BaseModel):
     """Business-friendly one-paragraph summary"""
     summary: str = Field(..., description="Short non-technical summary of what the workflow does")
+
+
+# =============================================================================
+# SCHEDULE UPDATE (for scheduled Process AI Agents)
+# =============================================================================
+
+class UpdateProcessScheduleRequest(BaseModel):
+    """Update schedule configuration for a scheduled process agent"""
+    cron: str = Field(..., description="Cron string (server validates and stores)")
+    timezone: str = Field(default="UTC", description="IANA timezone name")
+    enabled: bool = Field(default=True, description="Whether the schedule is enabled")
+
+
+class UpdateProcessScheduleResponse(BaseModel):
+    """Schedule update result"""
+    ok: bool = Field(default=True, description="Whether the update succeeded")

@@ -1064,7 +1064,11 @@
             color: #fff;
         }
 
+        /* Ensure primary buttons never lose contrast on hover */
+        .portal-btn.portal-btn-primary:hover,
         .portal-btn-primary:hover {
+            background: var(--gradient-1);
+            color: #fff;
             filter: brightness(1.05);
         }
 

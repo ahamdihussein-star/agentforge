@@ -14,6 +14,7 @@ import re
 from typing import Dict, Any, List, Optional, AsyncIterator
 from datetime import datetime
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 
 from database.services.process_execution_service import ProcessExecutionService
 from database.services.process_settings_service import ProcessSettingsService
@@ -2412,7 +2413,8 @@ class ProcessAPIService:
             bits.append("sends messages to keep people informed")
 
         if not bits:
-            return (goal or '').strip()[:160] or f"{name or 'Workflow'} runs and completes based on your inputs."
+            # Never surface the original generation prompt/goal text to end users.
+            return f"{name or 'This workflow'} runs and completes based on the information provided."
 
         sentence = f"{name or 'This workflow'} " + ", then ".join([bits[0]] + bits[1:]) + "."
         # Keep it short for the UI subtitle
@@ -2464,9 +2466,9 @@ class ProcessAPIService:
             })
 
         system_prompt = (
-            "You are a product copywriter for an enterprise workflow platform. "
-            "Write a short, non-technical summary of what the workflow does for business users. "
-            "Use the same language as the goal if it's not English. "
+            "You are a product copywriter for an enterprise AI workflow platform. "
+            "Write a short, non-technical summary of what this Process AI Agent does for business users. "
+            "IMPORTANT: Never quote or reference the internal generation prompt or goal text. "
             "Do NOT mention JSON, IDs, schemas, endpoints, or implementation details. "
             "Keep it to 1–2 sentences, max 220 characters."
         )
@@ -2480,7 +2482,7 @@ class ProcessAPIService:
             ensure_ascii=False,
         )
         user_prompt = (
-            "Summarize this workflow for the run screen subtitle.\n"
+            "Create a user-facing overview for the portal.\n"
             f"{user_payload}\n\n"
             "Return only the summary text."
         )
@@ -2500,6 +2502,107 @@ class ProcessAPIService:
         except Exception as e:
             logger.warning("Process summary LLM call failed: %s", e)
             return self._fallback_summarize_process(name, goal, pd)
+
+    def update_agent_schedule(
+        self,
+        org_id: str,
+        agent_id: str,
+        user_id: str,
+        user_info: Dict[str, Any],
+        cron: str,
+        timezone: str,
+        enabled: bool,
+        is_platform_admin: bool = False,
+    ) -> bool:
+        """
+        Update schedule configuration for a scheduled Process AI Agent.
+        Only owners/platform admins/authorized delegated admins can change schedules.
+        """
+        try:
+            agent_uuid = uuid.UUID(str(agent_id))
+            org_uuid = uuid.UUID(str(org_id))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid agent or organization")
+
+        cron = str(cron or "").strip()
+        timezone = str(timezone or "UTC").strip() or "UTC"
+        if not cron:
+            raise HTTPException(status_code=400, detail="Schedule time is required")
+        parts = cron.split()
+        if len(parts) != 5:
+            raise HTTPException(status_code=400, detail="Invalid schedule format")
+        try:
+            minute = int(parts[0])
+            hour = int(parts[1])
+            if minute < 0 or minute > 59 or hour < 0 or hour > 23:
+                raise ValueError()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid schedule time")
+        if len(timezone) > 64 or " " in timezone:
+            raise HTTPException(status_code=400, detail="Invalid timezone")
+
+        agent = self.db.query(Agent).filter(
+            Agent.id == agent_uuid,
+            Agent.org_id == org_uuid,
+        ).first()
+        if not agent:
+            raise HTTPException(status_code=404, detail="Process AI Agent not found")
+        if agent.agent_type != "process":
+            raise HTTPException(status_code=400, detail="Agent is not a process type")
+
+        owner_id = str(agent.owner_id) if agent.owner_id else str(agent.created_by)
+        is_owner = str(user_id) == owner_id
+        if not (is_owner or is_platform_admin):
+            user_roles = user_info.get("roles", []) if user_info else []
+            user_groups = user_info.get("groups", []) if user_info else []
+            perm_result = AccessControlService.check_agent_permission(
+                user_id=str(user_id),
+                user_role_ids=user_roles,
+                user_group_ids=user_groups,
+                agent_id=str(agent.id),
+                org_id=str(agent.org_id),
+                permission="manage_agents",
+            )
+            if not perm_result.get("has_permission"):
+                raise HTTPException(status_code=403, detail="You do not have permission to edit schedules")
+
+        pd = self._ensure_dict(agent.process_definition or {})
+        nodes = pd.get("nodes") or []
+        if not isinstance(nodes, list):
+            nodes = []
+
+        found = False
+        for n in nodes:
+            if not isinstance(n, dict):
+                continue
+            n_type = str(n.get("type") or "").strip().lower()
+            cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+            type_cfg = cfg.get("type_config") if isinstance(cfg.get("type_config"), dict) else None
+            inferred_tt = str((type_cfg or cfg).get("triggerType") or "").strip().lower()
+            if n_type == "schedule" or inferred_tt == "schedule":
+                if not isinstance(cfg, dict):
+                    cfg = {}
+                cfg["triggerType"] = "schedule"
+                cfg["cron"] = cron
+                cfg["timezone"] = timezone
+                cfg["enabled"] = bool(enabled)
+                if isinstance(type_cfg, dict):
+                    type_cfg["triggerType"] = "schedule"
+                    type_cfg["cron"] = cron
+                    type_cfg["timezone"] = timezone
+                    type_cfg["enabled"] = bool(enabled)
+                    cfg["type_config"] = type_cfg
+                n["config"] = cfg
+                found = True
+                break
+
+        if not found:
+            raise HTTPException(status_code=400, detail="This agent does not have a schedule to edit")
+
+        agent.process_definition = pd
+        self.db.add(agent)
+        self.db.commit()
+        return True
     
     async def enrich_form_fields(
         self,

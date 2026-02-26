@@ -42,6 +42,8 @@ from .schemas import (
     EnrichedFormField,
     SummarizeProcessRequest,
     SummarizeProcessResponse,
+    UpdateProcessScheduleRequest,
+    UpdateProcessScheduleResponse,
 )
 from .service import ProcessAPIService
 
@@ -931,6 +933,40 @@ async def summarize_process(
     process_definition = service._ensure_dict(process_definition)
     summary = await service.summarize_process(name=name, goal=goal, process_definition=process_definition)
     return SummarizeProcessResponse(summary=summary or '')
+
+
+@router.put("/agents/{agent_id}/schedule", response_model=UpdateProcessScheduleResponse)
+async def update_process_schedule(
+    agent_id: str,
+    request: UpdateProcessScheduleRequest,
+    service: ProcessAPIService = Depends(get_service),
+    user: User = Depends(require_auth),
+):
+    """
+    Update a scheduled Process AI Agent's schedule.
+    Designed for business admins (delegated) via the Chat Portal.
+    """
+    user_dict = _user_to_dict(user)
+    org_id = str(user_dict.get("org_id") or "").strip()
+    if not org_id:
+        raise HTTPException(status_code=400, detail="Organization not found")
+    try:
+        ok = service.update_agent_schedule(
+            org_id=org_id,
+            agent_id=agent_id,
+            user_id=str(user_dict.get("id") or ""),
+            user_info=user_dict,
+            cron=request.cron,
+            timezone=request.timezone,
+            enabled=request.enabled,
+            is_platform_admin=_is_platform_admin(user),
+        )
+        return UpdateProcessScheduleResponse(ok=bool(ok))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to update schedule: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to update schedule")
 
 
 @router.get("/executions", response_model=ProcessExecutionListResponse)
