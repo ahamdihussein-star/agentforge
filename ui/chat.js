@@ -761,6 +761,29 @@
             return set.has('system:admin') || set.has('users:view') || set.has('users:edit');
         }
 
+        function _fmtBadge(n) {
+            const x = Number(n || 0);
+            if (!isFinite(x) || x <= 0) return '';
+            if (x >= 100) return '99+';
+            return String(Math.floor(x));
+        }
+
+        function _setWorkTabBadges() {
+            try {
+                const counts = {
+                    workflows: Array.isArray(workflowAgents) ? workflowAgents.length : 0,
+                    requests: Array.isArray(myRequests) ? myRequests.length : 0,
+                    inbox: Array.isArray(myApprovals) ? myApprovals.length : 0,
+                };
+                document.querySelectorAll('.work-tab-badge[data-badge]').forEach(el => {
+                    const k = String(el.getAttribute('data-badge') || '').trim().toLowerCase();
+                    const v = _fmtBadge(counts[k] || 0);
+                    el.textContent = v;
+                    el.classList.toggle('show', !!v);
+                });
+            } catch (_) { /* ignore */ }
+        }
+
         function _setInboxBadge(count) {
             // Sidebar inbox badge has been removed. Keep function as a safe no-op
             // because other code paths may still call it.
@@ -1677,6 +1700,7 @@
 
             const q = String(document.getElementById('workflow-search')?.value || '').trim().toLowerCase();
             const items = Array.isArray(workflowAgents) ? workflowAgents.slice() : [];
+            _setWorkTabBadges();
 
             const catSet = new Set();
             items.forEach(a => catSet.add(_getWorkflowCategory(a)));
@@ -2505,6 +2529,7 @@
                 myRequests = Array.isArray(data) ? data : (data.items || []);
                 renderRequestsScopeAndFilterChips();
                 renderRequests();
+                _setWorkTabBadges();
                 if (selectedExecutionId) {
                     // Keep the detail pane in sync (e.g., after starting a workflow)
                     refreshSelectedRequest();
@@ -2515,6 +2540,7 @@
                 myRequests = [];
                 renderRequestsScopeAndFilterChips();
                 renderRequests();
+                _setWorkTabBadges();
                 showToast(e?.message || 'Failed to load requests', 'error');
                 return [];
             }
@@ -2571,6 +2597,7 @@
             const listEl = document.getElementById('requests-list');
             const countEl = document.getElementById('requests-count');
             if (!listEl) return;
+            _setWorkTabBadges();
 
             const q = String(document.getElementById('requests-search')?.value || '').trim().toLowerCase();
             const items = Array.isArray(myRequests) ? myRequests.slice() : [];
@@ -3139,6 +3166,7 @@
                 myApprovals = Array.isArray(data) ? data : (data.items || []);
                 _setInboxBadge(myApprovals.length);
                 renderInbox();
+                _setWorkTabBadges();
                 if (selectedApprovalId) {
                     refreshSelectedApproval();
                 }
@@ -3148,6 +3176,7 @@
                 myApprovals = [];
                 _setInboxBadge(0);
                 renderInbox();
+                _setWorkTabBadges();
                 showToast(e?.message || 'Failed to load inbox', 'error');
                 return [];
             }
@@ -3157,6 +3186,7 @@
             const listEl = document.getElementById('inbox-list');
             const countEl = document.getElementById('inbox-count');
             if (!listEl) return;
+            _setWorkTabBadges();
 
             const q = String(document.getElementById('inbox-search')?.value || '').trim().toLowerCase();
             const items = Array.isArray(myApprovals) ? myApprovals.slice() : [];
