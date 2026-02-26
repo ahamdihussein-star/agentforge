@@ -2038,43 +2038,93 @@
             }
         }
 
-        function _renderPortalValue(v) {
-            if (v == null) return `<span style="color: var(--text-muted);">—</span>`;
-            if (typeof v === 'string') return v.trim() ? escapeHtml(v) : `<span style="color: var(--text-muted);">—</span>`;
-            if (typeof v === 'number' || typeof v === 'boolean') return escapeHtml(String(v));
-            if (typeof v === 'object') {
+        const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const _TECHNICAL_KEYS = new Set([
+            '_user_context', 'org_id', 'user_id', 'correlation_id', 'reference_id',
+            'trigger_type', 'trigger_input', 'execution_id', 'agent_id', 'workflow_id',
+            'process_definition', 'config', 'type_config', 'node_id', 'step_id',
+            'custom_attributes', 'cost_center', 'identity_source', 'internal',
+            'role_ids', 'group_ids', 'is_manager', 'employee_id',
+        ]);
+
+        function _isHiddenField(key, allKeys) {
+            const k = String(key || '').toLowerCase();
+            if (_TECHNICAL_KEYS.has(k)) return true;
+            if (k.startsWith('_')) return true;
+            if (k.endsWith('_id') && allKeys.has(k.replace(/_id$/, '_name'))) return true;
+            if (k === 'manager_id' && allKeys.has('manager_name')) return true;
+            if (k === 'department_id' && allKeys.has('department_name')) return true;
+            return false;
+        }
+
+        function _renderPortalValue(v, key) {
+            if (v == null) return `<span class="detail-empty">—</span>`;
+            if (typeof v === 'string') {
+                const s = v.trim();
+                if (!s) return `<span class="detail-empty">—</span>`;
+                if (_UUID_RE.test(s)) return `<span class="detail-empty">—</span>`;
+                return escapeHtml(s);
+            }
+            if (typeof v === 'number') return escapeHtml(String(v));
+            if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+            if (Array.isArray(v)) {
+                const items = v.filter(x => x != null && x !== '');
+                if (!items.length) return `<span class="detail-empty">—</span>`;
+                if (items.every(x => typeof x === 'string' || typeof x === 'number')) {
+                    return items.map(x => `<span class="detail-tag">${escapeHtml(String(x))}</span>`).join(' ');
+                }
+            }
+            if (typeof v === 'object' && !Array.isArray(v)) {
                 try {
                     if (v.kind === 'uploadedFile' && (v.id || v.name)) {
                         const name = v.name || 'Uploaded file';
                         const typ = v.file_type ? String(v.file_type).toUpperCase() : '';
                         const size = (typeof v.size === 'number') ? `${Math.round(v.size / 1024)} KB` : '';
                         const meta = [typ, size].filter(Boolean).join(' · ');
-                        const btn = v.id ? `
-                            <button type="button" class="portal-btn"
-                                style="padding:6px 10px; font-size:12px;"
-                                data-upload-file-id="${escapeHtml(String(v.id))}"
-                                data-upload-file-name="${escapeHtml(String(name))}"
-                            >Download</button>
-                        ` : '';
-                        return `<div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
-                            <div style="text-align:right;">
-                                <div style="font-weight:800;">${escapeHtml(name)}</div>
-                                ${meta ? `<div style="color: var(--text-muted); font-size: 0.85rem;">${escapeHtml(meta)}</div>` : ''}
-                            </div>
-                            ${btn}
-                        </div>`;
+                        const btn = v.id ? `<button type="button" class="detail-download-btn" data-upload-file-id="${escapeHtml(String(v.id))}" data-upload-file-name="${escapeHtml(String(name))}">Download</button>` : '';
+                        return `<div class="detail-file-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div><div style="font-weight:700;">${escapeHtml(name)}</div>${meta ? `<div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(meta)}</div>` : ''}</div>${btn}</div>`;
                     }
                 } catch (_) {}
             }
-            try {
-                const s = JSON.stringify(v, null, 2);
-                const t = s && s.length > 1600 ? (s.slice(0, 1600) + '…') : (s || '');
-                return t ? `<pre style="margin:0;white-space:pre-wrap;word-break:break-word;color: var(--text-muted); font-size: 0.85rem; line-height: 1.35;">${escapeHtml(t)}</pre>` : `<span style="color: var(--text-muted);">—</span>`;
-            } catch (_) {
-                const s = String(v);
-                const t = s.length > 1600 ? (s.slice(0, 1600) + '…') : s;
-                return `<pre style="margin:0;white-space:pre-wrap;word-break:break-word;color: var(--text-muted); font-size: 0.85rem; line-height: 1.35;">${escapeHtml(t)}</pre>`;
+            return `<span class="detail-empty">—</span>`;
+        }
+
+        function _flattenResultForDisplay(obj) {
+            if (obj == null) return [];
+            if (typeof obj === 'string') {
+                const s = obj.trim();
+                if (!s) return [];
+                try {
+                    const parsed = JSON.parse(s);
+                    if (typeof parsed === 'object') return _flattenResultForDisplay(parsed);
+                } catch (_) {}
+                return [{ key: 'Result', value: s }];
             }
+            if (typeof obj === 'number' || typeof obj === 'boolean') return [{ key: 'Result', value: String(obj) }];
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) return [];
+                if (obj.length === 1 && typeof obj[0] === 'object') return _flattenResultForDisplay(obj[0]);
+                return [{ key: 'Result', value: obj.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(', ') }];
+            }
+            if (typeof obj !== 'object') return [];
+            const entries = [];
+            const allKeys = new Set(Object.keys(obj).map(k => k.toLowerCase()));
+            for (const [rawKey, rawVal] of Object.entries(obj)) {
+                const k = rawKey.toLowerCase();
+                if (_TECHNICAL_KEYS.has(k) || k.startsWith('_')) continue;
+                if (_UUID_RE.test(String(rawVal || ''))) continue;
+                if (k.endsWith('_id') && allKeys.has(k.replace(/_id$/, '_name'))) continue;
+                if (typeof rawVal === 'object' && rawVal !== null && !Array.isArray(rawVal) && !(rawVal.kind === 'uploadedFile')) {
+                    const nested = _flattenResultForDisplay(rawVal);
+                    nested.forEach(n => entries.push(n));
+                    continue;
+                }
+                const label = humanizeFieldLabel(rawKey) || rawKey;
+                const rendered = _renderPortalValue(rawVal, rawKey);
+                if (rendered.includes('detail-empty')) continue;
+                entries.push({ key: label, value: rendered, isHtml: true });
+            }
+            return entries;
         }
 
         function _businessStatusDescription(status) {
@@ -2145,66 +2195,90 @@
             const completedAt = _formatDateTime(ex?.completed_at);
             const refId = ex?.reference_id || ex?.correlation_id || '';
             const runNum = _executionRunNumber(ex);
+            const timeAgo = _formatRelativeTime(ex?.created_at);
 
             if (titleEl) titleEl.textContent = wfName;
             if (subEl) subEl.textContent = _businessStatusDescription(status);
 
             const inputData = _executionInputData(ex) || {};
             const result = _executionResult(ex);
+            const allInputKeys = new Set(Object.keys(inputData || {}).map(k => k.toLowerCase()));
             const inputsEntries = (inputData && typeof inputData === 'object')
-                ? Object.entries(inputData).filter(([k]) => !k.startsWith('_'))
+                ? Object.entries(inputData).filter(([k]) => !_isHiddenField(k, allInputKeys))
                 : [];
 
             const stepsArr = Array.isArray(steps) ? steps : [];
             const progressSteps = _buildProgressTimeline(stepsArr, status);
 
-            const inputsHtml = inputsEntries.length ? `
-                <div class="kv-grid" style="margin-top: 10px;">
-                    ${inputsEntries.map(([k, v]) => `
-                        <div class="kv">
-                            <div class="k">${escapeHtml(humanizeFieldLabel(k) || k)}</div>
-                            <div class="v">${_renderPortalValue(v)}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : '';
+            const inputsHtml = inputsEntries.length ? inputsEntries.map(([k, v]) => {
+                const rendered = _renderPortalValue(v, k);
+                if (rendered.includes('detail-empty')) return '';
+                return `<div class="detail-row"><div class="detail-label">${escapeHtml(humanizeFieldLabel(k) || k)}</div><div class="detail-value">${rendered}</div></div>`;
+            }).filter(Boolean).join('') : '';
 
-            const resultHtml = (result != null) ? `
-                <div style="margin-top: 18px;">
-                    <div style="font-weight: 800; margin-bottom: 8px;">Outcome</div>
-                    <div class="kv" style="margin-top: 10px;">
-                        <div class="v">${escapeHtml(typeof result === 'string' ? result : JSON.stringify(result, null, 2))}</div>
-                    </div>
-                </div>
-            ` : '';
+            let outcomeHtml = '';
+            if (result != null) {
+                const entries = _flattenResultForDisplay(result);
+                if (entries.length) {
+                    outcomeHtml = `
+                        <div class="detail-section">
+                            <div class="detail-section-header">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                Outcome
+                            </div>
+                            <div class="detail-section-body">
+                                ${entries.map(e => `<div class="detail-row"><div class="detail-label">${escapeHtml(e.key)}</div><div class="detail-value">${e.isHtml ? e.value : escapeHtml(String(e.value))}</div></div>`).join('')}
+                            </div>
+                        </div>`;
+                }
+            }
+
+            const statusIcon = status === 'completed' || status === 'success'
+                ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+                : status === 'failed' || status === 'error'
+                ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+                : status === 'waiting' || status === 'paused'
+                ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+                : '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
 
             bodyEl.innerHTML = `
-                <div class="request-status-banner ${pillCls}">
-                    <span class="status-pill ${pillCls}" style="font-size:0.85rem;"><span class="dot"></span>${escapeHtml(label)}</span>
+                <div class="request-hero ${pillCls}">
+                    <div class="request-hero-icon">${statusIcon}</div>
+                    <div class="request-hero-info">
+                        <span class="status-pill ${pillCls}" style="font-size:0.82rem;"><span class="dot"></span>${escapeHtml(label)}</span>
+                        <div class="request-hero-meta">
+                            ${timeAgo ? `<span>${escapeHtml(timeAgo)}</span>` : ''}
+                            ${runNum != null ? `<span>Request #${escapeHtml(runNum)}</span>` : ''}
+                        </div>
+                    </div>
                 </div>
 
-                <div class="kv-grid" style="margin-top: 14px;">
-                    ${createdAt ? `<div class="kv"><div class="k">Submitted</div><div class="v">${escapeHtml(createdAt)}</div></div>` : ''}
-                    ${completedAt ? `<div class="kv"><div class="k">Completed</div><div class="v">${escapeHtml(completedAt)}</div></div>` : ''}
-                    ${refId ? `<div class="kv"><div class="k">Reference</div><div class="v">${escapeHtml(refId)}</div></div>` : ''}
-                    ${runNum != null ? `<div class="kv"><div class="k">Request No.</div><div class="v">#${escapeHtml(runNum)}</div></div>` : ''}
+                <div class="detail-meta-row">
+                    ${createdAt ? `<div class="detail-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${escapeHtml(createdAt)}</div>` : ''}
+                    ${refId ? `<div class="detail-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3L8 21"/><path d="M16 3l-2 18"/></svg>${escapeHtml(refId)}</div>` : ''}
                 </div>
 
                 ${progressSteps ? `
-                    <div style="margin-top: 18px;">
-                        <div style="font-weight: 800; margin-bottom: 10px;">Progress</div>
-                        ${progressSteps}
+                    <div class="detail-section">
+                        <div class="detail-section-header">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            Progress
+                        </div>
+                        <div class="detail-section-body">${progressSteps}</div>
                     </div>
                 ` : ''}
 
-                ${inputsEntries.length ? `
-                    <div style="margin-top: 18px;">
-                        <div style="font-weight: 800; margin-bottom: 8px;">Submitted Information</div>
-                        ${inputsHtml}
+                ${inputsHtml ? `
+                    <div class="detail-section">
+                        <div class="detail-section-header">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            Submitted Information
+                        </div>
+                        <div class="detail-section-body">${inputsHtml}</div>
                     </div>
                 ` : ''}
 
-                ${resultHtml}
+                ${outcomeHtml}
             `;
 
             // Wire up authenticated downloads for uploaded file buttons
