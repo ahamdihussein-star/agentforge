@@ -106,12 +106,12 @@
                     </div>
                     <div class="nav-subitems open" id="nav-subitems-processes" data-group="processes">
                         <div class="nav-item nav-sub" data-view="workflows" onclick="switchView('workflows')">
-                            <span class="nav-icon">🧩</span>
-                            <span class="nav-label">Browse</span>
+                            <span class="nav-icon">📋</span>
+                            <span class="nav-label">Services</span>
                         </div>
                         <div class="nav-item nav-sub" data-view="requests" onclick="switchView('requests')">
                             <span class="nav-icon">📄</span>
-                            <span class="nav-label">Runs</span>
+                            <span class="nav-label">My Requests</span>
                         </div>
                         <div class="nav-item nav-sub" data-view="inbox" onclick="switchView('inbox')">
                             <span class="nav-icon">✅</span>
@@ -237,15 +237,15 @@
                         </div>
                         <div class="home-card" onclick="switchView('workflows')">
                             <div class="home-card-header">
-                                <div class="home-card-icon process">🧩</div>
+                                <div class="home-card-icon process">📋</div>
                                 <div>
-                                    <div class="home-card-title">Processes</div>
-                                    <div class="home-card-count" id="home-processes-label">Forms &amp; Automation</div>
+                                    <div class="home-card-title">Services</div>
+                                    <div class="home-card-count" id="home-processes-label">Forms &amp; Requests</div>
                                 </div>
                             </div>
-                            <div class="home-card-desc">Start processes, submit forms, track progress, and manage approvals — all in one place.</div>
+                            <div class="home-card-desc">Submit requests, fill out forms, and track approvals — everything you need in one place.</div>
                             <div class="home-card-footer">
-                                <span class="home-badge">Forms &bull; Approvals &bull; Automation</span>
+                                <span class="home-badge">Requests &bull; Forms &bull; Approvals</span>
                                 <span class="home-card-arrow">&rarr;</span>
                             </div>
                         </div>
@@ -332,15 +332,15 @@
                 </div>
             </div>
 
-            <!-- Workflows View -->
+            <!-- Service Catalog View -->
             <div id="view-workflows" class="portal-view hidden">
                 <div class="portal-header">
                     <div class="portal-header-left">
-                        <div class="portal-title">🧩 Processes</div>
-                        <div class="portal-subtitle">Browse, start, and manage business processes and automations.</div>
+                        <div class="portal-title">📋 Services</div>
+                        <div class="portal-subtitle">Browse available services and submit your requests.</div>
                     </div>
                     <div class="portal-toolbar">
-                        <input id="workflow-search" class="search-input" placeholder="Search processes…" oninput="renderWorkflows()">
+                        <input id="workflow-search" class="search-input" placeholder="Search services…" oninput="renderWorkflows()">
                         <button class="portal-btn" onclick="refreshWorkflows()">Refresh</button>
                     </div>
                 </div>
@@ -354,11 +354,11 @@
             <div id="view-requests" class="portal-view hidden">
                 <div class="portal-header">
                     <div class="portal-header-left">
-                        <div class="portal-title">📄 Runs</div>
-                        <div class="portal-subtitle">Track process executions, view step details, and monitor outcomes.</div>
+                        <div class="portal-title">📄 My Requests</div>
+                        <div class="portal-subtitle">Track the status of your submitted requests and forms.</div>
                     </div>
                     <div class="portal-toolbar">
-                        <input id="requests-search" class="search-input" placeholder="Search requests…" oninput="renderRequests()">
+                        <input id="requests-search" class="search-input" placeholder="Search my requests…" oninput="renderRequests()">
                         <button class="portal-btn" onclick="refreshRequests()">Refresh</button>
                     </div>
                 </div>
@@ -368,7 +368,7 @@
                     <div class="split-layout">
                         <div class="list-panel">
                             <div class="list-panel-header">
-                                <span style="font-weight: 750;">Runs</span>
+                                <span style="font-weight: 750;">Requests</span>
                                 <span style="margin-left:auto; color: var(--text-muted); font-size: 0.8rem;" id="requests-count"></span>
                             </div>
                             <div class="list-panel-body" id="requests-list"></div>
@@ -377,7 +377,7 @@
                             <div class="detail-header">
                                 <div>
                                     <div style="font-weight: 800; font-size: 1rem;" id="request-detail-title">Select a request</div>
-                                    <div style="color: var(--text-muted); font-size: 0.85rem;" id="request-detail-subtitle">You’ll see status, inputs, and step-by-step progress here.</div>
+                                    <div style="color: var(--text-muted); font-size: 0.85rem;" id="request-detail-subtitle">Choose a request to view its details and current status.</div>
                                 </div>
                                 <div class="portal-toolbar">
                                     <button class="portal-btn" onclick="refreshSelectedRequest()" id="request-refresh-btn" disabled>Refresh</button>
@@ -434,7 +434,7 @@
     <div id="workflow-run-modal" class="modal-overlay" onclick="if(event.target===this)closeWorkflowRunModal()">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title" id="workflow-run-title">Start Process</h2>
+                <h2 class="modal-title" id="workflow-run-title">New Request</h2>
                 <button class="modal-close" onclick="closeWorkflowRunModal()">✕</button>
             </div>
             <div class="modal-body">
@@ -442,7 +442,7 @@
                 <div id="workflow-form-fields" style="display: flex; flex-direction: column; gap: 12px;"></div>
                 <div class="modal-actions">
                     <button class="modal-btn" onclick="closeWorkflowRunModal()">Cancel</button>
-                    <button class="modal-btn modal-btn-primary" id="workflow-run-btn" onclick="executeWorkflow()">Start</button>
+                    <button class="modal-btn modal-btn-primary" id="workflow-run-btn" onclick="executeWorkflow()">Submit</button>
                 </div>
                 <div id="workflow-run-status" style="margin-top: 12px; color: var(--text-muted); font-size: 0.85rem;"></div>
             </div>

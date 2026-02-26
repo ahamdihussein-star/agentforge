@@ -811,7 +811,7 @@
             const aLabel = document.getElementById('home-assistants-label');
             const pLabel = document.getElementById('home-processes-label');
             if (aLabel) aLabel.textContent = aCount ? `${aCount} assistant${aCount > 1 ? 's' : ''} available` : 'Conversational AI';
-            if (pLabel) pLabel.textContent = pCount ? `${pCount} process${pCount > 1 ? 'es' : ''} available` : 'Forms & Automation';
+            if (pLabel) pLabel.textContent = pCount ? `${pCount} service${pCount > 1 ? 's' : ''} available` : 'Forms & Requests';
 
             // Quick access: show recent conversational agents + process agents
             const container = document.getElementById('home-recent');
@@ -970,6 +970,20 @@
         // PORTAL: WORKFLOWS (PROCESS AGENTS)
         // =============================================================================
 
+        function _serviceCtaLabel(agent) {
+            const name = String(agent?.name || '').toLowerCase();
+            if (/request|leave|absence|time.?off|vacation/i.test(name)) return 'Submit Request';
+            if (/report|incident|complaint|issue|ticket/i.test(name)) return 'Report';
+            if (/apply|application|enroll/i.test(name)) return 'Apply';
+            if (/register|registration|sign.?up/i.test(name)) return 'Register';
+            if (/survey|feedback|evaluation|review/i.test(name)) return 'Start';
+            if (/order|purchase|procurement/i.test(name)) return 'Place Order';
+            if (/booking|reservation|schedule/i.test(name)) return 'Book';
+            const appr = _getWorkflowApprovalInfo(agent);
+            if (appr.hasApproval) return 'Submit Request';
+            return 'Get Started';
+        }
+
         function _getWorkflowCategory(agent) {
             const meta = (agent && agent.extra_metadata && typeof agent.extra_metadata === 'object') ? agent.extra_metadata : {};
             const raw = meta.category || meta.department || meta.domain || meta.team;
@@ -1102,9 +1116,9 @@
                 cardsEl.innerHTML = `
                     <div style="grid-column: 1 / -1;">
                         <div class="empty-state">
-                            <div class="empty-state-icon">🧩</div>
-                            <div class="empty-state-title">No processes found</div>
-                            <div class="empty-state-desc">There are no processes published yet, or you don't have access. Contact your admin to get started.</div>
+                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-title">No services available</div>
+                            <div class="empty-state-desc">There are no services published yet, or you don't have access. Contact your administrator for assistance.</div>
                         </div>
                     </div>
                 `;
@@ -1112,38 +1126,25 @@
             }
 
             cardsEl.innerHTML = filtered.map(a => {
-                const icon = escapeHtml(a.icon || '🧩');
-                const name = escapeHtml(a.name || 'Workflow');
-                const desc = escapeHtml(a.description || '');
+                const icon = escapeHtml(a.icon || '📋');
+                const name = escapeHtml(a.name || 'Service');
+                const desc = escapeHtml(a.description || _buildWorkflowSubtitle(a));
                 const category = escapeHtml(_getWorkflowCategory(a));
                 const trig = _getWorkflowTriggerInfo(a);
-                const appr = _getWorkflowApprovalInfo(a);
-                const triggerLabel = escapeHtml(trig.label);
-                const triggerDetail = escapeHtml(trig.detail || '');
-                const approvalLabel = escapeHtml(appr.label);
-                const statusCls = (trig.triggerType === 'manual') ? 'muted' : 'warning';
                 const canRunNow = (trig.triggerType === 'manual') || isPortalAdmin();
-                const runNowLabel = (trig.triggerType === 'manual') ? 'Start' : 'Run now';
+                const ctaLabel = _serviceCtaLabel(a);
                 return `
-                    <div class="wf-card">
+                    <div class="wf-card" ${canRunNow ? `onclick="openWorkflowRunModal('${a.id}')" style="cursor:pointer;"` : ''}>
                         <div class="wf-card-top">
                             <div class="wf-card-icon">${icon}</div>
                             <div style="min-width:0; flex:1;">
                                 <div class="wf-card-title">${name}</div>
                                 <div class="wf-card-desc">${desc}</div>
-                                <div style="margin-top: 10px;">
-                                    <span class="chip" style="cursor: default; pointer-events: none;">${category}</span>
-                                    <span class="chip" style="cursor: default; pointer-events: none;" title="${triggerDetail}">${triggerLabel}</span>
-                                    <span class="chip" style="cursor: default; pointer-events: none;">${approvalLabel}</span>
-                                </div>
                             </div>
                         </div>
                         <div class="wf-card-actions">
-                            <span class="status-pill ${statusCls}"><span class="dot"></span>${triggerLabel}</span>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
-                                <button class="portal-btn" onclick="viewWorkflowRuns('${a.id}')">View Runs</button>
-                                ${canRunNow ? `<button class="portal-btn portal-btn-primary" onclick="openWorkflowRunModal('${a.id}')">${runNowLabel}</button>` : ``}
-                            </div>
+                            <span class="chip" style="cursor:default; pointer-events:none; font-size:0.75rem;">${category}</span>
+                            ${canRunNow ? `<button class="portal-btn portal-btn-primary" onclick="event.stopPropagation();openWorkflowRunModal('${a.id}')">${ctaLabel}</button>` : `<span style="color:var(--text-muted); font-size:0.8rem;">Automated</span>`}
                         </div>
                     </div>
                 `;
@@ -1211,10 +1212,10 @@
             const statusEl = document.getElementById('workflow-run-status');
             const btn = document.getElementById('workflow-run-btn');
 
-            if (titleEl) titleEl.textContent = agent.name || 'Start Process';
+            if (titleEl) titleEl.textContent = agent.name || 'New Request';
             if (descEl) descEl.textContent = _buildWorkflowSubtitle(agent);
             if (statusEl) statusEl.textContent = '';
-            if (btn) { btn.disabled = false; btn.textContent = 'Start'; }
+            if (btn) { btn.style.display = ''; btn.disabled = false; btn.textContent = _serviceCtaLabel(agent); }
 
             buildWorkflowRunForm(agent);
             if (modal) modal.classList.add('open');
@@ -1229,6 +1230,8 @@
             if (form) form.innerHTML = '';
             const statusEl = document.getElementById('workflow-run-status');
             if (statusEl) statusEl.textContent = '';
+            const btn = document.getElementById('workflow-run-btn');
+            if (btn) { btn.style.display = ''; btn.disabled = false; }
         }
 
         function _splitArgs(argString) {
@@ -1650,18 +1653,49 @@
                 }
 
                 const executionId = data?.id || data?.execution_id || data?.executionId;
-                showToast('Process started successfully', 'success');
-                closeWorkflowRunModal();
+                const refNum = data?.execution_number || data?.run_number || data?.reference_id || (executionId ? executionId.slice(0, 8).toUpperCase() : '');
+                const wfName = currentWorkflowAgent?.name || 'Your request';
 
-                if (executionId) {
-                    selectedExecutionId = String(executionId);
-                    switchView('requests');
-                }
+                _showSubmissionConfirmation(wfName, refNum, executionId);
+
             } catch (e) {
                 console.error('executeWorkflow error:', e);
-                showToast(e?.message || 'Failed to start this process. Please try again.', 'error');
+                showToast(e?.message || 'Failed to submit your request. Please try again.', 'error');
                 if (statusEl) statusEl.textContent = '';
-                if (btn) { btn.disabled = false; btn.textContent = 'Start'; }
+                if (btn) { btn.disabled = false; btn.textContent = _serviceCtaLabel(currentWorkflowAgent); }
+            }
+        }
+
+        function _showSubmissionConfirmation(serviceName, refNumber, executionId) {
+            const formContainer = document.getElementById('workflow-form-fields');
+            const btn = document.getElementById('workflow-run-btn');
+            const statusEl = document.getElementById('workflow-run-status');
+            const titleEl = document.getElementById('workflow-run-title');
+            const descEl = document.getElementById('workflow-run-desc');
+
+            if (titleEl) titleEl.textContent = 'Request Submitted';
+            if (descEl) descEl.textContent = '';
+            if (statusEl) statusEl.textContent = '';
+            if (btn) btn.style.display = 'none';
+
+            const refDisplay = refNumber ? `<div style="margin-top:12px; padding:12px 16px; background:color-mix(in srgb, var(--primary) 8%, transparent); border:1px solid color-mix(in srgb, var(--primary) 25%, var(--border)); border-radius:12px; text-align:center;">
+                <div style="font-size:0.78rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; font-weight:700;">Reference Number</div>
+                <div style="font-size:1.2rem; font-weight:800; margin-top:4px; letter-spacing:0.05em; color:var(--text-primary);">${escapeHtml(String(refNumber))}</div>
+            </div>` : '';
+
+            if (formContainer) {
+                formContainer.innerHTML = `
+                    <div style="text-align:center; padding:20px 0;">
+                        <div style="font-size:3rem; margin-bottom:12px;">✅</div>
+                        <div style="font-size:1.1rem; font-weight:800; color:var(--text-primary);">${escapeHtml(serviceName)}</div>
+                        <div style="color:var(--text-muted); margin-top:6px; line-height:1.5;">Your request has been submitted successfully.<br>You will be notified when there are updates.</div>
+                        ${refDisplay}
+                        <div style="display:flex; gap:10px; justify-content:center; margin-top:20px; flex-wrap:wrap;">
+                            <button class="portal-btn" onclick="closeWorkflowRunModal();${executionId ? `selectedExecutionId='${executionId}';switchView('requests');` : ''}">Track My Request</button>
+                            <button class="portal-btn portal-btn-primary" onclick="closeWorkflowRunModal()">Done</button>
+                        </div>
+                    </div>
+                `;
             }
         }
 
@@ -1721,23 +1755,58 @@
             }
         }
 
+        function _formatRelativeTime(val) {
+            if (!val) return '';
+            try {
+                const d = (val instanceof Date) ? val : new Date(val);
+                if (isNaN(d.getTime())) return '';
+                const now = new Date();
+                const diffMs = now - d;
+                const diffMin = Math.floor(diffMs / 60000);
+                if (diffMin < 1) return 'Just now';
+                if (diffMin < 60) return `${diffMin} min ago`;
+                const diffHrs = Math.floor(diffMin / 60);
+                if (diffHrs < 24) return `${diffHrs} hour${diffHrs > 1 ? 's' : ''} ago`;
+                const diffDays = Math.floor(diffHrs / 24);
+                if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                return d.toLocaleDateString();
+            } catch (_) {
+                return '';
+            }
+        }
+
         function _statusPillClass(status) {
             const s = String(status || '').toLowerCase();
-            if (s === 'success') return 'success';
-            if (s === 'warning') return 'warning';
-            if (s === 'danger' || s === 'error') return 'danger';
-            if (s === 'completed') return 'success';
-            if (s === 'failed' || s === 'cancelled' || s === 'timed_out') return 'danger';
-            if (s === 'waiting' || s === 'paused') return 'warning';
-            if (s === 'running' || s === 'pending') return 'warning';
+            if (s === 'success' || s === 'completed') return 'success';
+            if (s === 'failed' || s === 'cancelled' || s === 'timed_out' || s === 'error' || s === 'danger') return 'danger';
+            if (s === 'waiting' || s === 'paused' || s === 'running' || s === 'pending' || s === 'warning') return 'warning';
             return 'muted';
+        }
+
+        function _businessStatusLabel(status) {
+            const s = String(status || '').toLowerCase();
+            const map = {
+                'pending': 'Submitted',
+                'running': 'In Progress',
+                'completed': 'Completed',
+                'success': 'Completed',
+                'failed': 'Unsuccessful',
+                'cancelled': 'Cancelled',
+                'timed_out': 'Timed Out',
+                'waiting': 'Awaiting Action',
+                'paused': 'On Hold',
+                'error': 'Unsuccessful',
+                'approved': 'Approved',
+                'rejected': 'Declined',
+            };
+            return map[s] || (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ') : 'Submitted');
         }
 
         function _getWorkflowNameById(agentId) {
             const id = String(agentId || '').trim();
-            if (!id) return 'Workflow';
+            if (!id) return 'Request';
             const a = (workflowAgents || []).find(x => x.id === id) || (allAccessibleAgents || []).find(x => x.id === id);
-            return a?.name || 'Workflow';
+            return a?.name || 'Request';
         }
 
         async function refreshRequests() {
@@ -1779,10 +1848,10 @@
             if (scopeEl) {
                 const admin = isPortalAdmin();
                 const scopes = admin ? [
-                    { id: 'mine', label: 'My runs', hint: 'Runs you started' },
-                    { id: 'org', label: 'Org runs', hint: 'All runs in your organization (admin)' }
+                    { id: 'mine', label: 'My Requests', hint: 'Requests you submitted' },
+                    { id: 'org', label: 'All Requests', hint: 'All requests in your organization' }
                 ] : [
-                    { id: 'mine', label: 'My runs', hint: 'Runs you started' }
+                    { id: 'mine', label: 'My Requests', hint: 'Requests you submitted' }
                 ];
                 scopeEl.innerHTML = '';
                 scopes.forEach(s => {
@@ -1847,7 +1916,7 @@
                     const subEl = document.getElementById('request-detail-subtitle');
                     const bodyEl = document.getElementById('request-detail-body');
                     if (titleEl) titleEl.textContent = 'Select a request';
-                    if (subEl) subEl.textContent = 'You’ll see status, inputs, and step-by-step progress here.';
+                    if (subEl) subEl.textContent = 'Choose a request to view its details and current status.';
                     if (bodyEl) bodyEl.innerHTML = '';
                 }
                 return;
@@ -1859,9 +1928,8 @@
                 const name = escapeHtml(_getWorkflowNameById(agentId));
                 const status = String(ex.status || '').toLowerCase();
                 const pillCls = _statusPillClass(status);
-                const label = escapeHtml(ex?.status_info?.label || (status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Status'));
-                const runNum = _executionRunNumber(ex);
-                const created = _formatDateTime(ex.created_at);
+                const label = escapeHtml(ex?.status_info?.label || _businessStatusLabel(status));
+                const timeAgo = _formatRelativeTime(ex.created_at);
                 return `
                     <div class="list-item ${selectedExecutionId === id ? 'active' : ''}" onclick="selectRequest('${id}')">
                         <div class="list-item-title">
@@ -1869,8 +1937,7 @@
                             <span class="status-pill ${pillCls}"><span class="dot"></span>${label}</span>
                         </div>
                         <div class="list-item-meta">
-                            ${runNum != null ? `<span>#${escapeHtml(runNum)}</span>` : ''}
-                            ${created ? `<span>${escapeHtml(created)}</span>` : ''}
+                            ${timeAgo ? `<span>${escapeHtml(timeAgo)}</span>` : ''}
                         </div>
                     </div>
                 `;
@@ -1896,7 +1963,7 @@
             const subEl = document.getElementById('request-detail-subtitle');
             const bodyEl = document.getElementById('request-detail-body');
             if (titleEl) titleEl.textContent = 'Loading…';
-            if (subEl) subEl.textContent = 'Fetching latest run status and steps…';
+            if (subEl) subEl.textContent = 'Retrieving your request details…';
             if (bodyEl) bodyEl.innerHTML = '';
 
             await refreshSelectedRequest();
@@ -2010,6 +2077,59 @@
             }
         }
 
+        function _businessStatusDescription(status) {
+            const s = String(status || '').toLowerCase();
+            const map = {
+                'pending': 'Your request has been submitted and is being processed.',
+                'running': 'Your request is currently being processed.',
+                'completed': 'Your request has been completed.',
+                'success': 'Your request has been completed successfully.',
+                'failed': 'There was an issue processing your request.',
+                'cancelled': 'This request has been cancelled.',
+                'timed_out': 'This request timed out. Please try again or contact support.',
+                'waiting': 'Your request is awaiting action from an approver.',
+                'paused': 'Your request is currently on hold.',
+                'approved': 'Your request has been approved.',
+                'rejected': 'Your request was not approved.',
+            };
+            return map[s] || 'Request details';
+        }
+
+        function _buildProgressTimeline(stepsArr, overallStatus) {
+            if (!stepsArr || !stepsArr.length) {
+                if (overallStatus === 'pending' || overallStatus === 'running') {
+                    return `<div class="progress-timeline">
+                        <div class="timeline-step completed"><div class="timeline-dot"></div><div class="timeline-label">Submitted</div></div>
+                        <div class="timeline-step active"><div class="timeline-dot"></div><div class="timeline-label">Processing</div></div>
+                        <div class="timeline-step"><div class="timeline-dot"></div><div class="timeline-label">Complete</div></div>
+                    </div>`;
+                }
+                if (overallStatus === 'completed' || overallStatus === 'success') {
+                    return `<div class="progress-timeline">
+                        <div class="timeline-step completed"><div class="timeline-dot"></div><div class="timeline-label">Submitted</div></div>
+                        <div class="timeline-step completed"><div class="timeline-dot"></div><div class="timeline-label">Processed</div></div>
+                        <div class="timeline-step completed"><div class="timeline-dot"></div><div class="timeline-label">Completed</div></div>
+                    </div>`;
+                }
+                return '';
+            }
+
+            const humanSteps = stepsArr.map(s => {
+                const sStatus = String(s?.status?.label || s?.status || '').toLowerCase();
+                const isDone = ['completed', 'success', 'approved'].includes(sStatus);
+                const isActive = ['running', 'pending', 'waiting', 'in_progress'].includes(sStatus);
+                const isFailed = ['failed', 'error', 'rejected'].includes(sStatus);
+                const stepName = s.step_name || s.node_name || humanizeNodeType(s.step_type || s.node_type);
+                let cls = '';
+                if (isDone) cls = 'completed';
+                else if (isActive) cls = 'active';
+                else if (isFailed) cls = 'failed';
+                return `<div class="timeline-step ${cls}"><div class="timeline-dot"></div><div class="timeline-label">${escapeHtml(stepName)}</div>${isFailed && s.error ? `<div class="timeline-error">${escapeHtml(friendlyErrorMessage(String(s.error), 'An issue occurred.'))}</div>` : ''}</div>`;
+            }).join('');
+
+            return `<div class="progress-timeline">${humanSteps}</div>`;
+        }
+
         function _renderRequestDetail(ex, steps) {
             const titleEl = document.getElementById('request-detail-title');
             const subEl = document.getElementById('request-detail-subtitle');
@@ -2020,38 +2140,23 @@
             const wfName = _getWorkflowNameById(agentId);
             const status = String(ex?.status || '').toLowerCase();
             const pillCls = _statusPillClass(status);
-            const label = ex?.status_info?.label || (status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Status');
-            const desc = ex?.status_info?.description || '';
-            const runNum = _executionRunNumber(ex);
+            const label = ex?.status_info?.label || _businessStatusLabel(status);
             const createdAt = _formatDateTime(ex?.created_at);
-            const startedAt = _formatDateTime(ex?.started_at);
             const completedAt = _formatDateTime(ex?.completed_at);
-            const duration = ex?.duration_display || '';
+            const refId = ex?.reference_id || ex?.correlation_id || '';
+            const runNum = _executionRunNumber(ex);
 
             if (titleEl) titleEl.textContent = wfName;
-            if (subEl) subEl.textContent = desc || 'Run details';
+            if (subEl) subEl.textContent = _businessStatusDescription(status);
 
             const inputData = _executionInputData(ex) || {};
             const result = _executionResult(ex);
-            const inputsEntries = (inputData && typeof inputData === 'object') ? Object.entries(inputData) : [];
+            const inputsEntries = (inputData && typeof inputData === 'object')
+                ? Object.entries(inputData).filter(([k]) => !k.startsWith('_'))
+                : [];
 
             const stepsArr = Array.isArray(steps) ? steps : [];
-            const stepsHtml = stepsArr.length ? stepsArr.map(s => {
-                const stLabel = s?.status?.label || s?.status?.description || s?.status || '';
-                const stColor = s?.status?.color || '';
-                const stCls = _statusPillClass(stColor || stLabel);
-                return `
-                    <div class="kv" style="margin-bottom: 10px;">
-                        <div class="k">${escapeHtml(humanizeNodeType(s.step_type || s.node_type))} • Step ${escapeHtml(s.order ?? s.execution_order ?? '')}</div>
-                        <div class="v" style="font-weight: 750;">${escapeHtml(s.step_name || s.node_name || 'Step')}</div>
-                        <div style="margin-top: 8px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                            <span class="status-pill ${stCls}"><span class="dot"></span>${escapeHtml(stLabel || 'Status')}</span>
-                            ${s.duration_display ? `<span style="color: var(--text-muted); font-size: 0.85rem;">${escapeHtml(s.duration_display)}</span>` : ''}
-                            ${s.error ? `<span style="color: var(--error); font-size: 0.85rem;">${escapeHtml(friendlyErrorMessage(String(s.error), 'An error occurred at this step.'))}</span>` : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('') : `<div style="color: var(--text-muted);">No step history yet.</div>`;
+            const progressSteps = _buildProgressTimeline(stepsArr, status);
 
             const inputsHtml = inputsEntries.length ? `
                 <div class="kv-grid" style="margin-top: 10px;">
@@ -2062,45 +2167,44 @@
                         </div>
                     `).join('')}
                 </div>
-            ` : `<div style="color: var(--text-muted); margin-top: 8px;">No input data recorded.</div>`;
+            ` : '';
 
             const resultHtml = (result != null) ? `
-                <div class="kv" style="margin-top: 10px;">
-                    <div class="k">Result</div>
-                    <div class="v">${escapeHtml(typeof result === 'string' ? result : JSON.stringify(result, null, 2))}</div>
+                <div style="margin-top: 18px;">
+                    <div style="font-weight: 800; margin-bottom: 8px;">Outcome</div>
+                    <div class="kv" style="margin-top: 10px;">
+                        <div class="v">${escapeHtml(typeof result === 'string' ? result : JSON.stringify(result, null, 2))}</div>
+                    </div>
                 </div>
             ` : '';
 
             bodyEl.innerHTML = `
-                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                    <span class="status-pill ${pillCls}"><span class="dot"></span>${escapeHtml(label)}</span>
-                    ${runNum != null ? `<span class="status-pill muted"><span class="dot"></span>Run #${escapeHtml(runNum)}</span>` : ''}
-                    ${duration ? `<span class="status-pill muted"><span class="dot"></span>${escapeHtml(duration)}</span>` : ''}
+                <div class="request-status-banner ${pillCls}">
+                    <span class="status-pill ${pillCls}" style="font-size:0.85rem;"><span class="dot"></span>${escapeHtml(label)}</span>
                 </div>
 
                 <div class="kv-grid" style="margin-top: 14px;">
-                    ${createdAt ? `<div class="kv"><div class="k">Created</div><div class="v">${escapeHtml(createdAt)}</div></div>` : ''}
-                    ${startedAt ? `<div class="kv"><div class="k">Started</div><div class="v">${escapeHtml(startedAt)}</div></div>` : ''}
+                    ${createdAt ? `<div class="kv"><div class="k">Submitted</div><div class="v">${escapeHtml(createdAt)}</div></div>` : ''}
                     ${completedAt ? `<div class="kv"><div class="k">Completed</div><div class="v">${escapeHtml(completedAt)}</div></div>` : ''}
-                    ${ex?.reference_id || ex?.correlation_id ? `<div class="kv"><div class="k">Reference</div><div class="v">${escapeHtml(ex.reference_id || ex.correlation_id)}</div></div>` : ''}
+                    ${refId ? `<div class="kv"><div class="k">Reference</div><div class="v">${escapeHtml(refId)}</div></div>` : ''}
+                    ${runNum != null ? `<div class="kv"><div class="k">Request No.</div><div class="v">#${escapeHtml(runNum)}</div></div>` : ''}
                 </div>
 
-                <div style="margin-top: 18px;">
-                    <div style="font-weight: 800; margin-bottom: 8px;">Inputs</div>
-                    ${inputsHtml}
-                </div>
-
-                ${resultHtml ? `
+                ${progressSteps ? `
                     <div style="margin-top: 18px;">
-                        <div style="font-weight: 800; margin-bottom: 8px;">Outcome</div>
-                        ${resultHtml}
+                        <div style="font-weight: 800; margin-bottom: 10px;">Progress</div>
+                        ${progressSteps}
                     </div>
                 ` : ''}
 
-                <div style="margin-top: 18px;">
-                    <div style="font-weight: 800; margin-bottom: 8px;">Step-by-step</div>
-                    ${stepsHtml}
-                </div>
+                ${inputsEntries.length ? `
+                    <div style="margin-top: 18px;">
+                        <div style="font-weight: 800; margin-bottom: 8px;">Submitted Information</div>
+                        ${inputsHtml}
+                    </div>
+                ` : ''}
+
+                ${resultHtml}
             `;
 
             // Wire up authenticated downloads for uploaded file buttons

@@ -1087,6 +1087,177 @@
             word-break: break-word;
         }
 
+        /* Request Status Banner */
+        .request-status-banner {
+            padding: 14px 18px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .request-status-banner.success {
+            background: color-mix(in srgb, var(--success) 10%, transparent);
+            border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border));
+        }
+
+        .request-status-banner.warning {
+            background: color-mix(in srgb, var(--warning) 10%, transparent);
+            border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border));
+        }
+
+        .request-status-banner.danger {
+            background: color-mix(in srgb, var(--error) 10%, transparent);
+            border: 1px solid color-mix(in srgb, var(--error) 30%, var(--border));
+        }
+
+        .request-status-banner.muted {
+            background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+            border: 1px solid var(--border);
+        }
+
+        /* Progress Timeline */
+        .progress-timeline {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            position: relative;
+            padding: 4px 0;
+        }
+
+        .timeline-step {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            text-align: center;
+            padding: 0 4px;
+        }
+
+        .timeline-step::before {
+            content: '';
+            position: absolute;
+            top: 9px;
+            left: -50%;
+            right: 50%;
+            height: 3px;
+            background: var(--border);
+            z-index: 0;
+        }
+
+        .timeline-step:first-child::before {
+            display: none;
+        }
+
+        .timeline-step.completed::before {
+            background: var(--success);
+        }
+
+        .timeline-step.active::before {
+            background: var(--success);
+        }
+
+        .timeline-step.failed::before {
+            background: var(--error);
+        }
+
+        .timeline-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 3px solid var(--border);
+            position: relative;
+            z-index: 1;
+            transition: all 0.2s;
+        }
+
+        .timeline-step.completed .timeline-dot {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .timeline-step.active .timeline-dot {
+            background: var(--bg-card);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        .timeline-step.failed .timeline-dot {
+            background: var(--error);
+            border-color: var(--error);
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent); }
+            50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 10%, transparent); }
+        }
+
+        .timeline-label {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            line-height: 1.2;
+            max-width: 90px;
+        }
+
+        .timeline-step.completed .timeline-label {
+            color: var(--success);
+        }
+
+        .timeline-step.active .timeline-label {
+            color: var(--primary);
+            font-weight: 800;
+        }
+
+        .timeline-step.failed .timeline-label {
+            color: var(--error);
+        }
+
+        .timeline-error {
+            margin-top: 4px;
+            font-size: 0.7rem;
+            color: var(--error);
+            max-width: 120px;
+        }
+
+        @media (max-width: 600px) {
+            .progress-timeline {
+                flex-direction: column;
+                gap: 0;
+                padding-left: 20px;
+            }
+
+            .timeline-step {
+                flex-direction: row;
+                align-items: center;
+                gap: 12px;
+                text-align: left;
+                padding: 8px 0;
+            }
+
+            .timeline-step::before {
+                top: -50%;
+                bottom: 50%;
+                left: 8px;
+                right: auto;
+                width: 3px;
+                height: auto;
+            }
+
+            .timeline-step:first-child::before {
+                display: none;
+            }
+
+            .timeline-label {
+                margin-top: 0;
+                max-width: none;
+            }
+        }
+
         /* Chat Header */
         .chat-header {
             padding: 16px 24px;
