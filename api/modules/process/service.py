@@ -731,6 +731,17 @@ class ProcessAPIService:
         - Return immediately (status=running)
         - Continue engine execution in the background
         """
+        def _pending_upload_fields(t: Dict[str, Any]) -> List[str]:
+            out: List[str] = []
+            if not isinstance(t, dict):
+                return out
+            for k, v in t.items():
+                if not k:
+                    continue
+                if isinstance(v, dict) and str(v.get("kind") or "").strip().lower() == "pendingupload":
+                    out.append(str(k))
+            return out
+
         # Create record using the same validation/normalization as the sync path, but do not run engine here.
         agent = self.db.query(Agent).filter(
             Agent.id == uuid.UUID(agent_id),
@@ -794,11 +805,6 @@ class ProcessAPIService:
             process_definition_snapshot=definition_data,
         )
 
-        execution = self.exec_service.update_execution_status(
-            str(execution.id),
-            status="running"
-        )
-
         # Enrich + persist minimal identity context for downstream use (also keeps portal display consistent)
         user_context = {}
         try:
@@ -820,10 +826,26 @@ class ProcessAPIService:
             _exec_obj = self.exec_service.get_execution(str(execution.id))
             if _exec_obj:
                 _exec_obj.trigger_input = enriched_trigger
+                # If there are pending uploads, keep the execution in 'pending' and wait for finalize-uploads.
+                pending_fields = _pending_upload_fields(_trigger)
+                if pending_fields:
+                    meta = self._ensure_dict(getattr(_exec_obj, "extra_metadata", None) or {})
+                    meta["awaiting_uploads"] = pending_fields
+                    _exec_obj.extra_metadata = meta
                 self.db.add(_exec_obj)
                 self.db.commit()
         except Exception as e:
             logger.warning("[ProcessIdentity] Fast path failed to persist enriched trigger: %s", e)
+
+        # If there are pending uploads, return immediately without starting the engine yet.
+        pending_fields = _pending_upload_fields(_trigger)
+        if pending_fields:
+            return self._to_response(execution)
+
+        execution = self.exec_service.update_execution_status(
+            str(execution.id),
+            status="running"
+        )
 
         # Background run (fresh DB session)
         import asyncio
@@ -846,6 +868,72 @@ class ProcessAPIService:
         except RuntimeError:
             # Fallback: run inline if no running loop (rare under ASGI)
             await _runner()
+
+        return self._to_response(execution)
+
+    async def finalize_execution_uploads(
+        self,
+        execution_id: str,
+        org_id: str,
+        user_id: str,
+        files: Dict[str, Any],
+        is_platform_admin: bool = False,
+    ) -> ProcessExecutionResponse:
+        """
+        Attach uploaded files to an execution created by start_execution_fast, then start processing.
+        """
+        execution = self.exec_service.get_execution(str(execution_id))
+        if not execution or str(getattr(execution, "org_id", "")) != str(org_id):
+            raise ValueError("not found")
+
+        is_creator = str(getattr(execution, "created_by", "")) == str(user_id)
+        if not is_creator and not is_platform_admin:
+            raise PermissionError("Permission denied")
+
+        if not isinstance(files, dict):
+            raise ValueError("Invalid files payload")
+
+        trigger = self._ensure_dict(getattr(execution, "trigger_input", None) or {})
+        for k, v in list(files.items())[:50]:
+            key = str(k or "").strip()
+            if not key:
+                continue
+            trigger[key] = v
+
+        meta = self._ensure_dict(getattr(execution, "extra_metadata", None) or {})
+        awaiting = meta.get("awaiting_uploads") or []
+        remaining: List[str] = []
+        if isinstance(awaiting, list):
+            provided = set(str(k).strip() for k in files.keys() if k)
+            remaining = [str(x) for x in awaiting if str(x).strip() and str(x).strip() not in provided]
+            meta["awaiting_uploads"] = remaining
+        execution.trigger_input = trigger
+        execution.extra_metadata = meta
+        self.db.add(execution)
+        self.db.commit()
+
+        # If all required uploads are attached, start the engine in background.
+        if not remaining:
+            execution = self.exec_service.update_execution_status(str(execution.id), status="running")
+            import asyncio
+
+            async def _runner():
+                db = get_db_session()
+                try:
+                    svc = ProcessAPIService(db=db, llm_registry=self.llm_registry)
+                    await svc.run_execution_from_db(execution_id=str(execution.id))
+                except Exception as e:
+                    logger.exception("[ProcessFast] Background run failed (finalize): %s", e)
+                finally:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+
+            try:
+                asyncio.create_task(_runner())
+            except RuntimeError:
+                await _runner()
 
         return self._to_response(execution)
 

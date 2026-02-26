@@ -45,6 +45,7 @@ from .schemas import (
     UpdateProcessScheduleRequest,
     UpdateProcessScheduleResponse,
     PendingApprovalDisplayResponse,
+    FinalizeExecutionUploadsRequest,
 )
 from .service import ProcessAPIService
 
@@ -1302,6 +1303,50 @@ async def get_execution_pending_approvals(
         is_platform_admin=_is_platform_admin(user),
     )
     return PendingApprovalDisplayResponse(items=items)
+
+
+@router.post("/executions/{execution_id}/finalize-uploads", response_model=ProcessExecutionResponse)
+async def finalize_execution_uploads(
+    execution_id: str,
+    request: FinalizeExecutionUploadsRequest,
+    service: ProcessAPIService = Depends(get_service),
+    user: User = Depends(require_auth),
+):
+    """
+    Portal helper: attach uploaded files to an execution and start processing.
+
+    This keeps the submission experience fast: a reference is returned immediately,
+    then attachments are uploaded and the execution begins.
+    """
+    user_dict = _user_to_dict(user)
+    try:
+        return await service.finalize_execution_uploads(
+            execution_id=execution_id,
+            org_id=user_dict["org_id"],
+            user_id=user_dict["id"],
+            files=request.files or {},
+            is_platform_admin=_is_platform_admin(user),
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=403,
+            detail=format_error_for_user(ErrorCode.PERMISSION_DENIED),
+        )
+    except ValueError as e:
+        sanitized = sanitize_for_user(str(e))
+        raise HTTPException(
+            status_code=400,
+            detail=problem_details_rfc9457(
+                400, ErrorCode.VALIDATION_FAILED,
+                detail_override=sanitized,
+            ),
+        )
+    except Exception:
+        logging.getLogger(__name__).exception("Finalize uploads failed")
+        raise HTTPException(
+            status_code=500,
+            detail=problem_details_rfc9457(500, ErrorCode.EXECUTION_FAILED),
+        )
 
 
 # =============================================================================

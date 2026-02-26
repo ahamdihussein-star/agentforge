@@ -2241,6 +2241,7 @@
                 recomputeWorkflowDerivedFields(workflowRunInputs);
 
                 const triggerData = {};
+                const pendingUploads = []; // { fieldId, inputLabel, fileObj }
                 for (const input of (workflowRunInputs || [])) {
                     const field = document.getElementById(_wfElId(input.id));
                     if (!field) continue;
@@ -2254,7 +2255,14 @@
                             return;
                         }
                         if (fileObj) {
-                            triggerData[input.id] = await uploadWorkflowRunFile(fileObj);
+                            // Return reference immediately, then upload attachments in background.
+                            triggerData[input.id] = {
+                                kind: 'pendingUpload',
+                                name: fileObj.name,
+                                size: fileObj.size,
+                                content_type: fileObj.type || ''
+                            };
+                            pendingUploads.push({ fieldId: input.id, inputLabel: input.label || input.id, fileObj });
                         } else {
                             triggerData[input.id] = null;
                         }
@@ -2296,7 +2304,36 @@
                 const refNum = data?.execution_number || data?.run_number || data?.reference_id || (executionId ? executionId.slice(0, 8).toUpperCase() : '');
                 const wfName = currentWorkflowAgent?.name || 'Your request';
 
-                _showSubmissionConfirmation(wfName, refNum, executionId);
+                _showSubmissionConfirmation(wfName, refNum, executionId, pendingUploads.length ? 'Uploading attachments…' : '');
+
+                // Upload files and finalize (non-blocking for the reference screen)
+                if (executionId && pendingUploads.length) {
+                    (async () => {
+                        try {
+                            const filesMap = {};
+                            for (let i = 0; i < pendingUploads.length; i++) {
+                                const u = pendingUploads[i];
+                                _setSubmissionProgress(`Uploading attachments… (${i + 1}/${pendingUploads.length})`);
+                                filesMap[u.fieldId] = await uploadWorkflowRunFile(u.fileObj);
+                            }
+                            _setSubmissionProgress('Finalizing…');
+                            const res2 = await fetch(`${API}/process/executions/${executionId}/finalize-uploads`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                                body: JSON.stringify({ files: filesMap })
+                            });
+                            if (!res2.ok) {
+                                const err = await res2.json().catch(() => ({}));
+                                throw new Error((err && (err.detail || err.message)) ? (err.detail || err.message) : 'Unable to finalize attachments');
+                            }
+                            _setSubmissionProgress('Your request is now being processed.');
+                        } catch (e) {
+                            console.error('finalize uploads error:', e);
+                            _setSubmissionProgress('Attachments could not be uploaded. Please keep this page open and try again.');
+                            showToast('Some attachments failed to upload. Please try again.', 'error');
+                        }
+                    })();
+                }
 
             } catch (e) {
                 console.error('executeWorkflow error:', e);
@@ -2306,7 +2343,15 @@
             }
         }
 
-        function _showSubmissionConfirmation(serviceName, refNumber, executionId) {
+        function _setSubmissionProgress(text) {
+            const el = document.getElementById('submission-progress');
+            if (!el) return;
+            const t = String(text || '').trim();
+            el.textContent = t;
+            el.style.display = t ? '' : 'none';
+        }
+
+        function _showSubmissionConfirmation(serviceName, refNumber, executionId, progressText) {
             const formContainer = document.getElementById('workflow-form-fields');
             const btn = document.getElementById('workflow-run-btn');
             const statusEl = document.getElementById('workflow-run-status');
@@ -2329,6 +2374,7 @@
                         <div style="font-size:3rem; margin-bottom:12px;">✅</div>
                         <div style="font-size:1.1rem; font-weight:800; color:var(--text-primary);">${escapeHtml(serviceName)}</div>
                         <div style="color:var(--text-muted); margin-top:6px; line-height:1.5;">Your request has been submitted successfully.<br>You will be notified when there are updates.</div>
+                        <div id="submission-progress" style="margin-top:10px; color:var(--text-muted); font-size:0.85rem; display:none;"></div>
                         ${refDisplay}
                         <div style="display:flex; gap:10px; justify-content:center; margin-top:20px; flex-wrap:wrap;">
                             <button class="portal-btn" onclick="closeWorkflowRunModal();${executionId ? `selectedExecutionId='${executionId}';switchView('requests');` : ''}">Track My Request</button>
@@ -2337,6 +2383,7 @@
                     </div>
                 `;
             }
+            _setSubmissionProgress(progressText || '');
         }
 
         async function uploadWorkflowRunFile(fileObj) {
@@ -2551,7 +2598,9 @@
                 }
                 const name = _getWorkflowNameById(_executionAgentId(ex));
                 const statusLabel = ex?.status_info?.label || ex?.status || '';
-                const hay = `${name} ${statusLabel} ${ex?.id || ''}`.toLowerCase();
+                const runNo = ex?.execution_number || ex?.run_number || ex?.executionNumber || '';
+                const ref = ex?.reference_id || ex?.correlation_id || ex?.referenceId || ex?.correlationId || '';
+                const hay = `${name} ${statusLabel} ${runNo} ${ref} ${ex?.id || ''}`.toLowerCase();
                 return !q || hay.includes(q);
             });
 

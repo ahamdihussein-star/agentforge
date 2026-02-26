@@ -213,6 +213,19 @@ class ProcessCancelRequest(BaseModel):
     reason: Optional[str] = Field(default=None, description="Why are you stopping this?")
 
 
+class FinalizeExecutionUploadsRequest(BaseModel):
+    """
+    Attach uploaded files to an execution and start processing.
+
+    Used by the portal to return a reference immediately, then upload attachments
+    in the background and finalize the request.
+    """
+    files: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Mapping of input field id -> uploaded file reference object"
+    )
+
+
 # =============================================================================
 # STATISTICS SCHEMAS
 # =============================================================================
