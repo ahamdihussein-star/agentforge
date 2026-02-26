@@ -2361,7 +2361,7 @@
                     const subEl = document.getElementById('inbox-detail-subtitle');
                     const bodyEl = document.getElementById('inbox-detail-body');
                     if (titleEl) titleEl.textContent = 'Select an item';
-                    if (subEl) subEl.textContent = 'Review details and approve/reject.';
+                    if (subEl) subEl.textContent = 'Select an item to review details and take action.';
                     if (bodyEl) bodyEl.innerHTML = '';
                 }
                 return;
@@ -2370,16 +2370,18 @@
             listEl.innerHTML = filtered.map(a => {
                 const id = String(a.id || '');
                 const title = escapeHtml(a.title || 'Approval');
-                const urgency = escapeHtml(a.urgency || a.priority || 'normal');
-                const dueBy = _formatDateTime(a.due_by || a.deadline_at);
+                const rawUrgency = String(a.urgency || a.priority || 'normal').toLowerCase();
+                const urgencyLabel = escapeHtml(humanizeUrgency(rawUrgency));
+                const urgCls = (rawUrgency === 'high' || rawUrgency === 'critical') ? 'danger' : 'warning';
+                const dueRelative = _formatRelativeTime(a.due_by || a.deadline_at);
                 return `
                     <div class="list-item ${selectedApprovalId === id ? 'active' : ''}" onclick="selectApproval('${id}')">
                         <div class="list-item-title">
                             <span style="min-width:0; overflow:hidden; text-overflow: ellipsis; white-space: nowrap;">${title}</span>
-                            <span class="status-pill warning"><span class="dot"></span>${urgency}</span>
+                            <span class="status-pill ${urgCls}"><span class="dot"></span>${urgencyLabel}</span>
                         </div>
                         <div class="list-item-meta">
-                            ${dueBy ? `<span>Due: ${escapeHtml(dueBy)}</span>` : `<span>Pending</span>`}
+                            ${dueRelative ? `<span>Due ${escapeHtml(dueRelative)}</span>` : `<span>Pending review</span>`}
                         </div>
                     </div>
                 `;
@@ -2431,6 +2433,35 @@
             }
         }
 
+        function _renderApprovalReviewRows(data) {
+            if (!data || typeof data !== 'object') return '';
+            const allKeys = new Set(Object.keys(data).map(k => k.toLowerCase()));
+            const rows = [];
+            for (const [rawKey, rawVal] of Object.entries(data)) {
+                if (_isHiddenField(rawKey, allKeys)) continue;
+                if (rawVal == null) continue;
+                if (typeof rawVal === 'object' && !Array.isArray(rawVal)) {
+                    if (rawVal.kind === 'uploadedFile') {
+                        const rendered = _renderPortalValue(rawVal, rawKey);
+                        if (!rendered.includes('detail-empty')) {
+                            rows.push({ label: humanizeFieldLabel(rawKey) || rawKey, html: rendered });
+                        }
+                        continue;
+                    }
+                    const nested = _flattenResultForDisplay(rawVal);
+                    nested.forEach(n => {
+                        if (!n.value || (typeof n.value === 'string' && n.value.includes('detail-empty'))) return;
+                        rows.push({ label: n.key, html: n.isHtml ? n.value : escapeHtml(String(n.value)) });
+                    });
+                    continue;
+                }
+                const rendered = _renderPortalValue(rawVal, rawKey);
+                if (rendered.includes('detail-empty')) continue;
+                rows.push({ label: humanizeFieldLabel(rawKey) || rawKey, html: rendered });
+            }
+            return rows;
+        }
+
         function _renderApprovalDetail(a) {
             const titleEl = document.getElementById('inbox-detail-title');
             const subEl = document.getElementById('inbox-detail-subtitle');
@@ -2440,54 +2471,65 @@
             const title = a?.title || 'Approval';
             const desc = a?.description || '';
             const urgency = a?.urgency || a?.priority || 'normal';
+            const urgencyLabel = humanizeUrgency(urgency);
+            const urgencyCls = (urgency === 'high' || urgency === 'critical') ? 'danger' : 'warning';
             const dueBy = _formatDateTime(a?.due_by || a?.deadline_at);
+            const dueRelative = _formatRelativeTime(a?.due_by || a?.deadline_at);
             const details = a?.details_to_review || a?.review_data || {};
-            const detailEntries = (details && typeof details === 'object') ? Object.entries(details) : [];
 
             if (titleEl) titleEl.textContent = title;
-            if (subEl) subEl.textContent = desc ? desc : 'Review details and approve/reject.';
+            if (subEl) subEl.textContent = desc || 'Review the details below and make your decision.';
 
-            const detailsHtml = (() => {
-                try {
-                    if (typeof window.afRenderReviewData === 'function') {
-                        const html = window.afRenderReviewData(details, { maxRows: 24 }) || '';
-                        if (html) return html;
-                    }
-                } catch (_) {}
-                // Fallback: keep safe and non-technical
-                if (!detailEntries.length) return `<div style="color: var(--text-muted); margin-top: 8px;">No additional details provided.</div>`;
-                const safe = detailEntries
-                    .filter(([k]) => { const lk = String(k || '').toLowerCase(); return lk !== '_user_context' && !lk.startsWith('_'); })
-                    .slice(0, 10)
-                    .map(([k, v]) => `<div class="kv"><div class="k">${escapeHtml(humanizeFieldLabel(k) || k)}</div><div class="v">${escapeHtml(String(v ?? ''))}</div></div>`)
-                    .join('');
-                return safe ? `<div class="kv-grid" style="margin-top: 10px;">${safe}</div>` : `<div style="color: var(--text-muted); margin-top: 8px;">No additional details provided.</div>`;
-            })();
+            const reviewRows = _renderApprovalReviewRows(details);
+            const reviewHtml = reviewRows.length
+                ? reviewRows.map(r => `<div class="detail-row"><div class="detail-label">${escapeHtml(r.label)}</div><div class="detail-value">${r.html}</div></div>`).join('')
+                : `<div style="color: var(--text-muted); padding: 8px 0;">No additional details provided.</div>`;
 
             bodyEl.innerHTML = `
-                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                    <span class="status-pill warning"><span class="dot"></span>${escapeHtml(humanizeUrgency(urgency))}</span>
-                    ${dueBy ? `<span class="status-pill muted"><span class="dot"></span>Due ${escapeHtml(dueBy)}</span>` : `<span class="status-pill muted"><span class="dot"></span>Pending</span>`}
+                <div class="request-hero ${urgencyCls}">
+                    <div class="request-hero-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="${urgency === 'high' || urgency === 'critical' ? 'var(--error)' : 'var(--warning)'}" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div class="request-hero-info">
+                        <span class="status-pill ${urgencyCls}" style="font-size:0.82rem;"><span class="dot"></span>${escapeHtml(urgencyLabel)}</span>
+                        <div class="request-hero-meta">
+                            ${dueBy ? `<span>Due ${escapeHtml(dueRelative || dueBy)}</span>` : '<span>Pending review</span>'}
+                        </div>
+                    </div>
                 </div>
 
-                ${desc ? `<div style="margin-top: 12px; color: var(--text-secondary); line-height: 1.4;">${escapeHtml(desc)}</div>` : ''}
+                ${desc ? `<div style="margin-top: 14px; color: var(--text-secondary); line-height: 1.5; font-size: 0.92rem;">${escapeHtml(desc)}</div>` : ''}
 
-                <div style="margin-top: 18px;">
-                    <div style="font-weight: 800; margin-bottom: 8px;">Details to review</div>
-                    ${detailsHtml}
+                <div class="detail-section" style="margin-top: 16px;">
+                    <div class="detail-section-header">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        Details to Review
+                    </div>
+                    <div class="detail-section-body">${reviewHtml}</div>
                 </div>
 
-                <div style="margin-top: 18px;">
-                    <div style="font-weight: 800; margin-bottom: 8px;">Your decision</div>
-                    <div class="modal-form-group" style="margin-bottom: 0;">
-                        <label class="modal-form-label">Comments (optional)</label>
-                        <textarea id="approval-comments" class="modal-form-input" rows="3" placeholder="Add a note…"></textarea>
+                <div class="detail-section" style="margin-top: 16px;">
+                    <div class="detail-section-header">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        Your Decision
                     </div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px;">
-                        <button class="portal-btn portal-btn-primary" onclick="decideApproval('approved')">Approve</button>
-                        <button class="portal-btn" style="border-color: color-mix(in srgb, var(--error) 60%, var(--border)); color: var(--error);" onclick="decideApproval('rejected')">Reject</button>
+                    <div class="detail-section-body">
+                        <div style="margin-bottom: 12px;">
+                            <label style="font-size: 0.82rem; color: var(--text-muted); font-weight: 650; display: block; margin-bottom: 6px;">Comments (optional)</label>
+                            <textarea id="approval-comments" class="modal-form-input" rows="3" placeholder="Add a note to explain your decision…" style="width:100%; box-sizing:border-box;"></textarea>
+                        </div>
+                        <div class="approval-actions">
+                            <button class="approval-btn approve" onclick="decideApproval('approved')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                Approve
+                            </button>
+                            <button class="approval-btn reject" onclick="decideApproval('rejected')">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                Decline
+                            </button>
+                        </div>
+                        <div id="approval-action-status" style="margin-top: 10px; color: var(--text-muted); font-size: 0.85rem;"></div>
                     </div>
-                    <div id="approval-action-status" style="margin-top: 10px; color: var(--text-muted); font-size: 0.85rem;"></div>
                 </div>
             `;
         }

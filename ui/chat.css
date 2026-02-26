@@ -1279,6 +1279,50 @@
             border-color: var(--primary);
         }
 
+        /* Approval Action Buttons */
+        .approval-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .approval-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 22px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 750;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .approval-btn.approve {
+            background: var(--success);
+            color: #fff;
+            border-color: var(--success);
+        }
+
+        .approval-btn.approve:hover {
+            background: color-mix(in srgb, var(--success) 85%, #000);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px color-mix(in srgb, var(--success) 35%, transparent);
+        }
+
+        .approval-btn.reject {
+            background: transparent;
+            color: var(--error);
+            border-color: color-mix(in srgb, var(--error) 50%, var(--border));
+        }
+
+        .approval-btn.reject:hover {
+            background: color-mix(in srgb, var(--error) 8%, transparent);
+            border-color: var(--error);
+            transform: translateY(-1px);
+        }
+
         .detail-empty {
             color: var(--text-muted);
             font-style: italic;
