@@ -66,7 +66,7 @@
     </div>
 
     <!-- Main Chat Interface -->
-    <div id="chat-interface" class="hidden" style="display: none; width: 100%; height: calc(100vh - var(--org-banner-height, 0px));">
+    <div id="chat-interface" class="hidden" style="display: none; width: 100%; height: 100vh;">
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
@@ -95,14 +95,9 @@
                     <span class="nav-icon">💬</span>
                     <span class="nav-label">Conversational AI Agents</span>
                 </div>
-                <div class="nav-item" data-view="work" onclick="switchView('workflows')">
+                <div class="nav-item" data-view="workflows" onclick="switchView('workflows')">
                     <span class="nav-icon">🧩</span>
-                    <span class="nav-label">Work</span>
-                </div>
-                <div class="nav-item" data-view="inbox" onclick="switchView('inbox')">
-                    <span class="nav-icon">✅</span>
-                    <span class="nav-label">Inbox</span>
-                    <span class="nav-badge" id="nav-inbox-badge"></span>
+                    <span class="nav-label">Process AI Agents</span>
                 </div>
             </div>
 
@@ -132,39 +127,6 @@
                     <div id="history-list">
                         <!-- History loaded dynamically -->
                     </div>
-                </div>
-            </div>
-
-            <div id="work-sidebar-panels" class="hidden">
-                <div class="agent-section">
-                    <div class="section-label">Work</div>
-                    <div class="work-shortcuts">
-                        <button class="work-shortcut" onclick="switchView('workflows')">
-                            <span class="work-shortcut-icon">🧩</span>
-                            <span class="work-shortcut-text">
-                                <span class="work-shortcut-title">Process AI Agents</span>
-                                <span class="work-shortcut-subtitle">Browse &amp; submit requests</span>
-                            </span>
-                        </button>
-                        <button class="work-shortcut" onclick="switchView('requests')">
-                            <span class="work-shortcut-icon">📄</span>
-                            <span class="work-shortcut-text">
-                                <span class="work-shortcut-title">My Requests</span>
-                                <span class="work-shortcut-subtitle">Track status &amp; outcomes</span>
-                            </span>
-                        </button>
-                        <button class="work-shortcut" onclick="switchView('inbox')">
-                            <span class="work-shortcut-icon">✅</span>
-                            <span class="work-shortcut-text">
-                                <span class="work-shortcut-title">Inbox</span>
-                                <span class="work-shortcut-subtitle">Approvals &amp; action items</span>
-                            </span>
-                            <span class="work-shortcut-badge" id="work-inbox-badge"></span>
-                        </button>
-                    </div>
-                </div>
-                <div class="sidebar-powered-by">
-                    <span>Powered by</span> <strong>AgentForge</strong>
                 </div>
             </div>
 
@@ -263,20 +225,6 @@
                             <div class="home-card-desc">Submit requests, fill out forms, and track approvals — everything you need in one place.</div>
                             <div class="home-card-footer">
                                 <span class="home-badge">Requests &bull; Forms &bull; Approvals</span>
-                                <span class="home-card-arrow">&rarr;</span>
-                            </div>
-                        </div>
-                        <div class="home-card" onclick="switchView('inbox')">
-                            <div class="home-card-header">
-                                <div class="home-card-icon inbox">✅</div>
-                                <div>
-                                    <div class="home-card-title">Inbox</div>
-                                    <div class="home-card-count" id="home-inbox-label">Approvals &amp; Action Items</div>
-                                </div>
-                            </div>
-                            <div class="home-card-desc">Review and approve requests that need your attention. You’ll always see what’s urgent first.</div>
-                            <div class="home-card-footer">
-                                <span class="home-badge">Approvals &bull; Tasks</span>
                                 <span class="home-card-arrow">&rarr;</span>
                             </div>
                         </div>

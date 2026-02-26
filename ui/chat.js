@@ -728,16 +728,9 @@
         }
 
         function _setInboxBadge(count) {
-            const el = document.getElementById('nav-inbox-badge');
-            if (!el) return;
-            const n = Math.max(0, parseInt(String(count || '0'), 10) || 0);
-            el.textContent = n > 99 ? '99+' : String(n);
-            el.classList.toggle('show', n > 0);
-            const el2 = document.getElementById('work-inbox-badge');
-            if (el2) {
-                el2.textContent = n > 99 ? '99+' : String(n);
-                el2.classList.toggle('show', n > 0);
-            }
+            // Sidebar inbox badge has been removed. Keep function as a safe no-op
+            // because other code paths may still call it.
+            return;
         }
 
         function toggleNavGroup(groupId) {
@@ -767,8 +760,7 @@
             // Nav active state
             document.querySelectorAll('.nav-item').forEach(item => {
                 const key = String(item.dataset.view || '');
-                const isWork = key === 'work' && (v === 'workflows' || v === 'requests');
-                item.classList.toggle('active', key === v || isWork);
+                item.classList.toggle('active', key === v);
             });
 
             // Show/hide view containers
@@ -778,11 +770,9 @@
                 el.classList.toggle('hidden', name !== v);
             });
 
-            // Sidebar: show chat panels only in chat view
+            // Sidebar panels are always visible; only the New Chat button is chat-only
             const panels = document.getElementById('chat-sidebar-panels');
-            if (panels) panels.classList.toggle('hidden', v !== 'chat');
-            const workPanels = document.getElementById('work-sidebar-panels');
-            if (workPanels) workPanels.classList.toggle('hidden', v === 'chat');
+            if (panels) panels.classList.remove('hidden');
             const newChatBtn = document.getElementById('new-chat-btn');
             if (newChatBtn) newChatBtn.classList.toggle('hidden', v !== 'chat');
 
@@ -2375,7 +2365,8 @@
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) return;
                 const items = Array.isArray(data) ? data : (data.items || []);
-                _setInboxBadge(items.length);
+                // Sidebar inbox badge removed; keep in-memory cache updated for Home "Action Required"
+                myApprovals = items;
             } catch (_) {
                 // ignore
             }
