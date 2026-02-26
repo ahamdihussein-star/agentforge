@@ -1570,7 +1570,8 @@
             selectedExecutionId = null;
 
             const t = _getWorkflowTriggerInfo((workflowAgents || []).find(a => a.id === id));
-            if (isPortalAdmin() && t && t.triggerType !== 'manual') {
+            const isTruePortalAdmin = !!(currentUser && (currentUser.portal_access === 'admin' || currentUser.is_admin === true));
+            if (isTruePortalAdmin && t && t.triggerType !== 'manual') {
                 // Automations often run under system/service context → default to org runs for admins.
                 requestsScope = 'org';
             }
@@ -2421,6 +2422,10 @@
             const listEl = document.getElementById('requests-list');
             if (listEl) listEl.innerHTML = `<div style="padding: 14px; color: var(--text-muted);">Loading…</div>`;
             try {
+                // Hard safety: non-admin users can only see their own requests.
+                const isTruePortalAdmin = !!(currentUser && (currentUser.portal_access === 'admin' || currentUser.is_admin === true));
+                if (!isTruePortalAdmin) requestsScope = 'mine';
+
                 const params = new URLSearchParams();
                 params.set('scope', requestsScope || 'mine');
                 params.set('limit', '100');
@@ -2454,10 +2459,15 @@
             // Scope chips
             const scopeEl = document.getElementById('requests-scope-chips');
             if (scopeEl) {
-                const admin = isPortalAdmin();
-                const scopes = admin ? [
+                // End-user default: users can only track what they submitted.
+                // Org-wide visibility is only for true portal admins (explicit flag).
+                const isTruePortalAdmin = !!(currentUser && (currentUser.portal_access === 'admin' || currentUser.is_admin === true));
+                if (!isTruePortalAdmin && (requestsScope || 'mine') !== 'mine') {
+                    requestsScope = 'mine';
+                }
+                const scopes = isTruePortalAdmin ? [
                     { id: 'mine', label: 'My Requests', hint: 'Requests you submitted' },
-                    { id: 'org', label: 'All Requests', hint: 'All requests in your organization' }
+                    { id: 'org', label: 'Organization Requests', hint: 'All requests in your organization (admin only)' }
                 ] : [
                     { id: 'mine', label: 'My Requests', hint: 'Requests you submitted' }
                 ];

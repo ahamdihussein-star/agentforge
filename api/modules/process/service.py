@@ -1670,11 +1670,16 @@ class ProcessAPIService:
 
         # Resolve assigned users to name/email (batch)
         user_ids: List[str] = []
+        email_ids: List[str] = []
         for a in pending:
             for uid in (getattr(a, "assigned_user_ids", None) or [])[:50]:
                 if uid is None:
                     continue
-                user_ids.append(str(uid))
+                s = str(uid).strip()
+                if "@" in s:
+                    email_ids.append(s.lower())
+                else:
+                    user_ids.append(s)
         # Deduplicate + validate UUIDs
         uniq_uuid = []
         seen = set()
@@ -1700,6 +1705,19 @@ class ProcessAPIService:
                 name = (u.display_name or '').strip() or f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}".strip() or None
                 user_map[str(u.id)] = {"name": name, "email": (u.email or '').strip() or None}
 
+        # Legacy assignees by email (backward compatibility)
+        if email_ids:
+            try:
+                org_uuid = uuid_lib.UUID(str(org_id))
+            except Exception:
+                org_uuid = None
+            q = self.db.query(DBUser).filter(DBUser.email.in_(list(dict.fromkeys(email_ids))))
+            if org_uuid is not None:
+                q = q.filter(DBUser.org_id == org_uuid)
+            for u in q.all():
+                name = (u.display_name or '').strip() or f"{(u.first_name or '').strip()} {(u.last_name or '').strip()}".strip() or None
+                user_map[str(u.email).strip().lower()] = {"name": name, "email": (u.email or '').strip() or None}
+
         items = []
         for a in pending:
             node_id = getattr(a, "node_id", None)
@@ -1708,7 +1726,8 @@ class ProcessAPIService:
             assigned_user_ids = getattr(a, "assigned_user_ids", None) or []
             # show people (requested)
             for uid in assigned_user_ids[:10]:
-                d = user_map.get(str(uid))
+                key = str(uid).strip()
+                d = user_map.get(key) or user_map.get(key.lower())
                 assignees.append(ApprovalAssigneeDisplay(
                     kind="person",
                     label=label,
