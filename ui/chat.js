@@ -1257,47 +1257,9 @@
                         </div>
                     </div>
 
-                    <div class="proc-nav" role="tablist" aria-label="Process actions" style="margin-top:14px;">
-                        <button class="proc-nav-item active" type="button" data-proc-tab="overview" role="tab" aria-selected="true" onclick="setProcessDetailTab('overview')">
-                            <div class="proc-nav-top">
-                                <div class="proc-nav-icon">ℹ️</div>
-                                <div class="proc-nav-text">
-                                    <div class="proc-nav-title">Overview</div>
-                                    <div class="proc-nav-sub">What this process does, in plain language.</div>
-                                </div>
-                            </div>
-                        </button>
-                        ${canRunNow ? `
-                            <button class="proc-nav-item primary" type="button" onclick="openWorkflowRunModal('${id}')">
-                                <div class="proc-nav-top">
-                                    <div class="proc-nav-icon">📝</div>
-                                    <div class="proc-nav-text">
-                                        <div class="proc-nav-title">${escapeHtml(cta)}</div>
-                                        <div class="proc-nav-sub">Submit a new request with the right information.</div>
-                                    </div>
-                                </div>
-                            </button>
-                        ` : ''}
-                        <button class="proc-nav-item" type="button" data-proc-tab="tracking" role="tab" aria-selected="false" onclick="setProcessDetailTab('tracking')">
-                            <div class="proc-nav-top">
-                                <div class="proc-nav-icon">🧾</div>
-                                <div class="proc-nav-text">
-                                    <div class="proc-nav-title">Tracking</div>
-                                    <div class="proc-nav-sub">See what’s happening and who it’s waiting with.</div>
-                                </div>
-                            </div>
-                        </button>
-                        ${(isSchedule && _canEditSchedules()) ? `
-                            <button class="proc-nav-item" type="button" data-proc-tab="schedule" role="tab" aria-selected="false" onclick="setProcessDetailTab('schedule')">
-                                <div class="proc-nav-top">
-                                    <div class="proc-nav-icon">📅</div>
-                                    <div class="proc-nav-text">
-                                        <div class="proc-nav-title">Schedule</div>
-                                        <div class="proc-nav-sub">Adjust when this process runs automatically.</div>
-                                    </div>
-                                </div>
-                            </button>
-                        ` : ''}
+                    <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+                        ${canRunNow ? `<button class="portal-btn portal-btn-primary" type="button" onclick="openWorkflowRunModal('${id}')">${escapeHtml(cta)}</button>` : ''}
+                        ${(isSchedule && _canEditSchedules()) ? `<button class="portal-btn" type="button" onclick="openScheduleModal('${id}')">Edit schedule</button>` : ''}
                     </div>
 
                     <div class="detail-section">
@@ -1317,35 +1279,6 @@
                 }).catch(() => {});
             }
             renderWorkflows();
-        }
-
-        function setProcessDetailTab(tab) {
-            const t = String(tab || '').trim().toLowerCase();
-            const bodyEl = document.getElementById('workflow-detail-body');
-            if (!bodyEl) return;
-            try {
-                bodyEl.querySelectorAll('.proc-nav-item[data-proc-tab]').forEach(b => {
-                    const isActive = String(b.getAttribute('data-proc-tab') || '').toLowerCase() === t;
-                    b.classList.toggle('active', isActive);
-                    b.setAttribute('aria-selected', isActive ? 'true' : 'false');
-                });
-            } catch (_) {}
-
-            if (!currentWorkflowAgent) return;
-            const id = String(currentWorkflowAgent.id || '').trim();
-            if (t === 'tracking') {
-                requestsWorkflowFilterId = id;
-                selectedExecutionId = null;
-                switchView('requests');
-                // best-effort refresh
-                try { refreshRequests(); } catch (_) {}
-                return;
-            }
-            if (t === 'schedule') {
-                openScheduleModal(id);
-                return;
-            }
-            // overview: no-op
         }
 
         function selectProcessAgent(agentId) {
@@ -1884,7 +1817,16 @@
             const btn = document.getElementById('workflow-run-btn');
 
             if (titleEl) titleEl.textContent = agent.name || 'New Request';
-            if (descEl) descEl.textContent = _buildWorkflowSubtitle(agent);
+            if (descEl) {
+                descEl.textContent = 'Loading…';
+                _fetchProcessSummary(String(agentId || '').trim()).then(summary => {
+                    if (!descEl) return;
+                    descEl.textContent = String(summary || '').trim() || _buildWorkflowSubtitle(agent);
+                }).catch(() => {
+                    if (!descEl) return;
+                    descEl.textContent = _buildWorkflowSubtitle(agent);
+                });
+            }
             if (statusEl) statusEl.textContent = '';
             if (btn) { btn.style.display = ''; btn.disabled = false; btn.textContent = _serviceCtaLabel(agent); }
 
