@@ -11,6 +11,8 @@
         // Portal view state
         let currentView = 'home';
         let workflowCategoryFilter = 'All';
+        let workflowTriggerFilter = 'all'; // all | manual | automated
+        let workflowApprovalFilter = 'all'; // all | approvals | no_approvals
         let currentWorkflowAgent = null;
         let workflowRunInputs = [];
         let myRequests = []; // workflow runs list (UI label: Runs)
@@ -796,7 +798,173 @@
                 refreshRequests();
             } else if (v === 'inbox') {
                 refreshInbox();
+            } else if (v === 'chat') {
+                renderConversationalDirectory();
             }
+        }
+
+        // =============================================================================
+        // DIRECTORY UX (Virtual list + filters)
+        // =============================================================================
+
+        function _debounce(fn, delayMs = 160) {
+            let t = null;
+            return (...args) => {
+                try { if (t) clearTimeout(t); } catch (_) {}
+                t = setTimeout(() => fn(...args), delayMs);
+            };
+        }
+
+        function _ensureVirtualScaffold(containerEl) {
+            if (!containerEl) return null;
+            if (containerEl.querySelector('.virtual-spacer') && containerEl.querySelector('.virtual-inner')) return containerEl;
+            containerEl.innerHTML = `
+                <div class="virtual-spacer"></div>
+                <div class="virtual-inner"></div>
+            `;
+            return containerEl;
+        }
+
+        function renderVirtualList(containerEl, items, rowHeightPx, renderRowHtml, onAfterRender) {
+            const root = _ensureVirtualScaffold(containerEl);
+            if (!root) return;
+            const spacer = root.querySelector('.virtual-spacer');
+            const inner = root.querySelector('.virtual-inner');
+            if (!spacer || !inner) return;
+
+            const total = Array.isArray(items) ? items.length : 0;
+            spacer.style.height = `${Math.max(0, total * rowHeightPx)}px`;
+
+            const viewportH = root.clientHeight || 1;
+            const scrollTop = root.scrollTop || 0;
+            const start = Math.max(0, Math.floor(scrollTop / rowHeightPx) - 6);
+            const visibleCount = Math.ceil(viewportH / rowHeightPx) + 12;
+            const end = Math.min(total, start + visibleCount);
+
+            inner.style.transform = `translateY(${start * rowHeightPx}px)`;
+            inner.innerHTML = items.slice(start, end).map(renderRowHtml).join('');
+            if (typeof onAfterRender === 'function') onAfterRender();
+
+            if (!root._vfAttached) {
+                root._vfAttached = true;
+                let raf = null;
+                root.addEventListener('scroll', () => {
+                    if (raf) return;
+                    raf = requestAnimationFrame(() => {
+                        raf = null;
+                        renderVirtualList(containerEl, items, rowHeightPx, renderRowHtml, onAfterRender);
+                    });
+                }, { passive: true });
+                window.addEventListener('resize', () => {
+                    renderVirtualList(containerEl, items, rowHeightPx, renderRowHtml, onAfterRender);
+                });
+            }
+        }
+
+        // =============================================================================
+        // CONVERSATIONAL AI AGENTS DIRECTORY (split view)
+        // =============================================================================
+
+        let convCategoryFilter = 'All';
+        let convTab = 'agents'; // agents | history
+
+        const renderConversationalDirectory = _debounce(_renderConversationalDirectory, 120);
+
+        function setConversationalTab(tab) {
+            convTab = (tab === 'history') ? 'history' : 'agents';
+            const aBtn = document.getElementById('conv-tab-agents');
+            const hBtn = document.getElementById('conv-tab-history');
+            if (aBtn) aBtn.classList.toggle('active', convTab === 'agents');
+            if (hBtn) hBtn.classList.toggle('active', convTab === 'history');
+            const aPanel = document.getElementById('conv-agents-panel');
+            const hPanel = document.getElementById('conv-history-panel');
+            if (aPanel) aPanel.classList.toggle('hidden', convTab !== 'agents');
+            if (hPanel) hPanel.classList.toggle('hidden', convTab !== 'history');
+            if (convTab === 'history') {
+                try { loadConversations(); } catch (_) {}
+            } else {
+                renderConversationalDirectory();
+            }
+        }
+
+        function _getConvCategory(agent) {
+            const meta = (agent && agent.extra_metadata && typeof agent.extra_metadata === 'object') ? agent.extra_metadata : {};
+            const raw = meta.category || meta.department || meta.domain || meta.team;
+            const c = raw ? String(raw).trim() : '';
+            return c || 'General';
+        }
+
+        function _renderConversationalDirectory() {
+            const listEl = document.getElementById('agent-list');
+            if (!listEl) return;
+
+            const q = String(document.getElementById('conv-search')?.value || '').trim().toLowerCase();
+            const items = Array.isArray(agents) ? agents.slice() : [];
+
+            // Categories
+            const catSet = new Set();
+            items.forEach(a => catSet.add(_getConvCategory(a)));
+            const cats = Array.from(catSet).sort((a, b) => a.localeCompare(b));
+            const allCats = ['All', ...cats];
+
+            const chipsEl = document.getElementById('conv-category-chips');
+            if (chipsEl) {
+                chipsEl.innerHTML = '';
+                allCats.slice(0, 18).forEach(cat => {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip' + (cat === convCategoryFilter ? ' active' : '');
+                    chip.textContent = cat;
+                    chip.onclick = () => { convCategoryFilter = cat; renderConversationalDirectory(); };
+                    chipsEl.appendChild(chip);
+                });
+            }
+
+            const filtered = items
+                .filter(a => {
+                    const cat = _getConvCategory(a);
+                    if (convCategoryFilter !== 'All' && cat !== convCategoryFilter) return false;
+                    if (!q) return true;
+                    const hay = `${a.name || ''} ${a.description || ''} ${cat}`.toLowerCase();
+                    return hay.includes(q);
+                })
+                .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
+
+            const countEl = document.getElementById('conv-count');
+            if (countEl) countEl.textContent = filtered.length ? `${filtered.length}` : '';
+
+            if (!filtered.length) {
+                listEl.innerHTML = `<div style="padding: 14px; color: var(--text-muted);">No agents found.</div>`;
+                return;
+            }
+
+            // Ensure list has height for virtualization
+            listEl.style.height = 'calc(100vh - 360px)';
+            const rowH = 64;
+            renderVirtualList(
+                listEl,
+                filtered,
+                rowH,
+                (agent) => {
+                    const id = String(agent?.id || '');
+                    const icon = escapeHtml(agent?.icon || '💬');
+                    const name = escapeHtml(agent?.name || 'Conversational AI Agent');
+                    const desc = escapeHtml(agent?.description || '');
+                    const cat = escapeHtml(_getConvCategory(agent));
+                    const isActive = (currentAgent && String(currentAgent.id) === id);
+                    return `
+                        <div class="dir-row ${isActive ? 'active' : ''}" onclick="selectAgent('${id}')">
+                            <div class="dir-icon">${icon}</div>
+                            <div class="dir-main">
+                                <div class="dir-title">${name}</div>
+                                <div class="dir-sub">${desc || cat}</div>
+                            </div>
+                            <div class="dir-meta">
+                                <span class="dir-chip">${cat}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            );
         }
 
         async function _loadInboxForHome() {
@@ -945,25 +1113,62 @@
         }
 
         function renderAgents() {
-            const container = document.getElementById('agent-list');
-            if (!container) return;
-            if (agents.length === 0) {
-                container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center; border: 1px dashed var(--border); border-radius: 12px;">No Conversational AI Agents available</div>';
-                return;
-            }
-            
-            container.innerHTML = agents.map((agent, i) => `
-                <div class="agent-card animate-in ${currentAgent?.id === agent.id ? 'active' : ''}" style="animation-delay: ${i * 0.04}s;" onclick="selectAgent('${agent.id}')">
-                    <div class="agent-icon">${agent.icon || '💬'}</div>
-                    <div class="agent-info">
-                        <div class="agent-name">${escapeHtml(agent.name)}</div>
-                        <div class="agent-desc">${escapeHtml(agent.description || 'Conversational AI Agent')}</div>
-                    </div>
-                </div>
-            `).join('');
+            // Sidebar agent cards were removed for scalability.
+            // Render the in-page directory instead.
+            try { renderConversationalDirectory(); } catch (_) {}
         }
 
         /* switchAssistantTab and renderProcessAgents removed — processes live in their own Processes section now */
+
+        function selectWorkflowDirectoryItem(agentId) {
+            const id = String(agentId || '').trim();
+            const agent = (workflowAgents || []).find(a => String(a.id) === id);
+            if (!agent) return;
+            currentWorkflowAgent = agent;
+            const titleEl = document.getElementById('workflow-detail-title');
+            const subEl = document.getElementById('workflow-detail-subtitle');
+            const bodyEl = document.getElementById('workflow-detail-body');
+            if (titleEl) titleEl.textContent = agent.name || 'Process AI Agent';
+            if (subEl) subEl.textContent = 'Review details, then submit a request.';
+            if (bodyEl) {
+                const icon = escapeHtml(agent.icon || '🧩');
+                const desc = escapeHtml(agent.description || _buildWorkflowSubtitle(agent));
+                const category = escapeHtml(_getWorkflowCategory(agent));
+                const trig = _getWorkflowTriggerInfo(agent);
+                const appr = _getWorkflowApprovalInfo(agent);
+                const canRunNow = (trig.triggerType === 'manual') || isPortalAdmin();
+                const cta = canRunNow ? _serviceCtaLabel(agent) : 'View';
+                const triggerLabel = escapeHtml(trig.label || '');
+                const triggerDetail = escapeHtml(trig.detail || '');
+                bodyEl.innerHTML = `
+                    <div class="request-hero ${canRunNow ? 'success' : 'muted'}">
+                        <div class="request-hero-icon">${icon}</div>
+                        <div class="request-hero-info">
+                            <div style="font-weight:850; font-size:1.05rem; line-height:1.2;">${escapeHtml(agent.name || 'Process AI Agent')}</div>
+                            <div class="request-hero-meta">
+                                <span>${category}</span>
+                                <span>•</span>
+                                <span>${triggerLabel}${triggerDetail ? ` — ${triggerDetail}` : ''}</span>
+                                ${appr.hasApproval ? `<span>•</span><span>${escapeHtml(appr.label)}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <div class="detail-section-header">Overview</div>
+                        <div class="detail-section-body">
+                            <div style="color:var(--text-secondary); line-height:1.55;">${desc}</div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+                        ${canRunNow ? `<button class="portal-btn portal-btn-primary" onclick="openWorkflowRunModal('${id}')">${cta}</button>` : `<button class="portal-btn" onclick="switchView('requests')">View My Requests</button>`}
+                        <button class="portal-btn" onclick="switchView('requests')">Track My Requests</button>
+                    </div>
+                `;
+            }
+            renderWorkflows();
+        }
 
         function selectProcessAgent(agentId) {
             const agent = (workflowAgents || []).find(a => a.id === agentId);
@@ -1143,8 +1348,13 @@
 
         function renderWorkflows() {
             const chipsEl = document.getElementById('workflow-category-chips');
-            const cardsEl = document.getElementById('workflow-cards');
-            if (!chipsEl || !cardsEl) return;
+            const listEl = document.getElementById('workflow-list');
+            const detailBody = document.getElementById('workflow-detail-body');
+            const detailTitle = document.getElementById('workflow-detail-title');
+            const detailSub = document.getElementById('workflow-detail-subtitle');
+            const countEl = document.getElementById('workflow-count');
+            const quickEl = document.getElementById('workflow-quick-filters');
+            if (!chipsEl || !listEl) return;
 
             const q = String(document.getElementById('workflow-search')?.value || '').trim().toLowerCase();
             const items = Array.isArray(workflowAgents) ? workflowAgents.slice() : [];
@@ -1165,51 +1375,97 @@
                 chipsEl.appendChild(chip);
             });
 
+            // Quick filters (trigger + approvals)
+            if (quickEl) {
+                const mk = (id, label, active, onClick) => {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip' + (active ? ' active' : '');
+                    chip.textContent = label;
+                    chip.onclick = onClick;
+                    return chip;
+                };
+                quickEl.innerHTML = '';
+                quickEl.appendChild(mk('all', 'All', workflowTriggerFilter === 'all', () => { workflowTriggerFilter = 'all'; renderWorkflows(); }));
+                quickEl.appendChild(mk('manual', 'Form', workflowTriggerFilter === 'manual', () => { workflowTriggerFilter = 'manual'; renderWorkflows(); }));
+                quickEl.appendChild(mk('automated', 'Automation', workflowTriggerFilter === 'automated', () => { workflowTriggerFilter = 'automated'; renderWorkflows(); }));
+                quickEl.appendChild(mk('ap_all', 'Approvals: Any', workflowApprovalFilter === 'all', () => { workflowApprovalFilter = 'all'; renderWorkflows(); }));
+                quickEl.appendChild(mk('ap_yes', 'Approvals: Required', workflowApprovalFilter === 'approvals', () => { workflowApprovalFilter = 'approvals'; renderWorkflows(); }));
+                quickEl.appendChild(mk('ap_no', 'Approvals: None', workflowApprovalFilter === 'no_approvals', () => { workflowApprovalFilter = 'no_approvals'; renderWorkflows(); }));
+            }
+
             const filtered = items.filter(a => {
                 const cat = _getWorkflowCategory(a);
                 if (workflowCategoryFilter !== 'All' && cat !== workflowCategoryFilter) return false;
+                const trig = _getWorkflowTriggerInfo(a);
+                const appr = _getWorkflowApprovalInfo(a);
+                const isManual = trig.triggerType === 'manual';
+                const isAutomated = trig.triggerType === 'schedule' || trig.triggerType === 'webhook';
+                if (workflowTriggerFilter === 'manual' && !isManual) return false;
+                if (workflowTriggerFilter === 'automated' && !isAutomated) return false;
+                if (workflowApprovalFilter === 'approvals' && !appr.hasApproval) return false;
+                if (workflowApprovalFilter === 'no_approvals' && appr.hasApproval) return false;
                 if (!q) return true;
                 const hay = `${a.name || ''} ${a.description || ''} ${cat}`.toLowerCase();
                 return hay.includes(q);
-            });
+            }).sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
 
             if (!filtered.length) {
-                cardsEl.innerHTML = `
-                    <div style="grid-column: 1 / -1;">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🧩</div>
-                            <div class="empty-state-title">No Process AI Agents available</div>
-                            <div class="empty-state-desc">There are no Process AI Agents published yet, or you don't have access. Contact your administrator for help.</div>
-                        </div>
+                if (countEl) countEl.textContent = '';
+                listEl.innerHTML = `<div style="padding: 14px; color: var(--text-muted);">No Process AI Agents found.</div>`;
+                if (detailTitle) detailTitle.textContent = 'Select a Process AI Agent';
+                if (detailSub) detailSub.textContent = 'Review details, then submit a request.';
+                if (detailBody) detailBody.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🧩</div>
+                        <div class="empty-state-title">No Process AI Agents found</div>
+                        <div class="empty-state-desc">Try adjusting filters, or contact your administrator if you expect agents here.</div>
                     </div>
                 `;
                 return;
             }
 
-            cardsEl.innerHTML = filtered.map(a => {
-                const icon = escapeHtml(a.icon || '📋');
-                const name = escapeHtml(a.name || 'Service');
-                const desc = escapeHtml(a.description || _buildWorkflowSubtitle(a));
-                const category = escapeHtml(_getWorkflowCategory(a));
-                const trig = _getWorkflowTriggerInfo(a);
-                const canRunNow = (trig.triggerType === 'manual') || isPortalAdmin();
-                const ctaLabel = _serviceCtaLabel(a);
-                return `
-                    <div class="wf-card" ${canRunNow ? `onclick="openWorkflowRunModal('${a.id}')" style="cursor:pointer;"` : ''}>
-                        <div class="wf-card-top">
-                            <div class="wf-card-icon">${icon}</div>
-                            <div style="min-width:0; flex:1;">
-                                <div class="wf-card-title">${name}</div>
-                                <div class="wf-card-desc">${desc}</div>
+            if (countEl) countEl.textContent = `${filtered.length}`;
+
+            const rowH = 68;
+            listEl.style.height = 'calc(100vh - 360px)';
+            renderVirtualList(
+                listEl,
+                filtered,
+                rowH,
+                (a) => {
+                    const id = String(a?.id || '');
+                    const icon = escapeHtml(a?.icon || '🧩');
+                    const name = escapeHtml(a?.name || 'Process AI Agent');
+                    const desc = escapeHtml(a?.description || _buildWorkflowSubtitle(a));
+                    const category = escapeHtml(_getWorkflowCategory(a));
+                    const trig = _getWorkflowTriggerInfo(a);
+                    const appr = _getWorkflowApprovalInfo(a);
+                    const isManual = trig.triggerType === 'manual';
+                    const canRunNow = isManual || isPortalAdmin();
+                    const chip = isManual ? `<span class="dir-chip success">Form</span>` : `<span class="dir-chip warning">Automation</span>`;
+                    const chip2 = appr.hasApproval ? `<span class="dir-chip">Approvals</span>` : '';
+                    const active = (currentWorkflowAgent && String(currentWorkflowAgent.id) === id);
+                    return `
+                        <div class="dir-row ${active ? 'active' : ''}" onclick="selectWorkflowDirectoryItem('${id}')">
+                            <div class="dir-icon">${icon}</div>
+                            <div class="dir-main">
+                                <div class="dir-title">${name}</div>
+                                <div class="dir-sub">${desc}</div>
+                            </div>
+                            <div class="dir-meta">
+                                <span class="dir-chip">${category}</span>
+                                ${chip}
+                                ${chip2}
                             </div>
                         </div>
-                        <div class="wf-card-actions">
-                            <span class="chip" style="cursor:default; pointer-events:none; font-size:0.75rem;">${category}</span>
-                            ${canRunNow ? `<button class="portal-btn portal-btn-primary" onclick="event.stopPropagation();openWorkflowRunModal('${a.id}')">${ctaLabel}</button>` : `<span style="color:var(--text-muted); font-size:0.8rem;">Automated</span>`}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                    `;
+                }
+            );
+
+            // Auto-select first item if none selected
+            if (!currentWorkflowAgent || !filtered.some(x => String(x.id) === String(currentWorkflowAgent.id))) {
+                selectWorkflowDirectoryItem(String(filtered[0].id));
+            }
         }
 
         // =============================================================================
