@@ -827,13 +827,16 @@ class ProcessAPIService:
         try:
             _exec_obj = self.exec_service.get_execution(str(execution.id))
             if _exec_obj:
-                _exec_obj.trigger_input = enriched_trigger
-                # If there are pending uploads, keep the execution in 'pending' and wait for finalize-uploads.
+                _exec_obj.trigger_input = dict(enriched_trigger)
                 pending_fields = _pending_upload_fields(_trigger)
                 if pending_fields:
-                    meta = self._ensure_dict(getattr(_exec_obj, "extra_metadata", None) or {})
+                    meta = dict(self._ensure_dict(getattr(_exec_obj, "extra_metadata", None) or {}))
                     meta["awaiting_uploads"] = pending_fields
                     _exec_obj.extra_metadata = meta
+                    from sqlalchemy.orm.attributes import flag_modified
+                    flag_modified(_exec_obj, "extra_metadata")
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(_exec_obj, "trigger_input")
                 self.db.add(_exec_obj)
                 self.db.commit()
         except Exception as e:
@@ -876,24 +879,33 @@ class ProcessAPIService:
         if not isinstance(files, dict):
             raise ValueError("Invalid files payload")
 
-        trigger = self._ensure_dict(getattr(execution, "trigger_input", None) or {})
+        # CRITICAL: Create COPIES of JSON dicts before mutating.
+        # SQLAlchemy does NOT detect in-place mutations of JSON/JSONB columns.
+        # Assigning the same dict object back is a no-op for change tracking.
+        trigger = dict(self._ensure_dict(getattr(execution, "trigger_input", None) or {}))
         for k, v in list(files.items())[:50]:
             key = str(k or "").strip()
             if not key:
                 continue
             trigger[key] = v
 
-        meta = self._ensure_dict(getattr(execution, "extra_metadata", None) or {})
+        meta = dict(self._ensure_dict(getattr(execution, "extra_metadata", None) or {}))
         awaiting = meta.get("awaiting_uploads") or []
         remaining: List[str] = []
         if isinstance(awaiting, list):
             provided = set(str(k).strip() for k in files.keys() if k)
             remaining = [str(x) for x in awaiting if str(x).strip() and str(x).strip() not in provided]
             meta["awaiting_uploads"] = remaining
+        logger.info("[FinalizeUploads-svc] Updating DB: remaining_awaiting=%s trigger_keys=%s",
+                     remaining, list(trigger.keys()))
         execution.trigger_input = trigger
         execution.extra_metadata = meta
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(execution, "trigger_input")
+        flag_modified(execution, "extra_metadata")
         self.db.add(execution)
         self.db.commit()
+        logger.info("[FinalizeUploads-svc] DB COMMIT done for %s", execution_id)
 
         # If all required uploads are attached, mark as running (caller starts engine).
         should_run = False
