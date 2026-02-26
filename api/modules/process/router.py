@@ -21,6 +21,7 @@ import os
 import re
 import uuid
 import json
+import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, EmailStr
@@ -50,6 +51,7 @@ from .schemas import (
     FinalizeExecutionUploadsRequest,
 )
 from .service import ProcessAPIService
+from database.config import get_db_session
 
 # Import security from platform's auth system
 from api.security import require_auth, User
@@ -66,6 +68,44 @@ from core.process.messages import (
 
 
 router = APIRouter(prefix="/process", tags=["Process Execution"])
+
+_logger = logging.getLogger(__name__)
+
+
+def _run_engine_background(execution_id: str, llm_registry: LLMRegistry):
+    """
+    Synchronous function executed by FastAPI BackgroundTasks.
+    Opens its own DB session, runs the engine to completion, then closes.
+    FastAPI guarantees this runs after the response is sent and will NOT be GC'd.
+    """
+    import asyncio
+
+    async def _inner():
+        _logger.info("[ProcessBG] Engine run STARTED for %s", execution_id)
+        db = get_db_session()
+        try:
+            svc = ProcessAPIService(db=db, llm_registry=llm_registry)
+            await svc.run_execution_from_db(execution_id=execution_id)
+        except Exception as exc:
+            _logger.exception("[ProcessBG] Engine run FAILED for %s: %s", execution_id, exc)
+            try:
+                from database.services.process_execution_service import ProcessExecutionService
+                ProcessExecutionService(db).update_execution_status(
+                    execution_id,
+                    status="failed",
+                    error_message="There was an issue processing your request. Please try again.",
+                    error_details={"code": "BACKGROUND_RUN_FAILED"},
+                )
+            except Exception:
+                pass
+        finally:
+            _logger.info("[ProcessBG] Engine run ENDED for %s", execution_id)
+            try:
+                db.close()
+            except Exception:
+                pass
+
+    asyncio.run(_inner())
 
 
 # Global LLM registry instance (initialized on first request)
@@ -881,6 +921,7 @@ async def start_execution(
 @router.post("/execute-fast", response_model=ProcessExecutionResponse)
 async def start_execution_fast(
     request: ProcessExecutionCreate,
+    bg: BackgroundTasks,
     service: ProcessAPIService = Depends(get_service),
     user: User = Depends(require_auth)
 ):
@@ -890,7 +931,7 @@ async def start_execution_fast(
     """
     user_dict = _user_to_dict(user)
     try:
-        return await service.start_execution_fast(
+        response, should_run = await service.start_execution_fast(
             agent_id=request.agent_id,
             org_id=user_dict["org_id"],
             user_id=user_dict["id"],
@@ -900,6 +941,9 @@ async def start_execution_fast(
             correlation_id=request.correlation_id,
             user_info=user_dict
         )
+        if should_run:
+            bg.add_task(_run_engine_background, str(response.id), _get_llm_registry())
+        return response
     except PermissionError:
         raise HTTPException(
             status_code=403,
@@ -1341,6 +1385,7 @@ async def get_execution_pending_approvals(
 async def finalize_execution_uploads(
     execution_id: str,
     request: FinalizeExecutionUploadsRequest,
+    bg: BackgroundTasks,
     service: ProcessAPIService = Depends(get_service),
     user: User = Depends(require_auth),
 ):
@@ -1352,13 +1397,16 @@ async def finalize_execution_uploads(
     """
     user_dict = _user_to_dict(user)
     try:
-        return await service.finalize_execution_uploads(
+        response, should_run = await service.finalize_execution_uploads(
             execution_id=execution_id,
             org_id=user_dict["org_id"],
             user_id=user_dict["id"],
             files=request.files or {},
             is_platform_admin=_is_platform_admin(user),
         )
+        if should_run:
+            bg.add_task(_run_engine_background, str(response.id), _get_llm_registry())
+        return response
     except PermissionError:
         raise HTTPException(
             status_code=403,
