@@ -2372,6 +2372,11 @@ class ProcessAPIService:
                 can_retry=execution.status in ["failed", "timed_out"]
             )
         
+        processed_data = self._extract_processed_data(
+            execution.variables or {},
+            execution.trigger_input or {},
+        )
+
         return ProcessExecutionResponse(
             id=str(execution.id),
             agent_id=str(execution.agent_id),
@@ -2380,10 +2385,11 @@ class ProcessAPIService:
             correlation_id=execution.correlation_id,
             status=execution.status,
             status_info=status_info,
-            current_step=execution.current_node_id,  # TODO: Get display name
+            current_step=execution.current_node_id,
             completed_steps=execution.completed_nodes or [],
             trigger_input=execution.trigger_input or {},
             output=execution.output,
+            processed_data=processed_data,
             error=error_info,
             can_resume=execution.can_resume and execution.status in ["waiting", "paused"],
             started_at=execution.started_at,
@@ -2394,6 +2400,53 @@ class ProcessAPIService:
             created_by=str(execution.created_by)
         )
     
+    _INTERNAL_VAR_PREFIXES = ('_', 'currentUser', 'trigger_input')
+    _INTERNAL_VAR_KEYS = frozenset({
+        '_user_context', 'org_id', 'user_id', 'correlation_id', 'reference_id',
+        'trigger_type', 'trigger_input', 'execution_id', 'agent_id', 'workflow_id',
+        'process_definition', 'config', 'type_config', 'node_id', 'step_id',
+        'custom_attributes', 'cost_center', 'identity_source', 'internal',
+        'role_ids', 'group_ids', 'is_manager', 'employee_id',
+        'currentUser', 'denied_tool_ids', '_denied_tool_ids',
+    })
+
+    def _extract_processed_data(
+        self,
+        variables: Dict[str, Any],
+        trigger_input: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Extract data produced by the process engine (AI extraction, computation, etc.)
+        by removing the original trigger_input fields and internal/technical keys.
+        This gives the requester visibility into what the process analysed and
+        what the approver reviews — without exposing platform internals.
+        """
+        if not variables or not isinstance(variables, dict):
+            return {}
+        trigger_keys = set(trigger_input.keys()) if isinstance(trigger_input, dict) else set()
+        out: Dict[str, Any] = {}
+        for k, v in variables.items():
+            if not k:
+                continue
+            kl = k.lower() if isinstance(k, str) else str(k).lower()
+            if kl in self._INTERNAL_VAR_KEYS:
+                continue
+            if any(kl.startswith(p.lower()) for p in self._INTERNAL_VAR_PREFIXES):
+                continue
+            if k in trigger_keys:
+                continue
+            if v is None:
+                continue
+            # Skip raw UUIDs (internal references)
+            if isinstance(v, str) and len(v) == 36 and v.count('-') == 4:
+                try:
+                    import uuid
+                    uuid.UUID(v)
+                    continue
+                except ValueError:
+                    pass
+            out[k] = v
+        return out
+
     def _format_duration(self, seconds: float) -> str:
         """Format duration for users"""
         if seconds < 1:

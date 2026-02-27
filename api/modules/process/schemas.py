@@ -63,7 +63,11 @@ class ProcessExecutionResponse(BaseModel):
     # Input/Output
     input_data: Dict[str, Any] = Field(default_factory=dict, alias="trigger_input")
     result: Optional[Any] = Field(default=None, alias="output")
-    
+    processed_data: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Data extracted or computed by the process (files, AI analysis, etc.)"
+    )
+
     # Error - user-friendly
     error: Optional[ErrorInfo] = None
     
