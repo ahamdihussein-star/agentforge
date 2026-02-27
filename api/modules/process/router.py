@@ -2106,7 +2106,7 @@ def _pre_check_platform_readiness(
 
     # ── 2. Manager-based routing but no managers configured ─────────
     if needs_manager and not caps.get("has_managers"):
-        can = _can("org:manage")
+        can = _can("users:edit")
         _add("no_managers", {
             "type": "identity", "icon": "hierarchy",
             "entity_name": "Manager Assignments",
@@ -2131,7 +2131,7 @@ def _pre_check_platform_readiness(
 
     # ── 3. Department mentioned but no departments exist ────────────
     if needs_department and not departments:
-        can = _can("org:manage")
+        can = _can("users:edit")
         _add("no_departments", {
             "type": "department", "icon": "building",
             "entity_name": "Departments",
@@ -2153,50 +2153,209 @@ def _pre_check_platform_readiness(
             "can_create": can,
         })
 
-    # ── 4. Specific department mentioned by name but doesn't exist ──
-    if departments:
-        for d_name_lower, d_obj in dept_names_lower.items():
-            pass  # departments exist, we just need them for matching
+    # ── 4. Extract and validate named entities from goal text ────────
+    #    Uses multiple patterns to find department names, group/team
+    #    names, and escalation references (e.g. "Department Head").
+    _stop_words = {
+        "the", "a", "an", "to", "for", "by", "of", "from", "and", "or",
+        "in", "at", "on", "with", "into", "our", "your", "their", "its",
+        "this", "that", "if", "is", "are", "was", "will", "should",
+        "must", "can", "may", "route", "send", "notify", "escalate",
+        "escalation", "after", "before", "hours", "minutes", "days",
+        "enable", "report", "submit", "finish", "start", "begin", "end",
+        "low", "medium", "high", "severity", "immediately", "based",
+        "length", "then", "not", "also", "as", "classify", "decision",
+        "notification", "approval",
+    }
+    _title_words = {
+        "head", "manager", "director", "lead", "leader", "supervisor",
+        "officer", "chief", "coordinator", "president", "vp", "vice",
+        "senior", "junior", "assistant", "associate", "deputy",
+    }
+    _role_kw_re = _re.compile(
+        r'\b(manager|director|supervisor|head|lead|officer|chief)\b'
+    )
+    _team_kw_re = _re.compile(r'\b(team|committee|board)\b')
 
-        words = _re.split(r'[\s,;.!?()"\'/]+', goal_lower)
-        for dept in departments:
-            pass  # skip — we only flag missing ones
+    dept_candidates: set = set()
+    group_candidates: set = set()
 
-        # Try to find department name mentions in the goal
-        for dept_candidate in _re.findall(
-            r'(?:department|dept|قسم|ادارة|إدارة)\s*(?:of\s+|:?\s*)(["\']?)(\w[\w\s&-]{1,40})\1',
-            goal_lower, _re.IGNORECASE
-        ):
-            name_match = (dept_candidate[1] if isinstance(dept_candidate, tuple) else dept_candidate).strip()
-            if name_match and len(name_match) > 1:
-                # Check if it matches any existing department
-                if name_match not in dept_names_lower:
-                    can = _can("org:manage")
-                    display = name_match.title()
-                    _add(f"dept_missing:{name_match}", {
-                        "type": "department", "icon": "building",
-                        "entity_name": display,
-                        "referenced_by": "Your workflow description",
-                        "message": (
-                            f"Your workflow mentions the \"{display}\" department, "
-                            f"but it hasn't been created on the platform yet."
-                        ),
-                        "guidance": (
-                            f"Create the \"{display}\" department and assign "
-                            f"a manager to it."
-                        ) + _admin_note(can),
-                        "steps": [
-                            "Go to Users & Access → Organization → People & Departments",
-                            f"Click + New Department and name it \"{display}\"",
-                            "Choose a department manager",
-                            "Save",
-                        ] if can else [],
-                        "can_create": can,
-                    })
+    def _extract_name_before(text: str, kw_start: int, max_words: int = 3):
+        """Extract meaningful name from words preceding a keyword."""
+        before = text[:kw_start].rstrip()
+        words = before.split()
+        if not words:
+            return None
+        chunk = words[-max_words:]
+        while chunk and chunk[0] in _stop_words:
+            chunk.pop(0)
+        return " ".join(chunk) if chunk else None
+
+    # 4a. "{Name} Manager/Director/Head/…" → department candidate
+    for m in _role_kw_re.finditer(goal_lower):
+        name = _extract_name_before(goal_lower, m.start())
+        if (name and name not in _title_words
+                and len(name) > 2 and name != "department"):
+            dept_candidates.add(name)
+
+    # 4a2. "Manager/Head/Director of {Name}" → department candidate
+    for m in _re.finditer(
+        r'\b(?:manager|director|head|supervisor|lead|chief)'
+        r'\s+of\s+(?:the\s+)?'
+        r'([a-z][\w\s&-]{1,40}?)'
+        r'(?:\s+(?:for|to|and|or|if|when|with)\b|[,;.!?]|$)',
+        goal_lower,
+    ):
+        name = m.group(1).strip()
+        if (name and name not in _title_words
+                and len(name) > 2 and name != "department"):
+            dept_candidates.add(name)
+
+    # 4b. "{Name} team/committee/board" → group candidate
+    for m in _team_kw_re.finditer(goal_lower):
+        name = _extract_name_before(goal_lower, m.start())
+        if name and name not in _title_words and len(name) > 2:
+            group_candidates.add(name)
+
+    # 4c. Explicit "department (of) {Name}" or "{Name} department"
+    for m in _re.finditer(
+        r'(?:department|dept|قسم|ادارة|إدارة)\s+(?:of\s+)?'
+        r'(["\']?)(\w[\w\s&-]{1,40}?)\1'
+        r'(?=\s+(?:for|to|and|or|if|when|with|in|at|from)\b|[,;.!?]|$)',
+        goal_lower,
+    ):
+        n = (m.group(2) if m.lastindex >= 2 else m.group(1)).strip()
+        if (n and n not in _title_words
+                and len(n) > 2 and n != "department"):
+            dept_candidates.add(n)
+    for m in _re.finditer(
+        r'\b(\w[\w\s&-]{1,40}?)\s+(?:department|dept)\b', goal_lower,
+    ):
+        raw = m.group(1).strip()
+        cleaned = raw
+        for _ in range(3):
+            cleaned = _re.sub(
+                r'^(?:the|a|an|to|for|by|of|from|and|or|in|at|on|with)\s+',
+                '', cleaned,
+            ).strip()
+        if (cleaned and cleaned not in _title_words
+                and len(cleaned) > 2 and cleaned != "department"):
+            dept_candidates.add(cleaned)
+
+    # 4d. "Department Head" / "Head of Department" → escalation ref
+    has_dept_head_escalation = bool(
+        _re.search(
+            r'\b(?:department\s+head|head\s+of\s+(?:the\s+)?department)\b',
+            goal_lower,
+        )
+    )
+
+    # 4e. Check each department candidate against existing departments
+    for candidate in dept_candidates:
+        if candidate not in dept_names_lower:
+            can = _can("users:edit")
+            display = candidate.title()
+            _add(f"dept_missing:{candidate}", {
+                "type": "department", "icon": "building",
+                "entity_name": display,
+                "referenced_by": "Your workflow description",
+                "message": (
+                    f"Your workflow mentions the \"{display}\" department, "
+                    f"but it hasn't been created on the platform yet."
+                ),
+                "guidance": (
+                    f"Create the \"{display}\" department and assign "
+                    f"a manager to it."
+                ) + _admin_note(can),
+                "steps": [
+                    "Go to Users & Access → Organization → People & Departments",
+                    f"Click + New Department and name it \"{display}\"",
+                    "Choose a department manager",
+                    "Save",
+                ] if can else [],
+                "can_create": can,
+            })
+        else:
+            d = dept_names_lower[candidate]
+            if not d.get("has_manager"):
+                can = _can("users:edit")
+                display = candidate.title()
+                _add(f"dept_no_mgr:{candidate}", {
+                    "type": "department", "icon": "hierarchy",
+                    "entity_name": f"{display} — Manager",
+                    "referenced_by": "Your workflow description",
+                    "message": (
+                        f"Your workflow routes work to the \"{display}\" "
+                        f"manager, but no manager has been assigned to "
+                        f"this department yet."
+                    ),
+                    "guidance": (
+                        f"Assign a manager to the \"{display}\" department."
+                    ) + _admin_note(can),
+                    "steps": [
+                        "Go to Users & Access → Organization → People & Departments",
+                        f"Select the \"{display}\" department",
+                        "Set the Manager field",
+                        "Save",
+                    ] if can else [],
+                    "can_create": can,
+                })
+
+    # 4f. Check each group candidate against existing groups
+    for candidate in group_candidates:
+        if candidate not in group_names_lower:
+            can = _can("users:edit")
+            display = candidate.title()
+            _add(f"group_missing:{candidate}", {
+                "type": "group", "icon": "people",
+                "entity_name": f"{display} Team",
+                "referenced_by": "Your workflow description",
+                "message": (
+                    f"Your workflow mentions the \"{display}\" team, "
+                    f"but this team hasn't been created on the platform yet."
+                ),
+                "guidance": (
+                    f"Create a \"{display}\" team and add the relevant "
+                    f"members to it."
+                ) + _admin_note(can),
+                "steps": [
+                    "Go to Users & Access → Groups",
+                    f"Click + Create Group and name it \"{display}\" "
+                    f"or \"{display} Team\"",
+                    "Add the team members",
+                    "Save",
+                ] if can else [],
+                "can_create": can,
+            })
+
+    # 4g. "Department Head" escalation — needs management hierarchy
+    if has_dept_head_escalation:
+        can = _can("users:edit")
+        _add("escalation_dept_head", {
+            "type": "identity", "icon": "hierarchy",
+            "entity_name": "Department Head (Escalation)",
+            "referenced_by": "Your workflow description",
+            "message": (
+                "Your workflow escalates to a Department Head. The platform "
+                "needs a management hierarchy so it knows who the department "
+                "heads are for escalation routing."
+            ),
+            "guidance": (
+                "Make sure each relevant department has a manager (head) "
+                "assigned, and that the management chain is properly set up."
+            ) + _admin_note(can),
+            "steps": [
+                "Go to Users & Access → Organization → People & Departments",
+                "Select each relevant department",
+                "Assign a manager (department head) to each one",
+                "Save",
+            ] if can else [],
+            "can_create": can,
+        })
 
     # ── 5. Group/team mentioned but no groups exist ─────────────────
-    if needs_group and not groups:
-        can = _can("groups:manage")
+    if needs_group and not groups and not group_candidates:
+        can = _can("users:edit")
         _add("no_groups", {
             "type": "group", "icon": "people",
             "entity_name": "Teams / Groups",
@@ -2245,7 +2404,7 @@ def _pre_check_platform_readiness(
     if needs_approval and not needs_manager and not needs_department and not needs_group:
         # Generic approval — check if there's ANY identity structure
         if not caps.get("has_managers") and not departments and not groups and not roles:
-            can = _can("org:manage")
+            can = _can("users:edit")
             _add("no_approvers", {
                 "type": "identity", "icon": "hierarchy",
                 "entity_name": "Organization Structure",
@@ -2400,7 +2559,7 @@ def _validate_process_prerequisites(
             d_lower = dept_name_ref.lower()
             existing = dept_by_name.get(d_lower)
             if not existing:
-                can = _can("org:manage")
+                can = _can("users:edit")
                 _add(f"dept:{d_lower}", {
                     "type": "department", "icon": "building",
                     "entity_name": dept_name_ref,
@@ -2427,7 +2586,7 @@ def _validate_process_prerequisites(
                 # Department exists — does it have a manager?
                 dir_type = (config.get("directory_assignee_type") or "").lower()
                 if dir_type in ("department_manager", "department_head") and not existing.get("has_manager"):
-                    can = _can("org:manage")
+                    can = _can("users:edit")
                     _add(f"dept_mgr:{d_lower}", {
                         "type": "department", "icon": "building",
                         "entity_name": f"{dept_name_ref} — No Manager",
@@ -2453,7 +2612,7 @@ def _validate_process_prerequisites(
                     })
                 # Does it have members? (relevant for department_members routing)
                 if dir_type == "department_members" and existing.get("member_count", 0) == 0:
-                    can = _can("org:manage")
+                    can = _can("users:edit")
                     _add(f"dept_empty:{d_lower}", {
                         "type": "department", "icon": "building",
                         "entity_name": f"{dept_name_ref} — No Members",
@@ -2476,7 +2635,7 @@ def _validate_process_prerequisites(
                         "can_create": can,
                     })
         elif dept_id_ref and dept_id_ref not in dept_by_id and dept_id_ref not in ("", "None"):
-            can = _can("org:manage")
+            can = _can("users:edit")
             _add(f"dept_id:{dept_id_ref}", {
                 "type": "department", "icon": "building",
                 "entity_name": "Department",
@@ -2506,7 +2665,7 @@ def _validate_process_prerequisites(
                 if recipient.startswith(pfx):
                     rid = recipient[len(pfx):]
                     if rid and rid not in dept_by_id:
-                        can = _can("org:manage")
+                        can = _can("users:edit")
                         _add(f"notif_dept:{rid}", {
                             "type": "department", "icon": "building",
                             "entity_name": "Department",
@@ -2524,7 +2683,7 @@ def _validate_process_prerequisites(
                     elif rid and rid in dept_by_id:
                         dd = dept_by_id[rid]
                         if pfx == "dept_manager:" and not dd.get("has_manager"):
-                            can = _can("org:manage")
+                            can = _can("users:edit")
                             dn = dd.get("name", "this department")
                             _add(f"notif_dept_mgr:{rid}", {
                                 "type": "department", "icon": "building",
@@ -2550,7 +2709,7 @@ def _validate_process_prerequisites(
             if recipient.startswith("group:"):
                 gid = recipient[len("group:"):]
                 if gid and gid not in group_by_id:
-                    can = _can("groups:manage")
+                    can = _can("users:edit")
                     _add(f"notif_group:{gid}", {
                         "type": "group", "icon": "people",
                         "entity_name": "Team / Group",
@@ -2574,7 +2733,7 @@ def _validate_process_prerequisites(
             if recipient.startswith("role:"):
                 rid = recipient[len("role:"):]
                 if rid and rid not in role_by_id:
-                    can = _can("roles:manage")
+                    can = _can("users:edit")
                     _add(f"notif_role:{rid}", {
                         "type": "role", "icon": "shield",
                         "entity_name": "Role",
@@ -2614,7 +2773,7 @@ def _validate_process_prerequisites(
                 for gid in (gid_list if isinstance(gid_list, list) else [gid_list]):
                     gs = str(gid or "")
                     if gs and gs not in group_by_id:
-                        can = _can("groups:manage")
+                        can = _can("users:edit")
                         _add(f"appr_group:{gs}", {
                             "type": "group", "icon": "people",
                             "entity_name": "Team / Group",
@@ -2645,7 +2804,7 @@ def _validate_process_prerequisites(
                 for rid in (rid_list if isinstance(rid_list, list) else [rid_list]):
                     rs = str(rid or "")
                     if rs and rs not in role_by_id:
-                        can = _can("roles:manage")
+                        can = _can("users:edit")
                         _add(f"appr_role:{rs}", {
                             "type": "role", "icon": "shield",
                             "entity_name": "Role",
@@ -2689,7 +2848,7 @@ def _validate_process_prerequisites(
             # — No departments at all —
             if dir_type == "department_manager" and not dept_name_ref:
                 if not dept_by_id:
-                    can = _can("org:manage")
+                    can = _can("users:edit")
                     _add("no_departments", {
                         "type": "department", "icon": "building",
                         "entity_name": "Departments",
@@ -2714,7 +2873,7 @@ def _validate_process_prerequisites(
             # — No managers assigned anywhere —
             if dir_type in ("dynamic_manager", "") and source == "user_directory":
                 if not caps.get("has_managers"):
-                    can = _can("org:manage")
+                    can = _can("users:edit")
                     _add("no_managers", {
                         "type": "identity", "icon": "hierarchy",
                         "entity_name": "Manager Assignments",
@@ -2741,7 +2900,7 @@ def _validate_process_prerequisites(
             if dir_type == "management_chain":
                 level = config.get("management_level", 2)
                 if not caps.get("has_managers"):
-                    can = _can("org:manage")
+                    can = _can("users:edit")
                     _add("no_mgmt_chain", {
                         "type": "identity", "icon": "hierarchy",
                         "entity_name": f"Management Chain (Level {level})",
@@ -2771,7 +2930,7 @@ def _validate_process_prerequisites(
                 for eid in (esc_ids if isinstance(esc_ids, list) else [esc_ids]):
                     es = str(eid or "")
                     if es and es not in group_by_id:
-                        can = _can("groups:manage")
+                        can = _can("users:edit")
                         _add(f"esc_group:{es}", {
                             "type": "group", "icon": "people",
                             "entity_name": "Escalation Team",
@@ -2795,7 +2954,7 @@ def _validate_process_prerequisites(
                 for eid in (esc_ids if isinstance(esc_ids, list) else [esc_ids]):
                     es = str(eid or "")
                     if es and es not in role_by_id:
-                        can = _can("roles:manage")
+                        can = _can("users:edit")
                         _add(f"esc_role:{es}", {
                             "type": "role", "icon": "shield",
                             "entity_name": "Escalation Role",
@@ -2893,7 +3052,7 @@ def _validate_process_prerequisites(
                 psrc = (prefill.get("source") or "").strip()
                 if psrc == "currentUser" and pkey and pkey.lower() not in known_attr_keys:
                     flabel = fld.get("label") or fld.get("name") or pkey
-                    can = _can("org:manage")
+                    can = _can("users:edit")
                     _add(f"attr:{pkey.lower()}", {
                         "type": "profile_field", "icon": "field",
                         "entity_name": flabel,
@@ -2925,7 +3084,7 @@ def _validate_process_prerequisites(
         for match in _ctx_re.finditer(config_text):
             attr_key = match.group(1)
             if attr_key.lower() not in known_attr_keys:
-                can = _can("org:manage")
+                can = _can("users:edit")
                 friendly = attr_key.replace("_", " ").title()
                 _add(f"tpl_attr:{attr_key.lower()}", {
                     "type": "profile_field", "icon": "field",
@@ -3131,18 +3290,7 @@ async def generate_workflow_from_goal(
     # ── Resolve user permissions (used by both pre- and post-checks) ──
     user_perms: List[str] = []
     try:
-        if hasattr(user, "role") and user.role:
-            from database.base import get_session as _gs
-            from database.models.role_permission import RolePermission as _RP
-            with _gs() as _s:
-                _perms = (
-                    _s.query(_RP.permission_key)
-                    .filter(_RP.role_id == user.role_id)
-                    .all()
-                )
-                user_perms = [p[0] for p in _perms]
-        if getattr(user, "is_superadmin", False) or getattr(user, "is_org_admin", False):
-            user_perms.append("full_admin")
+        user_perms = security_state.get_user_permissions(user)
     except Exception:
         user_perms = []
 
