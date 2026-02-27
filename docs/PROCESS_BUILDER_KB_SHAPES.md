@@ -171,7 +171,8 @@ Config (`approval.config`):
 - `directory_assignee_type` (string):
   - `"dynamic_manager"` — The requester's DIRECT manager/supervisor (from their profile).
   - `"department_manager"` — Head of a department. Without extra config, defaults to the requester's own department.
-    To target a SPECIFIC department (e.g., "Finance"), set `assignee_department_name: "Finance"` (RECOMMENDED) or `assignee_department_id: "<dept_id>"`.
+    To target a SPECIFIC department (e.g., "Finance"), set BOTH `department_id: "<dept_uuid>"` AND `assignee_department_name: "Finance"`.
+    The `department_id` is required for the visual builder to display the correct dropdown selection.
   - `"management_chain"` — Higher management (skip-level). Set `management_level` (2=next level, 3=above that).
   - `"role"` — Role-based. Set `role_ids: ["<role_id>"]` (use actual role ID from the org structure).
   - `"group"` — Group/team/committee. Set `group_ids: ["<group_id>"]` (use actual group ID from the org structure).

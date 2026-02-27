@@ -790,13 +790,19 @@ async def get_builder_context(user: User = Depends(require_auth)):
     dept_names = [d.get("name") for d in departments if d.get("name")]
     role_names: List[str] = []
     group_names: List[str] = []
+    groups: List[Dict[str, Any]] = []
+    roles: List[Dict[str, Any]] = []
     try:
         from database.base import get_session
         from database.models.role import Role
         from database.models.user_group import UserGroup
         with get_session() as session:
-            role_names = [r.name for r in session.query(Role).filter(Role.org_id == ctx["org_id"]).order_by(Role.name.asc()).all() if getattr(r, "name", None)]
-            group_names = [g.name for g in session.query(UserGroup).filter(UserGroup.org_id == ctx["org_id"]).order_by(UserGroup.name.asc()).all() if getattr(g, "name", None)]
+            _roles = session.query(Role).filter(Role.org_id == ctx["org_id"]).order_by(Role.name.asc()).all()
+            role_names = [r.name for r in _roles if getattr(r, "name", None)]
+            roles = [{"id": str(r.id), "name": r.name} for r in _roles if getattr(r, "name", None)]
+            _groups = session.query(UserGroup).filter(UserGroup.org_id == ctx["org_id"]).order_by(UserGroup.name.asc()).all()
+            group_names = [g.name for g in _groups if getattr(g, "name", None)]
+            groups = [{"id": str(g.id), "name": g.name} for g in _groups if getattr(g, "name", None)]
     except Exception:
         role_names = role_names or []
         group_names = group_names or []
@@ -826,4 +832,6 @@ async def get_builder_context(user: User = Depends(require_auth)):
             "levels": chain_levels,
         },
         "departments": departments,
+        "groups": groups,
+        "roles": roles,
     }

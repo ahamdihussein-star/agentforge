@@ -3649,6 +3649,24 @@
                                         .join('');
                                     return `<optgroup label="🏢 Departments">${items}</optgroup>`;
                                 })()}
+                                ${(() => {
+                                    const _groups = ((state.builderContext || {}).groups) || [];
+                                    if (!_groups.length) return '';
+                                    const items = _groups
+                                        .filter(g => g && g.id && g.name)
+                                        .map(g => `<option value="group:${escapeHtml(g.id)}" ${node.config.recipient === 'group:' + g.id ? 'selected' : ''}>${escapeHtml(g.name)}</option>`)
+                                        .join('');
+                                    return '<optgroup label="\uD83D\uDC65 Groups / Teams">' + items + '</optgroup>';
+                                })()}
+                                ${(() => {
+                                    const _roles = ((state.builderContext || {}).roles) || [];
+                                    if (!_roles.length) return '';
+                                    const items = _roles
+                                        .filter(r => r && r.id && r.name)
+                                        .map(r => `<option value="role:${escapeHtml(r.id)}" ${node.config.recipient === 'role:' + r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`)
+                                        .join('');
+                                    return '<optgroup label="\uD83C\uDFAD Roles">' + items + '</optgroup>';
+                                })()}
                                 ${availableFields.filter(f => f.type === 'email' || f.type === 'text').length > 0 ? `<optgroup label="📝 From Form">
                                     ${availableFields.filter(f => f.type === 'email' || f.type === 'text').map(f => `
                                         <option value="{{${f.name}}}" ${node.config.recipient === '{{' + f.name + '}}' ? 'selected' : ''}>
@@ -3656,9 +3674,9 @@
                                         </option>
                                     `).join('')}
                                 </optgroup>` : ''}
-                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && node.config.recipient !== 'department_head' && node.config.recipient !== 'department_members' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('dept_members:') && !node.config.recipient.startsWith('skip_level') ? 'selected' : ''}>A specific email address...</option>
+                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && node.config.recipient !== 'department_head' && node.config.recipient !== 'department_members' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('dept_members:') && !node.config.recipient.startsWith('group:') && !node.config.recipient.startsWith('role:') && !node.config.recipient.startsWith('skip_level') ? 'selected' : ''}>A specific email address...</option>
                             </select>
-                            ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && node.config.recipient !== 'department_head' && node.config.recipient !== 'department_members' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('dept_members:') && !node.config.recipient.startsWith('skip_level') && node.config.recipient !== '' ? `
+                            ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && node.config.recipient !== 'department_head' && node.config.recipient !== 'department_members' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('dept_members:') && !node.config.recipient.startsWith('group:') && !node.config.recipient.startsWith('role:') && !node.config.recipient.startsWith('skip_level') && node.config.recipient !== '' ? `
                                 <input type="text" class="property-input" style="margin-top:8px;" placeholder="email@example.com" 
                                        value="${escapeHtml(node.config.recipient || '')}"
                                        onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
@@ -5564,7 +5582,14 @@
                             .join('')
                         : '';
                     deptSel.innerHTML = '<option value="">Use requester’s department</option>' + deptOptions;
-                    const existingDeptId = (cfg[deptKey] || cfg.departmentId || '').toString();
+                    let existingDeptId = (cfg[deptKey] || cfg.departmentId || cfg.assignee_department_id || '').toString();
+                    if (!existingDeptId) {
+                        const deptName = (cfg.assignee_department_name || cfg.department_name || cfg.departmentName || '').toString().trim().toLowerCase();
+                        if (deptName && state.builderContext && Array.isArray(state.builderContext.departments)) {
+                            const match = state.builderContext.departments.find(d => d && d.name && d.name.toLowerCase() === deptName);
+                            if (match) existingDeptId = match.id;
+                        }
+                    }
                     deptSel.value = existingDeptId || '';
                 }
             }
@@ -5648,13 +5673,18 @@
                     const deptId = deptSel ? String(deptSel.value || '').trim() : '';
                     if ((node.config.directory_assignee_type === 'department_manager' || node.config.directory_assignee_type === 'department_members') && deptId) {
                         node.config.department_id = deptId;
+                        const selOpt = deptSel ? deptSel.options[deptSel.selectedIndex] : null;
+                        if (selOpt && selOpt.value) node.config.assignee_department_name = selOpt.textContent;
+                        else delete node.config.assignee_department_name;
                     } else {
                         delete node.config.department_id;
+                        delete node.config.assignee_department_name;
                     }
                 } else {
                     delete node.config.directory_assignee_type;
                     delete node.config.management_level;
                     delete node.config.department_id;
+                    delete node.config.assignee_department_name;
                 }
             }
             if (node.config.approvers !== undefined) delete node.config.approvers;

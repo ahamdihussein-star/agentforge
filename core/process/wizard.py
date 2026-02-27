@@ -940,10 +940,15 @@ class ProcessWizard:
                 org_lines.append(
                     "  → For approval by a specific department's manager: "
                     'assignee_source: "user_directory", directory_assignee_type: "department_manager", '
+                    'department_id: "<department UUID from the list above>", '
                     'assignee_department_name: "<department name>".'
                 )
                 org_lines.append(
                     '  → For notification to a department manager: recipient: "dept_manager:<department_id>".'
+                )
+                org_lines.append(
+                    "  IMPORTANT: Always set BOTH department_id (the UUID) AND assignee_department_name (the name) "
+                    "so the visual builder can display the correct department in its dropdown."
                 )
 
             groups = additional_context.get("groups")

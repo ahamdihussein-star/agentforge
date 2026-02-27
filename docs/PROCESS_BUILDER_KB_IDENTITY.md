@@ -102,9 +102,9 @@ appropriate `directory_assignee_type`. The engine resolves the actual person(s) 
 | `static` | Fixed user IDs (set `user_ids`) | When specific individuals are always the approvers |
 
 ### Department Routing
-- Use `assignee_department_name` (string) when routing to a SPECIFIC department's manager or members —
-  the engine looks up the department by name at runtime.
-- Use `assignee_department_id` (UUID) if the actual ID is known (e.g., from ORGANIZATION STRUCTURE context).
+- When routing to a SPECIFIC department's manager or members, set BOTH:
+  - `department_id` (UUID from ORGANIZATION STRUCTURE context) — required for the visual builder
+  - `assignee_department_name` (string) — human-readable fallback for the engine
 - For `department_manager` without specifying a department, the engine falls back to the requester's own department.
 - CRITICAL: `dynamic_manager` is NOT the same as `department_manager`.
   - `dynamic_manager` = the requester's DIRECT MANAGER (their supervisor)
