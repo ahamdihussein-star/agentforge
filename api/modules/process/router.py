@@ -569,14 +569,46 @@ def _analyze_process_identity_requirements(nodes: list) -> Dict[str, Any]:
                     reqs["details"].append({
                         "node": node_name,
                         "field": "email",
-                        "reason": f"Notification node '{node_name}' sends to '{r_str}' — requires user's email address",
+                        "reason": f"Notification '{node_name}' sends to the requester — their email address must be set in their profile",
                     })
                 elif r_str in ("manager", "supervisor", "direct_manager"):
                     reqs["needs_manager"] = True
                     reqs["details"].append({
                         "node": node_name,
                         "field": "manager_email",
-                        "reason": f"Notification node '{node_name}' sends to '{r_str}' — requires manager's email address",
+                        "reason": f"Notification '{node_name}' sends to the requester's manager — a manager must be assigned in Identity Directory",
+                    })
+                elif r_str in ("department_head", "dept_head", "department_manager"):
+                    reqs["needs_department"] = True
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "department",
+                        "reason": f"Notification '{node_name}' sends to the department head — the requester must be assigned to a department with a manager",
+                    })
+                elif r_str.startswith("group:") or r_str.startswith("team:"):
+                    group_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "group",
+                        "reason": f"Notification '{node_name}' sends to a group/team — the group must exist and have members with email addresses",
+                        "group_id": group_id,
+                    })
+                elif r_str.startswith("role:"):
+                    role_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "role",
+                        "reason": f"Notification '{node_name}' sends to users with a specific role — the role must exist and have assigned users",
+                        "role_id": role_id,
+                    })
+                elif r_str.startswith("dept_manager:") or r_str.startswith("dept_head:"):
+                    dept_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                    reqs["needs_department"] = True
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "department",
+                        "reason": f"Notification '{node_name}' sends to a specific department's manager — the department must have a manager assigned",
+                        "department_id": dept_id,
                     })
         
         # --- APPROVAL nodes ---
@@ -584,20 +616,29 @@ def _analyze_process_identity_requirements(nodes: list) -> Dict[str, Any]:
             assignee_source = (config.get("assignee_source") or "").lower()
             dir_type = (config.get("directory_assignee_type") or "").lower()
             
+            dept_name_cfg = config.get("assignee_department_name") or config.get("department_name") or ""
+
             if assignee_source == "user_directory":
                 if dir_type in ("dynamic_manager", "manager"):
                     reqs["needs_manager"] = True
                     reqs["details"].append({
                         "node": node_name,
                         "field": "manager",
-                        "reason": f"Approval node '{node_name}' routes to user's manager — requires manager assignment",
+                        "reason": f"Approval '{node_name}' is routed to the requester's direct manager — a manager must be assigned in Identity Directory",
+                    })
+                elif dir_type == "department_manager" and dept_name_cfg:
+                    reqs["needs_department"] = True
+                    reqs["details"].append({
+                        "node": node_name,
+                        "field": "department",
+                        "reason": f"Approval '{node_name}' is routed to the '{dept_name_cfg}' department manager — this department must exist and have a manager assigned",
                     })
                 elif "department" in dir_type:
                     reqs["needs_department"] = True
                     reqs["details"].append({
                         "node": node_name,
                         "field": "department",
-                        "reason": f"Approval node '{node_name}' uses department-based routing — requires department assignment",
+                        "reason": f"Approval '{node_name}' uses department-based routing — the requester must be assigned to a department",
                     })
             
             # Check for dynamic expressions in assignee_ids
@@ -756,45 +797,53 @@ def _check_requirements_against_data(
     
     # Check: Department
     if requirements.get("needs_department"):
-        has_dept = bool(user_data.get("department_name") or user_data.get("department_id"))
-        if not has_dept:
-            caps = identity_ctx.get("capabilities", {})
-            has_any_depts = caps.get("has_departments", False)
-            reasons = [d["reason"] for d in requirements.get("details", []) if "department" in d.get("field", "")]
-            
-            if not has_any_depts:
-                issues.append({
-                    "severity": "error",
-                    "code": "NO_DEPARTMENTS",
-                    "title": "No departments configured",
-                    "message": (
-                        "This process uses department-based routing, "
-                        "but no departments exist in the system."
-                        + (f"\n\nNeeded by: {reasons[0]}" if reasons else "")
-                    ),
-                    "action": {
-                        "type": "open_settings",
-                        "label": "Set up departments",
-                        "target": "departments",
-                    },
-                })
-            else:
-                issues.append({
-                    "severity": "error",
-                    "code": "NO_DEPARTMENT_ASSIGNED",
-                    "title": "You are not assigned to a department",
-                    "message": (
-                        "This process uses department-based routing, "
-                        "but your profile has no department assigned."
-                        + (f"\n\nNeeded by: {reasons[0]}" if reasons else "")
-                    ),
-                    "action": {
-                        "type": "open_profile",
-                        "label": "Assign your department",
-                        "target": "user_management",
-                        "field": "department",
-                    },
-                })
+        dept_details = [d for d in requirements.get("details", []) if "department" in d.get("field", "")]
+        named_dept_details = [d for d in dept_details if d.get("reason") and "'" in d.get("reason", "")]
+        generic_dept_details = [d for d in dept_details if d not in named_dept_details]
+
+        # Named department routing (e.g., "Finance department manager") doesn't require
+        # the requester to be in a department — it routes to a specific dept's manager.
+        # Only generic department routing requires the requester to have a dept assignment.
+        if generic_dept_details:
+            has_dept = bool(user_data.get("department_name") or user_data.get("department_id"))
+            if not has_dept:
+                caps = identity_ctx.get("capabilities", {})
+                has_any_depts = caps.get("has_departments", False)
+                reasons = [d["reason"] for d in generic_dept_details]
+
+                if not has_any_depts:
+                    issues.append({
+                        "severity": "error",
+                        "code": "NO_DEPARTMENTS",
+                        "title": "No departments configured",
+                        "message": (
+                            "This process uses department-based routing, "
+                            "but no departments have been set up yet."
+                            + (f"\n\nDetails: {reasons[0]}" if reasons else "")
+                        ),
+                        "action": {
+                            "type": "open_settings",
+                            "label": "Set up departments",
+                            "target": "departments",
+                        },
+                    })
+                else:
+                    issues.append({
+                        "severity": "error",
+                        "code": "NO_DEPARTMENT_ASSIGNED",
+                        "title": "You are not assigned to a department",
+                        "message": (
+                            "This process routes approvals based on your department, "
+                            "but your profile does not have a department assigned."
+                            + (f"\n\nDetails: {reasons[0]}" if reasons else "")
+                        ),
+                        "action": {
+                            "type": "open_profile",
+                            "label": "Assign your department",
+                            "target": "user_management",
+                            "field": "department",
+                        },
+                    })
     
     # Check: Referenced custom identity fields
     referenced = requirements.get("referenced_identity_fields", [])
@@ -1882,6 +1931,36 @@ async def generate_workflow_from_goal(
     except Exception as e:
         print(f"⚠️  [Wizard] Failed to discover user attributes/identity: {e}")
     
+    # Discover actual departments, groups, and roles so the AI can reference them
+    try:
+        import uuid as _uuid_mod
+        _org_uuid = _uuid_mod.UUID(user_dict["org_id"])
+
+        from database.models.department import Department as DBDepartment
+        _depts = db.query(DBDepartment).filter(DBDepartment.org_id == _org_uuid).all()
+        context["departments"] = [
+            {"id": str(d.id), "name": d.name, "has_manager": bool(d.manager_id)}
+            for d in _depts
+        ]
+
+        from database.models.user_group import UserGroup as DBUserGroup
+        _groups = db.query(DBUserGroup).filter(DBUserGroup.org_id == _org_uuid).all()
+        context["groups"] = [
+            {"id": str(g.id), "name": g.name}
+            for g in _groups
+        ]
+
+        from database.models.role import Role as DBRole
+        _roles = db.query(DBRole).filter(
+            (DBRole.org_id == _org_uuid) | (DBRole.org_id.is_(None))
+        ).all()
+        context["roles"] = [
+            {"id": str(r.id), "name": r.name}
+            for r in _roles if r.name not in ("Super Admin",)
+        ]
+    except Exception as e:
+        print(f"⚠️  [Wizard] Failed to discover org structure: {e}")
+
     # Discover published processes so the AI can suggest call_process nodes
     try:
         from database.services.agent_service import AgentService

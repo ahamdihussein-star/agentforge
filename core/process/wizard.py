@@ -438,15 +438,26 @@ Node config rules:
   - For static (always same person): assignee_source: "platform_user", assignee_ids: ["<user_id>"].
   - For tool-resolved approval: assignee_source: "tool" (tool resolves the approver dynamically).
   - ALWAYS prefer "user_directory" over "platform_user" when the approval follows organizational hierarchy.
+  - CRITICAL: "dynamic_manager" means the requester's DIRECT MANAGER (the person set as their manager in the identity directory).
+    Do NOT use "dynamic_manager" when the user asks for a SPECIFIC department's manager (e.g., "Finance Manager").
+    Instead use: assignee_source: "user_directory", directory_assignee_type: "department_manager", assignee_department_name: "<department name>".
+    Or if they mention a specific group: assignee_source: "platform_group", assignee_ids: ["<group_id>"].
+    Or if they mention a specific role: assignee_source: "platform_role", assignee_ids: ["<role_id>"].
+    ALWAYS check the ORGANIZATION STRUCTURE section to find matching departments/groups/roles.
   - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence.
 - notification.config must include: channel, recipient (string), template (string).
   - channel: "email" (default) | "slack" | "teams" | "sms"
   - recipient: WHO receives this notification. Use ONE of these (string, not array):
     - "requester" → automatically sends to the person who submitted the form (PREFERRED for employee notifications)
     - "manager" → automatically sends to the requester's direct manager (use ONLY for informational notifications, NOT for approval pending notifications — those use the approval node's notifyApprover feature)
+    - "department_head" → sends to the requester's department head
+    - "group:<group_id>" → sends to ALL members of a specific group/team (use actual group ID from ORGANIZATION GROUPS list)
+    - "role:<role_id>" → sends to ALL users with a specific role (use actual role ID from ORGANIZATION ROLES list)
+    - "dept_manager:<department_id>" → sends to a SPECIFIC department's manager (use dept ID from ORGANIZATION DEPARTMENTS list)
     - "{{{{employeeEmail}}}}" → a form field reference (only if you need a custom email field)
     - "someone@example.com" → a hardcoded email (rarely used)
-    BEST PRACTICE: Use "requester" and "manager" shortcuts. NEVER leave recipient empty. NEVER use "-- Select Field --".
+    BEST PRACTICE: Use "requester", "manager", "group:<id>", "role:<id>" shortcuts. NEVER leave recipient empty. NEVER use "-- Select Field --".
+    When the user mentions a SPECIFIC team/group name (e.g., "Accounts Payable Team"), look it up in the ORGANIZATION GROUPS list and use "group:<group_id>".
     IMPORTANT: If you are notifying the SAME person who is the approver about a PENDING approval, do NOT use a notification node — use the approval node's notifyApprover:true instead.
   - template: The full email body content. MUST be a rich, informative, business-friendly message.
     RULES FOR TEMPLATES:
@@ -915,6 +926,64 @@ class ProcessWizard:
                 
                 identity_context_text = "\n".join(lines)
 
+        # Build organizational structure context (departments, groups, roles)
+        org_structure_text = ""
+        if additional_context and isinstance(additional_context, dict):
+            org_lines = []
+            depts = additional_context.get("departments")
+            if depts and isinstance(depts, list) and len(depts) > 0:
+                org_lines.append("\n\nORGANIZATION DEPARTMENTS:")
+                org_lines.append("Use these for department-based approval routing and notifications.")
+                for d in depts[:50]:
+                    mgr_note = "has manager assigned" if d.get("has_manager") else "NO manager assigned"
+                    org_lines.append(f'  - "{d["name"]}" (id: {d["id"]}, {mgr_note})')
+                org_lines.append(
+                    "  → For approval by a specific department's manager: "
+                    'assignee_source: "user_directory", directory_assignee_type: "department_manager", '
+                    'assignee_department_name: "<department name>".'
+                )
+                org_lines.append(
+                    '  → For notification to a department manager: recipient: "dept_manager:<department_id>".'
+                )
+
+            groups = additional_context.get("groups")
+            if groups and isinstance(groups, list) and len(groups) > 0:
+                org_lines.append("\nORGANIZATION GROUPS / TEAMS:")
+                org_lines.append("Use these for group-based approval routing and notifications.")
+                for g in groups[:50]:
+                    org_lines.append(f'  - "{g["name"]}" (id: {g["id"]})')
+                org_lines.append(
+                    "  → For approval by a group: "
+                    'assignee_source: "platform_group", assignee_ids: ["<group_id>"].'
+                )
+                org_lines.append(
+                    '  → For notification to a group: recipient: "group:<group_id>".'
+                )
+
+            roles = additional_context.get("roles")
+            if roles and isinstance(roles, list) and len(roles) > 0:
+                org_lines.append("\nORGANIZATION ROLES:")
+                org_lines.append("Use these for role-based approval routing and notifications.")
+                for r in roles[:30]:
+                    org_lines.append(f'  - "{r["name"]}" (id: {r["id"]})')
+                org_lines.append(
+                    "  → For approval by a role: "
+                    'assignee_source: "platform_role", assignee_ids: ["<role_id>"].'
+                )
+                org_lines.append(
+                    '  → For notification to a role: recipient: "role:<role_id>".'
+                )
+
+            if org_lines:
+                org_lines.insert(0, "\n\nORGANIZATION STRUCTURE (actual departments, groups, and roles configured):")
+                org_lines.append(
+                    "\nIMPORTANT: When the user's prompt mentions a specific department, group, team, or role name, "
+                    "match it against the lists above and use the correct ID. "
+                    "Do NOT default to 'dynamic_manager' (direct manager) when a SPECIFIC department manager, "
+                    "group, or role is mentioned — use the matching routing type with the correct ID."
+                )
+                org_structure_text = "\n".join(org_lines)
+
         # Build a dynamic tools summary for the platform_knowledge section.
         # This ensures the AI has both the KB guide (how to use tools) AND a structured
         # summary of what specific tools are available right now.
@@ -984,6 +1053,7 @@ class ProcessWizard:
             (platform_knowledge or "(no KB matches)")
             + user_attrs_context
             + identity_context_text
+            + org_structure_text
             + tools_summary_text
             + published_processes_text
         )

@@ -462,6 +462,52 @@ class UserDirectoryService:
             
             return result
     
+    def get_group_members(self, group_id: str, org_id: str) -> List[UserAttributes]:
+        """Get all members of a group/team by resolving stored user IDs."""
+        from database.base import get_session
+        from database.models.user_group import UserGroup
+        from database.models.user import User
+
+        with get_session() as session:
+            group = session.query(UserGroup).filter(
+                UserGroup.id == group_id,
+                UserGroup.org_id == org_id,
+            ).first()
+            if not group:
+                return []
+            user_ids = group.user_ids or []
+            if not user_ids:
+                return []
+            members = session.query(User).filter(
+                User.id.in_(user_ids),
+                User.org_id == org_id,
+                User.status == "active",
+            ).all()
+            return [self._user_to_attributes(u, org_id) for u in members]
+
+    def get_role_members(self, role_id: str, org_id: str) -> List[UserAttributes]:
+        """Get all users assigned to a specific role."""
+        from database.base import get_session
+        from database.models.user import User
+
+        with get_session() as session:
+            users = session.query(User).filter(
+                User.org_id == org_id,
+                User.status == "active",
+                User.role_ids.contains([role_id]),
+            ).all()
+            if not users:
+                users = session.query(User).filter(
+                    User.org_id == org_id,
+                    User.status == "active",
+                ).all()
+                users = [
+                    u for u in users
+                    if isinstance(getattr(u, "role_ids", None), list)
+                    and str(role_id) in [str(r) for r in u.role_ids]
+                ]
+            return [self._user_to_attributes(u, org_id) for u in users]
+
     # ========================================================================
     # ORG CHART OPERATIONS
     # ========================================================================

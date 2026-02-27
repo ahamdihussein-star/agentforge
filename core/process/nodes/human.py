@@ -226,8 +226,37 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     error=ExecutionError.validation_error(f"Approver tool failed: {e}"),
                     logs=[f"Creating approval request: {title}", str(e)]
                 )
+        elif assignee_source in ('platform_group', 'platform_role') and self.deps and self.deps.user_directory:
+            # Expand group/role IDs to concrete user IDs via User Directory
+            directory_config = {
+                "type": "role" if assignee_source == "platform_role" else "group",
+                "role_ids": assignee_ids_raw if assignee_source == "platform_role" and isinstance(assignee_ids_raw, list) else [],
+                "group_ids": assignee_ids_raw if assignee_source == "platform_group" and isinstance(assignee_ids_raw, list) else [],
+            }
+            process_context = {
+                "user_id": context.user_id,
+                "trigger_input": state.trigger_input or {},
+                "variables": state.get_all(),
+            }
+            try:
+                assignee_ids = [
+                    str(x) for x in (
+                        self.deps.user_directory.resolve_process_assignee(
+                            directory_config, process_context, context.org_id
+                        ) or []
+                    ) if x
+                ]
+                if assignee_ids:
+                    assignee_type = 'user'
+                    logs.append(f"Resolved {len(assignee_ids)} assignees from {assignee_source}")
+                else:
+                    logs.append(f"⚠️ {assignee_source} resolved 0 assignees — group/role may be empty")
+                    assignee_type = 'any'
+            except Exception as e:
+                logs.append(f"⚠️ {assignee_source} resolution failed: {e}")
+                assignee_ids = _to_assignee_id_list(assignee_ids_raw)
         else:
-            # Platform user/role/group or dynamic expression (e.g. {{ trigger_input.manager_id }})
+            # Platform user or dynamic expression (e.g. {{ trigger_input.manager_id }})
             assignee_ids_resolved = state.interpolate_object(assignee_ids_raw) if assignee_ids_raw else []
             assignee_ids = _to_assignee_id_list(assignee_ids_resolved)
 
@@ -866,6 +895,56 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                     except Exception as e:
                         logs.append(f"⚠️ Failed to resolve '{r_str}': {e}")
                 logs.append(f"⚠️ Could not resolve '{r_str}' — department members not found")
+                continue
+
+            # Group/team shortcut: "group:<group_id>" → all members of a specific group
+            if r_lower.startswith("group:") or r_lower.startswith("team:"):
+                group_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                if group_id and self.deps and self.deps.user_directory:
+                    try:
+                        group_members = self.deps.user_directory.get_group_members(
+                            str(group_id), context.org_id
+                        ) or []
+                        count = 0
+                        for m in group_members:
+                            em = getattr(m, "email", None)
+                            if em:
+                                resolved_recipients.append(em)
+                                count += 1
+                        if count > 0:
+                            logs.append(f"Resolved '{r_str}' → {count} group member(s)")
+                            continue
+                    except Exception as e:
+                        logs.append(f"⚠️ Failed to resolve group '{r_str}': {e}")
+                logs.append(
+                    f"⚠️ Could not resolve '{r_str}' — group members not found. "
+                    "Check: does this group exist and have members assigned?"
+                )
+                continue
+
+            # Role shortcut: "role:<role_id>" → all users with this role
+            if r_lower.startswith("role:"):
+                role_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                if role_id and self.deps and self.deps.user_directory:
+                    try:
+                        role_members = self.deps.user_directory.get_role_members(
+                            str(role_id), context.org_id
+                        ) or []
+                        count = 0
+                        for m in role_members:
+                            em = getattr(m, "email", None)
+                            if em:
+                                resolved_recipients.append(em)
+                                count += 1
+                        if count > 0:
+                            logs.append(f"Resolved '{r_str}' → {count} role member(s)")
+                            continue
+                    except Exception as e:
+                        logs.append(f"⚠️ Failed to resolve role '{r_str}': {e}")
+                logs.append(
+                    f"⚠️ Could not resolve '{r_str}' — role members not found. "
+                    "Check: does this role exist and have users assigned?"
+                )
                 continue
 
             # Management chain shortcuts from the UI ("skip_level_2", "skip_level_3", ...)
