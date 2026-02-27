@@ -2028,12 +2028,13 @@ async def _analyze_goal_prerequisites(
     )
 
     system_prompt = (
-        "You analyze workflow descriptions to identify what platform "
-        "entities they require. Return ONLY valid JSON — no markdown, "
-        "no explanation, no extra text."
+        "You extract platform entities from workflow descriptions. "
+        "Return ONLY valid JSON — no markdown, no explanation. "
+        "CRITICAL: Only extract entities that are EXPLICITLY mentioned "
+        "or directly implied by the text. Never invent or assume."
     )
 
-    user_prompt = f"""What entities does this workflow need to function?
+    user_prompt = f"""What entities does this workflow EXPLICITLY need?
 
 CURRENTLY AVAILABLE ON THE PLATFORM:
 - Departments: {dept_info}
@@ -2048,29 +2049,30 @@ WORKFLOW DESCRIPTION:
 
 Return this exact JSON structure:
 {{
-  "departments": [{{"name": "ProperName", "why": "short reason"}}],
-  "groups": [{{"name": "ProperName", "why": "short reason"}}],
-  "roles": [{{"name": "ProperName", "why": "short reason"}}],
-  "tools": [{{"name": "ProperName", "why": "short reason"}}],
+  "departments": [{{"name": "ProperName", "why": "quote from description"}}],
+  "groups": [{{"name": "ProperName", "why": "quote from description"}}],
+  "roles": [],
+  "tools": [],
   "needs_manager_routing": false,
   "needs_escalation_hierarchy": false,
   "needs_identity_directory": false,
   "escalation_details": ""
 }}
 
-RULES:
-- List ALL entities the workflow needs, even if they already exist (the platform will cross-reference)
-- Use proper display names for entities (e.g. "Supply Chain" not "supply chain manager")
-- departments = organizational units the workflow routes work to (not job titles)
-- groups = teams that receive notifications or are assigned tasks as a group
-- roles = named organizational roles required for assignment
-- tools = external systems or integrations the workflow connects to
-- needs_manager_routing = true if the workflow sends work to someone's direct manager
-- needs_escalation_hierarchy = true if the workflow has multi-level escalation (e.g. to a department head, senior manager, skip-level)
-- needs_identity_directory = true if the workflow needs employee profile data (names, emails, departments, managers)
-- escalation_details = brief description of the escalation path if needs_escalation_hierarchy is true
-- Only include entities genuinely REQUIRED for the workflow; internal logic steps (calculations, conditions) don't need entities
-- Return empty arrays [] when no entities of that type are needed"""
+STRICT RULES — READ CAREFULLY:
+1. ONLY extract entities that are EXPLICITLY mentioned in the workflow description
+2. The "why" field MUST contain a direct quote from the description that proves this entity is needed. If you cannot quote it, do NOT include it.
+3. departments = organizational units mentioned by name (e.g. "Supply Chain" from "Supply Chain Manager")
+4. groups = teams mentioned by name (e.g. "Supply Chain" from "supply chain team")
+5. roles = specific named roles only if explicitly mentioned as a role to be assigned
+6. tools = external systems ONLY if the description explicitly mentions connecting to them
+7. needs_manager_routing = true ONLY if the description explicitly mentions routing to a "manager" or "supervisor"
+8. needs_escalation_hierarchy = true ONLY if the description explicitly mentions escalation to a higher authority (e.g. "department head", "senior manager")
+9. needs_identity_directory = true ONLY if the workflow explicitly needs employee profile data
+10. Use proper display names (e.g. "Supply Chain" not "supply chain manager" — strip the job title)
+11. Return empty arrays [] when no entities of that type are mentioned
+12. When in doubt, DO NOT include it. False negatives are better than false positives.
+13. NEVER invent departments, teams, roles, or tools that are not referenced in the description"""
 
     try:
         from core.llm.base import Message, MessageRole
@@ -2097,7 +2099,42 @@ RULES:
             text = text[:-3]
         text = text.strip()
 
-    return _json.loads(text)
+    result = _json.loads(text)
+
+    # ── Anti-hallucination: ground every entity against the goal text ──
+    # Each entity name must have at least one significant word present
+    # in the original description.  If not, it was likely hallucinated.
+    goal_lower = (goal or "").lower()
+    _noise_words = {
+        "the", "a", "an", "of", "and", "or", "to", "for", "in", "on",
+        "at", "by", "is", "it", "as", "if", "be", "do", "no", "not",
+        "so", "up", "my", "we", "he", "me", "us",
+        "department", "dept", "team", "group", "committee", "board",
+        "manager", "director", "head", "lead", "leader", "officer",
+        "supervisor", "chief", "unit", "division", "role", "system",
+        "tool", "integration", "service",
+    }
+
+    def _is_grounded(entity_name: str) -> bool:
+        """Check that at least one significant word from the entity
+        name actually appears in the goal text."""
+        words = entity_name.lower().split()
+        significant = [w for w in words if w not in _noise_words and len(w) > 2]
+        if not significant:
+            return False
+        return any(w in goal_lower for w in significant)
+
+    for key in ("departments", "groups", "roles", "tools"):
+        items = result.get(key)
+        if not isinstance(items, list):
+            result[key] = []
+            continue
+        result[key] = [
+            item for item in items
+            if isinstance(item, dict) and _is_grounded(item.get("name", ""))
+        ]
+
+    return result
 
 
 async def _pre_check_platform_readiness(
