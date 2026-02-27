@@ -1992,26 +1992,131 @@ async def use_process_template(
 # =============================================================================
 
 
-def _pre_check_platform_readiness(
+async def _analyze_goal_prerequisites(
+    goal: str,
+    context: Dict[str, Any],
+    llm,
+) -> Optional[Dict[str, Any]]:
+    """
+    Use the LLM to intelligently analyze the goal text and identify
+    every platform entity the workflow would require.
+    Returns structured JSON or None on failure.
+    """
+    import json as _json
+
+    departments = context.get("departments") or []
+    groups = context.get("groups") or []
+    roles = context.get("roles") or []
+    tools = context.get("tools") or context.get("available_tools") or []
+    identity_ctx = context.get("identity_context") or {}
+
+    dept_info = ", ".join(
+        f"{d.get('name', '?')}"
+        + (f" (manager: {d['manager_name']})" if d.get("manager_name") else " (no manager)")
+        for d in departments
+    ) if departments else "None created yet"
+    group_info = ", ".join(g.get("name", "?") for g in groups) if groups else "None created yet"
+    role_info = ", ".join(r.get("name", "?") for r in roles) if roles else "None created yet"
+    tool_info = ", ".join(t.get("name", "?") for t in tools) if tools else "None created yet"
+    id_status = (
+        "Configured" if identity_ctx.get("source")
+        and identity_ctx["source"] != "none" else "Not configured"
+    )
+    has_mgrs = (
+        "Yes" if identity_ctx.get("capabilities", {}).get("has_managers")
+        else "No"
+    )
+
+    system_prompt = (
+        "You analyze workflow descriptions to identify what platform "
+        "entities they require. Return ONLY valid JSON — no markdown, "
+        "no explanation, no extra text."
+    )
+
+    user_prompt = f"""What entities does this workflow need to function?
+
+CURRENTLY AVAILABLE ON THE PLATFORM:
+- Departments: {dept_info}
+- Teams/Groups: {group_info}
+- Roles: {role_info}
+- Tools/Integrations: {tool_info}
+- Employee Directory: {id_status}
+- Managers assigned to employees: {has_mgrs}
+
+WORKFLOW DESCRIPTION:
+"{goal}"
+
+Return this exact JSON structure:
+{{
+  "departments": [{{"name": "ProperName", "why": "short reason"}}],
+  "groups": [{{"name": "ProperName", "why": "short reason"}}],
+  "roles": [{{"name": "ProperName", "why": "short reason"}}],
+  "tools": [{{"name": "ProperName", "why": "short reason"}}],
+  "needs_manager_routing": false,
+  "needs_escalation_hierarchy": false,
+  "needs_identity_directory": false,
+  "escalation_details": ""
+}}
+
+RULES:
+- List ALL entities the workflow needs, even if they already exist (the platform will cross-reference)
+- Use proper display names for entities (e.g. "Supply Chain" not "supply chain manager")
+- departments = organizational units the workflow routes work to (not job titles)
+- groups = teams that receive notifications or are assigned tasks as a group
+- roles = named organizational roles required for assignment
+- tools = external systems or integrations the workflow connects to
+- needs_manager_routing = true if the workflow sends work to someone's direct manager
+- needs_escalation_hierarchy = true if the workflow has multi-level escalation (e.g. to a department head, senior manager, skip-level)
+- needs_identity_directory = true if the workflow needs employee profile data (names, emails, departments, managers)
+- escalation_details = brief description of the escalation path if needs_escalation_hierarchy is true
+- Only include entities genuinely REQUIRED for the workflow; internal logic steps (calculations, conditions) don't need entities
+- Return empty arrays [] when no entities of that type are needed"""
+
+    try:
+        from core.llm.base import Message, MessageRole
+    except ImportError:
+        try:
+            from core.llm.models import Message, MessageRole
+        except ImportError:
+            return None
+
+    messages = [
+        Message(role=MessageRole.SYSTEM, content=system_prompt),
+        Message(role=MessageRole.USER, content=user_prompt),
+    ]
+
+    response = await llm.chat(
+        messages=messages, temperature=0.1, max_tokens=600,
+    )
+    content = getattr(response, "content", None) or str(response)
+
+    text = content.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
+    return _json.loads(text)
+
+
+async def _pre_check_platform_readiness(
     goal: str,
     context: Dict[str, Any],
     user_permissions: List[str] = None,
+    llm=None,
 ) -> List[Dict[str, Any]]:
     """
-    Fast, pre-generation readiness check.
+    LLM-powered pre-generation readiness check.
 
-    Analyzes the user's goal description against the current platform state
-    to detect CRITICAL gaps BEFORE spending time/cost on AI generation.
-    This runs instantly (no AI calls) and blocks generation if it finds
-    issues that would guarantee the resulting workflow cannot run.
+    Uses the AI to intelligently analyze the goal text and identify
+    what platform entities the workflow requires. Then cross-references
+    against existing platform state to find gaps.
 
-    Only flags gaps that are clearly implied by the goal text.
+    Falls back to basic structural checks if no LLM is available.
     After generation, _validate_process_prerequisites does a thorough
     node-by-node scan for any remaining issues.
     """
-    import re as _re
-
-    goal_lower = (goal or "").lower()
     perms = set(user_permissions or [])
     is_admin = "full_admin" in perms or "system:admin" in perms
 
@@ -2025,7 +2130,6 @@ def _pre_check_platform_readiness(
     dept_names_lower = {(d.get("name") or "").lower(): d for d in departments}
     group_names_lower = {(g.get("name") or "").lower(): g for g in groups}
     role_names_lower = {(r.get("name") or "").lower(): r for r in roles}
-    tool_names_lower = {(t.get("name") or "").lower(): t for t in tools}
 
     issues: List[Dict[str, Any]] = []
     seen: set = set()
@@ -2034,391 +2138,319 @@ def _pre_check_platform_readiness(
         return is_admin or perm in perms
 
     def _admin_note(can: bool) -> str:
-        return "" if can else " Please reach out to your system administrator to set this up."
+        if can:
+            return ""
+        return (
+            " You don't have permission to do this yourself."
+            " Please ask your system administrator to set this up."
+        )
+
+    def _perm_warning(can: bool) -> Optional[str]:
+        if can:
+            return None
+        return (
+            "You don't have permission to set this up yourself. "
+            "Please ask your system administrator to do it for you."
+        )
 
     def _add(key: str, item: dict):
         if key not in seen:
             seen.add(key)
             issues.append(item)
 
-    # ── Keywords that signal approval / manager routing ─────────────
-    approval_keywords = [
-        "approv", "موافق", "اعتماد", "يوافق",
-        "review", "مراجع", "sign off", "authorize", "authorise",
-    ]
-    manager_keywords = [
-        "manager", "مدير", "supervisor", "مشرف", "boss",
-        "direct report", "رئيس", "المسؤول",
-    ]
-    department_keywords = [
-        "department", "قسم", "ادارة", "إدارة", "division", "unit",
-    ]
-    group_keywords = [
-        "team", "فريق", "committee", "لجنة", "group", "مجموع",
-        "board",
-    ]
-    role_keywords = [
-        "role", "دور", "position", "منصب",
-    ]
-    tool_keywords = [
-        "connect", "integrate", "api", "system", "tool", "send to",
-        "sync", "fetch from", "pull from", "push to", "webhook",
-        "database", "erp", "crm", "sap", "salesforce", "slack",
-        "teams", "jira", "servicenow",
-    ]
+    # ══════════════════════════════════════════════════════════════════
+    # LLM-BASED ANALYSIS — let the AI understand the goal
+    # ══════════════════════════════════════════════════════════════════
+    llm_analysis = None
+    if llm:
+        try:
+            llm_analysis = await _analyze_goal_prerequisites(
+                goal, context, llm,
+            )
+        except Exception as e:
+            print(
+                f"⚠️  [Pre-check] LLM analysis failed, "
+                f"falling back to structural checks: {e}"
+            )
 
-    def _has_any(keywords):
-        return any(kw in goal_lower for kw in keywords)
+    if llm_analysis:
+        # ── Departments ──────────────────────────────────────────────
+        for dept in llm_analysis.get("departments") or []:
+            name = (dept.get("name") or "").strip()
+            if not name:
+                continue
+            name_lower = name.lower()
+            reason = dept.get("why") or ""
 
-    needs_approval = _has_any(approval_keywords)
-    needs_manager = _has_any(manager_keywords)
-    needs_department = _has_any(department_keywords)
-    needs_group = _has_any(group_keywords)
-    needs_tool = _has_any(tool_keywords)
-
-    # ── 1. Identity directory not configured at all ─────────────────
-    id_source = identity_ctx.get("source", "")
-    if (needs_approval or needs_manager or needs_department) and (not id_source or id_source == "none"):
-        can = _can("system:settings")
-        _add("no_identity", {
-            "type": "identity", "icon": "settings",
-            "entity_name": "Employee Directory",
-            "referenced_by": "Your workflow description",
-            "message": (
-                "Your workflow involves approvals or organizational routing, "
-                "but the Employee Directory hasn't been configured yet. "
-                "The platform needs to know your organization's structure "
-                "to route work to the right people."
-            ),
-            "guidance": (
-                "Set up the Employee Directory first. This tells the platform "
-                "where to find information about your employees, their managers, "
-                "and departments."
-            ) + _admin_note(can),
-            "steps": [
-                "Go to Settings in the sidebar",
-                "Find \"Identity & Employee Directory\"",
-                "Choose your directory source (Built-in, Active Directory, or HR System)",
-                "Complete the setup and save",
-            ] if can else [],
-            "can_create": can,
-        })
-
-    # ── 2. Manager-based routing but no managers configured ─────────
-    if needs_manager and not caps.get("has_managers"):
-        can = _can("users:edit")
-        _add("no_managers", {
-            "type": "identity", "icon": "hierarchy",
-            "entity_name": "Manager Assignments",
-            "referenced_by": "Your workflow description",
-            "message": (
-                "Your workflow mentions sending work to a manager, but no "
-                "managers have been assigned to any employees yet. The platform "
-                "needs to know who manages whom to route approvals correctly."
-            ),
-            "guidance": (
-                "Assign managers to your employees so the platform knows "
-                "who should approve their requests."
-            ) + _admin_note(can),
-            "steps": [
-                "Go to Users & Access → Organization → People & Departments",
-                "Click on an employee's name",
-                "Set their Manager field to their direct supervisor",
-                "Save, and repeat for other employees",
-            ] if can else [],
-            "can_create": can,
-        })
-
-    # ── 3. Department mentioned but no departments exist ────────────
-    if needs_department and not departments:
-        can = _can("users:edit")
-        _add("no_departments", {
-            "type": "department", "icon": "building",
-            "entity_name": "Departments",
-            "referenced_by": "Your workflow description",
-            "message": (
-                "Your workflow involves departments, but none have been "
-                "created on the platform yet."
-            ),
-            "guidance": (
-                "Create your organization's departments and assign a manager "
-                "to each one."
-            ) + _admin_note(can),
-            "steps": [
-                "Go to Users & Access → Organization → People & Departments",
-                "Click + New Department",
-                "Name it, choose a manager, and save",
-                "Repeat for each department your organization needs",
-            ] if can else [],
-            "can_create": can,
-        })
-
-    # ── 4. Extract and validate named entities from goal text ────────
-    #    Uses multiple patterns to find department names, group/team
-    #    names, and escalation references (e.g. "Department Head").
-    _stop_words = {
-        "the", "a", "an", "to", "for", "by", "of", "from", "and", "or",
-        "in", "at", "on", "with", "into", "our", "your", "their", "its",
-        "this", "that", "if", "is", "are", "was", "will", "should",
-        "must", "can", "may", "route", "send", "notify", "escalate",
-        "escalation", "after", "before", "hours", "minutes", "days",
-        "enable", "report", "submit", "finish", "start", "begin", "end",
-        "low", "medium", "high", "severity", "immediately", "based",
-        "length", "then", "not", "also", "as", "classify", "decision",
-        "notification", "approval",
-    }
-    _title_words = {
-        "head", "manager", "director", "lead", "leader", "supervisor",
-        "officer", "chief", "coordinator", "president", "vp", "vice",
-        "senior", "junior", "assistant", "associate", "deputy",
-    }
-    _role_kw_re = _re.compile(
-        r'\b(manager|director|supervisor|head|lead|officer|chief)\b'
-    )
-    _team_kw_re = _re.compile(r'\b(team|committee|board)\b')
-
-    dept_candidates: set = set()
-    group_candidates: set = set()
-
-    def _extract_name_before(text: str, kw_start: int, max_words: int = 3):
-        """Extract meaningful name from words preceding a keyword."""
-        before = text[:kw_start].rstrip()
-        words = before.split()
-        if not words:
-            return None
-        chunk = words[-max_words:]
-        while chunk and chunk[0] in _stop_words:
-            chunk.pop(0)
-        return " ".join(chunk) if chunk else None
-
-    # 4a. "{Name} Manager/Director/Head/…" → department candidate
-    for m in _role_kw_re.finditer(goal_lower):
-        name = _extract_name_before(goal_lower, m.start())
-        if (name and name not in _title_words
-                and len(name) > 2 and name != "department"):
-            dept_candidates.add(name)
-
-    # 4a2. "Manager/Head/Director of {Name}" → department candidate
-    for m in _re.finditer(
-        r'\b(?:manager|director|head|supervisor|lead|chief)'
-        r'\s+of\s+(?:the\s+)?'
-        r'([a-z][\w\s&-]{1,40}?)'
-        r'(?:\s+(?:for|to|and|or|if|when|with)\b|[,;.!?]|$)',
-        goal_lower,
-    ):
-        name = m.group(1).strip()
-        if (name and name not in _title_words
-                and len(name) > 2 and name != "department"):
-            dept_candidates.add(name)
-
-    # 4b. "{Name} team/committee/board" → group candidate
-    for m in _team_kw_re.finditer(goal_lower):
-        name = _extract_name_before(goal_lower, m.start())
-        if name and name not in _title_words and len(name) > 2:
-            group_candidates.add(name)
-
-    # 4c. Explicit "department (of) {Name}" or "{Name} department"
-    for m in _re.finditer(
-        r'(?:department|dept|قسم|ادارة|إدارة)\s+(?:of\s+)?'
-        r'(["\']?)(\w[\w\s&-]{1,40}?)\1'
-        r'(?=\s+(?:for|to|and|or|if|when|with|in|at|from)\b|[,;.!?]|$)',
-        goal_lower,
-    ):
-        n = (m.group(2) if m.lastindex >= 2 else m.group(1)).strip()
-        if (n and n not in _title_words
-                and len(n) > 2 and n != "department"):
-            dept_candidates.add(n)
-    for m in _re.finditer(
-        r'\b(\w[\w\s&-]{1,40}?)\s+(?:department|dept)\b', goal_lower,
-    ):
-        raw = m.group(1).strip()
-        cleaned = raw
-        for _ in range(3):
-            cleaned = _re.sub(
-                r'^(?:the|a|an|to|for|by|of|from|and|or|in|at|on|with)\s+',
-                '', cleaned,
-            ).strip()
-        if (cleaned and cleaned not in _title_words
-                and len(cleaned) > 2 and cleaned != "department"):
-            dept_candidates.add(cleaned)
-
-    # 4d. "Department Head" / "Head of Department" → escalation ref
-    has_dept_head_escalation = bool(
-        _re.search(
-            r'\b(?:department\s+head|head\s+of\s+(?:the\s+)?department)\b',
-            goal_lower,
-        )
-    )
-
-    # 4e. Check each department candidate against existing departments
-    for candidate in dept_candidates:
-        if candidate not in dept_names_lower:
-            can = _can("users:edit")
-            display = candidate.title()
-            _add(f"dept_missing:{candidate}", {
-                "type": "department", "icon": "building",
-                "entity_name": display,
-                "referenced_by": "Your workflow description",
-                "message": (
-                    f"Your workflow mentions the \"{display}\" department, "
-                    f"but it hasn't been created on the platform yet."
-                ),
-                "guidance": (
-                    f"Create the \"{display}\" department and assign "
-                    f"a manager to it."
-                ) + _admin_note(can),
-                "steps": [
-                    "Go to Users & Access → Organization → People & Departments",
-                    f"Click + New Department and name it \"{display}\"",
-                    "Choose a department manager",
-                    "Save",
-                ] if can else [],
-                "can_create": can,
-            })
-        else:
-            d = dept_names_lower[candidate]
-            if not d.get("has_manager"):
+            if name_lower not in dept_names_lower:
                 can = _can("users:edit")
-                display = candidate.title()
-                _add(f"dept_no_mgr:{candidate}", {
-                    "type": "department", "icon": "hierarchy",
-                    "entity_name": f"{display} — Manager",
+                _add(f"dept_missing:{name_lower}", {
+                    "type": "department", "icon": "building",
+                    "entity_name": name,
                     "referenced_by": "Your workflow description",
                     "message": (
-                        f"Your workflow routes work to the \"{display}\" "
-                        f"manager, but no manager has been assigned to "
-                        f"this department yet."
+                        f"Your workflow needs the \"{name}\" department, "
+                        f"but it hasn't been created on the platform yet."
+                        + (f" {reason}" if reason else "")
                     ),
                     "guidance": (
-                        f"Assign a manager to the \"{display}\" department."
+                        f"Create the \"{name}\" department and assign "
+                        f"a manager to it."
                     ) + _admin_note(can),
                     "steps": [
                         "Go to Users & Access → Organization → People & Departments",
-                        f"Select the \"{display}\" department",
-                        "Set the Manager field",
+                        f"Click + New Department and name it \"{name}\"",
+                        "Choose a department manager",
                         "Save",
                     ] if can else [],
                     "can_create": can,
+                    "permission_warning": _perm_warning(can),
+                })
+            else:
+                d = dept_names_lower[name_lower]
+                if not d.get("has_manager"):
+                    can = _can("users:edit")
+                    _add(f"dept_no_mgr:{name_lower}", {
+                        "type": "department", "icon": "hierarchy",
+                        "entity_name": f"{name} — Manager",
+                        "referenced_by": "Your workflow description",
+                        "message": (
+                            f"Your workflow routes work to the \"{name}\" "
+                            f"manager, but no manager has been assigned to "
+                            f"this department yet."
+                        ),
+                        "guidance": (
+                            f"Assign a manager to the \"{name}\" department."
+                        ) + _admin_note(can),
+                        "steps": [
+                            "Go to Users & Access → Organization → People & Departments",
+                            f"Select the \"{name}\" department",
+                            "Set the Manager field",
+                            "Save",
+                        ] if can else [],
+                        "can_create": can,
+                        "permission_warning": _perm_warning(can),
+                    })
+
+        # ── Groups / Teams ───────────────────────────────────────────
+        for grp in llm_analysis.get("groups") or []:
+            name = (grp.get("name") or "").strip()
+            if not name:
+                continue
+            name_lower = name.lower()
+
+            if name_lower not in group_names_lower:
+                can = _can("users:edit")
+                reason = grp.get("why") or ""
+                _add(f"group_missing:{name_lower}", {
+                    "type": "group", "icon": "people",
+                    "entity_name": name,
+                    "referenced_by": "Your workflow description",
+                    "message": (
+                        f"Your workflow mentions the \"{name}\" team, "
+                        f"but this team hasn't been created yet."
+                        + (f" {reason}" if reason else "")
+                    ),
+                    "guidance": (
+                        f"Create a \"{name}\" team and add the relevant "
+                        f"members to it."
+                    ) + _admin_note(can),
+                    "steps": [
+                        "Go to Users & Access → Groups",
+                        f"Click + Create Group and name it \"{name}\"",
+                        "Add the team members",
+                        "Save",
+                    ] if can else [],
+                    "can_create": can,
+                    "permission_warning": _perm_warning(can),
                 })
 
-    # 4f. Check each group candidate against existing groups
-    for candidate in group_candidates:
-        if candidate not in group_names_lower:
-            can = _can("users:edit")
-            display = candidate.title()
-            _add(f"group_missing:{candidate}", {
-                "type": "group", "icon": "people",
-                "entity_name": f"{display} Team",
+        # ── Roles ────────────────────────────────────────────────────
+        for role in llm_analysis.get("roles") or []:
+            name = (role.get("name") or "").strip()
+            if not name:
+                continue
+            name_lower = name.lower()
+
+            if name_lower not in role_names_lower:
+                can = _can("users:edit")
+                reason = role.get("why") or ""
+                _add(f"role_missing:{name_lower}", {
+                    "type": "role", "icon": "shield",
+                    "entity_name": name,
+                    "referenced_by": "Your workflow description",
+                    "message": (
+                        f"Your workflow references the \"{name}\" role, "
+                        f"but it hasn't been created on the platform yet."
+                        + (f" {reason}" if reason else "")
+                    ),
+                    "guidance": (
+                        f"Create the \"{name}\" role and assign it to "
+                        f"the right people."
+                    ) + _admin_note(can),
+                    "steps": [
+                        "Go to Users & Access → Roles",
+                        f"Click + Create Role and name it \"{name}\"",
+                        "Assign the role to the relevant users",
+                    ] if can else [],
+                    "can_create": can,
+                    "permission_warning": _perm_warning(can),
+                })
+
+        # ── Tools / Integrations ─────────────────────────────────────
+        for tool in llm_analysis.get("tools") or []:
+            name = (tool.get("name") or "").strip()
+            if not name:
+                continue
+            can = _can("tools:create")
+            reason = tool.get("why") or ""
+            _add(f"tool_missing:{name.lower()}", {
+                "type": "tool", "icon": "wrench",
+                "entity_name": name,
                 "referenced_by": "Your workflow description",
                 "message": (
-                    f"Your workflow mentions the \"{display}\" team, "
-                    f"but this team hasn't been created on the platform yet."
+                    f"Your workflow connects to \"{name}\", but this "
+                    f"integration hasn't been set up yet."
+                    + (f" {reason}" if reason else "")
                 ),
                 "guidance": (
-                    f"Create a \"{display}\" team and add the relevant "
-                    f"members to it."
+                    f"Set up the \"{name}\" integration."
                 ) + _admin_note(can),
                 "steps": [
-                    "Go to Users & Access → Groups",
-                    f"Click + Create Group and name it \"{display}\" "
-                    f"or \"{display} Team\"",
-                    "Add the team members",
+                    "Go to Tools in the sidebar",
+                    "Click + Create Tool",
+                    f"Set it up as \"{name}\"",
+                    "Configure the connection details",
+                    "Test the connection and save",
+                ] if can else [],
+                "can_create": can,
+                "permission_warning": _perm_warning(can),
+            })
+
+        # ── Manager routing ──────────────────────────────────────────
+        if llm_analysis.get("needs_manager_routing") and not caps.get("has_managers"):
+            can = _can("users:edit")
+            _add("no_managers", {
+                "type": "identity", "icon": "hierarchy",
+                "entity_name": "Manager Assignments",
+                "referenced_by": "Your workflow description",
+                "message": (
+                    "Your workflow sends work to managers for approval, "
+                    "but no managers have been assigned to any employees yet."
+                ),
+                "guidance": (
+                    "Assign managers to your employees so the platform knows "
+                    "who should approve their requests."
+                ) + _admin_note(can),
+                "steps": [
+                    "Go to Users & Access → Organization → People & Departments",
+                    "Click on an employee's name",
+                    "Set their Manager field to their direct supervisor",
+                    "Save, and repeat for other employees",
+                ] if can else [],
+                "can_create": can,
+                "permission_warning": _perm_warning(can),
+            })
+
+        # ── Escalation hierarchy ─────────────────────────────────────
+        if llm_analysis.get("needs_escalation_hierarchy"):
+            can = _can("users:edit")
+            detail = llm_analysis.get("escalation_details") or ""
+            _add("escalation_hierarchy", {
+                "type": "identity", "icon": "hierarchy",
+                "entity_name": "Escalation Path",
+                "referenced_by": "Your workflow description",
+                "message": (
+                    "Your workflow includes escalation routing. The platform "
+                    "needs a management hierarchy so it knows where to "
+                    "escalate."
+                    + (f" {detail}" if detail else "")
+                ),
+                "guidance": (
+                    "Make sure each relevant department has a manager "
+                    "assigned, and that the management chain is properly "
+                    "set up."
+                ) + _admin_note(can),
+                "steps": [
+                    "Go to Users & Access → Organization → People & Departments",
+                    "Select each relevant department",
+                    "Assign a manager (department head) to each one",
                     "Save",
                 ] if can else [],
                 "can_create": can,
+                "permission_warning": _perm_warning(can),
             })
 
-    # 4g. "Department Head" escalation — needs management hierarchy
-    if has_dept_head_escalation:
-        can = _can("users:edit")
-        _add("escalation_dept_head", {
-            "type": "identity", "icon": "hierarchy",
-            "entity_name": "Department Head (Escalation)",
-            "referenced_by": "Your workflow description",
-            "message": (
-                "Your workflow escalates to a Department Head. The platform "
-                "needs a management hierarchy so it knows who the department "
-                "heads are for escalation routing."
-            ),
-            "guidance": (
-                "Make sure each relevant department has a manager (head) "
-                "assigned, and that the management chain is properly set up."
-            ) + _admin_note(can),
-            "steps": [
-                "Go to Users & Access → Organization → People & Departments",
-                "Select each relevant department",
-                "Assign a manager (department head) to each one",
-                "Save",
-            ] if can else [],
-            "can_create": can,
-        })
+        # ── Identity directory ───────────────────────────────────────
+        if llm_analysis.get("needs_identity_directory"):
+            id_source = identity_ctx.get("source", "")
+            if not id_source or id_source == "none":
+                can = _can("system:settings")
+                _add("no_identity", {
+                    "type": "identity", "icon": "settings",
+                    "entity_name": "Employee Directory",
+                    "referenced_by": "Your workflow description",
+                    "message": (
+                        "Your workflow needs employee data (managers, "
+                        "departments, profiles), but the Employee Directory "
+                        "hasn't been configured yet."
+                    ),
+                    "guidance": (
+                        "Set up the Employee Directory first."
+                    ) + _admin_note(can),
+                    "steps": [
+                        "Go to Settings in the sidebar",
+                        "Find \"Identity & Employee Directory\"",
+                        "Choose your directory source",
+                        "Complete the setup and save",
+                    ] if can else [],
+                    "can_create": can,
+                    "permission_warning": _perm_warning(can),
+                })
 
-    # ── 5. Group/team mentioned but no groups exist ─────────────────
-    if needs_group and not groups and not group_candidates:
-        can = _can("users:edit")
-        _add("no_groups", {
-            "type": "group", "icon": "people",
-            "entity_name": "Teams / Groups",
-            "referenced_by": "Your workflow description",
-            "message": (
-                "Your workflow mentions a team or group, but none have been "
-                "created on the platform yet."
-            ),
-            "guidance": (
-                "Create the teams / groups your organization uses and "
-                "add members to them."
-            ) + _admin_note(can),
-            "steps": [
-                "Go to Users & Access → Groups",
-                "Click + Create Group",
-                "Give it a clear name, add members, and save",
-            ] if can else [],
-            "can_create": can,
-        })
+    else:
+        # ══════════════════════════════════════════════════════════════
+        # FALLBACK — no LLM available, basic structural checks only
+        # ══════════════════════════════════════════════════════════════
+        id_source = identity_ctx.get("source", "")
+        if not id_source or id_source == "none":
+            can = _can("system:settings")
+            _add("no_identity", {
+                "type": "identity", "icon": "settings",
+                "entity_name": "Employee Directory",
+                "referenced_by": "Your workflow description",
+                "message": (
+                    "The Employee Directory hasn't been configured yet. "
+                    "Most workflows need organizational data to route "
+                    "work to the right people."
+                ),
+                "guidance": (
+                    "Set up the Employee Directory first."
+                ) + _admin_note(can),
+                "steps": [
+                    "Go to Settings in the sidebar",
+                    "Find \"Identity & Employee Directory\"",
+                    "Choose your directory source",
+                    "Complete the setup and save",
+                ] if can else [],
+                "can_create": can,
+                "permission_warning": _perm_warning(can),
+            })
 
-    # ── 6. Tool / integration mentioned but no tools configured ─────
-    if needs_tool and not tools:
-        can = _can("tools:create")
-        _add("no_tools", {
-            "type": "tool", "icon": "wrench",
-            "entity_name": "Integrations / Tools",
-            "referenced_by": "Your workflow description",
-            "message": (
-                "Your workflow mentions connecting to an external system, "
-                "but no integrations have been set up on the platform yet."
-            ),
-            "guidance": (
-                "Set up the integration with the external system you want "
-                "to connect to."
-            ) + _admin_note(can),
-            "steps": [
-                "Go to Tools in the sidebar",
-                "Click + Create Tool",
-                "Configure the connection to your system",
-                "Test the connection and save",
-            ] if can else [],
-            "can_create": can,
-        })
-
-    # ── 7. Approval needed but no way to assign approvers ───────────
-    if needs_approval and not needs_manager and not needs_department and not needs_group:
-        # Generic approval — check if there's ANY identity structure
-        if not caps.get("has_managers") and not departments and not groups and not roles:
+        if not departments and not groups and not roles:
             can = _can("users:edit")
-            _add("no_approvers", {
+            _add("no_org_structure", {
                 "type": "identity", "icon": "hierarchy",
                 "entity_name": "Organization Structure",
                 "referenced_by": "Your workflow description",
                 "message": (
-                    "Your workflow requires approvals, but the platform doesn't "
-                    "have any organizational structure set up yet (no managers, "
-                    "departments, teams, or roles). The workflow needs to know "
-                    "who should approve requests."
+                    "No organizational structure has been set up yet "
+                    "(no departments, teams, or roles). Workflows need "
+                    "this to route work to the right people."
                 ),
                 "guidance": (
-                    "Set up your organization structure — assign managers to "
-                    "employees, create departments, or create teams so the "
-                    "platform can route approvals to the right people."
+                    "Set up your organization structure — create "
+                    "departments, assign managers, or create teams."
                 ) + _admin_note(can),
                 "steps": [
                     "Go to Users & Access → Organization → People & Departments",
@@ -2427,6 +2459,7 @@ def _pre_check_platform_readiness(
                     "Assign employees to their departments",
                 ] if can else [],
                 "can_create": can,
+                "permission_warning": _perm_warning(can),
             })
 
     return issues
@@ -3302,7 +3335,9 @@ async def generate_workflow_from_goal(
     # WITHOUT generating the workflow.
     # ═══════════════════════════════════════════════════════════════════
     try:
-        pre_issues = _pre_check_platform_readiness(goal, context, user_perms)
+        pre_issues = await _pre_check_platform_readiness(
+            goal, context, user_perms, llm,
+        )
     except Exception as e:
         print(f"⚠️  [Wizard] Pre-check error (non-blocking): {e}")
         pre_issues = []
