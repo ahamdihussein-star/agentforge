@@ -1956,7 +1956,7 @@ async def generate_workflow_from_goal(
         ).all()
         context["roles"] = [
             {"id": str(r.id), "name": r.name}
-            for r in _roles if r.name not in ("Super Admin",)
+            for r in _roles if not getattr(r, "is_system", False)
         ]
     except Exception as e:
         print(f"⚠️  [Wizard] Failed to discover org structure: {e}")
