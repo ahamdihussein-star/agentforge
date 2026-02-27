@@ -2061,18 +2061,19 @@ Return this exact JSON structure:
 
 STRICT RULES — READ CAREFULLY:
 1. ONLY extract entities that are EXPLICITLY mentioned in the workflow description
-2. The "why" field MUST contain a direct quote from the description that proves this entity is needed. If you cannot quote it, do NOT include it.
-3. departments = organizational units mentioned by name (e.g. "Supply Chain" from "Supply Chain Manager")
-4. groups = teams mentioned by name (e.g. "Supply Chain" from "supply chain team")
-5. roles = specific named roles only if explicitly mentioned as a role to be assigned
-6. tools = external systems ONLY if the description explicitly mentions connecting to them
-7. needs_manager_routing = true ONLY if the description explicitly mentions routing to a "manager" or "supervisor"
-8. needs_escalation_hierarchy = true ONLY if the description explicitly mentions escalation to a higher authority (e.g. "department head", "senior manager")
-9. needs_identity_directory = true ONLY if the workflow explicitly needs employee profile data
-10. Use proper display names (e.g. "Supply Chain" not "supply chain manager" — strip the job title)
+2. The "why" field MUST contain a direct quote from the description that proves this entity is needed. If you cannot quote it, do NOT include it
+3. departments = organizational units mentioned by name. Extract the unit name, not the job title. Examples: "Finance Manager" → dept "Finance", "IT Department" → dept "IT", "HR Director" → dept "HR"
+4. groups = teams or committees mentioned by name. Examples: "quality assurance team" → group "Quality Assurance", "review board" → group "Review Board"
+5. roles = specific named roles ONLY if explicitly mentioned as a role to assign (e.g. "assign to the Compliance Officer role")
+6. tools = external systems ONLY if the description explicitly says to connect to, send to, or fetch from them (e.g. "send to SAP", "update Jira", "sync with Salesforce")
+7. needs_manager_routing = true ONLY if the description explicitly mentions routing to a "manager", "supervisor", or direct report chain
+8. needs_escalation_hierarchy = true ONLY if the description explicitly mentions escalation to a higher level (e.g. "department head", "senior manager", "VP")
+9. needs_identity_directory = true ONLY if the workflow explicitly needs employee profile data (names, emails, employee IDs, custom fields)
+10. Use proper display names — strip job titles: "Finance Manager" → "Finance", "IT Support Team" → "IT Support"
 11. Return empty arrays [] when no entities of that type are mentioned
-12. When in doubt, DO NOT include it. False negatives are better than false positives.
-13. NEVER invent departments, teams, roles, or tools that are not referenced in the description"""
+12. When in doubt, DO NOT include it — false negatives are better than false positives
+13. NEVER invent entities that are not referenced in the description
+14. This must work for ANY domain (HR, Finance, Legal, IT, Healthcare, Government, Manufacturing, etc.) — do not assume any domain-specific entities"""
 
     try:
         from core.llm.base import Message, MessageRole
@@ -2117,12 +2118,27 @@ STRICT RULES — READ CAREFULLY:
 
     def _is_grounded(entity_name: str) -> bool:
         """Check that at least one significant word from the entity
-        name actually appears in the goal text."""
+        name actually appears in the goal text.  Handles uppercase
+        abbreviations (IT, HR, QA) by checking the original-case goal
+        with word-boundary matching."""
+        import re as _ground_re
+
         words = entity_name.lower().split()
-        significant = [w for w in words if w not in _noise_words and len(w) > 2]
-        if not significant:
-            return False
-        return any(w in goal_lower for w in significant)
+        significant = [w for w in words if w not in _noise_words and len(w) >= 2]
+
+        if significant:
+            return any(w in goal_lower for w in significant)
+
+        # All lowercase words were filtered as noise — check if any
+        # original-case word is a short uppercase abbreviation (e.g.
+        # "IT", "HR", "QA") that appears as a standalone word in the
+        # original goal text.
+        for w in entity_name.split():
+            if len(w) >= 2 and w.isupper():
+                if _ground_re.search(r'\b' + _ground_re.escape(w) + r'\b', goal):
+                    return True
+
+        return False
 
     for key in ("departments", "groups", "roles", "tools"):
         items = result.get(key)
@@ -2859,7 +2875,7 @@ def _validate_process_prerequisites(
                             "steps": [
                                 "Go to Users & Access → Groups",
                                 "Click + Create Group",
-                                "Give it a clear name (e.g. \"Procurement Committee\")",
+                                "Give it a clear name that describes the team's purpose",
                                 "Add the people who will approve these requests",
                                 "Save",
                             ] if can else [],
@@ -2890,7 +2906,7 @@ def _validate_process_prerequisites(
                             "steps": [
                                 "Go to Users & Access → Roles",
                                 "Click + Create Role",
-                                "Name it clearly (e.g. \"Finance Approver\")",
+                                "Name it clearly to reflect the approval responsibility",
                                 "Assign the role to the right people",
                             ] if can else [],
                             "can_create": can,
