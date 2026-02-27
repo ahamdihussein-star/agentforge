@@ -236,6 +236,13 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         # approval node name (e.g. "Manager Approval") but don't configure
         # assignee_source='user_directory' explicitly.
         if not assignee_ids and self.deps and self.deps.user_directory:
+            import logging as _logging
+            _fb_logger = _logging.getLogger(__name__)
+            _fb_logger.info(
+                "[ApprovalFallback] No assignees after all sources — attempting dynamic_manager fallback. "
+                "user_id=%s org_id=%s assignee_source=%s",
+                context.user_id, context.org_id, assignee_source,
+            )
             try:
                 fallback_config = {
                     "type": "dynamic_manager",
@@ -248,14 +255,24 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                 fallback_ids = self.deps.user_directory.resolve_process_assignee(
                     fallback_config, fallback_ctx, context.org_id
                 )
+                _fb_logger.info(
+                    "[ApprovalFallback] resolve_process_assignee returned: %s",
+                    fallback_ids,
+                )
                 if fallback_ids:
                     assignee_ids = fallback_ids
                     assignee_type = 'user'
                     logs.append(f"No assignees configured — resolved {len(assignee_ids)} via requester's direct manager (fallback)")
+                    _fb_logger.info(
+                        "[ApprovalFallback] SUCCESS — assignee_ids=%s assignee_type=%s",
+                        assignee_ids, assignee_type,
+                    )
                 else:
                     logs.append("No assignees configured and dynamic_manager fallback returned empty")
+                    _fb_logger.warning("[ApprovalFallback] dynamic_manager returned empty list")
             except Exception as e:
                 logs.append(f"⚠️ Dynamic manager fallback failed: {e}")
+                _fb_logger.exception("[ApprovalFallback] EXCEPTION: %s", e)
 
         min_approvals = self.get_config_value(node, 'min_approvals', 1)
         timeout_hours = self.get_config_value(node, 'timeout_hours', 24)

@@ -453,6 +453,45 @@ class ProcessExecutionService:
             )
         ).all()
 
+    def get_unassigned_pending_approvals(self, org_id: str) -> List[ProcessApprovalRequest]:
+        """Return pending approvals with assignee_type='any' and no specific assignees.
+
+        Used by the API service to apply manager-fallback logic at retrieval time,
+        so orphaned approvals (created before proper routing) can still appear
+        in the correct user's inbox.
+        """
+        resolved_org_id = self._resolve_org_id(org_id) if org_id else self._resolve_org_id("org_default")
+        try:
+            org_uuid = uuid.UUID(resolved_org_id)
+        except (ValueError, TypeError):
+            return []
+        return self.db.query(ProcessApprovalRequest).filter(
+            and_(
+                ProcessApprovalRequest.org_id == org_uuid,
+                ProcessApprovalRequest.status == "pending",
+                ProcessApprovalRequest.assignee_type == "any",
+            )
+        ).all()
+
+    def fix_approval_assignees(self, approval_id: str, assignee_type: str, user_ids: List[str]) -> None:
+        """Self-heal: update a stale approval's assignee info so future lookups work directly."""
+        try:
+            appr = self.db.query(ProcessApprovalRequest).filter(
+                ProcessApprovalRequest.id == uuid.UUID(approval_id)
+            ).first()
+            if appr:
+                appr.assignee_type = assignee_type
+                appr.assigned_user_ids = [str(u) for u in user_ids]
+                self.db.add(appr)
+                self.db.commit()
+                logger.info("[ApprovalDB] fix_assignees: approval_id=%s -> assignee_type=%s user_ids=%s", approval_id, assignee_type, user_ids)
+        except Exception as e:
+            logger.warning("[ApprovalDB] fix_assignees failed: approval_id=%s error=%s", approval_id, e)
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+
     def ensure_approvals_for_waiting_executions(self, org_id: str) -> None:
         """
         Backfill: create approval records for any execution in status 'waiting'

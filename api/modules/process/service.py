@@ -1214,6 +1214,10 @@ class ProcessAPIService:
                         assignee_type_val = meta.get('assignee_type', 'user')
                         if not assignee_ids_val:
                             assignee_type_val = 'any'
+                        logger.info(
+                            "[ProcessRun] Creating approval: execution_id=%s assignee_type=%s assignee_ids=%s meta_keys=%s",
+                            execution_id, assignee_type_val, assignee_ids_val, list(meta.keys()),
+                        )
                         deadline_iso = meta.get('deadline')
                         timeout_hours = 24
                         if deadline_iso:
@@ -1238,6 +1242,7 @@ class ProcessAPIService:
                             timeout_hours=int(timeout_hours),
                             escalation_config=meta.get('escalation'),
                         )
+                        logger.info("[ProcessRun] Approval created OK for execution_id=%s", execution_id)
                     except Exception as e:
                         logger.exception("[ProcessFast] Failed to create approval request: %s", e)
             else:
@@ -1861,6 +1866,49 @@ class ProcessAPIService:
             user_email=user_email,
             include_all_for_org_admin=include_all_for_org_admin
         )
+
+        # ── Manager fallback for orphaned approvals ──
+        # Approvals created with assignee_type='any' and no specific assignees
+        # (routing failure, older code, or AI-generated process without proper config)
+        # are excluded from a user's inbox by default. Here we check whether the
+        # current user is the direct manager of the execution creator and, if so,
+        # include the approval AND self-heal the record for future lookups.
+        if not include_all_for_org_admin:
+            try:
+                included_ids = {str(a.id) for a in approvals}
+                orphaned = self.exec_service.get_unassigned_pending_approvals(org_id)
+                logger.info(
+                    "[ProcessApproval] orphaned (assignee_type=any) count=%s for org=%s",
+                    len(orphaned), org_id,
+                )
+                for appr in orphaned:
+                    if str(appr.id) in included_ids:
+                        continue
+                    try:
+                        exec_obj = self.exec_service.get_execution(str(appr.process_execution_id))
+                        creator_id = str(getattr(exec_obj, 'created_by', '') or '') if exec_obj else ''
+                        if not creator_id:
+                            continue
+                        mgr = _user_directory.get_manager(creator_id, org_id)
+                        if mgr and mgr.user_id == user_id:
+                            approvals.append(appr)
+                            logger.info(
+                                "[ProcessApproval] manager_fallback: including approval_id=%s "
+                                "(user %s is manager of creator %s)",
+                                str(appr.id), user_id, creator_id[:8],
+                            )
+                            # Self-heal: update the stale record so direct lookup works next time
+                            self.exec_service.fix_approval_assignees(
+                                str(appr.id), 'user', [user_id]
+                            )
+                    except Exception as inner_exc:
+                        logger.warning(
+                            "[ProcessApproval] manager_fallback check error for approval_id=%s: %s",
+                            str(appr.id), inner_exc,
+                        )
+            except Exception as e:
+                logger.warning("[ProcessApproval] manager_fallback sweep error: %s", e)
+
         out = [self._approval_to_response(a) for a in approvals]
         logger.info("[ProcessApproval] list response: count=%s approval_ids=%s", len(out), [a.id for a in approvals])
         return out
