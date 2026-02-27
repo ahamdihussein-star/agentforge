@@ -612,99 +612,9 @@ class ProcessAPIService:
         # Execute (async)
         try:
             result = await engine.execute(trigger_input)
-            logger.info(
-                "[ProcessApproval] engine result: execution_id=%s status=%s is_success=%s is_waiting=%s waiting_for=%s nodes_executed=%s",
-                str(execution.id), getattr(result, 'status', None), result.is_success, result.is_waiting,
-                getattr(result, 'waiting_for', None), getattr(result, 'nodes_executed', []),
+            execution = await self._handle_engine_result(
+                execution, result, engine, deps, log_prefix="[ProcessSync]"
             )
-            
-            # Update execution with result
-            if result.is_success:
-                execution = self.exec_service.update_execution_status(
-                    str(execution.id),
-                    status="completed"
-                )
-                execution = self.exec_service.update_execution_state(
-                    str(execution.id),
-                    variables=result.final_variables,
-                    completed_nodes=result.nodes_executed,
-                    output=result.output,
-                    node_count_executed=result.node_count,
-                    tokens_used=result.total_tokens_used
-                )
-            elif result.is_waiting:
-                meta = getattr(result, 'waiting_metadata', None)
-                logger.info(
-                    "[ProcessApproval] execution waiting: execution_id=%s waiting_for=%s has_meta=%s has_approval_svc=%s",
-                    str(execution.id), result.waiting_for, meta is not None, deps.approval_service is not None,
-                )
-                execution = self.exec_service.update_execution_status(
-                    str(execution.id),
-                    status="waiting",
-                    current_node_id=result.resume_node_id
-                )
-                execution = self.exec_service.update_execution_state(
-                    str(execution.id),
-                    variables=result.final_variables,
-                    completed_nodes=result.nodes_executed,
-                    checkpoint_data=engine.get_checkpoint()
-                )
-                # Create ProcessApprovalRequest in DB so it appears in Pending Approvals list
-                if result.waiting_for == 'approval' and meta and deps.approval_service:
-                    try:
-                        org_id_val = meta.get('org_id') or str(getattr(execution, 'org_id', ''))
-                        assignee_ids_val = meta.get('assignee_ids') or []
-                        assignee_type_val = meta.get('assignee_type', 'user')
-                        if not assignee_ids_val:
-                            assignee_type_val = 'any'
-                        logger.info(
-                            "[ProcessApproval] creating approval in DB: execution_id=%s org_id=%s node_id=%s title=%s assignee_type=%s assignee_ids=%s",
-                            str(execution.id), org_id_val, meta.get('node_id'), meta.get('title'), assignee_type_val, assignee_ids_val,
-                        )
-                        deadline_iso = meta.get('deadline')
-                        timeout_hours = 24
-                        if deadline_iso:
-                            try:
-                                from datetime import datetime as dt
-                                end = dt.fromisoformat(deadline_iso.replace('Z', '+00:00'))
-                                timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
-                            except Exception:
-                                pass
-                        create_result = await deps.approval_service.create_approval_request(
-                            execution_id=str(execution.id),
-                            org_id=org_id_val,
-                            node_id=meta.get('node_id', result.resume_node_id or ''),
-                            node_name=meta.get('node_name', 'Approval'),
-                            title=meta.get('title', 'Approval Required'),
-                            description=meta.get('description'),
-                            review_data=meta.get('review_data') or {},
-                            assignee_type=assignee_type_val,
-                            assignee_ids=assignee_ids_val,
-                            min_approvals=meta.get('min_approvals', 1),
-                            priority=meta.get('priority', 'normal'),
-                            timeout_hours=int(timeout_hours),
-                            escalation_config=meta.get('escalation'),
-                        )
-                        logger.info(
-                            "[ProcessApproval] approval created in DB: approval_id=%s execution_id=%s",
-                            create_result.get('approval_id'), str(execution.id),
-                        )
-                    except Exception as e:
-                        logger.exception("Failed to create approval request in DB: %s", e)
-                else:
-                    logger.info(
-                        "[ProcessApproval] skip create: waiting_for=%s has_meta=%s has_approval_svc=%s",
-                        result.waiting_for, meta is not None, deps.approval_service is not None,
-                    )
-            else:
-                execution = self.exec_service.update_execution_status(
-                    str(execution.id),
-                    status="failed",
-                    error_message=result.error.message if result.error else "Unknown error",
-                    error_node_id=result.failed_node_id,
-                    error_details=result.error.to_dict() if result.error else None
-                )
-            
         except Exception as e:
             logger.error(f"Process execution error: {e}")
             execution = self.exec_service.update_execution_status(
@@ -971,6 +881,26 @@ class ProcessAPIService:
         trigger = self._ensure_dict(execution.trigger_input or {})
         uc = trigger.get("_user_context") if isinstance(trigger, dict) else None
         uc = uc if isinstance(uc, dict) else {}
+
+        # Identity enrichment fallback: if _user_context is missing (e.g. fast
+        # path enrichment failed, or old execution), re-enrich now so the engine
+        # has the same context as the Process Builder test path.
+        _requester_id = str(getattr(execution, "created_by", "") or "")
+        _org_id_str = str(execution.org_id)
+        if not uc.get("email") and _requester_id:
+            logger.info(
+                "[ProcessRun] _user_context empty/missing email — re-enriching for requester %s",
+                _requester_id[:8],
+            )
+            try:
+                _re_uc = _user_directory.enrich_process_context(_requester_id, _org_id_str)
+                if _re_uc and isinstance(_re_uc, dict):
+                    uc = _re_uc
+                    trigger["_user_context"] = uc
+                    logger.info("[ProcessRun] Re-enriched _user_context: email=%s", uc.get("email"))
+            except Exception as _enrich_err:
+                logger.warning("[ProcessRun] Re-enrichment failed: %s", _enrich_err)
+
         denied_tool_ids = uc.get("_denied_tool_ids") or []
         if not isinstance(denied_tool_ids, list):
             denied_tool_ids = []
@@ -983,11 +913,11 @@ class ProcessAPIService:
         context = ProcessContext(
             execution_id=str(execution.id),
             agent_id=str(agent.id),
-            org_id=str(execution.org_id),
+            org_id=_org_id_str,
             trigger_type=str(getattr(execution, "trigger_type", "manual") or "manual"),
             trigger_input=trigger,
             conversation_id=str(getattr(execution, "conversation_id", "") or "") or None,
-            user_id=str(getattr(execution, "created_by", "") or ""),
+            user_id=_requester_id,
             user_name=uc.get("display_name") or None,
             user_email=uc.get("email") or None,
             user_roles=uc.get("_user_roles") or [],
@@ -1187,75 +1117,9 @@ class ProcessAPIService:
                 execution_id, result.is_success, result.is_waiting,
                 getattr(getattr(result, "error", None), "message", None),
             )
-            if result.is_success:
-                self.exec_service.update_execution_status(str(execution.id), status="completed")
-                self.exec_service.update_execution_state(
-                    str(execution.id),
-                    variables=result.final_variables,
-                    completed_nodes=result.nodes_executed,
-                    output=result.output,
-                    node_count_executed=result.node_count,
-                    tokens_used=result.total_tokens_used
-                )
-            elif result.is_waiting:
-                meta = getattr(result, "waiting_metadata", None)
-                self.exec_service.update_execution_status(
-                    str(execution.id),
-                    status="waiting",
-                    current_node_id=result.resume_node_id
-                )
-                self.exec_service.update_execution_state(
-                    str(execution.id),
-                    variables=result.final_variables,
-                    completed_nodes=result.nodes_executed,
-                    checkpoint_data=engine.get_checkpoint()
-                )
-                if result.waiting_for == 'approval' and meta and deps.approval_service:
-                    try:
-                        org_id_val = meta.get('org_id') or str(getattr(execution, 'org_id', ''))
-                        assignee_ids_val = meta.get('assignee_ids') or []
-                        assignee_type_val = meta.get('assignee_type', 'user')
-                        if not assignee_ids_val:
-                            assignee_type_val = 'any'
-                        logger.info(
-                            "[ProcessRun] Creating approval: execution_id=%s assignee_type=%s assignee_ids=%s meta_keys=%s",
-                            execution_id, assignee_type_val, assignee_ids_val, list(meta.keys()),
-                        )
-                        deadline_iso = meta.get('deadline')
-                        timeout_hours = 24
-                        if deadline_iso:
-                            try:
-                                from datetime import datetime as dt
-                                end = dt.fromisoformat(deadline_iso.replace('Z', '+00:00'))
-                                timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
-                            except Exception:
-                                pass
-                        await deps.approval_service.create_approval_request(
-                            execution_id=str(execution.id),
-                            org_id=org_id_val,
-                            node_id=meta.get('node_id', result.resume_node_id or ''),
-                            node_name=meta.get('node_name', 'Approval'),
-                            title=meta.get('title', 'Approval Required'),
-                            description=meta.get('description'),
-                            review_data=meta.get('review_data') or {},
-                            assignee_type=assignee_type_val,
-                            assignee_ids=assignee_ids_val,
-                            min_approvals=meta.get('min_approvals', 1),
-                            priority=meta.get('priority', 'normal'),
-                            timeout_hours=int(timeout_hours),
-                            escalation_config=meta.get('escalation'),
-                        )
-                        logger.info("[ProcessRun] Approval created OK for execution_id=%s", execution_id)
-                    except Exception as e:
-                        logger.exception("[ProcessFast] Failed to create approval request: %s", e)
-            else:
-                self.exec_service.update_execution_status(
-                    str(execution.id),
-                    status="failed",
-                    error_message=result.error.message if result.error else "Unknown error",
-                    error_node_id=result.failed_node_id,
-                    error_details=result.error.to_dict() if result.error else None
-                )
+            await self._handle_engine_result(
+                execution, result, engine, deps, log_prefix="[ProcessBG]"
+            )
         except Exception as e:
             logger.exception("[ProcessRun] !!!!! Engine.execute() EXCEPTION for %s: %s", execution_id, e)
             self.exec_service.update_execution_status(
@@ -1607,7 +1471,7 @@ class ProcessAPIService:
                 resume_input
             )
 
-            # Mark the previously waiting node execution as completed (the decision is applied on resume)
+            # Mark the previously waiting node execution as completed
             if waiting_node_exec_id:
                 try:
                     self.exec_service.complete_node_execution(
@@ -1621,78 +1485,11 @@ class ProcessAPIService:
                     )
                 except Exception:
                     pass
-            
-            # Update execution with result
-            if result.is_success:
-                execution = self.exec_service.update_execution_status(
-                    str(execution.id),
-                    status="completed"
-                )
-                execution = self.exec_service.update_execution_state(
-                    str(execution.id),
-                    variables=result.final_variables,
-                    completed_nodes=result.nodes_executed,
-                    output=result.output,
-                    node_count_executed=result.node_count
-                )
-            elif result.is_waiting:
-                meta = getattr(result, 'waiting_metadata', None)
-                logger.info(
-                    "[ProcessApproval] resume waiting: execution_id=%s waiting_for=%s has_meta=%s",
-                    str(execution.id), result.waiting_for, meta is not None,
-                )
-                execution = self.exec_service.update_execution_status(
-                    str(execution.id),
-                    status="waiting",
-                    current_node_id=result.resume_node_id
-                )
-                execution = self.exec_service.update_execution_state(
-                    str(execution.id),
-                    variables=result.final_variables,
-                    completed_nodes=result.nodes_executed,
-                    checkpoint_data=engine.get_checkpoint()
-                )
-                if result.waiting_for == 'approval' and meta and deps.approval_service:
-                    try:
-                        org_id_val = meta.get('org_id') or str(getattr(execution, 'org_id', ''))
-                        assignee_ids_val = meta.get('assignee_ids') or []
-                        assignee_type_val = 'any' if not assignee_ids_val else meta.get('assignee_type', 'user')
-                        logger.info("[ProcessApproval] creating approval (resume): execution_id=%s org_id=%s assignee_type=%s", str(execution.id), org_id_val, assignee_type_val)
-                        deadline_iso = meta.get('deadline')
-                        timeout_hours = 24
-                        if deadline_iso:
-                            try:
-                                from datetime import datetime as dt
-                                end = dt.fromisoformat(deadline_iso.replace('Z', '+00:00'))
-                                timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
-                            except Exception:
-                                pass
-                        create_result = await deps.approval_service.create_approval_request(
-                            execution_id=str(execution.id),
-                            org_id=org_id_val,
-                            node_id=meta.get('node_id', result.resume_node_id or ''),
-                            node_name=meta.get('node_name', 'Approval'),
-                            title=meta.get('title', 'Approval Required'),
-                            description=meta.get('description'),
-                            review_data=meta.get('review_data') or {},
-                            assignee_type=assignee_type_val,
-                            assignee_ids=assignee_ids_val,
-                            min_approvals=meta.get('min_approvals', 1),
-                            priority=meta.get('priority', 'normal'),
-                            timeout_hours=int(timeout_hours),
-                            escalation_config=meta.get('escalation'),
-                        )
-                        logger.info("[ProcessApproval] approval created (resume): approval_id=%s", create_result.get('approval_id'))
-                    except Exception as e:
-                        logger.exception("Failed to create approval request in DB (resume): %s", e)
-            else:
-                execution = self.exec_service.update_execution_status(
-                    str(execution.id),
-                    status="failed",
-                    error_message=result.error.message if result.error else "Unknown error",
-                    error_node_id=result.failed_node_id
-                )
-                
+
+            execution = await self._handle_engine_result(
+                execution, result, engine, deps, log_prefix="[ProcessResume]"
+            )
+
         except Exception as e:
             logger.error(f"Resume error: {e}")
             execution = self.exec_service.update_execution_status(
@@ -2425,7 +2222,129 @@ class ProcessAPIService:
             approval_service=approval_service,
             user_directory=_user_directory,
         )
-    
+
+    # =====================================================================
+    # UNIFIED ENGINE RESULT HANDLER — single source of truth
+    # Used by start_execution, run_execution_from_db, and resume_execution
+    # =====================================================================
+
+    async def _handle_engine_result(
+        self,
+        execution,
+        result,
+        engine,
+        deps,
+        log_prefix: str = "[Engine]",
+    ):
+        """Process engine execution result (success/waiting/failure).
+
+        Returns the updated execution DB object.
+        """
+        execution_id = str(execution.id)
+
+        if result.is_success:
+            logger.info("%s execution %s COMPLETED", log_prefix, execution_id)
+            execution = self.exec_service.update_execution_status(execution_id, status="completed")
+            execution = self.exec_service.update_execution_state(
+                execution_id,
+                variables=result.final_variables,
+                completed_nodes=result.nodes_executed,
+                output=result.output,
+                node_count_executed=getattr(result, "node_count", None),
+                tokens_used=getattr(result, "total_tokens_used", None),
+            )
+
+        elif result.is_waiting:
+            meta = getattr(result, "waiting_metadata", None)
+            logger.info(
+                "%s execution %s WAITING: waiting_for=%s has_meta=%s",
+                log_prefix, execution_id, result.waiting_for, meta is not None,
+            )
+            execution = self.exec_service.update_execution_status(
+                execution_id,
+                status="waiting",
+                current_node_id=result.resume_node_id,
+            )
+            checkpoint = engine.get_checkpoint() if engine else None
+            execution = self.exec_service.update_execution_state(
+                execution_id,
+                variables=result.final_variables,
+                completed_nodes=result.nodes_executed,
+                checkpoint_data=checkpoint,
+            )
+            if result.waiting_for == "approval" and meta and deps and deps.approval_service:
+                await self._create_approval_from_meta(execution, meta, deps, result, log_prefix)
+            else:
+                logger.info(
+                    "%s skip approval create: waiting_for=%s has_meta=%s has_svc=%s",
+                    log_prefix, result.waiting_for, meta is not None,
+                    deps.approval_service is not None if deps else False,
+                )
+
+        else:
+            err_msg = result.error.message if result.error else "Unknown error"
+            logger.info("%s execution %s FAILED: %s", log_prefix, execution_id, err_msg)
+            execution = self.exec_service.update_execution_status(
+                execution_id,
+                status="failed",
+                error_message=err_msg,
+                error_node_id=getattr(result, "failed_node_id", None),
+                error_details=result.error.to_dict() if result.error else None,
+            )
+
+        return execution
+
+    async def _create_approval_from_meta(self, execution, meta, deps, result, log_prefix):
+        """Create a DB approval request from engine waiting metadata.
+
+        Single source of truth — every execution path calls this.
+        """
+        try:
+            execution_id = str(execution.id)
+            org_id_val = meta.get("org_id") or str(getattr(execution, "org_id", ""))
+            assignee_ids_val = meta.get("assignee_ids") or []
+            assignee_type_val = meta.get("assignee_type", "user")
+            if not assignee_ids_val:
+                assignee_type_val = "any"
+
+            deadline_iso = meta.get("deadline")
+            timeout_hours = 24
+            if deadline_iso:
+                try:
+                    from datetime import datetime as dt
+                    end = dt.fromisoformat(deadline_iso.replace("Z", "+00:00"))
+                    timeout_hours = max(1, (end - dt.now(end.tzinfo)).total_seconds() / 3600)
+                except Exception:
+                    pass
+
+            logger.info(
+                "%s creating approval: execution_id=%s assignee_type=%s assignee_ids=%s",
+                log_prefix, execution_id, assignee_type_val, assignee_ids_val,
+            )
+
+            create_result = await deps.approval_service.create_approval_request(
+                execution_id=execution_id,
+                org_id=org_id_val,
+                node_id=meta.get("node_id", getattr(result, "resume_node_id", "") or ""),
+                node_name=meta.get("node_name", "Approval"),
+                title=meta.get("title", "Approval Required"),
+                description=meta.get("description"),
+                review_data=meta.get("review_data") or {},
+                assignee_type=assignee_type_val,
+                assignee_ids=assignee_ids_val,
+                min_approvals=meta.get("min_approvals", 1),
+                priority=meta.get("priority", "normal"),
+                timeout_hours=int(timeout_hours),
+                escalation_config=meta.get("escalation"),
+            )
+            logger.info(
+                "%s approval created: execution_id=%s approval_id=%s",
+                log_prefix, execution_id,
+                create_result.get("approval_id") if isinstance(create_result, dict) else "?",
+            )
+        except Exception as e:
+            logger.exception("%s failed to create approval request: %s", log_prefix, e)
+
     def _to_response(self, execution) -> ProcessExecutionResponse:
         """Convert execution model to response with business-friendly format"""
         from .schemas import StatusInfo, ErrorInfo
