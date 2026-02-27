@@ -2498,38 +2498,46 @@ const API='';
                 
                 const data = await response.json();
                 
-                if (data.success && data.workflow) {
-                    // Store the workflow definition
-                    wizard.processDefinition = data.workflow;
-                    
-                    // Store draft for builder fallback (if postMessage is blocked or tab was closed)
-                    try {
-                        sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(data.workflow));
-                        sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
-                            goal: goal,
-                            name: data.workflow.name || 'My Workflow',
-                            animate: true
-                        }));
-                        if (data.setup_required && data.setup_required.length > 0) {
-                            sessionStorage.setItem('agentforge_process_builder_setup', JSON.stringify(data.setup_required));
-                        } else {
-                            sessionStorage.removeItem('agentforge_process_builder_setup');
-                        }
-                    } catch (_) { /* ignore */ }
+                if (data.success) {
+                    const hasWorkflow = !!data.workflow;
+                    const hasIssues = data.setup_required && data.setup_required.length > 0;
+
+                    if (hasWorkflow) {
+                        wizard.processDefinition = data.workflow;
+                        try {
+                            sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(data.workflow));
+                            sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                                goal: goal,
+                                name: data.workflow.name || 'My Workflow',
+                                animate: true
+                            }));
+                            if (hasIssues) {
+                                sessionStorage.setItem('agentforge_process_builder_setup', JSON.stringify(data.setup_required));
+                            } else {
+                                sessionStorage.removeItem('agentforge_process_builder_setup');
+                            }
+                        } catch (_) {}
+                    }
 
                     try { anim.complete(); } catch (_) {}
 
-                    // Check if there are missing prerequisites
-                    if (data.setup_required && data.setup_required.length > 0) {
-                        _showSetupGuide(data.setup_required);
+                    if (hasIssues) {
+                        // hasWorkflow=true  → post-check (advisory, can continue)
+                        // hasWorkflow=false → pre-check (blocking, must fix first)
+                        _showSetupGuide(data.setup_required, hasWorkflow);
                         return;
                     }
 
-                    document.getElementById('generating-status').textContent = 'Opening your workflow builder...';
-                    // Open builder in the SAME tab (better UX)
-                    setTimeout(() => {
-                        window.location.href = '/ui/process-builder.html?draft=1';
-                    }, 250);
+                    if (hasWorkflow) {
+                        document.getElementById('generating-status').textContent = 'Opening your workflow builder...';
+                        setTimeout(() => {
+                            window.location.href = '/ui/process-builder.html?draft=1';
+                        }, 250);
+                    } else {
+                        showToast(data.detail || 'Could not create the workflow. Please try again.', 'error');
+                        document.getElementById('wizard-generating').classList.add('hidden');
+                        document.getElementById('wizard-step-0').classList.remove('hidden');
+                    }
                 } else {
                     showToast(data.detail || 'Could not create the workflow. Please try again.', 'error');
                     document.getElementById('wizard-generating').classList.add('hidden');
@@ -2545,15 +2553,21 @@ const API='';
             }
         }
 
-        function _showSetupGuide(items) {
+        /**
+         * @param {Array} items - prerequisite items
+         * @param {boolean} hasWorkflow - true = post-check (advisory), false = pre-check (blocking)
+         */
+        function _showSetupGuide(items, hasWorkflow) {
             const iconMap = {
                 building: '🏢', people: '👥', shield: '🛡️',
                 hierarchy: '🔗', wrench: '🔧', identity: '👤',
                 department: '🏢', group: '👥', role: '🛡️', tool: '🔧',
+                person: '👤', field: '📝', settings: '⚙️',
+                workflow: '🔄', process: '🔄', profile_field: '📝',
             };
 
-            let html = '';
-            items.forEach((item, i) => {
+            let cardsHtml = '';
+            items.forEach(item => {
                 const icon = iconMap[item.icon] || iconMap[item.type] || '📋';
                 const stepsHtml = (item.steps && item.steps.length)
                     ? `<div style="margin-top:10px;padding:10px 14px;border-radius:8px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.12);">
@@ -2565,10 +2579,10 @@ const API='';
                     : '';
                 const adminNote = !item.can_create
                     ? `<div style="margin-top:8px;padding:8px 12px;border-radius:6px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.15);font-size:12px;color:#fbbf24;">
-                        You don't have permission to create this. Please ask your administrator.
+                        You don't have permission to set this up yourself. Please ask your system administrator to do it for you.
                        </div>`
                     : '';
-                html += `
+                cardsHtml += `
                     <div style="padding:16px;border-radius:12px;background:var(--surface-color);border:1px solid var(--border-color);margin-bottom:12px;">
                         <div style="display:flex;align-items:flex-start;gap:12px;">
                             <div style="width:40px;height:40px;border-radius:10px;background:rgba(139,92,246,0.12);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${icon}</div>
@@ -2583,32 +2597,63 @@ const API='';
                     </div>`;
             });
 
+            const isBlocking = !hasWorkflow;
+            const heading = isBlocking
+                ? 'A Few Things Are Needed First'
+                : 'Almost There!';
+            const subtext = isBlocking
+                ? 'Before we can build your workflow, the following items need to be set up on the platform. Once they\'re ready, come back and try again.'
+                : 'Your workflow has been created successfully. To make sure everything runs smoothly, the following items should be set up on the platform.';
+
+            let actionsHtml = '';
+            if (isBlocking) {
+                actionsHtml = `
+                    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                        <button onclick="_goBackToWizard()" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);cursor:pointer;transition:all .15s;">
+                            Go Back
+                        </button>
+                        <button onclick="window.location.href='/dashboard#security/org'" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:#8b5cf6;color:white;border:none;cursor:pointer;transition:all .15s;">
+                            Set Up Now
+                        </button>
+                    </div>
+                    <p style="text-align:center;font-size:12px;color:var(--text-secondary);margin-top:14px;">
+                        Set these up first, then come back and describe your workflow again.
+                    </p>`;
+            } else {
+                actionsHtml = `
+                    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                        <button onclick="_openBuilderAnyway()" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);cursor:pointer;transition:all .15s;">
+                            Continue to Builder
+                        </button>
+                        <button onclick="window.location.href='/dashboard#security/org'" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:#8b5cf6;color:white;border:none;cursor:pointer;transition:all .15s;">
+                            Set Up Now
+                        </button>
+                    </div>
+                    <p style="text-align:center;font-size:12px;color:var(--text-secondary);margin-top:14px;">
+                        You can also set these up later — your workflow draft has been saved.
+                    </p>`;
+            }
+
             const genPanel = document.getElementById('wizard-generating');
             if (genPanel) {
                 genPanel.innerHTML = `
                     <div style="max-width:640px;margin:0 auto;padding:24px 0;">
                         <div style="text-align:center;margin-bottom:24px;">
-                            <div style="font-size:40px;margin-bottom:12px;">📋</div>
-                            <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">Almost There!</h2>
+                            <div style="font-size:40px;margin-bottom:12px;">${isBlocking ? '📋' : '✅'}</div>
+                            <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">${heading}</h2>
                             <p style="font-size:14px;color:var(--text-secondary);max-width:460px;margin:0 auto;line-height:1.6;">
-                                Your workflow has been created successfully. To make sure everything runs smoothly,
-                                the following items need to be set up on the platform first.
+                                ${subtext}
                             </p>
                         </div>
-                        <div style="margin-bottom:24px;">${html}</div>
-                        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                            <button onclick="_openBuilderAnyway()" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);cursor:pointer;transition:all .15s;">
-                                Continue to Builder
-                            </button>
-                            <button onclick="window.location.href='/dashboard#security/org'" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:#8b5cf6;color:white;border:none;cursor:pointer;transition:all .15s;">
-                                Set Up Now
-                            </button>
-                        </div>
-                        <p style="text-align:center;font-size:12px;color:var(--text-secondary);margin-top:14px;">
-                            You can also set these up later — your workflow draft has been saved.
-                        </p>
+                        <div style="margin-bottom:24px;">${cardsHtml}</div>
+                        ${actionsHtml}
                     </div>`;
             }
+        }
+
+        function _goBackToWizard() {
+            document.getElementById('wizard-generating').classList.add('hidden');
+            document.getElementById('wizard-step-0').classList.remove('hidden');
         }
 
         function _openBuilderAnyway() {

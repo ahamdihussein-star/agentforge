@@ -6796,6 +6796,8 @@
                     building: '🏢', people: '👥', shield: '🛡️',
                     hierarchy: '🔗', wrench: '🔧', identity: '👤',
                     department: '🏢', group: '👥', role: '🛡️', tool: '🔧',
+                    person: '👤', field: '📝', settings: '⚙️',
+                    workflow: '🔄', process: '🔄', profile_field: '📝',
                 };
                 const pills = items.map(it => {
                     const ic = iconMap[it.icon] || iconMap[it.type] || '📋';
