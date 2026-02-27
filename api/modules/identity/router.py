@@ -372,14 +372,15 @@ async def update_department(
         if not dept:
             raise HTTPException(status_code=404, detail="Department not found")
         
-        if body.name is not None:
+        provided = body.model_fields_set
+        if 'name' in provided and body.name is not None:
             dept.name = body.name
-        if body.description is not None:
+        if 'description' in provided:
             dept.description = body.description
-        if body.parent_id is not None:
-            dept.parent_id = body.parent_id
-        if body.manager_id is not None:
-            dept.manager_id = body.manager_id
+        if 'parent_id' in provided:
+            dept.parent_id = body.parent_id if body.parent_id else None
+        if 'manager_id' in provided:
+            dept.manager_id = body.manager_id if body.manager_id else None
         
         dept.updated_at = datetime.utcnow()
         session.commit()

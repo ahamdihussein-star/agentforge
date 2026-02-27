@@ -1272,63 +1272,77 @@
                         </div>
                     </div>
 
-                    <!-- Organization Tab (Departments, Managers, Org Chart) -->
+                    <!-- Organization Tab -->
                     <div id="sec-content-org" class="hidden" data-permission="users:view">
-                        <!-- Sub-tabs for Organization -->
+                        <!-- Sub-tabs -->
                         <div class="flex gap-2 mb-4">
-                            <button onclick="switchOrgSubTab('departments')" id="org-sub-departments" class="px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-400 text-sm font-medium">🏢 Departments</button>
-                            <button onclick="switchOrgSubTab('managers')" id="org-sub-managers" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">👤 Manager Assignment</button>
-                            <button onclick="switchOrgSubTab('orgchart')" id="org-sub-orgchart" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">🌳 Org Chart</button>
-                            <button onclick="switchOrgSubTab('directory')" id="org-sub-directory" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">⚙️ Directory Config</button>
-                            <button onclick="switchOrgSubTab('profilefields')" id="org-sub-profilefields" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">🧩 Profile Fields</button>
+                            <button onclick="switchOrgSubTab('people')" id="org-sub-people" class="px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-400 text-sm font-medium">People &amp; Departments</button>
+                            <button onclick="switchOrgSubTab('orgchart')" id="org-sub-orgchart" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">Org Chart</button>
+                            <button onclick="switchOrgSubTab('settings')" id="org-sub-settings" class="px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">Settings</button>
                         </div>
 
-                        <!-- Departments Sub-Tab -->
-                        <div id="org-content-departments">
-                            <div class="flex justify-between items-center mb-4">
-                                <div>
-                                    <h3 class="text-lg font-semibold">Departments</h3>
-                                    <p class="text-sm text-gray-400">Manage organizational departments and hierarchy</p>
+                        <!-- People & Departments (unified) -->
+                        <div id="org-content-people">
+                            <div style="display:flex;gap:20px;min-height:500px;">
+                                <!-- Left: department sidebar -->
+                                <div id="org-dept-sidebar" style="width:260px;flex-shrink:0;">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h4 class="font-semibold text-sm" style="color:var(--text-secondary)">Departments</h4>
+                                        <button onclick="showCreateDepartmentModal()" class="text-purple-400 hover:text-purple-300 text-xs font-medium" title="Create Department">+ New</button>
+                                    </div>
+                                    <div style="cursor:pointer;padding:8px 12px;border-radius:8px;margin-bottom:4px;font-size:13px;font-weight:500;transition:background .15s;" class="org-dept-item org-dept-item--active" data-dept-id="__all" onclick="selectOrgDept(null)">
+                                        All People
+                                    </div>
+                                    <div id="org-dept-list" style="margin-top:4px;">
+                                        <div class="text-xs text-gray-500" style="padding:8px 12px;">Loading...</div>
+                                    </div>
                                 </div>
-                                <button onclick="showCreateDepartmentModal()" class="btn-primary px-4 py-2 rounded-lg">+ Create Department</button>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="org-departments-grid">
-                                <div class="card rounded-xl p-4 text-center text-gray-500">Loading departments...</div>
+                                <!-- Right: detail panel -->
+                                <div style="flex:1;min-width:0;">
+                                    <!-- Department detail header (hidden when "All People") -->
+                                    <div id="org-dept-detail-header" style="display:none;" class="card rounded-xl p-4 mb-4">
+                                        <div class="flex items-start justify-between">
+                                            <div>
+                                                <h3 class="text-lg font-semibold" id="org-dept-detail-name"></h3>
+                                                <p class="text-sm text-gray-400 mt-1" id="org-dept-detail-desc"></p>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <button onclick="editDepartment(_selectedDeptId)" class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm">Edit</button>
+                                                <button onclick="deleteDepartment(_selectedDeptId)" class="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 text-sm">Delete</button>
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-6 mt-3" style="font-size:13px;color:var(--text-secondary);">
+                                            <div><span style="color:var(--text-secondary);">Department Head:</span> <strong id="org-dept-detail-head" style="color:var(--text-primary);">Not assigned</strong></div>
+                                            <div><span style="color:var(--text-secondary);">Members:</span> <strong id="org-dept-detail-count" style="color:var(--text-primary);">0</strong></div>
+                                        </div>
+                                    </div>
+                                    <!-- People table -->
+                                    <div class="card rounded-xl overflow-hidden">
+                                        <div class="p-3 flex gap-3">
+                                            <input type="text" id="org-manager-search" class="flex-1 input-field rounded-lg px-4 py-2 text-sm" placeholder="Search people..." oninput="renderOrgPeopleTable()">
+                                        </div>
+                                        <div class="overflow-x-auto">
+                                            <table class="w-full">
+                                                <thead class="bg-gray-800/50">
+                                                    <tr>
+                                                        <th class="text-left p-3 text-sm">Name</th>
+                                                        <th class="text-left p-3 text-sm">Employee ID</th>
+                                                        <th class="text-left p-3 text-sm">Department</th>
+                                                        <th class="text-left p-3 text-sm">Direct Manager</th>
+                                                        <th class="text-left p-3 text-sm" style="width:80px;"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="org-manager-table">
+                                                    <tr><td colspan="5" class="p-8 text-center text-gray-500">Loading...</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Manager Assignment Sub-Tab -->
-                        <div id="org-content-managers" class="hidden">
-                            <div class="flex justify-between items-center mb-4">
-                                <div>
-                                    <h3 class="text-lg font-semibold">Manager Assignment</h3>
-                                    <p class="text-sm text-gray-400">Assign direct managers and employee IDs to users</p>
-                                </div>
-                            </div>
-                            <div class="card rounded-xl overflow-hidden">
-                                <div class="p-3 flex gap-3">
-                                    <input type="text" id="org-manager-search" class="flex-1 input-field rounded-lg px-4 py-2 text-sm" placeholder="🔍 Search users..." oninput="renderOrgManagerTable()">
-                                </div>
-                                <div class="overflow-x-auto">
-                                    <table class="w-full">
-                                        <thead class="bg-gray-800/50">
-                                            <tr>
-                                                <th class="text-left p-3 text-sm">Employee</th>
-                                                <th class="text-left p-3 text-sm">Employee ID</th>
-                                                <th class="text-left p-3 text-sm">Department</th>
-                                                <th class="text-left p-3 text-sm">Manager</th>
-                                                <th class="text-left p-3 text-sm">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="org-manager-table">
-                                            <tr><td colspan="5" class="p-8 text-center text-gray-500">Loading...</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Org Chart Sub-Tab -->
+                        <!-- Org Chart -->
                         <div id="org-content-orgchart" class="hidden">
                             <div class="flex justify-between items-center mb-4">
                                 <h3 class="text-lg font-semibold">Organization Chart</h3>
@@ -1338,89 +1352,83 @@
                             </div>
                         </div>
 
-                        <!-- Directory Config Sub-Tab -->
-                        <div id="org-content-directory" class="hidden">
-                            <div class="mb-4">
-                                <h3 class="text-lg font-semibold">Identity Directory Configuration</h3>
-                                <p class="text-sm text-gray-400">Configure how user identities and organizational data are resolved</p>
-                                <div class="mt-2 p-3 rounded-lg bg-purple-600/10 border border-purple-500/20 text-sm">
-                                    💡 <strong>Tip:</strong> This setting is also available in <button onclick="navigate('settings')" class="text-purple-400 underline hover:text-purple-300">Settings → Identity & User Directory</button> for easier access during initial setup.
-                                </div>
-                            </div>
-                            <div class="card rounded-xl p-6 space-y-4 max-w-2xl">
-                                <div>
-                                    <label class="block text-sm font-medium mb-2">Directory Source</label>
-                                    <select id="org-directory-source" class="w-full input-field rounded-lg px-4 py-2" onchange="onDirectorySourceChange()">
-                                        <option value="internal">Internal (Built-in Org Chart)</option>
-                                        <option value="ldap">LDAP / Active Directory</option>
-                                        <option value="hr_api">External HR System API</option>
-                                        <option value="hybrid">Hybrid (Internal + External)</option>
-                                    </select>
-                                    <p class="text-xs text-gray-500 mt-1" id="org-directory-desc">User hierarchy managed within the platform.</p>
-                                </div>
-                                <div id="org-hr-api-config" class="hidden space-y-3">
+                        <!-- Settings (Directory Config + Profile Fields) -->
+                        <div id="org-content-settings" class="hidden">
+                            <!-- Directory Config section -->
+                            <div class="mb-8">
+                                <h3 class="text-lg font-semibold mb-1">Identity Directory</h3>
+                                <p class="text-sm text-gray-400 mb-4">Configure how user identities and organizational data are resolved</p>
+                                <div class="card rounded-xl p-6 space-y-4 max-w-2xl">
                                     <div>
-                                        <label class="block text-sm font-medium mb-1">HR API Base URL</label>
-                                        <input type="url" id="org-hr-api-url" class="w-full input-field rounded-lg px-4 py-2" placeholder="https://api.hrprovider.com/v1">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium mb-1">Authentication Type</label>
-                                        <select id="org-hr-api-auth" class="w-full input-field rounded-lg px-4 py-2">
-                                            <option value="bearer">Bearer Token</option>
-                                            <option value="api_key">API Key</option>
-                                            <option value="oauth2">OAuth 2.0</option>
-                                            <option value="basic">Basic Auth</option>
+                                        <label class="block text-sm font-medium mb-2">Directory Source</label>
+                                        <select id="org-directory-source" class="w-full input-field rounded-lg px-4 py-2" onchange="onDirectorySourceChange()">
+                                            <option value="internal">Internal (Built-in)</option>
+                                            <option value="ldap">LDAP / Active Directory</option>
+                                            <option value="hr_api">External HR System API</option>
+                                            <option value="hybrid">Hybrid (Internal + External)</option>
                                         </select>
+                                        <p class="text-xs text-gray-500 mt-1" id="org-directory-desc">User hierarchy managed within the platform.</p>
                                     </div>
-                                    <div>
-                                        <label class="block text-sm font-medium mb-1">API Key / Token</label>
-                                        <input type="password" id="org-hr-api-key" class="w-full input-field rounded-lg px-4 py-2" placeholder="Enter API key or token">
+                                    <div id="org-hr-api-config" class="hidden space-y-3">
+                                        <div>
+                                            <label class="block text-sm font-medium mb-1">HR API Base URL</label>
+                                            <input type="url" id="org-hr-api-url" class="w-full input-field rounded-lg px-4 py-2" placeholder="https://api.hrprovider.com/v1">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium mb-1">Authentication Type</label>
+                                            <select id="org-hr-api-auth" class="w-full input-field rounded-lg px-4 py-2">
+                                                <option value="bearer">Bearer Token</option>
+                                                <option value="api_key">API Key</option>
+                                                <option value="oauth2">OAuth 2.0</option>
+                                                <option value="basic">Basic Auth</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium mb-1">API Key / Token</label>
+                                            <input type="password" id="org-hr-api-key" class="w-full input-field rounded-lg px-4 py-2" placeholder="Enter API key or token">
+                                        </div>
                                     </div>
+                                    <button onclick="saveDirectoryConfig()" class="btn-primary px-6 py-2 rounded-lg">Save Configuration</button>
                                 </div>
-                                <button onclick="saveDirectoryConfig()" class="btn-primary px-6 py-2 rounded-lg">Save Configuration</button>
                             </div>
-                        </div>
-
-                        <!-- Profile Fields (Global Schema) Sub-Tab -->
-                        <div id="org-content-profilefields" class="hidden">
-                            <div class="mb-4">
-                                <h3 class="text-lg font-semibold">Profile Fields (Global Schema)</h3>
-                                <p class="text-sm text-gray-400">Define global custom profile fields for your organization. Values are still per-user, but this avoids hardcoding and lets the AI wizard discover fields even before values exist.</p>
-                            </div>
-                            <div class="card rounded-xl p-6 space-y-4 max-w-3xl">
-                                <div class="flex items-center justify-between">
-                                    <div class="text-sm text-gray-400">
-                                        Add fields like <span class="text-gray-200">cost_center</span>, <span class="text-gray-200">national_id</span>, <span class="text-gray-200">office_location</span>.
+                            <!-- Profile Fields section -->
+                            <div>
+                                <h3 class="text-lg font-semibold mb-1">Profile Fields</h3>
+                                <p class="text-sm text-gray-400 mb-4">Define custom profile fields for your organization. The AI wizard uses these to discover identity attributes automatically.</p>
+                                <div class="card rounded-xl p-6 space-y-4 max-w-3xl">
+                                    <div class="flex items-center justify-between">
+                                        <div class="text-sm text-gray-400">
+                                            Fields like <span class="text-gray-200">cost_center</span>, <span class="text-gray-200">national_id</span>, <span class="text-gray-200">office_location</span>.
+                                        </div>
+                                        <button onclick="addOrgProfileFieldRow()" class="btn-secondary px-4 py-2 rounded-lg">+ Add Field</button>
                                     </div>
-                                    <button onclick="addOrgProfileFieldRow()" class="btn-secondary px-4 py-2 rounded-lg">+ Add Field</button>
-                                </div>
-                                <div id="org-profilefields-list" class="space-y-2">
-                                    <div class="text-sm text-gray-500">Loading...</div>
-                                </div>
-                                <div class="flex justify-end">
-                                    <button onclick="saveOrgProfileFieldsSchema()" class="btn-primary px-6 py-2 rounded-lg">Save Global Fields</button>
-                                </div>
-
-                                <div class="border-t border-gray-700 pt-4">
-                                    <h4 class="font-semibold mb-2">Bulk Apply Values (Optional)</h4>
-                                    <p class="text-xs text-gray-500 mb-2">Use this to set per-user values without editing users one-by-one. Paste JSON array like: <code class="text-gray-300">[{"email":"user@x.com","attributes":{"cost_center":"CC-1"}}]</code></p>
-                                    <textarea id="org-bulk-custom-attrs" class="w-full input-field rounded-lg px-4 py-2 text-sm h-28" placeholder='[{"email":"user@company.com","attributes":{"cost_center":"CC-ENG-01","employee_id":"E-1001"}}]'></textarea>
-                                    <div class="flex justify-end gap-2 mt-2">
-                                        <select id="org-bulk-custom-attrs-mode" class="input-field rounded-lg px-3 py-2 text-sm">
-                                            <option value="merge">Merge</option>
-                                            <option value="replace">Replace</option>
-                                        </select>
-                                        <button onclick="applyBulkUserCustomAttributes()" class="btn-primary px-5 py-2 rounded-lg">Apply Bulk Update</button>
+                                    <div id="org-profilefields-list" class="space-y-2">
+                                        <div class="text-sm text-gray-500">Loading...</div>
+                                    </div>
+                                    <div class="flex justify-end">
+                                        <button onclick="saveOrgProfileFieldsSchema()" class="btn-primary px-6 py-2 rounded-lg">Save Fields</button>
+                                    </div>
+                                    <div class="border-t border-gray-700 pt-4">
+                                        <h4 class="font-semibold mb-2">Bulk Apply Values</h4>
+                                        <p class="text-xs text-gray-500 mb-2">Set per-user values in bulk. Paste JSON: <code class="text-gray-300">[{"email":"user@x.com","attributes":{"cost_center":"CC-1"}}]</code></p>
+                                        <textarea id="org-bulk-custom-attrs" class="w-full input-field rounded-lg px-4 py-2 text-sm h-28" placeholder='[{"email":"user@company.com","attributes":{"cost_center":"CC-ENG-01"}}]'></textarea>
+                                        <div class="flex justify-end gap-2 mt-2">
+                                            <select id="org-bulk-custom-attrs-mode" class="input-field rounded-lg px-3 py-2 text-sm">
+                                                <option value="merge">Merge</option>
+                                                <option value="replace">Replace</option>
+                                            </select>
+                                            <button onclick="applyBulkUserCustomAttributes()" class="btn-primary px-5 py-2 rounded-lg">Apply</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Create Department Modal -->
+                        <!-- Create/Edit Department Modal -->
                         <div id="create-dept-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
                             <div class="modal-content-box rounded-2xl w-full max-w-lg mx-4">
                                 <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-                                    <h3 class="font-bold text-lg" id="dept-modal-title">🏢 Create Department</h3>
+                                    <h3 class="font-bold text-lg" id="dept-modal-title">Create Department</h3>
                                     <button onclick="closeDeptModal()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
                                 </div>
                                 <div class="p-6 space-y-4">
@@ -1436,13 +1444,13 @@
                                     <div>
                                         <label class="block text-sm font-medium mb-2">Department Head</label>
                                         <select id="dept-manager" class="w-full input-field rounded-lg px-4 py-2">
-                                            <option value="">— None —</option>
+                                            <option value="">-- Not assigned --</option>
                                         </select>
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium mb-2">Parent Department</label>
                                         <select id="dept-parent" class="w-full input-field rounded-lg px-4 py-2">
-                                            <option value="">— None (Top Level) —</option>
+                                            <option value="">-- Top Level --</option>
                                         </select>
                                     </div>
                                 </div>
@@ -1453,26 +1461,26 @@
                             </div>
                         </div>
 
-                        <!-- Assign Manager Modal -->
+                        <!-- Edit Person Modal -->
                         <div id="assign-manager-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
                             <div class="modal-content-box rounded-2xl w-full max-w-md mx-4">
                                 <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-                                    <h3 class="font-bold text-lg">👤 Assign Manager</h3>
+                                    <h3 class="font-bold text-lg">Edit Person</h3>
                                     <button onclick="closeManagerModal()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
                                 </div>
                                 <div class="p-6 space-y-4">
                                     <input type="hidden" id="mgr-user-id" value="">
-                                    <p class="text-sm text-gray-400">Assigning manager for: <strong id="mgr-user-name"></strong></p>
+                                    <p class="text-sm text-gray-400">Editing: <strong id="mgr-user-name"></strong></p>
                                     <div>
                                         <label class="block text-sm font-medium mb-2">Direct Manager</label>
                                         <select id="mgr-select" class="w-full input-field rounded-lg px-4 py-2">
-                                            <option value="">— No Manager —</option>
+                                            <option value="">-- None --</option>
                                         </select>
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium mb-2">Department</label>
                                         <select id="mgr-dept-select" class="w-full input-field rounded-lg px-4 py-2">
-                                            <option value="">— No Department —</option>
+                                            <option value="">-- None --</option>
                                         </select>
                                     </div>
                                     <div>

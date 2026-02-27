@@ -570,11 +570,12 @@ let orgUsersCache = [];
 
 async function loadOrgTab() {
     await Promise.all([loadOrgDepartments(), loadOrgUsers()]);
-    renderOrgManagerTable();
+    renderOrgDeptSidebar();
+    renderOrgPeopleTable();
 }
 
 function switchOrgSubTab(sub) {
-    const subs = ['departments', 'managers', 'orgchart', 'directory', 'profilefields'];
+    const subs = ['people', 'orgchart', 'settings'];
     subs.forEach(s => {
         const el = document.getElementById('org-content-' + s);
         if (el) el.classList.toggle('hidden', s !== sub);
@@ -585,11 +586,9 @@ function switchOrgSubTab(sub) {
             btn.classList.toggle('hover:bg-gray-700', s !== sub);
         }
     });
+    if (sub === 'people') { renderOrgDeptSidebar(); renderOrgPeopleTable(); }
     if (sub === 'orgchart') renderOrgChart();
-    if (sub === 'directory') loadDirectoryConfig();
-    if (sub === 'profilefields') loadOrgProfileFieldsSchema();
-    if (sub === 'managers') renderOrgManagerTable();
-    if (sub === 'departments') renderOrgDepartments();
+    if (sub === 'settings') { loadDirectoryConfig(); loadOrgProfileFieldsSchema(); }
 }
 
 // --- Profile Fields (Global Schema) ---
@@ -786,61 +785,78 @@ async function loadOrgDepartments() {
         console.log('Departments API:', e);
         orgDepartments = [];
     }
-    renderOrgDepartments();
+    renderOrgDeptSidebar();
+    if (_selectedDeptId) selectOrgDept(_selectedDeptId);
 }
 
-function renderOrgDepartments() {
-    const container = document.getElementById('org-departments-grid');
+let _selectedDeptId = null;
+
+function selectOrgDept(deptId) {
+    _selectedDeptId = deptId;
+    // highlight active sidebar item
+    document.querySelectorAll('.org-dept-item').forEach(el => {
+        el.classList.toggle('org-dept-item--active', el.dataset.deptId === (deptId || '__all'));
+    });
+    // show/hide department detail header
+    const header = document.getElementById('org-dept-detail-header');
+    if (header) {
+        if (deptId) {
+            header.style.display = '';
+            const dept = orgDepartments.find(d => d.id === deptId);
+            if (dept) {
+                document.getElementById('org-dept-detail-name').textContent = dept.name;
+                document.getElementById('org-dept-detail-desc').textContent = dept.description || 'No description';
+                const headUser = orgUsersCache.find(u => u.id === dept.manager_id);
+                document.getElementById('org-dept-detail-head').textContent = headUser ? (headUser.name || headUser.email) : 'Not assigned';
+                const memberCount = orgUsersCache.filter(u => u.department_id === deptId).length;
+                document.getElementById('org-dept-detail-count').textContent = memberCount;
+            }
+        } else {
+            header.style.display = 'none';
+        }
+    }
+    renderOrgPeopleTable();
+}
+
+function renderOrgDeptSidebar() {
+    const container = document.getElementById('org-dept-list');
     if (!container) return;
-    if (orgDepartments.length === 0) {
-        container.innerHTML = `
-            <div class="card rounded-xl p-8 text-center col-span-full">
-                <div class="text-4xl mb-3">🏢</div>
-                <h4 class="font-semibold mb-2">No Departments Yet</h4>
-                <p class="text-gray-400 text-sm mb-4">Create departments to define your organizational structure</p>
-                <button onclick="showCreateDepartmentModal()" class="btn-primary px-4 py-2 rounded-lg">+ Create First Department</button>
-            </div>`;
+    if (!orgDepartments.length) {
+        container.innerHTML = '<div class="text-xs text-gray-500" style="padding:8px 12px;">No departments yet</div>';
         return;
     }
     container.innerHTML = orgDepartments.map(d => {
-        const manager = orgUsersCache.find(u => u.id === d.manager_id);
-        const managerName = manager ? (manager.name || manager.email) : '';
-        const memberCount = d.member_count || 0;
-        return `
-        <div class="card rounded-xl p-4">
-            <div class="flex items-start justify-between mb-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-xl">🏢</div>
-                    <div>
-                        <h4 class="font-semibold">${escHtml(d.name)}</h4>
-                        <p class="text-xs text-gray-400">${memberCount} member${memberCount !== 1 ? 's' : ''}</p>
-                    </div>
-                </div>
-                <div class="flex gap-1">
-                    <button onclick="editDepartment('${d.id}')" class="p-1 hover:bg-gray-700 rounded" title="Edit">✏️</button>
-                    <button onclick="deleteDepartment('${d.id}')" class="p-1 hover:bg-gray-700 rounded text-red-400" title="Delete">🗑️</button>
+        const head = orgUsersCache.find(u => u.id === d.manager_id);
+        const mc = orgUsersCache.filter(u => u.department_id === d.id).length;
+        const active = _selectedDeptId === d.id;
+        return `<div class="org-dept-item${active ? ' org-dept-item--active' : ''}" data-dept-id="${d.id}"
+                     style="padding:8px 12px;border-radius:8px;margin-bottom:2px;font-size:13px;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:space-between;"
+                     onclick="selectOrgDept('${d.id}')">
+            <div style="min-width:0;overflow:hidden;">
+                <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(d.name)}</div>
+                <div style="font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    ${head ? escHtml(head.name || head.email) : '<span style="opacity:.5">No head</span>'} &middot; ${mc} member${mc !== 1 ? 's' : ''}
                 </div>
             </div>
-            ${managerName ? `<p class="text-xs text-gray-400 mb-1">👤 Head: ${escHtml(managerName)}</p>` : ''}
-            <p class="text-sm text-gray-400 line-clamp-2">${escHtml(d.description || 'No description')}</p>
         </div>`;
     }).join('');
 }
 
+function renderOrgDepartments() { renderOrgDeptSidebar(); }
+
 function showCreateDepartmentModal() {
     ensureModalInBody('create-dept-modal');
     document.getElementById('dept-edit-id').value = '';
-    document.getElementById('dept-modal-title').textContent = '🏢 Create Department';
+    document.getElementById('dept-modal-title').textContent = 'Create Department';
     document.getElementById('dept-save-btn').textContent = 'Create';
     document.getElementById('dept-name').value = '';
     document.getElementById('dept-description').value = '';
     // Populate manager dropdown
     const mgrSelect = document.getElementById('dept-manager');
-    mgrSelect.innerHTML = '<option value="">— None —</option>' +
+    mgrSelect.innerHTML = '<option value="">-- Not assigned --</option>' +
         orgUsersCache.map(u => `<option value="${u.id}">${escHtml(u.name || u.email)}</option>`).join('');
-    // Populate parent dropdown
     const parentSelect = document.getElementById('dept-parent');
-    parentSelect.innerHTML = '<option value="">— None (Top Level) —</option>' +
+    parentSelect.innerHTML = '<option value="">-- Top Level --</option>' +
         orgDepartments.map(d => `<option value="${d.id}">${escHtml(d.name)}</option>`).join('');
     document.getElementById('create-dept-modal').classList.remove('hidden');
     document.getElementById('create-dept-modal').classList.add('flex');
@@ -866,9 +882,10 @@ async function saveDepartment() {
             body: JSON.stringify({ name, description, manager_id: managerId, parent_id: parentId })
         });
         if (res.ok) {
-            showToast(editId ? 'Department updated!' : 'Department created!', 'success');
+            showToast(editId ? 'Department updated' : 'Department created', 'success');
             closeDeptModal();
             await loadOrgDepartments();
+            renderOrgPeopleTable();
         } else {
             const data = await res.json().catch(() => ({}));
             showToast(data.detail || 'Failed to save department', 'error');
@@ -881,23 +898,35 @@ async function editDepartment(id) {
     if (!dept) return;
     showCreateDepartmentModal();
     document.getElementById('dept-edit-id').value = id;
-    document.getElementById('dept-modal-title').textContent = '✏️ Edit Department';
+    document.getElementById('dept-modal-title').textContent = 'Edit Department';
     document.getElementById('dept-save-btn').textContent = 'Save';
     document.getElementById('dept-name').value = dept.name || '';
     document.getElementById('dept-description').value = dept.description || '';
-    document.getElementById('dept-manager').value = dept.manager_id || '';
+    const mgrSelect = document.getElementById('dept-manager');
+    if (dept.manager_id && ![...mgrSelect.options].some(o => o.value === dept.manager_id)) {
+        const headUser = orgUsersCache.find(u => u.id === dept.manager_id);
+        if (headUser) {
+            const opt = document.createElement('option');
+            opt.value = dept.manager_id;
+            opt.textContent = headUser.name || headUser.email;
+            mgrSelect.appendChild(opt);
+        }
+    }
+    mgrSelect.value = dept.manager_id || '';
     document.getElementById('dept-parent').value = dept.parent_id || '';
 }
 
 async function deleteDepartment(id) {
-    if (!(await uiConfirm('Remove this department?', { title: 'Remove department', confirmText: 'Remove', cancelText: 'Cancel', danger: true }))) return;
+    if (!(await uiConfirm('This department will be permanently removed. Members will not be deleted but will no longer belong to a department.', { title: 'Delete Department', confirmText: 'Delete', cancelText: 'Cancel', danger: true }))) return;
     try {
         const res = await fetch(`/api/identity/departments/${id}`, {
             method: 'DELETE', headers: getAuthHeaders()
         });
         if (res.ok) {
             showToast('Department deleted', 'success');
+            if (_selectedDeptId === id) selectOrgDept(null);
             await loadOrgDepartments();
+            renderOrgPeopleTable();
         } else {
             showToast('Failed to delete department', 'error');
         }
@@ -924,16 +953,23 @@ async function loadOrgUsers() {
     } catch (e) { console.log('Failed to load users for org:', e); }
 }
 
-function renderOrgManagerTable() {
+function renderOrgPeopleTable() {
     const tbody = document.getElementById('org-manager-table');
     if (!tbody) return;
     const filter = (document.getElementById('org-manager-search')?.value || '').toLowerCase();
-    const users = orgUsersCache.filter(u => {
-        if (!filter) return true;
-        return u.name.toLowerCase().includes(filter) || u.email.toLowerCase().includes(filter) || (u.employee_id || '').toLowerCase().includes(filter);
-    });
+    let users = orgUsersCache;
+    if (_selectedDeptId) {
+        users = users.filter(u => u.department_id === _selectedDeptId);
+    }
+    if (filter) {
+        users = users.filter(u =>
+            u.name.toLowerCase().includes(filter) ||
+            u.email.toLowerCase().includes(filter) ||
+            (u.employee_id || '').toLowerCase().includes(filter)
+        );
+    }
     if (!users.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500">No users found</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-500">${_selectedDeptId ? 'No members in this department' : 'No users found'}</td></tr>`;
         return;
     }
     tbody.innerHTML = users.map(u => {
@@ -951,14 +987,16 @@ function renderOrgManagerTable() {
                 </div>
             </td>
             <td class="p-3 text-sm">${u.employee_id ? `<span class="px-2 py-0.5 bg-gray-700 rounded text-xs">${escHtml(u.employee_id)}</span>` : '<span class="text-gray-500 text-xs">—</span>'}</td>
-            <td class="p-3 text-sm">${dept ? `<span class="text-purple-400 text-xs">${escHtml(dept.name)}</span>` : '<span class="text-gray-500 text-xs">—</span>'}</td>
+            <td class="p-3 text-sm">${dept ? `<span class="text-purple-400 text-xs cursor-pointer" onclick="selectOrgDept('${dept.id}')">${escHtml(dept.name)}</span>` : '<span class="text-gray-500 text-xs">—</span>'}</td>
             <td class="p-3 text-sm">${mgr ? `<span class="text-blue-400 text-xs">${escHtml(mgr.name)}</span>` : '<span class="text-gray-500 text-xs">Not assigned</span>'}</td>
             <td class="p-3">
-                <button onclick="openManagerModal('${u.id}')" class="text-blue-400 hover:text-blue-300 text-sm" title="Assign Manager">✏️ Edit</button>
+                <button onclick="openManagerModal('${u.id}')" class="text-purple-400 hover:text-purple-300 text-sm">Edit</button>
             </td>
         </tr>`;
     }).join('');
 }
+
+function renderOrgManagerTable() { renderOrgPeopleTable(); }
 
 function openManagerModal(userId) {
     const user = orgUsersCache.find(u => u.id === userId);
@@ -1015,15 +1053,16 @@ async function saveManagerAssignment() {
             body: JSON.stringify({ department_id: departmentId })
         });
         if (mgrRes.ok) {
-            showToast('Manager assignment saved!', 'success');
-            // Update cache
+            showToast('Saved successfully', 'success');
             const idx = orgUsersCache.findIndex(u => u.id === userId);
             if (idx >= 0) {
                 orgUsersCache[idx].manager_id = managerId;
                 orgUsersCache[idx].employee_id = employeeId;
                 orgUsersCache[idx].department_id = departmentId;
             }
-            renderOrgManagerTable();
+            renderOrgPeopleTable();
+            renderOrgDeptSidebar();
+            if (_selectedDeptId) selectOrgDept(_selectedDeptId);
             closeManagerModal();
         } else {
             const data = await mgrRes.json().catch(() => ({}));

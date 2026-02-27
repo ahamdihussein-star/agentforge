@@ -124,7 +124,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                 }
                 process_context = {
                     "user_id": context.user_id,
-                    "trigger_input": state.trigger_input or {},
+                    "trigger_input": context.trigger_input or {},
                     "variables": state.get_all(),
                 }
                 assignee_ids = self.deps.user_directory.resolve_process_assignee(
@@ -198,7 +198,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             # Default input: user_id and trigger_input so tool can resolve manager/approvers
             interpolated_input = state.interpolate_object({
                 "user_id": context.user_id,
-                **state.trigger_input,
+                **(context.trigger_input or {}),
                 **tool_input
             })
             try:
@@ -238,7 +238,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             }
             process_context = {
                 "user_id": context.user_id,
-                "trigger_input": state.trigger_input or {},
+                "trigger_input": context.trigger_input or {},
                 "variables": state.get_all(),
             }
             try:
@@ -279,7 +279,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                 }
                 fallback_ctx = {
                     "user_id": context.user_id,
-                    "trigger_input": state.trigger_input or {},
+                    "trigger_input": context.trigger_input or {},
                     "variables": state.get_all(),
                 }
                 fallback_ids = self.deps.user_directory.resolve_process_assignee(
@@ -422,7 +422,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     }
                     process_context = {
                         "user_id": context.user_id,
-                        "trigger_input": state.trigger_input or {},
+                        "trigger_input": context.trigger_input or {},
                         "variables": state.get_all(),
                     }
                     escalation_assignee_ids = [
@@ -438,7 +438,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     }
                     process_context = {
                         "user_id": context.user_id,
-                        "trigger_input": state.trigger_input or {},
+                        "trigger_input": context.trigger_input or {},
                         "variables": state.get_all(),
                     }
                     escalation_assignee_ids = [

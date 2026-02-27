@@ -34,6 +34,10 @@
         .org-tree-node:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
         .org-tree-root { border: 2px solid rgba(168, 85, 247, 0.4); }
 
+        .org-dept-item:hover { background: rgba(139,92,246,0.08); }
+        .org-dept-item--active { background: rgba(139,92,246,0.15) !important; color: #c4b5fd; }
+        @media(max-width:768px) { #org-dept-sidebar { display:none; } }
+
         /* New Wizard Progress Styles */
         .wizard-progress-step{display:flex;flex-direction:column;align-items:center;gap:4px}
         .wizard-step-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;background:#374151;color:#9ca3af;border:2px solid transparent}
