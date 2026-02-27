@@ -989,7 +989,11 @@ class ProcessWizard:
                     "\nIMPORTANT: When the user's prompt mentions a specific department, group, team, or role name, "
                     "match it against the lists above and use the correct ID. "
                     "Do NOT default to 'dynamic_manager' (direct manager) when a SPECIFIC department manager, "
-                    "group, or role is mentioned — use the matching routing type with the correct ID."
+                    "group, or role is mentioned — use the matching routing type with the correct ID. "
+                    "If the entity does NOT appear in the lists above, STILL generate the correct routing "
+                    "configuration using the entity name (e.g., assignee_department_name). The platform will "
+                    "detect missing entities and guide the user to create them. Do NOT add workaround "
+                    "notification nodes for missing entities."
                 )
                 org_structure_text = "\n".join(org_lines)
 

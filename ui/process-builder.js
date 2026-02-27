@@ -6766,7 +6766,6 @@
                 const name = draft.name || meta.name || 'My Workflow';
                 const shouldAnimate = meta.animate === true || /[?&]animate=1/.test(window.location.search || '');
                 if (shouldAnimate) {
-                    // One-time cinematic build: clear draft keys so reload doesn't re-play automatically
                     try {
                         sessionStorage.removeItem(PROCESS_BUILDER_DRAFT_KEY);
                         sessionStorage.removeItem(PROCESS_BUILDER_DRAFT_META_KEY);
@@ -6777,11 +6776,49 @@
                 } else {
                     applyWorkflowDefinition(draft, { goal, name });
                 }
+                _showSetupBannerIfNeeded();
                 return true;
             } catch (e) {
                 console.error('Draft load error:', e);
                 return false;
             }
+        }
+
+        function _showSetupBannerIfNeeded() {
+            try {
+                const raw = sessionStorage.getItem('agentforge_process_builder_setup');
+                if (!raw) return;
+                sessionStorage.removeItem('agentforge_process_builder_setup');
+                const items = JSON.parse(raw);
+                if (!Array.isArray(items) || !items.length) return;
+
+                const iconMap = {
+                    building: '🏢', people: '👥', shield: '🛡️',
+                    hierarchy: '🔗', wrench: '🔧', identity: '👤',
+                    department: '🏢', group: '👥', role: '🛡️', tool: '🔧',
+                };
+                const pills = items.map(it => {
+                    const ic = iconMap[it.icon] || iconMap[it.type] || '📋';
+                    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;background:rgba(139,92,246,0.1);font-size:12px;color:#c4b5fd;">${ic} ${it.entity_name || it.type}</span>`;
+                }).join(' ');
+
+                const banner = document.createElement('div');
+                banner.id = 'setup-prereq-banner';
+                banner.style.cssText = 'position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:900;max-width:680px;width:calc(100% - 32px);padding:14px 20px;border-radius:12px;background:var(--surface-color,#1e1e2e);border:1px solid rgba(139,92,246,0.25);box-shadow:0 8px 32px rgba(0,0,0,0.3);display:flex;align-items:flex-start;gap:14px;';
+                banner.innerHTML = `
+                    <div style="font-size:22px;flex-shrink:0;margin-top:2px;">📋</div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:13px;font-weight:600;color:var(--text-primary,#e2e8f0);margin-bottom:4px;">Setup Needed</div>
+                        <div style="font-size:12px;color:var(--text-secondary,#94a3b8);line-height:1.5;margin-bottom:8px;">
+                            This workflow references items that haven't been created yet. Set them up before publishing.
+                        </div>
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;">${pills}</div>
+                    </div>
+                    <button onclick="this.parentElement.remove()" style="flex-shrink:0;background:none;border:none;color:var(--text-secondary,#94a3b8);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;" title="Dismiss">&times;</button>
+                `;
+                document.body.appendChild(banner);
+                setTimeout(() => { try { banner.remove(); } catch(_){} }, 20000);
+            } catch (_) {}
         }
 
         function applyWorkflowDefinition(def, opts = {}) {

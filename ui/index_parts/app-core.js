@@ -2510,9 +2510,21 @@ const API='';
                             name: data.workflow.name || 'My Workflow',
                             animate: true
                         }));
+                        if (data.setup_required && data.setup_required.length > 0) {
+                            sessionStorage.setItem('agentforge_process_builder_setup', JSON.stringify(data.setup_required));
+                        } else {
+                            sessionStorage.removeItem('agentforge_process_builder_setup');
+                        }
                     } catch (_) { /* ignore */ }
 
                     try { anim.complete(); } catch (_) {}
+
+                    // Check if there are missing prerequisites
+                    if (data.setup_required && data.setup_required.length > 0) {
+                        _showSetupGuide(data.setup_required);
+                        return;
+                    }
+
                     document.getElementById('generating-status').textContent = 'Opening your workflow builder...';
                     // Open builder in the SAME tab (better UX)
                     setTimeout(() => {
@@ -2532,7 +2544,78 @@ const API='';
                 try { anim.stop(); } catch (_) {}
             }
         }
-        
+
+        function _showSetupGuide(items) {
+            const iconMap = {
+                building: '🏢', people: '👥', shield: '🛡️',
+                hierarchy: '🔗', wrench: '🔧', identity: '👤',
+                department: '🏢', group: '👥', role: '🛡️', tool: '🔧',
+            };
+
+            let html = '';
+            items.forEach((item, i) => {
+                const icon = iconMap[item.icon] || iconMap[item.type] || '📋';
+                const stepsHtml = (item.steps && item.steps.length)
+                    ? `<div style="margin-top:10px;padding:10px 14px;border-radius:8px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.12);">
+                        <div style="font-size:12px;font-weight:600;color:#a78bfa;margin-bottom:6px;">How to set this up:</div>
+                        <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                            ${item.steps.map(s => `<li>${s}</li>`).join('')}
+                        </ol>
+                       </div>`
+                    : '';
+                const adminNote = !item.can_create
+                    ? `<div style="margin-top:8px;padding:8px 12px;border-radius:6px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.15);font-size:12px;color:#fbbf24;">
+                        You don't have permission to create this. Please ask your administrator.
+                       </div>`
+                    : '';
+                html += `
+                    <div style="padding:16px;border-radius:12px;background:var(--surface-color);border:1px solid var(--border-color);margin-bottom:12px;">
+                        <div style="display:flex;align-items:flex-start;gap:12px;">
+                            <div style="width:40px;height:40px;border-radius:10px;background:rgba(139,92,246,0.12);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${icon}</div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:600;font-size:14px;color:var(--text-primary);margin-bottom:4px;">${item.entity_name || item.type}</div>
+                                <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">${item.message}</div>
+                                <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;line-height:1.5;">${item.guidance}</div>
+                                ${stepsHtml}
+                                ${adminNote}
+                            </div>
+                        </div>
+                    </div>`;
+            });
+
+            const genPanel = document.getElementById('wizard-generating');
+            if (genPanel) {
+                genPanel.innerHTML = `
+                    <div style="max-width:640px;margin:0 auto;padding:24px 0;">
+                        <div style="text-align:center;margin-bottom:24px;">
+                            <div style="font-size:40px;margin-bottom:12px;">📋</div>
+                            <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">Almost There!</h2>
+                            <p style="font-size:14px;color:var(--text-secondary);max-width:460px;margin:0 auto;line-height:1.6;">
+                                Your workflow has been created successfully. To make sure everything runs smoothly,
+                                the following items need to be set up on the platform first.
+                            </p>
+                        </div>
+                        <div style="margin-bottom:24px;">${html}</div>
+                        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                            <button onclick="_openBuilderAnyway()" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);cursor:pointer;transition:all .15s;">
+                                Continue to Builder
+                            </button>
+                            <button onclick="window.location.href='/dashboard#security/org'" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:#8b5cf6;color:white;border:none;cursor:pointer;transition:all .15s;">
+                                Set Up Now
+                            </button>
+                        </div>
+                        <p style="text-align:center;font-size:12px;color:var(--text-secondary);margin-top:14px;">
+                            You can also set these up later — your workflow draft has been saved.
+                        </p>
+                    </div>`;
+            }
+        }
+
+        function _openBuilderAnyway() {
+            document.getElementById('generating-status')?.remove();
+            window.location.href = '/ui/process-builder.html?draft=1';
+        }
+
         // Show Process Editor (using modal instead of replacing content)
         function showProcessEditor(workflow) {
             // Hide the generating state and show step 0

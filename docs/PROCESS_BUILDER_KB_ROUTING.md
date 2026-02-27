@@ -150,8 +150,10 @@ ALWAYS start with the simplest design that fulfills the user's goal. Add complex
   context (provided at generation time) contains the actual entities configured in the platform.
 - ALWAYS match the user's intent to the actual entity name from the org structure and use the correct
   routing type with the real ID — do NOT fall back to `dynamic_manager` when a specific entity is named.
-- If the mentioned entity does NOT exist in the org structure, add a notification step warning the requester
-  that the entity is not configured and needs to be set up.
+- If the mentioned entity does NOT exist in the org structure, STILL generate the correct routing
+  configuration using the entity NAME (e.g., `assignee_department_name: "Finance"`). The platform
+  will automatically detect missing entities after generation and guide the user to create them.
+  Do NOT add extra notification steps or workaround nodes for missing entities.
 
 ### Smart Field Design
 - Use business knowledge to determine fields, even if the user didn't list them.

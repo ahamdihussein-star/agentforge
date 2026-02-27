@@ -1991,6 +1991,376 @@ async def use_process_template(
 # WIZARD ENDPOINTS (AI-powered workflow creation)
 # =============================================================================
 
+
+def _validate_process_prerequisites(
+    process_def: Dict[str, Any],
+    context: Dict[str, Any],
+    user_permissions: List[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Scan a generated process definition for references to platform entities
+    (departments, groups, roles, tools) that do not yet exist.
+
+    Returns a list of prerequisite items, each with a business-friendly
+    message and step-by-step creation guidance.  An empty list means
+    everything the process needs is already configured.
+    """
+    nodes = process_def.get("nodes") or []
+    if not nodes:
+        return []
+
+    perms = set(user_permissions or [])
+    is_admin = "full_admin" in perms or "system:admin" in perms
+
+    dept_map_lower = {}
+    dept_id_set = set()
+    for d in (context.get("departments") or []):
+        dept_map_lower[(d.get("name") or "").lower()] = d
+        dept_id_set.add(str(d.get("id", "")))
+
+    group_map_lower = {}
+    group_id_set = set()
+    for g in (context.get("groups") or []):
+        group_map_lower[(g.get("name") or "").lower()] = g
+        group_id_set.add(str(g.get("id", "")))
+
+    role_map_lower = {}
+    role_id_set = set()
+    for r in (context.get("roles") or []):
+        role_map_lower[(r.get("name") or "").lower()] = r
+        role_id_set.add(str(r.get("id", "")))
+
+    tool_map = {}
+    for t in (context.get("tools") or context.get("available_tools") or []):
+        tid = str(t.get("id") or "")
+        if tid:
+            tool_map[tid] = t
+
+    identity_ctx = context.get("identity_context") or {}
+    caps = identity_ctx.get("capabilities", {})
+
+    prerequisites: List[Dict[str, Any]] = []
+    seen_keys: set = set()
+
+    def _can(perm: str) -> bool:
+        return is_admin or perm in perms
+
+    def _cfg(node: dict) -> dict:
+        """Extract the effective config dict from a node."""
+        c = node.get("config") or {}
+        if isinstance(c, dict) and "config" in c:
+            c = c["config"]
+        if not isinstance(c, dict):
+            c = {}
+        d = node.get("data") or {}
+        if isinstance(d, dict) and "config" in d and not c:
+            c = d["config"]
+        return c
+
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        node_type = (node.get("type") or "").lower()
+        node_name = node.get("name") or node.get("label") or node_type.title()
+        config = _cfg(node)
+
+        # ---- Department references ----
+        dept_name = config.get("assignee_department_name") or ""
+        dept_id = str(config.get("department_id") or "")
+        if dept_name and dept_name.lower() not in dept_map_lower:
+            key = f"dept:{dept_name.lower()}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                can_create = _can("org:manage")
+                steps = [
+                    "Open the sidebar and go to \"Users & Access\"",
+                    "Switch to the \"Organization\" tab",
+                    "Click \"People & Departments\"",
+                    f"Click \"+ New Department\" and name it \"{dept_name}\"",
+                    "Assign a manager who will handle approvals for this department",
+                    "Click \"Save\"",
+                ]
+                prerequisites.append({
+                    "type": "department",
+                    "entity_name": dept_name,
+                    "referenced_by": node_name,
+                    "message": (
+                        f"This workflow routes to the \"{dept_name}\" department, "
+                        f"but it hasn't been created yet."
+                    ),
+                    "guidance": (
+                        f"Create the \"{dept_name}\" department and assign a manager so "
+                        "the workflow can route approvals and notifications correctly."
+                    ) if can_create else (
+                        f"Ask your administrator to create a \"{dept_name}\" department "
+                        "and assign a manager to it."
+                    ),
+                    "steps": steps if can_create else [],
+                    "can_create": can_create,
+                    "icon": "building",
+                })
+        elif dept_id and dept_id not in dept_id_set and dept_id not in ("", "None"):
+            key = f"dept_id:{dept_id}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                prerequisites.append({
+                    "type": "department",
+                    "entity_name": dept_name or "Unknown department",
+                    "referenced_by": node_name,
+                    "message": (
+                        f"The step \"{node_name}\" references a department that "
+                        "doesn't exist in the platform."
+                    ),
+                    "guidance": "Open the workflow builder and update this step to select an existing department.",
+                    "steps": [],
+                    "can_create": False,
+                    "icon": "building",
+                })
+
+        # ---- Notification recipient: dept_manager:<id>, dept_members:<id> ----
+        if node_type == "notification":
+            recipient = str(config.get("recipient") or "")
+            for prefix in ("dept_manager:", "dept_members:"):
+                if recipient.startswith(prefix):
+                    r_id = recipient[len(prefix):]
+                    if r_id and r_id not in dept_id_set:
+                        key = f"dept_id:{r_id}"
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            can_create = _can("org:manage")
+                            prerequisites.append({
+                                "type": "department",
+                                "entity_name": f"Department (ID: {r_id[:8]}…)",
+                                "referenced_by": node_name,
+                                "message": (
+                                    f"The notification \"{node_name}\" is addressed to a "
+                                    "department that doesn't exist yet."
+                                ),
+                                "guidance": "Create the department or update this notification to target an existing one." if can_create else "Ask your administrator to create the required department.",
+                                "steps": [],
+                                "can_create": can_create,
+                                "icon": "building",
+                            })
+            for prefix in ("group:",):
+                if recipient.startswith(prefix):
+                    g_id = recipient[len(prefix):]
+                    if g_id and g_id not in group_id_set:
+                        key = f"group_id:{g_id}"
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            can_create = _can("groups:manage")
+                            prerequisites.append({
+                                "type": "group",
+                                "entity_name": f"Group (ID: {g_id[:8]}…)",
+                                "referenced_by": node_name,
+                                "message": (
+                                    f"The notification \"{node_name}\" is addressed to a "
+                                    "group that doesn't exist yet."
+                                ),
+                                "guidance": "Create the group or update this notification to target an existing one." if can_create else "Ask your administrator to create the required group.",
+                                "steps": [],
+                                "can_create": can_create,
+                                "icon": "people",
+                            })
+            for prefix in ("role:",):
+                if recipient.startswith(prefix):
+                    r_id = recipient[len(prefix):]
+                    if r_id and r_id not in role_id_set:
+                        key = f"role_id:{r_id}"
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            can_create = _can("roles:manage")
+                            prerequisites.append({
+                                "type": "role",
+                                "entity_name": f"Role (ID: {r_id[:8]}…)",
+                                "referenced_by": node_name,
+                                "message": (
+                                    f"The notification \"{node_name}\" is addressed to a "
+                                    "role that doesn't exist yet."
+                                ),
+                                "guidance": "Create the role or update this notification to target an existing one." if can_create else "Ask your administrator to create the required role.",
+                                "steps": [],
+                                "can_create": can_create,
+                                "icon": "shield",
+                            })
+
+        # ---- Approval: group / role references ----
+        if node_type == "approval":
+            source = (config.get("assignee_source") or "").lower()
+            dir_type = (config.get("directory_assignee_type") or "").lower()
+
+            id_list = config.get("group_ids") or config.get("assignee_ids") or []
+            if source == "platform_group" or dir_type == "group":
+                for gid in (id_list if isinstance(id_list, list) else [id_list]):
+                    gid_str = str(gid or "")
+                    if gid_str and gid_str not in group_id_set:
+                        key = f"group_id:{gid_str}"
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            can_create = _can("groups:manage")
+                            prerequisites.append({
+                                "type": "group",
+                                "entity_name": f"Group (ID: {gid_str[:8]}…)",
+                                "referenced_by": node_name,
+                                "message": (
+                                    f"The approval step \"{node_name}\" is assigned to a "
+                                    "group that doesn't exist yet."
+                                ),
+                                "guidance": (
+                                    "Create the group in Users & Access > Groups, "
+                                    "then add the appropriate members."
+                                ) if can_create else (
+                                    "Ask your administrator to create the required group "
+                                    "and add the appropriate members."
+                                ),
+                                "steps": [
+                                    "Open the sidebar and go to \"Users & Access\"",
+                                    "Switch to the \"Groups\" tab",
+                                    "Click \"+ Create Group\"",
+                                    "Give it a descriptive name and add members",
+                                    "Click \"Save\"",
+                                ] if can_create else [],
+                                "can_create": can_create,
+                                "icon": "people",
+                            })
+
+            r_id_list = config.get("role_ids") or (config.get("assignee_ids") or [])
+            if source == "platform_role" or dir_type == "role":
+                for rid in (r_id_list if isinstance(r_id_list, list) else [r_id_list]):
+                    rid_str = str(rid or "")
+                    if rid_str and rid_str not in role_id_set:
+                        key = f"role_id:{rid_str}"
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            can_create = _can("roles:manage")
+                            prerequisites.append({
+                                "type": "role",
+                                "entity_name": f"Role (ID: {rid_str[:8]}…)",
+                                "referenced_by": node_name,
+                                "message": (
+                                    f"The approval step \"{node_name}\" is assigned to a "
+                                    "role that doesn't exist yet."
+                                ),
+                                "guidance": (
+                                    "Create the role in Users & Access > Roles, "
+                                    "then assign it to the appropriate users."
+                                ) if can_create else (
+                                    "Ask your administrator to create the required role "
+                                    "and assign it to the appropriate users."
+                                ),
+                                "steps": [
+                                    "Open the sidebar and go to \"Users & Access\"",
+                                    "Switch to the \"Roles\" tab",
+                                    "Click \"+ Create Role\"",
+                                    "Give it a descriptive name and set permissions",
+                                    "Assign the role to the appropriate users",
+                                ] if can_create else [],
+                                "can_create": can_create,
+                                "icon": "shield",
+                            })
+
+            # department_manager without managers configured
+            if dir_type == "department_manager" and not dept_name:
+                if not caps.get("has_departments"):
+                    key = "no_departments"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        can_create = _can("org:manage")
+                        prerequisites.append({
+                            "type": "department",
+                            "entity_name": "Departments",
+                            "referenced_by": node_name,
+                            "message": (
+                                "This workflow uses department-based approval, "
+                                "but no departments have been created yet."
+                            ),
+                            "guidance": (
+                                "Create at least one department and assign a manager to it."
+                            ) if can_create else (
+                                "Ask your administrator to set up departments and assign managers."
+                            ),
+                            "steps": [
+                                "Open the sidebar and go to \"Users & Access\"",
+                                "Switch to the \"Organization\" tab",
+                                "Click \"People & Departments\"",
+                                "Click \"+ New Department\"",
+                                "Name the department and assign a manager",
+                                "Click \"Save\"",
+                            ] if can_create else [],
+                            "can_create": can_create,
+                            "icon": "building",
+                        })
+
+            # dynamic_manager without any managers in the org
+            if dir_type in ("dynamic_manager", "") and source == "user_directory":
+                if not caps.get("has_managers"):
+                    key = "no_managers"
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        can_create = _can("org:manage")
+                        prerequisites.append({
+                            "type": "identity",
+                            "entity_name": "Manager Assignments",
+                            "referenced_by": node_name,
+                            "message": (
+                                "This workflow routes approvals to the requester's manager, "
+                                "but no managers have been assigned yet."
+                            ),
+                            "guidance": (
+                                "Go to Organization > People & Departments and assign managers to users."
+                            ) if can_create else (
+                                "Ask your administrator to assign managers to users "
+                                "in the organization settings."
+                            ),
+                            "steps": [
+                                "Open the sidebar and go to \"Users & Access\"",
+                                "Switch to the \"Organization\" tab",
+                                "Click \"People & Departments\"",
+                                "Select a user and assign their manager",
+                                "Repeat for all users who will submit this workflow",
+                            ] if can_create else [],
+                            "can_create": can_create,
+                            "icon": "hierarchy",
+                        })
+
+        # ---- Tool references ----
+        if node_type == "tool":
+            tool_id = str(config.get("toolId") or config.get("tool_id") or "")
+            tool_name = config.get("toolName") or config.get("tool_name") or ""
+            if tool_id and tool_id not in tool_map:
+                key = f"tool:{tool_id}"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    can_create = _can("tools:create")
+                    label = tool_name or f"Tool (ID: {tool_id[:8]}…)"
+                    prerequisites.append({
+                        "type": "tool",
+                        "entity_name": label,
+                        "referenced_by": node_name,
+                        "message": (
+                            f"The step \"{node_name}\" uses a tool "
+                            f"(\"{label}\") that hasn't been configured yet."
+                        ),
+                        "guidance": (
+                            "Create the tool integration in the Tools section, "
+                            "or update this step to use an existing tool."
+                        ) if can_create else (
+                            "Ask your administrator to create the required tool integration."
+                        ),
+                        "steps": [
+                            "Open the sidebar and go to \"Tools\"",
+                            "Click \"+ Create Tool\"",
+                            f"Configure it as \"{label}\"",
+                            "Set up the API connection and parameters",
+                            "Save and test the tool",
+                        ] if can_create else [],
+                        "can_create": can_create,
+                        "icon": "wrench",
+                    })
+
+    return prerequisites
+
+
 @router.post("/wizard/generate")
 async def generate_workflow_from_goal(
     request: Dict[str, Any],
@@ -2133,12 +2503,42 @@ async def generate_workflow_from_goal(
             additional_context=context,
             output_format=output_format
         )
-        
-        return {
+
+        # Post-generation: validate that all referenced entities exist
+        user_perms = []
+        try:
+            if hasattr(user, "role") and user.role:
+                from database.base import get_session as _gs
+                from database.models.role import Role as _R
+                from database.models.role_permission import RolePermission as _RP
+                with _gs() as _s:
+                    _perms = (
+                        _s.query(_RP.permission_key)
+                        .filter(_RP.role_id == user.role_id)
+                        .all()
+                    )
+                    user_perms = [p[0] for p in _perms]
+            if getattr(user, "is_superadmin", False) or getattr(user, "is_org_admin", False):
+                user_perms.append("full_admin")
+        except Exception:
+            user_perms = []
+
+        setup_required = []
+        try:
+            setup_required = _validate_process_prerequisites(
+                process_def, context, user_perms
+            )
+        except Exception as e:
+            print(f"⚠️  [Wizard] Prerequisite validation error (non-blocking): {e}")
+
+        result = {
             "success": True,
             "workflow": process_def,
-            "message": "Your workflow has been created! You can now customize it or run it."
+            "message": "Your workflow has been created! You can now customize it or run it.",
         }
+        if setup_required:
+            result["setup_required"] = setup_required
+        return result
     except Exception as e:
         raise HTTPException(
             status_code=500, 
