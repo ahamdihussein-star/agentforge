@@ -468,45 +468,74 @@ class UserDirectoryService:
         from database.models.user_group import UserGroup
         from database.models.user import User
 
+        resolved_org = _resolve_org_uuid(org_id) or org_id
+
         with get_session() as session:
             group = session.query(UserGroup).filter(
-                UserGroup.id == group_id,
-                UserGroup.org_id == org_id,
+                UserGroup.id == str(group_id),
+                UserGroup.org_id == resolved_org,
             ).first()
             if not group:
+                # Fallback: try without org filter
+                group = session.query(UserGroup).filter(
+                    UserGroup.id == str(group_id),
+                ).first()
+                if group:
+                    logger.warning(
+                        "[get_group_members] Group %s found but org_id mismatch: "
+                        "DB=%s, query=%s. Using it anyway.",
+                        group_id, group.org_id, resolved_org,
+                    )
+            if not group:
+                logger.warning("[get_group_members] Group %s not found", group_id)
                 return []
             user_ids = group.user_ids or []
             if not user_ids:
+                logger.warning("[get_group_members] Group %s (%s) has no members", group.name, group_id)
                 return []
+            logger.info(
+                "[get_group_members] Group '%s' has %d member IDs: %s",
+                group.name, len(user_ids), [str(uid)[:8] for uid in user_ids],
+            )
             members = session.query(User).filter(
-                User.id.in_(user_ids),
-                User.org_id == org_id,
+                User.id.in_([str(uid) for uid in user_ids]),
                 User.status == "active",
             ).all()
-            return [self._user_to_attributes(u, org_id) for u in members]
+            logger.info(
+                "[get_group_members] Found %d active users from %d IDs",
+                len(members), len(user_ids),
+            )
+            return [self._user_to_attributes(u, org_id, session=session) for u in members]
 
     def get_role_members(self, role_id: str, org_id: str) -> List[UserAttributes]:
         """Get all users assigned to a specific role."""
         from database.base import get_session
         from database.models.user import User
 
+        resolved_org = _resolve_org_uuid(org_id) or org_id
+
         with get_session() as session:
+            # First try SQLAlchemy JSON contains
             users = session.query(User).filter(
-                User.org_id == org_id,
+                User.org_id == resolved_org,
                 User.status == "active",
-                User.role_ids.contains([role_id]),
+                User.role_ids.contains([str(role_id)]),
             ).all()
             if not users:
-                users = session.query(User).filter(
-                    User.org_id == org_id,
+                # Fallback: load all active users and check in Python
+                all_active = session.query(User).filter(
+                    User.org_id == resolved_org,
                     User.status == "active",
                 ).all()
                 users = [
-                    u for u in users
+                    u for u in all_active
                     if isinstance(getattr(u, "role_ids", None), list)
                     and str(role_id) in [str(r) for r in u.role_ids]
                 ]
-            return [self._user_to_attributes(u, org_id) for u in users]
+            logger.info(
+                "[get_role_members] Role %s: found %d member(s)", role_id, len(users),
+            )
+            return [self._user_to_attributes(u, org_id, session=session) for u in users]
 
     # ========================================================================
     # ORG CHART OPERATIONS

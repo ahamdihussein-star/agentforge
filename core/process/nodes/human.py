@@ -440,6 +440,12 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             self.get_config_value(node, 'notifyApprover', False)
             or self.get_config_value(node, 'notify_approver', False)
         )
+        logger.info(
+            "[ApprovalNode] notifyApprover=%s, assignee_type=%s, assignee_ids=%s, "
+            "has_notification_svc=%s",
+            notify_approver, assignee_type, assignee_ids,
+            bool(self.deps and getattr(self.deps, 'notification_service', None)),
+        )
         if notify_approver and self.deps and getattr(self.deps, 'notification_service', None):
             notif_msg = (
                 self.get_config_value(node, 'notificationMessage', '')
@@ -458,20 +464,29 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             approver_emails = self._resolve_assignee_emails(
                 assignee_ids, assignee_type, state, context, logs
             )
+            logger.info(
+                "[ApprovalNode] Resolved approver emails: %s", approver_emails
+            )
             if approver_emails:
                 try:
-                    await self.deps.notification_service.send(
+                    send_result = await self.deps.notification_service.send(
                         channel=notif_channel,
                         recipients=approver_emails,
                         title=notif_title,
                         message=notif_msg,
                         priority=priority,
                     )
+                    logger.info(
+                        "[ApprovalNode] Notification send result: %s", send_result
+                    )
                     logs.append(
                         f"📧 Sent {notif_channel} notification to "
                         f"{len(approver_emails)} approver(s)"
                     )
                 except Exception as e:
+                    logger.error(
+                        "[ApprovalNode] Notification send exception: %s", e, exc_info=True
+                    )
                     logs.append(
                         f"⚠️ Approver notification failed (non-blocking): {e}"
                     )
@@ -496,9 +511,16 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         logs: list,
     ) -> List[str]:
         """Resolve assignee IDs / shortcuts to email addresses for notification."""
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
         emails: List[str] = []
         _trigger_input = getattr(context, 'trigger_input', None) or {}
         user_ctx = _trigger_input.get("_user_context", {})
+
+        _log.info(
+            "[_resolve_assignee_emails] assignee_ids=%s assignee_type=%s org=%s",
+            assignee_ids, assignee_type, context.org_id,
+        )
 
         for aid in assignee_ids:
             aid_str = str(aid).strip() if aid else ""
@@ -517,8 +539,8 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                                 mgr = self.deps.user_directory.get_user(req_attrs.manager_id, context.org_id)
                                 if mgr and mgr.email:
                                     email = mgr.email
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        _log.warning("[_resolve_assignee_emails] manager lookup failed: %s", e)
                 if email:
                     emails.append(email)
                 continue
@@ -538,12 +560,33 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     user_attrs = self.deps.user_directory.get_user(aid_str, context.org_id)
                     if user_attrs and user_attrs.email:
                         emails.append(user_attrs.email)
+                        _log.info("[_resolve_assignee_emails] Resolved %s → %s", aid_str[:12], user_attrs.email)
                         continue
-                except Exception:
-                    pass
+                    else:
+                        _log.warning(
+                            "[_resolve_assignee_emails] get_user(%s) returned attrs=%s email=%s",
+                            aid_str[:12], bool(user_attrs), getattr(user_attrs, 'email', None) if user_attrs else None,
+                        )
+                except Exception as e:
+                    _log.warning("[_resolve_assignee_emails] get_user(%s) raised: %s", aid_str[:12], e)
 
             logs.append(f"⚠️ Could not resolve approver '{aid_str[:12]}…' to email")
 
+        # Fallback: if no emails resolved and assignees were expected, try dynamic_manager
+        if not emails and assignee_type in ('any', 'user') and self.deps and getattr(self.deps, 'user_directory', None):
+            _log.info("[_resolve_assignee_emails] No emails resolved, trying dynamic_manager fallback")
+            try:
+                req_id = user_ctx.get("user_id") or context.user_id
+                if req_id:
+                    mgr = self.deps.user_directory.get_manager(str(req_id), context.org_id)
+                    if mgr and mgr.email:
+                        emails.append(mgr.email)
+                        _log.info("[_resolve_assignee_emails] Fallback resolved manager → %s", mgr.email)
+                        logs.append(f"ℹ️ Resolved approver via manager fallback → {mgr.email}")
+            except Exception as e:
+                _log.warning("[_resolve_assignee_emails] manager fallback failed: %s", e)
+
+        _log.info("[_resolve_assignee_emails] Final emails: %s", emails)
         return [e for e in emails if e and e.strip()]
 
     def validate(self, node: ProcessNode) -> Optional[ExecutionError]:
@@ -900,22 +943,33 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             # Group/team shortcut: "group:<group_id>" → all members of a specific group
             if r_lower.startswith("group:") or r_lower.startswith("team:"):
                 group_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                logger.info("[NotifNode] Resolving group recipient: group_id=%s org=%s", group_id, context.org_id)
                 if group_id and self.deps and self.deps.user_directory:
                     try:
                         group_members = self.deps.user_directory.get_group_members(
                             str(group_id), context.org_id
                         ) or []
+                        logger.info("[NotifNode] get_group_members returned %d members", len(group_members))
                         count = 0
                         for m in group_members:
                             em = getattr(m, "email", None)
                             if em:
                                 resolved_recipients.append(em)
                                 count += 1
+                                logger.info("[NotifNode] Group member email: %s", em)
+                            else:
+                                logger.warning("[NotifNode] Group member %s has no email", getattr(m, 'user_id', '?'))
                         if count > 0:
                             logs.append(f"Resolved '{r_str}' → {count} group member(s)")
                             continue
                     except Exception as e:
+                        logger.error("[NotifNode] get_group_members exception: %s", e, exc_info=True)
                         logs.append(f"⚠️ Failed to resolve group '{r_str}': {e}")
+                else:
+                    logger.warning(
+                        "[NotifNode] Cannot resolve group: group_id=%s has_deps=%s has_ud=%s",
+                        bool(group_id), bool(self.deps), bool(self.deps and self.deps.user_directory),
+                    )
                 logs.append(
                     f"⚠️ Could not resolve '{r_str}' — group members not found. "
                     "Check: does this group exist and have members assigned?"
@@ -925,21 +979,25 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             # Role shortcut: "role:<role_id>" → all users with this role
             if r_lower.startswith("role:"):
                 role_id = r_str.split(":", 1)[1].strip() if ":" in r_str else ""
+                logger.info("[NotifNode] Resolving role recipient: role_id=%s org=%s", role_id, context.org_id)
                 if role_id and self.deps and self.deps.user_directory:
                     try:
                         role_members = self.deps.user_directory.get_role_members(
                             str(role_id), context.org_id
                         ) or []
+                        logger.info("[NotifNode] get_role_members returned %d members", len(role_members))
                         count = 0
                         for m in role_members:
                             em = getattr(m, "email", None)
                             if em:
                                 resolved_recipients.append(em)
                                 count += 1
+                                logger.info("[NotifNode] Role member email: %s", em)
                         if count > 0:
                             logs.append(f"Resolved '{r_str}' → {count} role member(s)")
                             continue
                     except Exception as e:
+                        logger.error("[NotifNode] get_role_members exception: %s", e, exc_info=True)
                         logs.append(f"⚠️ Failed to resolve role '{r_str}': {e}")
                 logs.append(
                     f"⚠️ Could not resolve '{r_str}' — role members not found. "
@@ -988,6 +1046,10 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             resolved_recipients.append(r_str)
         
         interpolated_recipients = [r for r in resolved_recipients if r and r.strip()]
+        logger.info(
+            "[NotifNode:%s] Final resolved recipients: %s (from raw: %s)",
+            node.name, interpolated_recipients, recipients,
+        )
         logs.append(f"Recipients: {interpolated_recipients}")
         logs.append(f"Title: {title}")
         
@@ -1045,6 +1107,10 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         
         # Send notification
         try:
+            logger.info(
+                "[NotifNode:%s] Sending via channel=%s to %d recipient(s): %s",
+                node.name, channel, len(interpolated_recipients), interpolated_recipients,
+            )
             result = await self.deps.notification_service.send(
                 channel=channel,
                 recipients=interpolated_recipients,
@@ -1055,6 +1121,7 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 priority=priority,
                 config=channel_config
             )
+            logger.info("[NotifNode:%s] Send result: %s", node.name, result)
             
             logs.append(f"Notification sent successfully")
             

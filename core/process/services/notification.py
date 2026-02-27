@@ -121,7 +121,14 @@ class NotificationService:
         config: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Send email: use platform EmailService (same as reset password, MFA) when set; else SMTP."""
-        
+
+        logger.info(
+            "[NotificationService._send_email] recipients=%s subject=%s "
+            "has_platform_email=%s msg_len=%d",
+            recipients, title, bool(self.platform_email_service),
+            len(message) if message else 0,
+        )
+
         # Use platform EmailService (SendGrid / same as reset password & MFA) when available
         if self.platform_email_service:
             try:
@@ -140,23 +147,35 @@ class NotificationService:
                 # SendGrid requires a non-empty subject; use title or fallback
                 email_subject = (title or 'Notification').strip() or 'Notification'
                 sent = 0
+                failed = []
                 for to_email in recipients:
                     if not to_email or not str(to_email).strip():
+                        logger.warning("[_send_email] Skipping empty recipient")
                         continue
+                    clean_email = str(to_email).strip()
+                    logger.info("[_send_email] Sending to %s …", clean_email)
                     ok = await self.platform_email_service.send_email(
-                        str(to_email).strip(),
+                        clean_email,
                         email_subject,
                         html_content,
                         text_content=text_content
                     )
                     if ok:
                         sent += 1
-                return {
+                        logger.info("[_send_email] ✅ Sent to %s", clean_email)
+                    else:
+                        failed.append(clean_email)
+                        logger.warning("[_send_email] ❌ Failed to send to %s", clean_email)
+                result = {
                     'success': sent > 0,
                     'channel': 'email',
                     'recipients_count': len(recipients),
-                    'sent_count': sent
+                    'sent_count': sent,
                 }
+                if failed:
+                    result['failed_recipients'] = failed
+                logger.info("[_send_email] Result: %s", result)
+                return result
             except Exception as e:
                 logger.warning(f"Platform email service failed: {e}, falling back to SMTP if configured")
                 # Fall through to SMTP path below if platform email fails
