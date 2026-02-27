@@ -396,13 +396,17 @@ class NodeResult(BaseModel):
     def waiting(
         cls,
         waiting_for: str,
-        waiting_metadata: Dict[str, Any] = None
+        waiting_metadata: Dict[str, Any] = None,
+        output: Any = None,
+        logs: List[str] = None,
     ) -> 'NodeResult':
         """Create a waiting result"""
         return cls(
             status=ExecutionStatus.WAITING,
             waiting_for=waiting_for,
-            waiting_metadata=waiting_metadata
+            waiting_metadata=waiting_metadata,
+            output=output,
+            logs=logs or [],
         )
 
 

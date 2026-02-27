@@ -345,6 +345,127 @@ class ProcessTestSendNotificationRequest(BaseModel):
     message: str = Field(default="", description="Email body (plain text or HTML)")
 
 
+@router.post("/test/resolve-approvers")
+async def test_resolve_approvers(
+    request: Dict[str, Any],
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """
+    Resolve approval-node assignees to concrete user details (name + email).
+
+    Used by the Process Builder test to validate and display who will receive
+    the approval before the test runs.  Returns a list of
+    ``{id, name, email}`` or an error with a business-friendly reason.
+    """
+    from core.identity.service import UserDirectoryService
+
+    ud = UserDirectoryService()
+    org_id = str(user.org_id)
+    requester_id = str(user.id)
+
+    source = str(request.get("assignee_source") or "platform_user").strip()
+    dir_type = str(request.get("directory_assignee_type") or "dynamic_manager").strip()
+    raw_ids = request.get("assignee_ids") or request.get("approvers") or []
+    dept_id = (
+        request.get("assignee_department_id")
+        or request.get("department_id")
+        or request.get("departmentId")
+        or None
+    )
+    dept_name = (
+        request.get("assignee_department_name")
+        or request.get("department_name")
+        or request.get("departmentName")
+        or None
+    )
+    role_ids = request.get("assignee_role_ids") or request.get("role_ids") or []
+    group_ids = request.get("assignee_group_ids") or request.get("group_ids") or []
+
+    resolved: list = []
+
+    try:
+        if source == "user_directory":
+            directory_config = {
+                "type": dir_type,
+                "user_ids": raw_ids if isinstance(raw_ids, list) else [],
+                "role_ids": role_ids if isinstance(role_ids, list) else [],
+                "group_ids": group_ids if isinstance(group_ids, list) else [],
+                "department_id": dept_id,
+                "department_name": dept_name,
+                "level": request.get("management_level", 1),
+            }
+            process_context = {
+                "user_id": requester_id,
+                "trigger_input": {"_user_context": {"user_id": requester_id}},
+                "variables": {},
+            }
+            ids = ud.resolve_process_assignee(directory_config, process_context, org_id) or []
+        elif source in ("platform_group", "platform_role"):
+            directory_config = {
+                "type": "role" if source == "platform_role" else "group",
+                "role_ids": raw_ids if source == "platform_role" and isinstance(raw_ids, list) else [],
+                "group_ids": raw_ids if source == "platform_group" and isinstance(raw_ids, list) else [],
+            }
+            process_context = {
+                "user_id": requester_id,
+                "trigger_input": {},
+                "variables": {},
+            }
+            ids = ud.resolve_process_assignee(directory_config, process_context, org_id) or []
+        else:
+            ids = [str(x) for x in raw_ids if x] if isinstance(raw_ids, list) else []
+
+        for uid in ids:
+            try:
+                attrs = ud.get_user(str(uid), org_id)
+                if attrs:
+                    resolved.append({
+                        "id": str(uid),
+                        "name": attrs.display_name or f"{attrs.first_name or ''} {attrs.last_name or ''}".strip() or "(unknown)",
+                        "email": attrs.email or "(no email)",
+                    })
+                else:
+                    resolved.append({"id": str(uid), "name": "(not found)", "email": "(not found)"})
+            except Exception:
+                resolved.append({"id": str(uid), "name": "(error)", "email": "(error)"})
+
+    except Exception as exc:
+        _logger.warning("[resolve-approvers] Resolution failed: %s", exc)
+        return {
+            "resolved": False,
+            "approvers": [],
+            "error": str(exc),
+            "reason": "Could not resolve the approver. Check the Identity Directory configuration.",
+        }
+
+    if not resolved:
+        if dir_type == "dynamic_manager":
+            reason = (
+                "The submitter does not have a manager assigned. "
+                "Go to Settings > Identity Directory > Users and assign a manager."
+            )
+        elif "department" in dir_type:
+            dept_label = f' "{dept_name}"' if dept_name else ""
+            reason = (
+                f"No manager found for the{dept_label} department. "
+                f"Go to Settings > Identity Directory > Departments and assign a manager."
+            )
+        else:
+            reason = "No users matched the configured assignee source."
+
+        return {
+            "resolved": False,
+            "approvers": [],
+            "reason": reason,
+        }
+
+    return {
+        "resolved": True,
+        "approvers": resolved,
+    }
+
+
 @router.post("/test/send-notification")
 async def test_send_notification(
     request: ProcessTestSendNotificationRequest,

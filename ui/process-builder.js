@@ -9305,19 +9305,67 @@
                         const tool = (state.tools || []).find(t => t.id === cfg.toolId);
                         msg = `Ran tool: ${tool ? tool.name : 'Tool'}.`;
                     } else if (current.type === 'approval') {
-                        // Approvals pause until the tester decides (Approve/Reject).
+                        // Resolve actual approvers via backend (validates Identity Directory)
                         const ac = cfg || {};
-                        const src = ac.assignee_source || (ac.approvers && ac.approvers.length ? 'platform_user' : '');
-                        const ids = ac.assignee_ids || ac.approvers || [];
                         let who = '';
-                        if (src === 'platform_user') {
-                            const lookup = await getUserLookup();
-                            const names = ids.map(id => lookup[id] || id).filter(Boolean);
-                            who = names.length ? names.join(', ') : (ids.length ? ids.join(', ') : '');
-                        } else if (src) {
-                            who = ids.length ? `${ids.length} selected` : '';
+                        let approverDetails = [];
+                        let resolutionFailed = false;
+                        let resolutionReason = '';
+                        try {
+                            const resolveResp = await fetch('/api/process/test/resolve-approvers', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...(_authHeaders()) },
+                                body: JSON.stringify(ac),
+                            });
+                            if (resolveResp.ok) {
+                                const resolveData = await resolveResp.json();
+                                if (resolveData.resolved && resolveData.approvers && resolveData.approvers.length > 0) {
+                                    approverDetails = resolveData.approvers;
+                                    who = approverDetails.map(a => `${a.name} (${a.email})`).join(', ');
+                                } else {
+                                    resolutionFailed = true;
+                                    resolutionReason = resolveData.reason || 'No approver could be resolved for this step.';
+                                }
+                            } else {
+                                // Fallback to client-side lookup
+                                const src = ac.assignee_source || (ac.approvers && ac.approvers.length ? 'platform_user' : '');
+                                const ids = ac.assignee_ids || ac.approvers || [];
+                                if (src === 'platform_user' && ids.length) {
+                                    const lookup = await getUserLookup();
+                                    who = ids.map(id => lookup[id] || id).filter(Boolean).join(', ');
+                                }
+                            }
+                        } catch (_resolveErr) {
+                            // Fallback to basic client-side lookup
+                            const src = ac.assignee_source || '';
+                            const ids = ac.assignee_ids || ac.approvers || [];
+                            if (src === 'platform_user' && ids.length) {
+                                const lookup = await getUserLookup();
+                                who = ids.map(id => lookup[id] || id).filter(Boolean).join(', ');
+                            }
                         }
-                        msg = `Waiting for approval${who ? ` (${who})` : ''}.`;
+
+                        if (resolutionFailed) {
+                            msg = `❌ Approver not found: ${resolutionReason}`;
+                            trace.push({
+                                nodeId: current.id,
+                                edgeType: null,
+                                type: current.type,
+                                title: current.name || 'Approval',
+                                message: msg,
+                                status_key: 'failed'
+                            });
+                            pushedCurrent = true;
+                            outcome = {
+                                status: 'failed',
+                                headline: `Approval step failed: ${current.name || 'Approval'}`,
+                                detail: resolutionReason,
+                            };
+                            try { await playNewTrace(); } catch (_) {}
+                            break;
+                        }
+
+                        msg = `Waiting for approval${who ? `: ${who}` : ''}.`;
                         const approvalTraceIndex = trace.length;
                         trace.push({
                             nodeId: current.id,

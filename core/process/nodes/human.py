@@ -268,9 +268,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         # approval node name (e.g. "Manager Approval") but don't configure
         # assignee_source='user_directory' explicitly.
         if not assignee_ids and self.deps and self.deps.user_directory:
-            import logging as _logging
-            _fb_logger = _logging.getLogger(__name__)
-            _fb_logger.info(
+            logger.info(
                 "[ApprovalFallback] No assignees after all sources — attempting dynamic_manager fallback. "
                 "user_id=%s org_id=%s assignee_source=%s",
                 context.user_id, context.org_id, assignee_source,
@@ -287,24 +285,93 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                 fallback_ids = self.deps.user_directory.resolve_process_assignee(
                     fallback_config, fallback_ctx, context.org_id
                 )
-                _fb_logger.info(
-                    "[ApprovalFallback] resolve_process_assignee returned: %s",
-                    fallback_ids,
-                )
+                logger.info("[ApprovalFallback] resolve_process_assignee returned: %s", fallback_ids)
                 if fallback_ids:
                     assignee_ids = fallback_ids
                     assignee_type = 'user'
                     logs.append(f"No assignees configured — resolved {len(assignee_ids)} via requester's direct manager (fallback)")
-                    _fb_logger.info(
-                        "[ApprovalFallback] SUCCESS — assignee_ids=%s assignee_type=%s",
-                        assignee_ids, assignee_type,
-                    )
                 else:
                     logs.append("No assignees configured and dynamic_manager fallback returned empty")
-                    _fb_logger.warning("[ApprovalFallback] dynamic_manager returned empty list")
+                    logger.warning("[ApprovalFallback] dynamic_manager returned empty list")
             except Exception as e:
                 logs.append(f"⚠️ Dynamic manager fallback failed: {e}")
-                _fb_logger.exception("[ApprovalFallback] EXCEPTION: %s", e)
+                logger.exception("[ApprovalFallback] EXCEPTION: %s", e)
+
+        # ── STRICT: If no approver resolved after all attempts → FAIL ──
+        if not assignee_ids or assignee_type == 'any':
+            dir_type = self.get_config_value(node, 'directory_assignee_type', 'dynamic_manager')
+            dept_name = (
+                self.get_config_value(node, 'assignee_department_name')
+                or self.get_config_value(node, 'department_name')
+                or ''
+            )
+
+            if dir_type == 'dynamic_manager' or not dir_type:
+                reason = (
+                    "The submitter does not have a manager assigned. "
+                    "Please go to Settings > Identity Directory > Users, "
+                    "select the submitter, and assign a manager."
+                )
+            elif 'department' in dir_type:
+                dept_label = f' "{dept_name}"' if dept_name else ''
+                reason = (
+                    f"No manager was found for the{dept_label} department. "
+                    "Please go to Settings > Identity Directory > Departments, "
+                    f"select the{dept_label} department, and assign a manager."
+                )
+            elif dir_type in ('role', 'group'):
+                reason = (
+                    f"No users are assigned to the specified {dir_type}. "
+                    f"Please go to Settings and ensure the {dir_type} has members."
+                )
+            else:
+                reason = (
+                    "The approver could not be determined from the current configuration. "
+                    "Please review the approval step settings in the Process Builder."
+                )
+
+            logger.warning(
+                "[ApprovalNode] FAILING — no approver resolved. assignee_source=%s "
+                "dir_type=%s assignee_ids=%s",
+                assignee_source, dir_type, assignee_ids,
+            )
+            logs.append(f"❌ Approval step failed: {reason}")
+            return NodeResult.failure(
+                error=ExecutionError(
+                    category=ErrorCategory.CONFIGURATION,
+                    code="NO_APPROVER",
+                    message=f"No approver could be resolved for step '{title}'",
+                    business_message=(
+                        f"The approval step \"{title}\" could not proceed because no approver was found. {reason}"
+                    ),
+                    is_retryable=False,
+                ),
+                logs=logs,
+            )
+
+        # ── Resolve approver details (name + email) for visibility ──
+        approver_details: List[Dict[str, str]] = []
+        if self.deps and getattr(self.deps, 'user_directory', None):
+            for aid in assignee_ids:
+                try:
+                    attrs = self.deps.user_directory.get_user(str(aid), context.org_id)
+                    if attrs:
+                        approver_details.append({
+                            'id': str(aid),
+                            'name': attrs.display_name or f"{attrs.first_name or ''} {attrs.last_name or ''}".strip() or '(unknown)',
+                            'email': attrs.email or '(no email)',
+                        })
+                    else:
+                        approver_details.append({'id': str(aid), 'name': '(not found)', 'email': '(not found)'})
+                except Exception:
+                    approver_details.append({'id': str(aid), 'name': '(error)', 'email': '(error)'})
+        else:
+            for aid in assignee_ids:
+                approver_details.append({'id': str(aid), 'name': '(unknown)', 'email': '(unknown)'})
+
+        for ad in approver_details:
+            logs.append(f"✅ Approver: {ad['name']} ({ad['email']})")
+        logger.info("[ApprovalNode] Resolved approver details: %s", approver_details)
 
         min_approvals = self.get_config_value(node, 'min_approvals', 1)
         timeout_hours = self.get_config_value(node, 'timeout_hours', 24)
@@ -419,6 +486,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             'description': description,
             'assignee_type': assignee_type,
             'assignee_ids': assignee_ids,
+            'approver_details': approver_details,
             'min_approvals': min_approvals,
             'review_data': review_data,
             'form_fields': form_fields,
@@ -435,7 +503,11 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             'org_id': context.org_id,
         }
         
-        logs.append(f"Assignees ({assignee_type}): {assignee_ids}")
+        # Detailed assignee log with names and emails
+        approver_summary = ", ".join(
+            f"{ad['name']} ({ad['email']})" for ad in approver_details
+        ) if approver_details else "(none)"
+        logs.append(f"Approvers: {approver_summary}")
         logs.append(f"Deadline: {deadline}")
         
         # ── Embedded notification: optionally email the approver(s) ──
@@ -444,9 +516,9 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             or self.get_config_value(node, 'notify_approver', False)
         )
         logger.info(
-            "[ApprovalNode] notifyApprover=%s, assignee_type=%s, assignee_ids=%s, "
+            "[ApprovalNode] notifyApprover=%s, approver_details=%s, "
             "has_notification_svc=%s",
-            notify_approver, assignee_type, assignee_ids,
+            notify_approver, approver_details,
             bool(self.deps and getattr(self.deps, 'notification_service', None)),
         )
         if notify_approver and self.deps and getattr(self.deps, 'notification_service', None):
@@ -464,12 +536,20 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             notif_msg = state.interpolate_string(notif_msg)
             notif_title = state.interpolate_string(f"Action Required: {title}")
 
-            approver_emails = self._resolve_assignee_emails(
-                assignee_ids, assignee_type, state, context, logs
-            )
-            logger.info(
-                "[ApprovalNode] Resolved approver emails: %s", approver_emails
-            )
+            # Use already-resolved approver details instead of re-resolving
+            approver_emails = [
+                ad['email'] for ad in approver_details
+                if ad.get('email') and '@' in ad.get('email', '')
+            ]
+            logger.info("[ApprovalNode] Approver emails from details: %s", approver_emails)
+
+            if not approver_emails:
+                # Fallback to full resolution chain
+                approver_emails = self._resolve_assignee_emails(
+                    assignee_ids, assignee_type, state, context, logs
+                )
+                logger.info("[ApprovalNode] Fallback resolved emails: %s", approver_emails)
+
             if approver_emails:
                 try:
                     send_result = await self.deps.notification_service.send(
@@ -479,30 +559,30 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                         message=notif_msg,
                         priority=priority,
                     )
-                    logger.info(
-                        "[ApprovalNode] Notification send result: %s", send_result
-                    )
-                    logs.append(
-                        f"📧 Sent {notif_channel} notification to "
-                        f"{len(approver_emails)} approver(s)"
-                    )
+                    logger.info("[ApprovalNode] Notification send result: %s", send_result)
+                    email_list = ", ".join(approver_emails)
+                    logs.append(f"📧 Sent {notif_channel} notification to: {email_list}")
                 except Exception as e:
                     logger.error(
                         "[ApprovalNode] Notification send exception: %s", e, exc_info=True
                     )
-                    logs.append(
-                        f"⚠️ Approver notification failed (non-blocking): {e}"
-                    )
+                    logs.append(f"⚠️ Approver notification failed: {e}")
             else:
                 logs.append(
-                    "⚠️ Embedded notification enabled but no approver "
-                    "emails could be resolved"
+                    "⚠️ Notification enabled but no approver email could be resolved. "
+                    "Check that the approver has an email address in their profile."
                 )
         
         # Return waiting result - the engine will create the DB record
         return NodeResult.waiting(
             waiting_for='approval',
-            waiting_metadata=approval_request
+            waiting_metadata=approval_request,
+            output={
+                'approver_details': approver_details,
+                'assignee_type': assignee_type,
+                'notification_sent': notify_approver and bool(approver_emails) if notify_approver else False,
+            },
+            logs=logs,
         )
     
     def _resolve_assignee_emails(
