@@ -102,9 +102,19 @@ appropriate `directory_assignee_type`. The engine resolves the actual person(s) 
 | `static` | Fixed user IDs (set `user_ids`) | When specific individuals are always the approvers |
 
 ### Department Routing
-- Prefer `department_name` (string) when creating workflows (IDs are not known at design time)
-- Use `department_id` (UUID) if already available
-- For `department_manager` without specifying a department, the engine falls back to the requester's own department
+- Use `assignee_department_name` (string) when routing to a SPECIFIC department's manager or members —
+  the engine looks up the department by name at runtime.
+- Use `assignee_department_id` (UUID) if the actual ID is known (e.g., from ORGANIZATION STRUCTURE context).
+- For `department_manager` without specifying a department, the engine falls back to the requester's own department.
+- CRITICAL: `dynamic_manager` is NOT the same as `department_manager`.
+  - `dynamic_manager` = the requester's DIRECT MANAGER (their supervisor)
+  - `department_manager` = the HEAD of a department (may be a different person)
+  When the user says "Finance Department Manager", use `department_manager` + `assignee_department_name: "Finance"`.
+
+### Group and Role Routing
+- `platform_group` as `assignee_source` with `assignee_ids: ["<group_id>"]` routes to all members of the group.
+- `platform_role` as `assignee_source` with `assignee_ids: ["<role_id>"]` routes to all users with that role.
+- When the ORGANIZATION STRUCTURE context provides specific groups/roles, use their actual IDs.
 
 ### Sequential Multi-Level Approvals
 For processes requiring multiple levels of approval:
@@ -119,14 +129,23 @@ Notification nodes support **magic recipient shortcuts** that the engine resolve
 | Recipient Value | What Happens at Runtime |
 |----------------|------------------------|
 | `"requester"` | Resolves to the email of the person who submitted the form |
-| `"manager"` | Resolves to the email of the requester's direct manager (from identity directory) |
+| `"manager"` | Resolves to the email of the requester's direct manager |
+| `"department_head"` | Resolves to the email of the requester's department head |
+| `"department_members"` | Resolves to ALL members of the requester's department |
+| `"dept_manager:<department_id>"` | Resolves to the manager of a SPECIFIC department (by ID) |
+| `"dept_members:<department_id>"` | Resolves to ALL members of a SPECIFIC department (by ID) |
+| `"group:<group_id>"` | Resolves to ALL members of a specific group/team (by ID) |
+| `"role:<role_id>"` | Resolves to ALL users assigned a specific role (by ID) |
+| `"skip_level_2"` / `"skip_level_3"` | Resolves to Nth-level manager (manager's manager, etc.) |
 | A UUID string | Resolves the user ID to their email via user directory |
 | An email address (contains @) | Sent directly as-is |
 
 **CRITICAL**: When configuring notifications in the visual builder:
 - Use `recipient` (singular string) — NOT `recipients` (array)
 - The value MUST be one of the shortcuts above or a direct email
-- "requester" and "manager" are the most common and reliable choices
+- When the user mentions a specific team, group, or role by name, use the ORGANIZATION STRUCTURE
+  context (provided at generation time) to find the correct entity ID and use `group:<id>` or `role:<id>`
+- "requester" and "manager" are the most common for simple workflows
 - The engine handles ALL resolution — the AI should NEVER try to manually resolve emails
 
 ### Example Notification Configurations
@@ -152,10 +171,16 @@ Notification nodes support **magic recipient shortcuts** that the engine resolve
 ## Decision Rules
 
 1. **Any approval that should go to the requester's supervisor** → Use `dynamic_manager`. NEVER ask the user to enter their manager's information.
-2. **For notifications to the employee** → Use `"requester"` as recipient.
-3. **For notifications to the manager** → Use `"manager"` as recipient.
-4. **NEVER add a "Manager Email" field to the form** — the system resolves it automatically from the identity directory.
-5. **NEVER hardcode email addresses** — use shortcuts or let the engine resolve from user directory.
+2. **Approval by a specific department's manager** (e.g., "Finance Manager") → Use `department_manager` with `assignee_department_name`. Do NOT use `dynamic_manager`.
+3. **Approval by a team/group** (e.g., "Accounts Payable Team") → Use `platform_group` with the group's actual ID from the ORGANIZATION STRUCTURE context.
+4. **Approval by a role** (e.g., "CFO") → Use `platform_role` with the role's actual ID from the ORGANIZATION STRUCTURE context.
+5. **For notifications to the employee** → Use `"requester"` as recipient.
+6. **For notifications to the manager** → Use `"manager"` as recipient.
+7. **For notifications to a group/team** → Use `"group:<group_id>"` as recipient.
+8. **For notifications to a role** → Use `"role:<role_id>"` as recipient.
+9. **NEVER add a "Manager Email" field to the form** — the system resolves it automatically from the identity directory.
+10. **NEVER hardcode email addresses** — use shortcuts or let the engine resolve from user directory.
+11. **When the user mentions a specific department, group, or role by name**, ALWAYS check the ORGANIZATION STRUCTURE context (provided at generation time) for the matching entity and use the correct routing type with the real ID.
 
 ## Anti-Hallucination Rules
 

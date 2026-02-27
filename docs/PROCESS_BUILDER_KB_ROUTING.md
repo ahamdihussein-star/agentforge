@@ -76,6 +76,30 @@ trigger → form → approval1 (direct manager)
               → notification → end
 ```
 
+### Department-Specific Approval (Named Department)
+When the user asks for approval by a SPECIFIC department's manager (e.g., "Finance Manager"):
+```
+trigger → form → ai (extract data)
+              → approval (department_manager, assignee_department_name: "Finance")
+              → notification (requester) → end
+```
+Use `department_manager` with `assignee_department_name` — NOT `dynamic_manager`.
+
+### Group/Team-Based Approval
+When the user asks for approval by a group or team (e.g., "Accounts Payable Team"):
+```
+trigger → form → ai (extract data)
+              → approval (platform_group, assignee_ids: ["<group_id>"])
+              → notification (requester + group:"<group_id>") → end
+```
+
+### Cross-Department with Notification to a Team
+```
+trigger → form → approval (department_manager: "Finance")
+              → notification (group:<accounts_payable_group_id>)
+              → notification (requester) → end
+```
+
 ### Auto-Approve Pattern (Condition-Based)
 ```
 trigger → form → ai (parse data) → condition (amount < threshold?)
@@ -120,6 +144,14 @@ ALWAYS start with the simplest design that fulfills the user's goal. Add complex
 - Notifications about pending tasks: BEFORE or AT THE SAME TIME as the task.
 - Notifications about outcomes: AFTER the action completes.
 - Approval nodes auto-notify the assignee — separate notification only needed for OTHER people.
+
+### Organization-Aware Routing
+- When the user's prompt mentions a specific department, group, team, or role, the ORGANIZATION STRUCTURE
+  context (provided at generation time) contains the actual entities configured in the platform.
+- ALWAYS match the user's intent to the actual entity name from the org structure and use the correct
+  routing type with the real ID — do NOT fall back to `dynamic_manager` when a specific entity is named.
+- If the mentioned entity does NOT exist in the org structure, add a notification step warning the requester
+  that the entity is not configured and needs to be set up.
 
 ### Smart Field Design
 - Use business knowledge to determine fields, even if the user didn't list them.

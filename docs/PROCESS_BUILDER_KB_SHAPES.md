@@ -127,10 +127,14 @@ Config (`notification.config`):
   - `"department_head"` — The requester's department head (department manager).
   - `"department_members"` — Everyone in the requester's department.
   - `"skip_level_2"` / `"skip_level_3"` — Higher management levels (manager’s manager, etc.).
-  - `"dept_manager:<department_id>"` — A specific department head.
-  - `"dept_members:<department_id>"` — Everyone in a specific department.
+  - `"dept_manager:<department_id>"` — Manager of a SPECIFIC department (use actual dept ID from the org structure).
+  - `"dept_members:<department_id>"` — All members of a SPECIFIC department.
+  - `"group:<group_id>"` — All members of a specific group/team (use actual group ID from the org structure).
+  - `"role:<role_id>"` — All users assigned a specific role (use actual role ID from the org structure).
   - `"{{fieldName}}"` — From a form field (e.g., `"{{employeeEmail}}"`).
   - An email address — sent directly (rarely used).
+  When the ORGANIZATION STRUCTURE context lists actual departments, groups, and roles with their IDs,
+  use `group:<id>`, `role:<id>`, or `dept_manager:<id>` to target specific teams or roles by ID.
 - `title` (string): Subject line / notification title.
 - `template` (string): Message body with `{{fieldName}}` references. MUST be non-empty.
   Can use `{{trigger_input._user_context.<key>}}` for person information (name, email, department, etc.).
@@ -165,16 +169,19 @@ Config (`approval.config`):
 
 **When `assignee_source` is `"user_directory"` (RECOMMENDED for organizational hierarchy):**
 - `directory_assignee_type` (string):
-  - `"dynamic_manager"` — Direct manager/supervisor of the requester.
-  - `"department_manager"` — Department head.
+  - `"dynamic_manager"` — The requester's DIRECT manager/supervisor (from their profile).
+  - `"department_manager"` — Head of a department. Without extra config, defaults to the requester's own department.
+    To target a SPECIFIC department (e.g., "Finance"), set `assignee_department_name: "Finance"` (RECOMMENDED) or `assignee_department_id: "<dept_id>"`.
   - `"management_chain"` — Higher management (skip-level). Set `management_level` (2=next level, 3=above that).
-  - `"role"` — Role-based. Set `role_ids: ["<role_id>"]`.
-  - `"group"` — Group/team/committee. Set `group_ids: ["<group_id>"]`.
+  - `"role"` — Role-based. Set `role_ids: ["<role_id>"]` (use actual role ID from the org structure).
+  - `"group"` — Group/team/committee. Set `group_ids: ["<group_id>"]` (use actual group ID from the org structure).
   - `"department_members"` — All members of a department. Set `assignee_department_name: "<name>"` (RECOMMENDED) or `assignee_department_id`.
   - `"expression"` — Dynamic from form field. Set `expression: "{{trigger_input.fieldName}}"`.
 
 **IMPORTANT:**
 - ALWAYS prefer `"user_directory"` over `"platform_user"` when the approval follows organizational hierarchy.
+- `"dynamic_manager"` means the requester's DIRECT MANAGER only. Do NOT use it when a SPECIFIC department's manager is needed — use `"department_manager"` with `assignee_department_name` instead.
+- When the ORGANIZATION STRUCTURE context lists departments, groups, and roles, match the user's intent to the actual entity name and use the correct routing type with the real ID.
 - Approval nodes have built-in notification — they automatically notify the assignee. Only add a separate notification for OTHER people (like the requester).
 - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence.
 
@@ -393,6 +400,11 @@ These shapes are NOT available in the palette but old processes using them will 
 - NEVER add form fields for manager email/name/ID — the engine resolves these automatically.
 - For notifications to the requester: use `"requester"`.
 - For notifications to the manager: use `"manager"`.
+- For notifications to a specific group/team: use `"group:<group_id>"` with the actual ID.
+- For notifications to users with a specific role: use `"role:<role_id>"` with the actual ID.
+- For notifications to a specific department's manager: use `"dept_manager:<department_id>"`.
+- When the user mentions a team, group, department, or role BY NAME, match it against the
+  ORGANIZATION STRUCTURE context and use the correct entity ID — do NOT default to `"manager"`.
 - Use `{{trigger_input._user_context.<key>}}` for any user profile attribute in templates.
 - ALWAYS prefill user profile data — never ask users to type what the system knows.
 
