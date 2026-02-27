@@ -2872,6 +2872,38 @@
             return false;
         }
 
+        function _renderObjectArrayAsTable(items) {
+            if (!items || !items.length) return '';
+            const allKeys = [];
+            const seen = new Set();
+            items.forEach(obj => {
+                Object.keys(obj).forEach(k => {
+                    const kl = k.toLowerCase();
+                    if (!seen.has(kl) && !_TECHNICAL_KEYS.has(kl) && !kl.startsWith('_') && !_UUID_RE.test(String(obj[k] || ''))) {
+                        seen.add(kl);
+                        allKeys.push(k);
+                    }
+                });
+            });
+            if (!allKeys.length) return '';
+            const headers = allKeys.map(k => `<th style="padding:8px 12px;text-align:left;font-weight:650;font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.03em;border-bottom:2px solid var(--border);white-space:nowrap;">${escapeHtml(humanizeFieldLabel(k) || k)}</th>`).join('');
+            const rows = items.map((obj, i) => {
+                const cells = allKeys.map(k => {
+                    let val = obj[k];
+                    if (val == null) return `<td style="padding:8px 12px;color:var(--text-muted);">—</td>`;
+                    if (typeof val === 'number') {
+                        const formatted = Number.isInteger(val) ? val.toLocaleString() : val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        return `<td style="padding:8px 12px;font-variant-numeric:tabular-nums;">${escapeHtml(formatted)}</td>`;
+                    }
+                    if (typeof val === 'boolean') return `<td style="padding:8px 12px;">${val ? 'Yes' : 'No'}</td>`;
+                    return `<td style="padding:8px 12px;">${escapeHtml(String(val))}</td>`;
+                }).join('');
+                const bg = i % 2 === 0 ? '' : 'background:rgba(255,255,255,0.02);';
+                return `<tr style="${bg}">${cells}</tr>`;
+            }).join('');
+            return `<div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border);margin-top:4px;"><table style="width:100%;border-collapse:collapse;font-size:0.88rem;"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></div>`;
+        }
+
         function _renderPortalValue(v, key) {
             if (v == null) return `<span class="detail-empty">—</span>`;
             if (typeof v === 'string') {
@@ -2891,6 +2923,10 @@
                 const fileItems = items.filter(x => typeof x === 'object' && (x.kind === 'uploadedFile' || x.kind === 'pendingUpload'));
                 if (fileItems.length) {
                     return fileItems.map(f => _renderPortalValue(f, key)).join('');
+                }
+                const objItems = items.filter(x => typeof x === 'object' && x !== null);
+                if (objItems.length && objItems.length === items.length) {
+                    return _renderObjectArrayAsTable(objItems);
                 }
                 return items.map(x => typeof x === 'object' ? escapeHtml(JSON.stringify(x)) : escapeHtml(String(x))).join(', ');
             }
@@ -2925,6 +2961,13 @@
             if (Array.isArray(obj)) {
                 if (obj.length === 0) return [];
                 if (obj.length === 1 && typeof obj[0] === 'object') return _flattenResultForDisplay(obj[0]);
+                const objItems = obj.filter(x => typeof x === 'object' && x !== null);
+                if (objItems.length === obj.length && objItems.length > 0) {
+                    return [{ key: 'Items', value: _renderObjectArrayAsTable(objItems), isHtml: true }];
+                }
+                if (obj.every(x => typeof x === 'string' || typeof x === 'number')) {
+                    return [{ key: 'Result', value: obj.map(x => `<span class="detail-tag">${escapeHtml(String(x))}</span>`).join(' '), isHtml: true }];
+                }
                 return [{ key: 'Result', value: obj.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(', ') }];
             }
             if (typeof obj !== 'object') return [];
@@ -3098,6 +3141,12 @@
                 const rows = processedKeys.map(k => {
                     const v = processedData[k];
                     if (v == null) return '';
+                    // Arrays of objects → table with label above
+                    if (Array.isArray(v) && v.length && v.every(x => typeof x === 'object' && x !== null && x.kind !== 'uploadedFile' && x.kind !== 'pendingUpload')) {
+                        const tableHtml = _renderObjectArrayAsTable(v);
+                        if (!tableHtml) return '';
+                        return `<div style="margin-bottom:8px;"><div class="detail-label" style="margin-bottom:6px;">${escapeHtml(humanizeFieldLabel(k) || k)}</div>${tableHtml}</div>`;
+                    }
                     if (typeof v === 'object' && !Array.isArray(v) && v.kind !== 'uploadedFile' && v.kind !== 'pendingUpload') {
                         const nested = _flattenResultForDisplay(v);
                         return nested.map(n => {
@@ -3361,6 +3410,14 @@
                         rows.push({ label: humanizeFieldLabel(rawKey) || rawKey, html: rendered });
                         continue;
                     }
+                    const objItems = rawVal.filter(x => typeof x === 'object' && x !== null);
+                    if (objItems.length && objItems.length === rawVal.length) {
+                        const tableHtml = _renderObjectArrayAsTable(objItems);
+                        if (tableHtml) {
+                            rows.push({ label: humanizeFieldLabel(rawKey) || rawKey, html: tableHtml, fullWidth: true });
+                            continue;
+                        }
+                    }
                 }
 
                 if (typeof rawVal === 'object' && !Array.isArray(rawVal)) {
@@ -3405,7 +3462,12 @@
 
             const reviewRows = _renderApprovalReviewRows(details);
             const reviewHtml = reviewRows.length
-                ? reviewRows.map(r => `<div class="detail-row"><div class="detail-label">${escapeHtml(r.label)}</div><div class="detail-value">${r.html}</div></div>`).join('')
+                ? reviewRows.map(r => {
+                    if (r.fullWidth) {
+                        return `<div style="margin-bottom:8px;"><div class="detail-label" style="margin-bottom:6px;">${escapeHtml(r.label)}</div>${r.html}</div>`;
+                    }
+                    return `<div class="detail-row"><div class="detail-label">${escapeHtml(r.label)}</div><div class="detail-value">${r.html}</div></div>`;
+                }).join('')
                 : `<div style="color: var(--text-muted); padding: 8px 0;">No additional details provided.</div>`;
 
             bodyEl.innerHTML = `
