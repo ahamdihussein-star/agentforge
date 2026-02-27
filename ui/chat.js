@@ -2888,13 +2888,19 @@
                 if (items.every(x => typeof x === 'string' || typeof x === 'number')) {
                     return items.map(x => `<span class="detail-tag">${escapeHtml(String(x))}</span>`).join(' ');
                 }
+                const fileItems = items.filter(x => typeof x === 'object' && (x.kind === 'uploadedFile' || x.kind === 'pendingUpload'));
+                if (fileItems.length) {
+                    return fileItems.map(f => _renderPortalValue(f, key)).join('');
+                }
+                return items.map(x => typeof x === 'object' ? escapeHtml(JSON.stringify(x)) : escapeHtml(String(x))).join(', ');
             }
             if (typeof v === 'object' && !Array.isArray(v)) {
                 try {
-                    if (v.kind === 'uploadedFile' && (v.id || v.name)) {
+                    if ((v.kind === 'uploadedFile' || v.kind === 'pendingUpload') && (v.id || v.name)) {
                         const name = v.name || 'Uploaded file';
-                        const typ = v.file_type ? String(v.file_type).toUpperCase() : '';
-                        const size = (typeof v.size === 'number') ? `${Math.round(v.size / 1024)} KB` : '';
+                        const typ = v.file_type ? String(v.file_type).toUpperCase() : (v.content_type ? String(v.content_type).split('/').pop().toUpperCase() : '');
+                        const rawSize = typeof v.size === 'number' ? v.size : (typeof v.size === 'string' ? parseInt(v.size, 10) : 0);
+                        const size = rawSize > 0 ? `${Math.round(rawSize / 1024)} KB` : '';
                         const meta = [typ, size].filter(Boolean).join(' · ');
                         const btn = v.id ? `<button type="button" class="detail-download-btn" data-upload-file-id="${escapeHtml(String(v.id))}" data-upload-file-name="${escapeHtml(String(name))}">Download</button>` : '';
                         return `<div class="detail-file-chip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div><div style="font-weight:700;">${escapeHtml(name)}</div>${meta ? `<div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(meta)}</div>` : ''}</div>${btn}</div>`;
@@ -2929,7 +2935,7 @@
                 if (_TECHNICAL_KEYS.has(k) || k.startsWith('_')) continue;
                 if (_UUID_RE.test(String(rawVal || ''))) continue;
                 if (k.endsWith('_id') && allKeys.has(k.replace(/_id$/, '_name'))) continue;
-                if (typeof rawVal === 'object' && rawVal !== null && !Array.isArray(rawVal) && !(rawVal.kind === 'uploadedFile')) {
+                if (typeof rawVal === 'object' && rawVal !== null && !Array.isArray(rawVal) && rawVal.kind !== 'uploadedFile' && rawVal.kind !== 'pendingUpload') {
                     const nested = _flattenResultForDisplay(rawVal);
                     nested.forEach(n => entries.push(n));
                     continue;
@@ -3314,8 +3320,18 @@
             for (const [rawKey, rawVal] of Object.entries(data)) {
                 if (_isHiddenField(rawKey, allKeys)) continue;
                 if (rawVal == null) continue;
+
+                if (Array.isArray(rawVal)) {
+                    const fileItems = rawVal.filter(x => typeof x === 'object' && x && (x.kind === 'uploadedFile' || x.kind === 'pendingUpload'));
+                    if (fileItems.length) {
+                        const rendered = fileItems.map(f => _renderPortalValue(f, rawKey)).join('');
+                        rows.push({ label: humanizeFieldLabel(rawKey) || rawKey, html: rendered });
+                        continue;
+                    }
+                }
+
                 if (typeof rawVal === 'object' && !Array.isArray(rawVal)) {
-                    if (rawVal.kind === 'uploadedFile') {
+                    if (rawVal.kind === 'uploadedFile' || rawVal.kind === 'pendingUpload') {
                         const rendered = _renderPortalValue(rawVal, rawKey);
                         if (!rendered.includes('detail-empty')) {
                             rows.push({ label: humanizeFieldLabel(rawKey) || rawKey, html: rendered });
@@ -3406,6 +3422,17 @@
                     </div>
                 </div>
             `;
+
+            try {
+                bodyEl.querySelectorAll('button[data-upload-file-id]').forEach(btn => {
+                    btn.addEventListener('click', async (ev) => {
+                        try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {}
+                        const id = btn.getAttribute('data-upload-file-id') || '';
+                        const name = btn.getAttribute('data-upload-file-name') || '';
+                        await downloadUploadedProcessFile(id, name);
+                    });
+                });
+            } catch (_) {}
         }
 
         async function decideApproval(decision) {
