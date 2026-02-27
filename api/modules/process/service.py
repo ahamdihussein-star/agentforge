@@ -742,6 +742,9 @@ class ProcessAPIService:
                     continue
                 if isinstance(v, dict) and str(v.get("kind") or "").strip().lower() == "pendingupload":
                     out.append(str(k))
+                elif isinstance(v, list) and v:
+                    if any(isinstance(item, dict) and str(item.get("kind") or "").strip().lower() == "pendingupload" for item in v):
+                        out.append(str(k))
             return out
 
         # Create record using the same validation/normalization as the sync path, but do not run engine here.

@@ -2247,15 +2247,25 @@
                     if (!field) continue;
 
                     if (input.type === 'file') {
-                        const fileObj = field.files && field.files[0] ? field.files[0] : null;
-                        if (input.required && !fileObj) {
+                        const allFiles = field.files ? Array.from(field.files) : [];
+                        if (input.required && allFiles.length === 0) {
                             showToast(`Please upload: ${input.label}`, 'error');
                             if (btn) { btn.disabled = false; btn.textContent = _serviceCtaLabel(currentWorkflowAgent); }
                             field.focus();
                             return;
                         }
-                        if (fileObj) {
-                            // Return reference immediately, then upload attachments in background.
+                        if (allFiles.length > 1) {
+                            triggerData[input.id] = allFiles.map(f => ({
+                                kind: 'pendingUpload',
+                                name: f.name,
+                                size: f.size,
+                                content_type: f.type || ''
+                            }));
+                            allFiles.forEach(f => {
+                                pendingUploads.push({ fieldId: input.id, inputLabel: input.label || input.id, fileObj: f });
+                            });
+                        } else if (allFiles.length === 1) {
+                            const fileObj = allFiles[0];
                             triggerData[input.id] = {
                                 kind: 'pendingUpload',
                                 name: fileObj.name,
@@ -2311,10 +2321,20 @@
                     (async () => {
                         try {
                             const filesMap = {};
+                            const _multiFields = new Set();
+                            pendingUploads.forEach(u => {
+                                if (pendingUploads.filter(p => p.fieldId === u.fieldId).length > 1) _multiFields.add(u.fieldId);
+                            });
                             for (let i = 0; i < pendingUploads.length; i++) {
                                 const u = pendingUploads[i];
                                 _setSubmissionProgress(`Uploading attachments… (${i + 1}/${pendingUploads.length})`);
-                                filesMap[u.fieldId] = await uploadWorkflowRunFile(u.fileObj);
+                                const uploaded = await uploadWorkflowRunFile(u.fileObj);
+                                if (_multiFields.has(u.fieldId)) {
+                                    if (!Array.isArray(filesMap[u.fieldId])) filesMap[u.fieldId] = [];
+                                    filesMap[u.fieldId].push(uploaded);
+                                } else {
+                                    filesMap[u.fieldId] = uploaded;
+                                }
                             }
                             _setSubmissionProgress('Finalizing…');
                             const res2 = await fetch(`${API}/process/executions/${executionId}/finalize-uploads`, {
