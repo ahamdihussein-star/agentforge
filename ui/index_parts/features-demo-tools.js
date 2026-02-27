@@ -193,9 +193,9 @@
                 workflowSection.classList.remove('hidden');
                 workflowGrid.innerHTML = workflowAgents.map(a => `
                     <div class="card rounded-xl overflow-hidden hover:shadow-lg hover:shadow-green-500/10 transition-all cursor-pointer group" 
-                         style="background: linear-gradient(135deg, rgba(34,197,94,0.05), rgba(20,184,166,0.05)); border: 1px solid rgba(34,197,94,0.2);"
-                         onclick="openAgent('${a.id}', '${a.status}', 'process')">
-                        <!-- Header with gradient -->
+                         style="background: linear-gradient(135deg, rgba(34,197,94,0.05), rgba(20,184,166,0.05)); border: 1px solid rgba(34,197,94,0.2);position:relative;"
+                         onclick="${_agentSelection.mode ? `_toggleAgentSelect('${a.id}',event)` : `openAgent('${a.id}', '${a.status}', 'process')`}">
+                        ${_agentSelection.mode && a.is_owner ? `<input type="checkbox" class="agent-sel-cb" data-id="${a.id}" ${_agentSelection.ids.has(a.id)?'checked':''} onclick="_toggleAgentSelect('${a.id}',event)" style="position:absolute;top:12px;right:12px;width:18px;height:18px;accent-color:#8b5cf6;cursor:pointer;z-index:2;">` : ''}
                         <div class="p-4" style="background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(20,184,166,0.15));">
                             <div class="flex items-center gap-3">
                                 <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl shadow-lg">
@@ -210,7 +210,6 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- Body -->
                         <div class="p-4">
                             <p class="text-sm text-gray-400 line-clamp-2 mb-4">${a.goal}</p>
                             <div class="flex items-center justify-between">
@@ -236,8 +235,9 @@
                 conversationalSection.classList.remove('hidden');
                 conversationalGrid.innerHTML = conversationalAgents.map(a => `
                     <div class="card agent-card rounded-xl p-4 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/10 transition-all cursor-pointer group" 
-                         style="min-width:0;overflow:visible;"
-                         onclick="openAgent('${a.id}', '${a.status}', 'conversational')">
+                         style="min-width:0;overflow:visible;position:relative;"
+                         onclick="${_agentSelection.mode ? `_toggleAgentSelect('${a.id}',event)` : `openAgent('${a.id}', '${a.status}', 'conversational')`}">
+                        ${_agentSelection.mode && a.is_owner ? `<input type="checkbox" class="agent-sel-cb" data-id="${a.id}" ${_agentSelection.ids.has(a.id)?'checked':''} onclick="_toggleAgentSelect('${a.id}',event)" style="position:absolute;top:12px;right:12px;width:18px;height:18px;accent-color:#8b5cf6;cursor:pointer;z-index:2;">` : ''}
                         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
                             <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl flex-shrink-0">
                                 ${a.icon || '🤖'}
@@ -1042,36 +1042,102 @@
             }
         }
         
-        async function deleteAgent(id){
-            if(!confirm('Are you sure you want to delete this agent?')) return;
-            
+        const _agentSelection = { ids: new Set(), mode: false };
+
+        function _toggleSelectionMode() {
+            _agentSelection.mode = !_agentSelection.mode;
+            _agentSelection.ids.clear();
+            _renderSelectionUI();
+            loadAgents();
+        }
+
+        function _toggleAgentSelect(id, ev) {
+            if (ev) ev.stopPropagation();
+            if (_agentSelection.ids.has(id)) _agentSelection.ids.delete(id);
+            else _agentSelection.ids.add(id);
+            _renderSelectionUI();
+            const cb = document.querySelector(`.agent-sel-cb[data-id="${id}"]`);
+            if (cb) cb.checked = _agentSelection.ids.has(id);
+        }
+
+        function _selectAllAgents(checked) {
+            document.querySelectorAll('.agent-sel-cb').forEach(cb => {
+                const id = cb.dataset.id;
+                if (checked) _agentSelection.ids.add(id);
+                else _agentSelection.ids.delete(id);
+                cb.checked = checked;
+            });
+            _renderSelectionUI();
+        }
+
+        function _renderSelectionUI() {
+            const bar = document.getElementById('agent-bulk-bar');
+            const selBtn = document.getElementById('agent-select-btn');
+            if (!bar) return;
+            if (!_agentSelection.mode) {
+                bar.style.display = 'none';
+                if (selBtn) selBtn.style.display = '';
+                return;
+            }
+            bar.style.display = '';
+            if (selBtn) selBtn.style.display = 'none';
+            const cnt = _agentSelection.ids.size;
+            bar.querySelector('.bulk-count').textContent = cnt ? `${cnt} selected` : 'Select agents';
+            const delBtn = bar.querySelector('.bulk-delete-btn');
+            if (delBtn) delBtn.disabled = cnt === 0;
+        }
+
+        async function _bulkDeleteAgents() {
+            const ids = [..._agentSelection.ids];
+            if (!ids.length) return;
+            const ok = await uiConfirm(
+                `You are about to permanently delete ${ids.length} agent${ids.length > 1 ? 's' : ''}. This action cannot be undone.`,
+                { title: 'Delete Agents', confirmText: 'Delete', danger: true }
+            );
+            if (!ok) return;
+            let ok_count = 0;
+            for (const id of ids) {
+                try {
+                    const r = await fetch(API + '/api/agents/' + id, { method: 'DELETE', headers: getAuthHeaders() });
+                    if (r.ok) ok_count++;
+                } catch (_) {}
+            }
+            _agentSelection.ids.clear();
+            _agentSelection.mode = false;
+            showToast(`${ok_count} agent${ok_count !== 1 ? 's' : ''} deleted`, 'success');
+            _renderSelectionUI();
+            loadAgents();
+        }
+
+        async function deleteAgent(id) {
+            const ok = await uiConfirm(
+                'This agent will be permanently deleted. This action cannot be undone.',
+                { title: 'Delete Agent', confirmText: 'Delete', danger: true }
+            );
+            if (!ok) return;
+
             try {
-                console.log('🗑️ [DELETE] Attempting to delete agent:', id);
-                const response = await fetch(API+'/api/agents/'+id, { 
+                const response = await fetch(API + '/api/agents/' + id, {
                     method: 'DELETE',
                     headers: getAuthHeaders()
                 });
-                
-                console.log('🗑️ [DELETE] Response status:', response.status);
-                
+
                 if (!response.ok) {
                     let errorMsg = 'Failed to delete agent';
                     try {
                         const error = await response.json();
                         errorMsg = error.detail || errorMsg;
-                    } catch(jsonErr) {
+                    } catch (_) {
                         errorMsg = `HTTP ${response.status}: ${response.statusText}`;
                     }
-                    console.error('🗑️ [DELETE] Error:', errorMsg);
-                    alert('Failed to delete agent: ' + errorMsg);
+                    showToast(errorMsg, 'error');
                     return;
                 }
-                
+
                 showToast('Agent deleted successfully', 'success');
                 loadAgents();
-            } catch(e) {
-                console.error('🗑️ [DELETE] Exception:', e);
-                alert('Failed to delete agent: ' + e.message);
+            } catch (e) {
+                showToast('Failed to delete agent: ' + e.message, 'error');
             }
         }
         
