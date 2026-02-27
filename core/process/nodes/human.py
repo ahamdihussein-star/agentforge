@@ -9,6 +9,7 @@ These nodes involve human interaction:
 """
 
 import json
+import logging
 import re
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
@@ -16,6 +17,8 @@ from ..schemas import ProcessNode, NodeType
 from ..state import ProcessState, ProcessContext
 from ..result import NodeResult, ExecutionError, ErrorCategory
 from .base import BaseNodeExecutor, register_executor
+
+logger = logging.getLogger(__name__)
 
 _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
 
@@ -511,13 +514,11 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         logs: list,
     ) -> List[str]:
         """Resolve assignee IDs / shortcuts to email addresses for notification."""
-        import logging as _logging
-        _log = _logging.getLogger(__name__)
         emails: List[str] = []
         _trigger_input = getattr(context, 'trigger_input', None) or {}
         user_ctx = _trigger_input.get("_user_context", {})
 
-        _log.info(
+        logger.info(
             "[_resolve_assignee_emails] assignee_ids=%s assignee_type=%s org=%s",
             assignee_ids, assignee_type, context.org_id,
         )
@@ -540,7 +541,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                                 if mgr and mgr.email:
                                     email = mgr.email
                     except Exception as e:
-                        _log.warning("[_resolve_assignee_emails] manager lookup failed: %s", e)
+                        logger.warning("[_resolve_assignee_emails] manager lookup failed: %s", e)
                 if email:
                     emails.append(email)
                 continue
@@ -560,33 +561,33 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     user_attrs = self.deps.user_directory.get_user(aid_str, context.org_id)
                     if user_attrs and user_attrs.email:
                         emails.append(user_attrs.email)
-                        _log.info("[_resolve_assignee_emails] Resolved %s → %s", aid_str[:12], user_attrs.email)
+                        logger.info("[_resolve_assignee_emails] Resolved %s → %s", aid_str[:12], user_attrs.email)
                         continue
                     else:
-                        _log.warning(
+                        logger.warning(
                             "[_resolve_assignee_emails] get_user(%s) returned attrs=%s email=%s",
                             aid_str[:12], bool(user_attrs), getattr(user_attrs, 'email', None) if user_attrs else None,
                         )
                 except Exception as e:
-                    _log.warning("[_resolve_assignee_emails] get_user(%s) raised: %s", aid_str[:12], e)
+                    logger.warning("[_resolve_assignee_emails] get_user(%s) raised: %s", aid_str[:12], e)
 
             logs.append(f"⚠️ Could not resolve approver '{aid_str[:12]}…' to email")
 
         # Fallback: if no emails resolved and assignees were expected, try dynamic_manager
         if not emails and assignee_type in ('any', 'user') and self.deps and getattr(self.deps, 'user_directory', None):
-            _log.info("[_resolve_assignee_emails] No emails resolved, trying dynamic_manager fallback")
+            logger.info("[_resolve_assignee_emails] No emails resolved, trying dynamic_manager fallback")
             try:
                 req_id = user_ctx.get("user_id") or context.user_id
                 if req_id:
                     mgr = self.deps.user_directory.get_manager(str(req_id), context.org_id)
                     if mgr and mgr.email:
                         emails.append(mgr.email)
-                        _log.info("[_resolve_assignee_emails] Fallback resolved manager → %s", mgr.email)
+                        logger.info("[_resolve_assignee_emails] Fallback resolved manager → %s", mgr.email)
                         logs.append(f"ℹ️ Resolved approver via manager fallback → {mgr.email}")
             except Exception as e:
-                _log.warning("[_resolve_assignee_emails] manager fallback failed: %s", e)
+                logger.warning("[_resolve_assignee_emails] manager fallback failed: %s", e)
 
-        _log.info("[_resolve_assignee_emails] Final emails: %s", emails)
+        logger.info("[_resolve_assignee_emails] Final emails: %s", emails)
         return [e for e in emails if e and e.strip()]
 
     def validate(self, node: ProcessNode) -> Optional[ExecutionError]:
