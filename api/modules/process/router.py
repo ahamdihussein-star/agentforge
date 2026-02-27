@@ -2062,29 +2062,33 @@ STRICT RULES — READ CAREFULLY:
 
 ENTITY EXTRACTION (MOST IMPORTANT — do this FIRST):
 1. departments = ANY organizational unit mentioned by name, even if combined with a job title.
-   ALWAYS extract the unit name. Examples:
+   ALWAYS extract the unit name. Examples across different domains:
    - "Finance Manager" → dept "Finance"
-   - "Supply Chain Manager" → dept "Supply Chain"
+   - "Operations Director" → dept "Operations"
    - "IT Department" → dept "IT"
    - "HR Director" → dept "HR"
+   - "Legal Counsel from the Legal department" → dept "Legal"
+   - "Marketing team lead" → dept "Marketing"
 2. groups = teams or committees mentioned by name.
    - "quality assurance team" → group "Quality Assurance"
-   - "supply chain team" → group "Supply Chain"
+   - "procurement committee" → group "Procurement"
    - "review board" → group "Review Board"
+   - "safety inspection team" → group "Safety Inspection"
 3. roles = specific named roles ONLY if explicitly mentioned as a role to assign
    - "assign to the Compliance Officer role" → role "Compliance Officer"
+   - "the Safety Inspector must approve" → role "Safety Inspector"
 4. tools = external systems ONLY if the description explicitly says to connect to, send to, or fetch from them
-   - "send to SAP", "update Jira", "sync with Salesforce"
+   - "send to SAP", "update Jira", "sync with Salesforce", "post to Slack", "log in ServiceNow"
 
 BOOLEAN FLAGS (set AFTER extracting entities):
 5. needs_manager_routing = true if the description mentions routing to a "manager", "supervisor", or direct report chain
-6. needs_escalation_hierarchy = true if the description mentions escalation to a higher level (e.g. "department head", "senior manager", "VP")
+6. needs_escalation_hierarchy = true if the description mentions escalation to a higher level (e.g. "department head", "senior manager", "VP", "executive")
 7. needs_identity_directory = true if the workflow needs employee profile data (names, emails, employee IDs, custom fields)
 
 CRITICAL — DUAL EXTRACTION:
 8. An entity can appear in BOTH an array AND trigger a boolean flag. For example:
-   "route to Supply Chain Manager for approval and escalate to Department Head" →
-   departments: [{{"name": "Supply Chain", "why": "route to Supply Chain Manager"}}],
+   "route to Operations Manager for approval and escalate to Department Head" →
+   departments: [{{"name": "Operations", "why": "route to Operations Manager"}}],
    needs_manager_routing: true, needs_escalation_hierarchy: true
 
 QUALITY RULES:
