@@ -230,6 +230,33 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             # Platform user/role/group or dynamic expression (e.g. {{ trigger_input.manager_id }})
             assignee_ids_resolved = state.interpolate_object(assignee_ids_raw) if assignee_ids_raw else []
             assignee_ids = _to_assignee_id_list(assignee_ids_resolved)
+
+        # FALLBACK: If no assignees resolved from ANY source, try dynamic_manager
+        # from the User Directory. This covers AI-generated processes that set the
+        # approval node name (e.g. "Manager Approval") but don't configure
+        # assignee_source='user_directory' explicitly.
+        if not assignee_ids and self.deps and self.deps.user_directory:
+            try:
+                fallback_config = {
+                    "type": "dynamic_manager",
+                }
+                fallback_ctx = {
+                    "user_id": context.user_id,
+                    "trigger_input": state.trigger_input or {},
+                    "variables": state.get_all(),
+                }
+                fallback_ids = self.deps.user_directory.resolve_process_assignee(
+                    fallback_config, fallback_ctx, context.org_id
+                )
+                if fallback_ids:
+                    assignee_ids = fallback_ids
+                    assignee_type = 'user'
+                    logs.append(f"No assignees configured — resolved {len(assignee_ids)} via requester's direct manager (fallback)")
+                else:
+                    logs.append("No assignees configured and dynamic_manager fallback returned empty")
+            except Exception as e:
+                logs.append(f"⚠️ Dynamic manager fallback failed: {e}")
+
         min_approvals = self.get_config_value(node, 'min_approvals', 1)
         timeout_hours = self.get_config_value(node, 'timeout_hours', 24)
         timeout_action = self.get_config_value(node, 'timeout_action', 'fail')
