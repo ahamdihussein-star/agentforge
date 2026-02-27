@@ -935,7 +935,11 @@ class ProcessWizard:
                 org_lines.append("\n\nORGANIZATION DEPARTMENTS:")
                 org_lines.append("Use these for department-based approval routing and notifications.")
                 for d in depts[:50]:
-                    mgr_note = "has manager assigned" if d.get("has_manager") else "NO manager assigned"
+                    if d.get("has_manager"):
+                        mgr_name = d.get("manager_name", "")
+                        mgr_note = f"manager: {mgr_name}" if mgr_name else "has manager assigned"
+                    else:
+                        mgr_note = "NO manager assigned"
                     org_lines.append(f'  - "{d["name"]}" (id: {d["id"]}, {mgr_note})')
                 org_lines.append(
                     "  → For approval by a specific department's manager: "

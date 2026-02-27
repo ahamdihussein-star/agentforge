@@ -142,8 +142,8 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     )
                     if dir_type == "dynamic_manager":
                         detail_msg += (
-                            "This means the user who submitted the process does not have a manager assigned "
-                            "in the Identity Directory. Go to Settings > Identity Directory and assign a manager."
+                            "This means the user who submitted the process does not have a manager assigned. "
+                            "Go to Organization > People & Departments and assign a manager."
                         )
                     elif "department" in dir_type:
                         detail_msg += (
@@ -309,14 +309,14 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             if dir_type == 'dynamic_manager' or not dir_type:
                 reason = (
                     "The submitter does not have a manager assigned. "
-                    "Please go to Settings > Identity Directory > Users, "
+                    "Please go to Organization > People & Departments, "
                     "select the submitter, and assign a manager."
                 )
             elif 'department' in dir_type:
                 dept_label = f' "{dept_name}"' if dept_name else ''
                 reason = (
                     f"No manager was found for the{dept_label} department. "
-                    "Please go to Settings > Identity Directory > Departments, "
+                    "Please go to Organization > People & Departments, "
                     f"select the{dept_label} department, and assign a manager."
                 )
             elif dir_type in ('role', 'group'):
@@ -923,8 +923,8 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 else:
                     logs.append(
                         f"⚠️ Could not resolve '{r_str}' — no manager email found. "
-                        "Check: Does this user have a manager assigned in the Identity Directory? "
-                        "Go to Settings > Identity Directory > Users and verify the manager field."
+                        "Check: Does this user have a manager assigned? "
+                        "Go to Organization > People & Departments and verify the manager field."
                     )
                 continue
 
@@ -1142,10 +1142,10 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             specific_hints = []
             if any(s in ("requester", "submitter", "initiator", "self") for s in attempted_shortcuts):
                 if not user_context.get("email"):
-                    specific_hints.append("The requester's email address is not available — check the user's profile in the Identity Directory.")
+                    specific_hints.append("The requester's email address is not available — check the user's profile in Organization > People & Departments.")
             if any(s in ("manager", "supervisor", "direct_manager") for s in attempted_shortcuts):
                 if not user_context.get("manager_email"):
-                    specific_hints.append("The requester's manager email is not available — go to Settings > Identity Directory and ensure a manager is assigned to this user.")
+                    specific_hints.append("The requester's manager email is not available — go to Organization > People & Departments and ensure a manager is assigned to this user.")
             if not user_context:
                 specific_hints.append("The Identity Directory did not return any user data. Please check that the Identity Directory is configured in Settings.")
             if identity_warnings:

@@ -443,13 +443,13 @@ async def test_resolve_approvers(
         if dir_type == "dynamic_manager":
             reason = (
                 "The submitter does not have a manager assigned. "
-                "Go to Settings > Identity Directory > Users and assign a manager."
+                "Go to Organization > People & Departments and assign a manager."
             )
         elif "department" in dir_type:
             dept_label = f' "{dept_name}"' if dept_name else ""
             reason = (
                 f"No manager found for the{dept_label} department. "
-                f"Go to Settings > Identity Directory > Departments and assign a manager."
+                f"Go to Organization > People & Departments and assign a manager."
             )
         else:
             reason = "No users matched the configured assignee source."
@@ -1006,7 +1006,7 @@ def _check_requirements_against_data(
                     "message": (
                         f"The process references a custom profile field '{field}' "
                         f"but it doesn't exist in your profile. This may need to be added "
-                        f"via Settings > Identity Directory > Custom Fields."
+                        f"via Organization > Settings > Profile Fields."
                     ),
                     "action": {
                         "type": "open_profile",
@@ -2058,11 +2058,17 @@ async def generate_workflow_from_goal(
         _org_uuid = _uuid_mod.UUID(user_dict["org_id"])
 
         from database.models.department import Department as DBDepartment
+        from database.models.user import User as DBUser
         _depts = db.query(DBDepartment).filter(DBDepartment.org_id == _org_uuid).all()
-        context["departments"] = [
-            {"id": str(d.id), "name": d.name, "has_manager": bool(d.manager_id)}
-            for d in _depts
-        ]
+        _dept_list = []
+        for d in _depts:
+            entry = {"id": str(d.id), "name": d.name, "has_manager": bool(d.manager_id)}
+            if d.manager_id:
+                _mgr = db.query(DBUser).filter(DBUser.id == d.manager_id).first()
+                if _mgr:
+                    entry["manager_name"] = _mgr.display_name or f"{_mgr.first_name or ''} {_mgr.last_name or ''}".strip()
+            _dept_list.append(entry)
+        context["departments"] = _dept_list
 
         from database.models.user_group import UserGroup as DBUserGroup
         _groups = db.query(DBUserGroup).filter(DBUserGroup.org_id == _org_uuid).all()

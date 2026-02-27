@@ -563,7 +563,7 @@ async function updateGroup(id) {
 // ============================================================
 
 // ============================================================
-// ORGANIZATION TAB (Departments, Manager Assignment, Org Chart)
+// ORGANIZATION TAB (People & Departments, Org Chart, Settings)
 // ============================================================
 let orgDepartments = [];
 let orgUsersCache = [];
@@ -842,8 +842,6 @@ function renderOrgDeptSidebar() {
     }).join('');
 }
 
-function renderOrgDepartments() { renderOrgDeptSidebar(); }
-
 function showCreateDepartmentModal() {
     ensureModalInBody('create-dept-modal');
     document.getElementById('dept-edit-id').value = '';
@@ -933,7 +931,7 @@ async function deleteDepartment(id) {
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
-// --- Manager Assignment ---
+// --- People Table (Department Members) ---
 async function loadOrgUsers() {
     try {
         const res = await fetch('/api/security/users', { headers: getAuthHeaders() });
@@ -995,8 +993,6 @@ function renderOrgPeopleTable() {
         </tr>`;
     }).join('');
 }
-
-function renderOrgManagerTable() { renderOrgPeopleTable(); }
 
 function openManagerModal(userId) {
     const user = orgUsersCache.find(u => u.id === userId);

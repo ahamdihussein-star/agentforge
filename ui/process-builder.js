@@ -6416,7 +6416,7 @@
                 const mc = ctx.management_chain || {};
                 const levels = Array.isArray(mc.levels) ? mc.levels : [];
                 if (!mc.available || levels.length === 0) {
-                    html = `<div class="org-pick-empty">Management chain is not configured. Assign managers in the Identity Directory to enable this feature.</div>`;
+                    html = `<div class="org-pick-empty">Management chain is not configured. Assign managers in Organization > People & Departments to enable this feature.</div>`;
                 } else {
                     html += `<div style="font-size:12px;color:#9ca3af;margin-bottom:12px;">Manager coverage: ${mc.manager_coverage_pct || 0}% of users have a manager assigned.</div>`;
                     html += `<div class="org-pick-group"><div class="org-pick-group-title">Management Levels</div>`;
@@ -6438,7 +6438,7 @@
             } else if (tab === 'departments') {
                 const depts = Array.isArray(ctx.departments) ? ctx.departments : [];
                 if (depts.length === 0) {
-                    html = `<div class="org-pick-empty">No departments configured. Create departments in the Identity Directory.</div>`;
+                    html = `<div class="org-pick-empty">No departments configured. Create departments in Organization > People & Departments.</div>`;
                 } else {
                     const filtered = q ? depts.filter(d => (d.name || '').toLowerCase().includes(q) || (d.manager_name || '').toLowerCase().includes(q)) : depts;
                     if (filtered.length === 0) {
@@ -7780,13 +7780,13 @@
                 if (target === 'identity') {
                     window.open(baseUrl + '/dashboard#settings/identity', '_blank');
                 } else if (target === 'departments') {
-                    window.open(baseUrl + '/dashboard#departments', '_blank');
+                    window.open(baseUrl + '/dashboard#security/org', '_blank');
                 } else {
                     window.open(baseUrl + '/dashboard#settings', '_blank');
                 }
             } else if (actionType === 'open_profile') {
                 if (target === 'user_management') {
-                    // For manager assignment or department — go to user management
+                    // For manager or department actions — go to user management
                     if (managerId) {
                         window.open(baseUrl + '/dashboard#users/' + encodeURIComponent(managerId), '_blank');
                     } else {
