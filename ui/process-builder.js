@@ -3039,9 +3039,9 @@
         function getUpstreamOutputFields() {
             const outputs = [];
             state.nodes.forEach(n => {
-                const outVar = String(n.output_variable || '').trim();
-                if (!outVar) return;
                 const cfg = n.config || {};
+                const outVar = String(n.output_variable || cfg.output_variable || cfg.outputVariable || '').trim();
+                if (!outVar) return;
 
                 // Extract text action (legacy action type)
                 if (n.type === 'action' && (cfg.actionType === 'extractDocumentText')) {
@@ -3104,7 +3104,11 @@
                 // AI step output — expose individual output fields as separate items
                 else if (n.type === 'ai') {
                     const stepName = n.name || 'AI Step';
-                    const outFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.label && f.name) : [];
+                    const rawOutFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.name) : [];
+                    const outFields = rawOutFields.map(f => ({
+                        ...f,
+                        label: f.label || humanizeFieldLabel(f.name)
+                    }));
 
                     if (outFields.length > 0) {
                         outFields.forEach(f => {

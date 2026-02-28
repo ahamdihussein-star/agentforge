@@ -1414,8 +1414,14 @@ class ProcessWizard:
                 "y": y,
                 "config": cfg,
             }
-            # Allow engine-friendly output capture (invisible to UI, but persisted)
-            ov = n.get("output_variable") or n.get("outputVariable")
+            # Allow engine-friendly output capture (invisible to UI, but persisted).
+            # LLMs sometimes put output_variable inside config — extract it.
+            ov = (
+                n.get("output_variable")
+                or n.get("outputVariable")
+                or (cfg.get("output_variable") if isinstance(cfg, dict) else None)
+                or (cfg.get("outputVariable") if isinstance(cfg, dict) else None)
+            )
             if isinstance(ov, str) and ov.strip():
                 node_out["output_variable"] = ov.strip()
             # Carry optional UI fields if present (label offsets, font size, etc.)
@@ -2545,6 +2551,28 @@ class ProcessWizard:
                 if not _n.get("output_variable"):
                     _name_key = re.sub(r'[^a-zA-Z0-9]', '', _n.get("name") or "aiOutput")
                     _n["output_variable"] = _name_key[0].lower() + _name_key[1:] if _name_key else "aiOutput"
+
+        # -------------------------------------------------------------------
+        # ENFORCE: Every outputField must have a label. The UI dropdown
+        # filters with `f.label && f.name` — missing labels cause fields
+        # to vanish from the "Data from previous steps" dropdown, forcing
+        # conditions into "Enter manually" mode.
+        # -------------------------------------------------------------------
+        for _n in normalized_nodes:
+            if _n.get("type") != "ai":
+                continue
+            _cfg = _n.get("config") if isinstance(_n.get("config"), dict) else {}
+            for _of in _cfg.get("outputFields") or []:
+                if not isinstance(_of, dict):
+                    continue
+                _ofn = str(_of.get("name") or "").strip()
+                if _ofn and not _of.get("label"):
+                    _label = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', _ofn)
+                    _label = _label.replace('_', ' ').strip()
+                    _label = ' '.join(w.capitalize() for w in _label.split()) or _ofn
+                    _of["label"] = _label
+                    logger.info("Auto-generated label '%s' for outputField '%s' on node '%s'",
+                                _label, _ofn, _n.get("name", _n.get("id")))
 
         # -------------------------------------------------------------------
         # INTELLIGENCE: Ensure AI prompts cover all outputFields, especially
