@@ -1888,7 +1888,11 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
         if security_state.get_user_by_email(request.email):
             raise HTTPException(status_code=400, detail="Email already exists")
     
-    password = request.password or PasswordService.generate_temp_password()
+    password_from_admin = bool(request.password and str(request.password).strip())
+    if password_from_admin and len(str(request.password)) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    password = str(request.password).strip() if password_from_admin else PasswordService.generate_temp_password()
     
     new_user = User(
         org_id=user.org_id,
@@ -1948,7 +1952,7 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
         "user": {"id": new_user.id, "username": getattr(new_user, "username", None), "email": new_user.email},
         "email_sent": email_sent if request.send_invitation else False,
         # If email delivery fails, return temp password so admin can share it securely.
-        "temp_password": password if (not request.send_invitation or not email_sent) else None
+        "temp_password": (password if (not password_from_admin and (not request.send_invitation or not email_sent)) else None)
     }
 
 @router.put("/users/{user_id}")

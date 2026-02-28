@@ -275,15 +275,30 @@ async function showCreateUserModal(preset) {
 
                 <div class="card rounded-xl p-4 bg-gray-900/30 border border-gray-800/60">
                     <div class="flex items-start gap-3">
-                        <input type="checkbox" id="cu-invite" class="accent-purple-500 w-5 h-5 mt-0.5" checked onchange="document.getElementById('cu-pass-wrap').classList.toggle('hidden', this.checked)">
+                        <input type="checkbox" id="cu-invite" class="accent-purple-500 w-5 h-5 mt-0.5" checked>
                         <div class="min-w-0">
                             <div class="font-medium">Send sign-in email</div>
-                            <div class="text-xs text-gray-500">When enabled, the user gets an email to start. When disabled, you\u2019ll receive a temporary password to share securely.</div>
+                            <div class="text-xs text-gray-500">When enabled, the user will receive a welcome email. When disabled, you can share credentials securely.</div>
                         </div>
                     </div>
-                    <div id="cu-pass-wrap" class="hidden mt-3">
-                        <label class="block text-sm font-medium mb-2">Temporary Password (optional)</label>
-                        <input type="text" id="cu-pass" class="w-full input-field rounded-lg px-4 py-2" placeholder="Leave empty to auto-generate">
+                    <div class="mt-4 border-t border-gray-800 pt-4">
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" id="cu-set-pass" class="accent-purple-500 w-5 h-5 mt-0.5" onchange="document.getElementById('cu-pass-wrap').classList.toggle('hidden', !this.checked)">
+                            <div class="min-w-0">
+                                <div class="font-medium">Set password now</div>
+                                <div class="text-xs text-gray-500">Optional. If you don\u2019t set a password, the system will generate one automatically.</div>
+                            </div>
+                        </div>
+                        <div id="cu-pass-wrap" class="hidden mt-3">
+                            <label class="block text-sm font-medium mb-2">Password</label>
+                            <div class="flex gap-2 items-center">
+                                <input type="password" id="cu-pass" class="flex-1 input-field rounded-lg px-4 py-2" placeholder="At least 8 characters">
+                                <button type="button" class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm" onclick="(function(){const a=document.getElementById('cu-pass'); const b=document.getElementById('cu-pass2'); const t=(a.type==='password'?'text':'password'); a.type=t; b.type=t;})()">Show</button>
+                            </div>
+                            <label class="block text-sm font-medium mt-3 mb-2">Confirm Password</label>
+                            <input type="password" id="cu-pass2" class="w-full input-field rounded-lg px-4 py-2" placeholder="Re-type password">
+                            <div class="text-xs text-gray-500 mt-2">The user will be asked to change this password on first sign-in.</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -307,13 +322,25 @@ async function createUserFromModal() {
     const department_id = document.getElementById('cu-dept')?.value || null;
     const manager_id = document.getElementById('cu-mgr')?.value || null;
     const send_invitation = !!document.getElementById('cu-invite')?.checked;
-    const password = !send_invitation ? ((document.getElementById('cu-pass')?.value || '').trim() || null) : null;
+    const setPassword = !!document.getElementById('cu-set-pass')?.checked;
+    const password = setPassword ? ((document.getElementById('cu-pass')?.value || '').trim() || null) : null;
+    const password2 = setPassword ? ((document.getElementById('cu-pass2')?.value || '').trim() || null) : null;
     const role_ids = Array.from(document.querySelectorAll('.cu-role:checked')).map(el => el.value).filter(Boolean);
     const group_ids = Array.from(document.querySelectorAll('.cu-group:checked')).map(el => el.value).filter(Boolean);
 
     if (!email || !username || !first_name || !last_name) {
         showToast('Please fill in name, username, and email', 'error');
         return;
+    }
+    if (setPassword) {
+        if (!password || password.length < 8) {
+            showToast('Password must be at least 8 characters', 'error');
+            return;
+        }
+        if (password2 !== null && password2 !== password) {
+            showToast('Passwords do not match', 'error');
+            return;
+        }
     }
     if (role_ids.length === 0) role_ids.push('role_user');
 
