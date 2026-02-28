@@ -130,6 +130,10 @@ class ConfirmResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class AdminResetUserPasswordRequest(BaseModel):
+    password: Optional[str] = None  # If omitted, generate a temporary password
+
+
 # MFA Requests
 class EnableMFARequest(BaseModel):
     method: MFAMethod = MFAMethod.TOTP
@@ -1396,6 +1400,96 @@ async def admin_resend_verification(user_id: str, admin: User = Depends(require_
         return {"status": "success", "message": f"Verification email sent to {user.email}"}
     else:
         raise HTTPException(status_code=500, detail="Failed to send email")
+
+
+@router.post("/users/{user_id}/reset-password")
+async def admin_reset_user_password(
+    user_id: str,
+    request: AdminResetUserPasswordRequest,
+    admin: User = Depends(require_admin),
+):
+    """Admin: reset/change a user's password."""
+    target_user = security_state.users.get(user_id)
+    if not target_user or target_user.org_id != admin.org_id:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    settings = security_state.get_settings(target_user.org_id or admin.org_id or "org_default")
+
+    password_from_admin = bool(request.password and str(request.password).strip())
+    chosen_password = str(request.password).strip() if password_from_admin else None
+
+    if password_from_admin:
+        is_valid, errors = PasswordService.validate_password(chosen_password, settings)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail={"message": "Password does not meet requirements", "errors": errors})
+        new_password = chosen_password
+    else:
+        new_password = None
+        last_errors = None
+        for _ in range(5):
+            candidate = PasswordService.generate_temp_password()
+            ok, errs = PasswordService.validate_password(candidate, settings)
+            if ok:
+                new_password = candidate
+                break
+            last_errors = errs
+        if not new_password:
+            raise HTTPException(status_code=500, detail={"message": "Failed to generate a temporary password", "errors": last_errors or []})
+
+    old_hash = getattr(target_user, "password_hash", None)
+    target_user.password_hash = PasswordService.hash_password(new_password)
+    target_user.password_changed_at = datetime.utcnow().isoformat()
+    target_user.must_change_password = True
+    target_user.failed_login_attempts = 0
+
+    # Unlock locked accounts on admin reset (common enterprise behavior)
+    try:
+        if target_user.status == UserStatus.LOCKED:
+            target_user.status = UserStatus.ACTIVE
+            target_user.locked_until = None
+    except Exception:
+        pass
+
+    # Track password history (best effort)
+    try:
+        if old_hash:
+            if not hasattr(target_user, 'password_history') or target_user.password_history is None:
+                target_user.password_history = []
+            target_user.password_history.append(old_hash)
+            if settings.password_history_count > 0 and len(target_user.password_history) > settings.password_history_count:
+                target_user.password_history = target_user.password_history[-settings.password_history_count:]
+    except Exception:
+        pass
+
+    # Invalidate all sessions for the user
+    for session in security_state.sessions.values():
+        if session.user_id == target_user.id:
+            session.is_active = False
+
+    security_state.users[target_user.id] = target_user
+
+    try:
+        from database.services import UserService
+        UserService.save_user(target_user)
+    except Exception as e:
+        print(f"⚠️  [ADMIN RESET PASSWORD] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+
+    security_state.add_audit_log(
+        user=admin,
+        action=ActionType.PASSWORD_CHANGE,
+        resource_type=ResourceType.USER,
+        resource_id=target_user.id,
+        resource_name=target_user.email,
+        details={"reason": "admin_reset", "password_set_by_admin": password_from_admin},
+    )
+
+    return {
+        "status": "success",
+        "temp_password": (new_password if not password_from_admin else None),
+    }
 
 # ============================================================================
 # MFA ENDPOINTS

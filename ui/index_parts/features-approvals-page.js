@@ -275,6 +275,30 @@ async function editSecurityUser(userId) {
                         `).join('')}
                     </div>
                 </div>
+
+                <div class="rounded-lg border border-gray-700 p-3 bg-gray-900/30">
+                    <label class="block text-sm text-gray-400 mb-2">Password</label>
+                    <div class="text-xs text-gray-500 mb-3">Resetting a password will sign the user out from all sessions and require a new password on next sign-in.</div>
+                    <div class="flex items-center gap-2">
+                        <button class="btn-secondary px-3 py-2 rounded-lg" onclick="toggleEditUserSetPassword()">Set New Password</button>
+                        <button class="btn-primary px-3 py-2 rounded-lg" onclick="adminResetUserPassword('${userId}', false)">Generate Temporary Password</button>
+                    </div>
+                    <div id="edit-user-pass-wrap" class="hidden mt-3">
+                        <div class="grid grid-cols-1 gap-3">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">New Password</label>
+                                <input type="password" id="edit-user-newpass" class="input-field w-full px-3 py-2 rounded-lg" placeholder="At least 8 characters">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Confirm Password</label>
+                                <input type="password" id="edit-user-newpass2" class="input-field w-full px-3 py-2 rounded-lg" placeholder="Re-type password">
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-3">
+                            <button class="btn-primary px-3 py-2 rounded-lg" onclick="adminResetUserPassword('${userId}', true)">Update Password</button>
+                        </div>
+                    </div>
+                </div>
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">Organization Profile Fields</label>
                     <p class="text-xs text-gray-500 mb-2">These fields are defined globally in <strong>Security → Organization → Profile Fields</strong> and appear for every user.</p>
@@ -379,6 +403,70 @@ async function editSecurityUser(userId) {
         </div>
     `;
     document.body.appendChild(modal);
+}
+
+function toggleEditUserSetPassword() {
+    const wrap = document.getElementById('edit-user-pass-wrap');
+    if (wrap) wrap.classList.toggle('hidden');
+}
+
+async function adminResetUserPassword(userId, useCustom) {
+    try {
+        if (!(await uiConfirm('Reset this user\\'s password?', { title: 'Reset password', confirmText: 'Reset', cancelText: 'Cancel', danger: true }))) return;
+
+        let body = {};
+        if (useCustom) {
+            const p1 = (document.getElementById('edit-user-newpass')?.value || '').trim();
+            const p2 = (document.getElementById('edit-user-newpass2')?.value || '').trim();
+            if (!p1 || p1.length < 8) {
+                showToast('Password must be at least 8 characters', 'error');
+                return;
+            }
+            if (p1 !== p2) {
+                showToast('Passwords do not match', 'error');
+                return;
+            }
+            body.password = p1;
+        }
+
+        const res = await fetch('/api/security/users/' + userId + '/reset-password', {
+            method: 'POST',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            showToast((data?.detail?.message || data?.detail || 'Failed to reset password'), 'error');
+            return;
+        }
+
+        showToast('Password updated successfully', 'success');
+
+        if (data && data.temp_password) {
+            const pwModal = document.createElement('div');
+            pwModal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
+            pwModal.id = 'temp-password-modal';
+            pwModal.innerHTML = `
+                <div class="card rounded-xl p-6 w-full max-w-md">
+                    <h3 class="text-lg font-bold mb-2">Temporary Password</h3>
+                    <p class="text-sm text-gray-400 mb-3">Share this password securely with the user. They will be asked to change it on first sign-in.</p>
+                    <div class="flex gap-2 items-center">
+                        <input id="temp-password-value" class="flex-1 input-field rounded-lg px-3 py-2" readonly value="${escHtml(data.temp_password)}">
+                        <button class="btn-secondary px-4 py-2 rounded-lg" onclick="navigator.clipboard.writeText(document.getElementById('temp-password-value').value); showToast('Copied', 'success');">Copy</button>
+                    </div>
+                    <div class="flex justify-end mt-4">
+                        <button class="btn-primary px-5 py-2 rounded-lg" onclick="document.getElementById('temp-password-modal').remove()">Done</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(pwModal);
+        }
+
+        // Refresh list so status/fields are current
+        try { loadSecurityUsers(); } catch (e) { /* silent */ }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
 }
 
 // Add a new custom field row in the edit user modal
