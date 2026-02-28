@@ -40,80 +40,8 @@ COPY . .
 # Create directories
 RUN mkdir -p /app/data /app/uploads
 
-# Create startup script that initializes database
-RUN echo '#!/bin/sh\n\
-echo "🚀 Starting AgentForge..."\n\
-echo ""\n\
-# Check if DATABASE_URL is set\n\
-if [ -z "$DATABASE_URL" ]; then\n\
-  echo "⚠️  DATABASE_URL not set - using file-based storage"\n\
-else\n\
-  echo "📊 Database connection detected"\n\
-  echo "🔄 Waiting for PostgreSQL to be ready..."\n\
-  \n\
-  # Extract host and port from DATABASE_URL for pg_isready check\n\
-  DB_HOST=$(echo $DATABASE_URL | sed -n "s|.*@\\([^:]*\\):.*|\\1|p")\n\
-  DB_PORT=$(echo $DATABASE_URL | sed -n "s|.*:\\([0-9]*\\)/.*|\\1|p")\n\
-  \n\
-  # Wait for PostgreSQL to accept connections (max 90 seconds)\n\
-  MAX_ATTEMPTS=15\n\
-  SLEEP_TIME=6\n\
-  \n\
-  for i in $(seq 1 $MAX_ATTEMPTS); do\n\
-    # Try simple connection test with error output\n\
-    ERROR_OUTPUT=$(python -c "from database import check_connection; import sys; result = check_connection(); sys.exit(0 if result else 1)" 2>&1)\n\
-    \n\
-    if [ $? -eq 0 ]; then\n\
-      echo "✅ Database connection successful"\n\
-      echo "📋 Initializing database tables..."\n\
-      python database/init_db.py 2>&1 || echo "⚠️  init_db.py completed with warnings"\n\
-      echo ""\n\
-      echo "🔧 Creating any missing tables..."\n\
-      python scripts/create_missing_tables.py 2>&1\n\
-      echo ""\n\
-      echo "🔧 Adding missing columns to users table..."\n\
-      python scripts/add_user_columns.py 2>&1\n\
-      echo ""\n\
-      echo "🔧 Making password_hash nullable for OAuth users..."\n\
-      python scripts/make_password_hash_nullable.py 2>&1 || echo "⚠️  password_hash nullable script had issues (may already be nullable)"\n\
-      echo ""\n\
-      echo "🔧 Adding missing columns to roles table..."\n\
-      python scripts/add_role_columns.py 2>&1\n\
-      echo ""\n\
-      echo "🔧 Adding OAuth & Auth settings columns to organizations table..."\n\
-      python scripts/add_organization_oauth_columns.py 2>&1 || echo "⚠️  OAuth columns script had issues (may already exist)"\n\
-      echo ""\n\
-      echo "🔧 Adding Identity & Org Chart columns..."\n\
-      python scripts/add_identity_columns.py 2>&1 || echo "⚠️  Identity columns script had issues (may already exist)"\n\
-      echo ""\n\
-      echo "📦 Migrating data from JSON to Database..."\n\
-      python scripts/migrate_to_db_complete.py 2>&1\n\
-      echo ""\n\
-      echo "🔧 Adding Google OAuth credentials..."\n\
-      python scripts/add_google_oauth_credentials.py 2>&1 || echo "⚠️  Google OAuth credentials script failed (may already be set)"\n\
-      echo ""\n\
-      echo "🔧 Converting ALL ENUMs to VARCHAR (database-agnostic)..."\n\
-      python scripts/fix_all_enums_to_string.py 2>&1 || echo "⚠️  Some ENUM conversions had issues (may already be VARCHAR)"\n\
-      echo ""\n\
-      break\n\
-    fi\n\
-    \n\
-    if [ $i -eq $MAX_ATTEMPTS ]; then\n\
-      echo "❌ Database connection failed after ${MAX_ATTEMPTS} attempts"\n\
-      echo "   Database URL host: $DB_HOST:$DB_PORT"\n\
-      echo "   Last error: $ERROR_OUTPUT"\n\
-      echo "⚠️  Starting in file-based mode..."\n\
-    else\n\
-      echo "   Attempt $i/$MAX_ATTEMPTS - retrying in ${SLEEP_TIME}s..."\n\
-      sleep $SLEEP_TIME\n\
-    fi\n\
-  done\n\
-fi\n\
-\n\
-echo ""\n\
-echo "🌐 Starting server on port ${PORT:-8000}..."\n\
-exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}\n\
-' > /app/start.sh && chmod +x /app/start.sh
+# Use repo-provided startup script (faster + guarded bootstrap)
+RUN chmod +x /app/start.sh
 
 # Railway uses dynamic PORT, but expose common default
 EXPOSE 8000
