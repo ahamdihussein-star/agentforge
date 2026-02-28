@@ -1016,9 +1016,12 @@ def _check_requirements_against_data(
                     },
                 })
     
-    # Check identity source warnings
+    # Check identity source warnings — only show warnings relevant to this process
     id_warnings = identity_ctx.get("warnings", [])
     for w in id_warnings:
+        is_manager_warning = "manager" in w.lower()
+        if is_manager_warning and not requirements.get("needs_manager"):
+            continue
         issues.append({
             "severity": "warning",
             "code": "IDENTITY_WARNING",

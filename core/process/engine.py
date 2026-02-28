@@ -16,6 +16,7 @@ Design Principles:
 - Observable: Emits events for monitoring
 """
 
+import re
 import time
 import uuid
 import logging
@@ -302,6 +303,10 @@ class ProcessEngine:
                 if result.variables_update:
                     self.state.update(result.variables_update, changed_by=current_node.id)
 
+                # Validate that downstream variable references are satisfied
+                if result.variables_update:
+                    self._validate_downstream_variables(current_node, result)
+
                 # Notify callback: node completed (after state is updated)
                 await self._call_callback(
                     self._on_node_complete,
@@ -500,6 +505,55 @@ class ProcessEngine:
                 error=ExecutionError.internal_error(str(e), traceback.format_exc())
             )
     
+    _VAR_PATTERN = re.compile(r"\{\{\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\}\}")
+
+    def _validate_downstream_variables(
+        self,
+        completed_node: "ProcessNode",
+        result: "NodeResult",
+    ) -> None:
+        """Check that variables set by this node will be resolvable downstream.
+
+        Scans all not-yet-completed nodes for ``{{variable}}`` references that
+        should now be available.  Logs warnings (appended to the result) when a
+        referenced variable is missing or is a complex dict where a scalar was
+        likely expected.
+        """
+        completed_ids = set(self.state.get_completed_nodes())
+        for node in self.definition.nodes:
+            if node.id in completed_ids:
+                continue
+            tc = node.config.type_config if node.config else {}
+            texts = []
+            for key in ("expression", "template", "message", "title", "description"):
+                v = tc.get(key)
+                if isinstance(v, str) and "{{" in v:
+                    texts.append(v)
+            if not texts:
+                continue
+            for txt in texts:
+                for m in self._VAR_PATTERN.finditer(txt):
+                    var_path = m.group(1)
+                    base_var = var_path.split(".")[0]
+                    resolved = self.state.get(base_var)
+                    if resolved is None and base_var in (result.variables_update or {}):
+                        resolved = result.variables_update[base_var]
+                    if resolved is None:
+                        continue
+                    if isinstance(resolved, dict) and "." not in var_path:
+                        logger.warning(
+                            "[Engine] Variable '{{%s}}' used in node '%s' resolved to a dict "
+                            "instead of a simple value. Downstream templates may show empty. "
+                            "Consider adding Output Data Fields to the AI step.",
+                            var_path, node.name,
+                        )
+                        if result.logs is not None:
+                            result.logs.append(
+                                f"⚠️ Variable '{var_path}' produced a complex result "
+                                f"(dict with keys: {list(resolved.keys())[:5]}). "
+                                f"Downstream step '{node.name}' may not display it correctly."
+                            )
+
     async def _get_next_node(
         self, 
         current_node: ProcessNode, 

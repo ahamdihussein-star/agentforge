@@ -476,7 +476,17 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         # Update variables if output_variable specified
         variables_update = {}
         if node.output_variable:
-            variables_update[node.output_variable] = output
+            ov = node.output_variable
+            if isinstance(output, dict) and ov in output and len(output) <= 5:
+                # Auto-flatten: the AI returned a dict containing a key that matches
+                # the output_variable name (e.g., output_variable="severity" and
+                # output={"severity":"Low","reasoning":"..."}). Store the matching
+                # value directly so {{severity}} resolves to "Low" instead of the
+                # full dict. The complete dict remains available in the step output.
+                variables_update[ov] = output[ov]
+                logs.append(f"Variable '{ov}' set to: {output[ov]}")
+            else:
+                variables_update[ov] = output
         
         return NodeResult.success(
             output=output,

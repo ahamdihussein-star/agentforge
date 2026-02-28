@@ -2612,7 +2612,7 @@ const API='';
                         <button onclick="_goBackToWizard()" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);cursor:pointer;transition:all .15s;">
                             Go Back
                         </button>
-                        <button onclick="window.location.href='/dashboard#security/org'" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:#8b5cf6;color:white;border:none;cursor:pointer;transition:all .15s;">
+                        <button onclick="window.location.href='/ui/#security'" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:#8b5cf6;color:white;border:none;cursor:pointer;transition:all .15s;">
                             Set Up Now
                         </button>
                     </div>
@@ -2630,7 +2630,7 @@ const API='';
                         <button onclick="_openBuilderAnyway()" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);cursor:pointer;transition:all .15s;">
                             Continue to Builder
                         </button>
-                        <button onclick="window.location.href='/dashboard#security/org'" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:#8b5cf6;color:white;border:none;cursor:pointer;transition:all .15s;">
+                        <button onclick="window.location.href='/ui/#security'" style="padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;background:#8b5cf6;color:white;border:none;cursor:pointer;transition:all .15s;">
                             Set Up Now
                         </button>
                     </div>

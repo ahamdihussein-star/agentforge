@@ -6811,12 +6811,12 @@
                     <div style="font-size:22px;flex-shrink:0;margin-top:2px;">📋</div>
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:13px;font-weight:600;color:var(--text-primary,#e2e8f0);margin-bottom:4px;">Setup Needed</div>
-                        <div style="font-size:12px;color:var(--text-secondary,#94a3b8);line-height:1.5;margin-bottom:8px;">
+                        <div style="font-size:12px;color:#e2e8f0;line-height:1.5;margin-bottom:8px;">
                             This workflow references items that haven't been created yet. Set them up before publishing.
                         </div>
                         <div style="display:flex;flex-wrap:wrap;gap:6px;">${pills}</div>
                     </div>
-                    <button onclick="this.parentElement.remove()" style="flex-shrink:0;background:none;border:none;color:var(--text-secondary,#94a3b8);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;" title="Dismiss">&times;</button>
+                    <button onclick="this.parentElement.remove()" style="flex-shrink:0;background:none;border:none;color:#e2e8f0;cursor:pointer;font-size:18px;padding:0 4px;line-height:1;" title="Dismiss">&times;</button>
                 `;
                 document.body.appendChild(banner);
                 setTimeout(() => { try { banner.remove(); } catch(_){} }, 20000);
@@ -7817,23 +7817,22 @@
             
             if (actionType === 'open_settings') {
                 if (target === 'identity') {
-                    window.open(baseUrl + '/dashboard#settings/identity', '_blank');
+                    window.open(baseUrl + '/ui/#security', '_blank');
                 } else if (target === 'departments') {
-                    window.open(baseUrl + '/dashboard#security/org', '_blank');
+                    window.open(baseUrl + '/ui/#security', '_blank');
                 } else {
-                    window.open(baseUrl + '/dashboard#settings', '_blank');
+                    window.open(baseUrl + '/ui/#settings', '_blank');
                 }
             } else if (actionType === 'open_profile') {
                 if (target === 'user_management') {
-                    // For manager or department actions — go to user management
                     if (managerId) {
-                        window.open(baseUrl + '/dashboard#users/' + encodeURIComponent(managerId), '_blank');
+                        window.open(baseUrl + '/ui/#security', '_blank');
                     } else {
-                        window.open(baseUrl + '/dashboard#users', '_blank');
+                        window.open(baseUrl + '/ui/#security', '_blank');
                     }
                 } else {
                     // Open own profile
-                    window.open(baseUrl + '/dashboard#profile', '_blank');
+                    window.open(baseUrl + '/ui/#profile', '_blank');
                 }
             }
         }

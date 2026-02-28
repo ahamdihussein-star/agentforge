@@ -2314,6 +2314,60 @@ class ProcessWizard:
                     logger.info(f"Enforced JSON output on AI node '{n.get('name')}' (output_variable={ov}) for fields: {expected_fields}")
 
         # -------------------------------------------------------------------
+        # ENFORCE: AI nodes whose output_variable is referenced as a SIMPLE
+        # variable (e.g., {{severity}}, no dot notation) by downstream steps
+        # must include an instruction to return just the value for that key.
+        # This ensures {{severity}} resolves to "Low" not {"severity":"Low"}.
+        # -------------------------------------------------------------------
+        ai_output_vars = {}
+        for n in normalized_nodes:
+            if n.get("type") == "ai":
+                ov = n.get("output_variable") or n.get("outputVariable") or ""
+                if ov:
+                    ai_output_vars[ov] = n
+
+        if ai_output_vars:
+            simple_refs: set = set()
+            simple_ref_pattern = re.compile(r"\{\{\s*([A-Za-z_]\w*)\s*\}\}")
+            for n in normalized_nodes:
+                ntype = n.get("type") or ""
+                cfg = n.get("config") or {}
+                if ntype == "condition":
+                    expr = str(cfg.get("expression") or "").strip()
+                    field = str(cfg.get("field") or "").strip()
+                    for txt in (expr, field):
+                        for m in simple_ref_pattern.finditer(txt):
+                            vname = m.group(1)
+                            if vname in ai_output_vars and "." not in txt[m.start():m.end()]:
+                                simple_refs.add(vname)
+                if ntype in ("notification", "approval"):
+                    for key in ("template", "message", "title", "description"):
+                        txt = str(cfg.get(key) or "").strip()
+                        for m in simple_ref_pattern.finditer(txt):
+                            vname = m.group(1)
+                            if vname in ai_output_vars:
+                                simple_refs.add(vname)
+
+            for vname in simple_refs:
+                ai_node = ai_output_vars[vname]
+                ai_cfg = ai_node.get("config") if isinstance(ai_node.get("config"), dict) else {}
+                instr = ai_cfg.get("instructions") if isinstance(ai_cfg.get("instructions"), list) else []
+                instr = [str(x).strip() for x in instr if isinstance(x, str) and str(x).strip()]
+                value_rule = (
+                    f"CRITICAL: Your response for the '{vname}' field must be returned as the "
+                    f"JSON key \"{vname}\". Example: {{\"{vname}\": \"your_value\"}}. "
+                    f"Do NOT wrap it in extra objects."
+                )
+                if all(value_rule not in str(x) for x in instr):
+                    instr.append(value_rule)
+                if ai_cfg.get("output_format") != "json":
+                    ai_cfg["output_format"] = "json"
+                    ai_cfg["temperature"] = ai_cfg.get("temperature", 0.1)
+                ai_cfg["instructions"] = instr
+                ai_node["config"] = ai_cfg
+                logger.info(f"Enforced simple-var output on AI node '{ai_node.get('name')}' for variable '{vname}'")
+
+        # -------------------------------------------------------------------
         # ENFORCE: Any AI node with outputFields must use JSON output format
         # so the executor builds a concrete schema for the LLM.
         # -------------------------------------------------------------------
