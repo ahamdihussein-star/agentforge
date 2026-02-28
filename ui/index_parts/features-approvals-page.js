@@ -1370,6 +1370,9 @@ async function loadSecuritySettings() {
         // Populate checkboxes
         const mfaOptout = document.getElementById('sec-setting-mfa_allow_user_optout');
         if (mfaOptout) mfaOptout.checked = settings.mfa_allow_user_optout || false;
+
+        const sharedEmails = document.getElementById('sec-setting-allow_shared_emails');
+        if (sharedEmails) sharedEmails.checked = settings.allow_shared_emails || false;
         
     } catch (e) {
         console.error('Error loading security settings:', e);

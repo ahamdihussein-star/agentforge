@@ -299,6 +299,7 @@ class UpdateSecuritySettingsRequest(BaseModel):
     registration_mode: Optional[str] = None  # open, invite_only, disabled
     email_verification_required: Optional[bool] = None
     allowed_email_domains: Optional[List[str]] = None
+    allow_shared_emails: Optional[bool] = None
     
     # Password Policy
     password_min_length: Optional[int] = None
@@ -552,7 +553,9 @@ async def delete_invitation(invitation_id: str, user: User = Depends(require_adm
 @router.post("/auth/register")
 async def register(request: RegisterRequest, req: Request):
     """Register a new user"""
-    settings = security_state.get_settings()
+    # Determine organization early so we can load org-scoped settings
+    org_id = request.org_id or "org_default"
+    settings = security_state.get_settings(org_id)
     
     # Check registration mode
     if settings.registration_mode == "disabled":
@@ -560,48 +563,32 @@ async def register(request: RegisterRequest, req: Request):
     
     if settings.registration_mode == "invite_only" and not request.invitation_token:
         raise HTTPException(status_code=403, detail="Registration requires an invitation")
-    
-    # Check if email already exists
-    if security_state.get_user_by_email(request.email):
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Check email domain restrictions
-    if settings.allowed_email_domains:
-        email_domain = request.email.split('@')[1].lower()
-        if email_domain not in [d.lower() for d in settings.allowed_email_domains]:
-            raise HTTPException(status_code=400, detail="Email domain not allowed")
-    
-    # Validate password
-    is_valid, errors = PasswordService.validate_password(request.password, settings)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail={"message": "Password does not meet requirements", "errors": errors})
-    
-    # Determine organization
-    org_id = request.org_id or "org_default"
-    
-    # Handle invitation
+
+    # Handle invitation / determine final org & roles
     role_ids = None  # Will be set below
     department_id = None
-    
+
     if request.invitation_token:
         invitation = None
         for inv in security_state.invitations.values():
             if inv.token == request.invitation_token and inv.email.lower() == request.email.lower():
                 invitation = inv
                 break
-        
+
         if not invitation:
             raise HTTPException(status_code=400, detail="Invalid invitation token")
-        
+
         if datetime.fromisoformat(invitation.expires_at) < datetime.utcnow():
             raise HTTPException(status_code=400, detail="Invitation has expired")
-        
+
         if invitation.accepted_at:
             raise HTTPException(status_code=400, detail="Invitation already used")
-        
+
         role_ids = invitation.role_ids or []
         department_id = invitation.department_id
         org_id = invitation.org_id
+        # Reload org-scoped settings for the invited org
+        settings = security_state.get_settings(org_id)
         invitation.accepted_at = datetime.utcnow().isoformat()
     else:
         # Self-registration: Get or create "User" role
@@ -618,12 +605,28 @@ async def register(request: RegisterRequest, req: Request):
                 if role.name.lower() == "user":
                     role_ids = [role.id]
                     break
-            
+
             if not role_ids:
                 raise HTTPException(
                     status_code=500,
                     detail="Failed to assign default role to new user. Please contact administrator."
                 )
+
+    # Check email domain restrictions (org-scoped)
+    if settings.allowed_email_domains:
+        email_domain = request.email.split("@")[1].lower()
+        if email_domain not in [d.lower() for d in settings.allowed_email_domains]:
+            raise HTTPException(status_code=400, detail="Email domain not allowed")
+
+    # Check if email already exists (unless shared emails are enabled)
+    if not getattr(settings, "allow_shared_emails", False):
+        if security_state.get_user_by_email(request.email, org_id):
+            raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Validate password (org-scoped)
+    is_valid, errors = PasswordService.validate_password(request.password, settings)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail={"message": "Password does not meet requirements", "errors": errors})
     
     # Create user
     user = User(
@@ -677,17 +680,34 @@ async def register(request: RegisterRequest, req: Request):
 @router.post("/auth/login", response_model=AuthResponse)
 async def login(request: LoginRequest, req: Request):
     """Login with email and password"""
-    settings = security_state.get_settings()
-    
     # Check IP whitelist
     if not check_ip_whitelist(req):
         raise HTTPException(status_code=403, detail="Access denied from this IP address")
     
-    # Find user (will check database if not in security_state cache)
-    user = security_state.get_user_by_email(request.email, request.org_id)
-    
-    if not user:
+    # Find user(s). When shared emails are enabled, multiple accounts may exist.
+    candidates = security_state.get_users_by_email(request.email, request.org_id)
+    if not candidates:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # If multiple accounts share the email, try to identify by password match.
+    # If exactly one account matches, proceed. If none or multiple match, fail safely.
+    user = None
+    if len(candidates) == 1:
+        user = candidates[0]
+    else:
+        matches = [u for u in candidates if PasswordService.verify_password(request.password, u.password_hash)]
+        if len(matches) == 1:
+            user = matches[0]
+        elif len(matches) == 0:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail="Multiple accounts share this email and password. Please use a different password per account or ask an administrator to resolve the duplicate login."
+            )
+
+    # Load org-scoped settings for this user
+    settings = security_state.get_settings(user.org_id or request.org_id or "org_default")
     
     # Ensure user MFA settings are loaded from database (refresh if needed)
     try:
@@ -820,23 +840,14 @@ async def login(request: LoginRequest, req: Request):
         # Refresh user from database to get latest MFA code
         try:
             from database.services import UserService
-            # Use email to get user (more reliable than ID + org_id)
-            org_id = user.org_id
-            if org_id == "org_default":
-                # Get actual org UUID
-                from database.services import OrganizationService
-                orgs = OrganizationService.get_all_organizations()
-                if orgs:
-                    org_id = orgs[0].id
-            
-            db_user = UserService.get_user_by_email(user.email, org_id)
+            db_users = UserService.get_all_users()
+            db_user = next((u for u in db_users if u.id == user.id), None)
             if db_user:
-                # Update security_state cache with latest MFA settings from database
                 security_state.users[user.id] = db_user
                 user = db_user
                 print(f"🔄 [LOGIN] Refreshed user from database for MFA verification: {user.email}")
             else:
-                print(f"⚠️  [LOGIN] User not found in database: {user.email}, org_id: {org_id}")
+                print(f"⚠️  [LOGIN] User not found in database by id: {user.id}")
         except Exception as e:
             print(f"⚠️  [LOGIN] Failed to refresh user from database for MFA verification: {e}")
             import traceback
@@ -1158,16 +1169,18 @@ async def first_login_password_change(
 @router.post("/auth/forgot-password")
 async def forgot_password(request: ResetPasswordRequest):
     """Request password reset"""
-    user = security_state.get_user_by_email(request.email)
+    users = security_state.get_users_by_email(request.email)
     
     # Always return success to prevent email enumeration
-    if user:
-        token = secrets.token_urlsafe(32)
-        user.reset_password_token = token
-        user.reset_password_expires = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+    # If multiple accounts share an email, send one reset email per account (shared mailbox scenario).
+    if users:
+        for user in users:
+            token = secrets.token_urlsafe(32)
+            user.reset_password_token = token
+            user.reset_password_expires = (datetime.utcnow() + timedelta(hours=24)).isoformat()
         security_state.save_to_disk()
-        
-        await EmailService.send_password_reset_email(user, token)
+        for user in users:
+            await EmailService.send_password_reset_email(user, user.reset_password_token)
     
     return {"status": "success", "message": "If the email exists, a reset link has been sent"}
 
@@ -1225,10 +1238,14 @@ async def accept_invitation(request: AcceptInvitationRequest, req: Request):
     
     if datetime.fromisoformat(invitation.expires_at) < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Invitation has expired")
+
+    # Load org-scoped settings for the invited org
+    settings = security_state.get_settings(invitation.org_id or "org_default")
     
-    # Check if email already registered
-    if security_state.get_user_by_email(invitation.email):
-        raise HTTPException(status_code=400, detail="Email already registered")
+    # Check if email already registered (unless shared emails are enabled)
+    if not getattr(settings, "allow_shared_emails", False):
+        if security_state.get_user_by_email(invitation.email):
+            raise HTTPException(status_code=400, detail="Email already registered")
     
     # Validate password
     is_valid, errors = PasswordService.validate_password(request.password, settings)
@@ -1324,14 +1341,15 @@ class ResendVerificationRequest(BaseModel):
 @router.post("/auth/resend-verification")
 async def resend_verification(request: ResendVerificationRequest):
     """Resend verification email"""
-    user = security_state.get_user_by_email(request.email)
+    users = [u for u in security_state.get_users_by_email(request.email) if u and not u.email_verified]
     
-    if user and not user.email_verified:
-        if not user.verification_token:
-            user.verification_token = secrets.token_urlsafe(32)
-            security_state.save_to_disk()
-        
-        await EmailService.send_verification_email(user)
+    if users:
+        for user in users:
+            if not user.verification_token:
+                user.verification_token = secrets.token_urlsafe(32)
+        security_state.save_to_disk()
+        for user in users:
+            await EmailService.send_verification_email(user)
     
     return {"status": "success", "message": "If the email exists and is unverified, a verification link has been sent"}
 
@@ -1540,12 +1558,23 @@ async def verify_mfa_setup(request: VerifyMFARequest, user: User = Depends(requi
 @router.post("/mfa/send-login-code")
 async def send_mfa_login_code(request: LoginRequest, req: Request):
     """Send MFA code for login (Email method)"""
-    # Find user (will check database if not in security_state cache)
-    user = security_state.get_user_by_email(request.email, request.org_id)
-    
-    if not user:
+    # Find user(s). When shared emails are enabled, multiple accounts may exist.
+    candidates = security_state.get_users_by_email(request.email, request.org_id)
+    if not candidates:
         # Don't reveal if user exists
         return {"status": "success", "message": "If the account exists, a code has been sent"}
+
+    # Resolve the intended account by password match when needed.
+    user = None
+    if len(candidates) == 1:
+        user = candidates[0]
+    else:
+        matches = [u for u in candidates if PasswordService.verify_password(request.password, u.password_hash)]
+        if len(matches) == 1:
+            user = matches[0]
+        else:
+            # Don't reveal details; ask user to proceed with login flow.
+            return {"status": "success", "message": "If the account exists, a code has been sent"}
     
     # Ensure user MFA settings are loaded from database (refresh if needed)
     try:
@@ -1833,8 +1862,10 @@ async def get_user(user_id: str, user: User = Depends(require_auth)):
 @router.post("/users")
 async def create_user(request: CreateUserRequest, user: User = Depends(require_admin)):
     """Create a new user"""
-    if security_state.get_user_by_email(request.email):
-        raise HTTPException(status_code=400, detail="Email already exists")
+    settings = security_state.get_settings(user.org_id or "org_default")
+    if not getattr(settings, "allow_shared_emails", False):
+        if security_state.get_user_by_email(request.email):
+            raise HTTPException(status_code=400, detail="Email already exists")
     
     password = request.password or PasswordService.generate_temp_password()
     
@@ -2036,8 +2067,10 @@ async def delete_user(user_id: str, user: User = Depends(require_admin)):
 @router.post("/users/invite")
 async def invite_user(request: InviteUserRequest, user: User = Depends(require_admin)):
     """Invite a new user"""
-    if security_state.get_user_by_email(request.email):
-        raise HTTPException(status_code=400, detail="User with this email already exists")
+    settings = security_state.get_settings(user.org_id or "org_default")
+    if not getattr(settings, "allow_shared_emails", False):
+        if security_state.get_user_by_email(request.email):
+            raise HTTPException(status_code=400, detail="User with this email already exists")
     
     # Check for existing pending invitation
     for inv in security_state.invitations.values():
@@ -2090,9 +2123,11 @@ async def bulk_invite_users(request: BulkInviteRequest, user: User = Depends(req
     
     for email in request.emails:
         try:
-            if security_state.get_user_by_email(email):
-                results["failed"].append({"email": email, "reason": "Already exists"})
-                continue
+            settings = security_state.get_settings(user.org_id or "org_default")
+            if not getattr(settings, "allow_shared_emails", False):
+                if security_state.get_user_by_email(email):
+                    results["failed"].append({"email": email, "reason": "Already exists"})
+                    continue
             
             invitation = Invitation(
                 org_id=user.org_id,

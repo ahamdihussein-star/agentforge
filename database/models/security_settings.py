@@ -6,9 +6,10 @@ import json
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, Boolean, Integer, Text
 from ..column_types import UUID, JSON, JSONArray
-JSONB = JSON
 
 from ..base import Base
+
+JSONB = JSON
 
 
 class SecuritySettings(Base):
@@ -22,6 +23,7 @@ class SecuritySettings(Base):
     registration_mode = Column(String(50), default="open")  # RegistrationMode enum value
     email_verification_required = Column(Boolean, default=True)
     allowed_email_domains = Column(JSONArray, default=list)  # List of allowed domains
+    allow_shared_emails = Column(Boolean, default=False)
     
     # Password Policy
     password_min_length = Column(Integer, default=8)

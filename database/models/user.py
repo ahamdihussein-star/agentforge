@@ -36,7 +36,7 @@ class User(Base):
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Authentication
-    email = Column(String(255), unique=True, nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
     password_hash = Column(String(255), nullable=True)  # Nullable for OAuth users
     
     # Profile

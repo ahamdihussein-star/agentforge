@@ -900,6 +900,9 @@ class SecuritySettings(BaseModel):
     registration_mode: RegistrationMode = RegistrationMode.OPEN
     email_verification_required: bool = True
     allowed_email_domains: List[str] = []  # Empty = all domains allowed
+    # Allow multiple independent users to share the same email address.
+    # WARNING: This reduces identity assurance when email is used for verification/MFA.
+    allow_shared_emails: bool = False
     
     # Password Policy
     password_min_length: int = 8

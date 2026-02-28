@@ -580,6 +580,72 @@ class SecurityState:
             traceback.print_exc()
         
         return None
+
+    def get_users_by_email(self, email: str, org_id: Optional[str] = None) -> List[User]:
+        """
+        Find all users matching an email (optionally scoped to org).
+        This is required when shared emails are enabled.
+        """
+        email_lower = email.lower()
+        matches: List[User] = []
+        seen_ids = set()
+
+        # In-memory cache first
+        for user in self.users.values():
+            if user.email and user.email.lower() == email_lower:
+                if org_id is None or user.org_id == org_id:
+                    if user.id not in seen_ids:
+                        matches.append(user)
+                        seen_ids.add(user.id)
+
+        # Then database (avoid duplicating any already in cache)
+        try:
+            from database.services import UserService
+            import uuid as uuid_lib
+
+            # Resolve org UUID similarly to get_user_by_email()
+            org_uuid = None
+            if org_id:
+                try:
+                    org_uuid = uuid_lib.UUID(org_id) if isinstance(org_id, str) else org_id
+                except ValueError:
+                    from database.services import OrganizationService
+                    orgs = OrganizationService.get_all_organizations()
+                    org_obj = next((o for o in orgs if o.slug == org_id or o.id == org_id), None)
+                    if org_obj:
+                        org_uuid = uuid_lib.UUID(org_obj.id)
+
+            db_users = UserService.get_all_users()
+            for db_user in db_users:
+                if not db_user.email or db_user.email.lower() != email_lower:
+                    continue
+
+                if org_uuid is not None:
+                    try:
+                        db_org_uuid = uuid_lib.UUID(db_user.org_id) if isinstance(db_user.org_id, str) else db_user.org_id
+                    except (ValueError, AttributeError):
+                        from database.services import OrganizationService
+                        orgs = OrganizationService.get_all_organizations()
+                        db_org_obj = next((o for o in orgs if o.slug == db_user.org_id or o.id == db_user.org_id), None)
+                        if db_org_obj:
+                            db_org_uuid = uuid_lib.UUID(db_org_obj.id)
+                        else:
+                            db_org_uuid = None
+
+                    if db_org_uuid != org_uuid:
+                        continue
+
+                # Cache it and add to results
+                self.users[db_user.id] = db_user
+                if db_user.id not in seen_ids:
+                    matches.append(db_user)
+                    seen_ids.add(db_user.id)
+        except Exception as e:
+            print(f"⚠️  [SECURITY_STATE] Failed to load users by email from database: {e}")
+            import traceback
+            traceback.print_exc()
+
+        return matches
     
     def get_user_by_external_id(self, external_id: str, provider: AuthProvider, org_id: Optional[str] = None) -> Optional[User]:
         """Find user by external provider ID"""

@@ -118,6 +118,7 @@ class SecuritySettingsService:
         db_settings.registration_mode = core_settings.registration_mode.value if hasattr(core_settings.registration_mode, 'value') else str(core_settings.registration_mode)
         db_settings.email_verification_required = core_settings.email_verification_required
         db_settings.allowed_email_domains = json.dumps(core_settings.allowed_email_domains) if core_settings.allowed_email_domains else json.dumps([])
+        db_settings.allow_shared_emails = bool(getattr(core_settings, "allow_shared_emails", False))
         
         # Password Policy
         db_settings.password_min_length = core_settings.password_min_length
@@ -252,6 +253,7 @@ class SecuritySettingsService:
             registration_mode=registration_mode,
             email_verification_required=db_settings.email_verification_required,
             allowed_email_domains=allowed_email_domains,
+            allow_shared_emails=bool(getattr(db_settings, "allow_shared_emails", False)),
             password_min_length=db_settings.password_min_length,
             password_max_length=db_settings.password_max_length,
             password_require_uppercase=db_settings.password_require_uppercase,

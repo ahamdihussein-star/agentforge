@@ -38,6 +38,20 @@ class UserService:
             
             # Convert DB model to Core model (for API compatibility)
             return UserService._db_to_core_user(db_user)
+
+    @staticmethod
+    def get_users_by_email(email: str, org_id: str) -> List[User]:
+        """
+        Get all users by email within an organization.
+        Required when shared emails are enabled.
+        """
+        with get_db_session() as db:
+            db_users = db.query(DBUser).filter(
+                DBUser.email == email.lower(),
+                DBUser.org_id == org_id
+            ).all()
+
+            return [UserService._db_to_core_user(u) for u in db_users] if db_users else []
     
     @staticmethod
     def get_user_by_id(user_id: str, org_id: str) -> Optional[User]:
@@ -245,13 +259,17 @@ class UserService:
             # First, try to find by ID
             db_user = db.query(DBUser).filter_by(id=user.id).first()
             
-            # If not found by ID, try to find by email (for OAuth users with different IDs)
+            # If not found by ID, try to find by email ONLY if it is unambiguous.
+            # Shared emails can exist, so email-based matching must be safe.
             if not db_user and user.email:
-                db_user = db.query(DBUser).filter_by(email=user.email.lower()).first()
-                if db_user:
+                candidates = db.query(DBUser).filter_by(email=user.email.lower()).all()
+                if len(candidates) == 1:
+                    db_user = candidates[0]
                     # Update the user.id to match the existing database ID
                     print(f"🔄 [DATABASE] Found existing user by email '{user.email}' with different ID. Updating ID from {user.id[:8]}... to {str(db_user.id)[:8]}...")
                     user.id = str(db_user.id)
+                elif len(candidates) > 1:
+                    print(f"⚠️ [DATABASE] Multiple users share email '{user.email}'. Skipping email-based UPSERT.")
             
             if db_user:
                 # Update existing
