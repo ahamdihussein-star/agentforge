@@ -2062,18 +2062,20 @@ STRICT RULES — READ CAREFULLY:
 
 ENTITY EXTRACTION (MOST IMPORTANT — do this FIRST):
 1. departments = ANY organizational unit mentioned by name, even if combined with a job title.
-   ALWAYS extract the unit name. Examples across different domains:
+   ALWAYS extract the FULL unit name (can be one word or multiple words). Examples:
    - "Finance Manager" → dept "Finance"
-   - "Operations Director" → dept "Operations"
+   - "Customer Service Director" → dept "Customer Service"
    - "IT Department" → dept "IT"
-   - "HR Director" → dept "HR"
-   - "Legal Counsel from the Legal department" → dept "Legal"
-   - "Marketing team lead" → dept "Marketing"
-2. groups = teams or committees mentioned by name.
+   - "Human Resources team" → dept "Human Resources"
+   - "Supply Chain Manager" → dept "Supply Chain"
+   - "Research and Development lead" → dept "Research and Development"
+   - "Public Relations Officer" → dept "Public Relations"
+2. groups = teams or committees mentioned by name (can be multi-word).
    - "quality assurance team" → group "Quality Assurance"
+   - "customer service team" → group "Customer Service"
    - "procurement committee" → group "Procurement"
-   - "review board" → group "Review Board"
-   - "safety inspection team" → group "Safety Inspection"
+   - "risk management board" → group "Risk Management"
+   - "supply chain team" → group "Supply Chain"
 3. roles = specific named roles ONLY if explicitly mentioned as a role to assign
    - "assign to the Compliance Officer role" → role "Compliance Officer"
    - "the Safety Inspector must approve" → role "Safety Inspector"
@@ -2087,14 +2089,14 @@ BOOLEAN FLAGS (set AFTER extracting entities):
 
 CRITICAL — DUAL EXTRACTION:
 8. An entity can appear in BOTH an array AND trigger a boolean flag. For example:
-   "route to Operations Manager for approval and escalate to Department Head" →
-   departments: [{{"name": "Operations", "why": "route to Operations Manager"}}],
+   "route to Customer Service Manager for approval and escalate to Department Head" →
+   departments: [{{"name": "Customer Service", "why": "route to Customer Service Manager"}}],
    needs_manager_routing: true, needs_escalation_hierarchy: true
 
 QUALITY RULES:
 9. ONLY extract entities EXPLICITLY mentioned in the description
 10. "why" MUST contain a direct quote proving the entity is needed. No quote = do not include
-11. Use proper display names — strip job titles: "Finance Manager" → "Finance"
+11. Use proper display names — strip ONLY the job title, keep the full unit name: "Finance Manager" → "Finance", "Customer Service Director" → "Customer Service"
 12. Return empty arrays [] when none found
 13. When in doubt, DO NOT include it — false negatives > false positives
 14. NEVER invent entities not in the description
@@ -2430,67 +2432,75 @@ async def _pre_check_platform_readiness(
             })
 
         # ── Escalation hierarchy ─────────────────────────────────────
+        # If the LLM extracted specific departments, those are already
+        # handled above (dept_missing / dept_no_mgr cards).  Only show
+        # a generic escalation card when NO specific departments were
+        # extracted but escalation is still needed.
         if llm_analysis.get("needs_escalation_hierarchy"):
-            can = _can("users:edit")
-            if not departments:
-                _add("escalation_no_depts", {
-                    "type": "identity", "icon": "hierarchy",
-                    "entity_name": "Escalation Path",
-                    "referenced_by": "Your workflow description",
-                    "message": (
-                        "This workflow includes escalation routing, but "
-                        "no departments have been created on the platform "
-                        "yet. Departments and their managers are needed "
-                        "for escalation to work."
-                    ),
-                    "guidance": (
-                        "Create the departments referenced in your "
-                        "workflow and assign a manager to each one."
-                    ) + _admin_note(can),
-                    "steps": [
-                        "Go to Users & Access → Organization → People & Departments",
-                        "Click + New Department",
-                        "Give it a name and assign a manager",
-                        "Save, and repeat for each department",
-                    ] if can else [],
-                    "can_create": can,
-                    "permission_warning": _perm_warning(can),
-                })
-            else:
-                depts_no_mgr = [
-                    d.get("name", "?") for d in departments
-                    if not d.get("has_manager")
-                ]
-                if depts_no_mgr:
-                    names_preview = ", ".join(
-                        f"\"{n}\"" for n in depts_no_mgr[:4]
-                    )
-                    if len(depts_no_mgr) > 4:
-                        names_preview += f" and {len(depts_no_mgr) - 4} more"
-                    _add("escalation_no_mgrs", {
+            llm_depts = llm_analysis.get("departments") or []
+            if not llm_depts:
+                can = _can("users:edit")
+                if not departments:
+                    _add("escalation_no_depts", {
                         "type": "identity", "icon": "hierarchy",
                         "entity_name": "Escalation Path",
                         "referenced_by": "Your workflow description",
                         "message": (
-                            f"This workflow includes escalation routing, "
-                            f"but {len(depts_no_mgr)} department(s) have "
-                            f"no manager assigned: {names_preview}. "
-                            f"Escalation requires department managers to "
-                            f"be set."
+                            "This workflow includes escalation routing, "
+                            "but no departments have been created on the "
+                            "platform yet. Departments and their managers "
+                            "are needed for escalation to work."
                         ),
                         "guidance": (
-                            "Assign a manager to each department that "
-                            "doesn't have one yet."
+                            "Create the departments referenced in your "
+                            "workflow and assign a manager to each one."
                         ) + _admin_note(can),
                         "steps": [
                             "Go to Users & Access → Organization → People & Departments",
-                            "Select each department without a manager",
-                            "Set the Manager field",
-                            "Save",
+                            "Click + New Department",
+                            "Give it a name and assign a manager",
+                            "Save, and repeat for each department",
                         ] if can else [],
                         "can_create": can,
                         "permission_warning": _perm_warning(can),
                     })
+                else:
+                    depts_no_mgr = [
+                        d.get("name", "?") for d in departments
+                        if not d.get("has_manager")
+                    ]
+                    if depts_no_mgr:
+                        names_preview = ", ".join(
+                            f"\"{n}\"" for n in depts_no_mgr[:4]
+                        )
+                        if len(depts_no_mgr) > 4:
+                            names_preview += (
+                                f" and {len(depts_no_mgr) - 4} more"
+                            )
+                        _add("escalation_no_mgrs", {
+                            "type": "identity", "icon": "hierarchy",
+                            "entity_name": "Escalation Path",
+                            "referenced_by": "Your workflow description",
+                            "message": (
+                                f"This workflow includes escalation "
+                                f"routing, but {len(depts_no_mgr)} "
+                                f"department(s) have no manager "
+                                f"assigned: {names_preview}. Escalation "
+                                f"requires department managers to be set."
+                            ),
+                            "guidance": (
+                                "Assign a manager to each department "
+                                "that doesn't have one yet."
+                            ) + _admin_note(can),
+                            "steps": [
+                                "Go to Users & Access → Organization → People & Departments",
+                                "Select each department without a manager",
+                                "Set the Manager field",
+                                "Save",
+                            ] if can else [],
+                            "can_create": can,
+                            "permission_warning": _perm_warning(can),
+                        })
 
         # ── Identity directory ───────────────────────────────────────
         if llm_analysis.get("needs_identity_directory"):
