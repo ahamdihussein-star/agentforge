@@ -170,6 +170,37 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 logs.append(f"Warning: all {_total_files} files failed to read")
         # ── End source file pre-reading ────────────────────────────────
 
+        # ── Inject process data context when no files are being read ───
+        # AI steps in "custom" mode often need access to form data and
+        # previous-step outputs even when sourceFields isn't configured.
+        # Without this, the LLM receives only the prompt text and has no
+        # data to act on (e.g., "classify severity" with no dates).
+        _process_data_block = ""
+        if not _file_context_block:
+            _all_vars = state.get_all()
+            _display_vars: dict = {}
+            _internal_prefixes = ("_",)
+            for k, v in _all_vars.items():
+                if any(k.startswith(p) for p in _internal_prefixes):
+                    continue
+                if isinstance(v, (dict, list)) and len(json.dumps(v, default=str)) > 3000:
+                    continue
+                _display_vars[k] = v
+            if _display_vars:
+                try:
+                    _vars_json = json.dumps(
+                        _display_vars, indent=2, default=str, ensure_ascii=False
+                    )
+                except Exception:
+                    _vars_json = str(_display_vars)
+                _process_data_block = (
+                    "\n\n=== PROCESS DATA (information from the submitted form and previous steps) ===\n"
+                    + _vars_json
+                    + "\n=== END PROCESS DATA ==="
+                )
+                logs.append(f"Injected {len(_display_vars)} process data variables as AI context")
+        # ── End process data injection ─────────────────────────────────
+
         # Build messages
         messages = []
         
@@ -221,6 +252,10 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         # Inject file contents (from batch_files pre-read) into system context
         if _file_context_block:
             _combined_system = (_combined_system + _file_context_block) if _combined_system else _file_context_block.strip()
+
+        # Inject process data context (form + previous step data) when no files
+        if _process_data_block:
+            _combined_system = (_combined_system + _process_data_block) if _combined_system else _process_data_block.strip()
 
         if _combined_system.strip():
             messages.append({
@@ -321,12 +356,18 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 for m in messages
             ]
             
+            _chat_kwargs: dict = {}
+            _is_openai = type(self.deps.llm).__name__ == "OpenAILLM"
+            if (output_format == 'json' or output_schema) and not llm_tools and _is_openai:
+                _chat_kwargs["response_format"] = {"type": "json_object"}
+            
             response = await asyncio.wait_for(
                 self.deps.llm.chat(
                     messages=llm_messages,
                     tools=llm_tools if llm_tools else None,
                     temperature=temperature,
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
+                    **_chat_kwargs,
                 ),
                 timeout=_timeout_s
             )
