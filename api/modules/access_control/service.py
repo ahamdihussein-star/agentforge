@@ -175,8 +175,18 @@ class AccessControlService:
                         'denied_task_names': e.denied_task_names
                     }
             
+            # Always store a meta marker so "authenticated" access is never accidental.
+            # This prevents legacy defaults from granting access to users who share an email inbox.
+            meta = {
+                "__meta": {
+                    "explicit_access_type": access_type.value,
+                    "updated_by": str(updated_by),
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+            }
+            merged_desc = {**meta, **entity_config}
+            policy.description = json.dumps(merged_desc) if merged_desc else None
             if entity_config:
-                policy.description = json.dumps(entity_config)
                 print(f"✅ [ACCESS CONTROL] Saved entity task permissions: {entity_config}")
             
             session.commit()
@@ -519,9 +529,20 @@ class AccessControlService:
                     has_access = True
                     reason = None
                 elif access_policy.access_type == 'authenticated':
-                    has_access = bool(user_id)
-                    if not has_access:
+                    # Require explicit confirmation marker to avoid accidental global sharing.
+                    explicit = False
+                    try:
+                        import json as json_lib
+                        desc = json_lib.loads(access_policy.description) if access_policy.description else {}
+                        explicit = bool(isinstance(desc, dict) and isinstance(desc.get("__meta"), dict) and desc.get("__meta", {}).get("explicit_access_type") == "authenticated")
+                    except Exception:
+                        explicit = False
+
+                    has_access = bool(user_id) and explicit
+                    if not user_id:
                         reason = "Please log in to access this assistant."
+                    elif not explicit:
+                        reason = "This assistant has not been shared with your account yet. Please contact the owner to request access."
                 elif access_policy.access_type == 'specific':
                     # Check if user or their role/group has access
                     user_has_access = user_id in (access_policy.user_ids or [])
