@@ -2272,7 +2272,7 @@ class ProcessAPIService:
                 completed_nodes=result.nodes_executed,
                 checkpoint_data=checkpoint,
             )
-            if result.waiting_for == "approval" and meta and deps and deps.approval_service:
+            if result.waiting_for in ("approval", "extraction_review") and meta and deps and deps.approval_service:
                 await self._create_approval_from_meta(execution, meta, deps, result, log_prefix)
             else:
                 logger.info(

@@ -3458,6 +3458,14 @@
             const details = a?.details_to_review || a?.review_data || {};
 
             if (titleEl) titleEl.textContent = title;
+
+            const isExtractionReview = details?._review_type === 'extraction_review';
+
+            if (isExtractionReview) {
+                _renderExtractionReviewDetail(a, details, bodyEl, subEl);
+                return;
+            }
+
             if (subEl) subEl.textContent = desc || 'Review the details below and make your decision.';
 
             const reviewRows = _renderApprovalReviewRows(details);
@@ -3526,6 +3534,243 @@
                         const name = btn.getAttribute('data-upload-file-name') || '';
                         await downloadUploadedProcessFile(id, name);
                     });
+                });
+            } catch (_) {}
+        }
+
+        // =====================================================================
+        // Split-screen Extraction Review UI
+        // Renders source documents on the left and extracted data on the right
+        // with editable fields and anomaly highlighting.
+        // =====================================================================
+        let _extractionReviewData = null;
+
+        function _renderExtractionReviewDetail(approval, details, bodyEl, subEl) {
+            if (subEl) subEl.textContent = 'Review the extracted data against the source documents, then confirm.';
+
+            const sourceFiles = details._source_files || [];
+            const extractedData = details._extracted_data || {};
+            const outputFields = details._output_fields || [];
+            const stepName = details._step_name || 'AI Extraction';
+
+            _extractionReviewData = { ...extractedData };
+
+            const filesHtml = sourceFiles.length
+                ? sourceFiles.map((f, i) => {
+                    const fId = f.id || '';
+                    const fName = f.name || `File ${i + 1}`;
+                    const fType = (f.file_type || f.content_type || '').toLowerCase();
+                    const isImage = /\b(png|jpg|jpeg|gif|webp|bmp|tiff|heic|svg)\b/.test(fType);
+                    const isPdf = /pdf/.test(fType);
+                    const activeClass = i === 0 ? 'er-file-tab--active' : '';
+                    return { fId, fName, fType, isImage, isPdf, idx: i, activeClass };
+                })
+                : [];
+
+            const fileTabsHtml = filesHtml.map(f =>
+                `<button class="er-file-tab ${f.activeClass}" data-file-idx="${f.idx}" onclick="_erSwitchFile(${f.idx})">${escapeHtml(f.fName)}</button>`
+            ).join('');
+
+            const filePreviewsHtml = filesHtml.map(f => {
+                const previewUrl = f.fId ? `${API}/process/uploads/${encodeURIComponent(f.fId)}/download` : '';
+                let viewer = '';
+                if (f.isImage && previewUrl) {
+                    viewer = `<img src="${previewUrl}" alt="${escapeHtml(f.fName)}" class="er-doc-image" style="max-width:100%;border-radius:8px;" />`;
+                } else if (f.isPdf && previewUrl) {
+                    viewer = `<object data="${previewUrl}" type="application/pdf" class="er-doc-pdf"><p>PDF preview not available. <a href="${previewUrl}" target="_blank">Download</a></p></object>`;
+                } else if (previewUrl) {
+                    viewer = `<div class="er-doc-fallback">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <div style="margin-top:8px;font-weight:600;">${escapeHtml(f.fName)}</div>
+                        <button class="er-download-btn" data-upload-file-id="${escapeHtml(f.fId)}" data-upload-file-name="${escapeHtml(f.fName)}">Download File</button>
+                    </div>`;
+                }
+                return `<div class="er-file-preview" data-file-idx="${f.idx}" style="${f.idx > 0 ? 'display:none;' : ''}">${viewer}</div>`;
+            }).join('');
+
+            const fieldsToRender = outputFields.length ? outputFields : Object.keys(extractedData).map(k => ({ name: k, label: _humanizeKey(k), type: 'text' }));
+            const dataRowsHtml = fieldsToRender.map(field => {
+                const key = field.name || field;
+                const label = field.label || _humanizeKey(key);
+                const val = extractedData[key];
+                const fieldType = field.type || 'text';
+
+                if (Array.isArray(val)) {
+                    const tableHtml = _renderExtractedArray(val, key);
+                    return `<div class="er-field er-field--full" data-field-key="${escapeHtml(key)}">
+                        <div class="er-field-label">${escapeHtml(label)}</div>
+                        <div class="er-field-value er-field-value--table">${tableHtml}</div>
+                    </div>`;
+                }
+
+                const displayVal = (val === null || val === undefined) ? '' : String(val);
+                const inputType = (fieldType === 'number' || fieldType === 'currency') ? 'number' : fieldType === 'date' ? 'date' : 'text';
+                return `<div class="er-field" data-field-key="${escapeHtml(key)}">
+                    <div class="er-field-label">${escapeHtml(label)}</div>
+                    <input class="er-field-input" type="${inputType}" value="${escapeHtml(displayVal)}" data-er-key="${escapeHtml(key)}" data-er-type="${escapeHtml(fieldType)}" onchange="_erFieldChanged(this)" />
+                </div>`;
+            }).join('');
+
+            const hasAnomalies = Object.keys(extractedData).some(k =>
+                /anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && extractedData[k]
+            );
+            let anomalyHtml = '';
+            if (hasAnomalies) {
+                const anomalyKeys = Object.keys(extractedData).filter(k =>
+                    /anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && extractedData[k]
+                );
+                const items = anomalyKeys.flatMap(k => {
+                    const v = extractedData[k];
+                    if (Array.isArray(v)) return v.map(item => typeof item === 'object' ? item : { detail: String(item) });
+                    if (typeof v === 'object' && v !== null) return [v];
+                    return [{ detail: String(v) }];
+                });
+                if (items.length) {
+                    anomalyHtml = `
+                    <div class="er-anomaly-banner">
+                        <div class="er-anomaly-header">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            <span>${items.length} Anomal${items.length === 1 ? 'y' : 'ies'} Detected</span>
+                        </div>
+                        <div class="er-anomaly-list">
+                            ${items.map((item, idx) => {
+                                const sev = item.severity || item.level || '';
+                                const sevCls = /high|critical/i.test(sev) ? 'er-anomaly--critical' : /medium/i.test(sev) ? 'er-anomaly--warning' : 'er-anomaly--info';
+                                const detail = item.detail || item.details || item.description || item.anomalyType || item.type || JSON.stringify(item);
+                                return `<div class="er-anomaly-item ${sevCls}" style="animation-delay: ${idx * 0.12}s">
+                                    <span class="er-anomaly-badge">${escapeHtml(sev || 'Flag')}</span>
+                                    <span class="er-anomaly-text">${escapeHtml(typeof detail === 'string' ? detail : JSON.stringify(detail))}</span>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+                }
+            }
+
+            bodyEl.innerHTML = `
+                ${anomalyHtml}
+                <div class="er-split">
+                    <div class="er-split-left">
+                        <div class="er-panel-header">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Source Documents
+                        </div>
+                        ${sourceFiles.length > 1 ? `<div class="er-file-tabs">${fileTabsHtml}</div>` : ''}
+                        <div class="er-doc-viewer">${filePreviewsHtml || '<div style="padding:24px;color:var(--text-muted);text-align:center;">No source documents attached</div>'}</div>
+                    </div>
+                    <div class="er-split-right">
+                        <div class="er-panel-header">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                            Extracted Data — ${escapeHtml(stepName)}
+                        </div>
+                        <div class="er-fields">${dataRowsHtml}</div>
+                        <div class="er-confirm-section">
+                            <label style="font-size:0.82rem;color:var(--text-muted);font-weight:650;display:block;margin-bottom:6px;">Comments (optional)</label>
+                            <textarea id="approval-comments" class="modal-form-input" rows="2" placeholder="Add a note…" style="width:100%;box-sizing:border-box;"></textarea>
+                            <div class="er-confirm-actions">
+                                <button class="approval-btn approve" onclick="_erConfirmExtraction()">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                    Confirm Data
+                                </button>
+                                <button class="approval-btn reject" onclick="decideApproval('rejected')">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    Reject
+                                </button>
+                            </div>
+                            <div id="approval-action-status" style="margin-top:10px;color:var(--text-muted);font-size:0.85rem;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            _erBindFileDownloads(bodyEl);
+        }
+
+        function _erSwitchFile(idx) {
+            document.querySelectorAll('.er-file-tab').forEach(t => t.classList.remove('er-file-tab--active'));
+            document.querySelectorAll('.er-file-preview').forEach(p => p.style.display = 'none');
+            const tab = document.querySelector(`.er-file-tab[data-file-idx="${idx}"]`);
+            const preview = document.querySelector(`.er-file-preview[data-file-idx="${idx}"]`);
+            if (tab) tab.classList.add('er-file-tab--active');
+            if (preview) preview.style.display = '';
+        }
+
+        function _erFieldChanged(input) {
+            if (!_extractionReviewData) return;
+            const key = input.getAttribute('data-er-key');
+            const ftype = input.getAttribute('data-er-type') || 'text';
+            let val = input.value;
+            if (ftype === 'number' || ftype === 'currency') val = val ? parseFloat(val) : null;
+            else if (ftype === 'boolean') val = val === 'true';
+            _extractionReviewData[key] = val;
+            input.classList.add('er-field-input--edited');
+        }
+
+        async function _erConfirmExtraction() {
+            const id = String(selectedApprovalId || '').trim();
+            if (!id) return;
+            const statusEl = document.getElementById('approval-action-status');
+            const commentsEl = document.getElementById('approval-comments');
+            const comments = commentsEl ? String(commentsEl.value || '').trim() : '';
+            const btns = document.querySelectorAll('.approval-btn');
+            btns.forEach(b => { b.disabled = true; b.style.opacity = '0.6'; });
+
+            try {
+                if (statusEl) statusEl.textContent = 'Confirming extracted data…';
+                const res = await fetch(`${API}/process/approvals/${id}/decide`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    body: JSON.stringify({
+                        decision: 'approved',
+                        comments,
+                        decision_data: { confirmed_output: _extractionReviewData }
+                    })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const rawMsg = (data && (data.detail || data.message)) || '';
+                    throw new Error(friendlyErrorMessage(rawMsg, 'Unable to confirm. Please try again.'));
+                }
+                showToast('Data confirmed — process will continue.', 'success');
+                if (statusEl) statusEl.textContent = '';
+                _extractionReviewData = null;
+                selectedApprovalId = null;
+                await refreshInbox();
+                await refreshRequests();
+            } catch (e) {
+                console.error('_erConfirmExtraction error:', e);
+                showToast(e?.message || 'Unable to confirm. Please try again.', 'error');
+                if (statusEl) statusEl.textContent = '';
+                btns.forEach(b => { b.disabled = false; b.style.opacity = ''; });
+            }
+        }
+
+        function _renderExtractedArray(arr, key) {
+            if (!Array.isArray(arr) || !arr.length) return '<span style="color:var(--text-muted);">Empty</span>';
+            if (typeof arr[0] !== 'object') {
+                return arr.map(v => `<span class="er-tag">${escapeHtml(String(v))}</span>`).join(' ');
+            }
+            const cols = Object.keys(arr[0]).filter(k => !k.startsWith('_'));
+            return `<table class="er-table"><thead><tr>${cols.map(c => `<th>${escapeHtml(_humanizeKey(c))}</th>`).join('')}</tr></thead>
+                <tbody>${arr.map(row => `<tr>${cols.map(c => `<td>${escapeHtml(row[c] != null ? String(row[c]) : '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+        }
+
+        function _humanizeKey(k) {
+            return String(k || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^\w/, c => c.toUpperCase());
+        }
+
+        function _erBindFileDownloads(container) {
+            try {
+                container.querySelectorAll('button[data-upload-file-id], .er-download-btn[data-upload-file-id]').forEach(btn => {
+                    btn.addEventListener('click', async (ev) => {
+                        try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {}
+                        const fid = btn.getAttribute('data-upload-file-id') || '';
+                        const fname = btn.getAttribute('data-upload-file-name') || '';
+                        await downloadUploadedProcessFile(fid, fname);
+                    });
+                });
+                container.querySelectorAll('.er-doc-image').forEach(img => {
+                    img.addEventListener('load', () => img.classList.add('er-doc-image--loaded'));
                 });
             } catch (_) {}
         }

@@ -4068,6 +4068,24 @@
                             </div>
                         </div>
 
+                        <!-- Human Review Toggle -->
+                        <div class="property-group" style="background:color-mix(in srgb, var(--pb-primary) 6%, transparent);border-radius:8px;padding:10px 12px;">
+                            <label class="property-label" style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                                <span>👁️</span> Require Human Review
+                            </label>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.84rem;">
+                                    <input type="checkbox" ${node.config.humanReview ? 'checked' : ''}
+                                           style="width:16px;height:16px;accent-color:var(--pb-primary);cursor:pointer;"
+                                           onchange="updateNodeConfig('${node.id}','humanReview',this.checked)">
+                                    <span style="color:var(--pb-text);">Pause for human verification before continuing</span>
+                                </label>
+                            </div>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:4px;">
+                                When enabled, the process will pause after AI extraction and show a split-screen review: source documents on the left, extracted data on the right. The reviewer can edit values before confirming.
+                            </div>
+                        </div>
+
                         ${_aiMode !== 'extract_file' && _aiMode !== 'extract' && _aiMode !== 'batch_files' ? `
                         <!-- Output Fields (what data does the AI produce?) — skipped for extract_file (rendered inline above) -->
                         <div class="property-group">

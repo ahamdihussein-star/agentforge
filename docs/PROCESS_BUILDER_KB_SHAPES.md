@@ -246,6 +246,11 @@ For modes 4-7: use `prompt`, `instructions`, `outputFields`, `creativity`, `conf
 - The AI autonomously decides when and how to use each tool based on the task.
 - Use when the AI needs live data or must interact with external systems during its work.
 
+**Human Review (optional — any AI mode):**
+- `humanReview` (boolean): When `true`, the process pauses after the AI step completes and shows a split-screen review UI where a human verifies the extracted data against source documents before the process continues.
+- Use when accuracy is critical (financial data, legal documents, compliance) or when the process detects anomalies that need human judgment.
+- Anomaly fields (names containing "anomaly", "discrepancy", "risk", "fraud", etc.) are automatically highlighted with animated severity indicators.
+
 Note: `read_document` and `create_document` are legacy node types automatically converted to AI modes.
 
 ---

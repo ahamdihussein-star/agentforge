@@ -228,6 +228,38 @@ Variables in conditions and notifications must ALWAYS come from one of:
 - Name: lowerCamelCase (the technical key used in variable interpolation).
 - Type: most specific type that matches the data (prefer `currency` over `number` for monetary values).
 
+## Human Review (Optional)
+
+AI steps support an optional `humanReview` flag that pauses the process after extraction/analysis for human verification:
+
+```json
+{
+  "aiMode": "extract_file",
+  "sourceField": "invoices",
+  "prompt": "Extract invoice details...",
+  "humanReview": true,
+  "outputFields": [...]
+}
+```
+
+When `humanReview: true`:
+- After the AI completes extraction, the process **pauses** and creates a review task.
+- The reviewer sees a **split-screen UI**: source documents on the left, extracted data (editable) on the right.
+- If anomalies are detected (fields with names containing "anomaly", "discrepancy", "risk", "fraud", "mismatch", "warning"), they are highlighted with animated banners.
+- The reviewer can **edit** any extracted value before confirming.
+- Once confirmed, the process continues with the verified (potentially corrected) data.
+
+**When to use `humanReview`:**
+- Data extraction where accuracy is critical (financial documents, legal contracts, compliance evidence)
+- Processes that detect anomalies and need human judgment
+- Regulatory workflows requiring human verification before proceeding
+- Any step where the user asks for review, verification, or confirmation of AI output
+
+**When NOT to use:**
+- Simple classification or routing decisions
+- Auto-approved flows where speed matters
+- Steps where human review would add unnecessary delay
+
 ## Connected Tools
 
 AI steps can optionally connect to platform tools via `enabledToolIds`:

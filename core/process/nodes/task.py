@@ -529,6 +529,67 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             else:
                 variables_update[ov] = output
         
+        # ── Human Review gate ─────────────────────────────────────────
+        # If the AI step has `humanReview: true`, pause execution so a
+        # human can verify the extracted / generated data before the
+        # process continues.  This creates an approval-style record
+        # whose review_data contains both the source file references
+        # and the structured AI output, enabling a split-screen
+        # document-vs-data review UI in the portal.
+        human_review = self.get_config_value(node, 'humanReview', False)
+        if human_review and isinstance(output, dict):
+            source_file_refs = []
+            for sf_name in source_fields:
+                sf_val = state.get(sf_name)
+                if sf_val is None:
+                    continue
+                items = sf_val if isinstance(sf_val, list) else [sf_val]
+                for fi in items:
+                    if isinstance(fi, dict) and fi.get("name"):
+                        source_file_refs.append(fi)
+
+            review_payload = {
+                "_review_type": "extraction_review",
+                "_source_files": source_file_refs,
+                "_extracted_data": output,
+                "_output_variable": node.output_variable or "extractedData",
+                "_output_fields": self.get_config_value(node, 'outputFields') or [],
+                "_step_name": node.name,
+            }
+            review_payload.update(output)
+
+            logs.append(
+                f"Human review requested — pausing for verification "
+                f"({len(source_file_refs)} source file(s), "
+                f"{len(output)} extracted field(s))"
+            )
+
+            return NodeResult.waiting(
+                waiting_for="approval",
+                waiting_metadata={
+                    "node_id": node.id,
+                    "node_name": node.name,
+                    "title": f"Review: {node.name}",
+                    "description": (
+                        "Please review the AI-extracted data against the source "
+                        "documents and confirm or correct the values."
+                    ),
+                    "review_data": review_payload,
+                    "assignee_type": "any",
+                    "assignee_ids": [],
+                    "org_id": getattr(context, "org_id", None),
+                    "execution_id": getattr(context, "execution_id", None),
+                    "min_approvals": 1,
+                    "priority": "high",
+                },
+                output=output,
+                variables_update=variables_update,
+                duration_ms=duration_ms,
+                tokens_used=tokens_used,
+                logs=logs,
+            )
+        # ── End Human Review gate ─────────────────────────────────────
+
         return NodeResult.success(
             output=output,
             variables_update=variables_update,
