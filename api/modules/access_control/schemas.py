@@ -42,7 +42,7 @@ class AccessEntity(BaseModel):
 
 class AgentAccessCreate(BaseModel):
     """Create agent access policy"""
-    access_type: AccessType = AccessType.AUTHENTICATED
+    access_type: AccessType = AccessType.SPECIFIC
     entities: List[AccessEntity] = []  # Users/groups/roles with access
 
 

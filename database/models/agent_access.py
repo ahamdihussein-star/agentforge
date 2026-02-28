@@ -29,8 +29,12 @@ class AgentAccessPolicy(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text)
     
-    # Access Type: 'public', 'authenticated', 'role_based', 'user_specific', 'group_based'
-    access_type = Column(String(30), nullable=False, default='authenticated')
+    # Access Type:
+    # - 'public'         : anyone can access (no login)
+    # - 'authenticated'  : any logged-in user can access
+    # - 'specific'       : only specific users/groups/roles can access
+    # NOTE: Platform default is PRIVATE by default (specific with empty entities).
+    access_type = Column(String(30), nullable=False, default='specific')
     
     # Who has access (depending on access_type)
     role_ids = Column(JSONB, default=[])       # For role_based

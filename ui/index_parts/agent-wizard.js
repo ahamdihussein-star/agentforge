@@ -496,7 +496,7 @@
         
         // State for wizard access control
         let wizardAccessState = {
-            accessType: 'authenticated',
+            accessType: 'specific',
             selectedEntities: [],
             taskPermissions: {},
             allUsers: [],
@@ -1816,7 +1816,7 @@
                     console.log('🔵 [API] Mapped entities with denied_task_names:', JSON.stringify(mappedEntities, null, 2));
                     
                     wizard.accessControl = {
-                        accessType: data.agent_access?.access_type || 'authenticated',
+                        accessType: data.agent_access?.access_type || 'specific',
                         entities: mappedEntities,
                         _loaded: true  // ✅ Mark as loaded from API to prevent accidental overwrite
                     };
@@ -1855,7 +1855,7 @@
                 // Include denied_task_names with each entity
                 if (canSaveAccess || canSaveTaskPerms) {
                     const accessBody = {
-                        access_type: ac.accessType || 'authenticated',
+                        access_type: ac.accessType || 'specific',
                         entities: (ac.entities || []).map(e => ({
                             id: e.id,
                             type: e.type,
@@ -1896,7 +1896,7 @@
             console.log('📥 ========== LOADING ACCESS CONTROL ==========');
             console.log('📥 Raw wizard.accessControl:', JSON.stringify(ac, null, 2));
             
-            wizardAccessState.accessType = ac.accessType || 'authenticated';
+            wizardAccessState.accessType = ac.accessType || 'specific';
             
             // Load all users/groups/roles first if not already loaded
             if (wizardAccessState.allUsers.length === 0) {
@@ -2270,7 +2270,7 @@
         
         // Build HTML for user access permissions in preview - DETAILED
         function buildUserAccessPreviewHtml() {
-            const accessType = wizardAccessState.accessType || 'authenticated';
+            const accessType = wizardAccessState.accessType || 'specific';
             const selectedEntities = wizardAccessState.selectedEntities || [];
             const taskPermissions = wizardAccessState.taskPermissions || {};
             const tasks = wizard.tasks || [];
@@ -3882,7 +3882,7 @@
         let accessControlState = {
             agentId: null,
             agentName: '',
-            accessType: 'authenticated',
+            accessType: 'specific',
             entities: [],
             tasks: [],
             tools: [],
@@ -3958,7 +3958,7 @@
                     const data = await response.json();
                     
                     // Set access type
-                    accessControlState.accessType = data.agent_access?.access_type || 'authenticated';
+                    accessControlState.accessType = data.agent_access?.access_type || 'specific';
                     accessControlState.entities = data.agent_access?.entities || [];
                     accessControlState.tasks = data.task_access?.task_permissions || [];
                     accessControlState.tools = data.tool_access?.tool_permissions || [];
@@ -4240,7 +4240,7 @@
             const container = document.getElementById('access-selected-entities');
             
             if(accessControlState.entities.length === 0) {
-                container.innerHTML = '<span class="text-gray-500 text-sm italic">No specific access configured - all authenticated users have access</span>';
+                container.innerHTML = '<span class="text-gray-500 text-sm italic">No access has been granted yet. This agent is private until you add users, groups, or roles.</span>';
                 return;
             }
             
