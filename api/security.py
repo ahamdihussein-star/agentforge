@@ -1906,8 +1906,10 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
         group_ids=request.group_ids,
         manager_id=request.manager_id,
         employee_id=request.employee_id,
-        status=UserStatus.ACTIVE if not request.send_invitation else UserStatus.PENDING,
-        email_verified=not request.send_invitation,
+        # Admin-created accounts should be usable immediately.
+        # Email delivery is a convenience channel; it must not block sign-in.
+        status=UserStatus.ACTIVE,
+        email_verified=True,
         must_change_password=True,
         created_by=user.id
     )
@@ -1925,8 +1927,12 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
         traceback.print_exc()
         security_state.save_to_disk()
     
+    email_sent = False
     if request.send_invitation:
-        await EmailService.send_welcome_email(new_user, password)
+        try:
+            email_sent = bool(await EmailService.send_welcome_email(new_user, password))
+        except Exception:
+            email_sent = False
     
     security_state.add_audit_log(
         user=user,
@@ -1938,8 +1944,10 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
     
     return {
         "status": "success",
-        "user": {"id": new_user.id, "email": new_user.email},
-        "temp_password": password if not request.send_invitation else None
+        "user": {"id": new_user.id, "username": getattr(new_user, "username", None), "email": new_user.email},
+        "email_sent": email_sent if request.send_invitation else False,
+        # If email delivery fails, return temp password so admin can share it securely.
+        "temp_password": password if (not request.send_invitation or not email_sent) else None
     }
 
 @router.put("/users/{user_id}")

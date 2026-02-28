@@ -335,6 +335,9 @@ async function createUserFromModal() {
             document.getElementById('create-user-modal')?.remove();
             try { loadSecurityUsers(); loadSecurityStats(); } catch (e) { /* silent */ }
             try { await loadOrgUsers(); renderOrgPeopleTable(); renderOrgDeptSidebar(); } catch (e) { /* silent */ }
+            if (send_invitation && data && data.email_sent === false) {
+                showToast('Email could not be sent. Share the temporary password securely.', 'error');
+            }
             if (data.temp_password) {
                 const pwModal = document.createElement('div');
                 pwModal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
