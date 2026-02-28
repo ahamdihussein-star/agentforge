@@ -2087,7 +2087,9 @@ WHAT GOES IN "missing" (entity does NOT exist on the platform):
 5. "why" = a direct quote from the description proving it's needed
 
 WHAT GOES IN "misconfigured" (entity EXISTS but needs configuration):
-6. type = "department_no_manager" — department exists on platform but has "(no manager)" and the workflow needs its manager
+6. type = "department_no_manager" — ONLY when the platform state explicitly shows "(no manager)" next to the department name.
+   If the platform shows "(manager: SomeName)", that department HAS a manager and is properly configured — do NOT include it.
+   Example: "Finance (no manager)" → misconfigured. "Supply Chain (manager: Omar)" → properly configured, do NOT include.
 7. "name" = the EXACT name as it appears on the platform (not the description's wording)
 
 BOOLEAN FLAGS:
@@ -2097,10 +2099,11 @@ BOOLEAN FLAGS:
 
 CRITICAL RULES:
 11. NEVER put an entity in "missing" if it already exists on the platform
-12. NEVER invent entities not referenced in the description
-13. When in doubt, do NOT include it — false negatives are better than false positives
-14. Works for ANY domain — do not assume domain-specific entities
-15. Return empty arrays [] when nothing is missing or misconfigured"""
+12. NEVER put a department in "misconfigured" if it already has a manager (shows "manager: NAME")
+13. NEVER invent entities not referenced in the description
+14. When in doubt, do NOT include it — false negatives are better than false positives
+15. Works for ANY domain — do not assume domain-specific entities
+16. Return empty arrays [] when nothing is missing or misconfigured"""
 
     try:
         from core.llm.base import Message, MessageRole
