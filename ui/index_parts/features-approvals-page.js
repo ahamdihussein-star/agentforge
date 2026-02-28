@@ -412,7 +412,7 @@ function toggleEditUserSetPassword() {
 
 async function adminResetUserPassword(userId, useCustom) {
     try {
-        if (!(await uiConfirm('Reset this user\\'s password?', { title: 'Reset password', confirmText: 'Reset', cancelText: 'Cancel', danger: true }))) return;
+        if (!(await uiConfirm("Reset this user's password?", { title: 'Reset password', confirmText: 'Reset', cancelText: 'Cancel', danger: true }))) return;
 
         let body = {};
         if (useCustom) {
