@@ -1198,6 +1198,18 @@ async def forgot_password(request: ResetPasswordRequest):
             token = secrets.token_urlsafe(32)
             user.reset_password_token = token
             user.reset_password_expires = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+        # Persist tokens (DB first, disk fallback)
+        try:
+            from database.services import UserService
+            for user in users:
+                try:
+                    UserService.save_user(user)
+                except Exception:
+                    # fall back to disk save below
+                    pass
+        except Exception:
+            pass
+
         security_state.save_to_disk()
         for user in users:
             await EmailService.send_password_reset_email(user, user.reset_password_token)
@@ -1229,15 +1241,47 @@ async def reset_password(request: ConfirmResetPasswordRequest):
         raise HTTPException(status_code=400, detail={"message": "Password does not meet requirements", "errors": errors})
     
     # Update password
+    old_hash = getattr(user, "password_hash", None)
     user.password_hash = PasswordService.hash_password(request.new_password)
     user.password_changed_at = datetime.utcnow().isoformat()
+    # User already chose a new password via email reset; do not force an additional change.
+    user.must_change_password = False
     user.reset_password_token = None
     user.reset_password_expires = None
     user.failed_login_attempts = 0
     if user.status == UserStatus.LOCKED:
         user.status = UserStatus.ACTIVE
+
+    # Invalidate all sessions for safety
+    for session in security_state.sessions.values():
+        if session.user_id == user.id:
+            session.is_active = False
+
+    security_state.users[user.id] = user
+
+    # Save to database (fallback to disk)
+    try:
+        from database.services import UserService
+        UserService.save_user(user)
+    except Exception as e:
+        print(f"⚠️  [RESET PASSWORD] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
     
     security_state.save_to_disk()
+
+    # Audit log (best effort)
+    try:
+        security_state.add_audit_log(
+            user=user,
+            action=ActionType.PASSWORD_CHANGE,
+            resource_type=ResourceType.USER,
+            resource_id=user.id,
+            resource_name=user.email,
+            details={"reason": "reset_token", "had_previous_password": bool(old_hash)},
+        )
+    except Exception:
+        pass
     
     return {"status": "success"}
 
