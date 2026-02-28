@@ -141,6 +141,11 @@ class CreateUserRequest(BaseModel):
     email: EmailStr
     first_name: str
     last_name: str
+    display_name: Optional[str] = None
+    phone: Optional[str] = None
+    job_title: Optional[str] = None
+    employee_id: Optional[str] = None
+    manager_id: Optional[str] = None
     password: Optional[str] = None
     role_ids: List[str] = ["role_user"]
     department_id: Optional[str] = None
@@ -1839,11 +1844,16 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
         password_hash=PasswordService.hash_password(password),
         profile=UserProfile(
             first_name=request.first_name,
-            last_name=request.last_name
+            last_name=request.last_name,
+            display_name=request.display_name,
+            phone=request.phone,
+            job_title=request.job_title,
         ),
         role_ids=request.role_ids,
         department_id=request.department_id,
         group_ids=request.group_ids,
+        manager_id=request.manager_id,
+        employee_id=request.employee_id,
         status=UserStatus.ACTIVE if not request.send_invitation else UserStatus.PENDING,
         email_verified=not request.send_invitation,
         must_change_password=True,

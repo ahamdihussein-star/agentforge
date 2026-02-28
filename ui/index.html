@@ -1133,7 +1133,10 @@
                             <h2 class="text-2xl font-bold">🔐 Security Center</h2>
                             <p class="text-gray-400 text-sm">Manage users, roles, and security settings</p>
                         </div>
-                        <button id="invite-user-btn" data-permission="users:invite" onclick="showInviteModal()" class="btn-primary px-4 py-2 rounded-lg">+ Invite User</button>
+                        <div class="flex gap-2">
+                            <button id="create-user-btn" data-permission="users:edit" onclick="showCreateUserModal()" class="btn-secondary px-4 py-2 rounded-lg">+ Create User</button>
+                            <button id="invite-user-btn" data-permission="users:invite" onclick="showInviteModal()" class="btn-primary px-4 py-2 rounded-lg">+ Invite User</button>
+                        </div>
                     </div>
 
                     <!-- Stats Cards -->
@@ -1327,13 +1330,14 @@
                                                     <tr>
                                                         <th class="text-left p-3 text-sm">Name</th>
                                                         <th class="text-left p-3 text-sm">Employee ID</th>
+                                                        <th class="text-left p-3 text-sm">Title</th>
                                                         <th class="text-left p-3 text-sm">Department</th>
                                                         <th class="text-left p-3 text-sm">Direct Manager</th>
                                                         <th class="text-left p-3 text-sm" style="width:80px;"></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="org-manager-table">
-                                                    <tr><td colspan="5" class="p-8 text-center text-gray-500">Loading...</td></tr>
+                                                    <tr><td colspan="6" class="p-8 text-center text-gray-500">Loading...</td></tr>
                                                 </tbody>
                                             </table>
                                         </div>
@@ -1422,6 +1426,21 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Job Titles (suggestion library) -->
+                            <div class="mt-8">
+                                <h3 class="text-lg font-semibold mb-1">Job Titles</h3>
+                                <p class="text-sm text-gray-400 mb-4">Optional suggestion list for job titles. People can still type any title they need.</p>
+                                <div class="card rounded-xl p-6 space-y-3 max-w-3xl">
+                                    <div class="text-xs text-gray-500">One title per line. Examples: Director, Senior Analyst, Junior Engineer.</div>
+                                    <textarea id="org-job-titles" class="w-full input-field rounded-lg px-4 py-2 text-sm h-40" placeholder="Director&#10;Senior Analyst&#10;Junior Engineer"></textarea>
+                                    <div class="flex justify-end gap-2">
+                                        <button onclick="loadOrgJobTitles()" class="btn-secondary px-4 py-2 rounded-lg">Reload</button>
+                                        <button onclick="saveOrgJobTitles()" class="btn-primary px-6 py-2 rounded-lg">Save Titles</button>
+                                    </div>
+                                    <div class="text-[11px] text-gray-500">Used in the Identity Directory and as safe picker options in workflows.</div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Create/Edit Department Modal -->
@@ -1482,6 +1501,11 @@
                                         <select id="mgr-dept-select" class="w-full input-field rounded-lg px-4 py-2">
                                             <option value="">-- None --</option>
                                         </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Job Title</label>
+                                        <input type="text" id="mgr-job-title" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Director, Senior Analyst" list="mgr-job-title-list">
+                                        <datalist id="mgr-job-title-list"></datalist>
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium mb-2">Employee ID</label>

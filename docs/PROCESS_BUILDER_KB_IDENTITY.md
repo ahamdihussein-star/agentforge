@@ -83,6 +83,11 @@ Available prefill keys: `name`, `email`, `firstName`, `lastName`, `phone`, `depa
 `jobTitle`, `employeeId`, `managerId`, `managerName`, `managerEmail`, `roles`, `groups`, `orgId`,
 and any custom attribute the organization has configured.
 
+### Job Titles / Positions (Enterprise-friendly)
+- People store their free-text title in `job_title` (exposed as `jobTitle` in workflow pickers).
+- Organizations may also configure an **optional suggestion list** of job titles (e.g., Director, Senior Analyst).
+  - This list is used by the Identity Directory UI and exposed as safe picker options in the Process Builder.
+
 ## Approval Routing — Dynamic Resolution
 
 When a workflow needs someone's approval, use `assignee_source: "user_directory"` with the
@@ -136,7 +141,7 @@ Notification nodes support **magic recipient shortcuts** that the engine resolve
 | `"dept_members:<department_id>"` | Resolves to ALL members of a SPECIFIC department (by ID) |
 | `"group:<group_id>"` | Resolves to ALL members of a specific group/team (by ID) |
 | `"role:<role_id>"` | Resolves to ALL users assigned a specific role (by ID) |
-| `"skip_level_2"` / `"skip_level_3"` | Resolves to Nth-level manager (manager's manager, etc.) |
+| `"skip_level_N"` | Resolves to the Nth-level manager in the management chain (e.g., `skip_level_2` = manager’s manager). |
 | A UUID string | Resolves the user ID to their email via user directory |
 | An email address (contains @) | Sent directly as-is |
 

@@ -126,7 +126,7 @@ Config (`notification.config`):
   - `"manager"` — The requester's direct manager (PREFERRED for manager notifications).
   - `"department_head"` — The requester's department head (department manager).
   - `"department_members"` — Everyone in the requester's department.
-  - `"skip_level_2"` / `"skip_level_3"` — Higher management levels (manager’s manager, etc.).
+  - `"skip_level_N"` — Higher management levels (e.g., `skip_level_2` = manager’s manager).
   - `"dept_manager:<department_id>"` — Manager of a SPECIFIC department (use actual dept ID from the org structure).
   - `"dept_members:<department_id>"` — All members of a SPECIFIC department.
   - `"group:<group_id>"` — All members of a specific group/team (use actual group ID from the org structure).

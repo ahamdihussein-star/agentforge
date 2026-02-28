@@ -158,6 +158,190 @@ async function deleteSecurityUser(userId) {
     }
 }
 
+// Create user (direct creation, not invite-only)
+async function showCreateUserModal(preset) {
+    preset = preset || {};
+    try { await Promise.all([loadOrgDepartments(), loadOrgUsers(), loadGroups(), loadOrgJobTitles()]); } catch (e) { /* silent */ }
+
+    const roles = Array.isArray(securityRoles) ? securityRoles : [];
+    const groups = Array.isArray(allGroups) ? allGroups : [];
+    const depts = Array.isArray(orgDepartments) ? orgDepartments : [];
+    const users = Array.isArray(orgUsersCache) ? orgUsersCache : [];
+
+    const defaultRoleId = roles.find(r => String(r.id) === 'role_user')?.id || roles.find(r => (r.name || '').toLowerCase() === 'user')?.id || 'role_user';
+    const jobTitleOptions = (orgJobTitles || []).map(t => `<option value="${escHtml(t)}"></option>`).join('');
+
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
+    modal.id = 'create-user-modal';
+    modal.innerHTML = `
+        <div class="modal-content-box rounded-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                <h3 class="font-bold text-lg">➕ Create User</h3>
+                <button onclick="document.getElementById('create-user-modal').remove()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
+            </div>
+            <div class="p-6 space-y-4 overflow-y-auto" style="max-height: calc(90vh - 140px);">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">First Name *</label>
+                        <input type="text" id="cu-first" class="w-full input-field rounded-lg px-4 py-2" placeholder="First name">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Last Name *</label>
+                        <input type="text" id="cu-last" class="w-full input-field rounded-lg px-4 py-2" placeholder="Last name">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Email *</label>
+                        <input type="email" id="cu-email" class="w-full input-field rounded-lg px-4 py-2" placeholder="user@company.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Employee ID</label>
+                        <input type="text" id="cu-emp" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., EMP-001">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Job Title</label>
+                        <input type="text" id="cu-title" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Senior Analyst" list="cu-job-titles">
+                        <datalist id="cu-job-titles">${jobTitleOptions}</datalist>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Phone (optional)</label>
+                        <input type="text" id="cu-phone" class="w-full input-field rounded-lg px-4 py-2" placeholder="+1 555 000 0000">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Department</label>
+                        <select id="cu-dept" class="w-full input-field rounded-lg px-4 py-2">
+                            <option value="">— No Department —</option>
+                            ${depts.map(d => `<option value="${d.id}" ${preset.department_id === d.id ? 'selected' : ''}>${escHtml(d.name || '')}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Direct Manager</label>
+                        <select id="cu-mgr" class="w-full input-field rounded-lg px-4 py-2">
+                            <option value="">— No Manager —</option>
+                            ${users.map(u => `<option value="${u.id}" ${preset.manager_id === u.id ? 'selected' : ''}>${escHtml(u.name || u.email)}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Roles</label>
+                        <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-700 p-2 space-y-1 bg-gray-900/30">
+                            ${roles.map(r => `
+                                <label class="flex items-center gap-2 p-2 rounded hover:bg-gray-800 cursor-pointer text-sm">
+                                    <input type="checkbox" class="cu-role accent-purple-500" value="${escHtml(r.id)}" ${String(r.id) === String(defaultRoleId) ? 'checked' : ''}>
+                                    <span>${escHtml(r.name || r.id)}</span>
+                                </label>
+                            `).join('') || '<div class="text-sm text-gray-500 p-2">No roles available.</div>'}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Groups</label>
+                        <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-700 p-2 space-y-1 bg-gray-900/30">
+                            ${groups.map(g => `
+                                <label class="flex items-center gap-2 p-2 rounded hover:bg-gray-800 cursor-pointer text-sm">
+                                    <input type="checkbox" class="cu-group accent-purple-500" value="${escHtml(g.id)}">
+                                    <span>${escHtml(g.name || g.id)}</span>
+                                </label>
+                            `).join('') || '<div class="text-sm text-gray-500 p-2">No groups yet.</div>'}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card rounded-xl p-4 bg-gray-900/30 border border-gray-800/60">
+                    <div class="flex items-start gap-3">
+                        <input type="checkbox" id="cu-invite" class="accent-purple-500 w-5 h-5 mt-0.5" checked onchange="document.getElementById('cu-pass-wrap').classList.toggle('hidden', this.checked)">
+                        <div class="min-w-0">
+                            <div class="font-medium">Send sign-in email</div>
+                            <div class="text-xs text-gray-500">When enabled, the user gets an email to start. When disabled, you\u2019ll receive a temporary password to share securely.</div>
+                        </div>
+                    </div>
+                    <div id="cu-pass-wrap" class="hidden mt-3">
+                        <label class="block text-sm font-medium mb-2">Temporary Password (optional)</label>
+                        <input type="text" id="cu-pass" class="w-full input-field rounded-lg px-4 py-2" placeholder="Leave empty to auto-generate">
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
+                <button onclick="document.getElementById('create-user-modal').remove()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
+                <button onclick="createUserFromModal()" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700">Create</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function createUserFromModal() {
+    const email = (document.getElementById('cu-email')?.value || '').trim();
+    const first_name = (document.getElementById('cu-first')?.value || '').trim();
+    const last_name = (document.getElementById('cu-last')?.value || '').trim();
+    const employee_id = (document.getElementById('cu-emp')?.value || '').trim() || null;
+    const job_title = (document.getElementById('cu-title')?.value || '').trim() || null;
+    const phone = (document.getElementById('cu-phone')?.value || '').trim() || null;
+    const department_id = document.getElementById('cu-dept')?.value || null;
+    const manager_id = document.getElementById('cu-mgr')?.value || null;
+    const send_invitation = !!document.getElementById('cu-invite')?.checked;
+    const password = !send_invitation ? ((document.getElementById('cu-pass')?.value || '').trim() || null) : null;
+    const role_ids = Array.from(document.querySelectorAll('.cu-role:checked')).map(el => el.value).filter(Boolean);
+    const group_ids = Array.from(document.querySelectorAll('.cu-group:checked')).map(el => el.value).filter(Boolean);
+
+    if (!email || !first_name || !last_name) {
+        showToast('Please fill in name and email', 'error');
+        return;
+    }
+    if (role_ids.length === 0) role_ids.push('role_user');
+
+    try {
+        const res = await fetch('/api/security/users', {
+            method: 'POST',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email, first_name, last_name,
+                phone, job_title, employee_id, manager_id,
+                department_id, role_ids, group_ids,
+                send_invitation,
+                password
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            showToast('User created successfully', 'success');
+            document.getElementById('create-user-modal')?.remove();
+            try { loadSecurityUsers(); loadSecurityStats(); } catch (e) { /* silent */ }
+            try { await loadOrgUsers(); renderOrgPeopleTable(); renderOrgDeptSidebar(); } catch (e) { /* silent */ }
+            if (data.temp_password) {
+                const pwModal = document.createElement('div');
+                pwModal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
+                pwModal.id = 'temp-password-modal';
+                pwModal.innerHTML = `
+                    <div class="card rounded-xl p-6 w-full max-w-md">
+                        <h3 class="text-lg font-bold mb-2">Temporary Password</h3>
+                        <p class="text-sm text-gray-400 mb-3">Share this password securely with the user. They will be asked to change it on first sign-in.</p>
+                        <div class="flex gap-2 items-center">
+                            <input id="temp-password-value" class="flex-1 input-field rounded-lg px-3 py-2" readonly value="${escHtml(data.temp_password)}">
+                            <button class="btn-secondary px-4 py-2 rounded-lg" onclick="navigator.clipboard.writeText(document.getElementById('temp-password-value').value); showToast('Copied', 'success');">Copy</button>
+                        </div>
+                        <div class="flex justify-end mt-4">
+                            <button class="btn-primary px-5 py-2 rounded-lg" onclick="document.getElementById('temp-password-modal').remove()">Done</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(pwModal);
+            }
+        } else {
+            showToast(data.detail || 'Failed to create user', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
 // ============================================================
 // GROUP MANAGEMENT
 // ============================================================
@@ -567,9 +751,10 @@ async function updateGroup(id) {
 // ============================================================
 let orgDepartments = [];
 let orgUsersCache = [];
+let orgJobTitles = [];
 
 async function loadOrgTab() {
-    await Promise.all([loadOrgDepartments(), loadOrgUsers()]);
+    await Promise.all([loadOrgDepartments(), loadOrgUsers(), loadOrgJobTitles()]);
     renderOrgDeptSidebar();
     renderOrgPeopleTable();
 }
@@ -588,7 +773,7 @@ function switchOrgSubTab(sub) {
     });
     if (sub === 'people') { renderOrgDeptSidebar(); renderOrgPeopleTable(); }
     if (sub === 'orgchart') renderOrgChart();
-    if (sub === 'settings') { loadDirectoryConfig(); loadOrgProfileFieldsSchema(); }
+    if (sub === 'settings') { loadDirectoryConfig(); loadOrgProfileFieldsSchema(); loadOrgJobTitles(); }
 }
 
 // --- Profile Fields (Global Schema) ---
@@ -736,6 +921,65 @@ async function saveOrgProfileFieldsSchema() {
         } else {
             const data = await res.json().catch(() => ({}));
             showToast(data.detail || 'Failed to save', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+// --- Job Titles (Org-scoped suggestion library) ---
+async function loadOrgJobTitles() {
+    try {
+        const res = await fetch('/api/identity/job-titles', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            orgJobTitles = Array.isArray(data?.titles) ? data.titles : [];
+        } else {
+            orgJobTitles = [];
+        }
+    } catch (e) {
+        orgJobTitles = [];
+    }
+    // Settings textarea (if present)
+    const ta = document.getElementById('org-job-titles');
+    if (ta) ta.value = (orgJobTitles || []).join('\n');
+    _renderJobTitleDatalists();
+}
+
+function _renderJobTitleDatalists() {
+    try {
+        const list = document.getElementById('mgr-job-title-list');
+        if (list) {
+            list.innerHTML = (orgJobTitles || []).map(t => `<option value="${escHtml(t)}"></option>`).join('');
+        }
+    } catch (e) { /* silent */ }
+}
+
+async function saveOrgJobTitles() {
+    const ta = document.getElementById('org-job-titles');
+    const raw = (ta?.value || '').split(/\r?\n/g).map(s => (s || '').trim()).filter(Boolean);
+    const cleaned = [];
+    const seen = new Set();
+    raw.forEach(t => {
+        const k = t.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        cleaned.push(t);
+    });
+    try {
+        const res = await fetch('/api/identity/job-titles', {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ titles: cleaned })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            orgJobTitles = Array.isArray(data?.titles) ? data.titles : cleaned;
+            if (ta) ta.value = (orgJobTitles || []).join('\n');
+            _renderJobTitleDatalists();
+            showToast('Job titles saved!', 'success');
+        } else {
+            showToast(data.detail || 'Failed to save job titles', 'error');
         }
     } catch (e) {
         showToast('Error: ' + e.message, 'error');
@@ -967,7 +1211,7 @@ function renderOrgPeopleTable() {
         );
     }
     if (!users.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-500">${_selectedDeptId ? 'No members in this department' : 'No users found'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">${_selectedDeptId ? 'No members in this department' : 'No users found'}</td></tr>`;
         return;
     }
     tbody.innerHTML = users.map(u => {
@@ -985,6 +1229,7 @@ function renderOrgPeopleTable() {
                 </div>
             </td>
             <td class="p-3 text-sm">${u.employee_id ? `<span class="px-2 py-0.5 bg-gray-700 rounded text-xs">${escHtml(u.employee_id)}</span>` : '<span class="text-gray-500 text-xs">—</span>'}</td>
+            <td class="p-3 text-sm">${u.job_title ? `<span class="text-xs text-gray-200">${escHtml(u.job_title)}</span>` : '<span class="text-gray-500 text-xs">—</span>'}</td>
             <td class="p-3 text-sm">${dept ? `<span class="text-purple-400 text-xs cursor-pointer" onclick="selectOrgDept('${dept.id}')">${escHtml(dept.name)}</span>` : '<span class="text-gray-500 text-xs">—</span>'}</td>
             <td class="p-3 text-sm">${mgr ? `<span class="text-blue-400 text-xs">${escHtml(mgr.name)}</span>` : '<span class="text-gray-500 text-xs">Not assigned</span>'}</td>
             <td class="p-3">
@@ -1001,6 +1246,9 @@ function openManagerModal(userId) {
     document.getElementById('mgr-user-id').value = userId;
     document.getElementById('mgr-user-name').textContent = user.name || user.email;
     document.getElementById('mgr-employee-id').value = user.employee_id || '';
+    const jtEl = document.getElementById('mgr-job-title');
+    if (jtEl) jtEl.value = user.job_title || '';
+    _renderJobTitleDatalists();
     const deptSelect = document.getElementById('mgr-dept-select');
     if (deptSelect) {
         deptSelect.innerHTML = '<option value="">— No Department —</option>' +
@@ -1027,6 +1275,7 @@ async function saveManagerAssignment() {
     const managerId = document.getElementById('mgr-select').value || null;
     const employeeId = document.getElementById('mgr-employee-id').value.trim() || null;
     const departmentId = document.getElementById('mgr-dept-select')?.value || null;
+    const jobTitle = (document.getElementById('mgr-job-title')?.value || '').trim() || null;
     try {
         // Save manager
         const mgrRes = await fetch(`/api/identity/users/${userId}/manager`, {
@@ -1048,6 +1297,12 @@ async function saveManagerAssignment() {
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ department_id: departmentId })
         });
+        // Save job title (security user profile)
+        await fetch(`/api/security/users/${userId}`, {
+            method: 'PUT',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_title: jobTitle })
+        });
         if (mgrRes.ok) {
             showToast('Saved successfully', 'success');
             const idx = orgUsersCache.findIndex(u => u.id === userId);
@@ -1055,6 +1310,7 @@ async function saveManagerAssignment() {
                 orgUsersCache[idx].manager_id = managerId;
                 orgUsersCache[idx].employee_id = employeeId;
                 orgUsersCache[idx].department_id = departmentId;
+                orgUsersCache[idx].job_title = jobTitle || '';
             }
             renderOrgPeopleTable();
             renderOrgDeptSidebar();
@@ -1068,73 +1324,403 @@ async function saveManagerAssignment() {
 }
 
 // --- Org Chart ---
+let _ocView = { panX: 0, panY: 0, scale: 1 };
+let _ocDraft = {}; // user_id -> {manager_id, department_id, job_title, employee_id}
+let _ocDrag = { active: false, user_id: null, pointerId: null, startX: 0, startY: 0, ghost: null, overEl: null };
+
 function renderOrgChart() {
     const container = document.getElementById('org-chart-tree');
     if (!container) return;
-    // Build hierarchy from users with managers
-    const roots = orgUsersCache.filter(u => !u.manager_id);
-    if (roots.length === 0 && orgUsersCache.length === 0) {
+
+    if (!Array.isArray(orgUsersCache) || orgUsersCache.length === 0) {
         container.innerHTML = `
-            <div class="text-center py-8">
-                <div class="text-4xl mb-3">🌳</div>
-                <p class="text-gray-400">No users found. Add users and assign managers to see the org chart.</p>
+            <div class="text-center py-10">
+                <div class="text-5xl mb-3">🏛️</div>
+                <p class="text-gray-300 font-medium">No people found yet</p>
+                <p class="text-gray-500 text-sm mt-1">Create users and connect reporting lines to build your organization chart.</p>
+                <button class="btn-primary px-5 py-2 rounded-lg mt-4" onclick="showCreateUserModal()">+ Create User</button>
             </div>`;
         return;
     }
-    function buildTree(parentId) {
-        const children = orgUsersCache.filter(u => u.manager_id === parentId);
-        if (!children.length) return '';
-        return `<ul class="org-tree-list">${children.map(c => {
-            const dept = c.department_id ? orgDepartments.find(d => d.id === c.department_id) : null;
-            const childHtml = buildTree(c.id);
-            return `<li class="org-tree-item">
-                <div class="org-tree-node card rounded-lg p-3 inline-block mb-2" style="min-width:180px">
-                    <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center font-bold text-white text-xs">${(c.name||c.email)[0].toUpperCase()}</div>
-                        <div>
-                            <div class="font-medium text-sm">${escHtml(c.name)}</div>
-                            <div class="text-xs text-gray-400">${c.job_title ? escHtml(c.job_title) : (dept ? escHtml(dept.name) : '')}</div>
-                        </div>
+
+    const depts = Array.isArray(orgDepartments) ? orgDepartments : [];
+    const draftCount = Object.keys(_ocDraft || {}).length;
+    const canSave = draftCount > 0;
+
+    container.innerHTML = `
+        <div class="oc-shell">
+            <div class="oc-toolbar">
+                <div class="oc-toolbar-left">
+                    <div class="oc-title">Organization Chart Builder</div>
+                    <div class="oc-hint">Drag a person onto another to set their manager. Drop onto a department to move them. Double-click a card to edit details.</div>
+                </div>
+                <div class="oc-toolbar-right">
+                    <input id="oc-search" class="input-field oc-search" placeholder="Search people..." oninput="_ocRender()">
+                    <button class="btn-secondary oc-btn" onclick="_ocResetView()">Reset view</button>
+                    <button class="btn-secondary oc-btn" onclick="_ocDiscardDraft()" ${canSave ? '' : 'disabled'}>Discard</button>
+                    <button class="btn-primary oc-btn" onclick="_ocSaveDraft()" ${canSave ? '' : 'disabled'}>Save changes${draftCount ? ` (${draftCount})` : ''}</button>
+                </div>
+            </div>
+            <div class="oc-body">
+                <div class="oc-side">
+                    <div class="oc-drop-top oc-dropzone" data-drop="top">Drop here to make top-level</div>
+                    <div class="oc-side-head">
+                        <div class="oc-side-title">Departments</div>
+                        <button class="text-purple-400 hover:text-purple-300 text-xs font-medium" onclick="showCreateDepartmentModal()">+ New</button>
+                    </div>
+                    <div class="oc-dept-list">
+                        ${depts.map(d => `
+                            <div class="oc-dept-drop" data-dept-id="${escHtml(d.id)}">
+                                <div class="oc-dept-name">${escHtml(d.name || 'Department')}</div>
+                                <div class="oc-dept-meta">${(orgUsersCache || []).filter(u => u.department_id === d.id).length} member(s)</div>
+                            </div>
+                        `).join('') || `<div class="text-xs text-gray-500">No departments yet</div>`}
+                    </div>
+                    <div class="oc-side-footer">
+                        <button class="btn-secondary w-full px-3 py-2 rounded-lg" onclick="showCreateUserModal()">+ Create User</button>
                     </div>
                 </div>
-                ${childHtml}
-            </li>`;
-        }).join('')}</ul>`;
-    }
-    let html = '<div class="org-chart-container overflow-x-auto">';
-    // Render top-level users (no manager)
-    html += '<ul class="org-tree-list">';
-    roots.forEach(r => {
-        const dept = r.department_id ? orgDepartments.find(d => d.id === r.department_id) : null;
-        const childHtml = buildTree(r.id);
-        html += `<li class="org-tree-item">
-            <div class="org-tree-node org-tree-root card rounded-lg p-3 inline-block mb-2 border-purple-500/50" style="min-width:200px">
-                <div class="flex items-center gap-2">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center font-bold text-white text-sm">${(r.name||r.email)[0].toUpperCase()}</div>
-                    <div>
-                        <div class="font-semibold">${escHtml(r.name)}</div>
-                        <div class="text-xs text-gray-400">${r.job_title ? escHtml(r.job_title) : (dept ? escHtml(dept.name) : 'Top Level')}</div>
+                <div class="oc-viewport" id="oc-viewport">
+                    <div class="oc-world" id="oc-world">
+                        <svg class="oc-lines" id="oc-lines"></svg>
+                        <div class="oc-nodes" id="oc-nodes"></div>
                     </div>
                 </div>
             </div>
-            ${childHtml}
-        </li>`;
-    });
-    // Users with no manager and who are not roots (orphans - assigned to a manager that doesn't exist)
-    const orphans = orgUsersCache.filter(u => u.manager_id && !orgUsersCache.find(m => m.id === u.manager_id));
-    if (orphans.length) {
-        html += `<li class="org-tree-item"><div class="text-gray-500 text-sm mb-2">Unlinked Users</div><ul class="org-tree-list">${
-            orphans.map(o => `<li class="org-tree-item"><div class="org-tree-node card rounded-lg p-3 inline-block mb-2 opacity-60" style="min-width:160px">
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-xs">${(o.name||o.email)[0].toUpperCase()}</div>
-                    <div class="text-sm">${escHtml(o.name)}</div>
-                </div>
-            </div></li>`).join('')
-        }</ul></li>`;
-    }
-    html += '</ul></div>';
-    container.innerHTML = html;
+        </div>
+    `;
+
+    _ocBindViewport();
+    _ocRender();
 }
+
+function _ocEffectiveUser(u) {
+    const d = (_ocDraft || {})[u.id];
+    if (!d) return u;
+    return {
+        ...u,
+        manager_id: (d.manager_id !== undefined) ? d.manager_id : u.manager_id,
+        department_id: (d.department_id !== undefined) ? d.department_id : u.department_id,
+        employee_id: (d.employee_id !== undefined) ? d.employee_id : u.employee_id,
+        job_title: (d.job_title !== undefined) ? d.job_title : u.job_title,
+    };
+}
+
+function _ocBuildGraph(users) {
+    const byId = {};
+    users.forEach(u => { byId[u.id] = u; });
+    const children = {};
+    users.forEach(u => {
+        const mid = u.manager_id || null;
+        if (mid) {
+            if (!children[mid]) children[mid] = [];
+            children[mid].push(u.id);
+        }
+    });
+    const roots = users
+        .filter(u => !u.manager_id || !byId[u.manager_id])
+        .map(u => u.id);
+    return { byId, children, roots };
+}
+
+function _ocLayoutTree(graph) {
+    const nodeW = 220, gapX = 34, levelH = 120, nodeH = 78;
+    const sizes = {};
+
+    function measure(uid, depth, seen) {
+        if (seen.has(uid)) return 1;
+        seen.add(uid);
+        const kids = graph.children[uid] || [];
+        if (kids.length === 0 || depth >= 10) { sizes[uid] = 1; return 1; }
+        let sum = 0;
+        kids.forEach(k => { sum += measure(k, depth + 1, seen); });
+        sizes[uid] = Math.max(1, sum);
+        return sizes[uid];
+    }
+
+    const seen = new Set();
+    graph.roots.forEach(r => measure(r, 0, seen));
+
+    const pos = {};
+    function place(uid, xStart, depth) {
+        const sw = sizes[uid] || 1;
+        const kids = graph.children[uid] || [];
+        let cur = xStart;
+        kids.forEach(k => {
+            const kw = sizes[k] || 1;
+            place(k, cur, depth + 1);
+            cur += kw;
+        });
+        pos[uid] = {
+            x: (xStart + sw / 2),
+            y: depth,
+            px: Math.round((xStart + sw / 2 - 0.5) * (nodeW + gapX)),
+            py: depth * levelH
+        };
+    }
+    let cursor = 0;
+    graph.roots.forEach(r => {
+        const w = sizes[r] || 1;
+        place(r, cursor, 0);
+        cursor += w;
+    });
+
+    const totalUnits = Math.max(1, cursor);
+    const worldW = totalUnits * (nodeW + gapX);
+    const maxDepth = Math.max(0, ...Object.values(pos).map(p => p.y || 0));
+    const worldH = (maxDepth + 1) * levelH + nodeH + 80;
+    return { pos, worldW, worldH, nodeW, nodeH };
+}
+
+function _ocRender() {
+    const viewport = document.getElementById('oc-viewport');
+    const world = document.getElementById('oc-world');
+    const nodesEl = document.getElementById('oc-nodes');
+    const linesEl = document.getElementById('oc-lines');
+    if (!viewport || !world || !nodesEl || !linesEl) return;
+
+    const q = (document.getElementById('oc-search')?.value || '').toLowerCase().trim();
+    const effective = (orgUsersCache || []).map(_ocEffectiveUser);
+    const filteredIds = q ? new Set(effective.filter(u => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q) || (u.job_title || '').toLowerCase().includes(q)).map(u => u.id)) : null;
+
+    const graph = _ocBuildGraph(effective);
+    const layout = _ocLayoutTree(graph);
+
+    world.style.width = layout.worldW + 'px';
+    world.style.height = layout.worldH + 'px';
+    world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+
+    // Nodes
+    nodesEl.innerHTML = effective.map(u => {
+        if (filteredIds && !filteredIds.has(u.id)) return '';
+        const p = layout.pos[u.id];
+        if (!p) return '';
+        const dept = u.department_id ? (orgDepartments || []).find(d => d.id === u.department_id) : null;
+        const subtitle = (u.job_title || (dept ? dept.name : '') || '').trim();
+        const badge = (_ocDraft && _ocDraft[u.id]) ? `<span class="oc-badge">Edited</span>` : '';
+        return `
+            <div class="oc-node" data-user-id="${escHtml(u.id)}" style="left:${p.px}px;top:${p.py}px;">
+                <div class="oc-node-card card">
+                    <div class="oc-node-top">
+                        <div class="oc-avatar">${escHtml((u.name || u.email || '?')[0].toUpperCase())}</div>
+                        <div class="oc-node-text">
+                            <div class="oc-node-name">${escHtml(u.name || u.email)}</div>
+                            <div class="oc-node-sub">${subtitle ? escHtml(subtitle) : '<span class="oc-muted">No title</span>'}</div>
+                        </div>
+                        ${badge}
+                    </div>
+                    <div class="oc-node-actions">
+                        <button class="oc-link" onclick="openManagerModal('${escHtml(u.id)}')">Edit</button>
+                        <button class="oc-link" onclick="showCreateUserModal({ manager_id: '${escHtml(u.id)}', department_id: '${escHtml(u.department_id || '')}' })">+ Report</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Lines (only between visible nodes)
+    const nodeVisible = (uid) => {
+        if (!filteredIds) return true;
+        return filteredIds.has(uid);
+    };
+    let lines = '';
+    effective.forEach(u => {
+        const kids = graph.children[u.id] || [];
+        kids.forEach(cid => {
+            if (!nodeVisible(u.id) || !nodeVisible(cid)) return;
+            const a = layout.pos[u.id];
+            const b = layout.pos[cid];
+            if (!a || !b) return;
+            const x1 = a.px + layout.nodeW / 2;
+            const y1 = a.py + layout.nodeH;
+            const x2 = b.px + layout.nodeW / 2;
+            const y2 = b.py;
+            lines += `<path class="oc-line" d="M ${x1} ${y1} C ${x1} ${y1 + 30}, ${x2} ${y2 - 30}, ${x2} ${y2}" />`;
+        });
+    });
+    linesEl.setAttribute('width', layout.worldW);
+    linesEl.setAttribute('height', layout.worldH);
+    linesEl.setAttribute('viewBox', `0 0 ${layout.worldW} ${layout.worldH}`);
+    linesEl.innerHTML = lines;
+
+    _ocBindNodeDragging();
+}
+
+function _ocBindViewport() {
+    const vp = document.getElementById('oc-viewport');
+    if (!vp) return;
+    if (vp.dataset.bound === '1') return;
+    vp.dataset.bound = '1';
+
+    // Pan with background drag
+    let panning = false;
+    let panStartX = 0, panStartY = 0, panBaseX = 0, panBaseY = 0;
+    vp.addEventListener('pointerdown', (e) => {
+        if (e.target && e.target.closest && e.target.closest('.oc-node')) return;
+        panning = true;
+        panStartX = e.clientX; panStartY = e.clientY;
+        panBaseX = _ocView.panX; panBaseY = _ocView.panY;
+        vp.setPointerCapture(e.pointerId);
+    });
+    vp.addEventListener('pointermove', (e) => {
+        if (!panning) return;
+        _ocView.panX = panBaseX + (e.clientX - panStartX);
+        _ocView.panY = panBaseY + (e.clientY - panStartY);
+        const world = document.getElementById('oc-world');
+        if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+    });
+    vp.addEventListener('pointerup', () => { panning = false; });
+    vp.addEventListener('pointercancel', () => { panning = false; });
+
+    // Zoom
+    vp.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = Math.sign(e.deltaY);
+        const next = Math.max(0.4, Math.min(1.6, _ocView.scale + (delta > 0 ? -0.08 : 0.08)));
+        _ocView.scale = next;
+        const world = document.getElementById('oc-world');
+        if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+    }, { passive: false });
+}
+
+function _ocBindNodeDragging() {
+    const nodesEl = document.getElementById('oc-nodes');
+    if (!nodesEl) return;
+    if (nodesEl.dataset.bound === '1') return;
+    nodesEl.dataset.bound = '1';
+
+    nodesEl.addEventListener('dblclick', (e) => {
+        const node = e.target?.closest?.('.oc-node');
+        if (!node) return;
+        const uid = node.dataset.userId;
+        if (uid) openManagerModal(uid);
+    });
+
+    nodesEl.addEventListener('pointerdown', (e) => {
+        const node = e.target?.closest?.('.oc-node');
+        if (!node) return;
+        const uid = node.dataset.userId;
+        if (!uid) return;
+        _ocDrag.active = true;
+        _ocDrag.user_id = uid;
+        _ocDrag.pointerId = e.pointerId;
+        _ocDrag.startX = e.clientX;
+        _ocDrag.startY = e.clientY;
+
+        const ghost = document.createElement('div');
+        ghost.className = 'oc-ghost';
+        ghost.textContent = 'Moving…';
+        document.body.appendChild(ghost);
+        _ocDrag.ghost = ghost;
+        ghost.style.left = (e.clientX + 12) + 'px';
+        ghost.style.top = (e.clientY + 12) + 'px';
+        try { node.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        e.preventDefault();
+    });
+
+    nodesEl.addEventListener('pointermove', (e) => {
+        if (!_ocDrag.active) return;
+        if (_ocDrag.pointerId !== e.pointerId) return;
+        if (_ocDrag.ghost) {
+            _ocDrag.ghost.style.left = (e.clientX + 12) + 'px';
+            _ocDrag.ghost.style.top = (e.clientY + 12) + 'px';
+        }
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const overNode = el?.closest?.('.oc-node');
+        const overDept = el?.closest?.('.oc-dept-drop');
+        const overTop = el?.closest?.('.oc-drop-top');
+        const nextOver = overNode || overDept || overTop;
+        if (_ocDrag.overEl && _ocDrag.overEl !== nextOver) _ocDrag.overEl.classList.remove('oc-over');
+        _ocDrag.overEl = nextOver;
+        if (_ocDrag.overEl) _ocDrag.overEl.classList.add('oc-over');
+    });
+
+    const finish = async (e) => {
+        if (!_ocDrag.active) return;
+        const uid = _ocDrag.user_id;
+        const over = _ocDrag.overEl;
+        if (over) over.classList.remove('oc-over');
+        if (_ocDrag.ghost) _ocDrag.ghost.remove();
+
+        _ocDrag.active = false;
+        _ocDrag.user_id = null;
+        _ocDrag.pointerId = null;
+        _ocDrag.ghost = null;
+        _ocDrag.overEl = null;
+
+        if (!uid) return;
+        if (!over) return;
+
+        if (over.classList.contains('oc-node')) {
+            const targetId = over.dataset.userId;
+            if (targetId && targetId !== uid) {
+                _ocStage(uid, { manager_id: targetId });
+                showToast('Reporting line staged', 'success');
+            }
+        } else if (over.classList.contains('oc-dept-drop')) {
+            const deptId = over.dataset.deptId;
+            _ocStage(uid, { department_id: deptId || null });
+            showToast('Department change staged', 'success');
+        } else if (over.classList.contains('oc-drop-top')) {
+            _ocStage(uid, { manager_id: null });
+            showToast('Set as top-level (staged)', 'success');
+        }
+    };
+
+    nodesEl.addEventListener('pointerup', finish);
+    nodesEl.addEventListener('pointercancel', finish);
+}
+
+function _ocStage(userId, patch) {
+    if (!_ocDraft) _ocDraft = {};
+    if (!_ocDraft[userId]) _ocDraft[userId] = {};
+    _ocDraft[userId] = { ..._ocDraft[userId], ...patch };
+    // Remove empty patches
+    const cur = _ocDraft[userId];
+    const isEmpty = cur && Object.keys(cur).every(k => cur[k] === undefined);
+    if (isEmpty) delete _ocDraft[userId];
+    // Update toolbar buttons by re-rendering shell (simple + safe)
+    renderOrgChart();
+}
+
+function _ocDiscardDraft() {
+    _ocDraft = {};
+    renderOrgChart();
+}
+window._ocDiscardDraft = _ocDiscardDraft;
+
+async function _ocSaveDraft() {
+    const updates = Object.entries(_ocDraft || {}).map(([user_id, patch]) => ({ user_id, ...patch }));
+    if (updates.length === 0) return;
+    try {
+        const res = await fetch('/api/identity/org-chart/bulk-update', {
+            method: 'POST',
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ updates })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            showToast(`Saved: ${data.success_count || updates.length} change(s)`, 'success');
+            // Refresh people cache from API (source of truth for UI tables)
+            await loadOrgUsers();
+            _ocDraft = {};
+            renderOrgChart();
+            renderOrgPeopleTable();
+            renderOrgDeptSidebar();
+        } else {
+            showToast(data.detail || 'Failed to save changes', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+window._ocSaveDraft = _ocSaveDraft;
+
+function _ocResetView() {
+    _ocView = { panX: 0, panY: 0, scale: 1 };
+    _ocRender();
+}
+window._ocResetView = _ocResetView;
 
 // --- Directory Config ---
 async function loadDirectoryConfig() {

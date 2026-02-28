@@ -764,13 +764,20 @@ async def get_builder_context(user: User = Depends(require_auth)):
         field["group"] = _group_map.get(field.get("key", ""), "profile")
         standard_grouped.append(field)
 
-    chain_levels = []
+    chain_levels: List[Dict[str, Any]] = []
     if caps.get("has_managers"):
-        chain_levels = [
-            {"level": 1, "label": "Direct Manager", "ref": "manager"},
-            {"level": 2, "label": "Manager\u2019s Manager", "ref": "skip_level_2"},
-            {"level": 3, "label": "Senior Management (Level 3)", "ref": "skip_level_3"},
-        ]
+        # Provide a richer set of "skip level" shortcuts for notifications and previews.
+        # Runtime resolution supports "skip_level_N" for any N>=1.
+        chain_levels = [{"level": 1, "label": "Direct Manager", "ref": "manager"}]
+        max_levels = 10
+        for lvl in range(2, max_levels + 1):
+            if lvl == 2:
+                label = "Manager\u2019s Manager"
+            elif lvl == 3:
+                label = "Senior Management (Level 3)"
+            else:
+                label = f"Higher Management (Level {lvl})"
+            chain_levels.append({"level": lvl, "label": label, "ref": f"skip_level_{lvl}"})
 
     departments: List[Dict[str, Any]] = []
     try:
@@ -793,10 +800,14 @@ async def get_builder_context(user: User = Depends(require_auth)):
     group_names: List[str] = []
     groups: List[Dict[str, Any]] = []
     roles: List[Dict[str, Any]] = []
+    job_titles: List[str] = []
     try:
         from database.base import get_session
         from database.models.role import Role
         from database.models.user_group import UserGroup
+        from database.models.organization import Organization
+        from database.models.user import User as DBUser
+        import json as _json
         with get_session() as session:
             _roles = session.query(Role).filter(Role.org_id == ctx["org_id"]).order_by(Role.name.asc()).all()
             role_names = [r.name for r in _roles if getattr(r, "name", None)]
@@ -804,6 +815,59 @@ async def get_builder_context(user: User = Depends(require_auth)):
             _groups = session.query(UserGroup).filter(UserGroup.org_id == ctx["org_id"]).order_by(UserGroup.name.asc()).all()
             group_names = [g.name for g in _groups if getattr(g, "name", None)]
             groups = [{"id": str(g.id), "name": g.name} for g in _groups if getattr(g, "name", None)]
+
+            # Org-scoped job title library (optional). Used as suggestions in the directory UI
+            # and as safe picker options in the Process Builder.
+            org = session.query(Organization).filter(Organization.id == ctx["org_id"]).first()
+            settings_raw = (org.settings or {}) if org else {}
+            if isinstance(settings_raw, str):
+                try:
+                    settings_raw = _json.loads(settings_raw) if settings_raw.strip() else {}
+                except Exception:
+                    settings_raw = {}
+            settings = settings_raw if isinstance(settings_raw, dict) else {}
+            raw_titles = settings.get("job_titles") or []
+            if isinstance(raw_titles, list):
+                cleaned = []
+                seen = set()
+                for t in raw_titles:
+                    if not isinstance(t, str):
+                        continue
+                    tt = t.strip()
+                    if not tt:
+                        continue
+                    k = tt.lower()
+                    if k in seen:
+                        continue
+                    seen.add(k)
+                    cleaned.append(tt)
+                    if len(cleaned) >= 250:
+                        break
+                job_titles = cleaned
+
+            # If no library is configured, derive a small suggestion set from existing users.
+            if not job_titles:
+                rows = session.query(DBUser.job_title).filter(
+                    DBUser.org_id == ctx["org_id"],
+                    DBUser.status == "active",
+                    DBUser.job_title.isnot(None),
+                ).limit(500).all()
+                derived = []
+                seen_d = set()
+                for (jt,) in rows:
+                    if not isinstance(jt, str):
+                        continue
+                    tt = jt.strip()
+                    if not tt:
+                        continue
+                    kk = tt.lower()
+                    if kk in seen_d:
+                        continue
+                    seen_d.add(kk)
+                    derived.append(tt)
+                    if len(derived) >= 80:
+                        break
+                job_titles = derived
     except Exception:
         role_names = role_names or []
         group_names = group_names or []
@@ -815,6 +879,9 @@ async def get_builder_context(user: User = Depends(require_auth)):
         if k == "departmentName" and dept_names:
             sf["options"] = dept_names
             sf["type"] = sf.get("type") or "select"
+        elif k in ("jobTitle", "job_title") and job_titles:
+            # Suggestions only — workflows may still accept free text.
+            sf["options"] = job_titles
         elif k == "roles" and role_names:
             sf["options"] = role_names
         elif k == "groups" and group_names:
@@ -835,4 +902,112 @@ async def get_builder_context(user: User = Depends(require_auth)):
         "departments": departments,
         "groups": groups,
         "roles": roles,
+        "job_titles": job_titles,
     }
+
+
+# ============================================================================
+# ORG-SCOPED JOB TITLES (Suggestion Library)
+# ============================================================================
+
+@router.get("/job-titles")
+async def get_job_titles(user: User = Depends(require_admin)):
+    """Get the org-scoped job title suggestion list."""
+    from database.base import get_session
+    from database.models.organization import Organization
+    import json
+
+    ctx = _extract_user_context(user)
+    with get_session() as session:
+        org = session.query(Organization).filter(Organization.id == ctx["org_id"]).first()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        settings_raw = org.settings or {}
+        if isinstance(settings_raw, str):
+            try:
+                settings_raw = json.loads(settings_raw) if settings_raw.strip() else {}
+            except Exception:
+                settings_raw = {}
+        settings = settings_raw if isinstance(settings_raw, dict) else {}
+        titles = settings.get("job_titles") or []
+        if not isinstance(titles, list):
+            titles = []
+        cleaned: List[str] = []
+        seen = set()
+        for t in titles:
+            if not isinstance(t, str):
+                continue
+            tt = t.strip()
+            if not tt:
+                continue
+            k = tt.lower()
+            if k in seen:
+                continue
+            seen.add(k)
+            cleaned.append(tt)
+            if len(cleaned) >= 250:
+                break
+        return {"titles": cleaned}
+
+
+@router.put("/job-titles")
+async def update_job_titles(body: Dict[str, Any], user: User = Depends(require_admin)):
+    """
+    Replace the org-scoped job title suggestion list.
+
+    Body: { "titles": ["Director", "Senior Analyst", ...] }
+    """
+    from database.base import get_session
+    from database.models.organization import Organization
+    import json
+
+    ctx = _extract_user_context(user)
+    raw = body.get("titles") if isinstance(body, dict) else []
+    if raw is None:
+        raw = []
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="Invalid payload. 'titles' must be an array.")
+
+    cleaned: List[str] = []
+    seen = set()
+    for t in raw:
+        if not isinstance(t, str):
+            continue
+        tt = t.strip()
+        if not tt:
+            continue
+        k = tt.lower()
+        if k in seen:
+            continue
+        seen.add(k)
+        cleaned.append(tt)
+        if len(cleaned) >= 250:
+            break
+
+    with get_session() as session:
+        org = session.query(Organization).filter(Organization.id == ctx["org_id"]).first()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        settings_raw = org.settings or {}
+        if isinstance(settings_raw, str):
+            try:
+                settings_raw = json.loads(settings_raw) if settings_raw.strip() else {}
+            except Exception:
+                settings_raw = {}
+        old_settings = settings_raw if isinstance(settings_raw, dict) else {}
+        new_settings = {**old_settings, "job_titles": cleaned}
+        org.settings = new_settings
+        org.updated_at = datetime.utcnow()
+        session.commit()
+
+    # Keep in-memory security cache in sync to prevent later overwrites.
+    try:
+        cached_org = security_state.organizations.get(ctx["org_id"])
+        if cached_org:
+            cached_settings = cached_org.settings if isinstance(getattr(cached_org, "settings", None), dict) else {}
+            cached_settings["job_titles"] = cleaned
+            cached_org.settings = cached_settings
+    except Exception:
+        pass
+
+    return {"titles": cleaned}

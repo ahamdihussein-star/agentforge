@@ -2821,8 +2821,8 @@ def _validate_process_prerequisites(
                         "can_create": can,
                     })
 
-            # "manager" or "department_head" recipients require identity data
-            if recipient in ("manager", "department_head", "skip_level_2", "skip_level_3"):
+            # "manager" / "department_head" / skip-level recipients require identity data
+            if recipient in ("manager", "department_head") or recipient.startswith("skip_level_"):
                 _needs_identity = True
 
         # ────────────────────────────────────────────────────────────

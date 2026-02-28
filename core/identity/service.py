@@ -747,6 +747,33 @@ class UserDirectoryService:
                     errors.append({"user_id": user_id, "error": str(e)})
             
             session.commit()
+
+        # Keep in-memory security cache in sync so subsequent admin UI reads
+        # (which rely on security_state) reflect bulk imports immediately.
+        try:
+            from core.security.state import security_state
+            for update in (updates or []):
+                uid = update.get("user_id")
+                if not uid:
+                    continue
+                cached = security_state.users.get(str(uid))
+                if not cached or getattr(cached, "org_id", None) != org_id:
+                    continue
+                if "manager_id" in update:
+                    setattr(cached, "manager_id", str(update.get("manager_id")) if update.get("manager_id") else None)
+                if "employee_id" in update:
+                    setattr(cached, "employee_id", update.get("employee_id"))
+                if "department_id" in update:
+                    setattr(cached, "department_id", str(update.get("department_id")) if update.get("department_id") else None)
+                if "job_title" in update:
+                    try:
+                        if hasattr(cached, "profile") and cached.profile:
+                            cached.profile.job_title = update.get("job_title")
+                    except Exception:
+                        pass
+        except Exception:
+            # Never fail bulk update due to cache sync issues
+            pass
         
         logger.info(f"Bulk org chart update: {success_count} success, {error_count} errors")
         return {
