@@ -2012,10 +2012,15 @@ async def _analyze_goal_prerequisites(
     tools = context.get("tools") or context.get("available_tools") or []
     identity_ctx = context.get("identity_context") or {}
 
+    def _dept_label(d: dict) -> str:
+        name = d.get("name", "?")
+        if d.get("has_manager"):
+            mgr = d.get("manager_name") or "assigned"
+            return f"{name} (manager: {mgr})"
+        return f"{name} (no manager)"
+
     dept_info = ", ".join(
-        f"{d.get('name', '?')}"
-        + (f" (manager: {d['manager_name']})" if d.get("manager_name") else " (no manager)")
-        for d in departments
+        _dept_label(d) for d in departments
     ) if departments else "None created yet"
     group_info = ", ".join(g.get("name", "?") for g in groups) if groups else "None created yet"
     role_info = ", ".join(r.get("name", "?") for r in roles) if roles else "None created yet"
@@ -3280,9 +3285,18 @@ async def generate_workflow_from_goal(
                 "member_count": _member_counts.get(str(d.id), 0),
             }
             if d.manager_id:
-                _mgr = db.query(DBUser).filter(DBUser.id == d.manager_id).first()
-                if _mgr:
-                    entry["manager_name"] = _mgr.display_name or f"{_mgr.first_name or ''} {_mgr.last_name or ''}".strip()
+                try:
+                    _mgr = db.query(DBUser).filter(DBUser.id == d.manager_id).first()
+                    if _mgr:
+                        _mname = (
+                            _mgr.display_name
+                            or f"{_mgr.first_name or ''} {_mgr.last_name or ''}".strip()
+                        )
+                        entry["manager_name"] = _mname or "assigned"
+                    else:
+                        entry["manager_name"] = "assigned"
+                except Exception:
+                    entry["manager_name"] = "assigned"
             _dept_list.append(entry)
         context["departments"] = _dept_list
 
