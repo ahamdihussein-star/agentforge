@@ -2057,11 +2057,11 @@ CURRENTLY AVAILABLE ON THE PLATFORM:
 WORKFLOW DESCRIPTION:
 "{goal}"
 
-COMPARE SEMANTICALLY — NOT literally. These are the SAME entity:
-- "Supply Chain team" on the platform = "supply chain team" in description
-- "HR" = "Human Resources"
-- "Accounts Payable Team" = "AP team"
-- "QA" = "Quality Assurance"
+COMPARE SEMANTICALLY — NOT literally. Examples of equivalent names:
+- "Marketing team" on the platform = "marketing team" in description (same entity)
+- "HR" = "Human Resources" (abbreviation)
+- "Dev team" = "Development team" (shortened name)
+- "QA" = "Quality Assurance" (abbreviation)
 If an entity ALREADY EXISTS on the platform (even with a slightly different name or extra words like "team", "department", "group"), it is NOT missing.
 
 Return this JSON:
@@ -2089,7 +2089,7 @@ WHAT GOES IN "missing" (entity does NOT exist on the platform):
 WHAT GOES IN "misconfigured" (entity EXISTS but needs configuration):
 6. type = "department_no_manager" — ONLY when the platform state explicitly shows "(no manager)" next to the department name.
    If the platform shows "(manager: SomeName)", that department HAS a manager and is properly configured — do NOT include it.
-   Example: "Finance (no manager)" → misconfigured. "Supply Chain (manager: Omar)" → properly configured, do NOT include.
+   Example: "Sales (no manager)" → misconfigured. "Marketing (manager: Jane)" → properly configured, do NOT include.
 7. "name" = the EXACT name as it appears on the platform (not the description's wording)
 
 BOOLEAN FLAGS:
