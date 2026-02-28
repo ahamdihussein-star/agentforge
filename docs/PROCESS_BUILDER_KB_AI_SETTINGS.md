@@ -210,11 +210,14 @@ All downstream steps (conditions, notifications, approvals) MUST reference AI ou
 **Wrong:**
 - Condition field: `severity` ← This does NOT resolve to the AI output
 - Notification: `{{severity}}` ← Empty at runtime because no form field named "severity" exists
+- Condition field: `classificationResult.severity` when the AI node has `output_variable: "classifySeverity"` ← **Mismatched prefix** breaks the UI dropdown
 
 Variables in conditions and notifications must ALWAYS come from one of:
 1. A form/trigger input field name (direct, e.g., `{{supplierName}}`)
 2. An AI step's `output_variable.fieldName` (dot-notation, e.g., `{{classificationResult.severity}}`)
 3. A user context path (e.g., `{{trigger_input._user_context.display_name}}`)
+
+**Variable Name Consistency (CRITICAL):** The `output_variable` name you choose for an AI node is the EXACT prefix that must appear in all downstream references. Never invent a different prefix. If the AI node has `output_variable: "classifySeverity"`, use `classifySeverity.severity` everywhere — not `classificationResult.severity`. A mismatch causes the condition to show as "Enter manually" instead of the user-friendly dropdown.
 
 ### When Generating outputFields
 

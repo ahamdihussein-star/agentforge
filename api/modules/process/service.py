@@ -3104,18 +3104,27 @@ class ProcessAPIService:
         _known_dot_paths: set = {v for v in _known_output_vars if "." in v}
 
         def _crossref_condition_field(_fld_val, _nid, _n_name, _tc_ref):
-            """Try to resolve a condition field to a known output variable. Returns resolved field or original."""
+            """Try to resolve a condition field to a known output variable.
+
+            Handles bare names, upstream output_variable prefixing, AND
+            mismatched dot-paths (LLM used wrong output_variable name).
+            """
             if not _fld_val or _fld_val in _known_output_vars:
                 return _fld_val
             _fl = _fld_val.lower()
-            for _dp in _known_dot_paths:
-                _leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
-                if _leaf.lower() == _fl:
-                    logger.info("ServiceNorm cross-ref: condition '%s' field '%s' → dot-path '%s'", _n_name, _fld_val, _dp)
-                    _old_expr = str(_tc_ref.get("expression") or "").strip()
-                    if _old_expr and ("{{" + _fld_val + "}}") in _old_expr:
-                        _tc_ref["expression"] = _old_expr.replace("{{" + _fld_val + "}}", "{{" + _dp + "}}")
-                    return _dp
+
+            # Strategy 1: Bare name matches a dot-path leaf
+            if "." not in _fld_val:
+                for _dp in _known_dot_paths:
+                    _leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
+                    if _leaf.lower() == _fl:
+                        logger.info("ServiceNorm cross-ref: condition '%s' field '%s' → dot-path '%s'", _n_name, _fld_val, _dp)
+                        _old_expr = str(_tc_ref.get("expression") or "").strip()
+                        if _old_expr and ("{{" + _fld_val + "}}") in _old_expr:
+                            _tc_ref["expression"] = _old_expr.replace("{{" + _fld_val + "}}", "{{" + _dp + "}}")
+                        return _dp
+
+            # Strategy 2: Upstream node's output_variable + field
             _incoming_ids = [e.get("source") or e.get("from") for e in (data.get("edges") or []) if (e.get("target") or e.get("to")) == _nid]
             for _src_id in _incoming_ids:
                 _src = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
@@ -3131,6 +3140,19 @@ class ProcessAPIService:
                     if _old_expr and ("{{" + _fld_val + "}}") in _old_expr:
                         _tc_ref["expression"] = _old_expr.replace("{{" + _fld_val + "}}", "{{" + _candidate + "}}")
                     return _candidate
+
+            # Strategy 3: Mismatched dot-path — extract leaf, find correct path
+            if "." in _fld_val:
+                _leaf_name = _fld_val.rsplit(".", 1)[1].lower()
+                for _dp in _known_dot_paths:
+                    _dp_leaf = _dp.rsplit(".", 1)[1].lower() if "." in _dp else _dp.lower()
+                    if _dp_leaf == _leaf_name:
+                        logger.info("ServiceNorm cross-ref: condition '%s' mismatched dot-path '%s' → '%s'", _n_name, _fld_val, _dp)
+                        _old_expr = str(_tc_ref.get("expression") or "").strip()
+                        if _old_expr and ("{{" + _fld_val + "}}") in _old_expr:
+                            _tc_ref["expression"] = _old_expr.replace("{{" + _fld_val + "}}", "{{" + _dp + "}}")
+                        return _dp
+
             return _fld_val
 
         for _n in normalized_nodes:
@@ -3155,10 +3177,12 @@ class ProcessAPIService:
                     _tc["field"] = _crossref_condition_field(_fld, _nid, _n_name, _tc)
 
         # -------------------------------------------------------------------
-        # VARIABLE WIRING: Fix bare {{field}} references in notification and
-        # approval templates to use {{outputVar.field}} dot-notation.
+        # VARIABLE WIRING: Fix bare/mismatched {{ref}} in notification and
+        # approval templates. Handles bare {{field}}, mismatched dot-paths
+        # {{wrongOutput.field}}, and maps them to correct {{output.field}}.
         # -------------------------------------------------------------------
         _svc_ai_field_map: dict = {}
+        _svc_ai_leaf_map: dict = {}
         for _n in normalized_nodes:
             _ov = str(_n.get("output_variable") or "").strip()
             if not _ov:
@@ -3167,19 +3191,40 @@ class ProcessAPIService:
             for _of in _tc.get("outputFields") or []:
                 _ofn = str(_of.get("name") or "").strip()
                 if _ofn:
-                    _svc_ai_field_map[_ofn] = f"{_ov}.{_ofn}"
+                    _correct = f"{_ov}.{_ofn}"
+                    _svc_ai_field_map[_ofn] = _correct
+                    _svc_ai_leaf_map[_ofn.lower()] = _correct
 
         if _svc_ai_field_map:
-            _svc_bare_re = re.compile(r"\{\{\s*([A-Za-z_]\w*)\s*\}\}")
+            _svc_ref_re = re.compile(r"\{\{\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\}\}")
             _svc_form_fields = _known_output_vars - _known_dot_paths
+
+            def _svc_resolve_ref(ref: str) -> str:
+                if ref in _known_output_vars:
+                    return ref
+                if "." not in ref:
+                    if ref in _svc_ai_field_map and ref not in _svc_form_fields:
+                        return _svc_ai_field_map[ref]
+                    return ref
+                _leaf = ref.rsplit(".", 1)[1].lower()
+                if _leaf in _svc_ai_leaf_map:
+                    correct = _svc_ai_leaf_map[_leaf]
+                    if correct != ref:
+                        return correct
+                for _dp in _known_dot_paths:
+                    _dp_leaf = _dp.rsplit(".", 1)[1].lower() if "." in _dp else _dp.lower()
+                    if _dp_leaf == _leaf:
+                        return _dp
+                return ref
 
             def _svc_fix_refs(text: str) -> str:
                 def _repl(m):
-                    vn = m.group(1)
-                    if vn in _svc_ai_field_map and vn not in _svc_form_fields:
-                        return "{{" + _svc_ai_field_map[vn] + "}}"
+                    ref = m.group(1)
+                    resolved = _svc_resolve_ref(ref)
+                    if resolved != ref:
+                        return "{{" + resolved + "}}"
                     return m.group(0)
-                return _svc_bare_re.sub(_repl, text)
+                return _svc_ref_re.sub(_repl, text)
 
             for _n in normalized_nodes:
                 _ntype = _n.get("type")

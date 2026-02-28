@@ -374,6 +374,8 @@ Config (`tool.config`):
 
 **CRITICAL RULE:** Every variable in a condition or notification MUST come from one of the sources above. AI output fields MUST always use dot-notation (`{{outputVar.fieldName}}`), never bare field names (`{{fieldName}}`). Using bare names for AI outputs will result in empty values at runtime.
 
+**CONSISTENCY RULE:** The `output_variable` name assigned to an AI node is the EXACT prefix used in ALL downstream references. Never invent a different prefix — a mismatch (e.g., `classificationResult.severity` when the AI node has `output_variable: "classifySeverity"`) causes the condition UI to fall back to "Enter manually" instead of the user-friendly dropdown, which is unacceptable for business users.
+
 ## Deprecated Shapes (backward compatibility only)
 
 These shapes are NOT available in the palette but old processes using them will still load and execute:

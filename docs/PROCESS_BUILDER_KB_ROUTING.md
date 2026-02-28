@@ -181,6 +181,12 @@ Every variable used in the process must come from a real data source — never h
 - Notifications MUST reference specific scalar fields, never raw objects/arrays.
 - Every condition field and notification template variable MUST resolve to an actual upstream step output or form input.
 
+**Variable Name Consistency (CRITICAL):**
+- The `output_variable` you assign to an AI node is the EXACT prefix used in ALL downstream references.
+- If the AI node has `output_variable: "classifySeverity"`, then EVERY downstream condition and notification MUST use `classifySeverity.severity` — NEVER a different prefix like `classificationResult.severity` or `severityResult.severity`.
+- A single-character mismatch causes the UI to show the condition as "Enter manually" instead of the user-friendly dropdown, which is unacceptable for non-technical users.
+- RULE: Pick ONE `output_variable` name per AI node and use it IDENTICALLY everywhere in the workflow.
+
 ## End Node — ABSOLUTE RULE
 
 - Exactly ONE end node per process.

@@ -610,6 +610,14 @@ HOW TO WIRE CORRECTLY:
   4. In ALL downstream notifications/approvals, use: {{{{classificationResult.severity}}}}
   5. For form fields (from the trigger/form step), use the field name directly: {{{{supplierName}}}}
 
+VARIABLE NAME CONSISTENCY (CRITICAL — MISMATCHES BREAK THE UI):
+  The output_variable you assign to an AI node is the EXACT prefix used everywhere downstream.
+  If you name the AI node's output_variable "classifySeverity", you MUST use "classifySeverity.severity"
+  in ALL conditions and templates — NEVER invent a different prefix like "classificationResult.severity"
+  or "severityResult.severity". A single character mismatch causes the UI to show the condition as
+  manual entry instead of the user-friendly dropdown, which is unacceptable for non-technical users.
+  RULE: Pick ONE output_variable name per AI node and use it IDENTICALLY everywhere.
+
 This ensures every variable reference resolves to real data at runtime. Unresolved references produce empty values.
 === END VARIABLE WIRING RULES ===
 
@@ -2027,74 +2035,91 @@ class ProcessWizard:
             return False
 
         # Cross-reference condition nodes: ensure 'field' resolves to a known upstream output.
+        def _crossref_resolve(field: str, node_id: str, node_name: str) -> str:
+            """Try multiple strategies to resolve an unrecognized field reference."""
+            if not field or _is_known_path(field):
+                return field
+            fl = field.lower()
+
+            # Strategy 1: Bare name matches a dot-path's leaf
+            if "." not in field:
+                for _dp in _known_dot_paths:
+                    _leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
+                    if _leaf.lower() == fl:
+                        logger.info("Cross-ref fix: condition '%s' field '%s' → dot-path '%s'", node_name, field, _dp)
+                        return _dp
+
+            # Strategy 2: Case-insensitive match in known vars
+            for _kv in _known_vars:
+                if _kv.lower() == fl:
+                    return _kv
+
+            # Strategy 3: Upstream node's output_variable + field
+            _incoming = [e.get("from") for e in normalized_edges if e.get("to") == node_id]
+            for _src_id in _incoming:
+                _src_node = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
+                if not _src_node:
+                    continue
+                _src_ov = str(_src_node.get("output_variable") or "").strip()
+                if not _src_ov:
+                    continue
+                _candidate = f"{_src_ov}.{field}"
+                if _candidate in _known_dot_paths or _is_known_path(_candidate):
+                    logger.info("Cross-ref fix: condition '%s' field '%s' → '%s' (upstream '%s')", node_name, field, _candidate, _src_node.get("name", _src_id))
+                    return _candidate
+
+            # Strategy 4: Mismatched dot-path — extract leaf, find correct path
+            if "." in field:
+                _leaf_name = field.rsplit(".", 1)[1].lower()
+                for _dp in _known_dot_paths:
+                    _dp_leaf = _dp.rsplit(".", 1)[1].lower() if "." in _dp else _dp.lower()
+                    if _dp_leaf == _leaf_name:
+                        logger.info("Cross-ref fix: condition '%s' mismatched dot-path '%s' → '%s'", node_name, field, _dp)
+                        return _dp
+
+            return field
+
         for _n in normalized_nodes:
             if _n.get("type") != "condition":
                 continue
             _ccfg = _n.get("config") or {}
             if not isinstance(_ccfg, dict):
                 continue
+            _nid = _n.get("id", "")
+            _nname = _n.get("name", _nid)
+
+            # Fix top-level field
             _field = str(_ccfg.get("field") or "").strip()
-            if not _field or _is_known_path(_field):
-                continue
-
-            # Field not found in registry — try matching strategies
-            _fixed = False
-            _fl = _field.lower()
-
-            # Strategy 1: Check if any dot-path ends with this field name
-            # e.g., field "totalAmount" → matches "extractedData.totalAmount"
-            for _dp in _known_dot_paths:
-                _leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
-                if _leaf.lower() == _fl:
-                    logger.info(
-                        "Cross-ref fix: condition '%s' field '%s' → dot-path '%s'",
-                        _n.get("name", _n.get("id")), _field, _dp,
-                    )
-                    _ccfg["field"] = _dp
+            if _field:
+                _resolved = _crossref_resolve(_field, _nid, _nname)
+                if _resolved != _field:
+                    _ccfg["field"] = _resolved
                     _old_expr = str(_ccfg.get("expression") or "").strip()
                     if _old_expr and ("{{" + _field + "}}") in _old_expr:
-                        _ccfg["expression"] = _old_expr.replace("{{" + _field + "}}", "{{" + _dp + "}}")
-                    _fixed = True
-                    break
+                        _ccfg["expression"] = _old_expr.replace("{{" + _field + "}}", "{{" + _resolved + "}}")
 
-            # Strategy 2: Case-insensitive search in known vars
-            if not _fixed:
-                for _kv in _known_vars:
-                    if _kv.lower() == _fl:
-                        _ccfg["field"] = _kv
-                        _fixed = True
-                        break
-
-            # Strategy 3: Upstream node's output_variable + field as sub-path
-            if not _fixed:
-                _incoming = [e.get("from") for e in normalized_edges if e.get("to") == _n.get("id")]
-                for _src_id in _incoming:
-                    _src_node = next((nd for nd in normalized_nodes if nd.get("id") == _src_id), None)
-                    if not _src_node:
-                        continue
-                    _src_ov = str(_src_node.get("output_variable") or "").strip()
-                    if not _src_ov:
-                        continue
-                    _candidate = f"{_src_ov}.{_field}"
-                    if _candidate in _known_dot_paths or _is_known_path(_candidate):
-                        _ccfg["field"] = _candidate
-                        _old_expr = str(_ccfg.get("expression") or "").strip()
-                        if _old_expr and ("{{" + _field + "}}") in _old_expr:
-                            _ccfg["expression"] = _old_expr.replace("{{" + _field + "}}", "{{" + _candidate + "}}")
-                        _fixed = True
-                        logger.info(
-                            "Cross-ref fix: condition '%s' field '%s' → '%s' (upstream '%s')",
-                            _n.get("name", _n.get("id")), _field, _candidate, _src_node.get("name", _src_id),
-                        )
-                        break
+            # Fix rules (these drive the UI dropdown selection)
+            for _rule in _ccfg.get("rules") or []:
+                if not isinstance(_rule, dict):
+                    continue
+                _rf = str(_rule.get("field") or "").strip()
+                if _rf:
+                    _resolved_rf = _crossref_resolve(_rf, _nid, _nname)
+                    if _resolved_rf != _rf:
+                        _rule["field"] = _resolved_rf
 
         # -------------------------------------------------------------------
         # COMPREHENSIVE VARIABLE WIRING: Ensure ALL downstream references
         # (conditions, notifications, approvals) use correct dot-notation
-        # for AI output fields. This prevents bare {{severity}} when the
-        # correct reference is {{classificationResult.severity}}.
+        # for AI output fields.  Handles THREE cases:
+        #   1. Bare field names:  "severity" → "classifySeverity.severity"
+        #   2. Mismatched dot-paths: "classificationResult.severity"
+        #      (wrong output_variable prefix) → "classifySeverity.severity"
+        #   3. Template references: {{severity}} or {{wrong.severity}}
+        #      → {{classifySeverity.severity}}
         # -------------------------------------------------------------------
-        _ai_field_to_dot: dict = {}  # e.g., "severity" → "classificationResult.severity"
+        _ai_field_to_dot: dict = {}   # bare name → correct dot-path
+        _ai_leaf_to_dot: dict = {}    # lowercase leaf → correct dot-path
         for _n in normalized_nodes:
             if _n.get("type") != "ai":
                 continue
@@ -2105,19 +2130,56 @@ class ProcessWizard:
             for _of in _ncfg.get("outputFields") or []:
                 _ofn = str(_of.get("name") or "").strip()
                 if _ofn:
-                    _ai_field_to_dot[_ofn] = f"{_ov}.{_ofn}"
+                    _correct_path = f"{_ov}.{_ofn}"
+                    _ai_field_to_dot[_ofn] = _correct_path
+                    _ai_leaf_to_dot[_ofn.lower()] = _correct_path
 
         if _ai_field_to_dot:
-            _bare_ref_pattern = re.compile(r"\{\{\s*([A-Za-z_]\w*)\s*\}\}")
+            def _resolve_field_ref(field: str) -> str:
+                """Resolve a condition field to the correct upstream dot-path.
+
+                Handles bare names ('severity'), mismatched dot-paths
+                ('classificationResult.severity' when the real output_variable
+                is 'classifySeverity'), and case variations.
+                """
+                if not field or _is_known_path(field):
+                    return field
+
+                # Case 1: bare name → known AI output
+                if "." not in field:
+                    if field in _ai_field_to_dot and field not in _known_vars:
+                        return _ai_field_to_dot[field]
+                    fl = field.lower()
+                    if fl in _ai_leaf_to_dot and field not in _known_vars:
+                        return _ai_leaf_to_dot[fl]
+                    return field
+
+                # Case 2: dot-path that doesn't resolve — extract leaf and
+                # find the correct full path from AI output maps.
+                _leaf = field.rsplit(".", 1)[1]
+                _leaf_lower = _leaf.lower()
+                if _leaf_lower in _ai_leaf_to_dot:
+                    correct = _ai_leaf_to_dot[_leaf_lower]
+                    if correct != field:
+                        return correct
+                # Fallback: check all known dot-paths by leaf match
+                for _dp in _known_dot_paths:
+                    _dp_leaf = _dp.rsplit(".", 1)[1] if "." in _dp else _dp
+                    if _dp_leaf.lower() == _leaf_lower:
+                        return _dp
+                return field
+
+            _ref_pattern = re.compile(r"\{\{\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\}\}")
 
             def _fix_template_refs(text: str) -> str:
-                """Replace bare {{field}} with {{outputVar.field}} for AI outputs."""
+                """Replace bare/wrong {{ref}} with correct dot-notation."""
                 def _replacer(m):
-                    vname = m.group(1)
-                    if vname in _ai_field_to_dot and vname not in _known_vars:
-                        return "{{" + _ai_field_to_dot[vname] + "}}"
+                    ref = m.group(1)
+                    resolved = _resolve_field_ref(ref)
+                    if resolved != ref:
+                        return "{{" + resolved + "}}"
                     return m.group(0)
-                return _bare_ref_pattern.sub(_replacer, text)
+                return _ref_pattern.sub(_replacer, text)
 
             for _n in normalized_nodes:
                 _ntype = _n.get("type") or ""
@@ -2126,23 +2188,31 @@ class ProcessWizard:
                     continue
 
                 if _ntype == "condition":
+                    # Fix top-level field
                     _fld = str(_ccfg.get("field") or "").strip()
-                    if _fld in _ai_field_to_dot and _fld not in _known_vars:
-                        _new_fld = _ai_field_to_dot[_fld]
-                        logger.info("Variable wiring: condition '%s' field '%s' → '%s'",
-                                    _n.get("name", _n.get("id")), _fld, _new_fld)
-                        _ccfg["field"] = _new_fld
+                    if _fld:
+                        _new_fld = _resolve_field_ref(_fld)
+                        if _new_fld != _fld:
+                            logger.info("Variable wiring: condition '%s' field '%s' → '%s'",
+                                        _n.get("name", _n.get("id")), _fld, _new_fld)
+                            _ccfg["field"] = _new_fld
+                    # Fix expression
                     _expr = str(_ccfg.get("expression") or "").strip()
                     if _expr:
                         _new_expr = _fix_template_refs(_expr)
                         if _new_expr != _expr:
                             logger.info("Variable wiring: condition '%s' expression updated", _n.get("name", _n.get("id")))
                             _ccfg["expression"] = _new_expr
+                    # Fix every rule's field (rules drive the UI dropdown)
                     for _rule in _ccfg.get("rules") or []:
                         if isinstance(_rule, dict):
                             _rf = str(_rule.get("field") or "").strip()
-                            if _rf in _ai_field_to_dot and _rf not in _known_vars:
-                                _rule["field"] = _ai_field_to_dot[_rf]
+                            if _rf:
+                                _new_rf = _resolve_field_ref(_rf)
+                                if _new_rf != _rf:
+                                    logger.info("Variable wiring: condition '%s' rule field '%s' → '%s'",
+                                                _n.get("name", _n.get("id")), _rf, _new_rf)
+                                    _rule["field"] = _new_rf
 
                 if _ntype in ("notification", "approval"):
                     for _key in ("template", "message", "title", "description",
