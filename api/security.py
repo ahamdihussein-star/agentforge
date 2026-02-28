@@ -1402,6 +1402,46 @@ async def admin_resend_verification(user_id: str, admin: User = Depends(require_
         raise HTTPException(status_code=500, detail="Failed to send email")
 
 
+@router.post("/users/{user_id}/send-password-reset")
+async def admin_send_password_reset_link(user_id: str, admin: User = Depends(require_admin)):
+    """Admin: send a password reset link to a specific user."""
+    target_user = security_state.users.get(user_id)
+    if not target_user or target_user.org_id != admin.org_id:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not getattr(target_user, "email", None):
+        raise HTTPException(status_code=400, detail="User has no email address")
+
+    token = secrets.token_urlsafe(32)
+    target_user.reset_password_token = token
+    target_user.reset_password_expires = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+    security_state.users[target_user.id] = target_user
+
+    # Persist token before sending the email
+    try:
+        from database.services import UserService
+        UserService.save_user(target_user)
+    except Exception as e:
+        print(f"⚠️  [ADMIN SEND RESET LINK] Database save failed: {e}, saving to disk only")
+        import traceback
+        traceback.print_exc()
+        security_state.save_to_disk()
+
+    sent = await EmailService.send_password_reset_email(target_user, token)
+    if not sent:
+        raise HTTPException(status_code=500, detail="Failed to send password reset email")
+
+    security_state.add_audit_log(
+        user=admin,
+        action=ActionType.PASSWORD_CHANGE,
+        resource_type=ResourceType.USER,
+        resource_id=target_user.id,
+        resource_name=target_user.email,
+        details={"reason": "admin_send_reset_link"},
+    )
+
+    return {"status": "success", "message": f"Password reset link sent to {target_user.email}"}
+
+
 @router.post("/users/{user_id}/reset-password")
 async def admin_reset_user_password(
     user_id: str,
