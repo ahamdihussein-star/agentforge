@@ -550,8 +550,10 @@ class UserService:
             profile=UserProfile(
                 first_name=db_user.first_name or "",
                 last_name=db_user.last_name or "",
+                display_name=db_user.display_name or None,
                 phone=db_user.phone or "",
-                avatar_url="",  # Not in DB model yet
+                job_title=db_user.job_title or None,
+                avatar_url="",
                 custom_attributes=custom_profile_attributes
             ),
             mfa=UserMFA(
