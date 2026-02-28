@@ -306,23 +306,25 @@
                     <button onclick="navigate('create')" class="btn-primary px-4 py-2 rounded-lg hidden md:block" data-permission="agents:create">+ Create</button>
                 </div>
                 
-                <div class="flex gap-4 mb-6 border-b border-gray-800 overflow-x-auto">
-                    <button onclick="setAgentTab('published')" id="tab-published" class="tab-btn active pb-3 px-2 border-b-2 whitespace-nowrap">Published</button>
-                    <button onclick="setAgentTab('draft')" id="tab-draft" class="tab-btn pb-3 px-2 border-b-2 border-transparent whitespace-nowrap">Drafts</button>
-                    <button onclick="_toggleSelectionMode()" id="agent-select-btn" style="margin-left:auto;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:500;background:var(--surface-color);color:var(--text-secondary);border:1px solid var(--border-color);cursor:pointer;transition:all .15s;" title="Select multiple agents">Select</button>
-                </div>
-                
-                <!-- Bulk Selection Bar -->
-                <div id="agent-bulk-bar" style="display:none;margin-bottom:16px;">
-                    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:10px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);">
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
-                            <input type="checkbox" onchange="_selectAllAgents(this.checked)" style="accent-color:#8b5cf6;width:16px;height:16px;cursor:pointer;">
-                            Select All
-                        </label>
-                        <span class="bulk-count" style="font-size:13px;color:var(--text-secondary);">Select agents</span>
-                        <div style="margin-left:auto;display:flex;gap:8px;">
-                            <button class="bulk-delete-btn" disabled onclick="_bulkDeleteAgents()" style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);cursor:pointer;transition:all .15s;">Delete Selected</button>
-                            <button onclick="_toggleSelectionMode()" style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;background:var(--surface-color);color:var(--text-secondary);border:1px solid var(--border-color);cursor:pointer;">Cancel</button>
+                <div id="agents-sticky-controls">
+                    <div class="flex gap-4 mb-4 border-b border-gray-800 overflow-x-auto">
+                        <button onclick="setAgentTab('published')" id="tab-published" class="tab-btn active pb-3 px-2 border-b-2 whitespace-nowrap">Published</button>
+                        <button onclick="setAgentTab('draft')" id="tab-draft" class="tab-btn pb-3 px-2 border-b-2 border-transparent whitespace-nowrap">Drafts</button>
+                        <button onclick="_toggleSelectionMode()" id="agent-select-btn" style="margin-left:auto;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:500;background:var(--surface-color);color:var(--text-secondary);border:1px solid var(--border-color);cursor:pointer;transition:all .15s;" title="Select multiple agents">Select</button>
+                    </div>
+                    
+                    <!-- Bulk Selection Bar -->
+                    <div id="agent-bulk-bar" style="display:none;margin-bottom:12px;">
+                        <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:10px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);">
+                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+                                <input type="checkbox" onchange="_selectAllAgents(this.checked)" style="accent-color:#8b5cf6;width:16px;height:16px;cursor:pointer;">
+                                Select All
+                            </label>
+                            <span class="bulk-count" style="font-size:13px;color:var(--text-secondary);">Select agents</span>
+                            <div style="margin-left:auto;display:flex;gap:8px;">
+                                <button class="bulk-delete-btn" disabled onclick="_bulkDeleteAgents()" style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);cursor:pointer;transition:all .15s;">Delete Selected</button>
+                                <button onclick="_toggleSelectionMode()" style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;background:var(--surface-color);color:var(--text-secondary);border:1px solid var(--border-color);cursor:pointer;">Cancel</button>
+                            </div>
                         </div>
                     </div>
                 </div>
