@@ -242,7 +242,8 @@ async function editSecurityUser(userId) {
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">Email</label>
-                    <input type="email" id="edit-user-email" value="${user.email}" class="input-field w-full px-4 py-2 rounded-lg" disabled>
+                    <input type="email" id="edit-user-email" value="${user.email}" class="input-field w-full px-4 py-2 rounded-lg" placeholder="user@company.com">
+                    <p class="text-xs text-gray-500 mt-2">This is where login codes and notifications are sent.</p>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -423,6 +424,7 @@ function collectCustomFields() {
 
 // Save user edit
 async function saveUserEdit(userId) {
+    const email = document.getElementById('edit-user-email')?.value?.trim() || '';
     const firstName = document.getElementById('edit-user-firstname').value?.trim() || '';
     const lastName = document.getElementById('edit-user-lastname').value?.trim() || '';
     const status = document.getElementById('edit-user-status').value;
@@ -433,13 +435,18 @@ async function saveUserEdit(userId) {
     const schemaDefs = Array.isArray(schemaResp?.fields) ? schemaResp.fields : [];
     const schemaValues = collectSchemaFieldValues(schemaDefs);
     const customFields = { ...collectCustomFields(), ...schemaValues };
-    console.log('📝 Saving user edit:', { firstName, lastName, status, roleIds, customFields });
+    console.log('📝 Saving user edit:', { email, firstName, lastName, status, roleIds, customFields });
     
     try {
+        if (!email) {
+            showToast('Please enter a valid email address', 'error');
+            return;
+        }
         const res = await fetch('/api/security/users/' + userId, {
             method: 'PUT',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                email: email,
                 first_name: firstName,
                 last_name: lastName,
                 status: status,
@@ -1910,6 +1917,7 @@ function initProfileFormHandler() {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        const emailInput = document.getElementById('profile-email');
         const firstNameInput = document.getElementById('update-first-name');
         const lastNameInput = document.getElementById('update-last-name');
         const displayNameInput = document.getElementById('update-display-name');
@@ -1919,6 +1927,7 @@ function initProfileFormHandler() {
         console.log('   Last Name Input:', lastNameInput, '=', lastNameInput?.value);
         console.log('   Display Name Input:', displayNameInput, '=', displayNameInput?.value);
         
+        const email = emailInput?.value?.trim() || '';
         const firstName = firstNameInput?.value?.trim() || '';
         const lastName = lastNameInput?.value?.trim() || '';
         const displayName = displayNameInput?.value?.trim() || '';
@@ -1929,6 +1938,10 @@ function initProfileFormHandler() {
             last_name: lastName,
             display_name: displayName || null
         };
+
+        if (email && email !== (currentUserProfile?.email || '')) {
+            requestBody.email = email;
+        }
         
         console.log('   Request Body:', JSON.stringify(requestBody));
         console.log('   User ID:', currentUserProfile?.id);

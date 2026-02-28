@@ -159,6 +159,7 @@ class CreateUserRequest(BaseModel):
     send_invitation: bool = True
 
 class UpdateUserRequest(BaseModel):
+    email: Optional[EmailStr] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     display_name: Optional[str] = None
@@ -1951,7 +1952,7 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
     }
 
 @router.put("/users/{user_id}")
-async def update_user(user_id: str, request: UpdateUserRequest, user: User = Depends(require_auth)):
+async def update_user(user_id: str, request: UpdateUserRequest, background_tasks: BackgroundTasks, user: User = Depends(require_auth)):
     """Update user"""
     is_self = user.id == user_id
     if not is_self and not security_state.check_permission(user, Permission.USERS_EDIT.value):
@@ -1961,11 +1962,39 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
     if not target_user or target_user.org_id != user.org_id:
         raise HTTPException(status_code=404, detail="User not found")
     
+    settings = security_state.get_settings(target_user.org_id or user.org_id or "org_default")
     changes = {}
     
     # Update profile fields (self or admin)
     print(f"📝 [PROFILE UPDATE] Updating profile for user: {target_user.email}")
     print(f"   Request data: first_name={request.first_name}, last_name={request.last_name}, display_name={request.display_name}")
+
+    # Update email (self or admin)
+    if request.email is not None:
+        if not (is_self or security_state.check_permission(user, Permission.USERS_EDIT.value)):
+            raise HTTPException(status_code=403, detail="Permission denied")
+
+        new_email = str(request.email).strip().lower()
+        if not new_email:
+            raise HTTPException(status_code=400, detail="Email is required")
+
+        old_email = (target_user.email or "").strip().lower()
+        if new_email != old_email:
+            changes["email"] = {"old": target_user.email, "new": new_email}
+            target_user.email = new_email
+
+            # If the org requires email verification, mark as unverified and send a verification email.
+            if getattr(settings, "email_verification_required", False):
+                target_user.email_verified = False
+                target_user.verification_token = secrets.token_urlsafe(32)
+
+                async def _send_verification(u: User):
+                    try:
+                        await EmailService.send_verification_email(u)
+                    except Exception as e:
+                        print(f"⚠️  [EMAIL] Failed to send verification email after update: {e}")
+
+                background_tasks.add_task(_send_verification, target_user)
     
     if request.first_name is not None:
         changes["first_name"] = {"old": target_user.profile.first_name, "new": request.first_name}
@@ -2046,7 +2075,13 @@ async def update_user(user_id: str, request: UpdateUserRequest, user: User = Dep
         "status": "success", 
         "user": {
             "id": target_user.id,
+            "username": getattr(target_user, "username", None),
+            "email": target_user.email,
             "name": target_user.get_display_name(),
+            "status": target_user.status.value if hasattr(target_user, "status") and target_user.status else None,
+            "role_ids": target_user.role_ids,
+            "group_ids": target_user.group_ids,
+            "department_id": target_user.department_id,
             "profile": {
                 "first_name": target_user.profile.first_name,
                 "last_name": target_user.profile.last_name,
