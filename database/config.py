@@ -47,6 +47,9 @@ class DatabaseConfig:
     
     # Enable query logging (development only)
     ECHO_SQL = os.getenv('DB_ECHO_SQL', 'false').lower() == 'true'
+
+    # Connection timeouts (avoid long hangs during startup)
+    CONNECT_TIMEOUT_SECONDS = int(os.getenv('DB_CONNECT_TIMEOUT', '5'))
     
     @classmethod
     def get_database_url(cls) -> str:
@@ -88,6 +91,16 @@ class DatabaseConfig:
             'echo': cls.ECHO_SQL,
             'future': True,  # Use SQLAlchemy 2.0 style
         }
+
+        # Ensure connection attempts fail fast (prevents Railway "initializing" hangs)
+        try:
+            if cls.DB_TYPE == DatabaseType.POSTGRESQL:
+                config['connect_args'] = {
+                    'connect_timeout': cls.CONNECT_TIMEOUT_SECONDS
+                }
+        except Exception:
+            # Never block engine creation on timeout config
+            pass
         
         # Connection pooling (not for SQLite)
         if cls.DB_TYPE != DatabaseType.SQLITE:
