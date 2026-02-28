@@ -243,15 +243,15 @@
                     
                     <!-- Quick Stats -->
                     <div class="dash-stats" style="display:flex; gap:16px; margin-top:32px; flex-wrap:wrap;">
-                        <div class="dash-stat-card">
+                        <div class="dash-stat-card" data-permission="agents:view">
                             <div class="dash-stat-num" id="dash-stat-agents">0</div>
                             <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Agents</div><div style="font-size:0.7rem; color:var(--text-muted);">Published</div></div>
                         </div>
-                        <div class="dash-stat-card">
+                        <div class="dash-stat-card" data-permission="tools:view">
                             <div class="dash-stat-num" id="dash-stat-tools">0</div>
                             <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Tools</div><div style="font-size:0.7rem; color:var(--text-muted);">Connected</div></div>
                         </div>
-                        <div class="dash-stat-card">
+                        <div class="dash-stat-card" data-permission="users:view,roles:view,system:admin">
                             <div class="dash-stat-num" id="dash-stat-users">0</div>
                             <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Users</div><div style="font-size:0.7rem; color:var(--text-muted);">Active</div></div>
                         </div>
@@ -262,32 +262,32 @@
                 <div class="dash-grid">
                     <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:20px;">Quick Actions</h2>
                     <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:20px;">
-                        <div class="dash-card" onclick="navigate('create')">
+                        <div class="dash-card" onclick="navigate('create')" data-permission="agents:create">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 15%, transparent);"><span>🤖</span></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Create AI Agent</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Create an intelligent digital Conversational or Process AI agent that can understand, decide, and take action across your systems.</div>
                         </div>
-                        <div class="dash-card" onclick="navigate('agents')">
+                        <div class="dash-card" onclick="navigate('agents')" data-permission="agents:view">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-secondary) 15%, transparent); animation-delay:0.5s;"><span>🔗</span></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Agent Hub</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Manage, configure, and monitor all your published AI agents.</div>
                         </div>
-                        <div class="dash-card" onclick="navigate('chat')">
+                        <div class="dash-card" onclick="navigate('chat')" data-permission="chat:use">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--success) 15%, transparent); animation-delay:1s;"><span>💬</span></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Chat</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Test and interact with your agents in real-time conversations.</div>
                         </div>
-                        <div class="dash-card" onclick="navigate('tools')">
+                        <div class="dash-card" onclick="navigate('tools')" data-permission="tools:view">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--warning) 15%, transparent); animation-delay:1.5s;"><span>🔧</span></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Tools</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Create APIs, webhooks, and knowledge bases to empower your agents.</div>
                         </div>
-                        <div class="dash-card" onclick="window.location.href='/lab'">
+                        <div class="dash-card" onclick="window.location.href='/lab'" data-permission="demo:access">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--danger) 15%, transparent); animation-delay:2s;"><span>🧪</span></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Lab</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Experiment with agents in a sandbox environment before going live.</div>
                         </div>
-                        <div class="dash-card" onclick="navigate('security')">
+                        <div class="dash-card" onclick="navigate('security')" data-permission="users:view,roles:view,system:admin">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 10%, transparent); animation-delay:2.5s;"><span>🔐</span></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Security</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Manage users, roles, groups, and enterprise security settings.</div>
