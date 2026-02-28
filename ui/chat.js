@@ -232,13 +232,13 @@
         }
 
         // MFA Login State (same pattern as admin portal)
-        window.pendingLoginEmail = null;
+        window.pendingLoginUsername = null;
         window.pendingLoginPassword = null;
         window.pendingMfaMethods = [];
 
         async function handleLogin(e) {
             e.preventDefault();
-            const email = document.getElementById('login-email').value;
+            const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
             const btn = document.getElementById('login-btn');
             
@@ -249,7 +249,7 @@
                 const response = await fetch(`${API}/api/security/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ username, password })
                 });
                 
                 const data = await response.json();
@@ -274,7 +274,7 @@
                     btn.textContent = 'Sign In';
                     
                     // Store credentials temporarily for MFA verification
-                    window.pendingLoginEmail = email;
+                    window.pendingLoginUsername = username;
                     window.pendingLoginPassword = password;
                     window.pendingMfaMethods = data.mfa_methods || [];
                     
@@ -310,17 +310,8 @@
                 existingModal.remove();
             }
             
-            // Mask email for privacy (same as admin portal)
-            const email = window.pendingLoginEmail || 'your email';
-            const maskEmail = (email) => {
-                if (!email || email === 'your email') return email;
-                const [local, domain] = email.split('@');
-                if (local.length <= 2) return email;
-                const visible = local.substring(0, 2);
-                const masked = '*'.repeat(Math.min(local.length - 2, 4));
-                return `${visible}${masked}@${domain}`;
-            };
-            const displayEmail = maskEmail(email);
+            // Username-based login: don't show email address here.
+            const displayEmail = 'your email inbox';
             
             const modal = document.createElement('div');
             modal.id = 'login-mfa-modal';
@@ -334,7 +325,7 @@
                         <div style="font-size: 3rem; margin-bottom: 12px;">🔐</div>
                         <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; color: var(--text-primary);">Two-Factor Authentication</h3>
                         <p style="color: var(--text-muted); font-size: 0.875rem;">Enter the 6-digit code sent to</p>
-                        <p style="color: var(--accent); font-weight: 600; font-size: 0.875rem; margin-top: 4px;" title="${email}">${displayEmail}</p>
+                        <p style="color: var(--accent); font-weight: 600; font-size: 0.875rem; margin-top: 4px;">${displayEmail}</p>
                     </div>
                     
                     <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; padding: 16px; margin-bottom: 24px;">
@@ -395,24 +386,24 @@
         function closeLoginMfaModal() {
             const modal = document.getElementById('login-mfa-modal');
             if (modal) modal.remove();
-            window.pendingLoginEmail = null;
+            window.pendingLoginUsername = null;
             window.pendingLoginPassword = null;
             window.pendingMfaMethods = [];
         }
 
         async function resendMfaCode() {
-            if (!window.pendingLoginEmail || !window.pendingLoginPassword) {
+            if (!window.pendingLoginUsername || !window.pendingLoginPassword) {
                 showToast('Session expired. Please login again.', 'error');
                 closeLoginMfaModal();
                 return;
             }
             
             try {
-                const response = await fetch(`${API}/api/security/auth/login`, {
+                const response = await fetch(`${API}/api/security/mfa/send-login-code`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        email: window.pendingLoginEmail, 
+                        username: window.pendingLoginUsername, 
                         password: window.pendingLoginPassword 
                     })
                 });
@@ -452,7 +443,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        email: window.pendingLoginEmail, 
+                        username: window.pendingLoginUsername, 
                         password: window.pendingLoginPassword,
                         mfa_code: code
                     })

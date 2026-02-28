@@ -2987,6 +2987,9 @@ class User(Base):
     # Populated: Auto-generated UUID on creation (or from JSON migration)
     
     # Authentication
+    username = Column(String(120), nullable=True, index=True)
+    # Purpose: Primary sign-in identifier (org-scoped unique; shown to users)
+    # Populated: Backfilled from email prefix or chosen during registration
     email = Column(String(255), nullable=False, index=True)
     # Purpose: User email (indexed for fast lookups; NOT guaranteed unique in shared mailbox deployments)
     # Populated: From JSON migration or user registration
@@ -3480,8 +3483,9 @@ Database
    - `delete_user(user_id: str) -> bool`: Delete user
    - `get_all_users(org_id: Optional[str]) -> List[User]`: Get all users
    - `get_user_by_id(user_id: str, org_id: str) -> Optional[User]`: Get user by ID
-   - `get_user_by_email(email: str, org_id: str) -> Optional[User]`: Get user by email
+   - `get_user_by_email(email: str, org_id: str) -> Optional[User]`: Get user by email (not unique when shared emails enabled)
    - `get_users_by_email(email: str, org_id: str) -> List[User]`: Get all users by email (shared emails enabled)
+   - `get_user_by_username(username: str, org_id: str) -> Optional[User]`: Get user by username (primary sign-in)
    - `save_user(user: User) -> User`: Save user (insert or update)
    - `_db_to_core_user(db_user: DBUser) -> User`: Convert DB model to Core model
    - **JSON Handling:** Parses `role_ids` (may be double-encoded), `group_ids`

@@ -482,12 +482,19 @@ class EmailService:
     async def send_verification_email(cls, user) -> bool:
         """Send email verification"""
         verify_url = f"{cls.BASE_URL}/ui/#verify-email?token={user.verification_token}"
+        username_line = ""
+        try:
+            if getattr(user, "username", None):
+                username_line = f"<p><strong>Username:</strong> {user.username}</p>"
+        except Exception:
+            username_line = ""
         
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #7c3aed;">Welcome to AgentForge! 🚀</h2>
             <p>Hi {user.profile.first_name},</p>
             <p>Please verify your email address by clicking the button below:</p>
+            {username_line}
             <p style="text-align: center; margin: 30px 0;">
                 <a href="{verify_url}" style="background: #7c3aed; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
                     Verify Email
@@ -506,12 +513,19 @@ class EmailService:
     async def send_password_reset_email(cls, user, token: str) -> bool:
         """Send password reset email"""
         reset_url = f"{cls.BASE_URL}/ui/#reset-password?token={token}"
+        username_line = ""
+        try:
+            if getattr(user, "username", None):
+                username_line = f"<p><strong>Username:</strong> {user.username}</p>"
+        except Exception:
+            username_line = ""
         
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #7c3aed;">Reset Your Password 🔐</h2>
             <p>Hi {user.profile.first_name},</p>
             <p>We received a request to reset your password. Click the button below to create a new password:</p>
+            {username_line}
             <p style="text-align: center; margin: 30px 0;">
                 <a href="{reset_url}" style="background: #7c3aed; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
                     Reset Password
@@ -531,6 +545,12 @@ class EmailService:
     async def send_welcome_email(cls, user, temp_password: str) -> bool:
         """Send welcome email with temporary password"""
         login_url = f"{cls.BASE_URL}/ui/#login"
+        username_line = ""
+        try:
+            if getattr(user, "username", None):
+                username_line = f"<p><strong>Username:</strong> {user.username}</p>"
+        except Exception:
+            username_line = ""
         
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -538,6 +558,7 @@ class EmailService:
             <p>Hi {user.profile.first_name},</p>
             <p>An account has been created for you. Here are your login credentials:</p>
             <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                {username_line}
                 <p><strong>Email:</strong> {user.email}</p>
                 <p><strong>Temporary Password:</strong> <code style="background: #e0e0e0; padding: 4px 8px; border-radius: 4px;">{temp_password}</code></p>
             </div>

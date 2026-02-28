@@ -88,6 +88,7 @@ def save_audit_log_to_db(log: AuditLog):
 
 # Auth Requests
 class RegisterRequest(BaseModel):
+    username: str
     email: EmailStr
     password: str
     first_name: str
@@ -96,7 +97,10 @@ class RegisterRequest(BaseModel):
     invitation_token: Optional[str] = None
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Username is the primary login identifier.
+    # `email` is kept optional for backward compatibility, but email login is not supported.
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
     password: str
     org_id: Optional[str] = None
     mfa_code: Optional[str] = None
@@ -107,7 +111,7 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 class ResetPasswordRequest(BaseModel):
-    email: EmailStr
+    identifier: str  # username or email
 
 class FirstLoginPasswordChangeRequest(BaseModel):
     """Request model for first-login password change"""
@@ -116,6 +120,7 @@ class FirstLoginPasswordChangeRequest(BaseModel):
 
 class AcceptInvitationRequest(BaseModel):
     token: str
+    username: str
     first_name: str
     last_name: str
     password: str
@@ -138,6 +143,7 @@ class DisableMFARequest(BaseModel):
 
 # User Requests
 class CreateUserRequest(BaseModel):
+    username: str
     email: EmailStr
     first_name: str
     last_name: str
@@ -568,6 +574,11 @@ async def register(request: RegisterRequest, req: Request):
     role_ids = None  # Will be set below
     department_id = None
 
+    # Normalize username
+    username = (request.username or "").strip().lower()
+    if not username or "@" in username:
+        raise HTTPException(status_code=400, detail="Please choose a valid username (do not use an email address)")
+
     if request.invitation_token:
         invitation = None
         for inv in security_state.invitations.values():
@@ -618,6 +629,10 @@ async def register(request: RegisterRequest, req: Request):
         if email_domain not in [d.lower() for d in settings.allowed_email_domains]:
             raise HTTPException(status_code=400, detail="Email domain not allowed")
 
+    # Username must be unique within org
+    if security_state.get_user_by_username(username, org_id):
+        raise HTTPException(status_code=400, detail="Username already in use")
+
     # Check if email already exists (unless shared emails are enabled)
     if not getattr(settings, "allow_shared_emails", False):
         if security_state.get_user_by_email(request.email, org_id):
@@ -631,6 +646,7 @@ async def register(request: RegisterRequest, req: Request):
     # Create user
     user = User(
         org_id=org_id,
+        username=username,
         email=request.email.lower(),
         password_hash=PasswordService.hash_password(request.password),
         profile=UserProfile(
@@ -684,27 +700,16 @@ async def login(request: LoginRequest, req: Request):
     if not check_ip_whitelist(req):
         raise HTTPException(status_code=403, detail="Access denied from this IP address")
     
-    # Find user(s). When shared emails are enabled, multiple accounts may exist.
-    candidates = security_state.get_users_by_email(request.email, request.org_id)
-    if not candidates:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    # If multiple accounts share the email, try to identify by password match.
-    # If exactly one account matches, proceed. If none or multiple match, fail safely.
-    user = None
-    if len(candidates) == 1:
-        user = candidates[0]
-    else:
-        matches = [u for u in candidates if PasswordService.verify_password(request.password, u.password_hash)]
-        if len(matches) == 1:
-            user = matches[0]
-        elif len(matches) == 0:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        else:
-            raise HTTPException(
-                status_code=409,
-                detail="Multiple accounts share this email and password. Please use a different password per account or ask an administrator to resolve the duplicate login."
-            )
+    # Username login only
+    username = (request.username or "").strip().lower()
+    if not username and request.email:
+        username = str(request.email).strip().lower()
+    if not username or "@" in username:
+        raise HTTPException(status_code=400, detail="Please sign in using your username")
+
+    user = security_state.get_user_by_username(username, request.org_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
     # Load org-scoped settings for this user
     settings = security_state.get_settings(user.org_id or request.org_id or "org_default")
@@ -780,7 +785,7 @@ async def login(request: LoginRequest, req: Request):
             ip_address=req.client.host
         )
         
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
     
     # Check MFA requirement based on settings
     mfa_required = False
@@ -920,6 +925,7 @@ async def login(request: LoginRequest, req: Request):
     # Prepare user data for response
     user_data = {
         "id": user.id,
+        "username": getattr(user, "username", None),
         "email": user.email,
         "name": user.get_display_name(),
         "profile": user.profile.dict(),
@@ -1169,7 +1175,16 @@ async def first_login_password_change(
 @router.post("/auth/forgot-password")
 async def forgot_password(request: ResetPasswordRequest):
     """Request password reset"""
-    users = security_state.get_users_by_email(request.email)
+    ident = (request.identifier or "").strip()
+    if not ident:
+        return {"status": "success", "message": "If the account exists, a reset link has been sent"}
+
+    users = []
+    if "@" in ident:
+        users = security_state.get_users_by_email(ident)
+    else:
+        u = security_state.get_user_by_username(ident)
+        users = [u] if u else []
     
     # Always return success to prevent email enumeration
     # If multiple accounts share an email, send one reset email per account (shared mailbox scenario).
@@ -1223,6 +1238,9 @@ async def reset_password(request: ConfirmResetPasswordRequest):
 
 @router.post("/auth/accept-invitation")
 async def accept_invitation(request: AcceptInvitationRequest, req: Request):
+    username = (request.username or "").strip().lower()
+    if not username or "@" in username:
+        raise HTTPException(status_code=400, detail="Please choose a valid username (do not use an email address)")
     """Accept invitation and create account"""
     settings = security_state.get_settings()
     
@@ -1241,6 +1259,8 @@ async def accept_invitation(request: AcceptInvitationRequest, req: Request):
 
     # Load org-scoped settings for the invited org
     settings = security_state.get_settings(invitation.org_id or "org_default")
+    if security_state.get_user_by_username(username, invitation.org_id):
+        raise HTTPException(status_code=400, detail="Username already in use")
     
     # Check if email already registered (unless shared emails are enabled)
     if not getattr(settings, "allow_shared_emails", False):
@@ -1255,6 +1275,7 @@ async def accept_invitation(request: AcceptInvitationRequest, req: Request):
     # Create user with portal access from invitation
     user = User(
         org_id=invitation.org_id,
+        username=username,
         email=invitation.email.lower(),
         password_hash=PasswordService.hash_password(request.password),
         profile=UserProfile(
@@ -1558,23 +1579,15 @@ async def verify_mfa_setup(request: VerifyMFARequest, user: User = Depends(requi
 @router.post("/mfa/send-login-code")
 async def send_mfa_login_code(request: LoginRequest, req: Request):
     """Send MFA code for login (Email method)"""
-    # Find user(s). When shared emails are enabled, multiple accounts may exist.
-    candidates = security_state.get_users_by_email(request.email, request.org_id)
-    if not candidates:
-        # Don't reveal if user exists
+    username = (request.username or "").strip().lower()
+    if not username and request.email:
+        username = str(request.email).strip().lower()
+    if not username or "@" in username:
         return {"status": "success", "message": "If the account exists, a code has been sent"}
 
-    # Resolve the intended account by password match when needed.
-    user = None
-    if len(candidates) == 1:
-        user = candidates[0]
-    else:
-        matches = [u for u in candidates if PasswordService.verify_password(request.password, u.password_hash)]
-        if len(matches) == 1:
-            user = matches[0]
-        else:
-            # Don't reveal details; ask user to proceed with login flow.
-            return {"status": "success", "message": "If the account exists, a code has been sent"}
+    user = security_state.get_user_by_username(username, request.org_id)
+    if not user:
+        return {"status": "success", "message": "If the account exists, a code has been sent"}
     
     # Ensure user MFA settings are loaded from database (refresh if needed)
     try:
@@ -1795,6 +1808,7 @@ async def list_users(
     return {
         "users": [{
             "id": u.id,
+            "username": getattr(u, "username", None),
             "email": u.email,
             "name": u.get_display_name(),
             "profile": u.profile.dict(),
@@ -1863,6 +1877,12 @@ async def get_user(user_id: str, user: User = Depends(require_auth)):
 async def create_user(request: CreateUserRequest, user: User = Depends(require_admin)):
     """Create a new user"""
     settings = security_state.get_settings(user.org_id or "org_default")
+    username = (request.username or "").strip().lower()
+    if not username or "@" in username:
+        raise HTTPException(status_code=400, detail="Please choose a valid username (do not use an email address)")
+
+    if security_state.get_user_by_username(username, user.org_id):
+        raise HTTPException(status_code=400, detail="Username already exists")
     if not getattr(settings, "allow_shared_emails", False):
         if security_state.get_user_by_email(request.email):
             raise HTTPException(status_code=400, detail="Email already exists")
@@ -1871,6 +1891,7 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
     
     new_user = User(
         org_id=user.org_id,
+        username=username,
         email=request.email.lower(),
         password_hash=PasswordService.hash_password(password),
         profile=UserProfile(
@@ -3305,9 +3326,13 @@ async def oauth_callback(provider: str, req: Request):
     
     # Find or create user
     email = user_info.get("email")
+    external_id = user_info.get("id") or user_info.get("sub")
     # Use org.id (UUID) if available, otherwise use org_id (string)
     actual_org_id = org.id if hasattr(org, 'id') else org_id
-    user = security_state.get_user_by_email(email, actual_org_id)
+    user = security_state.get_user_by_external_id(external_id, auth_provider, actual_org_id) if external_id else None
+    if not user and email:
+        # Fallback: email matching for legacy OAuth users (shared emails may exist; external_id is preferred)
+        user = security_state.get_user_by_email(email, actual_org_id)
     
     # If not found in security_state, try to load from database
     if not user:
@@ -3381,11 +3406,31 @@ async def oauth_callback(provider: str, req: Request):
         # Create new user from OAuth
         # Use org.id (UUID) if available, otherwise use org_id (will be converted in UserService)
         user_org_id = org.id if hasattr(org, 'id') else org_id
+        # Derive a username from email prefix (best effort). Ensure org-scoped uniqueness.
+        base = ""
+        try:
+            if email and "@" in email:
+                base = email.split("@")[0]
+        except Exception:
+            base = ""
+        base = (base or (user_info.get("given_name") or "") or "user").strip().lower()
+        base = re.sub(r"\s+", "_", base)
+        base = re.sub(r"[^a-z0-9._-]", "", base).strip("._-") or "user"
+        candidate = base[:80]
+        # Avoid accidental email-like usernames
+        if "@" in candidate:
+            candidate = "user"
+        # Resolve collisions
+        if security_state.get_user_by_username(candidate, user_org_id):
+            candidate = f"{candidate}_{secrets.token_hex(2)}"
+        if security_state.get_user_by_username(candidate, user_org_id):
+            candidate = f"{base}_{secrets.token_hex(3)}"
         user = User(
             org_id=user_org_id,
+            username=candidate[:120],
             email=email.lower(),
             auth_provider=auth_provider,
-            external_id=user_info.get("id"),
+            external_id=external_id,
             profile=UserProfile(
                 first_name=user_info.get("given_name", ""),
                 last_name=user_info.get("family_name", ""),
@@ -3409,7 +3454,7 @@ async def oauth_callback(provider: str, req: Request):
             security_state.save_to_disk()
     
     # Check MFA requirement (same logic as login endpoint)
-    settings = security_state.get_settings()
+    settings = security_state.get_settings(user.org_id or "org_default")
     mfa_required = False
     mfa_code = req.query_params.get("mfa_code")  # Get MFA code from query params if provided
     

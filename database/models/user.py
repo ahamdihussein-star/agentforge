@@ -36,6 +36,7 @@ class User(Base):
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     
     # Authentication
+    username = Column(String(120), nullable=True, index=True)  # Org-scoped unique (enforced via migration)
     email = Column(String(255), nullable=False, index=True)
     password_hash = Column(String(255), nullable=True)  # Nullable for OAuth users
     
@@ -99,6 +100,7 @@ class User(Base):
         """Convert to dictionary"""
         return {
             'id': str(self.id),
+            'username': self.username,
             'email': self.email,
             'first_name': self.first_name,
             'last_name': self.last_name,

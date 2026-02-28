@@ -40,6 +40,20 @@ class UserService:
             return UserService._db_to_core_user(db_user)
 
     @staticmethod
+    def get_user_by_username(username: str, org_id: str) -> Optional[User]:
+        """Get user by username and organization"""
+        with get_db_session() as db:
+            db_user = db.query(DBUser).filter(
+                DBUser.username == (username or "").lower(),
+                DBUser.org_id == org_id
+            ).first()
+
+            if not db_user:
+                return None
+
+            return UserService._db_to_core_user(db_user)
+
+    @staticmethod
     def get_users_by_email(email: str, org_id: str) -> List[User]:
         """
         Get all users by email within an organization.
@@ -216,6 +230,7 @@ class UserService:
             db_user = DBUser(
                 id=user.id,
                 org_id=org_uuid,
+                username=(user.username.lower() if getattr(user, "username", None) else None),
                 email=user.email.lower(),
                 password_hash=user.password_hash,  # Can be None for OAuth users
                 # Profile fields
@@ -258,6 +273,17 @@ class UserService:
         with get_db_session() as db:
             # First, try to find by ID
             db_user = db.query(DBUser).filter_by(id=user.id).first()
+
+            # If not found by ID, try to find by username (org-scoped unique) if possible
+            if not db_user and getattr(user, "username", None):
+                org_uuid = UserService._resolve_org_uuid(user.org_id)
+                if org_uuid is not None:
+                    db_user = db.query(DBUser).filter(
+                        DBUser.org_id == org_uuid,
+                        DBUser.username == user.username.lower()
+                    ).first()
+                    if db_user:
+                        user.id = str(db_user.id)
             
             # If not found by ID, try to find by email ONLY if it is unambiguous.
             # Shared emails can exist, so email-based matching must be safe.
@@ -370,6 +396,8 @@ class UserService:
                             user_metadata[k] = v
             
             # Update fields
+            if getattr(user, "username", None):
+                db_user.username = user.username.lower()
             db_user.email = user.email.lower()
             if org_uuid:
                 db_user.org_id = org_uuid
@@ -557,6 +585,7 @@ class UserService:
         return User(
             id=user_id,
             org_id=org_id,
+            username=getattr(db_user, "username", None),
             email=db_user.email,
             password_hash=db_user.password_hash or "",
             status=status,

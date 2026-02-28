@@ -1711,6 +1711,11 @@ function showInvitationRegister(token) {
                         '<input type="text" id="inv-lastname" required class="input-field w-full px-4 py-3 rounded-lg" placeholder="Doe"></div>' +
                     '</div>' +
                     '<div>' +
+                        '<label class="block text-sm text-gray-400 mb-2">Username</label>' +
+                        '<input type="text" id="inv-username" required class="input-field w-full px-4 py-3 rounded-lg" placeholder="e.g., john.doe">' +
+                        '<div class="text-xs text-gray-500 mt-1">Use a short name. Do not use an email address.</div>' +
+                    '</div>' +
+                    '<div>' +
                         '<label class="block text-sm text-gray-400 mb-2">Password</label>' +
                         '<div class="relative">' +
                             '<input type="password" id="inv-password" required minlength="8" class="input-field w-full px-4 py-3 pr-12 rounded-lg" placeholder="Min 8 characters" oninput="checkPasswordStrength(this.value)">' +
@@ -1737,6 +1742,7 @@ async function handleInvitationRegister(event, token) {
     event.preventDefault();
     var firstName = document.getElementById('inv-firstname').value;
     var lastName = document.getElementById('inv-lastname').value;
+    var username = document.getElementById('inv-username').value;
     var password = document.getElementById('inv-password').value;
     var confirmPassword = document.getElementById('inv-confirm-password').value;
     var errorDiv = document.getElementById('inv-error');
@@ -1755,6 +1761,7 @@ async function handleInvitationRegister(event, token) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 token: token,
+                username: username,
                 first_name: firstName, 
                 last_name: lastName, 
                 password: password 

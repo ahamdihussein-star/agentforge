@@ -167,6 +167,17 @@ async function showCreateUserModal(preset) {
     const groups = Array.isArray(allGroups) ? allGroups : [];
     const depts = Array.isArray(orgDepartments) ? orgDepartments : [];
     const users = Array.isArray(orgUsersCache) ? orgUsersCache : [];
+    const _userOptLabel = (u) => {
+        const name = (u?.name || u?.profile?.display_name || '').toString().trim();
+        const uname = (u?.username || '').toString().trim();
+        const email = (u?.email || '').toString().trim();
+        const idShort = (u?.id ? String(u.id).slice(0, 8) : '');
+        let left = name || uname || email || 'User';
+        if (uname && left !== uname) left += ` — ${uname}`;
+        if (email && left !== email && !left.includes(email)) left += ` — ${email}`;
+        if (idShort) left += ` — ${idShort}`;
+        return left;
+    };
 
     const defaultRoleId = roles.find(r => String(r.id) === 'role_user')?.id || roles.find(r => (r.name || '').toLowerCase() === 'user')?.id || 'role_user';
     const jobTitleOptions = (orgJobTitles || []).map(t => `<option value="${escHtml(t)}"></option>`).join('');
@@ -203,14 +214,22 @@ async function showCreateUserModal(preset) {
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium mb-2">Job Title</label>
-                        <input type="text" id="cu-title" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Senior Analyst" list="cu-job-titles">
-                        <datalist id="cu-job-titles">${jobTitleOptions}</datalist>
+                        <label class="block text-sm font-medium mb-2">Username *</label>
+                        <input type="text" id="cu-username" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., john.doe">
+                        <div class="text-xs text-gray-500 mt-1">Used for sign-in. Do not use an email address.</div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-2">Phone (optional)</label>
                         <input type="text" id="cu-phone" class="w-full input-field rounded-lg px-4 py-2" placeholder="+1 555 000 0000">
                     </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Job Title</label>
+                        <input type="text" id="cu-title" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Senior Analyst" list="cu-job-titles">
+                        <datalist id="cu-job-titles">${jobTitleOptions}</datalist>
+                    </div>
+                    <div></div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -224,7 +243,7 @@ async function showCreateUserModal(preset) {
                         <label class="block text-sm font-medium mb-2">Direct Manager</label>
                         <select id="cu-mgr" class="w-full input-field rounded-lg px-4 py-2">
                             <option value="">— No Manager —</option>
-                            ${users.map(u => `<option value="${u.id}" ${preset.manager_id === u.id ? 'selected' : ''}>${escHtml(u.name || u.email)}</option>`).join('')}
+                            ${users.map(u => `<option value="${u.id}" ${preset.manager_id === u.id ? 'selected' : ''}>${escHtml(_userOptLabel(u))}</option>`).join('')}
                         </select>
                     </div>
                 </div>
@@ -279,6 +298,7 @@ async function showCreateUserModal(preset) {
 
 async function createUserFromModal() {
     const email = (document.getElementById('cu-email')?.value || '').trim();
+    const username = (document.getElementById('cu-username')?.value || '').trim();
     const first_name = (document.getElementById('cu-first')?.value || '').trim();
     const last_name = (document.getElementById('cu-last')?.value || '').trim();
     const employee_id = (document.getElementById('cu-emp')?.value || '').trim() || null;
@@ -291,8 +311,8 @@ async function createUserFromModal() {
     const role_ids = Array.from(document.querySelectorAll('.cu-role:checked')).map(el => el.value).filter(Boolean);
     const group_ids = Array.from(document.querySelectorAll('.cu-group:checked')).map(el => el.value).filter(Boolean);
 
-    if (!email || !first_name || !last_name) {
-        showToast('Please fill in name and email', 'error');
+    if (!email || !username || !first_name || !last_name) {
+        showToast('Please fill in name, username, and email', 'error');
         return;
     }
     if (role_ids.length === 0) role_ids.push('role_user');
@@ -302,7 +322,7 @@ async function createUserFromModal() {
             method: 'POST',
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email, first_name, last_name,
+                username, email, first_name, last_name,
                 phone, job_title, employee_id, manager_id,
                 department_id, role_ids, group_ids,
                 send_invitation,

@@ -381,6 +381,7 @@ class User(BaseModel):
     org_id: str  # Organization this user belongs to
     
     # Authentication
+    username: Optional[str] = None  # Primary login identifier (org-scoped unique)
     email: str
     password_hash: Optional[str] = None  # Null for OAuth-only users
     auth_provider: AuthProvider = AuthProvider.LOCAL

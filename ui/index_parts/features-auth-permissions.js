@@ -230,7 +230,7 @@ function togglePassword(inputId, btn) {
 async function handleLogin(event) {
     event.preventDefault();
     
-    const email = document.getElementById('login-email').value;
+    const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
     const remember = document.getElementById('login-remember')?.checked || false;
     const mfaCode = document.getElementById('login-mfa-code')?.value || '';
@@ -244,7 +244,7 @@ async function handleLogin(event) {
         const res = await fetch('/api/security/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, remember_me: remember, mfa_code: mfaCode || undefined })
+            body: JSON.stringify({ username, password, remember_me: remember, mfa_code: mfaCode || undefined })
         });
         
         console.log("📡 [FRONTEND] Login response received, status:", res.status, res.statusText);
@@ -286,13 +286,13 @@ async function handleLogin(event) {
             btn.textContent = 'Sign In';
             
             // Store credentials temporarily for MFA verification
-            window.pendingLoginEmail = email;
+            window.pendingLoginUsername = username;
             window.pendingLoginPassword = password;
             window.pendingLoginRemember = remember;
             window.pendingMfaMethods = data.mfa_methods || data.mfa_methods || [];
             
             console.log("📋 [FRONTEND] Stored pending login data:");
-            console.log("   Email:", window.pendingLoginEmail);
+            console.log("   Username:", window.pendingLoginUsername);
             console.log("   MFA Methods:", window.pendingMfaMethods);
             console.log("📱 [FRONTEND] Calling showLoginMfaModal...");
             try {
@@ -381,17 +381,8 @@ function showLoginMfaModal(methods) {
     console.log("✅ [FRONTEND] Modal element created, ID:", modal.id);
     console.log("✅ [FRONTEND] Modal classes:", modal.className);
     
-    // Get email to display (mask for privacy)
-    const email = window.pendingMfaEmail || window.pendingLoginEmail || 'your email';
-    const maskEmail = (email) => {
-        if (!email || email === 'your email') return email;
-        const [local, domain] = email.split('@');
-        if (local.length <= 2) return email;
-        const visible = local.substring(0, 2);
-        const masked = '*'.repeat(Math.min(local.length - 2, 4));
-        return `${visible}${masked}@${domain}`;
-    };
-    const displayEmail = maskEmail(email);
+    // For username-based login we avoid showing the email address here.
+    const displayEmail = 'your email inbox';
     
     console.log("📝 [FRONTEND] Setting modal innerHTML...");
     modal.innerHTML = `
@@ -400,7 +391,7 @@ function showLoginMfaModal(methods) {
                 <div class="text-5xl mb-3">🔐</div>
                 <h3 class="text-xl font-bold mb-2">Two-Factor Authentication</h3>
                 <p class="text-gray-400 text-sm">Enter the 6-digit code sent to</p>
-                <p class="text-purple-400 font-semibold text-sm mt-1" id="mfa-email-display" title="${email}">${displayEmail}</p>
+                <p class="text-purple-400 font-semibold text-sm mt-1" id="mfa-email-display">${displayEmail}</p>
             </div>
             
             <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
@@ -572,7 +563,7 @@ function closeLoginMfaModal() {
         window.mfaResendInterval = null;
     }
     document.getElementById('login-mfa-modal')?.remove();
-    window.pendingLoginEmail = null;
+    window.pendingLoginUsername = null;
     window.pendingLoginPassword = null;
     window.pendingLoginRemember = null;
     window.pendingMfaSessionId = null;
@@ -652,7 +643,7 @@ async function resendLoginMfaCode() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    email: window.pendingLoginEmail,
+                    username: window.pendingLoginUsername,
                     password: window.pendingLoginPassword
                 })
             });
@@ -797,7 +788,7 @@ async function verifyLoginMfa() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    email: window.pendingLoginEmail,
+                    username: window.pendingLoginUsername,
                     password: window.pendingLoginPassword,
                     remember_me: window.pendingLoginRemember,
                     mfa_code: code
