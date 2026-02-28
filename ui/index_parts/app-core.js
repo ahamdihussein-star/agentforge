@@ -2481,19 +2481,19 @@ const API='';
                     }).filter(t => t.id && t.name);
                 } catch (_) { /* ignore */ }
 
+                wizard._lastGeneratePayload = {
+                    goal: goal,
+                    output_format: 'visual_builder',
+                    context: { tools: toolsForContext }
+                };
+
                 const response = await fetch('/process/wizard/generate', {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token'))
                     },
-                    body: JSON.stringify({
-                        goal: goal,
-                        output_format: 'visual_builder',
-                        context: {
-                            tools: toolsForContext
-                        }
-                    })
+                    body: JSON.stringify(wizard._lastGeneratePayload)
                 });
                 
                 const data = await response.json();
@@ -2616,8 +2616,13 @@ const API='';
                             Set Up Now
                         </button>
                     </div>
-                    <p style="text-align:center;font-size:12px;color:var(--text-secondary);margin-top:14px;">
-                        Set these up first, then come back and describe your workflow again.
+                    <div style="text-align:center;margin-top:16px;">
+                        <button onclick="_skipPrerequisitesAndGenerate()" style="padding:6px 20px;border-radius:8px;font-size:12px;font-weight:500;background:transparent;color:var(--text-secondary);border:1px solid var(--border-color);cursor:pointer;transition:all .15s;">
+                            Skip and build anyway
+                        </button>
+                    </div>
+                    <p style="text-align:center;font-size:11px;color:var(--text-tertiary,var(--text-secondary));margin-top:8px;opacity:0.7;">
+                        The workflow may not work correctly without the items above.
                     </p>`;
             } else {
                 actionsHtml = `
@@ -2654,6 +2659,75 @@ const API='';
         function _goBackToWizard() {
             document.getElementById('wizard-generating').classList.add('hidden');
             document.getElementById('wizard-step-0').classList.remove('hidden');
+        }
+
+        async function _skipPrerequisitesAndGenerate() {
+            const payload = wizard._lastGeneratePayload;
+            if (!payload) {
+                showToast('Could not retry — please go back and try again.', 'warning');
+                return;
+            }
+
+            const genPanel = document.getElementById('wizard-generating');
+            if (genPanel) {
+                genPanel.innerHTML = `
+                    <div style="max-width:480px;margin:0 auto;padding:60px 0;text-align:center;">
+                        <div id="generating-status" style="font-size:15px;color:var(--text-secondary);margin-bottom:8px;">Building your workflow...</div>
+                        <p style="font-size:12px;color:var(--text-tertiary,var(--text-secondary));opacity:0.7;">Prerequisites check was skipped</p>
+                    </div>`;
+            }
+            const anim = _startGeneratingAnimation('process');
+
+            try {
+                const response = await fetch('/process/wizard/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token'))
+                    },
+                    body: JSON.stringify({ ...payload, skip_prerequisites: true })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.workflow) {
+                    wizard.processDefinition = data.workflow;
+                    try {
+                        sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(data.workflow));
+                        sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                            goal: payload.goal,
+                            name: data.workflow.name || 'My Workflow',
+                            animate: true
+                        }));
+                        const postIssues = data.setup_required && data.setup_required.length > 0;
+                        if (postIssues) {
+                            sessionStorage.setItem('agentforge_process_builder_setup', JSON.stringify(data.setup_required));
+                        } else {
+                            sessionStorage.removeItem('agentforge_process_builder_setup');
+                        }
+                    } catch (_) {}
+
+                    try { anim.complete(); } catch (_) {}
+
+                    if (data.setup_required && data.setup_required.length) {
+                        _showSetupGuide(data.setup_required, true);
+                    } else {
+                        document.getElementById('generating-status').textContent = 'Opening your workflow builder...';
+                        setTimeout(() => {
+                            window.location.href = '/ui/process-builder.html?draft=1';
+                        }, 250);
+                    }
+                } else {
+                    try { anim.stop(); } catch (_) {}
+                    showToast(data.detail || 'Could not create the workflow. Please try again.', 'error');
+                    _goBackToWizard();
+                }
+            } catch (e) {
+                console.error('Skip-generate error:', e);
+                try { anim.stop(); } catch (_) {}
+                showToast('Could not connect to the server. Please try again.', 'error');
+                _goBackToWizard();
+            }
         }
 
         function _openBuilderAnyway() {

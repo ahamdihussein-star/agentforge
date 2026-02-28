@@ -3313,6 +3313,7 @@ async def generate_workflow_from_goal(
     user_dict = _user_to_dict(user)
     goal = (request.get('goal') or '').strip()
     output_format = request.get('output_format') or request.get('format') or 'visual_builder'
+    skip_prerequisites = bool(request.get('skip_prerequisites'))
     context = request.get('context') or {}
     if not isinstance(context, dict):
         context = {}
@@ -3453,26 +3454,28 @@ async def generate_workflow_from_goal(
     # Analyzes the goal text against platform state to catch critical
     # gaps early (no identity configured, no departments, no managers,
     # no tools, etc.).  If issues are found, we return immediately
-    # WITHOUT generating the workflow.
+    # WITHOUT generating the workflow — unless the user chose to skip.
     # ═══════════════════════════════════════════════════════════════════
-    try:
-        pre_issues = await _pre_check_platform_readiness(
-            goal, context, user_perms, llm,
-        )
-    except Exception as e:
-        print(f"⚠️  [Wizard] Pre-check error (non-blocking): {e}")
-        pre_issues = []
+    if not skip_prerequisites:
+        try:
+            pre_issues = await _pre_check_platform_readiness(
+                goal, context, user_perms, llm,
+            )
+        except Exception as e:
+            print(f"⚠️  [Wizard] Pre-check error (non-blocking): {e}")
+            pre_issues = []
 
-    if pre_issues:
-        return {
-            "success": True,
-            "workflow": None,
-            "setup_required": pre_issues,
-            "message": (
-                "Before we can build this workflow, a few things need "
-                "to be set up on the platform first."
-            ),
-        }
+        if pre_issues:
+            return {
+                "success": True,
+                "workflow": None,
+                "setup_required": pre_issues,
+                "can_skip": True,
+                "message": (
+                    "Before we can build this workflow, a few things need "
+                    "to be set up on the platform first."
+                ),
+            }
 
     # ═══════════════════════════════════════════════════════════════════
     # GENERATE — platform is ready, proceed with AI generation
