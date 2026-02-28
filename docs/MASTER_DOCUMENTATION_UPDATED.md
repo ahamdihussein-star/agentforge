@@ -2419,7 +2419,7 @@ class User(Base):
     
     id = Column(String(50), primary_key=True)
     tenant_id = Column(String(50), ForeignKey("tenants.id"), nullable=False, index=True)
-    email = Column(String(255), nullable=False, unique=True)
+    email = Column(String(255), nullable=False)
     password_hash = Column(String(255))
     first_name = Column(String(100))
     last_name = Column(String(100))
@@ -2530,7 +2530,7 @@ def upgrade():
         'users',
         sa.Column('id', sa.String(50), primary_key=True),
         sa.Column('tenant_id', sa.String(50), sa.ForeignKey('tenants.id'), nullable=False),
-        sa.Column('email', sa.String(255), nullable=False, unique=True),
+        sa.Column('email', sa.String(255), nullable=False),
         sa.Column('password_hash', sa.String(255)),
         sa.Column('first_name', sa.String(100)),
         sa.Column('last_name', sa.String(100)),
@@ -2987,8 +2987,8 @@ class User(Base):
     # Populated: Auto-generated UUID on creation (or from JSON migration)
     
     # Authentication
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    # Purpose: User email (unique, indexed for fast lookups)
+    email = Column(String(255), nullable=False, index=True)
+    # Purpose: User email (indexed for fast lookups; NOT guaranteed unique in shared mailbox deployments)
     # Populated: From JSON migration or user registration
     # Code Usage: Used in UserService.get_user_by_email()
     
@@ -3481,6 +3481,7 @@ Database
    - `get_all_users(org_id: Optional[str]) -> List[User]`: Get all users
    - `get_user_by_id(user_id: str, org_id: str) -> Optional[User]`: Get user by ID
    - `get_user_by_email(email: str, org_id: str) -> Optional[User]`: Get user by email
+   - `get_users_by_email(email: str, org_id: str) -> List[User]`: Get all users by email (shared emails enabled)
    - `save_user(user: User) -> User`: Save user (insert or update)
    - `_db_to_core_user(db_user: DBUser) -> User`: Convert DB model to Core model
    - **JSON Handling:** Parses `role_ids` (may be double-encoded), `group_ids`

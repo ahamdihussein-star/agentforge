@@ -5574,7 +5574,27 @@
                 if (gRes.ok) { const d = await gRes.json(); groups = Array.isArray(d) ? d : (d.groups || []); }
                 if (tRes.ok) { const d = await tRes.json(); tools = d.tools || []; }
             } catch (e) { console.error('Load approval options:', e); }
-            const userOpts = users.map(u => '<option value="' + u.id + '"' + (assigneeIds.includes(u.id) ? ' selected' : '') + '>' + (u.name || u.email || u.id).substring(0, 40) + '</option>').join('');
+            const userLabel = (u) => {
+                const name = (u && (u.name || u.display_name || '') || '').toString().trim();
+                const email = (u && u.email || '').toString().trim();
+                const title = (u && (u.job_title || (u.profile && u.profile.job_title) || '') || '').toString().trim();
+                const dept = (u && (u.department || '') || '').toString().trim();
+                const emp = (u && (u.employee_id || '') || '').toString().trim();
+                const idShort = (u && u.id ? u.id.toString().slice(0, 8) : '');
+                let left = name || email || (u && u.id) || 'User';
+                const meta = [];
+                if (title) meta.push(title);
+                if (dept) meta.push(dept);
+                if (emp) meta.push(emp);
+                if (meta.length) left = `${left} (${meta.join(' · ')})`;
+                if (email && left !== email) left += ` — ${email}`;
+                if (idShort) left += ` — Account ${idShort}`;
+                return left;
+            };
+            const userOpts = users.map(u => {
+                const label = userLabel(u).slice(0, 120);
+                return '<option value="' + escapeHtml(u.id) + '"' + (assigneeIds.includes(u.id) ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+            }).join('');
             const roleOpts = roles.map(r => '<option value="' + r.id + '"' + (assigneeIds.includes(r.id) ? ' selected' : '') + '>' + (r.name || r.id).substring(0, 40) + '</option>').join('');
             const groupOpts = groups.map(g => '<option value="' + g.id + '"' + (assigneeIds.includes(g.id) ? ' selected' : '') + '>' + (g.name || g.id).substring(0, 40) + '</option>').join('');
             const toolOpts = tools.map(t => '<option value="' + t.id + '"' + (assigneeToolId === t.id ? ' selected' : '') + '>' + (t.name || t.id).substring(0, 40) + '</option>').join('');

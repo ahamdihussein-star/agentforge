@@ -4,6 +4,15 @@ This document explains how the platform provides user identity data to running p
 how the AI should configure steps to leverage this data, and how approvals/notifications
 resolve recipients dynamically — all without hardcoding any person, email, or org structure.
 
+## Shared Emails (Important)
+
+The platform can be configured to allow **multiple independent users** to share the same email address
+(shared mailbox / service account scenarios).
+
+- **Do NOT assume email is unique.** Treat `email` as a delivery channel only.
+- **Always identify people by `user_id`** (or dynamic directory routing) inside workflow configs.
+- Notifications sent to `"requester"` / `"manager"` resolve to an email address and may land in a shared inbox if the org uses shared emails.
+
 ## How User Data Flows Into a Running Process
 
 When a user starts a process (submits the form), the platform automatically:

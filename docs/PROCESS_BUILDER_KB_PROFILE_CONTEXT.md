@@ -22,6 +22,13 @@ When a process starts, the platform automatically:
 The workflow designer does NOT need to know which identity source is configured.
 The engine handles this transparently.
 
+## Shared Emails (Enterprise Scenario)
+
+Some organizations use **shared mailboxes** (e.g., `ap@company.com`) where multiple accounts may share the same email.
+
+- `id` / `user_id` is the **only guaranteed unique identity** for a person/account in the platform.
+- `email` is a **contact channel** and may be shared; do NOT treat it as a unique person identifier.
+
 ## How Prefill Works
 
 For any start form field that matches a known user attribute:
@@ -42,7 +49,7 @@ The engine resolves the value at runtime from whichever identity source the orga
 ### Always Available (platform core)
 - `id` — User ID
 - `name` — Full display name
-- `email` — Email address
+- `email` — Email address (may be shared; not guaranteed unique)
 - `firstName`, `lastName` — Name parts
 - `phone` — Phone number
 - `roles`, `roleNames` — Platform roles
