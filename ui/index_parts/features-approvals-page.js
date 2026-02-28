@@ -245,6 +245,11 @@ async function editSecurityUser(userId) {
                     <input type="email" id="edit-user-email" value="${user.email}" class="input-field w-full px-4 py-2 rounded-lg" placeholder="user@company.com">
                     <p class="text-xs text-gray-500 mt-2">This is where login codes and notifications are sent.</p>
                 </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Username</label>
+                    <input type="text" id="edit-user-username" value="${escHtml(user.username || '')}" class="input-field w-full px-4 py-2 rounded-lg" readonly>
+                    <p class="text-xs text-gray-500 mt-2">Used for sign-in.</p>
+                </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm text-gray-400 mb-2">First Name</label>
@@ -1842,6 +1847,9 @@ async function loadProfileInfo() {
         const data = await res.json();
         currentUserProfile = data;
         
+        const usernameEl = document.getElementById('profile-username');
+        if (usernameEl) usernameEl.value = data.username || '';
+
         // Update profile info display
         const emailEl = document.getElementById('profile-email');
         if (emailEl) emailEl.value = data.email || '';

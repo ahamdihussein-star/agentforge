@@ -1063,6 +1063,7 @@ async def get_current_user_info(user: User = Depends(require_auth)):
 
     response = {
         "id": user.id,
+        "username": getattr(user, "username", None),
         "email": user.email,
         "name": user.get_display_name(),
         "full_name": user.get_display_name(),
@@ -2035,6 +2036,7 @@ async def get_user(user_id: str, user: User = Depends(require_auth)):
 
     return {
         "id": target_user.id,
+        "username": getattr(target_user, "username", None),
         "email": target_user.email,
         "name": target_user.get_display_name(),
         "profile": target_user.profile.dict(),
