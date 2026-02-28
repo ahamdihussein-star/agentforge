@@ -2025,6 +2025,9 @@ async def _analyze_goal_prerequisites(
     group_info = ", ".join(g.get("name", "?") for g in groups) if groups else "None created yet"
     role_info = ", ".join(r.get("name", "?") for r in roles) if roles else "None created yet"
     tool_info = ", ".join(t.get("name", "?") for t in tools) if tools else "None created yet"
+
+    print(f"🔍 [Pre-check] dept_info sent to LLM: {dept_info}")
+    print(f"🔍 [Pre-check] group_info sent to LLM: {group_info}")
     id_status = (
         "Configured" if identity_ctx.get("source")
         and identity_ctx["source"] != "none" else "Not configured"
@@ -2125,6 +2128,8 @@ CRITICAL RULES:
         text = text.strip()
 
     result = _json.loads(text)
+
+    print(f"🤖 [Pre-check] LLM raw response: {_json.dumps(result, indent=2)}")
 
     # ── Anti-hallucination: ground every entity against the goal text ──
     goal_lower = (goal or "").lower()
@@ -3278,27 +3283,46 @@ async def generate_workflow_from_goal(
             _member_counts = {str(r[0]): r[1] for r in _mc_rows}
         _dept_list = []
         for d in _depts:
+            _mgr_id_raw = d.manager_id
+            _has_mgr = bool(_mgr_id_raw)
+            print(
+                f"📋 [Wizard] Department: {d.name!r} | "
+                f"id={d.id} | "
+                f"manager_id={_mgr_id_raw!r} (type={type(_mgr_id_raw).__name__}) | "
+                f"has_manager={_has_mgr}"
+            )
             entry = {
                 "id": str(d.id),
                 "name": d.name,
-                "has_manager": bool(d.manager_id),
+                "has_manager": _has_mgr,
                 "member_count": _member_counts.get(str(d.id), 0),
             }
-            if d.manager_id:
+            if _has_mgr:
                 try:
-                    _mgr = db.query(DBUser).filter(DBUser.id == d.manager_id).first()
+                    _mgr = db.query(DBUser).filter(DBUser.id == _mgr_id_raw).first()
                     if _mgr:
                         _mname = (
                             _mgr.display_name
                             or f"{_mgr.first_name or ''} {_mgr.last_name or ''}".strip()
                         )
                         entry["manager_name"] = _mname or "assigned"
+                        print(
+                            f"   ✅ Manager found: {_mname!r} "
+                            f"(display={_mgr.display_name!r}, "
+                            f"first={_mgr.first_name!r}, "
+                            f"last={_mgr.last_name!r})"
+                        )
                     else:
                         entry["manager_name"] = "assigned"
-                except Exception:
+                        print(
+                            f"   ⚠️ Manager user NOT found for id={_mgr_id_raw!r}"
+                        )
+                except Exception as _mgr_err:
                     entry["manager_name"] = "assigned"
+                    print(f"   ❌ Manager lookup error: {_mgr_err}")
             _dept_list.append(entry)
         context["departments"] = _dept_list
+        print(f"📋 [Wizard] Final department context: {_dept_list}")
 
         from database.models.user_group import UserGroup as DBUserGroup
         _groups = db.query(DBUserGroup).filter(DBUserGroup.org_id == _org_uuid).all()
