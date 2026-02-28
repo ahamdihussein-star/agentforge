@@ -1352,8 +1352,11 @@ const API='';
                 if (this.container) return;
                 this.container = document.createElement('div');
                 this.container.id = 'notification-container';
-                this.container.className = 'fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-md w-full pointer-events-none';
-                this.container.style.cssText = 'max-height: calc(100vh - 2rem); overflow: hidden;';
+                // IMPORTANT: keep notifications above any modal overlays.
+                // Some modals use very high z-index values (e.g., z-[9999]),
+                // so we set a higher z-index explicitly to avoid faded/hidden toasts.
+                this.container.className = 'fixed top-4 right-4 z-[100000] flex flex-col gap-3 max-w-md w-full pointer-events-none';
+                this.container.style.cssText = 'max-height: calc(100vh - 2rem); overflow: hidden; z-index: 2147483647;';
                 document.body.appendChild(this.container);
             },
             
