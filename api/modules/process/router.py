@@ -3614,6 +3614,28 @@ async def generate_business_summary(
                 }
             elif n.node_type == "approval":
                 step["approval_title"] = cfg.get("title") or cfg.get("message") or ""
+            elif n.node_type in ("ai", "ai_task"):
+                ai_info: dict = {}
+                if cfg.get("prompt"):
+                    ai_info["task"] = cfg["prompt"][:300]
+                if cfg.get("instructions"):
+                    instr = cfg["instructions"]
+                    if isinstance(instr, list):
+                        ai_info["rules"] = [str(r)[:150] for r in instr[:5]]
+                    elif isinstance(instr, str):
+                        ai_info["rules"] = [instr[:300]]
+                if cfg.get("output_variable"):
+                    ai_info["output_variable"] = cfg["output_variable"]
+                if cfg.get("sourceFields"):
+                    src = cfg["sourceFields"]
+                    if isinstance(src, list):
+                        ai_info["data_sources"] = [
+                            s.get("label") or s.get("field") or str(s)
+                            for s in src[:10]
+                            if isinstance(s, dict)
+                        ]
+                if ai_info:
+                    step["ai_task"] = ai_info
         if n.branch_taken:
             step["branch_taken"] = n.branch_taken
         steps_for_llm.append(step)
@@ -3671,6 +3693,16 @@ Rules:
 - For notifications, mention who was notified and about what
 - Keep the total summary concise (under 300 words)
 
+AI STEPS (CRITICAL — follow exactly):
+- AI steps analyze data from previous steps (form submissions, prior outputs) and produce a result.
+- They do NOT "request information" — they receive data automatically from the workflow.
+- If an AI step has an "ai_task" field, use its "task" to describe what the AI did.
+- If the AI step produced output (in "output" or "variables_update"), describe the actual result.
+- Example: If the AI task was "Classify severity" and the output was severity=low, say:
+  "The severity of the delay was analyzed and classified as low, based on the delay duration and order details."
+- NEVER say the AI "requested additional information" unless the step explicitly failed requesting input.
+- NEVER invent actions that didn't happen — describe only what the step data shows.
+
 ERROR CLASSIFICATION (IMPORTANT — when steps fail):
 - If a step failed, classify the error into one of these categories:
   a) CONFIGURATION ISSUE — the user can fix it (e.g., missing field, wrong setting, empty recipient).
@@ -3681,6 +3713,12 @@ ERROR CLASSIFICATION (IMPORTANT — when steps fail):
      Tell the user what to fix in their submission.
 - NEVER use generic phrases like "something went wrong" — always explain the specific problem.
 - NEVER fabricate error explanations — only describe what actually happened based on the step data.
+
+ANTI-HALLUCINATION:
+- ONLY describe events that are explicitly present in the step data.
+- If a step succeeded, say what it did — do NOT add caveats about missing information.
+- If you are unsure what happened, describe the step type and its status, nothing more.
+- NEVER invent warnings, caveats, or qualifications that are not in the data.
 
 Response format (plain text, NOT JSON):
 OUTCOME: <one-line business outcome>
