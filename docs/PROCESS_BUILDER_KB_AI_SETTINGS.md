@@ -199,6 +199,23 @@ Defines the individual data fields the AI step will produce.
 - Users can add/remove fields manually from the AI step's properties panel.
 - The engine performs **type coercion** on AI output to match declared types (e.g., strings → numbers, date parsing).
 
+### Variable Wiring Rule (MANDATORY)
+
+All downstream steps (conditions, notifications, approvals) MUST reference AI output fields using the full dot-notation path: `{{output_variable.fieldName}}`.
+
+**Correct:**
+- Condition field: `classificationResult.severity` (not just `severity`)
+- Notification: `Severity: {{classificationResult.severity}}` (not `{{severity}}`)
+
+**Wrong:**
+- Condition field: `severity` ← This does NOT resolve to the AI output
+- Notification: `{{severity}}` ← Empty at runtime because no form field named "severity" exists
+
+Variables in conditions and notifications must ALWAYS come from one of:
+1. A form/trigger input field name (direct, e.g., `{{supplierName}}`)
+2. An AI step's `output_variable.fieldName` (dot-notation, e.g., `{{classificationResult.severity}}`)
+3. A user context path (e.g., `{{trigger_input._user_context.display_name}}`)
+
 ### When Generating outputFields
 
 - **ALWAYS** derive fields from the workflow's business purpose — never use a fixed set.

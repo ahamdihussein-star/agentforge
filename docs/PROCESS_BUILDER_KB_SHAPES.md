@@ -372,6 +372,8 @@ Config (`tool.config`):
 | User profile | `{{trigger_input._user_context.<key>}}` | `{{trigger_input._user_context.display_name}}` |
 | Sub-process output | `{{outputVar.fieldName}}` | `{{subResult.status}}` |
 
+**CRITICAL RULE:** Every variable in a condition or notification MUST come from one of the sources above. AI output fields MUST always use dot-notation (`{{outputVar.fieldName}}`), never bare field names (`{{fieldName}}`). Using bare names for AI outputs will result in empty values at runtime.
+
 ## Deprecated Shapes (backward compatibility only)
 
 These shapes are NOT available in the palette but old processes using them will still load and execute:

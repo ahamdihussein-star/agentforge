@@ -162,11 +162,24 @@ ALWAYS start with the simplest design that fulfills the user's goal. Add complex
 - NEVER add fields for data the AI will extract automatically.
 - NEVER add fields for data available from user profile.
 
-### Data Flow
+### Data Flow & Variable Wiring (CRITICAL)
+
+Every variable used in the process must come from a real data source — never hardcoded or manually invented:
+
+**Allowed variable sources:**
+1. **Form/trigger fields** — referenced directly: `{{supplierName}}`, `{{amount}}`
+2. **AI step outputs** — referenced via dot-notation: `{{outputVariable.fieldName}}`
+   - Example: AI step has `output_variable: "classificationResult"` with outputField `severity`
+   - Correct reference: `{{classificationResult.severity}}`
+3. **User context** — `{{trigger_input._user_context.display_name}}`
+
+**Rules:**
 - Store AI/tool outputs in named variables (`output_variable`).
-- Reference variables in downstream steps: `{{parsedData.fieldName}}`.
-- Conditions can check any upstream variable or form field. Multiple rules can be combined with AND/OR logic.
-- Notifications should reference specific scalar fields, never raw objects/arrays.
+- ALWAYS use dot-notation for AI output fields: `{{outputVariable.fieldName}}`.
+- NEVER use bare field names for AI outputs (e.g., `{{severity}}` alone is WRONG if severity comes from an AI step).
+- Conditions MUST check fields using the exact dot-path: `classificationResult.severity`, NOT just `severity`.
+- Notifications MUST reference specific scalar fields, never raw objects/arrays.
+- Every condition field and notification template variable MUST resolve to an actual upstream step output or form input.
 
 ## End Node — ABSOLUTE RULE
 

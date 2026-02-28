@@ -3154,6 +3154,48 @@ class ProcessAPIService:
                 if _fld:
                     _tc["field"] = _crossref_condition_field(_fld, _nid, _n_name, _tc)
 
+        # -------------------------------------------------------------------
+        # VARIABLE WIRING: Fix bare {{field}} references in notification and
+        # approval templates to use {{outputVar.field}} dot-notation.
+        # -------------------------------------------------------------------
+        _svc_ai_field_map: dict = {}
+        for _n in normalized_nodes:
+            _ov = str(_n.get("output_variable") or "").strip()
+            if not _ov:
+                continue
+            _tc = (_n.get("config") or {}).get("type_config") or {}
+            for _of in _tc.get("outputFields") or []:
+                _ofn = str(_of.get("name") or "").strip()
+                if _ofn:
+                    _svc_ai_field_map[_ofn] = f"{_ov}.{_ofn}"
+
+        if _svc_ai_field_map:
+            _svc_bare_re = re.compile(r"\{\{\s*([A-Za-z_]\w*)\s*\}\}")
+            _svc_form_fields = _known_output_vars - _known_dot_paths
+
+            def _svc_fix_refs(text: str) -> str:
+                def _repl(m):
+                    vn = m.group(1)
+                    if vn in _svc_ai_field_map and vn not in _svc_form_fields:
+                        return "{{" + _svc_ai_field_map[vn] + "}}"
+                    return m.group(0)
+                return _svc_bare_re.sub(_repl, text)
+
+            for _n in normalized_nodes:
+                _ntype = _n.get("type")
+                if _ntype not in ("notification", "approval"):
+                    continue
+                _tc = (_n.get("config") or {}).get("type_config") or {}
+                for _key in ("template", "message", "title", "description",
+                             "notificationMessage", "instructions"):
+                    _txt = str(_tc.get(_key) or "").strip()
+                    if _txt and "{{" in _txt:
+                        _new = _svc_fix_refs(_txt)
+                        if _new != _txt:
+                            logger.info("ServiceNorm variable-wiring: %s '%s' %s refs updated",
+                                        _ntype, _n.get("name", _n.get("id")), _key)
+                            _tc[_key] = _new
+
         data['nodes'] = normalized_nodes
         
         return data

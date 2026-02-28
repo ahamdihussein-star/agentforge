@@ -587,6 +587,32 @@ Node config rules:
 
 - end.config must include: output. Use "" (empty string) to output ALL variables. If you want to output a single variable, use {{{{variable_name}}}}.
 
+=== CRITICAL: VARIABLE WIRING RULES (MANDATORY) ===
+Every variable referenced in condition nodes and notification templates MUST come from one of these sources:
+  1. A form/trigger input field (e.g., {{{{supplierName}}}}, {{{{amount}}}})
+  2. An AI step's output_variable + outputField name using DOT NOTATION (e.g., {{{{classificationResult.severity}}}})
+  3. A user context field (e.g., {{{{trigger_input._user_context.display_name}}}})
+
+FORBIDDEN:
+  - NEVER use a bare field name from an AI step's outputFields without prefixing it with the output_variable.
+    BAD:  condition field = "severity" when severity comes from AI step
+    GOOD: condition field = "classificationResult.severity"
+    BAD:  notification template = "Severity: {{{{severity}}}}" when severity comes from AI step
+    GOOD: notification template = "Severity: {{{{classificationResult.severity}}}}"
+  - NEVER create manual/hardcoded variable references that don't match any step's output.
+  - NEVER use standalone variable names for values produced by AI steps.
+
+HOW TO WIRE CORRECTLY:
+  1. When you create an AI node, note its output_variable name (e.g., "classificationResult")
+  2. That AI node's outputFields (e.g., severity, delayLength) are accessed as:
+     classificationResult.severity, classificationResult.delayLength
+  3. In ALL downstream condition rules, use: "field": "classificationResult.severity"
+  4. In ALL downstream notifications/approvals, use: {{{{classificationResult.severity}}}}
+  5. For form fields (from the trigger/form step), use the field name directly: {{{{supplierName}}}}
+
+This ensures every variable reference resolves to real data at runtime. Unresolved references produce empty values.
+=== END VARIABLE WIRING RULES ===
+
 Generate the workflow JSON now:"""
 
 
@@ -2061,6 +2087,73 @@ class ProcessWizard:
                             _n.get("name", _n.get("id")), _field, _candidate, _src_node.get("name", _src_id),
                         )
                         break
+
+        # -------------------------------------------------------------------
+        # COMPREHENSIVE VARIABLE WIRING: Ensure ALL downstream references
+        # (conditions, notifications, approvals) use correct dot-notation
+        # for AI output fields. This prevents bare {{severity}} when the
+        # correct reference is {{classificationResult.severity}}.
+        # -------------------------------------------------------------------
+        _ai_field_to_dot: dict = {}  # e.g., "severity" → "classificationResult.severity"
+        for _n in normalized_nodes:
+            if _n.get("type") != "ai":
+                continue
+            _ov = str(_n.get("output_variable") or "").strip()
+            if not _ov:
+                continue
+            _ncfg = _n.get("config") or {}
+            for _of in _ncfg.get("outputFields") or []:
+                _ofn = str(_of.get("name") or "").strip()
+                if _ofn:
+                    _ai_field_to_dot[_ofn] = f"{_ov}.{_ofn}"
+
+        if _ai_field_to_dot:
+            _bare_ref_pattern = re.compile(r"\{\{\s*([A-Za-z_]\w*)\s*\}\}")
+
+            def _fix_template_refs(text: str) -> str:
+                """Replace bare {{field}} with {{outputVar.field}} for AI outputs."""
+                def _replacer(m):
+                    vname = m.group(1)
+                    if vname in _ai_field_to_dot and vname not in _known_vars:
+                        return "{{" + _ai_field_to_dot[vname] + "}}"
+                    return m.group(0)
+                return _bare_ref_pattern.sub(_replacer, text)
+
+            for _n in normalized_nodes:
+                _ntype = _n.get("type") or ""
+                _ccfg = _n.get("config") or {}
+                if not isinstance(_ccfg, dict):
+                    continue
+
+                if _ntype == "condition":
+                    _fld = str(_ccfg.get("field") or "").strip()
+                    if _fld in _ai_field_to_dot and _fld not in _known_vars:
+                        _new_fld = _ai_field_to_dot[_fld]
+                        logger.info("Variable wiring: condition '%s' field '%s' → '%s'",
+                                    _n.get("name", _n.get("id")), _fld, _new_fld)
+                        _ccfg["field"] = _new_fld
+                    _expr = str(_ccfg.get("expression") or "").strip()
+                    if _expr:
+                        _new_expr = _fix_template_refs(_expr)
+                        if _new_expr != _expr:
+                            logger.info("Variable wiring: condition '%s' expression updated", _n.get("name", _n.get("id")))
+                            _ccfg["expression"] = _new_expr
+                    for _rule in _ccfg.get("rules") or []:
+                        if isinstance(_rule, dict):
+                            _rf = str(_rule.get("field") or "").strip()
+                            if _rf in _ai_field_to_dot and _rf not in _known_vars:
+                                _rule["field"] = _ai_field_to_dot[_rf]
+
+                if _ntype in ("notification", "approval"):
+                    for _key in ("template", "message", "title", "description",
+                                 "notificationMessage", "instructions"):
+                        _txt = str(_ccfg.get(_key) or "").strip()
+                        if _txt and "{{" in _txt:
+                            _new_txt = _fix_template_refs(_txt)
+                            if _new_txt != _txt:
+                                logger.info("Variable wiring: %s '%s' %s updated with dot-notation refs",
+                                            _ntype, _n.get("name", _n.get("id")), _key)
+                                _ccfg[_key] = _new_txt
 
         # ENFORCE: Extract Document Text actions must have sourceField set.
         # Find file fields from the start/form nodes and auto-assign if missing.
