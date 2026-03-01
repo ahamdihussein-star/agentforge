@@ -92,12 +92,14 @@
                                 <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">${humanizeUrgency(approval.priority || approval.urgency)}</span>
                             </div>
                             
-                            ${(() => { const html = renderReviewData(approval.review_data || approval.details_to_review); return html ? `
-                                <div class="bg-gray-800/80 rounded-lg p-4 mb-3 text-sm border border-gray-700/50">
-                                    <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Details to review</div>
-                                    ${html}
-                                </div>
-                            ` : ''; })()}
+                            ${(() => {
+                                const rd = approval.review_data || approval.details_to_review;
+                                let exHtml = null;
+                                try { if (typeof window.afRenderExtractionReview === 'function') exHtml = window.afRenderExtractionReview(rd); } catch(_){}
+                                if (exHtml) return `<div class="rounded-lg p-3 mb-3 text-sm border border-gray-700/50">${exHtml}</div>`;
+                                const html = renderReviewData(rd);
+                                return html ? `<div class="bg-gray-800/80 rounded-lg p-4 mb-3 text-sm border border-gray-700/50"><div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Details to review</div>${html}</div>` : '';
+                            })()}
                             
                             <div class="flex gap-3">
                                 <button onclick="approveRequest('${approval.id}')" class="flex-1 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium transition">

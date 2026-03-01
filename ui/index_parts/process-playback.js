@@ -914,36 +914,56 @@
                 const desc = match.description || '';
                 const reviewData = match.details_to_review || match.review_data || match.detailsToReview || {};
 
+                let extractionHtml = null;
+                try {
+                    if (typeof window.afRenderExtractionReview === 'function') {
+                        extractionHtml = window.afRenderExtractionReview(reviewData);
+                    }
+                } catch (_) {}
+
                 const renderReviewData = (rd) => {
                     try {
                         if (typeof window.afRenderReviewData === 'function') {
                             return window.afRenderReviewData(rd, { maxRows: 24 }) || '';
                         }
                     } catch (_) {}
-                    // Fallback (should be rare): show safe plain text only
                     try {
                         const s = (rd == null) ? '' : String(rd);
                         return s ? `<div class="text-sm text-gray-200 whitespace-pre-wrap">${escHtml(s)}</div>` : '';
                     } catch (_) { return ''; }
                 };
 
-                const reviewHtml = renderReviewData(reviewData);
-                detailsEl.innerHTML = `
-                    <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <div class="font-semibold text-gray-100">${escHtml(title)}</div>
-                            ${desc ? `<div class="text-sm text-gray-300 mt-1">${escHtml(desc)}</div>` : ''}
-                            <div class="text-xs text-gray-500 mt-2">Assigned to: <span class="text-gray-300">${escHtml(assignedTo)}</span></div>
+                if (extractionHtml) {
+                    detailsEl.innerHTML = `
+                        <div class="flex items-start justify-between gap-3 mb-3">
+                            <div>
+                                <div class="font-semibold text-gray-100">${escHtml(title)}</div>
+                                <div class="text-sm text-gray-300 mt-1">Review the extracted data against the source documents and confirm or correct the values.</div>
+                                <div class="text-xs text-gray-500 mt-2">Assigned to: <span class="text-gray-300">${escHtml(assignedTo)}</span></div>
+                            </div>
+                            <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">${escHtml(humanizeUrgency(urgency))}</span>
                         </div>
-                        <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">${escHtml(humanizeUrgency(urgency))}</span>
-                    </div>
-                    ${reviewHtml ? `
-                        <div class="mt-4 p-4 rounded-lg bg-gray-900/40 border border-gray-700/60">
-                            <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Details to review</div>
-                            ${reviewHtml}
+                        ${extractionHtml}
+                    `;
+                } else {
+                    const reviewHtml = renderReviewData(reviewData);
+                    detailsEl.innerHTML = `
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="font-semibold text-gray-100">${escHtml(title)}</div>
+                                ${desc ? `<div class="text-sm text-gray-300 mt-1">${escHtml(desc)}</div>` : ''}
+                                <div class="text-xs text-gray-500 mt-2">Assigned to: <span class="text-gray-300">${escHtml(assignedTo)}</span></div>
+                            </div>
+                            <span class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">${escHtml(humanizeUrgency(urgency))}</span>
                         </div>
-                    ` : ''}
-                `;
+                        ${reviewHtml ? `
+                            <div class="mt-4 p-4 rounded-lg bg-gray-900/40 border border-gray-700/60">
+                                <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Details to review</div>
+                                ${reviewHtml}
+                            </div>
+                        ` : ''}
+                    `;
+                }
             } catch (e) {
                 detailsEl.innerHTML = `<div class="text-red-300">Could not load approval details.</div>`;
             } finally {

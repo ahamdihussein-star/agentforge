@@ -286,8 +286,153 @@ const API='';
             }
         }
 
+        /**
+         * Shared split-screen extraction review renderer.
+         * Detects `_review_type === 'extraction_review'` and returns the full
+         * two-panel HTML (source docs on the left, editable extracted fields
+         * on the right, anomaly banner on top).
+         * Returns `null` if the review_data is NOT an extraction review so
+         * callers can fall back to the generic `afRenderReviewData`.
+         *
+         * @param {Object}  details        The review_data / details_to_review object
+         * @param {Object}  [opts]         Options
+         * @param {string}  [opts.approvalId]  Approval ID (used for confirm/reject button wiring)
+         * @param {boolean} [opts.readonly]     If true, fields are not editable
+         * @param {Function} [opts.onConfirm]   Callback(editedData) when user confirms
+         * @param {Function} [opts.onReject]    Callback() when user rejects
+         * @returns {string|null}  HTML string or null
+         */
+        function afRenderExtractionReview(details, opts) {
+            if (!details || details._review_type !== 'extraction_review') return null;
+            opts = opts || {};
+            const _esc = typeof escHtml === 'function' ? escHtml : (typeof escapeHtml === 'function' ? escapeHtml : (s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')));
+            const _humanize = (k) => String(k||'').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+            if (!document.getElementById('er-shared-styles')) {
+                const styleEl = document.createElement('style');
+                styleEl.id = 'er-shared-styles';
+                styleEl.textContent = `
+.er-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;min-height:380px}
+@media(max-width:860px){.er-split{grid-template-columns:1fr}}
+.er-split-left,.er-split-right{background:var(--card-bg,var(--pb-card-bg,#1a1a2e));border:1px solid var(--border,var(--pb-border,#333));border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.er-panel-header{display:flex;align-items:center;gap:8px;padding:12px 16px;font-weight:700;font-size:.88rem;border-bottom:1px solid var(--border,var(--pb-border,#333))}
+.er-file-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border,var(--pb-border,#333));flex-wrap:wrap}
+.er-file-tab{padding:5px 12px;border-radius:6px;border:1px solid var(--border,var(--pb-border,#333));background:transparent;cursor:pointer;font-size:.78rem;color:var(--text-secondary,var(--pb-muted,#999));transition:all .2s}
+.er-file-tab:hover{background:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 15%, transparent)}
+.er-file-tab--active{background:var(--primary,var(--pb-primary,#6366f1));color:#fff;border-color:var(--primary,var(--pb-primary,#6366f1))}
+.er-doc-viewer{flex:1;overflow:auto;padding:12px;display:flex;align-items:center;justify-content:center;min-height:200px}
+.er-doc-image{max-width:100%;border-radius:8px;opacity:0;transform:scale(.97);transition:all .5s ease}
+.er-doc-image--loaded{opacity:1;transform:scale(1)}
+.er-doc-pdf{width:100%;min-height:500px;border:none;border-radius:8px}
+.er-doc-fallback{display:flex;flex-direction:column;align-items:center;gap:4px;padding:24px;color:var(--text-muted,var(--pb-muted,#999));text-align:center}
+.er-download-btn{margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--primary,var(--pb-primary,#6366f1));background:transparent;color:var(--primary,var(--pb-primary,#6366f1));cursor:pointer;font-size:.82rem}
+.er-fields{flex:1;overflow-y:auto;padding:12px 16px}
+.er-field{margin-bottom:10px}
+.er-field--full{margin-bottom:14px}
+.er-field-label{font-size:.78rem;font-weight:650;color:var(--text-muted,var(--pb-muted,#999));margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+.er-field-input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--border,var(--pb-border,#333));background:var(--bg,var(--pb-bg,#0d0d1a));color:var(--text,var(--pb-text,#eee));font-size:.88rem;transition:all .2s}
+.er-field-input:focus{outline:none;border-color:var(--primary,var(--pb-primary,#6366f1));box-shadow:0 0 0 3px color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 20%, transparent)}
+.er-field-input--edited{border-color:var(--warning,#f59e0b);background:color-mix(in srgb, var(--warning,#f59e0b) 6%, var(--bg,#0d0d1a))}
+.er-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.er-table th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--border,var(--pb-border,#333));font-weight:700;text-transform:uppercase;font-size:.72rem;letter-spacing:.3px;color:var(--text-muted,var(--pb-muted,#999))}
+.er-table td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb, var(--border,#333) 50%, transparent)}
+.er-confirm-section{padding:12px 16px;border-top:1px solid var(--border,var(--pb-border,#333));flex-shrink:0}
+.er-confirm-actions{display:flex;gap:10px;margin-top:10px}
+.er-anomaly-banner{background:color-mix(in srgb, var(--warning,#f59e0b) 8%, var(--card-bg,#1a1a2e));border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 40%, var(--border,#333));border-radius:12px;padding:14px 16px;margin-bottom:12px;animation:erBannerSlideIn .5s ease}
+.er-anomaly-header{display:flex;align-items:center;gap:8px;font-weight:700;font-size:.92rem;margin-bottom:10px}
+.er-anomaly-list{display:flex;flex-direction:column;gap:6px}
+.er-anomaly-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;animation:erBannerSlideIn .5s ease}
+.er-anomaly--critical{background:color-mix(in srgb, var(--error,#ef4444) 12%, transparent);border-left:3px solid var(--error,#ef4444)}
+.er-anomaly--warning{background:color-mix(in srgb, var(--warning,#f59e0b) 10%, transparent);border-left:3px solid var(--warning,#f59e0b)}
+.er-anomaly--info{background:color-mix(in srgb, var(--primary,#6366f1) 8%, transparent);border-left:3px solid var(--primary,#6366f1)}
+.er-anomaly-badge{padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.er-anomaly--critical .er-anomaly-badge{background:var(--error,#ef4444);color:#fff}
+.er-anomaly--warning .er-anomaly-badge{background:var(--warning,#f59e0b);color:#000}
+.er-anomaly--info .er-anomaly-badge{background:var(--primary,#6366f1);color:#fff}
+.er-anomaly-text{color:var(--text-secondary,var(--pb-muted,#999));line-height:1.4}
+@keyframes erBannerSlideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+`;
+                document.head.appendChild(styleEl);
+            }
+
+            const API_BASE = (typeof API !== 'undefined' ? API : '');
+            const sourceFiles = details._source_files || [];
+            const extractedData = details._extracted_data || {};
+            const outputFields = details._output_fields || [];
+            const stepName = details._step_name || 'AI Extraction';
+
+            const filesInfo = sourceFiles.map((f, i) => {
+                const fId = f.id || '';
+                const fName = f.name || `File ${i + 1}`;
+                const fType = (f.file_type || f.content_type || '').toLowerCase();
+                return { fId, fName, fType, isImage: /\b(png|jpg|jpeg|gif|webp|bmp|tiff|heic|svg)\b/.test(fType), isPdf: /pdf/.test(fType), idx: i };
+            });
+
+            const fileTabsHtml = filesInfo.length > 1 ? `<div class="er-file-tabs">${filesInfo.map(f =>
+                `<button class="er-file-tab ${f.idx === 0 ? 'er-file-tab--active' : ''}" data-file-idx="${f.idx}" onclick="window._afErSwitchFile(${f.idx})">${_esc(f.fName)}</button>`
+            ).join('')}</div>` : '';
+
+            const filePreviews = filesInfo.map(f => {
+                const url = f.fId ? `${API_BASE}/process/uploads/${encodeURIComponent(f.fId)}/download` : '';
+                let viewer = '';
+                if (f.isImage && url) viewer = `<img src="${url}" alt="${_esc(f.fName)}" class="er-doc-image" onload="this.classList.add('er-doc-image--loaded')" style="max-width:100%;border-radius:8px;" />`;
+                else if (f.isPdf && url) viewer = `<object data="${url}" type="application/pdf" class="er-doc-pdf"><p>PDF preview not available. <a href="${url}" target="_blank">Download</a></p></object>`;
+                else if (url) viewer = `<div class="er-doc-fallback"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style="margin-top:8px;font-weight:600;">${_esc(f.fName)}</div><a href="${url}" target="_blank" class="er-download-btn">Download</a></div>`;
+                else viewer = `<div class="er-doc-fallback" style="padding:24px;">No preview</div>`;
+                return `<div class="er-file-preview" data-file-idx="${f.idx}" style="${f.idx > 0 ? 'display:none;' : ''}">${viewer}</div>`;
+            }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted,#999);">No source documents attached</div>';
+
+            const renderArray = (arr, key) => {
+                if (!arr || !arr.length) return '<em>empty</em>';
+                if (typeof arr[0] !== 'object') return arr.map(v => `<div>${_esc(String(v))}</div>`).join('');
+                const cols = Object.keys(arr[0]);
+                return `<table class="er-table"><thead><tr>${cols.map(c => `<th>${_esc(_humanize(c))}</th>`).join('')}</tr></thead><tbody>${arr.map(row => `<tr>${cols.map(c => `<td>${_esc(String(row[c]??''))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+            };
+
+            const fieldsToRender = outputFields.length ? outputFields : Object.keys(extractedData).map(k => ({ name: k, label: _humanize(k), type: 'text' }));
+            const dataRowsHtml = fieldsToRender.map(field => {
+                const key = field.name || field;
+                const label = field.label || _humanize(key);
+                const val = extractedData[key];
+                const fieldType = field.type || 'text';
+                if (Array.isArray(val)) {
+                    return `<div class="er-field er-field--full" data-field-key="${_esc(key)}"><div class="er-field-label">${_esc(label)}</div><div class="er-field-value er-field-value--table">${renderArray(val, key)}</div></div>`;
+                }
+                const displayVal = (val == null) ? '' : String(val);
+                const inputType = (fieldType === 'number' || fieldType === 'currency') ? 'number' : fieldType === 'date' ? 'date' : 'text';
+                const ro = opts.readonly ? 'readonly' : '';
+                return `<div class="er-field" data-field-key="${_esc(key)}"><div class="er-field-label">${_esc(label)}</div><input class="er-field-input" type="${inputType}" value="${_esc(displayVal)}" data-er-key="${_esc(key)}" data-er-type="${_esc(fieldType)}" ${ro} onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></div>`;
+            }).join('');
+
+            const hasAnomalies = Object.keys(extractedData).some(k => /anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && extractedData[k]);
+            let anomalyHtml = '';
+            if (hasAnomalies) {
+                const anomalyKeys = Object.keys(extractedData).filter(k => /anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && extractedData[k]);
+                const items = anomalyKeys.flatMap(k => { const v = extractedData[k]; if (Array.isArray(v)) return v.map(item => typeof item === 'object' ? item : { detail: String(item) }); if (typeof v === 'object' && v !== null) return [v]; return [{ detail: String(v) }]; });
+                if (items.length) {
+                    anomalyHtml = `<div class="er-anomaly-banner"><div class="er-anomaly-header"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning,#f59e0b)" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>${items.length} Anomal${items.length === 1 ? 'y' : 'ies'} Detected</span></div><div class="er-anomaly-list">${items.map((item, idx) => { const sev = item.severity || item.level || ''; const sevCls = /high|critical/i.test(sev) ? 'er-anomaly--critical' : /medium/i.test(sev) ? 'er-anomaly--warning' : 'er-anomaly--info'; const detail = item.detail || item.details || item.description || item.anomalyType || item.type || JSON.stringify(item); return `<div class="er-anomaly-item ${sevCls}" style="animation-delay:${idx*0.12}s"><span class="er-anomaly-badge">${_esc(sev||'Flag')}</span><span class="er-anomaly-text">${_esc(typeof detail==='string'?detail:JSON.stringify(detail))}</span></div>`; }).join('')}</div></div>`;
+                }
+            }
+
+            return `${anomalyHtml}<div class="er-split"><div class="er-split-left"><div class="er-panel-header"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Source Documents</div>${fileTabsHtml}<div class="er-doc-viewer">${filePreviews}</div></div><div class="er-split-right"><div class="er-panel-header"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Extracted Data — ${_esc(stepName)}</div><div class="er-fields">${dataRowsHtml}</div></div></div>`;
+        }
+
+        window._afErSwitchFile = function(idx) {
+            document.querySelectorAll('.er-file-tab').forEach(t => t.classList.remove('er-file-tab--active'));
+            document.querySelectorAll('.er-file-preview').forEach(p => p.style.display = 'none');
+            const tab = document.querySelector(`.er-file-tab[data-file-idx="${idx}"]`);
+            const preview = document.querySelector(`.er-file-preview[data-file-idx="${idx}"]`);
+            if (tab) tab.classList.add('er-file-tab--active');
+            if (preview) preview.style.display = '';
+        };
+
+        window._afErFieldChanged = function(el) {
+            if (el) el.classList.add('er-field-input--edited');
+        };
+
         // Expose helpers for other parts (approvals, chat, playback)
         try { window.afRenderReviewData = afRenderReviewData; } catch (_) {}
+        try { window.afRenderExtractionReview = afRenderExtractionReview; } catch (_) {}
         try { window.afDownloadProcessUploadFile = afDownloadProcessUploadFile; } catch (_) {}
         
         let step=0,wizard={name:'',icon:'',goal:'',originalGoal:'',personality:null,tasks:[],tool_ids:[],suggestedTools:[],guardrails:{},model:'',modelReason:'',editId:null,deployTarget:'cloud',cloudProvider:''},allTools=[],toolType=null,uploadedFiles=[],agentTab='published',conv=null,testAgent=null,apiStep=1,apiParams=[],configMode='manual',chatAttachments=[],testAttachments=[];

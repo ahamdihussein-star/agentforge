@@ -8295,14 +8295,16 @@
                         <div style="display:flex;gap:12px;align-items:flex-start;">
                             <div style="width:36px;height:36px;border-radius:12px;background: color-mix(in srgb, var(--warning) 18%, transparent); border:1px solid color-mix(in srgb, var(--warning) 45%, transparent); display:flex;align-items:center;justify-content:center;font-size:18px;">⏳</div>
                             <div style="flex:1;min-width:0;">
-                                <div style="font-weight:900;font-size:15px;">Waiting for approval</div>
+                                <div style="font-weight:900;font-size:15px;" id="engine-test-approval-heading">Waiting for approval</div>
                                 <div id="engine-test-approval-title" style="margin-top:4px;color:var(--pb-muted);font-size:13px;">Approval</div>
                                 <div id="engine-test-approval-desc" style="margin-top:8px;font-size:13px;line-height:1.4;color:color-mix(in srgb, var(--pb-text) 88%, var(--pb-muted));"></div>
-                                <div style="margin-top:14px;display:flex;gap:10px;">
-                                    <button type="button" id="engine-test-approve-btn" class="toolbar-btn btn-primary" style="flex:1; padding:12px 12px; border-radius:12px;">Approve & continue</button>
-                                    <button type="button" id="engine-test-reject-btn" class="toolbar-btn btn-secondary" style="flex:1; padding:12px 12px; border-radius:12px; border:1px solid color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent);">Reject</button>
-                                </div>
                             </div>
+                        </div>
+                        <div id="engine-test-approval-review-body" style="margin-top:12px;"></div>
+                        <div style="margin-top:14px;display:flex;gap:10px;">
+                            <button type="button" id="engine-test-approve-btn" class="toolbar-btn btn-primary" style="flex:1; padding:12px 12px; border-radius:12px;">Approve & continue</button>
+                            <button type="button" id="engine-test-reject-btn" class="toolbar-btn btn-secondary" style="flex:1; padding:12px 12px; border-radius:12px; border:1px solid color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent);">Reject</button>
+                        </div>
                         </div>
                     </div>
                     <div style="padding:18px;">
@@ -8824,11 +8826,35 @@
 
             const showApproval = (approval) => {
                 if (!approvalBox) return;
+                const heading = runningModal.querySelector('#engine-test-approval-heading');
                 const title = runningModal.querySelector('#engine-test-approval-title');
                 const desc = runningModal.querySelector('#engine-test-approval-desc');
+                const reviewBody = runningModal.querySelector('#engine-test-approval-review-body');
                 approvalBox.style.display = '';
-                if (title) title.textContent = approval?.title || approval?.step_name || 'Approval';
-                if (desc) desc.textContent = approval?.description || 'This step requires approval to continue.';
+
+                const reviewData = approval?.review_data || approval?.details_to_review || {};
+                const extractionHtml = (typeof window.afRenderExtractionReview === 'function')
+                    ? window.afRenderExtractionReview(reviewData)
+                    : null;
+
+                if (extractionHtml) {
+                    if (heading) heading.textContent = 'Review Extracted Data';
+                    if (title) title.textContent = approval?.title || 'AI Extraction Review';
+                    if (desc) desc.textContent = 'Review the extracted data against the source documents and confirm or correct the values.';
+                    if (reviewBody) reviewBody.innerHTML = extractionHtml;
+                    approvalBox.style.maxHeight = '70vh';
+                    approvalBox.style.overflowY = 'auto';
+                } else {
+                    if (heading) heading.textContent = 'Waiting for approval';
+                    if (title) title.textContent = approval?.title || approval?.step_name || 'Approval';
+                    if (desc) desc.textContent = approval?.description || 'This step requires approval to continue.';
+                    if (reviewBody) {
+                        const genericHtml = (typeof window.afRenderReviewData === 'function')
+                            ? window.afRenderReviewData(reviewData, { maxRows: 20 })
+                            : '';
+                        reviewBody.innerHTML = genericHtml || '';
+                    }
+                }
             };
             const hideApproval = () => { if (approvalBox) approvalBox.style.display = 'none'; };
 
