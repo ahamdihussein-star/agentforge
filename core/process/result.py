@@ -398,14 +398,20 @@ class NodeResult(BaseModel):
         waiting_for: str,
         waiting_metadata: Dict[str, Any] = None,
         output: Any = None,
+        variables_update: Dict[str, Any] = None,
+        duration_ms: float = 0,
+        tokens_used: int = 0,
         logs: List[str] = None,
     ) -> 'NodeResult':
-        """Create a waiting result"""
+        """Create a waiting result (e.g., human review, approval)"""
         return cls(
             status=ExecutionStatus.WAITING,
             waiting_for=waiting_for,
             waiting_metadata=waiting_metadata,
             output=output,
+            variables_update=variables_update or {},
+            duration_ms=duration_ms,
+            tokens_used=tokens_used,
             logs=logs or [],
         )
 
