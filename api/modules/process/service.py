@@ -2187,12 +2187,15 @@ class ProcessAPIService:
             
             if tool_record:
                 try:
+                    merged_cfg = dict(tool_record.config or {})
+                    if tool_record.api_config:
+                        merged_cfg.update(tool_record.api_config if isinstance(tool_record.api_config, dict) else {})
                     tool_config = ToolConfig(
                         type=tool_record.type,
                         name=tool_record.name,
-                        config=tool_record.config or {},
-                        enabled=tool_record.is_enabled,
-                        requires_approval=tool_record.requires_approval
+                        config=merged_cfg,
+                        enabled=getattr(tool_record, 'is_active', True),
+                        requires_approval=getattr(tool_record, 'requires_approval', False)
                     )
                     tool = ToolRegistry.create(tool_config)
                     tools[tool_id] = tool
