@@ -3281,13 +3281,15 @@ async def delete_group(group_id: str, user: User = Depends(require_admin)):
 @router.get("/settings")
 async def get_security_settings(user: User = Depends(require_admin)):
     """Get security settings"""
-    settings = security_state.get_settings()
+    # Org-scoped settings (critical for multi-tenant behavior like shared emails).
+    settings = security_state.get_settings(user.org_id or "org_default")
     return settings.dict()
 
 @router.put("/settings")
 async def update_security_settings(request: UpdateSecuritySettingsRequest, user: User = Depends(require_super_admin)):
     """Update security settings (saves to database)"""
-    settings = security_state.get_settings()
+    # Org-scoped settings (critical for multi-tenant behavior like shared emails).
+    settings = security_state.get_settings(user.org_id or "org_default")
     
     changes = {}
     for key, value in request.dict(exclude_unset=True).items():
@@ -3301,7 +3303,7 @@ async def update_security_settings(request: UpdateSecuritySettingsRequest, user:
     settings.updated_by = user.id
     
     # Save to database
-    print(f"💾 [API] Updating security settings in database for org: {settings.org_id[:8]}...")
+    print(f"💾 [API] Updating security settings in database for org: {str(settings.org_id)[:8]}...")
     try:
         from database.services import SecuritySettingsService
         SecuritySettingsService.save_settings(settings)
