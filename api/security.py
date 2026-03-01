@@ -396,6 +396,7 @@ async def get_current_user(
     
     user_id = payload.get("user_id")
     session_id = payload.get("session_id")
+    token_org_id = payload.get("org_id")
     
     # Verify session is still active
     session = security_state.sessions.get(session_id)
@@ -416,16 +417,12 @@ async def get_current_user(
     if not user:
         try:
             from database.services import UserService
-            import uuid as uuid_lib
-            try:
-                user_uuid = uuid_lib.UUID(user_id)
-                db_users = UserService.get_all_users()
-                user = next((u for u in db_users if u.id == user_id), None)
+            org_id = getattr(session, "org_id", None) or token_org_id
+            if org_id:
+                user = UserService.get_user_by_id(user_id, org_id)
                 if user:
                     # Add to security_state cache
                     security_state.users[user.id] = user
-            except ValueError:
-                print(f"⚠️  [AUTH] Invalid user_id format: {user_id}")
         except Exception as e:
             print(f"⚠️  [AUTH] Failed to load user from database: {e}")
             import traceback
@@ -436,12 +433,26 @@ async def get_current_user(
     
     # Update last activity
     session.last_activity = datetime.utcnow().isoformat()
+    prev_last_active = getattr(user, "last_active", None)
     user.last_active = datetime.utcnow().isoformat()
     
     # Save last_active to database
     try:
-        from database.services import UserService
-        UserService.save_user(user)
+        # Throttle DB writes to avoid updating last_active on every request.
+        # This dramatically reduces DB load for SPA traffic without losing meaningful activity tracking.
+        should_write = True
+        try:
+            if isinstance(prev_last_active, str) and prev_last_active:
+                prev_dt = datetime.fromisoformat(prev_last_active)
+                if (datetime.utcnow() - prev_dt).total_seconds() < 60:
+                    should_write = False
+        except Exception:
+            # If parsing fails, fall back to writing.
+            should_write = True
+
+        if should_write:
+            from database.services import UserService
+            UserService.save_user(user)
     except Exception as e:
         print(f"⚠️  [AUTH] Failed to save last_active to database: {e}")
     
@@ -723,17 +734,11 @@ async def login(request: LoginRequest, req: Request):
     # Ensure user MFA settings are loaded from database (refresh if needed)
     try:
         from database.services import UserService
-        import uuid as uuid_lib
-        try:
-            user_uuid = uuid_lib.UUID(user.id)
-            db_users = UserService.get_all_users()
-            db_user = next((u for u in db_users if u.id == user.id), None)
-            if db_user:
-                # Update security_state cache with latest MFA settings from database
-                security_state.users[user.id] = db_user
-                user = db_user
-        except ValueError:
-            print(f"⚠️  [LOGIN] Invalid user_id format: {user.id}")
+        db_user = UserService.get_user_by_id(user.id, user.org_id)
+        if db_user:
+            # Update security_state cache with latest MFA settings from database
+            security_state.users[user.id] = db_user
+            user = db_user
     except Exception as e:
         print(f"⚠️  [LOGIN] Failed to refresh user from database: {e}")
         import traceback
@@ -851,8 +856,7 @@ async def login(request: LoginRequest, req: Request):
         # Refresh user from database to get latest MFA code
         try:
             from database.services import UserService
-            db_users = UserService.get_all_users()
-            db_user = next((u for u in db_users if u.id == user.id), None)
+            db_user = UserService.get_user_by_id(user.id, user.org_id)
             if db_user:
                 security_state.users[user.id] = db_user
                 user = db_user
@@ -1012,17 +1016,11 @@ async def get_current_user_info(user: User = Depends(require_auth)):
     # Ensure user is loaded from database (refresh from DB to get latest MFA settings)
     try:
         from database.services import UserService
-        import uuid as uuid_lib
-        try:
-            user_uuid = uuid_lib.UUID(user.id)
-            db_users = UserService.get_all_users()
-            db_user = next((u for u in db_users if u.id == user.id), None)
-            if db_user:
-                # Update security_state cache with latest data from database
-                security_state.users[user.id] = db_user
-                user = db_user
-        except ValueError:
-            print(f"⚠️  [API] Invalid user_id format: {user.id}")
+        db_user = UserService.get_user_by_id(user.id, user.org_id)
+        if db_user:
+            # Update security_state cache with latest data from database
+            security_state.users[user.id] = db_user
+            user = db_user
     except Exception as e:
         print(f"⚠️  [API] Failed to refresh user from database: {e}")
         import traceback
@@ -1776,17 +1774,11 @@ async def send_mfa_login_code(request: LoginRequest, req: Request):
     # Ensure user MFA settings are loaded from database (refresh if needed)
     try:
         from database.services import UserService
-        import uuid as uuid_lib
-        try:
-            user_uuid = uuid_lib.UUID(user.id)
-            db_users = UserService.get_all_users()
-            db_user = next((u for u in db_users if u.id == user.id), None)
-            if db_user:
-                # Update security_state cache with latest MFA settings from database
-                security_state.users[user.id] = db_user
-                user = db_user
-        except ValueError:
-            print(f"⚠️  [MFA_SEND] Invalid user_id format: {user.id}")
+        db_user = UserService.get_user_by_id(user.id, user.org_id)
+        if db_user:
+            # Update security_state cache with latest MFA settings from database
+            security_state.users[user.id] = db_user
+            user = db_user
     except Exception as e:
         print(f"⚠️  [MFA_SEND] Failed to refresh user from database: {e}")
         import traceback
@@ -3597,41 +3589,11 @@ async def oauth_callback(provider: str, req: Request):
     if not user:
         try:
             from database.services import UserService
-            import uuid as uuid_lib
-            # Convert org_id to UUID for comparison
-            org_uuid = None
-            if actual_org_id:
-                try:
-                    org_uuid = uuid_lib.UUID(actual_org_id) if isinstance(actual_org_id, str) else actual_org_id
-                except ValueError:
-                    # If org_id is not a valid UUID, try to find org by slug
-                    from database.services import OrganizationService
-                    orgs = OrganizationService.get_all_organizations()
-                    org_obj = next((o for o in orgs if o.slug == "default" or o.id == actual_org_id), None)
-                    if org_obj:
-                        org_uuid = uuid_lib.UUID(org_obj.id)
-            
-            db_users = UserService.get_all_users()
-            for db_user in db_users:
-                if db_user.email.lower() == email.lower():
-                    # Compare org_id (handle both UUID and string like "org_default")
-                    try:
-                        db_org_uuid = uuid_lib.UUID(db_user.org_id) if isinstance(db_user.org_id, str) else db_user.org_id
-                    except (ValueError, AttributeError):
-                        # If org_id is not a valid UUID (e.g., "org_default"), try to resolve it
-                        from database.services import OrganizationService
-                        orgs = OrganizationService.get_all_organizations()
-                        db_org_obj = next((o for o in orgs if o.slug == db_user.org_id or o.id == db_user.org_id), None)
-                        if db_org_obj:
-                            db_org_uuid = uuid_lib.UUID(db_org_obj.id)
-                        else:
-                            db_org_uuid = None
-                    
-                    if org_uuid is None or db_org_uuid == org_uuid:
-                        user = db_user
-                        # Add to security_state cache
-                        security_state.users[user.id] = user
-                        break
+            # Prefer direct DB lookup instead of scanning all users.
+            if email and actual_org_id:
+                user = UserService.get_user_by_email(email, str(actual_org_id))
+                if user:
+                    security_state.users[user.id] = user
         except Exception as e:
             print(f"⚠️  [OAUTH] Failed to search database for user: {e}")
             import traceback
