@@ -1134,36 +1134,215 @@ function renderOrgDeptSidebar() {
     }).join('');
 }
 
-function showCreateDepartmentModal() {
-    ensureModalInBody('create-dept-modal');
-    document.getElementById('dept-edit-id').value = '';
-    document.getElementById('dept-modal-title').textContent = 'Create Department';
-    document.getElementById('dept-save-btn').textContent = 'Create';
-    document.getElementById('dept-name').value = '';
-    document.getElementById('dept-description').value = '';
-    // Populate manager dropdown
-    const mgrSelect = document.getElementById('dept-manager');
-    mgrSelect.innerHTML = '<option value="">-- Not assigned --</option>' +
-        orgUsersCache.map(u => `<option value="${u.id}">${escHtml(u.name || u.email)}</option>`).join('');
-    const parentSelect = document.getElementById('dept-parent');
-    parentSelect.innerHTML = '<option value="">-- Top Level --</option>' +
-        orgDepartments.map(d => `<option value="${d.id}">${escHtml(d.name)}</option>`).join('');
-    document.getElementById('create-dept-modal').classList.remove('hidden');
-    document.getElementById('create-dept-modal').classList.add('flex');
+let _deptModalMembers = []; // [{id, name, email, job_title, manager_id}]
+
+function showCreateDepartmentModal(editId) {
+    const dept = editId ? orgDepartments.find(d => d.id === editId) : null;
+    const isEdit = !!dept;
+    const users = Array.isArray(orgUsersCache) ? orgUsersCache : [];
+    const depts = Array.isArray(orgDepartments) ? orgDepartments : [];
+    const jobTitleOptions = (orgJobTitles || []).map(t => `<option value="${escHtml(t)}"></option>`).join('');
+
+    _deptModalMembers = isEdit
+        ? users.filter(u => u.department_id === dept.id).map(u => ({
+            id: u.id, name: u.name || u.email, email: u.email,
+            job_title: u.job_title || '', manager_id: u.manager_id || ''
+        }))
+        : [];
+
+    const userLabel = (u) => {
+        const n = (u?.name || '').trim();
+        const e = (u?.email || '').trim();
+        return n ? `${n} (${e})` : e;
+    };
+
+    const old = document.getElementById('create-dept-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'create-dept-modal';
+    modal.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="modal-content-box rounded-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                <h3 class="font-bold text-lg">${isEdit ? 'Edit Department' : 'Create Department'}</h3>
+                <button onclick="closeDeptModal()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
+            </div>
+            <div class="p-6 space-y-5 overflow-y-auto flex-1">
+                <input type="hidden" id="dept-edit-id" value="${isEdit ? dept.id : ''}">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Department Name *</label>
+                        <input type="text" id="dept-name" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Engineering, HR" value="${isEdit ? escHtml(dept.name || '') : ''}">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Parent Department</label>
+                        <select id="dept-parent" class="w-full input-field rounded-lg px-4 py-2">
+                            <option value="">— None (Top Level)</option>
+                            ${depts.filter(d => d.id !== editId).map(d => `<option value="${d.id}" ${isEdit && dept.parent_id === d.id ? 'selected' : ''}>${escHtml(d.name)}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Description</label>
+                    <textarea id="dept-description" class="w-full input-field rounded-lg px-4 py-2 h-16" placeholder="What does this department do?">${isEdit ? escHtml(dept.description || '') : ''}</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Department Head</label>
+                    <select id="dept-manager" class="w-full input-field rounded-lg px-4 py-2">
+                        <option value="">— Not assigned —</option>
+                        ${users.map(u => `<option value="${u.id}" ${isEdit && dept.manager_id === u.id ? 'selected' : ''}>${escHtml(userLabel(u))}</option>`).join('')}
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">The head will appear at the top of this department in the org chart.</p>
+                </div>
+
+                <div class="border-t border-gray-800 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="block text-sm font-medium">Members</label>
+                        <button class="text-purple-400 hover:text-purple-300 text-xs font-medium" onclick="_deptAddMember()">+ Add Person</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-3">Add employees to this department, set their title/position, and define who reports to whom.</p>
+                    <div id="dept-members-list" class="space-y-2 max-h-60 overflow-y-auto">
+                        ${_deptModalMembers.length === 0 ? '<div class="text-xs text-gray-500 italic" id="dept-no-members">No members yet.</div>' : ''}
+                    </div>
+                    <datalist id="dept-job-titles">${jobTitleOptions}</datalist>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
+                <button onclick="closeDeptModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
+                <button onclick="saveDepartment()" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700">${isEdit ? 'Save' : 'Create'}</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    _deptRenderMembers();
 }
 
+function _deptRenderMembers() {
+    const container = document.getElementById('dept-members-list');
+    if (!container) return;
+    const users = Array.isArray(orgUsersCache) ? orgUsersCache : [];
+
+    if (_deptModalMembers.length === 0) {
+        container.innerHTML = '<div class="text-xs text-gray-500 italic" id="dept-no-members">No members yet.</div>';
+        return;
+    }
+
+    const deptMemIds = new Set(_deptModalMembers.map(m => m.id));
+
+    container.innerHTML = _deptModalMembers.map((m, i) => `
+        <div class="flex gap-2 items-center p-2 rounded-lg border border-gray-800 bg-gray-900/30" data-member-idx="${i}">
+            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">${escHtml((m.name || m.email || '?')[0].toUpperCase())}</div>
+            <div class="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div class="text-sm font-medium truncate" title="${escHtml(m.email)}">${escHtml(m.name || m.email)}</div>
+                <input type="text" class="input-field px-2 py-1 rounded text-xs dept-m-title" placeholder="Title / Position" value="${escHtml(m.job_title || '')}" list="dept-job-titles" data-idx="${i}">
+                <select class="input-field px-2 py-1 rounded text-xs dept-m-mgr" data-idx="${i}">
+                    <option value="">— No Manager —</option>
+                    ${_deptModalMembers.filter(x => x.id !== m.id).map(x => `<option value="${x.id}" ${m.manager_id === x.id ? 'selected' : ''}>${escHtml(x.name || x.email)}</option>`).join('')}
+                </select>
+            </div>
+            <button onclick="_deptRemoveMember(${i})" class="text-red-400 hover:text-red-300 flex-shrink-0 px-1" title="Remove from department">✕</button>
+        </div>
+    `).join('');
+}
+
+function _deptCollectMemberEdits() {
+    document.querySelectorAll('.dept-m-title').forEach(el => {
+        const idx = parseInt(el.dataset.idx);
+        if (_deptModalMembers[idx]) _deptModalMembers[idx].job_title = el.value.trim();
+    });
+    document.querySelectorAll('.dept-m-mgr').forEach(el => {
+        const idx = parseInt(el.dataset.idx);
+        if (_deptModalMembers[idx]) _deptModalMembers[idx].manager_id = el.value || '';
+    });
+}
+
+function _deptAddMember() {
+    _deptCollectMemberEdits();
+    const users = Array.isArray(orgUsersCache) ? orgUsersCache : [];
+    const existingIds = new Set(_deptModalMembers.map(m => m.id));
+    const available = users.filter(u => !existingIds.has(u.id));
+
+    if (available.length === 0) {
+        showToast('All users are already in this department', 'warning');
+        return;
+    }
+
+    const picker = document.createElement('div');
+    picker.id = 'dept-add-member-picker';
+    picker.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]';
+    picker.innerHTML = `
+        <div class="modal-content-box rounded-2xl w-full max-w-sm mx-4 max-h-[70vh] overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+                <h4 class="font-bold">Add Person to Department</h4>
+                <button onclick="document.getElementById('dept-add-member-picker')?.remove()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
+            </div>
+            <div class="p-3">
+                <input type="text" id="dept-member-search" class="w-full input-field rounded-lg px-4 py-2 text-sm" placeholder="Search by name or email..." oninput="_deptFilterAvailable()">
+            </div>
+            <div id="dept-available-list" class="flex-1 overflow-y-auto p-3 space-y-1">
+                ${available.map(u => `
+                    <div class="dept-avail-item flex items-center gap-2 p-2 rounded-lg hover:bg-gray-800 cursor-pointer" data-uid="${u.id}" data-name="${escHtml(u.name || u.email)}" data-email="${escHtml(u.email)}" onclick="_deptPickMember('${u.id}')">
+                        <div class="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">${escHtml((u.name || u.email || '?')[0].toUpperCase())}</div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium truncate">${escHtml(u.name || u.email)}</div>
+                            <div class="text-xs text-gray-400 truncate">${escHtml(u.email)}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(picker);
+}
+window._deptAddMember = _deptAddMember;
+
+function _deptFilterAvailable() {
+    const q = (document.getElementById('dept-member-search')?.value || '').toLowerCase();
+    document.querySelectorAll('.dept-avail-item').forEach(el => {
+        const name = (el.dataset.name || '').toLowerCase();
+        const email = (el.dataset.email || '').toLowerCase();
+        el.style.display = (!q || name.includes(q) || email.includes(q)) ? '' : 'none';
+    });
+}
+window._deptFilterAvailable = _deptFilterAvailable;
+
+function _deptPickMember(userId) {
+    const user = orgUsersCache.find(u => u.id === userId);
+    if (!user) return;
+    _deptModalMembers.push({
+        id: user.id,
+        name: user.name || user.email,
+        email: user.email,
+        job_title: user.job_title || '',
+        manager_id: user.manager_id || ''
+    });
+    document.getElementById('dept-add-member-picker')?.remove();
+    _deptRenderMembers();
+}
+window._deptPickMember = _deptPickMember;
+
+function _deptRemoveMember(idx) {
+    _deptCollectMemberEdits();
+    _deptModalMembers.splice(idx, 1);
+    _deptRenderMembers();
+}
+window._deptRemoveMember = _deptRemoveMember;
+
 function closeDeptModal() {
-    document.getElementById('create-dept-modal').classList.add('hidden');
-    document.getElementById('create-dept-modal').classList.remove('flex');
+    document.getElementById('create-dept-modal')?.remove();
+    _deptModalMembers = [];
 }
 
 async function saveDepartment() {
-    const editId = document.getElementById('dept-edit-id').value;
-    const name = document.getElementById('dept-name').value.trim();
-    const description = document.getElementById('dept-description').value.trim();
-    const managerId = document.getElementById('dept-manager').value || null;
-    const parentId = document.getElementById('dept-parent').value || null;
+    _deptCollectMemberEdits();
+    const editId = document.getElementById('dept-edit-id')?.value || '';
+    const name = (document.getElementById('dept-name')?.value || '').trim();
+    const description = (document.getElementById('dept-description')?.value || '').trim();
+    const managerId = document.getElementById('dept-manager')?.value || null;
+    const parentId = document.getElementById('dept-parent')?.value || null;
     if (!name) { showToast('Department name is required', 'error'); return; }
+
     try {
         const url = editId ? `/api/identity/departments/${editId}` : '/api/identity/departments';
         const method = editId ? 'PUT' : 'POST';
@@ -1171,39 +1350,39 @@ async function saveDepartment() {
             method, headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, description, manager_id: managerId, parent_id: parentId })
         });
-        if (res.ok) {
-            showToast(editId ? 'Department updated' : 'Department created', 'success');
-            closeDeptModal();
-            await loadOrgDepartments();
-            renderOrgChart();
-        } else {
+        if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             showToast(data.detail || 'Failed to save department', 'error');
+            return;
         }
+        const savedDept = await res.json().catch(() => ({}));
+        const deptId = savedDept.id || editId;
+
+        // Apply member assignments (department, title, manager) via bulk update
+        if (deptId && _deptModalMembers.length > 0) {
+            const updates = _deptModalMembers.map(m => ({
+                user_id: m.id,
+                department_id: deptId,
+                job_title: m.job_title || null,
+                manager_id: m.manager_id || null
+            }));
+            await fetch('/api/identity/org-chart/bulk-update', {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates })
+            }).catch(() => {});
+        }
+
+        showToast(editId ? 'Department updated' : 'Department created', 'success');
+        closeDeptModal();
+        await Promise.all([loadOrgDepartments(), loadOrgUsers()]);
+        renderOrgChart();
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 async function editDepartment(id) {
-    const dept = orgDepartments.find(d => d.id === id);
-    if (!dept) return;
-    showCreateDepartmentModal();
-    document.getElementById('dept-edit-id').value = id;
-    document.getElementById('dept-modal-title').textContent = 'Edit Department';
-    document.getElementById('dept-save-btn').textContent = 'Save';
-    document.getElementById('dept-name').value = dept.name || '';
-    document.getElementById('dept-description').value = dept.description || '';
-    const mgrSelect = document.getElementById('dept-manager');
-    if (dept.manager_id && ![...mgrSelect.options].some(o => o.value === dept.manager_id)) {
-        const headUser = orgUsersCache.find(u => u.id === dept.manager_id);
-        if (headUser) {
-            const opt = document.createElement('option');
-            opt.value = dept.manager_id;
-            opt.textContent = headUser.name || headUser.email;
-            mgrSelect.appendChild(opt);
-        }
-    }
-    mgrSelect.value = dept.manager_id || '';
-    document.getElementById('dept-parent').value = dept.parent_id || '';
+    await Promise.all([loadOrgDepartments(), loadOrgUsers(), loadOrgJobTitles()]);
+    showCreateDepartmentModal(id);
 }
 
 async function deleteDepartment(id) {

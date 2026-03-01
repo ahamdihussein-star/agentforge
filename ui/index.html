@@ -1387,42 +1387,7 @@
                             </div>
                         </div>
 
-                        <!-- Create/Edit Department Modal -->
-                        <div id="create-dept-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
-                            <div class="modal-content-box rounded-2xl w-full max-w-lg mx-4">
-                                <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-                                    <h3 class="font-bold text-lg" id="dept-modal-title">Create Department</h3>
-                                    <button onclick="closeDeptModal()" class="p-2 hover:bg-gray-700 rounded-lg">✕</button>
-                                </div>
-                                <div class="p-6 space-y-4">
-                                    <input type="hidden" id="dept-edit-id" value="">
-                                    <div>
-                                        <label class="block text-sm font-medium mb-2">Department Name *</label>
-                                        <input type="text" id="dept-name" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Engineering, HR, Finance">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium mb-2">Description</label>
-                                        <textarea id="dept-description" class="w-full input-field rounded-lg px-4 py-2 h-20" placeholder="What does this department do?"></textarea>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium mb-2">Department Head</label>
-                                        <select id="dept-manager" class="w-full input-field rounded-lg px-4 py-2">
-                                            <option value="">-- Not assigned --</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium mb-2">Parent Department</label>
-                                        <select id="dept-parent" class="w-full input-field rounded-lg px-4 py-2">
-                                            <option value="">-- Top Level --</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="p-4 border-t border-gray-700 flex justify-end gap-3">
-                                    <button onclick="closeDeptModal()" class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600">Cancel</button>
-                                    <button onclick="saveDepartment()" class="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700" id="dept-save-btn">Create</button>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Create/Edit Department Modal (rendered dynamically by JS) -->
 
                         <!-- Edit Person Modal -->
                         <div id="assign-manager-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
