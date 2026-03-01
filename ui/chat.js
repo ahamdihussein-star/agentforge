@@ -304,6 +304,14 @@
                     return;
                 }
                 
+                // Clear login fields so the browser won't offer to save credentials
+                try {
+                    const _lp = document.getElementById('login-password');
+                    const _lu = document.getElementById('login-username');
+                    if (_lp) _lp.value = '';
+                    if (_lu) _lu.value = '';
+                } catch (_) {}
+
                 // Success - complete login
                 try {
                     localStorage.setItem('agentforge_token', data.access_token);

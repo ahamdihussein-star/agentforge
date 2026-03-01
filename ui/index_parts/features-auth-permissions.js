@@ -371,6 +371,15 @@ async function handleLogin(event) {
             console.log("   Full response keys:", Object.keys(data));
         }
         
+        // Clear login form fields immediately so the browser's password
+        // manager has nothing to save when the user later navigates away.
+        try {
+            const _lp = document.getElementById('login-password');
+            const _lu = document.getElementById('login-username');
+            if (_lp) _lp.value = '';
+            if (_lu) _lu.value = '';
+        } catch (_) {}
+
         // Store auth data
         authToken = data.access_token;
         currentUser = data.user;

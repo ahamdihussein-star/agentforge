@@ -92,11 +92,11 @@
                     <div class="flex-1 h-px bg-gray-600"></div>
                 </div>
                 
-                <form id="login-form" onsubmit="handleLogin(event)">
+                <form id="login-form" onsubmit="handleLogin(event)" autocomplete="off">
                     <div class="space-y-4">
                         <div>
                             <label class="block text-sm text-gray-400 mb-2">Username</label>
-                            <input type="text" id="login-username" required
+                            <input type="text" id="login-username" required autocomplete="username"
                                    class="input-field w-full px-4 py-3 rounded-lg"
                                    placeholder="your.username">
                         </div>
@@ -104,7 +104,7 @@
                         <div>
                             <label class="block text-sm text-gray-400 mb-2">Password</label>
                             <div class="relative">
-                                <input type="password" id="login-password" required
+                                <input type="password" id="login-password" required autocomplete="current-password"
                                        class="input-field w-full px-4 py-3 pr-12 rounded-lg"
                                        placeholder="••••••••">
                                 <button type="button" onclick="togglePassword('login-password', this)" 
