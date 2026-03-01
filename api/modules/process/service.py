@@ -2182,7 +2182,7 @@ class ProcessAPIService:
         from database.models import Tool
         for tool_id in tool_ids_to_load:
             tool_record = self.db.query(Tool).filter(
-                Tool.id == uuid.UUID(tool_id)
+                Tool.id == str(tool_id)
             ).first()
             
             if tool_record:
