@@ -361,7 +361,7 @@ async function createUserFromModal() {
             showToast('User created successfully', 'success');
             document.getElementById('create-user-modal')?.remove();
             try { loadSecurityUsers(); loadSecurityStats(); } catch (e) { /* silent */ }
-            try { await loadOrgUsers(); renderOrgPeopleTable(); renderOrgDeptSidebar(); } catch (e) { /* silent */ }
+            try { await loadOrgUsers(); renderOrgChart(); } catch (e) { /* silent */ }
             if (send_invitation && data && data.email_sent === false) {
                 showToast('Email could not be sent. Share the temporary password securely.', 'error');
             }
@@ -805,12 +805,11 @@ let orgJobTitles = [];
 
 async function loadOrgTab() {
     await Promise.all([loadOrgDepartments(), loadOrgUsers(), loadOrgJobTitles()]);
-    renderOrgDeptSidebar();
-    renderOrgPeopleTable();
+    renderOrgChart();
 }
 
 function switchOrgSubTab(sub) {
-    const subs = ['people', 'orgchart', 'settings'];
+    const subs = ['orgchart', 'settings'];
     subs.forEach(s => {
         const el = document.getElementById('org-content-' + s);
         if (el) el.classList.toggle('hidden', s !== sub);
@@ -821,7 +820,6 @@ function switchOrgSubTab(sub) {
             btn.classList.toggle('hover:bg-gray-700', s !== sub);
         }
     });
-    if (sub === 'people') { renderOrgDeptSidebar(); renderOrgPeopleTable(); }
     if (sub === 'orgchart') renderOrgChart();
     if (sub === 'settings') { loadDirectoryConfig(); loadOrgProfileFieldsSchema(); loadOrgJobTitles(); }
 }
@@ -1177,7 +1175,7 @@ async function saveDepartment() {
             showToast(editId ? 'Department updated' : 'Department created', 'success');
             closeDeptModal();
             await loadOrgDepartments();
-            renderOrgPeopleTable();
+            renderOrgChart();
         } else {
             const data = await res.json().catch(() => ({}));
             showToast(data.detail || 'Failed to save department', 'error');
@@ -1216,9 +1214,9 @@ async function deleteDepartment(id) {
         });
         if (res.ok) {
             showToast('Department deleted', 'success');
-            if (_selectedDeptId === id) selectOrgDept(null);
+            if (_ocSelectedDept === id) _ocSelectedDept = null;
             await loadOrgDepartments();
-            renderOrgPeopleTable();
+            renderOrgChart();
         } else {
             showToast('Failed to delete department', 'error');
         }
@@ -1362,9 +1360,7 @@ async function saveManagerAssignment() {
                 orgUsersCache[idx].department_id = departmentId;
                 orgUsersCache[idx].job_title = jobTitle || '';
             }
-            renderOrgPeopleTable();
-            renderOrgDeptSidebar();
-            if (_selectedDeptId) selectOrgDept(_selectedDeptId);
+            renderOrgChart();
             closeManagerModal();
         } else {
             const data = await mgrRes.json().catch(() => ({}));
@@ -1373,61 +1369,85 @@ async function saveManagerAssignment() {
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
-// --- Org Chart ---
+// --- Org Chart (primary management view) ---
 let _ocView = { panX: 0, panY: 0, scale: 1 };
-let _ocDraft = {}; // user_id -> {manager_id, department_id, job_title, employee_id}
+let _ocDraft = {};
 let _ocDrag = { active: false, user_id: null, pointerId: null, startX: 0, startY: 0, ghost: null, overEl: null };
+let _ocSelectedDept = null;
 
 function renderOrgChart() {
     const container = document.getElementById('org-chart-tree');
     if (!container) return;
 
-    if (!Array.isArray(orgUsersCache) || orgUsersCache.length === 0) {
-        container.innerHTML = `
-            <div class="text-center py-10">
-                <div class="text-5xl mb-3">🏛️</div>
-                <p class="text-gray-300 font-medium">No people found yet</p>
-                <p class="text-gray-500 text-sm mt-1">Create users and connect reporting lines to build your organization chart.</p>
-                <button class="btn-primary px-5 py-2 rounded-lg mt-4" onclick="showCreateUserModal()">+ Create User</button>
-            </div>`;
-        return;
-    }
-
     const depts = Array.isArray(orgDepartments) ? orgDepartments : [];
     const draftCount = Object.keys(_ocDraft || {}).length;
     const canSave = draftCount > 0;
+
+    if (!Array.isArray(orgUsersCache) || orgUsersCache.length === 0) {
+        container.innerHTML = `
+            <div class="oc-shell">
+                <div class="oc-toolbar">
+                    <div class="oc-toolbar-left">
+                        <div class="oc-title">Organization Chart</div>
+                    </div>
+                    <div class="oc-toolbar-right">
+                        <button class="btn-primary oc-btn" onclick="showCreateDepartmentModal()">+ Department</button>
+                        <button class="btn-primary oc-btn" onclick="showCreateUserModal()">+ Person</button>
+                    </div>
+                </div>
+                <div class="text-center py-16">
+                    <div class="text-5xl mb-3">🏛️</div>
+                    <p class="text-gray-300 font-medium">No people found yet</p>
+                    <p class="text-gray-500 text-sm mt-1">Create departments and people to build your organization chart.</p>
+                </div>
+            </div>`;
+        return;
+    }
 
     container.innerHTML = `
         <div class="oc-shell">
             <div class="oc-toolbar">
                 <div class="oc-toolbar-left">
-                    <div class="oc-title">Organization Chart Builder</div>
-                    <div class="oc-hint">Drag a person onto another to set their manager. Drop onto a department to move them. Double-click a card to edit details.</div>
+                    <div class="oc-title">Organization Chart</div>
+                    <div class="oc-hint">Drag a person onto another to set their manager. Drop onto a department to move them. Click a department to see its members.</div>
                 </div>
                 <div class="oc-toolbar-right">
-                    <input id="oc-search" class="input-field oc-search" placeholder="Search people..." oninput="_ocRender()">
-                    <button class="btn-secondary oc-btn" onclick="_ocResetView()">Reset view</button>
+                    <input id="oc-search" class="input-field oc-search" placeholder="Search..." oninput="_ocRender()">
+                    <button class="btn-secondary oc-btn" onclick="_ocZoomIn()" title="Zoom in">+</button>
+                    <button class="btn-secondary oc-btn" onclick="_ocZoomOut()" title="Zoom out">−</button>
+                    <button class="btn-secondary oc-btn" onclick="_ocResetView()">Reset</button>
                     <button class="btn-secondary oc-btn" onclick="_ocDiscardDraft()" ${canSave ? '' : 'disabled'}>Discard</button>
-                    <button class="btn-primary oc-btn" onclick="_ocSaveDraft()" ${canSave ? '' : 'disabled'}>Save changes${draftCount ? ` (${draftCount})` : ''}</button>
+                    <button class="btn-primary oc-btn" onclick="_ocSaveDraft()" ${canSave ? '' : 'disabled'}>Save${draftCount ? ` (${draftCount})` : ''}</button>
                 </div>
             </div>
             <div class="oc-body">
                 <div class="oc-side">
-                    <div class="oc-drop-top oc-dropzone" data-drop="top">Drop here to make top-level</div>
+                    <div class="oc-drop-top oc-dropzone" data-drop="top">Drop here → make top-level</div>
                     <div class="oc-side-head">
                         <div class="oc-side-title">Departments</div>
                         <button class="text-purple-400 hover:text-purple-300 text-xs font-medium" onclick="showCreateDepartmentModal()">+ New</button>
                     </div>
                     <div class="oc-dept-list">
-                        ${depts.map(d => `
-                            <div class="oc-dept-drop" data-dept-id="${escHtml(d.id)}">
+                        <div class="oc-dept-drop ${!_ocSelectedDept ? 'oc-dept-active' : ''}" data-dept-id="" onclick="_ocSelectDept(null)">
+                            <div class="oc-dept-name">All People</div>
+                            <div class="oc-dept-meta">${orgUsersCache.length} total</div>
+                        </div>
+                        ${depts.map(d => {
+                            const head = orgUsersCache.find(u => u.id === d.manager_id);
+                            const mc = orgUsersCache.filter(u => u.department_id === d.id).length;
+                            return `
+                            <div class="oc-dept-drop ${_ocSelectedDept === d.id ? 'oc-dept-active' : ''}" data-dept-id="${escHtml(d.id)}" onclick="_ocSelectDept('${escHtml(d.id)}')">
                                 <div class="oc-dept-name">${escHtml(d.name || 'Department')}</div>
-                                <div class="oc-dept-meta">${(orgUsersCache || []).filter(u => u.department_id === d.id).length} member(s)</div>
-                            </div>
-                        `).join('') || `<div class="text-xs text-gray-500">No departments yet</div>`}
+                                <div class="oc-dept-meta">${head ? escHtml(head.name || head.email) : 'No head'} · ${mc} member${mc !== 1 ? 's' : ''}</div>
+                                <div class="oc-dept-actions">
+                                    <button class="oc-link" onclick="event.stopPropagation(); editDepartment('${escHtml(d.id)}')">Edit</button>
+                                    <button class="oc-link text-red-400" onclick="event.stopPropagation(); deleteDepartment('${escHtml(d.id)}')">Delete</button>
+                                </div>
+                            </div>`;
+                        }).join('') || ''}
                     </div>
                     <div class="oc-side-footer">
-                        <button class="btn-secondary w-full px-3 py-2 rounded-lg" onclick="showCreateUserModal()">+ Create User</button>
+                        <button class="btn-secondary w-full px-3 py-2 rounded-lg text-sm" onclick="showCreateUserModal()">+ Create Person</button>
                     </div>
                 </div>
                 <div class="oc-viewport" id="oc-viewport">
@@ -1443,6 +1463,12 @@ function renderOrgChart() {
     _ocBindViewport();
     _ocRender();
 }
+
+function _ocSelectDept(deptId) {
+    _ocSelectedDept = deptId;
+    renderOrgChart();
+}
+window._ocSelectDept = _ocSelectDept;
 
 function _ocEffectiveUser(u) {
     const d = (_ocDraft || {})[u.id];
@@ -1462,7 +1488,7 @@ function _ocBuildGraph(users) {
     const children = {};
     users.forEach(u => {
         const mid = u.manager_id || null;
-        if (mid) {
+        if (mid && byId[mid]) {
             if (!children[mid]) children[mid] = [];
             children[mid].push(u.id);
         }
@@ -1530,7 +1556,12 @@ function _ocRender() {
     if (!viewport || !world || !nodesEl || !linesEl) return;
 
     const q = (document.getElementById('oc-search')?.value || '').toLowerCase().trim();
-    const effective = (orgUsersCache || []).map(_ocEffectiveUser);
+    let effective = (orgUsersCache || []).map(_ocEffectiveUser);
+
+    if (_ocSelectedDept) {
+        effective = effective.filter(u => u.department_id === _ocSelectedDept);
+    }
+
     const filteredIds = q ? new Set(effective.filter(u => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q) || (u.job_title || '').toLowerCase().includes(q)).map(u => u.id)) : null;
 
     const graph = _ocBuildGraph(effective);
@@ -1540,7 +1571,6 @@ function _ocRender() {
     world.style.height = layout.worldH + 'px';
     world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
 
-    // Nodes
     nodesEl.innerHTML = effective.map(u => {
         if (filteredIds && !filteredIds.has(u.id)) return '';
         const p = layout.pos[u.id];
@@ -1568,11 +1598,7 @@ function _ocRender() {
         `;
     }).join('');
 
-    // Lines (only between visible nodes)
-    const nodeVisible = (uid) => {
-        if (!filteredIds) return true;
-        return filteredIds.has(uid);
-    };
+    const nodeVisible = (uid) => !filteredIds || filteredIds.has(uid);
     let lines = '';
     effective.forEach(u => {
         const kids = graph.children[u.id] || [];
@@ -1602,7 +1628,6 @@ function _ocBindViewport() {
     if (vp.dataset.bound === '1') return;
     vp.dataset.bound = '1';
 
-    // Pan with background drag
     let panning = false;
     let panStartX = 0, panStartY = 0, panBaseX = 0, panBaseY = 0;
     vp.addEventListener('pointerdown', (e) => {
@@ -1622,16 +1647,29 @@ function _ocBindViewport() {
     vp.addEventListener('pointerup', () => { panning = false; });
     vp.addEventListener('pointercancel', () => { panning = false; });
 
-    // Zoom
+    // Scroll = pan (NOT zoom). Scroll down → pan down, scroll right → pan right.
     vp.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const delta = Math.sign(e.deltaY);
-        const next = Math.max(0.4, Math.min(1.6, _ocView.scale + (delta > 0 ? -0.08 : 0.08)));
-        _ocView.scale = next;
+        _ocView.panX -= e.deltaX;
+        _ocView.panY -= e.deltaY;
         const world = document.getElementById('oc-world');
         if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
     }, { passive: false });
 }
+
+function _ocZoomIn() {
+    _ocView.scale = Math.min(2, _ocView.scale + 0.15);
+    const world = document.getElementById('oc-world');
+    if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+}
+window._ocZoomIn = _ocZoomIn;
+
+function _ocZoomOut() {
+    _ocView.scale = Math.max(0.3, _ocView.scale - 0.15);
+    const world = document.getElementById('oc-world');
+    if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+}
+window._ocZoomOut = _ocZoomOut;
 
 function _ocBindNodeDragging() {
     const nodesEl = document.getElementById('oc-nodes');
@@ -1649,6 +1687,7 @@ function _ocBindNodeDragging() {
     nodesEl.addEventListener('pointerdown', (e) => {
         const node = e.target?.closest?.('.oc-node');
         if (!node) return;
+        if (e.target.closest('button')) return;
         const uid = node.dataset.userId;
         if (!uid) return;
         _ocDrag.active = true;
@@ -1659,7 +1698,8 @@ function _ocBindNodeDragging() {
 
         const ghost = document.createElement('div');
         ghost.className = 'oc-ghost';
-        ghost.textContent = 'Moving…';
+        const user = orgUsersCache.find(u => u.id === uid);
+        ghost.textContent = user ? (user.name || user.email) : 'Moving…';
         document.body.appendChild(ghost);
         _ocDrag.ghost = ghost;
         ghost.style.left = (e.clientX + 12) + 'px';
@@ -1709,8 +1749,10 @@ function _ocBindNodeDragging() {
             }
         } else if (over.classList.contains('oc-dept-drop')) {
             const deptId = over.dataset.deptId;
-            _ocStage(uid, { department_id: deptId || null });
-            showToast('Department change staged', 'success');
+            if (deptId) {
+                _ocStage(uid, { department_id: deptId });
+                showToast('Department change staged', 'success');
+            }
         } else if (over.classList.contains('oc-drop-top')) {
             _ocStage(uid, { manager_id: null });
             showToast('Set as top-level (staged)', 'success');
@@ -1725,11 +1767,9 @@ function _ocStage(userId, patch) {
     if (!_ocDraft) _ocDraft = {};
     if (!_ocDraft[userId]) _ocDraft[userId] = {};
     _ocDraft[userId] = { ..._ocDraft[userId], ...patch };
-    // Remove empty patches
     const cur = _ocDraft[userId];
     const isEmpty = cur && Object.keys(cur).every(k => cur[k] === undefined);
     if (isEmpty) delete _ocDraft[userId];
-    // Update toolbar buttons by re-rendering shell (simple + safe)
     renderOrgChart();
 }
 
@@ -1750,13 +1790,10 @@ async function _ocSaveDraft() {
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
-            showToast(`Saved: ${data.success_count || updates.length} change(s)`, 'success');
-            // Refresh people cache from API (source of truth for UI tables)
+            showToast(`Saved ${data.success_count || updates.length} change(s)`, 'success');
             await loadOrgUsers();
             _ocDraft = {};
             renderOrgChart();
-            renderOrgPeopleTable();
-            renderOrgDeptSidebar();
         } else {
             showToast(data.detail || 'Failed to save changes', 'error');
         }
