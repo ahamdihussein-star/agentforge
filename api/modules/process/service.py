@@ -52,6 +52,83 @@ logger = logging.getLogger(__name__)
 _user_directory = UserDirectoryService()
 
 
+class _ProcessAPITool:
+    """Lightweight wrapper that executes a platform API tool within a process.
+    
+    Unlike the generic APITool (which expects 'endpoint' as an execute arg),
+    this uses the pre-configured api_config stored in the database so the
+    process engine can call it with just the business arguments.
+    """
+
+    def __init__(self, tool_record):
+        self.name = tool_record.name
+        self.tool_type = tool_record.type
+        cfg = tool_record.api_config or {}
+        self._base_url = cfg.get("base_url", "")
+        self._endpoint_path = cfg.get("endpoint_path", "")
+        self._http_method = (cfg.get("http_method") or "GET").upper()
+        self._auth_type = cfg.get("auth_type", "none")
+        self._auth_value = cfg.get("auth_value", "")
+        self._api_key_name = cfg.get("api_key_name", "X-API-Key")
+        self._api_key_location = cfg.get("api_key_location", "header")
+        self._headers = dict(cfg.get("headers") or {})
+        self._input_parameters = cfg.get("input_parameters") or []
+
+    async def execute(self, **kwargs) -> "ToolResult":
+        import httpx, time
+        from core.tools.base import ToolResult
+
+        start = time.time()
+        try:
+            url = self._base_url.rstrip("/")
+            ep = self._endpoint_path
+            if ep:
+                url = f"{url}/{ep.lstrip('/')}"
+
+            known_param_names = {p.get("name") or p for p in self._input_parameters if isinstance(p, dict)} if self._input_parameters else set()
+
+            for key, value in kwargs.items():
+                url = url.replace(f"{{{key}}}", str(value) if value else "")
+
+            headers = {"Content-Type": "application/json", "Accept": "application/json"}
+            headers.update(self._headers)
+            if self._auth_type == "bearer" and self._auth_value:
+                headers["Authorization"] = f"Bearer {self._auth_value}"
+            elif self._auth_type == "api_key" and self._auth_value:
+                if self._api_key_location == "header":
+                    headers[self._api_key_name] = self._auth_value
+                    
+            query_params = {}
+            if self._http_method == "GET":
+                for k, v in kwargs.items():
+                    if f"{{{k}}}" not in (self._endpoint_path or "") and v is not None:
+                        query_params[k] = v
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.request(
+                    self._http_method, url,
+                    headers=headers,
+                    params=query_params if query_params else None,
+                    json=kwargs if self._http_method in ("POST", "PUT", "PATCH") else None,
+                )
+
+            ms = (time.time() - start) * 1000
+            try:
+                data = resp.json()
+            except Exception:
+                data = {"text": resp.text}
+
+            if resp.is_success:
+                return ToolResult(success=True, data=data, execution_time_ms=ms,
+                                 summary=f"API {self._http_method} {resp.status_code}")
+            else:
+                return ToolResult(success=False, data=data,
+                                 error=f"HTTP {resp.status_code}: {resp.reason_phrase}",
+                                 execution_time_ms=ms)
+        except Exception as exc:
+            return ToolResult(success=False, error=str(exc),
+                             execution_time_ms=(time.time() - start) * 1000)
+
 
 def _approvers_to_ids(value: Any) -> List[str]:
     """Normalize approvers/assignees to a list of string IDs. Handles list of IDs, list of objects with id/value, or single ID."""
@@ -1273,8 +1350,8 @@ class ProcessAPIService:
             settings=self._ensure_dict(getattr(execution, "settings", None) or {}),
         )
 
-        # Build dependencies
-        deps = await self._build_dependencies(agent)
+        # Build dependencies (include tools from process definition)
+        deps = await self._build_dependencies(agent, self._collect_tool_ids(agent, raw_def))
         
         # Create engine with restored state
         engine = ProcessEngine(
@@ -2187,18 +2264,9 @@ class ProcessAPIService:
             
             if tool_record:
                 try:
-                    merged_cfg = dict(tool_record.config or {})
-                    if tool_record.api_config:
-                        merged_cfg.update(tool_record.api_config if isinstance(tool_record.api_config, dict) else {})
-                    tool_config = ToolConfig(
-                        type=tool_record.type,
-                        name=tool_record.name,
-                        config=merged_cfg,
-                        enabled=getattr(tool_record, 'is_active', True),
-                        requires_approval=getattr(tool_record, 'requires_approval', False)
-                    )
-                    tool = ToolRegistry.create(tool_config)
-                    tools[tool_id] = tool
+                    tool_instance = self._create_tool_instance(tool_record)
+                    if tool_instance:
+                        tools[str(tool_id)] = tool_instance
                 except Exception as e:
                     logger.warning(f"Failed to load tool {tool_id}: {e}")
         
@@ -2225,6 +2293,28 @@ class ProcessAPIService:
             approval_service=approval_service,
             user_directory=_user_directory,
         )
+
+    def _create_tool_instance(self, tool_record):
+        """Create an executable tool instance from a DB tool record."""
+        if tool_record.type == "api" and tool_record.api_config:
+            return _ProcessAPITool(tool_record)
+        try:
+            import core.tools.builtin.api
+            import core.tools.builtin.rag
+            import core.tools.builtin.database
+        except Exception:
+            pass
+        merged_cfg = dict(tool_record.config or {})
+        if tool_record.api_config and isinstance(tool_record.api_config, dict):
+            merged_cfg.update(tool_record.api_config)
+        tool_config = ToolConfig(
+            type=tool_record.type,
+            name=tool_record.name,
+            config=merged_cfg,
+            enabled=getattr(tool_record, 'is_active', True),
+            requires_approval=getattr(tool_record, 'requires_approval', False)
+        )
+        return ToolRegistry.create(tool_config)
 
     # =====================================================================
     # UNIFIED ENGINE RESULT HANDLER — single source of truth
