@@ -1315,8 +1315,11 @@ async def accept_invitation(request: AcceptInvitationRequest, req: Request):
     
     # Check if email already registered (unless shared emails are enabled)
     if not getattr(settings, "allow_shared_emails", False):
-        if security_state.get_user_by_email(invitation.email):
-            raise HTTPException(status_code=400, detail="Email already registered")
+        if security_state.get_user_by_email(invitation.email, invitation.org_id):
+            raise HTTPException(
+                status_code=400,
+                detail="This email is already used by another account in your organization. To allow shared email addresses, enable Shared Emails in Security Settings.",
+            )
     
     # Validate password
     is_valid, errors = PasswordService.validate_password(request.password, settings)
@@ -2066,8 +2069,11 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
     if security_state.get_user_by_username(username, user.org_id):
         raise HTTPException(status_code=400, detail="Username already exists")
     if not getattr(settings, "allow_shared_emails", False):
-        if security_state.get_user_by_email(request.email):
-            raise HTTPException(status_code=400, detail="Email already exists")
+        if security_state.get_user_by_email(request.email, user.org_id):
+            raise HTTPException(
+                status_code=400,
+                detail="This email is already used by another account in your organization. To allow shared email addresses, enable Shared Emails in Security Settings.",
+            )
     
     password_from_admin = bool(request.password and str(request.password).strip())
     if password_from_admin and len(str(request.password)) < 8:
@@ -2335,8 +2341,11 @@ async def invite_user(request: InviteUserRequest, user: User = Depends(require_a
     """Invite a new user"""
     settings = security_state.get_settings(user.org_id or "org_default")
     if not getattr(settings, "allow_shared_emails", False):
-        if security_state.get_user_by_email(request.email):
-            raise HTTPException(status_code=400, detail="User with this email already exists")
+        if security_state.get_user_by_email(request.email, user.org_id):
+            raise HTTPException(
+                status_code=400,
+                detail="This email is already used by another account in your organization. To allow shared email addresses, enable Shared Emails in Security Settings.",
+            )
     
     # Check for existing pending invitation
     for inv in security_state.invitations.values():
@@ -2391,8 +2400,13 @@ async def bulk_invite_users(request: BulkInviteRequest, user: User = Depends(req
         try:
             settings = security_state.get_settings(user.org_id or "org_default")
             if not getattr(settings, "allow_shared_emails", False):
-                if security_state.get_user_by_email(email):
-                    results["failed"].append({"email": email, "reason": "Already exists"})
+                if security_state.get_user_by_email(email, user.org_id):
+                    results["failed"].append(
+                        {
+                            "email": email,
+                            "reason": "Already exists (enable Shared Emails in Security Settings to allow duplicates).",
+                        }
+                    )
                     continue
             
             invitation = Invitation(
