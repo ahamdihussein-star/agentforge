@@ -197,15 +197,17 @@ Analysis (for context):
 
 Available platform tools (use these when the user's goal involves actions these tools can perform):
 {tools_json}
-TOOL MATCHING (CRITICAL — name-based matching):
+TOOL MATCHING (CRITICAL — semantic matching by meaning):
 - Read each tool's name, type, and description carefully.
-- When the user mentions a tool BY NAME (e.g., "use the HR System tool", "connect to SAP", "query the Employee Database"), ALWAYS match it to the closest tool in tools_json by name similarity. Prefer name matching over description matching.
+- Match tools SEMANTICALLY — by meaning, not by exact name.
+  Use both the tool name AND description to determine if it covers the needed capability.
+- When the user mentions an external system, find the best semantic match in tools_json:
+  - "Purchase Order System" matches a tool named "Purchase Orders" or one with description about POs
+  - "PO Validation" matches "Purchase Order Lookup"
+  - "HR Database" matches "Employee Records API"
+  - "check the vendor system" matches a tool with vendor-related description
 - When the user's goal implies an action that matches a tool's capability, use a "tool" node with the correct toolId and params.
-- Examples of name-based matching:
-  - User says "use SAP" → match tool with name containing "SAP"
-  - User says "check the HR system" → match tool with name containing "HR"
-  - User says "send via Slack" → if a Slack tool exists, use it; otherwise use notification with channel "slack"
-- If no tool matches the user's intent, do NOT create a tool node — use an AI step or notification instead.
+- If no tool semantically matches the user's intent, do NOT create a tool node — use an AI step or notification instead.
 
 Platform Knowledge Base (ground truth about platform capabilities, rules, and safe option lists):
 {platform_knowledge}
@@ -1112,7 +1114,7 @@ class ProcessWizard:
         tools_summary_text = ""
         if tools:
             lines = ["\n\nCONFIGURED TOOLS SUMMARY (available for this organization):"]
-            lines.append("Use these tool names and IDs when the user's prompt mentions a matching system.")
+            lines.append("Match these tools SEMANTICALLY against the user's prompt. Use both name and description to find the right tool.")
             for i, t in enumerate(tools[:30], 1):
                 tname = t.get("name") or "Unknown"
                 ttype = t.get("type") or ""

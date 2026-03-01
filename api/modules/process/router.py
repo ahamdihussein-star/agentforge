@@ -2029,7 +2029,18 @@ async def _analyze_goal_prerequisites(
     group_info = ", ".join(g.get("name", "?") for g in groups) if groups else "None created yet"
     role_info = ", ".join(r.get("name", "?") for r in roles) if roles else "None created yet"
     job_titles_info = ", ".join(str(t) for t in job_titles) if job_titles else "None configured yet"
-    tool_info = ", ".join(t.get("name", "?") for t in tools) if tools else "None created yet"
+    if tools:
+        tool_parts = []
+        for t in tools:
+            tname = t.get("name", "?")
+            tdesc = t.get("description", "")
+            if tdesc:
+                tool_parts.append(f'{tname} — {tdesc[:80]}')
+            else:
+                tool_parts.append(tname)
+        tool_info = "; ".join(tool_parts)
+    else:
+        tool_info = "None created yet"
 
     print(f"🔍 [Pre-check] dept_info sent to LLM: {dept_info}")
     print(f"🔍 [Pre-check] tool_info sent to LLM: {tool_info}")
@@ -2136,8 +2147,14 @@ TOOL MATCHING RULES (CRITICAL):
     - Report/document generation (XLSX, PDF, DOCX) → built-in document generation
     - Email sending → built-in notifications
     - File/image OCR and parsing → built-in file processing
-13. Only flag a "tool" as missing if the workflow needs an EXTERNAL system (API, database, CRM, ERP, PO system, etc.) AND no semantically matching tool exists in the Tools/Integrations list.
-14. When matching tools, compare SEMANTICALLY: "Purchase Order System" in the description matches a "Purchase Orders" tool on the platform.
+13. Only flag a "tool" as missing if the workflow needs an EXTERNAL system (API, database, CRM, ERP, PO system, etc.)
+    AND no semantically matching tool exists in the Tools/Integrations list.
+14. Match tools SEMANTICALLY by meaning — not by exact name.
+    Use the tool's name AND description to determine if it covers the required functionality.
+    Examples: "Purchase Order System" matches a tool named "Purchase Orders".
+    "PO Validation" matches "Purchase Order Lookup". "HR Database" matches "Employee Records API".
+    The description is equally important — a tool named "Vendor API" with description
+    "Manages purchase orders and vendor invoices" matches "Purchase Order System".
 
 CRITICAL RULES:
 15. NEVER put an entity in "missing" if it already exists on the platform
@@ -2396,6 +2413,37 @@ async def _pre_check_platform_readiness(
             if etype == "role" and _is_known_job_title(name):
                 print(f"🔕 [Pre-check] Skipping 'role' \"{name}\" — semantically matches a known job title")
                 continue
+
+            # If LLM flagged a "tool" but a semantically matching tool exists, skip it
+            if etype == "tool":
+                from difflib import SequenceMatcher as _SM
+                _tool_names = [
+                    (t.get("name") or "").strip().lower()
+                    for t in tools
+                ] + [
+                    (t.get("description") or "").strip().lower()
+                    for t in tools
+                ]
+                _tool_names = [tn for tn in _tool_names if tn]
+                _name_l = name.strip().lower()
+                _tool_match = False
+                for _tn in _tool_names:
+                    if _name_l == _tn:
+                        _tool_match = True
+                        break
+                    _ct = set(_name_l.split())
+                    _tt = set(_tn.split())
+                    if _ct and _tt:
+                        _ov = _ct & _tt
+                        if _ov and (len(_ov) / len(_ct) >= 0.5 or len(_ov) / len(_tt) >= 0.4):
+                            _tool_match = True
+                            break
+                    if _SM(None, _name_l, _tn).ratio() >= 0.6:
+                        _tool_match = True
+                        break
+                if _tool_match:
+                    print(f"🔕 [Pre-check] Skipping 'tool' \"{name}\" — semantically matches an existing tool")
+                    continue
             cfg = _type_config[etype]
             can = _can(cfg["perm"])
             _add(f"{etype}_missing:{name.lower()}", {
@@ -2691,10 +2739,39 @@ def _validate_process_prerequisites(
         return False
 
     tool_by_id: Dict[str, dict] = {}
+    _tool_names_for_match: List[str] = []
     for t in (context.get("tools") or context.get("available_tools") or []):
         tid = str(t.get("id") or "")
         if tid:
             tool_by_id[tid] = t
+        tname = (t.get("name") or "").strip().lower()
+        tdesc = (t.get("description") or "").strip().lower()
+        if tname:
+            _tool_names_for_match.append(tname)
+        if tdesc:
+            _tool_names_for_match.append(tdesc)
+
+    def _semantically_matches_tool(candidate: str) -> bool:
+        """Semantic check: does the candidate tool reference match any known tool?"""
+        from difflib import SequenceMatcher
+        if not candidate or not _tool_names_for_match:
+            return False
+        c = candidate.strip().lower()
+        for ref in _tool_names_for_match:
+            if c == ref:
+                return True
+            c_tokens = set(c.split())
+            ref_tokens = set(ref.split())
+            if c_tokens and ref_tokens:
+                overlap = c_tokens & ref_tokens
+                if overlap and (
+                    len(overlap) / len(c_tokens) >= 0.5
+                    or len(overlap) / len(ref_tokens) >= 0.4
+                ):
+                    return True
+            if SequenceMatcher(None, c, ref).ratio() >= 0.6:
+                return True
+        return False
 
     proc_by_id: Dict[str, dict] = {}
     for p in (context.get("published_processes") or []):
@@ -3189,6 +3266,9 @@ def _validate_process_prerequisites(
             tid = str(config.get("toolId") or config.get("tool_id") or "")
             tname = config.get("toolName") or config.get("tool_name") or ""
             if tid and tid not in tool_by_id:
+                # Try semantic match by tool name before flagging as missing
+                if _semantically_matches_tool(tname):
+                    continue
                 can = _can("tools:create")
                 label = tname or "External System"
                 _add(f"tool:{tid}", {
