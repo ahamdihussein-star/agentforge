@@ -1180,11 +1180,11 @@ function showCreateDepartmentModal(editId) {
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-2">Department Head</label>
-                    <select id="dept-manager" class="w-full input-field rounded-lg px-4 py-2">
+                    <select id="dept-manager" class="w-full input-field rounded-lg px-4 py-2" onchange="_deptCollectMemberEdits(); _deptRenderMembers();">
                         <option value="">— Not assigned —</option>
                         ${users.map(u => `<option value="${u.id}" ${isEdit && dept.manager_id === u.id ? 'selected' : ''}>${escHtml(userLabel(u))}</option>`).join('')}
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">The head will appear at the top of this department in the org chart.</p>
+                    <p class="text-xs text-gray-500 mt-1">The head will appear at the top of this department in the org chart and as a manager option for members.</p>
                 </div>
 
                 <div class="border-t border-gray-800 pt-4">
@@ -1221,6 +1221,24 @@ function _deptRenderMembers() {
 
     const deptMemIds = new Set(_deptModalMembers.map(m => m.id));
 
+    const headId = document.getElementById('dept-manager')?.value || '';
+    const headUser = headId ? users.find(u => u.id === headId) : null;
+
+    function _mgrOptions(currentMember) {
+        const candidates = [];
+        if (headUser && headUser.id !== currentMember.id && !deptMemIds.has(headUser.id)) {
+            candidates.push(headUser);
+        }
+        _deptModalMembers.forEach(x => { if (x.id !== currentMember.id) candidates.push(x); });
+        if (headUser && deptMemIds.has(headUser.id) && headUser.id !== currentMember.id) {
+            // already added above via _deptModalMembers loop
+        }
+        const seen = new Set();
+        return candidates.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
+            .map(c => `<option value="${c.id}" ${currentMember.manager_id === c.id ? 'selected' : ''}>${escHtml(c.name || c.email)}</option>`)
+            .join('');
+    }
+
     container.innerHTML = _deptModalMembers.map((m, i) => `
         <div class="flex gap-2 items-center p-2 rounded-lg border border-gray-800 bg-gray-900/30" data-member-idx="${i}">
             <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">${escHtml((m.name || m.email || '?')[0].toUpperCase())}</div>
@@ -1229,13 +1247,14 @@ function _deptRenderMembers() {
                 <input type="text" class="input-field px-2 py-1 rounded text-xs dept-m-title" placeholder="Type or pick a title..." value="${escHtml(m.job_title || '')}" list="dept-job-titles" data-idx="${i}">
                 <select class="input-field px-2 py-1 rounded text-xs dept-m-mgr" data-idx="${i}">
                     <option value="">— No Manager —</option>
-                    ${_deptModalMembers.filter(x => x.id !== m.id).map(x => `<option value="${x.id}" ${m.manager_id === x.id ? 'selected' : ''}>${escHtml(x.name || x.email)}</option>`).join('')}
+                    ${_mgrOptions(m)}
                 </select>
             </div>
             <button onclick="_deptRemoveMember(${i})" class="text-red-400 hover:text-red-300 flex-shrink-0 px-1" title="Remove from department">✕</button>
         </div>
     `).join('');
 }
+window._deptRenderMembers = _deptRenderMembers;
 
 function _deptCollectMemberEdits() {
     document.querySelectorAll('.dept-m-title').forEach(el => {
@@ -1247,6 +1266,7 @@ function _deptCollectMemberEdits() {
         if (_deptModalMembers[idx]) _deptModalMembers[idx].manager_id = el.value || '';
     });
 }
+window._deptCollectMemberEdits = _deptCollectMemberEdits;
 
 function _deptAddMember() {
     _deptCollectMemberEdits();
