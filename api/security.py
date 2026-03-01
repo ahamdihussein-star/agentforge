@@ -2094,7 +2094,9 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
         # Email delivery is a convenience channel; it must not block sign-in.
         status=UserStatus.ACTIVE,
         email_verified=True,
-        must_change_password=True,
+        # Only force first-login password change when we generated a temporary password.
+        # If the admin explicitly set a password, allow normal login without interruption.
+        must_change_password=(not password_from_admin),
         created_by=user.id
     )
     
