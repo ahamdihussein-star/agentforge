@@ -443,10 +443,11 @@ Node config rules:
     Instead use: assignee_source: "user_directory", directory_assignee_type: "department_manager", assignee_department_name: "<department name>".
     Or if they mention a specific group: assignee_source: "platform_group", assignee_ids: ["<group_id>"].
   - CRITICAL — JOB TITLES vs PLATFORM ROLES:
-    Job titles (AP Manager, Finance Director, Head of Finance, etc.) are business positions assigned to users in departments.
+    Job titles (AP Manager, Finance Director, Head of Finance, etc.) are business positions assigned to people in departments.
     Platform roles (Admin, Editor, Viewer, etc.) are system permission roles.
-    When the user's prompt mentions a job title as an approver (e.g., "AP Manager approves", "route to Finance Director"):
-      1. Look at the ORGANIZATION DEPARTMENTS members list to find the person with that title.
+    When the prompt mentions a job title as an approver (e.g., "AP Manager approves", "route to Finance Director"):
+      1. SEMANTICALLY match the title against DEPARTMENT MEMBERS (not literal string match).
+         "AP Manager" matches "Accounts Payable Manager", "Finance Director" matches "Director of Finance".
       2. If the person is the department head → use department_manager routing with the department.
       3. If the person is a regular member → use platform_user routing with their user_id.
       4. NEVER use platform_role for job titles. NEVER invent a role for a job title.
@@ -1040,8 +1041,9 @@ class ProcessWizard:
 
             roles = additional_context.get("roles")
             if roles and isinstance(roles, list) and len(roles) > 0:
-                org_lines.append("\nORGANIZATION ROLES:")
-                org_lines.append("Use these for role-based approval routing and notifications.")
+                org_lines.append("\nORGANIZATION ROLES (system permission roles — NOT job titles):")
+                org_lines.append("These are SYSTEM PERMISSION roles (e.g., Admin, Editor, Viewer).")
+                org_lines.append("Only use these if the workflow explicitly needs a system permission role.")
                 for r in roles[:30]:
                     org_lines.append(f'  - "{r["name"]}" (id: {r["id"]})')
                 org_lines.append(
@@ -1050,6 +1052,10 @@ class ProcessWizard:
                 )
                 org_lines.append(
                     '  → For notification to a role: recipient: "role:<role_id>".'
+                )
+                org_lines.append(
+                    "  ⚠️  Do NOT use platform_role for business positions like 'AP Manager' or 'Finance Director'. "
+                    "Those are job titles — find the person by title in the department members list."
                 )
 
             job_titles = additional_context.get("job_titles")
@@ -1063,23 +1069,28 @@ class ProcessWizard:
                 )
                 org_lines.append(
                     "\n  CRITICAL — JOB TITLE ROUTING RULES:\n"
-                    "  Job titles (AP Manager, Finance Director, etc.) are NOT platform roles.\n"
-                    "  When the user's prompt says 'route to AP Manager' or 'Finance Director approves':\n"
-                    "    1. Find the person with that title in the DEPARTMENT MEMBERS list above.\n"
-                    "    2. If the person IS the department head → use department_manager routing.\n"
+                    "  Job titles are business positions assigned to real people in departments.\n"
+                    "  They are NEVER platform roles. NEVER use platform_role for a job title.\n\n"
+                    "  When the user's prompt mentions a person by title (e.g., 'AP Manager approves',\n"
+                    "  'route to Finance Director', 'escalate to Head of Finance'):\n"
+                    "    1. Use SEMANTIC MATCHING to find the person in the DEPARTMENT MEMBERS list.\n"
+                    "       Match by meaning, not literally — 'AP Manager' matches 'Accounts Payable Manager',\n"
+                    "       'Finance Director' matches 'Director of Finance', etc.\n"
+                    "    2. If the person IS the department head → use department_manager routing with that department.\n"
                     "    3. If the person is a regular member → use platform_user routing with their user_id.\n"
-                    "    4. NEVER create a platform_role for a job title. Job titles are NOT roles.\n"
-                    "  Platform roles (in the ORGANIZATION ROLES list) are system permissions like 'Admin', 'Editor'.\n"
-                    "  Job titles are business positions like 'AP Manager', 'Finance Director', 'Head of Finance'."
+                    "    4. NEVER invent a platform_role for a job title.\n\n"
+                    "  Platform roles (ORGANIZATION ROLES) are system permissions (Admin, Editor, Viewer).\n"
+                    "  Job titles are business positions (AP Manager, Finance Director, Head of Finance)."
                 )
 
             if org_lines:
                 org_lines.insert(0, "\n\nORGANIZATION STRUCTURE (actual departments, groups, roles, and positions configured):")
                 org_lines.append(
-                    "\nIMPORTANT: When the user's prompt mentions a specific department, group, team, or role name, "
-                    "match it against the lists above and use the correct ID. "
+                    "\nIMPORTANT — SEMANTIC MATCHING: When the user's prompt mentions a department, group, team, "
+                    "or person by title, match SEMANTICALLY (by meaning) against the lists above — not literally. "
+                    "Use the correct ID from the matching entity. "
                     "Do NOT default to 'dynamic_manager' (direct manager) when a SPECIFIC department manager, "
-                    "group, or role is mentioned — use the matching routing type with the correct ID. "
+                    "group, or person is mentioned — use the matching routing type with the correct ID. "
                     "If the entity does NOT appear in the lists above, STILL generate the correct routing "
                     "configuration using the entity name (e.g., assignee_department_name). The platform will "
                     "detect missing entities and guide the user to create them. Do NOT add workaround "

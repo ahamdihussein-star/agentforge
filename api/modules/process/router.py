@@ -2108,12 +2108,16 @@ WHAT GOES IN "missing" (entity does NOT exist on the platform):
 5. "why" = a direct quote from the description proving it's needed
 
 JOB TITLE vs ROLE RULES (CRITICAL):
-6. Job titles (AP Manager, Finance Director, Head of Finance, etc.) are BUSINESS POSITIONS, NOT platform roles.
-   Platform roles (Admin, Editor, Viewer) are system permission roles listed under Roles.
-   - If the workflow mentions a job title as an approver → it is NOT a missing role.
-   - If that title EXISTS in Job Titles/Positions, it is NOT missing at all.
+6. Job titles (AP Manager, Finance Director, Head of Finance, etc.) are BUSINESS POSITIONS assigned to
+   people inside departments. They are NOT platform roles.
+   Platform roles (Admin, Editor, Viewer) are system permission roles listed under "Roles".
+   - Match SEMANTICALLY, not literally. "AP Manager" matches "Accounts Payable Manager".
+     "Finance Director" matches "Director of Finance". Use meaning, not exact strings.
+   - If the workflow mentions a person by their business title as an approver → it is NOT a missing role.
+     That person is found via their department membership and job title.
+   - If a title (or a semantically equivalent one) EXISTS in Job Titles/Positions, it is NOT missing.
    - NEVER classify a job title as a missing "role". Job titles are resolved through departments.
-   - Only flag type="role" if the entity is clearly a platform permission role AND doesn't exist in Roles list.
+   - Only flag type="role" if the entity is clearly a system permission role AND doesn't exist in the Roles list.
 
 WHAT GOES IN "misconfigured" (entity EXISTS but needs configuration):
 7. type = "department_no_manager" — ONLY when the platform state explicitly shows "(no manager)" next to the department name.
@@ -2348,16 +2352,38 @@ async def _pre_check_platform_readiness(
             },
         }
 
-        # Build a set of known job titles for filtering
-        _known_jt_set: set = set()
+        # Build list of known job titles for semantic matching
+        _known_jt_list: List[str] = []
         for _jt in (context.get("job_titles") or []):
             if _jt and isinstance(_jt, str):
-                _known_jt_set.add(_jt.strip().lower())
+                _known_jt_list.append(_jt.strip().lower())
         for _d in departments:
             for _m in (_d.get("members") or []):
                 _mt = (_m.get("title") or "").strip().lower()
-                if _mt:
-                    _known_jt_set.add(_mt)
+                if _mt and _mt not in _known_jt_list:
+                    _known_jt_list.append(_mt)
+
+        def _is_known_job_title(candidate: str) -> bool:
+            """Semantic check: does the candidate match any known job title?"""
+            from difflib import SequenceMatcher
+            if not candidate or not _known_jt_list:
+                return False
+            c = candidate.strip().lower()
+            for jt in _known_jt_list:
+                if c == jt:
+                    return True
+                c_tokens = set(c.split())
+                jt_tokens = set(jt.split())
+                if c_tokens and jt_tokens:
+                    overlap = c_tokens & jt_tokens
+                    if overlap and (
+                        len(overlap) / len(c_tokens) >= 0.5
+                        or len(overlap) / len(jt_tokens) >= 0.5
+                    ):
+                        return True
+                if SequenceMatcher(None, c, jt).ratio() >= 0.65:
+                    return True
+            return False
 
         # ── Missing entities (LLM already verified they don't exist) ─
         for item in llm_analysis.get("missing") or []:
@@ -2366,16 +2392,10 @@ async def _pre_check_platform_readiness(
             if not name or etype not in _type_config:
                 continue
 
-            # Filter: if LLM flagged a "role" that is actually a known job title, skip it
-            if etype == "role":
-                _name_lower = name.lower().replace(" approval", "").strip()
-                if (
-                    _name_lower in _known_jt_set
-                    or name.lower() in _known_jt_set
-                    or any(jt in _name_lower or _name_lower in jt for jt in _known_jt_set)
-                ):
-                    print(f"🔕 [Pre-check] Skipping 'role' \"{name}\" — it's a known job title")
-                    continue
+            # If LLM flagged a "role" that semantically matches a job title, skip it
+            if etype == "role" and _is_known_job_title(name):
+                print(f"🔕 [Pre-check] Skipping 'role' \"{name}\" — semantically matches a known job title")
+                continue
             cfg = _type_config[etype]
             can = _can(cfg["perm"])
             _add(f"{etype}_missing:{name.lower()}", {
@@ -2624,23 +2644,51 @@ def _validate_process_prerequisites(
         role_by_name[(r.get("name") or "").lower()] = r
         role_by_id[str(r.get("id", ""))] = r
 
-    # Build a set of known job titles (lowercase) + map title → member info
-    _job_titles_set: set = set()
+    # Build a list of known job titles + map title → member info
+    _job_titles_list: List[str] = []
     _title_to_member: Dict[str, dict] = {}
     for jt in (context.get("job_titles") or []):
         if jt and isinstance(jt, str):
-            _job_titles_set.add(jt.strip().lower())
+            _job_titles_list.append(jt.strip().lower())
     for d in (context.get("departments") or []):
         for m in (d.get("members") or []):
             t = (m.get("title") or "").strip().lower()
             if t:
-                _job_titles_set.add(t)
+                if t not in _job_titles_list:
+                    _job_titles_list.append(t)
                 _title_to_member[t] = {
                     "user_id": m.get("id"),
                     "user_name": m.get("name"),
                     "department": d.get("name"),
                     "department_id": d.get("id"),
                 }
+
+    def _semantically_matches_job_title(candidate: str) -> bool:
+        """Use fuzzy/semantic similarity to check if a candidate string
+        matches any known job title. No hardcoded word lists."""
+        from difflib import SequenceMatcher
+        if not candidate or not _job_titles_list:
+            return False
+        c = candidate.strip().lower()
+        for jt in _job_titles_list:
+            if c == jt:
+                return True
+            # Token overlap: do the meaningful words share significant overlap?
+            c_tokens = set(c.split())
+            jt_tokens = set(jt.split())
+            if c_tokens and jt_tokens:
+                overlap = c_tokens & jt_tokens
+                # If >50% of either side's tokens match, it's a semantic match
+                if overlap and (
+                    len(overlap) / len(c_tokens) >= 0.5
+                    or len(overlap) / len(jt_tokens) >= 0.5
+                ):
+                    return True
+            # Sequence similarity (catches abbreviations, minor wording differences)
+            ratio = SequenceMatcher(None, c, jt).ratio()
+            if ratio >= 0.65:
+                return True
+        return False
 
     tool_by_id: Dict[str, dict] = {}
     for t in (context.get("tools") or context.get("available_tools") or []):
@@ -2888,15 +2936,7 @@ def _validate_process_prerequisites(
             # role:<id>
             if recipient.startswith("role:"):
                 rid = recipient[len("role:"):]
-                if rid and rid not in role_by_id:
-                    # Skip if this "role" is actually a job title
-                    _rid_lower = rid.lower().replace(" approval", "").strip()
-                    _is_jt = (
-                        _rid_lower in _job_titles_set
-                        or rid.lower() in _job_titles_set
-                        or any(jt in _rid_lower or _rid_lower in jt for jt in _job_titles_set)
-                    )
-                    if not _is_jt:
+                if rid and rid not in role_by_id and not _semantically_matches_job_title(rid):
                         can = _can("users:edit")
                         _add(f"notif_role:{rid}", {
                             "type": "role", "icon": "shield",
@@ -2968,22 +3008,7 @@ def _validate_process_prerequisites(
                 for rid in (rid_list if isinstance(rid_list, list) else [rid_list]):
                     rs = str(rid or "")
                     if rs and rs not in role_by_id:
-                        # Check if this "role" is actually a job title
-                        _rs_lower = rs.lower().replace(" approval", "").strip()
-                        _is_job_title = (
-                            _rs_lower in _job_titles_set
-                            or rs.lower() in _job_titles_set
-                        )
-                        if _is_job_title:
-                            # Skip — the LLM mistakenly used a job title as a role.
-                            # Not a real issue; the builder can be adjusted.
-                            continue
-                        # Also try fuzzy: check if any job title is a substring
-                        _fuzzy_match = any(
-                            jt in _rs_lower or _rs_lower in jt
-                            for jt in _job_titles_set
-                        )
-                        if _fuzzy_match:
+                        if _semantically_matches_job_title(rs):
                             continue
 
                         can = _can("users:edit")
