@@ -371,13 +371,14 @@ async function handleLogin(event) {
             console.log("   Full response keys:", Object.keys(data));
         }
         
-        // Clear login form fields immediately so the browser's password
-        // manager has nothing to save when the user later navigates away.
+        // Destroy login form so the browser's password manager has no
+        // credential fields to capture when the user later navigates away.
         try {
-            const _lp = document.getElementById('login-password');
-            const _lu = document.getElementById('login-username');
-            if (_lp) _lp.value = '';
-            if (_lu) _lu.value = '';
+            const _lf = document.getElementById('login-form');
+            if (_lf) {
+                _lf.querySelectorAll('input').forEach(i => { i.value = ''; i.name = ''; i.type = 'hidden'; });
+                _lf.remove();
+            }
         } catch (_) {}
 
         // Store auth data

@@ -304,12 +304,13 @@
                     return;
                 }
                 
-                // Clear login fields so the browser won't offer to save credentials
+                // Destroy login form so the browser won't offer to save credentials
                 try {
-                    const _lp = document.getElementById('login-password');
-                    const _lu = document.getElementById('login-username');
-                    if (_lp) _lp.value = '';
-                    if (_lu) _lu.value = '';
+                    const _lf = document.getElementById('login-form');
+                    if (_lf) {
+                        _lf.querySelectorAll('input').forEach(i => { i.value = ''; i.name = ''; i.type = 'hidden'; });
+                        _lf.remove();
+                    }
                 } catch (_) {}
 
                 // Success - complete login
