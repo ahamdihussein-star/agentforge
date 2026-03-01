@@ -9,6 +9,48 @@
     <link rel="stylesheet" href="/ui/index.css?v=3bcda8b">
 
     <script src="/ui/theme.js"></script>
+    <script>
+    // === Anti-Save-Password: neutralize all password fields before page navigation ===
+    // Browsers detect type="password" inputs and offer to save credentials when
+    // navigating away. This handler fires before the browser processes the
+    // transition, converts every password input to text, and clears its value.
+    (function(){
+      function _killPwFields(){
+        document.querySelectorAll('input[type="password"]').forEach(function(el){
+          try{ el.setAttribute('type','text'); el.value=''; el.name=''; }catch(_){}
+        });
+      }
+      window.addEventListener('pagehide',_killPwFields,{capture:true});
+      window.addEventListener('beforeunload',_killPwFields,{capture:true});
+
+      // Also tag every existing & future password field with autocomplete="new-password"
+      // so the browser never treats them as login credentials.
+      function _tagField(el){
+        if(el.id==='login-password') return;
+        if(!el.getAttribute('autocomplete')||el.getAttribute('autocomplete')==='off'){
+          el.setAttribute('autocomplete','new-password');
+        }
+      }
+      document.addEventListener('DOMContentLoaded',function(){
+        document.querySelectorAll('input[type="password"]').forEach(_tagField);
+      });
+      // Catch dynamically created password fields (modals, JS-generated forms)
+      var _obs=new MutationObserver(function(muts){
+        muts.forEach(function(m){
+          m.addedNodes.forEach(function(n){
+            if(n.nodeType!==1) return;
+            if(n.matches&&n.matches('input[type="password"]')) _tagField(n);
+            if(n.querySelectorAll){
+              n.querySelectorAll('input[type="password"]').forEach(_tagField);
+            }
+          });
+        });
+      });
+      document.addEventListener('DOMContentLoaded',function(){
+        _obs.observe(document.body,{childList:true,subtree:true});
+      });
+    })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -1005,15 +1047,15 @@
                             <form id="change-password-form" class="space-y-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
-                                    <input type="password" id="current-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Enter current password">
+                                    <input type="password" id="current-password" autocomplete="new-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Enter current password">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-300 mb-2">New Password</label>
-                                    <input type="password" id="new-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Enter new password">
+                                    <input type="password" id="new-password" autocomplete="new-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Enter new password">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
-                                    <input type="password" id="confirm-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Confirm new password">
+                                    <input type="password" id="confirm-password" autocomplete="new-password" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white" required placeholder="Confirm new password">
                                 </div>
                                 
                                 <div id="password-error" class="hidden p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm"></div>
@@ -1044,7 +1086,7 @@
                                 <div class="mb-4">
                                     <label class="block text-sm font-medium text-gray-300 mb-2">Enter your password to confirm</label>
                                     <div class="relative">
-                                        <input type="password" id="disable-mfa-password" 
+                                        <input type="password" id="disable-mfa-password" autocomplete="new-password"
                                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-12 text-white focus:ring-2 focus:ring-red-500 focus:border-transparent" 
                                                placeholder="••••••••">
                                         <button type="button" onclick="togglePasswordVisibility('disable-mfa-password')" 

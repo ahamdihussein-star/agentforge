@@ -1012,7 +1012,7 @@ function showRegister() {
                     <div>
                         <label class="block text-sm text-gray-400 mb-2">Password</label>
                         <div class="relative">
-                            <input type="password" id="reg-password" required minlength="8" 
+                            <input type="password" id="reg-password" required minlength="8" autocomplete="new-password"
                                    class="input-field w-full px-4 py-3 pr-12 rounded-lg" 
                                    placeholder="Min 8 characters"
                                    oninput="checkPasswordStrength(this.value)">
@@ -1035,7 +1035,7 @@ function showRegister() {
                     <div>
                         <label class="block text-sm text-gray-400 mb-2">Confirm Password</label>
                         <div class="relative">
-                            <input type="password" id="reg-password2" required class="input-field w-full px-4 py-3 pr-12 rounded-lg" placeholder="Repeat password">
+                            <input type="password" id="reg-password2" required autocomplete="new-password" class="input-field w-full px-4 py-3 pr-12 rounded-lg" placeholder="Repeat password">
                             <button type="button" onclick="togglePassword('reg-password2', this)" 
                                     class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1">
                                 <span class="eye-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg></span>

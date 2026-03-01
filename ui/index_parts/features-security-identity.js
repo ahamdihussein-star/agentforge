@@ -290,11 +290,11 @@ async function showCreateUserModal(preset) {
                         <div id="cu-pass-wrap" class="hidden mt-3">
                             <label class="block text-sm font-medium mb-2">Password</label>
                             <div class="flex gap-2 items-center">
-                                <input type="password" id="cu-pass" class="flex-1 input-field rounded-lg px-4 py-2" placeholder="At least 8 characters">
+                                <input type="password" id="cu-pass" autocomplete="new-password" class="flex-1 input-field rounded-lg px-4 py-2" placeholder="At least 8 characters">
                                 <button type="button" class="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm" onclick="(function(){const a=document.getElementById('cu-pass'); const b=document.getElementById('cu-pass2'); const t=(a.type==='password'?'text':'password'); a.type=t; b.type=t;})()">Show</button>
                             </div>
                             <label class="block text-sm font-medium mt-3 mb-2">Confirm Password</label>
-                            <input type="password" id="cu-pass2" class="w-full input-field rounded-lg px-4 py-2" placeholder="Re-type password">
+                            <input type="password" id="cu-pass2" autocomplete="new-password" class="w-full input-field rounded-lg px-4 py-2" placeholder="Re-type password">
                             <div class="text-xs text-gray-500 mt-2">The user will be asked to change this password on first sign-in.</div>
                         </div>
                     </div>
