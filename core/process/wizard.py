@@ -442,8 +442,16 @@ Node config rules:
     Do NOT use "dynamic_manager" when the user asks for a SPECIFIC department's manager (e.g., "Finance Manager").
     Instead use: assignee_source: "user_directory", directory_assignee_type: "department_manager", assignee_department_name: "<department name>".
     Or if they mention a specific group: assignee_source: "platform_group", assignee_ids: ["<group_id>"].
-    Or if they mention a specific role: assignee_source: "platform_role", assignee_ids: ["<role_id>"].
-    ALWAYS check the ORGANIZATION STRUCTURE section to find matching departments/groups/roles.
+  - CRITICAL — JOB TITLES vs PLATFORM ROLES:
+    Job titles (AP Manager, Finance Director, Head of Finance, etc.) are business positions assigned to users in departments.
+    Platform roles (Admin, Editor, Viewer, etc.) are system permission roles.
+    When the user's prompt mentions a job title as an approver (e.g., "AP Manager approves", "route to Finance Director"):
+      1. Look at the ORGANIZATION DEPARTMENTS members list to find the person with that title.
+      2. If the person is the department head → use department_manager routing with the department.
+      3. If the person is a regular member → use platform_user routing with their user_id.
+      4. NEVER use platform_role for job titles. NEVER invent a role for a job title.
+    Only use platform_role when the entity actually exists in the ORGANIZATION ROLES list.
+    ALWAYS check the ORGANIZATION STRUCTURE section to find matching departments/groups/titles.
   - For sequential multi-level approvals, use MULTIPLE approval nodes in sequence.
 - notification.config must include: channel, recipient (string), template (string).
   - channel: "email" (default) | "slack" | "teams" | "sms"
@@ -976,7 +984,7 @@ class ProcessWizard:
             org_lines = []
             depts = additional_context.get("departments")
             if depts and isinstance(depts, list) and len(depts) > 0:
-                org_lines.append("\n\nORGANIZATION DEPARTMENTS:")
+                org_lines.append("\n\nORGANIZATION DEPARTMENTS (with members and their job titles):")
                 org_lines.append("Use these for department-based approval routing and notifications.")
                 for d in depts[:50]:
                     meta_parts = []
@@ -993,11 +1001,20 @@ class ProcessWizard:
                     if mc:
                         meta_parts.append(f"{mc} member{'s' if mc != 1 else ''}")
                     org_lines.append(f'  - "{d["name"]}" (id: {d["id"]}, {", ".join(meta_parts)})')
+                    members = d.get("members") or []
+                    for m in members[:30]:
+                        m_title = m.get("title", "")
+                        title_part = f' — title: "{m_title}"' if m_title else ""
+                        org_lines.append(f'      • {m["name"]} (user_id: {m["id"]}{title_part})')
                 org_lines.append(
-                    "  → For approval by a specific department's manager: "
+                    "  → For approval by a specific department's head: "
                     'assignee_source: "user_directory", directory_assignee_type: "department_manager", '
                     'department_id: "<department UUID from the list above>", '
                     'assignee_department_name: "<department name>".'
+                )
+                org_lines.append(
+                    "  → For approval by a SPECIFIC PERSON (found by job title): "
+                    'assignee_source: "platform_user", assignee_ids: ["<user_id from members list>"].'
                 )
                 org_lines.append(
                     '  → For notification to a department manager: recipient: "dept_manager:<department_id>".'
@@ -1043,6 +1060,17 @@ class ProcessWizard:
                     "  These titles are assigned to users in their department. "
                     "Use them in conditions (e.g., route differently based on requester's job_title) "
                     "or in templates (e.g., {{trigger_input._user_context.job_title}})."
+                )
+                org_lines.append(
+                    "\n  CRITICAL — JOB TITLE ROUTING RULES:\n"
+                    "  Job titles (AP Manager, Finance Director, etc.) are NOT platform roles.\n"
+                    "  When the user's prompt says 'route to AP Manager' or 'Finance Director approves':\n"
+                    "    1. Find the person with that title in the DEPARTMENT MEMBERS list above.\n"
+                    "    2. If the person IS the department head → use department_manager routing.\n"
+                    "    3. If the person is a regular member → use platform_user routing with their user_id.\n"
+                    "    4. NEVER create a platform_role for a job title. Job titles are NOT roles.\n"
+                    "  Platform roles (in the ORGANIZATION ROLES list) are system permissions like 'Admin', 'Editor'.\n"
+                    "  Job titles are business positions like 'AP Manager', 'Finance Director', 'Head of Finance'."
                 )
 
             if org_lines:

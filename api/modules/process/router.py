@@ -2107,10 +2107,13 @@ WHAT GOES IN "missing" (entity does NOT exist on the platform):
    - If type is job_title: keep the full title ("Finance Manager")
 5. "why" = a direct quote from the description proving it's needed
 
-JOB TITLE MATCHING RULES:
-6. If the workflow mentions approvers by TITLE (e.g., "AP Manager", "Finance Director"):
-   - If that title (or a clear semantic match) EXISTS in Job Titles/Positions, it is NOT missing.
-   - Do NOT mislabel job titles as missing roles.
+JOB TITLE vs ROLE RULES (CRITICAL):
+6. Job titles (AP Manager, Finance Director, Head of Finance, etc.) are BUSINESS POSITIONS, NOT platform roles.
+   Platform roles (Admin, Editor, Viewer) are system permission roles listed under Roles.
+   - If the workflow mentions a job title as an approver → it is NOT a missing role.
+   - If that title EXISTS in Job Titles/Positions, it is NOT missing at all.
+   - NEVER classify a job title as a missing "role". Job titles are resolved through departments.
+   - Only flag type="role" if the entity is clearly a platform permission role AND doesn't exist in Roles list.
 
 WHAT GOES IN "misconfigured" (entity EXISTS but needs configuration):
 7. type = "department_no_manager" — ONLY when the platform state explicitly shows "(no manager)" next to the department name.
@@ -2345,12 +2348,34 @@ async def _pre_check_platform_readiness(
             },
         }
 
+        # Build a set of known job titles for filtering
+        _known_jt_set: set = set()
+        for _jt in (context.get("job_titles") or []):
+            if _jt and isinstance(_jt, str):
+                _known_jt_set.add(_jt.strip().lower())
+        for _d in departments:
+            for _m in (_d.get("members") or []):
+                _mt = (_m.get("title") or "").strip().lower()
+                if _mt:
+                    _known_jt_set.add(_mt)
+
         # ── Missing entities (LLM already verified they don't exist) ─
         for item in llm_analysis.get("missing") or []:
             etype = item.get("type", "")
             name = (item.get("name") or "").strip()
             if not name or etype not in _type_config:
                 continue
+
+            # Filter: if LLM flagged a "role" that is actually a known job title, skip it
+            if etype == "role":
+                _name_lower = name.lower().replace(" approval", "").strip()
+                if (
+                    _name_lower in _known_jt_set
+                    or name.lower() in _known_jt_set
+                    or any(jt in _name_lower or _name_lower in jt for jt in _known_jt_set)
+                ):
+                    print(f"🔕 [Pre-check] Skipping 'role' \"{name}\" — it's a known job title")
+                    continue
             cfg = _type_config[etype]
             can = _can(cfg["perm"])
             _add(f"{etype}_missing:{name.lower()}", {
@@ -2599,6 +2624,24 @@ def _validate_process_prerequisites(
         role_by_name[(r.get("name") or "").lower()] = r
         role_by_id[str(r.get("id", ""))] = r
 
+    # Build a set of known job titles (lowercase) + map title → member info
+    _job_titles_set: set = set()
+    _title_to_member: Dict[str, dict] = {}
+    for jt in (context.get("job_titles") or []):
+        if jt and isinstance(jt, str):
+            _job_titles_set.add(jt.strip().lower())
+    for d in (context.get("departments") or []):
+        for m in (d.get("members") or []):
+            t = (m.get("title") or "").strip().lower()
+            if t:
+                _job_titles_set.add(t)
+                _title_to_member[t] = {
+                    "user_id": m.get("id"),
+                    "user_name": m.get("name"),
+                    "department": d.get("name"),
+                    "department_id": d.get("id"),
+                }
+
     tool_by_id: Dict[str, dict] = {}
     for t in (context.get("tools") or context.get("available_tools") or []):
         tid = str(t.get("id") or "")
@@ -2846,25 +2889,33 @@ def _validate_process_prerequisites(
             if recipient.startswith("role:"):
                 rid = recipient[len("role:"):]
                 if rid and rid not in role_by_id:
-                    can = _can("users:edit")
-                    _add(f"notif_role:{rid}", {
-                        "type": "role", "icon": "shield",
-                        "entity_name": "Role",
-                        "referenced_by": node_label,
-                        "message": (
-                            f"The message \"{node_label}\" is addressed to a "
-                            f"role that doesn't exist yet."
-                        ),
-                        "guidance": (
-                            "Create the role and assign it to the right people."
-                        ) + _admin_note(can),
-                        "steps": [
-                            "Go to Users & Access → Roles",
-                            "Click + Create Role",
-                            "Name it, then assign it to the relevant users",
-                        ] if can else [],
-                        "can_create": can,
-                    })
+                    # Skip if this "role" is actually a job title
+                    _rid_lower = rid.lower().replace(" approval", "").strip()
+                    _is_jt = (
+                        _rid_lower in _job_titles_set
+                        or rid.lower() in _job_titles_set
+                        or any(jt in _rid_lower or _rid_lower in jt for jt in _job_titles_set)
+                    )
+                    if not _is_jt:
+                        can = _can("users:edit")
+                        _add(f"notif_role:{rid}", {
+                            "type": "role", "icon": "shield",
+                            "entity_name": "Role",
+                            "referenced_by": node_label,
+                            "message": (
+                                f"The message \"{node_label}\" is addressed to a "
+                                f"role that doesn't exist yet."
+                            ),
+                            "guidance": (
+                                "Create the role and assign it to the right people."
+                            ) + _admin_note(can),
+                            "steps": [
+                                "Go to Users & Access → Roles",
+                                "Click + Create Role",
+                                "Name it, then assign it to the relevant users",
+                            ] if can else [],
+                            "can_create": can,
+                        })
 
             # "manager" / "department_head" / skip-level recipients require identity data
             if recipient in ("manager", "department_head") or recipient.startswith("skip_level_"):
@@ -2917,6 +2968,24 @@ def _validate_process_prerequisites(
                 for rid in (rid_list if isinstance(rid_list, list) else [rid_list]):
                     rs = str(rid or "")
                     if rs and rs not in role_by_id:
+                        # Check if this "role" is actually a job title
+                        _rs_lower = rs.lower().replace(" approval", "").strip()
+                        _is_job_title = (
+                            _rs_lower in _job_titles_set
+                            or rs.lower() in _job_titles_set
+                        )
+                        if _is_job_title:
+                            # Skip — the LLM mistakenly used a job title as a role.
+                            # Not a real issue; the builder can be adjusted.
+                            continue
+                        # Also try fuzzy: check if any job title is a substring
+                        _fuzzy_match = any(
+                            jt in _rs_lower or _rs_lower in jt
+                            for jt in _job_titles_set
+                        )
+                        if _fuzzy_match:
+                            continue
+
                         can = _can("users:edit")
                         _add(f"appr_role:{rs}", {
                             "type": "role", "icon": "shield",
@@ -3378,6 +3447,28 @@ async def generate_workflow_from_goal(
                 except Exception as _mgr_err:
                     entry["manager_name"] = "assigned"
                     print(f"   ❌ Manager lookup error: {_mgr_err}")
+            # Include department members with titles so the LLM can route by job title
+            _members = db.query(DBUser).filter(
+                DBUser.department_id == d.id,
+                DBUser.org_id == _org_uuid,
+            ).limit(30).all()
+            member_list = []
+            for _m in _members:
+                _m_name = (
+                    _m.display_name
+                    or f"{_m.first_name or ''} {_m.last_name or ''}".strip()
+                    or _m.email
+                )
+                _m_title = getattr(_m, 'job_title', None) or ""
+                member_list.append({
+                    "id": str(_m.id),
+                    "name": _m_name,
+                    "title": _m_title,
+                    "email": _m.email or "",
+                })
+            if member_list:
+                entry["members"] = member_list
+
             _dept_list.append(entry)
         context["departments"] = _dept_list
         print(f"📋 [Wizard] Final department context: {_dept_list}")
