@@ -237,9 +237,11 @@ async function editSecurityUser(userId) {
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
     modal.id = 'edit-user-modal';
     modal.innerHTML = `
-        <div class="card rounded-2xl p-6 w-full max-w-md mx-4">
-            <h3 class="text-xl font-bold mb-4">Edit User</h3>
-            <div class="space-y-4">
+        <div class="card rounded-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-6 pb-4 border-b border-gray-800/70">
+                <h3 class="text-xl font-bold">Edit User</h3>
+            </div>
+            <div class="p-6 pt-4 space-y-4 overflow-y-auto flex-1">
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">Email</label>
                     <input type="email" id="edit-user-email" value="${user.email}" class="input-field w-full px-4 py-2 rounded-lg" placeholder="user@company.com">
@@ -382,7 +384,9 @@ async function editSecurityUser(userId) {
                         Add Custom Field
                     </button>
                 </div>
-                <div class="flex gap-3 mt-6">
+            </div>
+            <div class="p-6 pt-4 border-t border-gray-800/70">
+                <div class="flex gap-3">
                     <button onclick="document.getElementById('edit-user-modal').remove()" class="btn-secondary flex-1 py-2 rounded-lg">Cancel</button>
                     <button onclick="saveUserEdit('${userId}')" class="btn-primary flex-1 py-2 rounded-lg">Save Changes</button>
                 </div>
