@@ -116,10 +116,6 @@ function checkAuth() {
         if (data && data.id) {
             currentUser = data;
             localStorage.setItem('agentforge_user', JSON.stringify(currentUser));
-            if (data.must_change_password) {
-                showFirstLoginPasswordModal();
-                return;
-            }
             showApp();
             updateUserDisplay();
             updateUIByPermissions();
@@ -130,6 +126,11 @@ function checkAuth() {
                 navigate(pageHash, false);
             } else {
                 navigate('dashboard', false);
+            }
+
+            // If user signed in with a temporary password, show change-password popup AFTER entering the app.
+            if (data.must_change_password) {
+                try { showFirstLoginPasswordModal(); } catch (_) {}
             }
         }
     }).catch((err) => {
@@ -382,12 +383,17 @@ async function handleLogin(event) {
             sessionStorage.setItem('agentforge_user', JSON.stringify(currentUser));
         }
         
-        if (data.must_change_password) { btn.disabled = false; btn.textContent = 'Sign In'; showFirstLoginPasswordModal(); return; }
         showApp();
         updateUserDisplay();
         updateUIByPermissions();
         navigate('dashboard');
-        showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
+        if (data.must_change_password) {
+            // Better UX: user is logged in; prompt for new password on top of the app.
+            try { showFirstLoginPasswordModal(); } catch (_) {}
+            try { showToast('For security, please change your temporary password.', 'info'); } catch (_) {}
+        } else {
+            showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
+        }
         
     } catch (e) {
         const msg = 'Connection error: ' + (e?.message || 'Unable to sign in');
@@ -815,12 +821,16 @@ async function verifyLoginMfa() {
             localStorage.setItem('agentforge_token', authToken);
             localStorage.setItem('agentforge_user', JSON.stringify(currentUser));
             
-            if (data.must_change_password) { showFirstLoginPasswordModal(); return; }
             showApp();
             updateUserDisplay();
             updateUIByPermissions();
             navigate('dashboard');
-            showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
+            if (data.must_change_password) {
+                try { showFirstLoginPasswordModal(); } catch (_) {}
+                try { showToast('For security, please change your temporary password.', 'info'); } catch (_) {}
+            } else {
+                showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
+            }
         } else {
             console.log("🔐 [FRONTEND] Verifying regular login MFA");
             // Regular login MFA verification
@@ -872,12 +882,16 @@ async function verifyLoginMfa() {
                 sessionStorage.setItem('agentforge_user', JSON.stringify(currentUser));
             }
             
-            if (data.must_change_password) { showFirstLoginPasswordModal(); return; }
             showApp();
             updateUserDisplay();
             updateUIByPermissions();
             navigate('dashboard');
-            showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
+            if (data.must_change_password) {
+                try { showFirstLoginPasswordModal(); } catch (_) {}
+                try { showToast('For security, please change your temporary password.', 'info'); } catch (_) {}
+            } else {
+                showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
+            }
         }
         
     } catch (e) {

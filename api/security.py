@@ -1160,7 +1160,7 @@ async def first_login_password_change(
     user: User = Depends(require_auth)
 ):
     """Change password on first login."""
-    settings = security_state.get_settings()
+    settings = security_state.get_settings(user.org_id or "org_default")
     if not user.must_change_password:
         raise HTTPException(status_code=400, detail="Password change not required")
     if request.new_password != request.confirm_password:
