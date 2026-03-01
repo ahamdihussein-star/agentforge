@@ -3246,11 +3246,20 @@ class ProcessAPIService:
         return data
     
     def _collect_tool_ids(self, agent, raw_def=None) -> List[str]:
-        """Merge agent.tool_ids with tool IDs referenced in process definition nodes."""
+        """Merge agent.tool_ids with tool IDs referenced in process definition nodes.
+
+        Handles both pre-normalization (config.toolId) and post-normalization
+        (config.type_config.toolId) layouts.
+        """
         ids = list(agent.tool_ids or [])
         for _n in (self._ensure_dict(raw_def).get("nodes") or []):
             _nc = _n.get("config") or {}
-            _tid = _nc.get("toolId") or _nc.get("tool_id") or ""
+            _tc = _nc.get("type_config") or {}
+            _tid = (
+                _nc.get("toolId") or _nc.get("tool_id")
+                or _tc.get("toolId") or _tc.get("tool_id")
+                or ""
+            )
             if _tid and _tid not in ids:
                 ids.append(_tid)
         return ids
