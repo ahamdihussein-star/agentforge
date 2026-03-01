@@ -3276,7 +3276,11 @@ async def generate_workflow_from_goal(
     context = request.get('context') or {}
     if not isinstance(context, dict):
         context = {}
-    
+
+    # Log what the frontend sent for tools (diagnostic)
+    _frontend_tools = context.get("tools") or []
+    print(f"📋 [Wizard] Frontend sent {len(_frontend_tools)} tools: {[t.get('name','?') for t in _frontend_tools[:10]]}")
+
     if not goal:
         raise HTTPException(
             status_code=400, 
@@ -3418,6 +3422,8 @@ async def generate_workflow_from_goal(
 
     # Server-side tool discovery (fallback if frontend didn't send tools)
     if not context.get("tools"):
+        _tool_list = []
+        # Strategy 1: Query database
         try:
             from database.models.tool import Tool as DBTool
             _org_uuid_str = str(_org_uuid) if '_org_uuid' in dir() else user_dict["org_id"]
@@ -3425,7 +3431,6 @@ async def generate_workflow_from_goal(
                 DBTool.org_id == _org_uuid_str,
                 DBTool.is_active.is_(True),
             ).limit(40).all()
-            _tool_list = []
             for _t in _db_tools:
                 _params = []
                 raw_params = getattr(_t, 'input_parameters', None) or getattr(_t, 'api_config', None)
@@ -3440,11 +3445,38 @@ async def generate_workflow_from_goal(
                     "description": _t.description or "",
                     "input_parameters": _params,
                 })
-            if _tool_list:
-                context["tools"] = _tool_list
-                print(f"📋 [Wizard] Server-side tool discovery: {len(_tool_list)} tools found: {[t['name'] for t in _tool_list]}")
         except Exception as e:
-            print(f"⚠️  [Wizard] Server-side tool discovery failed (non-blocking): {e}")
+            print(f"⚠️  [Wizard] DB tool discovery failed: {e}")
+
+        # Strategy 2: Also scan in-memory app_state (catches Lab-created tools not yet in DB)
+        if not _tool_list:
+            try:
+                from api.main import app_state as _app_state
+                _seen_ids = set()
+                for _t in _app_state.tools.values():
+                    if _t.id in _seen_ids:
+                        continue
+                    _seen_ids.add(_t.id)
+                    _params = []
+                    if hasattr(_t, 'api_config') and _t.api_config:
+                        raw_params = getattr(_t.api_config, 'input_parameters', None) or []
+                        if isinstance(raw_params, list):
+                            _params = [{"name": getattr(p, 'name', ''), "description": getattr(p, 'description', ''), "data_type": getattr(p, 'data_type', 'string')} for p in raw_params]
+                    _tool_list.append({
+                        "id": _t.id,
+                        "name": _t.name,
+                        "type": getattr(_t, 'type', 'api'),
+                        "description": getattr(_t, 'description', '') or "",
+                        "input_parameters": _params,
+                    })
+                if _tool_list:
+                    print(f"📋 [Wizard] In-memory tool discovery: {len(_tool_list)} tools")
+            except Exception as e:
+                print(f"⚠️  [Wizard] In-memory tool discovery failed: {e}")
+
+        if _tool_list:
+            context["tools"] = _tool_list
+            print(f"📋 [Wizard] Server-side tool discovery: {len(_tool_list)} tools found: {[t['name'] for t in _tool_list]}")
 
     # Discover published processes so the AI can suggest call_process nodes
     try:

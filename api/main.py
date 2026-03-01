@@ -8413,7 +8413,8 @@ async def create_tool(request: CreateToolRequest, current_user: User = Depends(g
         tool_dict = tool.dict()
         if tool.api_config:
             tool_dict['api_config'] = tool.api_config.dict() if hasattr(tool.api_config, 'dict') else tool.api_config
-        ToolService.create_tool(tool_dict, "org_default", "system")
+        org_id = str(current_user.org_id) if getattr(current_user, 'org_id', None) else "org_default"
+        ToolService.create_tool(tool_dict, org_id, owner_id)
     except Exception as e:
         print(f"⚠️  [DATABASE] Failed to save tool: {e}")
     
@@ -15215,6 +15216,19 @@ async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: Us
     print(f"   ✅ Tool created in memory: id={tool.id}, owner_id={tool.owner_id}, access_type={tool.access_type}")
     
     app_state.tools[tool.id] = tool
+
+    # Persist to database so server-side tool discovery (wizard, pre-checks) can find it
+    try:
+        from database.services import ToolService
+        tool_dict = tool.dict()
+        if tool.api_config:
+            tool_dict['api_config'] = tool.api_config.dict() if hasattr(tool.api_config, 'dict') else tool.api_config
+        org_id = str(current_user.org_id) if getattr(current_user, 'org_id', None) else "org_default"
+        ToolService.create_tool(tool_dict, org_id, owner_id)
+        print(f"   💾 Tool saved to database (org_id={org_id})")
+    except Exception as e:
+        print(f"   ⚠️  [DATABASE] Failed to save demo tool: {e}")
+
     app_state.save_to_disk()
     
     return {"success": True, "tool_id": tool.id, "tool_name": tool.name, "access_type": "public"}
