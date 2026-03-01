@@ -1699,9 +1699,11 @@ function _ocRender() {
         const head = d.manager_id ? users.find(u => u.id === d.manager_id) : null;
         const mc = users.filter(u => u.department_id === d.id).length;
         const badge = (_ocDraft && _ocDraft[d.id]) ? `<span class="oc-badge">Moved</span>` : '';
+        const hasParent = !!(d.parent_id);
         return `
             <div class="oc-node" data-dept-id="${escHtml(d.id)}" style="left:${p.px}px;top:${p.py}px;width:${layout.nodeW}px;height:${layout.nodeH}px;">
-                <div class="oc-node-card card" style="height:100%;">
+                <div class="oc-node-card card" style="height:100%;position:relative;">
+                    ${hasParent ? `<button class="oc-detach-btn" onclick="event.stopPropagation(); _ocDetachDept('${escHtml(d.id)}')" title="Detach from parent">✕</button>` : ''}
                     <div class="oc-node-top">
                         <div class="oc-avatar" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">${escHtml((d.name || '?')[0].toUpperCase())}</div>
                         <div class="oc-node-text">
@@ -1849,6 +1851,12 @@ function _ocStageDept(deptId, patch) {
     _ocDraft[deptId] = { ..._ocDraft[deptId], ...patch };
     renderOrgChart();
 }
+
+function _ocDetachDept(deptId) {
+    _ocStageDept(deptId, { parent_id: null });
+    showToast('Department detached (staged). Click Save to apply.', 'success');
+}
+window._ocDetachDept = _ocDetachDept;
 
 function _ocDiscardDraft() { _ocDraft = {}; renderOrgChart(); }
 window._ocDiscardDraft = _ocDiscardDraft;

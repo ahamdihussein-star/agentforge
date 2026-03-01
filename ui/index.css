@@ -101,6 +101,9 @@
         .oc-link:hover { text-decoration: underline; }
         .oc-badge { font-size: 10px; padding: 3px 7px; border-radius: 999px; background: rgba(245,158,11,0.16); color: rgba(245,158,11,0.95); border: 1px solid rgba(245,158,11,0.22); }
         .oc-ghost { position:fixed; z-index:100000; pointer-events:none; padding: 8px 10px; border-radius: 12px; background: rgba(17,24,39,0.92); border: 1px solid rgba(255,255,255,0.12); color: #e5e7eb; font-size: 12px; box-shadow: 0 14px 30px rgba(0,0,0,0.45); backdrop-filter: blur(6px); }
+        .oc-detach-btn { position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%; border:1px solid rgba(255,255,255,0.15); background:rgba(239,68,68,0.12); color:rgba(239,68,68,0.85); font-size:11px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition: opacity .15s, background .15s, transform .12s; z-index:2; padding:0; }
+        .oc-node:hover .oc-detach-btn { opacity:1; }
+        .oc-detach-btn:hover { background:rgba(239,68,68,0.28); color:#f87171; transform:scale(1.15); }
 
         @media(max-width: 1000px) {
             .oc-side { display:none; }
