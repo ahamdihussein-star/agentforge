@@ -239,23 +239,14 @@ async function showCreateUserModal(preset) {
                     </div>
                 </div>
 
-                ${(_cuCustomFields.length > 0 || true) ? `
+                ${_cuCustomFields.length > 0 ? `
                 <details class="rounded-xl border border-gray-800/60 bg-gray-900/20 overflow-hidden">
                     <summary class="px-4 py-3 cursor-pointer hover:bg-gray-800/30 transition-colors text-sm font-medium flex items-center gap-2 select-none">
                         <span style="transition:transform .15s;" class="cu-chevron">&#9654;</span>
-                        Additional Information
-                        <span class="text-xs text-gray-500 ml-auto">${_cuCustomFields.length ? 'Employee ID, Custom Fields' : 'Employee ID'}</span>
+                        Custom Fields
                     </summary>
                     <div class="px-4 pb-4 pt-2 space-y-4 border-t border-gray-800/40">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium mb-2">Employee ID</label>
-                                <input type="text" id="cu-emp" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., EMP-001">
-                            </div>
-                            <div></div>
-                        </div>
                         ${_cuCustomFields.length > 0 ? `
-                        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-2">Custom Fields</div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             ${_cuCustomFields.map(cf => {
                                 const key = cf.key || '';
@@ -323,7 +314,6 @@ async function createUserFromModal() {
     const username = (document.getElementById('cu-username')?.value || '').trim();
     const first_name = (document.getElementById('cu-first')?.value || '').trim();
     const last_name = (document.getElementById('cu-last')?.value || '').trim();
-    const employee_id = (document.getElementById('cu-emp')?.value || '').trim() || null;
     const phone = (document.getElementById('cu-phone')?.value || '').trim() || null;
     const send_invitation = !!document.getElementById('cu-invite')?.checked;
     const setPassword = !!document.getElementById('cu-set-pass')?.checked;
@@ -361,7 +351,7 @@ async function createUserFromModal() {
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 username, email, first_name, last_name,
-                phone, employee_id,
+                phone,
                 role_ids, group_ids,
                 send_invitation, password,
                 custom_attributes: Object.keys(custom_attributes).length > 0 ? custom_attributes : undefined
