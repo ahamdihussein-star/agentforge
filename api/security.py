@@ -161,6 +161,7 @@ class CreateUserRequest(BaseModel):
     department_id: Optional[str] = None
     group_ids: List[str] = []
     send_invitation: bool = True
+    custom_attributes: Optional[Dict[str, Any]] = None
 
 class UpdateUserRequest(BaseModel):
     email: Optional[EmailStr] = None
@@ -2099,12 +2100,29 @@ async def create_user(request: CreateUserRequest, user: User = Depends(require_a
         created_by=user.id
     )
     
+    if request.custom_attributes and isinstance(request.custom_attributes, dict):
+        if not new_user.profile:
+            new_user.profile = UserProfile(first_name=request.first_name, last_name=request.last_name)
+        existing_ca = new_user.profile.custom_attributes or {}
+        existing_ca.update({k: v for k, v in request.custom_attributes.items() if v is not None and str(v).strip()})
+        new_user.profile.custom_attributes = existing_ca
+
     security_state.users[new_user.id] = new_user
     
     # Save to database
     try:
         from database.services import UserService
         UserService.save_user(new_user)
+        if request.custom_attributes:
+            from database.base import get_session
+            from database.models.user import User as DBUser
+            with get_session() as session:
+                db_user = session.query(DBUser).filter(DBUser.id == new_user.id).first()
+                if db_user:
+                    meta = db_user.user_metadata or {}
+                    meta.update({k: v for k, v in request.custom_attributes.items() if v is not None and str(v).strip()})
+                    db_user.user_metadata = meta
+                    session.commit()
         print(f"💾 User saved to database")
     except Exception as e:
         print(f"⚠️  Database save failed: {e}, saving to disk only")

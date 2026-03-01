@@ -161,7 +161,14 @@ async function deleteSecurityUser(userId) {
 // Create user (direct creation, not invite-only)
 async function showCreateUserModal(preset) {
     preset = preset || {};
-    try { await Promise.all([loadOrgDepartments(), loadOrgUsers(), loadGroups(), loadOrgJobTitles()]); } catch (e) { /* silent */ }
+    let _cuCustomFields = [];
+    try {
+        const [,,,, cfRes] = await Promise.all([
+            loadOrgDepartments(), loadOrgUsers(), loadGroups(), loadOrgJobTitles(),
+            fetch('/api/identity/profile-fields', { headers: getAuthHeaders() }).then(r => r.ok ? r.json() : { fields: [] }).catch(() => ({ fields: [] }))
+        ]);
+        _cuCustomFields = Array.isArray(cfRes.fields) ? cfRes.fields.filter(f => f && f.key) : [];
+    } catch (e) { /* silent */ }
 
     const roles = Array.isArray(securityRoles) ? securityRoles : [];
     const groups = Array.isArray(allGroups) ? allGroups : [];
@@ -204,23 +211,13 @@ async function showCreateUserModal(preset) {
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium mb-2">Email *</label>
-                        <input type="email" id="cu-email" class="w-full input-field rounded-lg px-4 py-2" placeholder="user@company.com">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Employee ID</label>
-                        <input type="text" id="cu-emp" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., EMP-001">
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
                         <label class="block text-sm font-medium mb-2">Username *</label>
                         <input type="text" id="cu-username" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., john.doe">
                         <div class="text-xs text-gray-500 mt-1">Used for sign-in. Do not use an email address.</div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2">Phone (optional)</label>
-                        <input type="text" id="cu-phone" class="w-full input-field rounded-lg px-4 py-2" placeholder="+1 555 000 0000">
+                        <label class="block text-sm font-medium mb-2">Email *</label>
+                        <input type="email" id="cu-email" class="w-full input-field rounded-lg px-4 py-2" placeholder="user@company.com">
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -229,7 +226,10 @@ async function showCreateUserModal(preset) {
                         <input type="text" id="cu-title" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Senior Analyst" list="cu-job-titles">
                         <datalist id="cu-job-titles">${jobTitleOptions}</datalist>
                     </div>
-                    <div></div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Phone</label>
+                        <input type="text" id="cu-phone" class="w-full input-field rounded-lg px-4 py-2" placeholder="+1 555 000 0000">
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -272,6 +272,47 @@ async function showCreateUserModal(preset) {
                         </div>
                     </div>
                 </div>
+
+                ${(_cuCustomFields.length > 0 || true) ? `
+                <details class="rounded-xl border border-gray-800/60 bg-gray-900/20 overflow-hidden">
+                    <summary class="px-4 py-3 cursor-pointer hover:bg-gray-800/30 transition-colors text-sm font-medium flex items-center gap-2 select-none">
+                        <span style="transition:transform .15s;" class="cu-chevron">&#9654;</span>
+                        Additional Information
+                        <span class="text-xs text-gray-500 ml-auto">Employee ID${_cuCustomFields.length ? ', Custom Fields' : ''}</span>
+                    </summary>
+                    <div class="px-4 pb-4 pt-2 space-y-4 border-t border-gray-800/40">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Employee ID</label>
+                                <input type="text" id="cu-emp" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., EMP-001">
+                            </div>
+                            <div></div>
+                        </div>
+                        ${_cuCustomFields.length > 0 ? `
+                        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-2">Custom Fields</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${_cuCustomFields.map(cf => {
+                                const key = cf.key || '';
+                                const label = cf.label || key.replace(/_/g, ' ').replace(/(^|\s)\w/g, c => c.toUpperCase());
+                                const type = cf.type || 'string';
+                                const required = cf.required ? ' *' : '';
+                                const options = Array.isArray(cf.options) ? cf.options : [];
+                                if (options.length > 0) {
+                                    return '<div><label class="block text-sm font-medium mb-2">' + escHtml(label) + required + '</label>'
+                                        + '<select id="cu-cf-' + escHtml(key) + '" class="w-full input-field rounded-lg px-4 py-2 cu-custom-field" data-cf-key="' + escHtml(key) + '">'
+                                        + '<option value="">— Select —</option>'
+                                        + options.map(o => '<option value="' + escHtml(o) + '">' + escHtml(o) + '</option>').join('')
+                                        + '</select></div>';
+                                }
+                                const inputType = type === 'number' ? 'number' : type === 'date' ? 'date' : 'text';
+                                return '<div><label class="block text-sm font-medium mb-2">' + escHtml(label) + required + '</label>'
+                                    + '<input type="' + inputType + '" id="cu-cf-' + escHtml(key) + '" class="w-full input-field rounded-lg px-4 py-2 cu-custom-field" data-cf-key="' + escHtml(key) + '" placeholder="' + escHtml(cf.description || '') + '"></div>';
+                            }).join('')}
+                        </div>
+                        ` : ''}
+                    </div>
+                </details>
+                ` : ''}
 
                 <div class="card rounded-xl p-4 bg-gray-900/30 border border-gray-800/60">
                     <div class="flex items-start gap-3">
@@ -344,6 +385,13 @@ async function createUserFromModal() {
     }
     if (role_ids.length === 0) role_ids.push('role_user');
 
+    const custom_attributes = {};
+    document.querySelectorAll('.cu-custom-field').forEach(el => {
+        const cfKey = el.dataset.cfKey;
+        const cfVal = (el.value || '').trim();
+        if (cfKey && cfVal) custom_attributes[cfKey] = cfVal;
+    });
+
     try {
         const res = await fetch('/api/security/users', {
             method: 'POST',
@@ -352,8 +400,8 @@ async function createUserFromModal() {
                 username, email, first_name, last_name,
                 phone, job_title, employee_id, manager_id,
                 department_id, role_ids, group_ids,
-                send_invitation,
-                password
+                send_invitation, password,
+                custom_attributes: Object.keys(custom_attributes).length > 0 ? custom_attributes : undefined
             })
         });
         const data = await res.json().catch(() => ({}));

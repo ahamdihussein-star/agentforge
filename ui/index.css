@@ -105,6 +105,11 @@
         .oc-node:hover .oc-detach-btn { opacity:1; }
         .oc-detach-btn:hover { background:rgba(239,68,68,0.28); color:#f87171; transform:scale(1.15); }
 
+        details summary { list-style:none; }
+        details summary::-webkit-details-marker { display:none; }
+        details .cu-chevron { display:inline-block; font-size:10px; transition:transform .2s ease; }
+        details[open] .cu-chevron { transform:rotate(90deg); }
+
         @media(max-width: 1000px) {
             .oc-side { display:none; }
             .oc-search { width: 100%; }
