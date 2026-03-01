@@ -3449,25 +3449,17 @@
                         <div class="property-group">
                             <label class="property-label">Which system?</label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Select a system that has been configured in the platform.
+                                Select an external system that has been configured in the platform.
                             </div>
-                            <div class="tool-selector">
-                                ${state.tools.length ? state.tools.map(t => `
-                                    <div class="tool-option ${node.config.toolId === t.id ? 'selected' : ''}" 
-                                         onclick="selectTool('${node.id}', '${t.id}')">
-                                        <div class="tool-option-icon">${getToolIcon(t.type)}</div>
-                                        <div class="tool-option-info">
-                                            <div class="tool-option-name">${escapeHtml(t.name)}</div>
-                                            <div class="tool-option-type">${escapeHtml(t.type)}</div>
-                                        </div>
-                                    </div>
-                                `).join('') : `
-                                    <div class="tool-selector-empty">
-                                        <span class="tool-selector-empty-icon">🔗</span>
-                                        <p class="tool-selector-empty-text">No external systems configured yet. Add integrations in Settings to connect to APIs, databases, or other services.</p>
-                                    </div>
-                                `}
-                            </div>
+                            <select class="property-select" onchange="selectTool('${node.id}', this.value)" style="padding:10px 12px;font-size:13px;">
+                                <option value="">-- Select a system --</option>
+                                ${state.tools.map(t => `
+                                    <option value="${t.id}" ${node.config.toolId === t.id ? 'selected' : ''}>
+                                        ${escapeHtml(t.name)} (${escapeHtml(t.type || 'tool')})
+                                    </option>
+                                `).join('')}
+                            </select>
+                            ${!state.tools.length ? `<p class="property-hint" style="margin-top:6px;">No external systems configured yet. Add integrations in Tools to connect to APIs, databases, or other services.</p>` : ''}
                         </div>
                     `;
                     if (inputParams.length > 0) {
@@ -3506,11 +3498,61 @@
                             }).join('')}
                         </div>
                     `;
-                    } else if (selTool && (selTool.type === 'api' || selTool.type === 'website' || selTool.type === 'knowledge')) {
-                        html += `<div class="prop-section"><p class="property-hint">This tool doesn’t need extra fields here — use it as is or configure it in the platform.</p></div>`;
+                    } else if (selTool && !inputParams.length) {
+                        html += `<div class="prop-section"><p class="property-hint">This system doesn’t require input fields — it will be called as-is.</p></div>`;
                     } else if (!node.config.toolId) {
-                        html += `<div class="prop-section"><p class="property-hint">Select a tool above. If it needs data to send, you’ll see fields to map from your form or previous steps.</p></div>`;
+                        html += `<div class="prop-section"><p class="property-hint">Select a system above to configure this step.</p></div>`;
                     }
+
+                    // Output variable name
+                    if (node.config.toolId) {
+                        const toolOutVar = node.output_variable || node.config.output_variable || '';
+                        html += `
+                        <div class="prop-section">
+                            <h4 class="prop-section-title">Save response as</h4>
+                            <p class="prop-section-hint">Give this system's response a name so later steps can use it.</p>
+                            <input type="text" class="property-input" placeholder="e.g. poData, vendorResult"
+                                   value="${escapeHtml(toolOutVar)}"
+                                   onchange="updateToolOutputVar('${node.id}', this.value)">
+                        </div>`;
+                    }
+
+                    // Output fields definition
+                    if (node.config.toolId) {
+                        const toolOutputFields = Array.isArray(node.config.outputFields) ? node.config.outputFields : [];
+                        html += `
+                        <div class="prop-section">
+                            <h4 class="prop-section-title">Expected response fields</h4>
+                            <p class="prop-section-hint">Define what data this system returns so later steps can reference each field individually.</p>
+                            <div id="tool-output-fields-${node.id}">
+                                ${toolOutputFields.map((f, idx) => `
+                                    <div class="tool-param-card" style="margin-bottom:8px;display:flex;gap:6px;align-items:center;">
+                                        <input type="text" class="property-input" placeholder="Field name" value="${escapeHtml(f.name || '')}"
+                                               style="flex:1.2;font-size:12px;" onchange="updateToolOutputField('${node.id}', ${idx}, 'name', this.value)">
+                                        <input type="text" class="property-input" placeholder="Label" value="${escapeHtml(f.label || '')}"
+                                               style="flex:1.2;font-size:12px;" onchange="updateToolOutputField('${node.id}', ${idx}, 'label', this.value)">
+                                        <select class="property-select" style="flex:0.8;font-size:11px;padding:6px;"
+                                                onchange="updateToolOutputField('${node.id}', ${idx}, 'type', this.value)">
+                                            <option value="text" ${f.type === 'text' ? 'selected' : ''}>Text</option>
+                                            <option value="number" ${f.type === 'number' ? 'selected' : ''}>Number</option>
+                                            <option value="boolean" ${f.type === 'boolean' ? 'selected' : ''}>Yes/No</option>
+                                            <option value="date" ${f.type === 'date' ? 'selected' : ''}>Date</option>
+                                            <option value="list" ${f.type === 'list' ? 'selected' : ''}>List</option>
+                                            <option value="object" ${f.type === 'object' ? 'selected' : ''}>Object</option>
+                                        </select>
+                                        <button onclick="removeToolOutputField('${node.id}', ${idx})"
+                                                style="border:none;background:none;color:#f87171;cursor:pointer;font-size:16px;padding:2px 4px;flex-shrink:0;"
+                                                title="Remove field">&times;</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button onclick="addToolOutputField('${node.id}')"
+                                    style="margin-top:6px;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:500;background:rgba(139,92,246,0.1);color:#a78bfa;border:1px solid rgba(139,92,246,0.2);cursor:pointer;">
+                                + Add field
+                            </button>
+                        </div>`;
+                    }
+
                     break;
                     
                 case 'approval': {
