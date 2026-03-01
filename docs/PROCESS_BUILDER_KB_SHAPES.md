@@ -11,6 +11,24 @@ The LLM MUST only use node types listed here. Do NOT invent unsupported nodes or
 - The process should be as simple as possible while fulfilling the user's goal.
 - This platform is for NON-TECHNICAL business users. All UI and configuration must be self-explanatory.
 
+## Visual Builder UX (Zero Free-Text Policy)
+
+The visual Process Builder enforces a **business-friendly, no-free-text** experience for referencing data:
+
+- **Notification recipients**: ALL options (dynamic, departments, groups, roles, form fields, specific users) are presented as categorized dropdowns. No raw email input.
+- **Condition fields**: Selected from categorized dropdowns (Form fields, Previous steps, User Profile, Custom Fields) + "Browse" picker. No "Enter manually" fallback.
+- **Condition values**: When the field has known options (departments, job titles, roles, groups, booleans), the value appears as a dropdown. An "Other value…" fallback is available only when needed.
+- **Tool / Call Process parameters**: Each parameter is mapped via a "Where does this come from?" dropdown (form, previous steps, person info, or "Enter a specific value").
+- **Template editors** (messages, subjects, prompts): Rich contenteditable editors where `{{variable}}` references are rendered as **visual chips** (tokens). Users insert data via an "Insert Data" dropdown and "Browse all…" picker — no need to type `{{...}}` manually.
+- **Output variable names**: Auto-generated from the step name or selected process (e.g., `"Grand Total"` → `grandTotal`).
+- **Loop collections**: Selected from available upstream data lists. No manual entry.
+
+This means the AI-generated process configuration MUST ensure:
+1. All `output_variable` names are consistent across nodes (one name per AI node, used identically everywhere).
+2. All notification recipients use valid shortcut values (never raw emails).
+3. All condition fields reference actual upstream data or user profile attributes.
+4. All tool/call_process param mappings use `{{fieldName}}` references to real fields.
+
 ---
 
 ## Category: Start & End
@@ -122,21 +140,15 @@ Send a message to one or more recipients.
 
 Config (`notification.config`):
 - `channel` (string): `"email"` (default) | `"slack"` | `"teams"` | `"sms"`.
-- `recipient` (string): Who receives the message:
-  - `"requester"` — The person who started this process (PREFERRED for employee notifications).
-  - `"manager"` — The requester's direct manager (PREFERRED for manager notifications).
-  - `"department_head"` — The requester's department head (department manager).
-  - `"department_members"` — Everyone in the requester's department.
-  - `"skip_level_N"` — Higher management levels (e.g., `skip_level_2` = manager’s manager).
-  - `"dept_manager:<department_id>"` — Manager of a SPECIFIC department (use actual dept ID from the org structure).
-  - `"dept_members:<department_id>"` — All members of a SPECIFIC department.
-  - `"group:<group_id>"` — All members of a specific group/team (use actual group ID from the org structure).
-  - `"role:<role_id>"` — All users assigned a specific role (use actual role ID from the org structure).
-  - `"{{fieldName}}"` — From a form field (e.g., `"{{employeeEmail}}"`).
-  - An email address — sent directly (rarely used).
-  When the ORGANIZATION STRUCTURE context lists actual departments, groups, and roles with their IDs,
-  use `group:<id>`, `role:<id>`, or `dept_manager:<id>` to target specific teams or roles by ID.
-- `title` (string): Subject line / notification title.
+- `recipient` (string): Who receives the message. The visual builder presents ALL options as **categorized dropdowns** — no free text needed:
+  - **Dynamic Recipients**: `"requester"`, `"manager"`, `"department_head"`, `"department_members"`, `"skip_level_N"`.
+  - **Departments** (from org structure): `"dept_manager:<department_id>"`, `"dept_members:<department_id>"`.
+  - **Groups / Teams**: `"group:<group_id>"`.
+  - **Roles**: `"role:<role_id>"`.
+  - **From Form** (email/text fields): `"{{fieldName}}"`.
+  - **Specific Person** (from org user directory): The builder shows a dropdown of all org users with name + email.
+  IMPORTANT: The visual builder provides ALL recipients as visual pickers. The AI should NEVER generate raw email addresses — always use one of the shortcut values above.
+- `title` (string): Subject line. Supports `{{fieldName}}` variable references (visual “Insert Data” picker available in the builder).
 - `template` (string): Message body with `{{fieldName}}` references. MUST be non-empty.
   Can use `{{trigger_input._user_context.<key>}}` for person information (name, email, department, etc.).
 
@@ -261,6 +273,11 @@ Note: `read_document` and `create_document` are legacy node types automatically 
 ### 7) Decision — `condition`
 Route the workflow based on one or more business rules (yes/no).
 
+**Visual Builder UX:** The condition builder is fully visual — no free text needed for field selection:
+- **Field**: Selected from categorized dropdowns (Form fields, Data from previous steps, User Profile, Custom Fields) + a "Browse…" button for the full Org Data Picker.
+- **Operator**: Selected from a dropdown of business-friendly operators (is equal to, contains, etc.).
+- **Value**: When the selected field has known options (e.g., department names, job titles, roles, groups, boolean), the value shows as a **dropdown**. For open-ended fields (amounts, dates), a text input is shown. An "Other value…" option is available as a fallback.
+
 Config (`condition.config`):
 - `rules` (array): One or more rules to evaluate. Each rule has:
   - `field` (string): The field or variable to evaluate (e.g., `"totalAmount"`, `"parsedData.category"`).
@@ -312,8 +329,8 @@ Invoke another published process as a sub-step.
 
 Config (`call_process.config`):
 - `processId` (string): ID of the published process to invoke. MUST match an ID from the platform's published processes list.
-- `inputMapping` (object): Map current process data to the sub-process inputs. Keys = sub-process field names, values = `{{currentProcessField}}` references.
-- `outputVariable` (string): Variable name to store the sub-process result.
+- `inputMapping` (object): Map current process data to the sub-process inputs. The visual builder shows a **dropdown** for each sub-process input ("Where does this come from?") with options from form fields, previous steps, and person information.
+- `outputVariable` (string): Variable name to store the sub-process result. Auto-generated from the selected process name (e.g., "Leave Request" → `leaveRequestResult`).
 
 IMPORTANT: NEVER invent process IDs. Only use IDs from the PUBLISHED PROCESSES list.
 
@@ -326,9 +343,10 @@ Compute a value, transform data, or apply a formula.
 
 Config (`calculate.config`):
 - `operation` (string): `"sum"` | `"average"` | `"count"` | `"concat"` | `"custom"`.
-- `expression` (string): Formula with `{{fieldName}}` references (e.g., `"{{parsedData.totalAmount}} * 1.05"`).
-- `dataLabel` (string): Friendly name for the result (shown in the UI).
-- `output_variable` (string): Store the computed result for later steps.
+- For non-custom operations: Data source is selected from a dropdown of available fields and upstream data.
+- For custom: `expression` (string) uses a template editor with visual "Insert Data" picker.
+- `dataLabel` (string): Friendly name for the result (e.g., "Total Amount", "Number of Items"). The visual builder shows contextual placeholder suggestions based on the operation type.
+- `output_variable` (string): Auto-generated from `dataLabel` (e.g., `dataLabel: "Grand Total"` → `output_variable: "grandTotal"`).
 
 ---
 
@@ -338,8 +356,11 @@ Config (`calculate.config`):
 Use a platform-configured tool or API to send/receive data.
 
 Config (`tool.config`):
-- `toolId` (string): Must match an available tool ID from the platform's tools list.
-- `params` (object): Arguments with `{{fieldName}}` references mapped to the tool's input parameters.
+- `toolId` (string): Must match an available tool ID from the platform's tools list. Visual builder shows tool cards.
+- `params` (object): Each parameter is mapped via a **dropdown** ("Where does this come from?") showing:
+  - **From form** (form fields), **From previous steps** (upstream data), **Person information** (user profile).
+  - "Enter a specific value" for fixed/static values.
+  No free-text variable references needed — the builder handles mapping visually.
 - `output_variable` (string): Store the tool response for later steps.
 
 ---

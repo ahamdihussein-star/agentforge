@@ -455,8 +455,8 @@ Node config rules:
     - "role:<role_id>" → sends to ALL users with a specific role (use actual role ID from ORGANIZATION ROLES list)
     - "dept_manager:<department_id>" → sends to a SPECIFIC department's manager (use dept ID from ORGANIZATION DEPARTMENTS list)
     - "{{{{employeeEmail}}}}" → a form field reference (only if you need a custom email field)
-    - "someone@example.com" → a hardcoded email (rarely used)
     BEST PRACTICE: Use "requester", "manager", "group:<id>", "role:<id>" shortcuts. NEVER leave recipient empty. NEVER use "-- Select Field --".
+    IMPORTANT: The visual builder provides ALL recipients as visual pickers (categorized dropdowns). NEVER use raw email addresses — always use a shortcut value. The builder now includes a "Specific Person" dropdown populated from the org user directory.
     When the user mentions a SPECIFIC team/group name (e.g., "Accounts Payable Team"), look it up in the ORGANIZATION GROUPS list and use "group:<group_id>".
     IMPORTANT: If you are notifying the SAME person who is the approver about a PENDING approval, do NOT use a notification node — use the approval node's notifyApprover:true instead.
   - template: The full email body content. MUST be a rich, informative, business-friendly message.
@@ -615,8 +615,18 @@ VARIABLE NAME CONSISTENCY (CRITICAL — MISMATCHES BREAK THE UI):
   If you name the AI node's output_variable "classifySeverity", you MUST use "classifySeverity.severity"
   in ALL conditions and templates — NEVER invent a different prefix like "classificationResult.severity"
   or "severityResult.severity". A single character mismatch causes the UI to show the condition as
-  manual entry instead of the user-friendly dropdown, which is unacceptable for non-technical users.
+  an unresolvable reference instead of the user-friendly dropdown, which is unacceptable for business users.
   RULE: Pick ONE output_variable name per AI node and use it IDENTICALLY everywhere.
+
+VISUAL BUILDER COMPATIBILITY (ZERO FREE-TEXT POLICY):
+  The visual Process Builder enforces a fully visual UX — no free text for data references:
+  - Notification recipients: ALL options are categorized dropdowns (Dynamic, Departments, Groups, Roles, Form, Specific Person from org directory). NEVER use raw email addresses.
+  - Condition fields: Selected from dropdowns (Form fields, Previous steps, User Profile, Custom Fields). No "Enter manually" option.
+  - Condition values: For job_title, departments, roles, groups, booleans — shown as dropdowns. Ensure your output_variable names are consistent so the picker can resolve them.
+  - Tool/Call Process params: Mapped via "Where does this come from?" dropdown (form, previous steps, person info). Use {{fieldName}} references that match actual upstream fields.
+  - Template editors: Variables render as visual chips (tokens). The Insert Data picker lets users browse all available data.
+  - Output variables: Auto-generated from step names. Keep them short, consistent, and in camelCase.
+  Your generated JSON must be fully compatible with this visual UX — every reference must resolve to a valid dropdown option.
 
 This ensures every variable reference resolves to real data at runtime. Unresolved references produce empty values.
 === END VARIABLE WIRING RULES ===

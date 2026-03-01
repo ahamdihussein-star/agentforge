@@ -176,11 +176,12 @@ Notification nodes support **magic recipient shortcuts** that the engine resolve
 
 **CRITICAL**: When configuring notifications in the visual builder:
 - Use `recipient` (singular string) — NOT `recipients` (array)
-- The value MUST be one of the shortcuts above or a direct email
+- The value MUST be one of the shortcuts above — the visual builder presents ALL options as categorized dropdowns (Dynamic Recipients, Departments, Groups, Roles, From Form, Specific Person). No free-text email input.
 - When the user mentions a specific team, group, or role by name, use the ORGANIZATION STRUCTURE
   context (provided at generation time) to find the correct entity ID and use `group:<id>` or `role:<id>`
 - "requester" and "manager" are the most common for simple workflows
 - The engine handles ALL resolution — the AI should NEVER try to manually resolve emails
+- The AI should NEVER generate raw email addresses as recipients. Always use a shortcut value.
 
 ### Example Notification Configurations
 
@@ -258,6 +259,21 @@ If the requester is a Director or above, auto-approve; otherwise route to their 
 - At runtime, the approval engine resolves the correct person — the workflow only needs to specify the routing type.
 - To route based on a user's position within a department, use `department_manager` (routes to the head) or `dynamic_manager` (routes to the requester's direct manager, regardless of title).
 - The platform does NOT support routing to "anyone with job_title = X" — use roles or groups for function-based routing instead.
+
+### Visual Builder Smart Value Pickers
+
+When configuring condition rules in the visual builder, the **value field** automatically shows smart dropdown options based on the selected field:
+
+| Condition Field | Value Picker Shows |
+|----------------|-------------------|
+| `job_title` | Org-wide job title suggestions (from the job titles library) |
+| `departmentName` | All department names from the org structure |
+| `roles` | All role names from the organization |
+| `groups` | All group names from the organization |
+| `isManager` / boolean fields | `true` / `false` dropdown |
+| Form `select` fields | The field's defined options |
+
+This means business users never need to type values manually when working with organizational data — they pick from dropdowns populated from the actual org structure.
 
 ## Decision Rules
 
