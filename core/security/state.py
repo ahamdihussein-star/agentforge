@@ -170,13 +170,16 @@ class SecurityState:
                 except Exception as e:
                     print(f"⚠️ Error saving invitation {invitation.id} to database: {e}")
             
-            # Save departments
-            from database.services import DepartmentService
-            for dept in self.departments.values():
-                try:
-                    DepartmentService.save_department(dept)
-                except Exception as e:
-                    print(f"⚠️ Error saving department {dept.id} to database: {e}")
+            # Departments are managed directly in the DB by the identity router.
+            # Do NOT overwrite DB data with potentially stale in-memory copies.
+            # Instead, reload from DB to keep the in-memory cache fresh.
+            try:
+                from database.services import DepartmentService
+                db_departments = DepartmentService.get_all_departments()
+                if db_departments:
+                    self.departments = {dept.id: dept for dept in db_departments}
+            except Exception as e:
+                print(f"⚠️ Error refreshing departments from database: {e}")
             
             # Save user groups
             from database.services import UserGroupService

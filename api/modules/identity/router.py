@@ -38,6 +38,27 @@ router = APIRouter(prefix="/identity", tags=["Identity & Org Chart"])
 _directory_service = UserDirectoryService()
 
 
+def _sync_dept_to_security_state(dept_id: str, name: str, description: str = None,
+                                  parent_id: str = None, manager_id: str = None,
+                                  org_id: str = "", *, deleted: bool = False):
+    """Keep security_state.departments in sync with DB changes."""
+    try:
+        from core.security.models import Department as CoreDepartment
+        if deleted:
+            security_state.departments.pop(dept_id, None)
+        else:
+            security_state.departments[dept_id] = CoreDepartment(
+                id=dept_id,
+                org_id=org_id,
+                name=name,
+                description=description,
+                parent_id=parent_id,
+                manager_id=manager_id,
+            )
+    except Exception:
+        pass
+
+
 def get_directory_service() -> UserDirectoryService:
     return _directory_service
 
@@ -327,6 +348,11 @@ async def create_department(body: CreateDepartmentRequest, user: User = Depends(
     ctx = _extract_user_context(user)
 
     # Normalize IDs to UUID for DB columns (prevents silent non-persistence issues)
+    try:
+        org_uuid = uuid.UUID(str(ctx["org_id"]))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid organization ID")
+
     parent_uuid = None
     if body.parent_id:
         try:
@@ -344,7 +370,7 @@ async def create_department(body: CreateDepartmentRequest, user: User = Depends(
     with get_session() as session:
         dept = Department(
             id=uuid.uuid4(),
-            org_id=ctx["org_id"],
+            org_id=org_uuid,
             name=body.name,
             description=body.description,
             parent_id=parent_uuid,
@@ -353,12 +379,20 @@ async def create_department(body: CreateDepartmentRequest, user: User = Depends(
         session.add(dept)
         session.commit()
         
+        dept_id_str = str(dept.id)
+        mgr_str = str(dept.manager_id) if dept.manager_id else None
+        par_str = str(dept.parent_id) if dept.parent_id else None
+        _sync_dept_to_security_state(
+            dept_id_str, dept.name, dept.description,
+            par_str, mgr_str, ctx["org_id"],
+        )
+        
         return DepartmentResponse(
-            id=str(dept.id),
+            id=dept_id_str,
             name=dept.name,
             description=dept.description,
-            parent_id=str(dept.parent_id) if dept.parent_id else None,
-            manager_id=str(dept.manager_id) if dept.manager_id else None,
+            parent_id=par_str,
+            manager_id=mgr_str,
             member_count=0,
         )
 
@@ -379,15 +413,18 @@ async def update_department(
     ctx = _extract_user_context(user)
     
     with get_session() as session:
-        # Normalize department_id for UUID PK comparisons
         try:
             dept_uuid = uuid.UUID(str(department_id))
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid department ID")
+        try:
+            org_uuid = uuid.UUID(str(ctx["org_id"]))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid organization ID")
 
         dept = session.query(Department).filter(
             Department.id == dept_uuid,
-            Department.org_id == ctx["org_id"]
+            Department.org_id == org_uuid
         ).first()
         
         if not dept:
@@ -418,6 +455,13 @@ async def update_department(
         dept.updated_at = datetime.utcnow()
         session.commit()
         
+        _sync_dept_to_security_state(
+            str(dept_uuid), dept.name, dept.description,
+            str(dept.parent_id) if dept.parent_id else None,
+            str(dept.manager_id) if dept.manager_id else None,
+            ctx["org_id"],
+        )
+        
         service = get_directory_service()
         return service.get_department_info(str(dept_uuid), ctx["org_id"])
 
@@ -435,29 +479,37 @@ async def delete_department(department_id: str, user: User = Depends(require_adm
     ctx = _extract_user_context(user)
     
     with get_session() as session:
+        try:
+            dept_uuid = uuid.UUID(str(department_id))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid department ID")
+        try:
+            org_uuid = uuid.UUID(str(ctx["org_id"]))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid organization ID")
+
         dept = session.query(Department).filter(
-            Department.id == department_id,
-            Department.org_id == ctx["org_id"]
+            Department.id == dept_uuid,
+            Department.org_id == org_uuid
         ).first()
         
         if not dept:
             raise HTTPException(status_code=404, detail="Department not found")
         
-        # Clear department_id from users
         session.query(UserModel).filter(
-            UserModel.department_id == department_id,
-            UserModel.org_id == ctx["org_id"]
+            UserModel.department_id == dept_uuid,
+            UserModel.org_id == org_uuid
         ).update({UserModel.department_id: None}, synchronize_session=False)
         
-        # Move sub-departments to parent
         session.query(Department).filter(
-            Department.parent_id == department_id,
-            Department.org_id == ctx["org_id"]
+            Department.parent_id == dept_uuid,
+            Department.org_id == org_uuid
         ).update({Department.parent_id: dept.parent_id}, synchronize_session=False)
         
         session.delete(dept)
         session.commit()
     
+    _sync_dept_to_security_state(department_id, "", deleted=True)
     return {"status": "success", "message": f"Department {department_id} deleted"}
 
 
