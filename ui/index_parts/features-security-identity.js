@@ -163,8 +163,8 @@ async function showCreateUserModal(preset) {
     preset = preset || {};
     let _cuCustomFields = [];
     try {
-        const [,,,, cfRes] = await Promise.all([
-            loadOrgDepartments(), loadOrgUsers(), loadGroups(), loadOrgJobTitles(),
+        const [, cfRes] = await Promise.all([
+            loadGroups(),
             fetch('/api/identity/profile-fields', { headers: getAuthHeaders() }).then(r => r.ok ? r.json() : { fields: [] }).catch(() => ({ fields: [] }))
         ]);
         _cuCustomFields = Array.isArray(cfRes.fields) ? cfRes.fields.filter(f => f && f.key) : [];
@@ -172,22 +172,8 @@ async function showCreateUserModal(preset) {
 
     const roles = Array.isArray(securityRoles) ? securityRoles : [];
     const groups = Array.isArray(allGroups) ? allGroups : [];
-    const depts = Array.isArray(orgDepartments) ? orgDepartments : [];
-    const users = Array.isArray(orgUsersCache) ? orgUsersCache : [];
-    const _userOptLabel = (u) => {
-        const name = (u?.name || u?.profile?.display_name || '').toString().trim();
-        const uname = (u?.username || '').toString().trim();
-        const email = (u?.email || '').toString().trim();
-        const idShort = (u?.id ? String(u.id).slice(0, 8) : '');
-        let left = name || uname || email || 'User';
-        if (uname && left !== uname) left += ` — ${uname}`;
-        if (email && left !== email && !left.includes(email)) left += ` — ${email}`;
-        if (idShort) left += ` — ${idShort}`;
-        return left;
-    };
 
     const defaultRoleId = roles.find(r => String(r.id) === 'role_user')?.id || roles.find(r => (r.name || '').toLowerCase() === 'user')?.id || 'role_user';
-    const jobTitleOptions = (orgJobTitles || []).map(t => `<option value="${escHtml(t)}"></option>`).join('');
 
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]';
@@ -222,30 +208,10 @@ async function showCreateUserModal(preset) {
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium mb-2">Job Title</label>
-                        <input type="text" id="cu-title" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Senior Analyst" list="cu-job-titles">
-                        <datalist id="cu-job-titles">${jobTitleOptions}</datalist>
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium mb-2">Phone</label>
                         <input type="text" id="cu-phone" class="w-full input-field rounded-lg px-4 py-2" placeholder="+1 555 000 0000">
                     </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Department</label>
-                        <select id="cu-dept" class="w-full input-field rounded-lg px-4 py-2">
-                            <option value="">— No Department —</option>
-                            ${depts.map(d => `<option value="${d.id}" ${preset.department_id === d.id ? 'selected' : ''}>${escHtml(d.name || '')}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Direct Manager</label>
-                        <select id="cu-mgr" class="w-full input-field rounded-lg px-4 py-2">
-                            <option value="">— No Manager —</option>
-                            ${users.map(u => `<option value="${u.id}" ${preset.manager_id === u.id ? 'selected' : ''}>${escHtml(_userOptLabel(u))}</option>`).join('')}
-                        </select>
-                    </div>
+                    <div></div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -278,7 +244,7 @@ async function showCreateUserModal(preset) {
                     <summary class="px-4 py-3 cursor-pointer hover:bg-gray-800/30 transition-colors text-sm font-medium flex items-center gap-2 select-none">
                         <span style="transition:transform .15s;" class="cu-chevron">&#9654;</span>
                         Additional Information
-                        <span class="text-xs text-gray-500 ml-auto">Employee ID${_cuCustomFields.length ? ', Custom Fields' : ''}</span>
+                        <span class="text-xs text-gray-500 ml-auto">${_cuCustomFields.length ? 'Employee ID, Custom Fields' : 'Employee ID'}</span>
                     </summary>
                     <div class="px-4 pb-4 pt-2 space-y-4 border-t border-gray-800/40">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -358,10 +324,7 @@ async function createUserFromModal() {
     const first_name = (document.getElementById('cu-first')?.value || '').trim();
     const last_name = (document.getElementById('cu-last')?.value || '').trim();
     const employee_id = (document.getElementById('cu-emp')?.value || '').trim() || null;
-    const job_title = (document.getElementById('cu-title')?.value || '').trim() || null;
     const phone = (document.getElementById('cu-phone')?.value || '').trim() || null;
-    const department_id = document.getElementById('cu-dept')?.value || null;
-    const manager_id = document.getElementById('cu-mgr')?.value || null;
     const send_invitation = !!document.getElementById('cu-invite')?.checked;
     const setPassword = !!document.getElementById('cu-set-pass')?.checked;
     const password = setPassword ? ((document.getElementById('cu-pass')?.value || '').trim() || null) : null;
@@ -398,8 +361,8 @@ async function createUserFromModal() {
             headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 username, email, first_name, last_name,
-                phone, job_title, employee_id, manager_id,
-                department_id, role_ids, group_ids,
+                phone, employee_id,
+                role_ids, group_ids,
                 send_invitation, password,
                 custom_attributes: Object.keys(custom_attributes).length > 0 ? custom_attributes : undefined
             })
