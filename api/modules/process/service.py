@@ -268,7 +268,7 @@ class ProcessAPIService:
         # =========================================================
         # SECURITY: Filter available tools based on access control
         # =========================================================
-        available_tools = agent.tool_ids or []
+        available_tools = self._collect_tool_ids(agent, definition_data)
         # Remove denied tools from available list
         filtered_tool_ids = [t for t in available_tools if t not in denied_tool_ids]
         
@@ -905,7 +905,7 @@ class ProcessAPIService:
         if not isinstance(denied_tool_ids, list):
             denied_tool_ids = []
 
-        filtered_tool_ids = [t for t in (agent.tool_ids or []) if t not in denied_tool_ids]
+        filtered_tool_ids = [t for t in self._collect_tool_ids(agent, raw_def) if t not in denied_tool_ids]
         logger.info("[ProcessRun] Building dependencies (tool_ids=%d, denied=%d)", len(filtered_tool_ids), len(denied_tool_ids))
         deps = await self._build_dependencies(agent, filtered_tool_ids)
         logger.info("[ProcessRun] Dependencies built successfully")
@@ -1269,10 +1269,10 @@ class ProcessAPIService:
             user_name=_resume_name,
             user_roles=user_info.get('roles', []) if user_info else [],
             user_groups=user_info.get('groups', []) if user_info else [],
-            available_tool_ids=agent.tool_ids or [],
+            available_tool_ids=self._collect_tool_ids(agent, raw_def),
             settings=self._ensure_dict(getattr(execution, "settings", None) or {}),
         )
-        
+
         # Build dependencies
         deps = await self._build_dependencies(agent)
         
@@ -3245,6 +3245,16 @@ class ProcessAPIService:
         
         return data
     
+    def _collect_tool_ids(self, agent, raw_def=None) -> List[str]:
+        """Merge agent.tool_ids with tool IDs referenced in process definition nodes."""
+        ids = list(agent.tool_ids or [])
+        for _n in (self._ensure_dict(raw_def).get("nodes") or []):
+            _nc = _n.get("config") or {}
+            _tid = _nc.get("toolId") or _nc.get("tool_id") or ""
+            if _tid and _tid not in ids:
+                ids.append(_tid)
+        return ids
+
     def _ensure_dict(self, value: Any) -> Dict[str, Any]:
         """
         Normalize a value to a dict for settings merge.
