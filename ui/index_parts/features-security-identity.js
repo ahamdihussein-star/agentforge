@@ -1077,8 +1077,6 @@ async function loadOrgDepartments() {
         console.log('Departments API:', e);
         orgDepartments = [];
     }
-    renderOrgDeptSidebar();
-    if (_selectedDeptId) selectOrgDept(_selectedDeptId);
 }
 
 let _selectedDeptId = null;
@@ -1174,13 +1172,6 @@ function showCreateDepartmentModal(editId) {
                     <div>
                         <label class="block text-sm font-medium mb-2">Department Name *</label>
                         <input type="text" id="dept-name" class="w-full input-field rounded-lg px-4 py-2" placeholder="e.g., Engineering, HR" value="${isEdit ? escHtml(dept.name || '') : ''}">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Parent Department</label>
-                        <select id="dept-parent" class="w-full input-field rounded-lg px-4 py-2">
-                            <option value="">— None (Top Level)</option>
-                            ${depts.filter(d => d.id !== editId).map(d => `<option value="${d.id}" ${isEdit && dept.parent_id === d.id ? 'selected' : ''}>${escHtml(d.name)}</option>`).join('')}
-                        </select>
                     </div>
                 </div>
                 <div>
@@ -1340,8 +1331,10 @@ async function saveDepartment() {
     const name = (document.getElementById('dept-name')?.value || '').trim();
     const description = (document.getElementById('dept-description')?.value || '').trim();
     const managerId = document.getElementById('dept-manager')?.value || null;
-    const parentId = document.getElementById('dept-parent')?.value || null;
     if (!name) { showToast('Department name is required', 'error'); return; }
+
+    const existingDept = editId ? (orgDepartments || []).find(d => d.id === editId) : null;
+    const parentId = existingDept ? existingDept.parent_id : null;
 
     try {
         const url = editId ? `/api/identity/departments/${editId}` : '/api/identity/departments';
@@ -1407,7 +1400,6 @@ async function deleteDepartment(id) {
         });
         if (res.ok) {
             showToast('Department deleted', 'success');
-            if (_ocSelectedDept === id) _ocSelectedDept = null;
             await loadOrgDepartments();
             renderOrgChart();
         } else {
@@ -1562,11 +1554,65 @@ async function saveManagerAssignment() {
     } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
-// --- Org Chart (primary management view) ---
+// --- Org Chart (department-based visualization) ---
 let _ocView = { panX: 0, panY: 0, scale: 1 };
-let _ocDraft = {};
-let _ocDrag = { active: false, user_id: null, pointerId: null, startX: 0, startY: 0, ghost: null, overEl: null };
-let _ocSelectedDept = null;
+let _ocDraft = {}; // dept_id -> {parent_id}
+let _ocDrag = { active: false, dept_id: null, pointerId: null, ghost: null, overEl: null };
+
+function _ocEffectiveDept(d) {
+    const patch = (_ocDraft || {})[d.id];
+    if (!patch) return d;
+    return { ...d, parent_id: (patch.parent_id !== undefined) ? patch.parent_id : d.parent_id };
+}
+
+function _ocBuildDeptGraph(depts) {
+    const byId = {};
+    depts.forEach(d => { byId[d.id] = d; });
+    const children = {};
+    depts.forEach(d => {
+        const pid = d.parent_id || null;
+        if (pid && byId[pid]) {
+            if (!children[pid]) children[pid] = [];
+            children[pid].push(d.id);
+        }
+    });
+    const roots = depts.filter(d => !d.parent_id || !byId[d.parent_id]).map(d => d.id);
+    return { byId, children, roots };
+}
+
+function _ocLayoutDeptTree(graph) {
+    const nodeW = 240, gapX = 40, levelH = 140, nodeH = 90;
+    const sizes = {};
+
+    function measure(did, depth, seen) {
+        if (seen.has(did)) return 1;
+        seen.add(did);
+        const kids = graph.children[did] || [];
+        if (kids.length === 0 || depth >= 10) { sizes[did] = 1; return 1; }
+        let sum = 0;
+        kids.forEach(k => { sum += measure(k, depth + 1, seen); });
+        sizes[did] = Math.max(1, sum);
+        return sizes[did];
+    }
+    const seen = new Set();
+    graph.roots.forEach(r => measure(r, 0, seen));
+
+    const pos = {};
+    function place(did, xStart, depth) {
+        const sw = sizes[did] || 1;
+        const kids = graph.children[did] || [];
+        let cur = xStart;
+        kids.forEach(k => { const kw = sizes[k] || 1; place(k, cur, depth + 1); cur += kw; });
+        pos[did] = { px: Math.round((xStart + sw / 2 - 0.5) * (nodeW + gapX)), py: depth * levelH };
+    }
+    let cursor = 0;
+    graph.roots.forEach(r => { place(r, cursor, 0); cursor += (sizes[r] || 1); });
+
+    const worldW = Math.max(1, cursor) * (nodeW + gapX);
+    const maxDepth = Math.max(0, ...Object.values(pos).map(p => (p.py / levelH) || 0));
+    const worldH = (maxDepth + 1) * levelH + nodeH + 80;
+    return { pos, worldW, worldH, nodeW, nodeH };
+}
 
 function renderOrgChart() {
     const container = document.getElementById('org-chart-tree');
@@ -1576,22 +1622,19 @@ function renderOrgChart() {
     const draftCount = Object.keys(_ocDraft || {}).length;
     const canSave = draftCount > 0;
 
-    if (!Array.isArray(orgUsersCache) || orgUsersCache.length === 0) {
+    if (depts.length === 0) {
         container.innerHTML = `
             <div class="oc-shell">
                 <div class="oc-toolbar">
-                    <div class="oc-toolbar-left">
-                        <div class="oc-title">Organization Chart</div>
-                    </div>
+                    <div class="oc-toolbar-left"><div class="oc-title">Organization Chart</div></div>
                     <div class="oc-toolbar-right">
                         <button class="btn-primary oc-btn" onclick="showCreateDepartmentModal()">+ Department</button>
-                        <button class="btn-primary oc-btn" onclick="showCreateUserModal()">+ Person</button>
                     </div>
                 </div>
                 <div class="text-center py-16">
                     <div class="text-5xl mb-3">🏛️</div>
-                    <p class="text-gray-300 font-medium">No people found yet</p>
-                    <p class="text-gray-500 text-sm mt-1">Create departments and people to build your organization chart.</p>
+                    <p class="text-gray-300 font-medium">No departments yet</p>
+                    <p class="text-gray-500 text-sm mt-1">Create departments to build your organization chart.</p>
                 </div>
             </div>`;
         return;
@@ -1602,10 +1645,11 @@ function renderOrgChart() {
             <div class="oc-toolbar">
                 <div class="oc-toolbar-left">
                     <div class="oc-title">Organization Chart</div>
-                    <div class="oc-hint">Drag a person onto another to set their manager. Drop onto a department to move them. Click a department to see its members.</div>
+                    <div class="oc-hint">Drag a department onto another to set parent/child. Double-click to manage members and details.</div>
                 </div>
                 <div class="oc-toolbar-right">
-                    <input id="oc-search" class="input-field oc-search" placeholder="Search..." oninput="_ocRender()">
+                    <input id="oc-search" class="input-field oc-search" placeholder="Search departments..." oninput="_ocRender()">
+                    <button class="btn-secondary oc-btn" onclick="showCreateDepartmentModal()">+ Department</button>
                     <button class="btn-secondary oc-btn" onclick="_ocZoomIn()" title="Zoom in">+</button>
                     <button class="btn-secondary oc-btn" onclick="_ocZoomOut()" title="Zoom out">−</button>
                     <button class="btn-secondary oc-btn" onclick="_ocResetView()">Reset</button>
@@ -1613,37 +1657,8 @@ function renderOrgChart() {
                     <button class="btn-primary oc-btn" onclick="_ocSaveDraft()" ${canSave ? '' : 'disabled'}>Save${draftCount ? ` (${draftCount})` : ''}</button>
                 </div>
             </div>
-            <div class="oc-body">
-                <div class="oc-side">
-                    <div class="oc-drop-top oc-dropzone" data-drop="top">Drop here → make top-level</div>
-                    <div class="oc-side-head">
-                        <div class="oc-side-title">Departments</div>
-                        <button class="text-purple-400 hover:text-purple-300 text-xs font-medium" onclick="showCreateDepartmentModal()">+ New</button>
-                    </div>
-                    <div class="oc-dept-list">
-                        <div class="oc-dept-drop ${!_ocSelectedDept ? 'oc-dept-active' : ''}" data-dept-id="" onclick="_ocSelectDept(null)">
-                            <div class="oc-dept-name">All People</div>
-                            <div class="oc-dept-meta">${orgUsersCache.length} total</div>
-                        </div>
-                        ${depts.map(d => {
-                            const head = orgUsersCache.find(u => u.id === d.manager_id);
-                            const mc = orgUsersCache.filter(u => u.department_id === d.id).length;
-                            return `
-                            <div class="oc-dept-drop ${_ocSelectedDept === d.id ? 'oc-dept-active' : ''}" data-dept-id="${escHtml(d.id)}" onclick="_ocSelectDept('${escHtml(d.id)}')">
-                                <div class="oc-dept-name">${escHtml(d.name || 'Department')}</div>
-                                <div class="oc-dept-meta">${head ? escHtml(head.name || head.email) : 'No head'} · ${mc} member${mc !== 1 ? 's' : ''}</div>
-                                <div class="oc-dept-actions">
-                                    <button class="oc-link" onclick="event.stopPropagation(); editDepartment('${escHtml(d.id)}')">Edit</button>
-                                    <button class="oc-link text-red-400" onclick="event.stopPropagation(); deleteDepartment('${escHtml(d.id)}')">Delete</button>
-                                </div>
-                            </div>`;
-                        }).join('') || ''}
-                    </div>
-                    <div class="oc-side-footer">
-                        <button class="btn-secondary w-full px-3 py-2 rounded-lg text-sm" onclick="showCreateUserModal()">+ Create Person</button>
-                    </div>
-                </div>
-                <div class="oc-viewport" id="oc-viewport">
+            <div class="oc-body" style="min-height:520px;">
+                <div class="oc-viewport" id="oc-viewport" style="flex:1;">
                     <div class="oc-world" id="oc-world">
                         <svg class="oc-lines" id="oc-lines"></svg>
                         <div class="oc-nodes" id="oc-nodes"></div>
@@ -1657,154 +1672,60 @@ function renderOrgChart() {
     _ocRender();
 }
 
-function _ocSelectDept(deptId) {
-    _ocSelectedDept = deptId;
-    renderOrgChart();
-}
-window._ocSelectDept = _ocSelectDept;
-
-function _ocEffectiveUser(u) {
-    const d = (_ocDraft || {})[u.id];
-    if (!d) return u;
-    return {
-        ...u,
-        manager_id: (d.manager_id !== undefined) ? d.manager_id : u.manager_id,
-        department_id: (d.department_id !== undefined) ? d.department_id : u.department_id,
-        employee_id: (d.employee_id !== undefined) ? d.employee_id : u.employee_id,
-        job_title: (d.job_title !== undefined) ? d.job_title : u.job_title,
-    };
-}
-
-function _ocBuildGraph(users) {
-    const byId = {};
-    users.forEach(u => { byId[u.id] = u; });
-    const children = {};
-    users.forEach(u => {
-        const mid = u.manager_id || null;
-        if (mid && byId[mid]) {
-            if (!children[mid]) children[mid] = [];
-            children[mid].push(u.id);
-        }
-    });
-    const roots = users
-        .filter(u => !u.manager_id || !byId[u.manager_id])
-        .map(u => u.id);
-    return { byId, children, roots };
-}
-
-function _ocLayoutTree(graph) {
-    const nodeW = 220, gapX = 34, levelH = 120, nodeH = 78;
-    const sizes = {};
-
-    function measure(uid, depth, seen) {
-        if (seen.has(uid)) return 1;
-        seen.add(uid);
-        const kids = graph.children[uid] || [];
-        if (kids.length === 0 || depth >= 10) { sizes[uid] = 1; return 1; }
-        let sum = 0;
-        kids.forEach(k => { sum += measure(k, depth + 1, seen); });
-        sizes[uid] = Math.max(1, sum);
-        return sizes[uid];
-    }
-
-    const seen = new Set();
-    graph.roots.forEach(r => measure(r, 0, seen));
-
-    const pos = {};
-    function place(uid, xStart, depth) {
-        const sw = sizes[uid] || 1;
-        const kids = graph.children[uid] || [];
-        let cur = xStart;
-        kids.forEach(k => {
-            const kw = sizes[k] || 1;
-            place(k, cur, depth + 1);
-            cur += kw;
-        });
-        pos[uid] = {
-            x: (xStart + sw / 2),
-            y: depth,
-            px: Math.round((xStart + sw / 2 - 0.5) * (nodeW + gapX)),
-            py: depth * levelH
-        };
-    }
-    let cursor = 0;
-    graph.roots.forEach(r => {
-        const w = sizes[r] || 1;
-        place(r, cursor, 0);
-        cursor += w;
-    });
-
-    const totalUnits = Math.max(1, cursor);
-    const worldW = totalUnits * (nodeW + gapX);
-    const maxDepth = Math.max(0, ...Object.values(pos).map(p => p.y || 0));
-    const worldH = (maxDepth + 1) * levelH + nodeH + 80;
-    return { pos, worldW, worldH, nodeW, nodeH };
-}
-
 function _ocRender() {
-    const viewport = document.getElementById('oc-viewport');
     const world = document.getElementById('oc-world');
     const nodesEl = document.getElementById('oc-nodes');
     const linesEl = document.getElementById('oc-lines');
-    if (!viewport || !world || !nodesEl || !linesEl) return;
+    if (!world || !nodesEl || !linesEl) return;
 
     const q = (document.getElementById('oc-search')?.value || '').toLowerCase().trim();
-    let effective = (orgUsersCache || []).map(_ocEffectiveUser);
+    const effective = (orgDepartments || []).map(_ocEffectiveDept);
+    const filtered = q ? effective.filter(d => (d.name || '').toLowerCase().includes(q)) : effective;
+    const filteredIds = q ? new Set(filtered.map(d => d.id)) : null;
 
-    if (_ocSelectedDept) {
-        effective = effective.filter(u => u.department_id === _ocSelectedDept);
-    }
-
-    const filteredIds = q ? new Set(effective.filter(u => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q) || (u.job_title || '').toLowerCase().includes(q)).map(u => u.id)) : null;
-
-    const graph = _ocBuildGraph(effective);
-    const layout = _ocLayoutTree(graph);
+    const graph = _ocBuildDeptGraph(effective);
+    const layout = _ocLayoutDeptTree(graph);
 
     world.style.width = layout.worldW + 'px';
     world.style.height = layout.worldH + 'px';
     world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
 
-    nodesEl.innerHTML = effective.map(u => {
-        if (filteredIds && !filteredIds.has(u.id)) return '';
-        const p = layout.pos[u.id];
+    const users = Array.isArray(orgUsersCache) ? orgUsersCache : [];
+
+    nodesEl.innerHTML = effective.map(d => {
+        if (filteredIds && !filteredIds.has(d.id)) return '';
+        const p = layout.pos[d.id];
         if (!p) return '';
-        const dept = u.department_id ? (orgDepartments || []).find(d => d.id === u.department_id) : null;
-        const subtitle = (u.job_title || (dept ? dept.name : '') || '').trim();
-        const badge = (_ocDraft && _ocDraft[u.id]) ? `<span class="oc-badge">Edited</span>` : '';
+        const head = d.manager_id ? users.find(u => u.id === d.manager_id) : null;
+        const mc = users.filter(u => u.department_id === d.id).length;
+        const badge = (_ocDraft && _ocDraft[d.id]) ? `<span class="oc-badge">Moved</span>` : '';
         return `
-            <div class="oc-node" data-user-id="${escHtml(u.id)}" style="left:${p.px}px;top:${p.py}px;">
-                <div class="oc-node-card card">
+            <div class="oc-node" data-dept-id="${escHtml(d.id)}" style="left:${p.px}px;top:${p.py}px;width:${layout.nodeW}px;height:${layout.nodeH}px;">
+                <div class="oc-node-card card" style="height:100%;">
                     <div class="oc-node-top">
-                        <div class="oc-avatar">${escHtml((u.name || u.email || '?')[0].toUpperCase())}</div>
+                        <div class="oc-avatar" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">${escHtml((d.name || '?')[0].toUpperCase())}</div>
                         <div class="oc-node-text">
-                            <div class="oc-node-name">${escHtml(u.name || u.email)}</div>
-                            <div class="oc-node-sub">${subtitle ? escHtml(subtitle) : '<span class="oc-muted">No title</span>'}</div>
+                            <div class="oc-node-name">${escHtml(d.name)}</div>
+                            <div class="oc-node-sub">${head ? escHtml(head.name || head.email) : '<span class="oc-muted">No head</span>'}</div>
+                            <div class="oc-node-sub">${mc} member${mc !== 1 ? 's' : ''}</div>
                         </div>
                         ${badge}
                     </div>
-                    <div class="oc-node-actions">
-                        <button class="oc-link" onclick="openManagerModal('${escHtml(u.id)}')">Edit</button>
-                        <button class="oc-link" onclick="showCreateUserModal({ manager_id: '${escHtml(u.id)}', department_id: '${escHtml(u.department_id || '')}' })">+ Report</button>
-                    </div>
                 </div>
-            </div>
-        `;
+            </div>`;
     }).join('');
 
-    const nodeVisible = (uid) => !filteredIds || filteredIds.has(uid);
     let lines = '';
-    effective.forEach(u => {
-        const kids = graph.children[u.id] || [];
+    effective.forEach(d => {
+        const kids = graph.children[d.id] || [];
         kids.forEach(cid => {
-            if (!nodeVisible(u.id) || !nodeVisible(cid)) return;
-            const a = layout.pos[u.id];
+            if (filteredIds && (!filteredIds.has(d.id) || !filteredIds.has(cid))) return;
+            const a = layout.pos[d.id];
             const b = layout.pos[cid];
             if (!a || !b) return;
-            const x1 = a.px + layout.nodeW / 2;
-            const y1 = a.py + layout.nodeH;
-            const x2 = b.px + layout.nodeW / 2;
-            const y2 = b.py;
-            lines += `<path class="oc-line" d="M ${x1} ${y1} C ${x1} ${y1 + 30}, ${x2} ${y2 - 30}, ${x2} ${y2}" />`;
+            const x1 = a.px + layout.nodeW / 2, y1 = a.py + layout.nodeH;
+            const x2 = b.px + layout.nodeW / 2, y2 = b.py;
+            lines += `<path class="oc-line" d="M ${x1} ${y1} C ${x1} ${y1 + 35}, ${x2} ${y2 - 35}, ${x2} ${y2}" />`;
         });
     });
     linesEl.setAttribute('width', layout.worldW);
@@ -1817,16 +1738,13 @@ function _ocRender() {
 
 function _ocBindViewport() {
     const vp = document.getElementById('oc-viewport');
-    if (!vp) return;
-    if (vp.dataset.bound === '1') return;
+    if (!vp || vp.dataset.bound === '1') return;
     vp.dataset.bound = '1';
 
-    let panning = false;
-    let panStartX = 0, panStartY = 0, panBaseX = 0, panBaseY = 0;
+    let panning = false, panStartX = 0, panStartY = 0, panBaseX = 0, panBaseY = 0;
     vp.addEventListener('pointerdown', (e) => {
-        if (e.target && e.target.closest && e.target.closest('.oc-node')) return;
-        panning = true;
-        panStartX = e.clientX; panStartY = e.clientY;
+        if (e.target?.closest?.('.oc-node')) return;
+        panning = true; panStartX = e.clientX; panStartY = e.clientY;
         panBaseX = _ocView.panX; panBaseY = _ocView.panY;
         vp.setPointerCapture(e.pointerId);
     });
@@ -1834,172 +1752,131 @@ function _ocBindViewport() {
         if (!panning) return;
         _ocView.panX = panBaseX + (e.clientX - panStartX);
         _ocView.panY = panBaseY + (e.clientY - panStartY);
-        const world = document.getElementById('oc-world');
-        if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+        const w = document.getElementById('oc-world');
+        if (w) w.style.transform = `translate(${_ocView.panX}px,${_ocView.panY}px) scale(${_ocView.scale})`;
     });
     vp.addEventListener('pointerup', () => { panning = false; });
     vp.addEventListener('pointercancel', () => { panning = false; });
-
-    // Scroll = pan (NOT zoom). Scroll down → pan down, scroll right → pan right.
     vp.addEventListener('wheel', (e) => {
         e.preventDefault();
-        _ocView.panX -= e.deltaX;
-        _ocView.panY -= e.deltaY;
-        const world = document.getElementById('oc-world');
-        if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+        _ocView.panX -= e.deltaX; _ocView.panY -= e.deltaY;
+        const w = document.getElementById('oc-world');
+        if (w) w.style.transform = `translate(${_ocView.panX}px,${_ocView.panY}px) scale(${_ocView.scale})`;
     }, { passive: false });
 }
 
 function _ocZoomIn() {
     _ocView.scale = Math.min(2, _ocView.scale + 0.15);
-    const world = document.getElementById('oc-world');
-    if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+    const w = document.getElementById('oc-world');
+    if (w) w.style.transform = `translate(${_ocView.panX}px,${_ocView.panY}px) scale(${_ocView.scale})`;
 }
 window._ocZoomIn = _ocZoomIn;
-
 function _ocZoomOut() {
     _ocView.scale = Math.max(0.3, _ocView.scale - 0.15);
-    const world = document.getElementById('oc-world');
-    if (world) world.style.transform = `translate(${_ocView.panX}px, ${_ocView.panY}px) scale(${_ocView.scale})`;
+    const w = document.getElementById('oc-world');
+    if (w) w.style.transform = `translate(${_ocView.panX}px,${_ocView.panY}px) scale(${_ocView.scale})`;
 }
 window._ocZoomOut = _ocZoomOut;
 
 function _ocBindNodeDragging() {
     const nodesEl = document.getElementById('oc-nodes');
-    if (!nodesEl) return;
-    if (nodesEl.dataset.bound === '1') return;
+    if (!nodesEl || nodesEl.dataset.bound === '1') return;
     nodesEl.dataset.bound = '1';
 
     nodesEl.addEventListener('dblclick', (e) => {
         const node = e.target?.closest?.('.oc-node');
         if (!node) return;
-        const uid = node.dataset.userId;
-        if (uid) openManagerModal(uid);
+        const did = node.dataset.deptId;
+        if (did) editDepartment(did);
     });
 
     nodesEl.addEventListener('pointerdown', (e) => {
         const node = e.target?.closest?.('.oc-node');
-        if (!node) return;
-        if (e.target.closest('button')) return;
-        const uid = node.dataset.userId;
-        if (!uid) return;
-        _ocDrag.active = true;
-        _ocDrag.user_id = uid;
+        if (!node || e.target.closest('button')) return;
+        const did = node.dataset.deptId;
+        if (!did) return;
+        _ocDrag.active = true; _ocDrag.dept_id = did;
         _ocDrag.pointerId = e.pointerId;
-        _ocDrag.startX = e.clientX;
-        _ocDrag.startY = e.clientY;
-
         const ghost = document.createElement('div');
         ghost.className = 'oc-ghost';
-        const user = orgUsersCache.find(u => u.id === uid);
-        ghost.textContent = user ? (user.name || user.email) : 'Moving…';
+        const dept = orgDepartments.find(d => d.id === did);
+        ghost.textContent = dept ? dept.name : 'Moving…';
         document.body.appendChild(ghost);
         _ocDrag.ghost = ghost;
-        ghost.style.left = (e.clientX + 12) + 'px';
-        ghost.style.top = (e.clientY + 12) + 'px';
-        try { node.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        ghost.style.left = (e.clientX + 12) + 'px'; ghost.style.top = (e.clientY + 12) + 'px';
+        try { node.setPointerCapture(e.pointerId); } catch (_) {}
         e.preventDefault();
     });
 
     nodesEl.addEventListener('pointermove', (e) => {
-        if (!_ocDrag.active) return;
-        if (_ocDrag.pointerId !== e.pointerId) return;
-        if (_ocDrag.ghost) {
-            _ocDrag.ghost.style.left = (e.clientX + 12) + 'px';
-            _ocDrag.ghost.style.top = (e.clientY + 12) + 'px';
-        }
+        if (!_ocDrag.active || _ocDrag.pointerId !== e.pointerId) return;
+        if (_ocDrag.ghost) { _ocDrag.ghost.style.left = (e.clientX + 12) + 'px'; _ocDrag.ghost.style.top = (e.clientY + 12) + 'px'; }
         const el = document.elementFromPoint(e.clientX, e.clientY);
-        const overNode = el?.closest?.('.oc-node');
-        const overDept = el?.closest?.('.oc-dept-drop');
-        const overTop = el?.closest?.('.oc-drop-top');
-        const nextOver = overNode || overDept || overTop;
+        const nextOver = el?.closest?.('.oc-node') || el?.closest?.('.oc-viewport');
         if (_ocDrag.overEl && _ocDrag.overEl !== nextOver) _ocDrag.overEl.classList.remove('oc-over');
         _ocDrag.overEl = nextOver;
         if (_ocDrag.overEl) _ocDrag.overEl.classList.add('oc-over');
     });
 
-    const finish = async (e) => {
+    const finish = (e) => {
         if (!_ocDrag.active) return;
-        const uid = _ocDrag.user_id;
+        const did = _ocDrag.dept_id;
         const over = _ocDrag.overEl;
         if (over) over.classList.remove('oc-over');
         if (_ocDrag.ghost) _ocDrag.ghost.remove();
-
-        _ocDrag.active = false;
-        _ocDrag.user_id = null;
-        _ocDrag.pointerId = null;
-        _ocDrag.ghost = null;
-        _ocDrag.overEl = null;
-
-        if (!uid) return;
-        if (!over) return;
+        _ocDrag.active = false; _ocDrag.dept_id = null; _ocDrag.pointerId = null;
+        _ocDrag.ghost = null; _ocDrag.overEl = null;
+        if (!did || !over) return;
 
         if (over.classList.contains('oc-node')) {
-            const targetId = over.dataset.userId;
-            if (targetId && targetId !== uid) {
-                _ocStage(uid, { manager_id: targetId });
-                showToast('Reporting line staged', 'success');
+            const targetDeptId = over.dataset.deptId;
+            if (targetDeptId && targetDeptId !== did) {
+                _ocStageDept(did, { parent_id: targetDeptId });
+                showToast('Hierarchy change staged (child of target)', 'success');
             }
-        } else if (over.classList.contains('oc-dept-drop')) {
-            const deptId = over.dataset.deptId;
-            if (deptId) {
-                _ocStage(uid, { department_id: deptId });
-                showToast('Department change staged', 'success');
-            }
-        } else if (over.classList.contains('oc-drop-top')) {
-            _ocStage(uid, { manager_id: null });
-            showToast('Set as top-level (staged)', 'success');
+        } else if (over.classList.contains('oc-viewport')) {
+            _ocStageDept(did, { parent_id: null });
+            showToast('Set as top-level department (staged)', 'success');
         }
     };
-
     nodesEl.addEventListener('pointerup', finish);
     nodesEl.addEventListener('pointercancel', finish);
 }
 
-function _ocStage(userId, patch) {
+function _ocStageDept(deptId, patch) {
     if (!_ocDraft) _ocDraft = {};
-    if (!_ocDraft[userId]) _ocDraft[userId] = {};
-    _ocDraft[userId] = { ..._ocDraft[userId], ...patch };
-    const cur = _ocDraft[userId];
-    const isEmpty = cur && Object.keys(cur).every(k => cur[k] === undefined);
-    if (isEmpty) delete _ocDraft[userId];
+    if (!_ocDraft[deptId]) _ocDraft[deptId] = {};
+    _ocDraft[deptId] = { ..._ocDraft[deptId], ...patch };
     renderOrgChart();
 }
 
-function _ocDiscardDraft() {
-    _ocDraft = {};
-    renderOrgChart();
-}
+function _ocDiscardDraft() { _ocDraft = {}; renderOrgChart(); }
 window._ocDiscardDraft = _ocDiscardDraft;
 
 async function _ocSaveDraft() {
-    const updates = Object.entries(_ocDraft || {}).map(([user_id, patch]) => ({ user_id, ...patch }));
-    if (updates.length === 0) return;
+    const entries = Object.entries(_ocDraft || {});
+    if (entries.length === 0) return;
     try {
-        const res = await fetch('/api/identity/org-chart/bulk-update', {
-            method: 'POST',
-            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ updates })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-            showToast(`Saved ${data.success_count || updates.length} change(s)`, 'success');
-            await loadOrgUsers();
-            _ocDraft = {};
-            renderOrgChart();
-        } else {
-            showToast(data.detail || 'Failed to save changes', 'error');
+        let ok = 0;
+        for (const [deptId, patch] of entries) {
+            const dept = orgDepartments.find(d => d.id === deptId);
+            if (!dept) continue;
+            const res = await fetch(`/api/identity/departments/${deptId}`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: dept.name, description: dept.description, manager_id: dept.manager_id, parent_id: patch.parent_id !== undefined ? patch.parent_id : dept.parent_id })
+            });
+            if (res.ok) ok++;
         }
-    } catch (e) {
-        showToast('Error: ' + e.message, 'error');
-    }
+        showToast(`Saved ${ok} change(s)`, 'success');
+        _ocDraft = {};
+        await loadOrgDepartments();
+        renderOrgChart();
+    } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 window._ocSaveDraft = _ocSaveDraft;
 
-function _ocResetView() {
-    _ocView = { panX: 0, panY: 0, scale: 1 };
-    _ocRender();
-}
+function _ocResetView() { _ocView = { panX: 0, panY: 0, scale: 1 }; _ocRender(); }
 window._ocResetView = _ocResetView;
 
 // --- Directory Config ---
