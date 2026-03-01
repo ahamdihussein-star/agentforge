@@ -238,6 +238,32 @@ async function handleLogin(event) {
     const btn = document.getElementById('login-btn');
     btn.disabled = true;
     btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> Signing in...';
+
+    const showLoginErrorInline = (message) => {
+        try {
+            const form = document.getElementById('login-form');
+            if (!form) return;
+            let box = document.getElementById('login-error-box');
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'login-error-box';
+                box.className = 'bg-red-500/15 border border-red-500/40 text-red-200 px-4 py-3 rounded-lg text-sm';
+                box.style.marginTop = '12px';
+                // Insert before the submit button row (so it’s clearly visible)
+                const submitBtn = document.getElementById('login-btn');
+                if (submitBtn && submitBtn.parentElement) {
+                    submitBtn.parentElement.insertAdjacentElement('beforebegin', box);
+                } else {
+                    form.appendChild(box);
+                }
+            }
+            box.textContent = String(message || 'Sign-in failed. Please try again.');
+            box.scrollIntoView({ block: 'nearest' });
+        } catch (_) { /* ignore */ }
+    };
+    const clearLoginErrorInline = () => {
+        try { document.getElementById('login-error-box')?.remove(); } catch (_) {}
+    };
     
     try {
         console.log("🚀 [FRONTEND] Starting login request...");
@@ -248,8 +274,16 @@ async function handleLogin(event) {
         });
         
         console.log("📡 [FRONTEND] Login response received, status:", res.status, res.statusText);
-        
-        const data = await res.json();
+
+        // Robust parsing: Railway/proxies can return HTML on 502/503 and that would throw on res.json().
+        let data = {};
+        let rawText = '';
+        try {
+            rawText = await res.text();
+            data = rawText ? JSON.parse(rawText) : {};
+        } catch (e) {
+            data = {};
+        }
         console.log("📦 [FRONTEND] Login response data:", JSON.stringify(data, null, 2));
         console.log("   requires_mfa:", data.requires_mfa, "(type:", typeof data.requires_mfa, ")");
         console.log("   mfa_required:", data.mfa_required, "(type:", typeof data.mfa_required, ")");
@@ -258,11 +292,15 @@ async function handleLogin(event) {
         
         if (!res.ok) {
             console.error("❌ [FRONTEND] Login failed:", data);
-            showToast(typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || 'Login failed'), 'error');
+            const msg = (typeof data.detail === 'object' ? JSON.stringify(data.detail) : (data.detail || 'Sign-in failed')) || 'Sign-in failed';
+            try { showToast(msg, 'error'); } catch (_) {}
+            showLoginErrorInline(msg);
             btn.disabled = false;
             btn.textContent = 'Sign In';
             return;
         }
+
+        clearLoginErrorInline();
         
         // Check if MFA is required (check both requires_mfa and mfa_required for backward compatibility)
         console.log("🔍 [FRONTEND] Checking MFA requirement...");
@@ -352,7 +390,9 @@ async function handleLogin(event) {
         showToast('Welcome back, ' + (currentUser.name || currentUser.email) + '!', 'success');
         
     } catch (e) {
-        showToast('Connection error: ' + e.message, 'error');
+        const msg = 'Connection error: ' + (e?.message || 'Unable to sign in');
+        try { showToast(msg, 'error'); } catch (_) {}
+        showLoginErrorInline(msg);
     }
     
     btn.disabled = false;

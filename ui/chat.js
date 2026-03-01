@@ -251,8 +251,15 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-                
-                const data = await response.json();
+                // Robust parsing: avoid silent failures if server returns HTML/non-JSON on errors.
+                let data = {};
+                let rawText = '';
+                try {
+                    rawText = await response.text();
+                    data = rawText ? JSON.parse(rawText) : {};
+                } catch (_) {
+                    data = {};
+                }
                 
                 if (!response.ok && !data.requires_mfa && !data.mfa_required) {
                     showToast(data.detail || 'Login failed', 'error');
@@ -448,8 +455,14 @@
                         mfa_code: code
                     })
                 });
-                
-                const data = await response.json();
+                let data = {};
+                let rawText = '';
+                try {
+                    rawText = await response.text();
+                    data = rawText ? JSON.parse(rawText) : {};
+                } catch (_) {
+                    data = {};
+                }
                 
                 if (!response.ok) {
                     showToast(data.detail || 'Invalid code', 'error');
