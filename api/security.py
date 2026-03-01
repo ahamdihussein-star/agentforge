@@ -1154,6 +1154,24 @@ async def change_password(request: ChangePasswordRequest, user: User = Depends(r
     
     return {"status": "success"}
 
+
+@router.get("/auth/password-policy")
+async def get_password_policy(user: User = Depends(require_auth)):
+    """
+    Return the current org password policy for UX validation.
+    This is safe to expose to authenticated users and avoids duplicating rules in the UI.
+    """
+    settings = security_state.get_settings(user.org_id or "org_default")
+    return {
+        "password_min_length": getattr(settings, "password_min_length", 8),
+        "password_require_uppercase": bool(getattr(settings, "password_require_uppercase", True)),
+        "password_require_lowercase": bool(getattr(settings, "password_require_lowercase", True)),
+        "password_require_numbers": bool(getattr(settings, "password_require_numbers", True)),
+        "password_require_symbols": bool(getattr(settings, "password_require_symbols", True)),
+        "password_history_count": getattr(settings, "password_history_count", 0),
+        "password_expiry_days": getattr(settings, "password_expiry_days", 0),
+    }
+
 @router.post("/auth/first-login-password-change")
 async def first_login_password_change(
     request: FirstLoginPasswordChangeRequest,

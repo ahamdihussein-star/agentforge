@@ -919,32 +919,36 @@ async function verifyLoginMfa() {
 
 // Handle First Login Password Change
 async function handleFirstLoginPasswordChange(event) {
+    // Backward compatibility: first-login modal is now shared across portals.
+    // If an old modal instance exists, let the shared component handle it.
     event.preventDefault();
-    var newPass = document.getElementById('flp-new-password').value;
-    var confirmPass = document.getElementById('flp-confirm-password').value;
-    var errorDiv = document.getElementById('flp-error');
-    var btn = document.getElementById('flp-submit-btn');
-    errorDiv.classList.add('hidden');
-    if (newPass !== confirmPass) { errorDiv.textContent = 'Passwords do not match'; errorDiv.classList.remove('hidden'); return; }
-    btn.disabled = true; btn.textContent = 'Changing...';
     try {
-        var res = await fetch('/api/security/auth/first-login-password-change', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken }, body: JSON.stringify({ new_password: newPass, confirm_password: confirmPass }) });
-        var data = await res.json();
-        if (!res.ok) { errorDiv.textContent = data.detail.message || data.detail; errorDiv.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Change Password'; return; }
-        document.getElementById('first-login-password-modal').remove();
-        currentUser.must_change_password = false;
-        showApp(); updateUserDisplay(); navigate('dashboard'); showToast('Password changed successfully!', 'success');
-    } catch (e) { errorDiv.textContent = 'Error: ' + e.message; errorDiv.classList.remove('hidden'); }
-    btn.disabled = false; btn.textContent = 'Change Password';
+        if (typeof window.afShowFirstLoginPasswordModal === 'function') {
+            window.afShowFirstLoginPasswordModal({
+                apiBase: '',
+                tokenGetter: () => authToken,
+                onSuccess: () => { try { if (currentUser) currentUser.must_change_password = false; } catch (_) {} }
+            });
+            return;
+        }
+    } catch (_) {}
+    try { showToast('Please refresh the page and try again.', 'error'); } catch (_) {}
 }
 
 // First Login Password Modal
 function showFirstLoginPasswordModal() {
-    var modal = document.createElement('div');
-    modal.id = 'first-login-password-modal';
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center';
-    modal.innerHTML = '<div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div><div class="relative card rounded-2xl p-8 w-full max-w-md mx-4"><div class="text-center mb-6"><h2 class="text-2xl font-bold mb-2">Change Your Password</h2><p class="text-gray-400">For security, you must change your temporary password.</p></div><form onsubmit="handleFirstLoginPasswordChange(event)"><div class="space-y-4"><div><label class="block text-sm text-gray-400 mb-2">New Password</label><input type="password" id="flp-new-password" required minlength="8" class="input-field w-full px-4 py-3 rounded-lg" placeholder="Enter new password"></div><div><label class="block text-sm text-gray-400 mb-2">Confirm Password</label><input type="password" id="flp-confirm-password" required minlength="8" class="input-field w-full px-4 py-3 rounded-lg" placeholder="Confirm password"></div><div id="flp-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg text-sm"></div><button type="submit" id="flp-submit-btn" class="w-full py-3 rounded-lg font-semibold text-white" style="background: var(--accent-gradient);">Change Password</button></div></form></div>';
-    document.body.appendChild(modal);
+    // Single shared component used across Admin + Chat portals
+    try {
+        if (typeof window.afShowFirstLoginPasswordModal === 'function') {
+            window.afShowFirstLoginPasswordModal({
+                apiBase: '',
+                tokenGetter: () => authToken,
+                onSuccess: () => { try { if (currentUser) currentUser.must_change_password = false; } catch (_) {} }
+            });
+            return;
+        }
+    } catch (_) {}
+    try { showToast('Please refresh the page and try again.', 'error'); } catch (_) {}
 }
 
 // Show register form

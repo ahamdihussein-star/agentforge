@@ -236,92 +236,19 @@
         window.pendingLoginPassword = null;
         window.pendingMfaMethods = [];
 
-        // First-login password change (temporary password UX)
-        async function handleFirstLoginPasswordChange(e) {
-            e.preventDefault();
-            const newPass = document.getElementById('flp-new-password')?.value || '';
-            const confirmPass = document.getElementById('flp-confirm-password')?.value || '';
-            const errorDiv = document.getElementById('flp-error');
-            const btn = document.getElementById('flp-submit-btn');
-            if (errorDiv) { errorDiv.classList.add('hidden'); errorDiv.textContent = ''; }
-            if (newPass !== confirmPass) {
-                if (errorDiv) { errorDiv.textContent = 'Passwords do not match'; errorDiv.classList.remove('hidden'); }
-                return;
-            }
-            if (btn) { btn.disabled = true; btn.textContent = 'Changing...'; }
+        // Shared first-login password change popup (single source of truth).
+        function showFirstLoginPasswordModal() {
             try {
-                const token = localStorage.getItem('agentforge_token') || sessionStorage.getItem('agentforge_token') || '';
-                const resp = await fetch(`${API}/api/security/auth/first-login-password-change`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ new_password: newPass, confirm_password: confirmPass })
-                });
-                let data = {};
-                try {
-                    const txt = await resp.text();
-                    data = txt ? JSON.parse(txt) : {};
-                } catch (_) { data = {}; }
-
-                if (!resp.ok) {
-                    const msg = (data && data.detail && typeof data.detail === 'object')
-                        ? (data.detail.message || JSON.stringify(data.detail))
-                        : (data.detail || 'Unable to change password');
-                    if (errorDiv) { errorDiv.textContent = msg; errorDiv.classList.remove('hidden'); }
-                    if (btn) { btn.disabled = false; btn.textContent = 'Change Password'; }
+                if (typeof window.afShowFirstLoginPasswordModal === 'function') {
+                    window.afShowFirstLoginPasswordModal({
+                        apiBase: API,
+                        tokenGetter: () => (localStorage.getItem('agentforge_token') || sessionStorage.getItem('agentforge_token') || ''),
+                        onSuccess: () => { try { if (currentUser) currentUser.must_change_password = false; } catch (_) {} }
+                    });
                     return;
                 }
-
-                document.getElementById('first-login-password-modal')?.remove();
-                try {
-                    if (currentUser) {
-                        currentUser.must_change_password = false;
-                    }
-                } catch (_) {}
-                showToast('Password changed successfully!', 'success');
-            } catch (err) {
-                if (errorDiv) { errorDiv.textContent = 'Error: ' + (err?.message || 'Failed'); errorDiv.classList.remove('hidden'); }
-            } finally {
-                if (btn) { btn.disabled = false; btn.textContent = 'Change Password'; }
-            }
-        }
-
-        function showFirstLoginPasswordModal() {
-            // Remove existing
-            document.getElementById('first-login-password-modal')?.remove();
-            const modal = document.createElement('div');
-            modal.id = 'first-login-password-modal';
-            modal.style.cssText = 'position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center;';
-            modal.innerHTML = `
-                <div style="position:absolute;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px)"></div>
-                <div style="position:relative;background:var(--bg-card);border-radius:16px;padding:24px;width:100%;max-width:420px;margin:16px;">
-                    <div style="text-align:center;margin-bottom:16px;">
-                        <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:6px;color:var(--text-primary);">Change Your Password</h3>
-                        <p style="color:var(--text-muted);font-size:0.9rem;">For security, you must change your temporary password.</p>
-                    </div>
-                    <form id="flp-form">
-                        <div style="display:flex;flex-direction:column;gap:12px;">
-                            <div>
-                                <label style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">New Password</label>
-                                <input type="password" id="flp-new-password" required minlength="8"
-                                    style="width:100%;padding:12px;border-radius:10px;background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-primary);outline:none;">
-                            </div>
-                            <div>
-                                <label style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">Confirm Password</label>
-                                <input type="password" id="flp-confirm-password" required minlength="8"
-                                    style="width:100%;padding:12px;border-radius:10px;background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-primary);outline:none;">
-                            </div>
-                            <div id="flp-error" class="hidden" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:#fecaca;padding:10px 12px;border-radius:10px;font-size:0.85rem;"></div>
-                            <button type="submit" id="flp-submit-btn" style="width:100%;padding:12px;border:none;border-radius:10px;background:var(--accent);color:white;font-weight:600;cursor:pointer;">
-                                Change Password
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            const form = document.getElementById('flp-form');
-            if (form) form.onsubmit = handleFirstLoginPasswordChange;
-            setTimeout(() => document.getElementById('flp-new-password')?.focus(), 50);
+            } catch (_) {}
+            try { showToast('Please refresh the page and try again.', 'error'); } catch (_) {}
         }
 
         async function handleLogin(e) {
