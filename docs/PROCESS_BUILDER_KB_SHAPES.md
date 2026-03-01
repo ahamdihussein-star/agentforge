@@ -152,12 +152,20 @@ Config (`notification.config`):
 - `template` (string): Message body with `{{fieldName}}` references. MUST be non-empty.
   Can use `{{trigger_input._user_context.<key>}}` for person information (name, email, department, etc.).
 
+- `attachments` (array of strings, optional): Variable references to generated documents that should be attached to the email.
+  When a previous AI Step generates a document (`aiMode: "create_doc"`) and stores it in `output_variable` (e.g., `"reconciliationReport"`),
+  reference it here as `"{{reconciliationReport}}"`. The engine resolves the variable to the file on disk and attaches it.
+  Example: `"attachments": ["{{reconciliationReport}}"]`
+  Multiple files: `"attachments": ["{{report1}}", "{{report2}}"]`
+  BEST PRACTICE: Whenever the process generates a report or document that the recipient needs, ALWAYS include it in `attachments`.
+
 **CRITICAL RULES:**
 - `recipient` MUST be non-empty. NEVER leave it blank or use `"-- Select Field --"`.
 - `template` MUST be a rich, informative, business-friendly message.
 - ALWAYS reference SPECIFIC scalar fields (e.g., `{{parsedData.totalAmount}}`). NEVER dump entire objects/arrays.
 - Use variable interpolation: `{{fieldName}}` for form fields, `{{parsedData.fieldName}}` for AI output.
 - Write as if writing to a professional colleague — warm, clear, and complete.
+- When a previous step generates a document, ALWAYS attach it to relevant notification emails using `attachments`.
 
 ### 5) Request Approval — `approval`
 Pause the workflow until someone approves or rejects.

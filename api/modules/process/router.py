@@ -333,6 +333,30 @@ async def download_process_file(
     )
 
 
+@router.get("/outputs/{execution_id}/{filename}")
+async def download_process_output(
+    execution_id: str,
+    filename: str,
+    user: User = Depends(require_auth),
+):
+    """Download a generated process output file (XLSX, DOCX, PDF, etc.)."""
+    try:
+        uuid.UUID(str(execution_id))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid execution id.")
+
+    safe_filename = os.path.basename(filename)
+    base_dir = os.environ.get("PROCESS_OUTPUT_PATH", "data/process_outputs")
+    filepath = os.path.join(base_dir, execution_id, safe_filename)
+
+    if not os.path.isfile(filepath):
+        raise HTTPException(status_code=404, detail="Output file not found.")
+
+    import mimetypes as _mt
+    mime = _mt.guess_type(safe_filename)[0] or "application/octet-stream"
+    return FileResponse(filepath, filename=safe_filename, media_type=mime)
+
+
 # =============================================================================
 # BUILDER TEST UTILITIES
 # =============================================================================

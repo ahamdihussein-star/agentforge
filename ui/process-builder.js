@@ -3786,6 +3786,58 @@
                             ${buildTemplateEditor(node.id, 'template', (node.config.template || ''), 'Write the message to send...', 100)}
                             ${buildInsertDataDropdown(node.id, 'template', availableFields, upstreamData)}
                         </div>
+                        ${(node.config.channel || 'email') === 'email' ? (() => {
+                            const docVars = (upstreamData || []).filter(d => {
+                                const lbl = String(d.label || d.name || '').toLowerCase();
+                                return lbl.includes('doc') || lbl.includes('report') || lbl.includes('file') || lbl.includes('document') || d._isDocOutput;
+                            });
+                            const allVars = upstreamData || [];
+                            const existingAtts = Array.isArray(node.config.attachments) ? node.config.attachments : [];
+                            const attLabels = existingAtts.map(a => {
+                                const varName = String(a).replace(/^\{\{|\}\}$/g, '').trim();
+                                const found = allVars.find(v => v.name === varName || v.value === varName);
+                                return found ? (found.label || found.name) : varName;
+                            });
+                            return `
+                            <div class="property-group">
+                                <label class="property-label">Attachments</label>
+                                <p style="font-size:11px;color:var(--pb-text-secondary);margin:0 0 6px;">Attach generated documents (reports, spreadsheets, etc.) to this email.</p>
+                                <div id="notif-att-list-${node.id}" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
+                                    ${existingAtts.map((a, i) => `
+                                        <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--pb-bg-secondary);border-radius:6px;font-size:12px;">
+                                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;">📎 ${escapeHtml(attLabels[i])}</span>
+                                            <button type="button" onclick="(function(){
+                                                const n=state.nodes.find(x=>x.id==='${node.id}');
+                                                if(n){
+                                                    const arr=Array.isArray(n.config.attachments)?[...n.config.attachments]:[];
+                                                    arr.splice(${i},1);
+                                                    n.config.attachments=arr;
+                                                    showProperties(n);
+                                                    saveToUndo();
+                                                }
+                                            })()" style="background:none;border:none;cursor:pointer;color:var(--pb-text-secondary);font-size:14px;" title="Remove">✕</button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <select class="property-select" onchange="(function(sel){
+                                    if(!sel.value) return;
+                                    const n=state.nodes.find(x=>x.id==='${node.id}');
+                                    if(n){
+                                        const arr=Array.isArray(n.config.attachments)?[...n.config.attachments]:[];
+                                        arr.push('{{' + sel.value + '}}');
+                                        n.config.attachments=arr;
+                                        showProperties(n);
+                                        saveToUndo();
+                                    }
+                                    sel.value='';
+                                })(this)">
+                                    <option value="">+ Add document attachment...</option>
+                                    ${allVars.filter(v => !existingAtts.includes('{{' + v.name + '}}')).map(v =>
+                                        `<option value="${escapeHtml(v.name)}">${escapeHtml(v.label || v.name)}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>`;
+                        })() : ''}
                     `;
                     break;
                     

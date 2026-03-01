@@ -506,6 +506,15 @@ Node config rules:
     Use variable names that match the actual fields and AI output for the specific process being generated.
     NEVER leave template empty. ALWAYS write a complete, business-friendly notification message.
   CRITICAL: Every notification node MUST have a non-empty recipient and a non-empty template. The AI must fill both — they are NEVER left for the user to configure manually.
+  - attachments (optional): Array of variable references pointing to generated documents.
+    When a previous step generates a document (aiMode: "create_doc"), its output_variable stores
+    a file reference (with path, filename, format). To attach that document to the email:
+      attachments: ["{{{{reconciliationReport}}}}"]
+    where "reconciliationReport" is the output_variable of the create_doc step.
+    Multiple attachments are supported: attachments: ["{{{{report1}}}}", "{{{{report2}}}}"]
+    BEST PRACTICE: Whenever the process generates a document that should be sent to users,
+    always include it in the notification's attachments array. This is especially important
+    for reports (XLSX, PDF, DOCX) that users need to download.
 - parallel.config: Connect the parallel node to multiple next steps — the platform auto-builds branches from the edges.
   - Optional: merge_strategy ("wait_all" = wait for all paths, "wait_any" = continue when any finishes). Default: "wait_all".
   - Use parallel when the workflow needs to do multiple things at the same time.

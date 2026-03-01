@@ -60,11 +60,12 @@ class NotificationService:
         template_id: str = None,
         template_data: Dict[str, Any] = None,
         priority: str = "normal",
-        config: Dict[str, Any] = None
+        config: Dict[str, Any] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Send notification through specified channel
-        
+
         Args:
             channel: Notification channel (email, slack, webhook, in_app)
             recipients: List of recipient identifiers
@@ -74,7 +75,8 @@ class NotificationService:
             template_data: Data for template rendering
             priority: low, normal, high, urgent
             config: Channel-specific configuration
-            
+            attachments: Optional list of file dicts (path, filename, mime_type) for email
+
         Returns:
             Result dict with sent status and details
         """
@@ -96,7 +98,8 @@ class NotificationService:
                 template_id=template_id,
                 template_data=template_data,
                 priority=priority,
-                config=config or {}
+                config=config or {},
+                attachments=attachments,
             )
             
             logger.info(f"Notification sent via {channel} to {len(recipients)} recipients")
@@ -118,21 +121,21 @@ class NotificationService:
         template_id: str = None,
         template_data: Dict[str, Any] = None,
         priority: str = "normal",
-        config: Dict[str, Any] = None
+        config: Dict[str, Any] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Send email: use platform EmailService (same as reset password, MFA) when set; else SMTP."""
 
         logger.info(
             "[NotificationService._send_email] recipients=%s subject=%s "
-            "has_platform_email=%s msg_len=%d",
+            "has_platform_email=%s msg_len=%d attachments=%d",
             recipients, title, bool(self.platform_email_service),
             len(message) if message else 0,
+            len(attachments) if attachments else 0,
         )
 
-        # Use platform EmailService (SendGrid / same as reset password & MFA) when available
         if self.platform_email_service:
             try:
-                # Build HTML body: if message looks like HTML use as-is, else wrap plain text
                 if message.strip().startswith('<') and ('</' in message or '/>' in message):
                     html_content = message
                     text_content = message.replace('<br>', '\n').replace('<br/>', '\n').replace('</p>', '\n')
@@ -144,7 +147,6 @@ class NotificationService:
 <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
 <p style="color: #999; font-size: 12px;">AgentForge</p>
 </div>"""
-                # SendGrid requires a non-empty subject; use title or fallback
                 email_subject = (title or 'Notification').strip() or 'Notification'
                 sent = 0
                 failed = []
@@ -158,7 +160,8 @@ class NotificationService:
                         clean_email,
                         email_subject,
                         html_content,
-                        text_content=text_content
+                        text_content=text_content,
+                        attachments=attachments,
                     )
                     if ok:
                         sent += 1
@@ -178,7 +181,6 @@ class NotificationService:
                 return result
             except Exception as e:
                 logger.warning(f"Platform email service failed: {e}, falling back to SMTP if configured")
-                # Fall through to SMTP path below if platform email fails
         
         # Fallback: Get SMTP config
         smtp_config = self.config.get('email', config or {})
@@ -192,11 +194,15 @@ class NotificationService:
                 'note': 'SMTP not configured - notification logged only'
             }
         
-        # Send via SMTP
+        # Send via SMTP (with attachment support)
         try:
             import aiosmtplib
             from email.mime.text import MIMEText
             from email.mime.multipart import MIMEMultipart
+            from email.mime.base import MIMEBase
+            from email import encoders
+            import mimetypes
+            import os
             
             smtp = aiosmtplib.SMTP(
                 hostname=smtp_config['smtp_host'],
@@ -218,7 +224,21 @@ class NotificationService:
                 msg['To'] = recipient
                 msg['Subject'] = title
                 msg.attach(MIMEText(message, 'html'))
-                
+
+                for att in (attachments or []):
+                    fpath = att.get("path", "")
+                    fname = att.get("filename", "")
+                    if not fpath or not os.path.isfile(fpath):
+                        continue
+                    mime = att.get("mime_type") or mimetypes.guess_type(fname or fpath)[0] or "application/octet-stream"
+                    maintype, subtype = mime.split("/", 1) if "/" in mime else ("application", "octet-stream")
+                    part = MIMEBase(maintype, subtype)
+                    with open(fpath, "rb") as fp:
+                        part.set_payload(fp.read())
+                    encoders.encode_base64(part)
+                    part.add_header("Content-Disposition", "attachment", filename=fname or os.path.basename(fpath))
+                    msg.attach(part)
+
                 await smtp.send_message(msg)
             
             await smtp.quit()
@@ -246,7 +266,8 @@ class NotificationService:
         template_id: str = None,
         template_data: Dict[str, Any] = None,
         priority: str = "normal",
-        config: Dict[str, Any] = None
+        config: Dict[str, Any] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Send Slack notification"""
         
@@ -315,7 +336,8 @@ class NotificationService:
         template_id: str = None,
         template_data: Dict[str, Any] = None,
         priority: str = "normal",
-        config: Dict[str, Any] = None
+        config: Dict[str, Any] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Send webhook notification"""
         
@@ -375,7 +397,8 @@ class NotificationService:
         template_id: str = None,
         template_data: Dict[str, Any] = None,
         priority: str = "normal",
-        config: Dict[str, Any] = None
+        config: Dict[str, Any] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Send in-app notification (stored in database)"""
         
@@ -445,7 +468,8 @@ class NotificationService:
         template_id: str = None,
         template_data: Dict[str, Any] = None,
         priority: str = "normal",
-        config: Dict[str, Any] = None
+        config: Dict[str, Any] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Send SMS notification via Twilio

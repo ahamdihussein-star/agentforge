@@ -1176,7 +1176,6 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         
         # Check for notification service
         if not self.deps.notification_service:
-            # Log warning but don't fail - notification is best-effort
             logs.append("Warning: No notification service configured - notification not sent")
             return NodeResult.success(
                 output={
@@ -1185,12 +1184,16 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 },
                 logs=logs
             )
-        
+
+        # ── Resolve file attachments ──────────────────────────────────────
+        resolved_attachments = self._resolve_attachments(node, state, logs)
+
         # Send notification
         try:
             logger.info(
-                "[NotifNode:%s] Sending via channel=%s to %d recipient(s): %s",
+                "[NotifNode:%s] Sending via channel=%s to %d recipient(s): %s attachments=%d",
                 node.name, channel, len(interpolated_recipients), interpolated_recipients,
+                len(resolved_attachments),
             )
             result = await self.deps.notification_service.send(
                 channel=channel,
@@ -1200,7 +1203,8 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 template_id=template_id,
                 template_data=template_data,
                 priority=priority,
-                config=channel_config
+                config=channel_config,
+                attachments=resolved_attachments or None,
             )
             logger.info("[NotifNode:%s] Send result: %s", node.name, result)
             
@@ -1235,6 +1239,89 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 logs=logs
             )
     
+    # ── Attachment resolution ────────────────────────────────────────
+    def _resolve_attachments(
+        self, node, state, logs: list
+    ) -> list:
+        """Resolve config.attachments into a list of {path, filename, mime_type} dicts.
+
+        Supported config values for each attachment entry:
+          - A string variable reference like "{{reconciliationReport}}" that points
+            to a dict with at least a ``path`` key (produced by create_doc / file_operation).
+          - A raw string path (absolute filesystem path).
+          - A dict with ``variable`` key (variable name whose state value has ``path``).
+          - A dict with ``path`` key directly.
+        """
+        import os
+
+        raw = self.get_config_value(node, 'attachments', [])
+        if not raw:
+            return []
+        if isinstance(raw, str):
+            raw = [raw]
+        if not isinstance(raw, list):
+            return []
+
+        result = []
+        for entry in raw:
+            try:
+                file_info = None
+
+                if isinstance(entry, str):
+                    # Strip {{ }} wrapper if present to get the variable name
+                    var_name = entry.strip()
+                    if var_name.startswith('{{') and var_name.endswith('}}'):
+                        var_name = var_name[2:-2].strip()
+
+                    # Try resolving as a state variable (returns raw dict for doc refs)
+                    val = state.get(var_name)
+                    if isinstance(val, dict) and val.get('path'):
+                        file_info = val
+                    elif isinstance(val, str) and os.path.isfile(val):
+                        file_info = {'path': val, 'filename': os.path.basename(val)}
+                    else:
+                        # Fallback: try as literal path
+                        if os.path.isfile(entry):
+                            file_info = {'path': entry, 'filename': os.path.basename(entry)}
+
+                elif isinstance(entry, dict):
+                    var_name = entry.get('variable') or entry.get('var')
+                    if var_name:
+                        val = state.get(str(var_name))
+                        if isinstance(val, dict) and val.get('path'):
+                            file_info = val
+                    elif entry.get('path'):
+                        file_info = entry
+
+                if file_info and file_info.get('path'):
+                    fpath = str(file_info['path'])
+                    if os.path.isfile(fpath):
+                        att = {
+                            'path': fpath,
+                            'filename': file_info.get('filename') or os.path.basename(fpath),
+                        }
+                        fmt = file_info.get('format', '')
+                        if fmt:
+                            mime_map = {
+                                'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                'pdf': 'application/pdf',
+                                'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                                'txt': 'text/plain',
+                                'csv': 'text/csv',
+                            }
+                            att['mime_type'] = mime_map.get(fmt, 'application/octet-stream')
+                        result.append(att)
+                        logs.append(f"Attachment resolved: {att['filename']}")
+                    else:
+                        logs.append(f"Attachment file not found: {fpath}")
+                else:
+                    logs.append(f"Could not resolve attachment: {entry}")
+            except Exception as exc:
+                logs.append(f"Attachment resolution error: {exc}")
+
+        return result
+
     def validate(self, node: ProcessNode) -> Optional[ExecutionError]:
         """Validate notification node"""
         base_error = super().validate(node)
@@ -1252,7 +1339,6 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 recipients = [single]
         message = self.get_config_value(node, 'message')
         template = self.get_config_value(node, 'template')
-        # Treat empty string as missing
         has_message = message is not None and str(message).strip()
         has_template = template is not None and str(template).strip()
         

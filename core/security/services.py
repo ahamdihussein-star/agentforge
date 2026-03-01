@@ -436,8 +436,22 @@ class EmailService:
     BASE_URL = os.environ.get("BASE_URL", "http://localhost:8001")
     
     @classmethod
-    async def send_email(cls, to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
-        """Send an email using SendGrid. Subject is required by SendGrid; defaults to 'Notification' if empty."""
+    async def send_email(
+        cls,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: str = None,
+        attachments: list = None,
+    ) -> bool:
+        """Send an email using SendGrid.
+
+        Args:
+            attachments: Optional list of dicts, each with keys:
+                - path (str): absolute filesystem path to the file
+                - filename (str): name shown to recipient
+                - mime_type (str, optional): MIME type (auto-detected if omitted)
+        """
         if not cls.SENDGRID_API_KEY:
             print(f"⚠️ SendGrid not configured. Email to {to_email} not sent.")
             print(f"   Subject: {subject}")
@@ -447,10 +461,40 @@ class EmailService:
             print("⚠️ httpx not installed. Cannot send email.")
             return False
         
-        # SendGrid requires a non-empty subject (or template with subject)
         subject = (subject or 'Notification').strip() or 'Notification'
         
         try:
+            payload = {
+                "personalizations": [{"to": [{"email": to_email}]}],
+                "from": {"email": cls.FROM_EMAIL, "name": cls.FROM_NAME},
+                "subject": subject,
+                "content": [
+                    {"type": "text/plain", "value": text_content or html_content},
+                    {"type": "text/html", "value": html_content}
+                ]
+            }
+
+            if attachments:
+                import base64, mimetypes
+                sg_attachments = []
+                for att in attachments:
+                    fpath = att.get("path", "")
+                    fname = att.get("filename", "")
+                    if not fpath or not os.path.isfile(fpath):
+                        print(f"⚠️ Attachment skipped (not found): {fpath}")
+                        continue
+                    mime = att.get("mime_type") or mimetypes.guess_type(fname or fpath)[0] or "application/octet-stream"
+                    with open(fpath, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode("utf-8")
+                    sg_attachments.append({
+                        "content": b64,
+                        "type": mime,
+                        "filename": fname or os.path.basename(fpath),
+                        "disposition": "attachment",
+                    })
+                if sg_attachments:
+                    payload["attachments"] = sg_attachments
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     "https://api.sendgrid.com/v3/mail/send",
@@ -458,15 +502,7 @@ class EmailService:
                         "Authorization": f"Bearer {cls.SENDGRID_API_KEY}",
                         "Content-Type": "application/json"
                     },
-                    json={
-                        "personalizations": [{"to": [{"email": to_email}]}],
-                        "from": {"email": cls.FROM_EMAIL, "name": cls.FROM_NAME},
-                        "subject": subject,
-                        "content": [
-                            {"type": "text/plain", "value": text_content or html_content},
-                            {"type": "text/html", "value": html_content}
-                        ]
-                    }
+                    json=payload,
                 )
                 success = response.status_code in [200, 201, 202]
                 if success:

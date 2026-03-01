@@ -99,6 +99,26 @@ Use an **AI Step** (`ai`) with `aiMode: "create_doc"`:
 | `pptx` | Presentations, slide decks |
 | `txt` | Simple text output, logs |
 
+### Attaching Generated Documents to Emails
+
+When a `create_doc` step produces a file, reference its `output_variable` in a
+downstream notification node's `attachments` array so the recipient gets the file:
+
+```json
+{
+  "type": "notification",
+  "config": {
+    "channel": "email",
+    "recipient": "requester",
+    "template": "Please find the attached reconciliation report.",
+    "attachments": ["{{reconciliationReport}}"]
+  }
+}
+```
+
+The engine resolves `{{reconciliationReport}}` to the generated file's disk path
+and attaches it to the email (SendGrid or SMTP). Multiple attachments are supported.
+
 ## Data Flow Patterns
 
 ### Pattern 1: Upload → Extract → Route → Notify
@@ -106,9 +126,9 @@ Use an **AI Step** (`ai`) with `aiMode: "create_doc"`:
 form (file upload) → AI extract_file → condition (route by data) → approval/notification
 ```
 
-### Pattern 2: Upload → Extract → Calculate → Report
+### Pattern 2: Upload → Extract → Calculate → Report → Notify with Attachment
 ```
-form (file upload) → AI extract_file → calculate (formula) → AI create_doc → notification
+form (file upload) → AI extract_file → calculate (formula) → AI create_doc → notification (with attachments)
 ```
 
 ### Pattern 3: Multiple Files → Cross-File Analysis
@@ -123,7 +143,7 @@ form (file upload) → AI extract_file → condition (valid?) → approval → t
 
 ### Pattern 5: Scheduled Data Collection → Report Generation
 ```
-trigger (scheduled) → tool (fetch data) → AI analyze → AI create_doc → notification
+trigger (scheduled) → tool (fetch data) → AI analyze → AI create_doc → notification (with attachments)
 ```
 
 ## Anti-Hallucination Rules
