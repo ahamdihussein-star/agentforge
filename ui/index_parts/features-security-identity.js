@@ -1235,7 +1235,7 @@ function _deptRenderMembers() {
             <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">${escHtml((m.name || m.email || '?')[0].toUpperCase())}</div>
             <div class="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-3 gap-2">
                 <div class="text-sm font-medium truncate" title="${escHtml(m.email)}">${escHtml(m.name || m.email)}</div>
-                <input type="text" class="input-field px-2 py-1 rounded text-xs dept-m-title" placeholder="Title / Position" value="${escHtml(m.job_title || '')}" list="dept-job-titles" data-idx="${i}">
+                <input type="text" class="input-field px-2 py-1 rounded text-xs dept-m-title" placeholder="Type or pick a title..." value="${escHtml(m.job_title || '')}" list="dept-job-titles" data-idx="${i}">
                 <select class="input-field px-2 py-1 rounded text-xs dept-m-mgr" data-idx="${i}">
                     <option value="">— No Manager —</option>
                     ${_deptModalMembers.filter(x => x.id !== m.id).map(x => `<option value="${x.id}" ${m.manager_id === x.id ? 'selected' : ''}>${escHtml(x.name || x.email)}</option>`).join('')}
@@ -1371,6 +1371,20 @@ async function saveDepartment() {
                 headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({ updates })
             }).catch(() => {});
+        }
+
+        // Auto-save any new titles to the Job Titles library
+        const existingTitles = new Set((orgJobTitles || []).map(t => t.toLowerCase()));
+        const newTitles = _deptModalMembers
+            .map(m => (m.job_title || '').trim())
+            .filter(t => t && !existingTitles.has(t.toLowerCase()));
+        if (newTitles.length > 0) {
+            const merged = [...(orgJobTitles || []), ...newTitles];
+            fetch('/api/identity/job-titles', {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ titles: merged })
+            }).then(() => loadOrgJobTitles()).catch(() => {});
         }
 
         showToast(editId ? 'Department updated' : 'Department created', 'success');
