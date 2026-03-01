@@ -28,7 +28,7 @@ that make the user's life easier — not empty or overly generic lists.
 
 ## Standard Taxonomy Reference
 
-The LLM should confidently populate dropdown options for any industry-standard or universally understood category. Below is a comprehensive reference (adapt and expand based on context):
+The LLM should confidently populate dropdown options for any industry-standard or universally understood category. Below is a **non-exhaustive** reference organized by common business areas. **The platform supports ANY domain** — healthcare, legal, government, education, manufacturing, logistics, retail, energy, or any other industry. If the user's process belongs to a domain not listed here, the LLM MUST use its own expertise to generate equally comprehensive and relevant options for that domain.
 
 ### HR & People
 
@@ -95,6 +95,19 @@ The LLM should confidently populate dropdown options for any industry-standard o
 | **Room Type** | Meeting Room, Conference Room, Training Room, Auditorium, Office, Lab, Workshop |
 | **Building Area** | Reception, Office Floor, Warehouse, Cafeteria, Parking, Server Room, Common Area, Other |
 | **Maintenance Priority** | Emergency, Urgent, Routine, Preventive |
+
+### Other Domains (examples — not exhaustive)
+
+The platform is domain-agnostic. When the user's process belongs to a domain not covered above, the LLM generates options using its own expertise. Examples:
+
+| Domain | Example Categories |
+|--------|--------------------|
+| **Healthcare** | Visit Type (Outpatient, Inpatient, Emergency, Telemedicine), Triage Level (Resuscitation, Emergent, Urgent, Less Urgent, Non-Urgent), Specialty, Diagnosis Code Group |
+| **Legal** | Case Type (Civil, Criminal, Commercial, Family, Administrative), Court Level, Document Category (Pleading, Evidence, Contract, Opinion, Filing) |
+| **Government** | Service Channel (In-Person, Online, Phone, Mobile App), Citizen Request Type, Permit Category, Inspection Result |
+| **Education** | Program Level (Undergraduate, Graduate, Diploma, Certificate), Assessment Type, Course Category, Student Status |
+| **Manufacturing** | Defect Type, Inspection Stage, Product Line, Quality Grade, Batch Status |
+| **Logistics** | Shipment Status, Transport Mode (Air, Sea, Road, Rail), Warehouse Zone, Customs Status |
 
 ## Anti-Hallucination Rules
 
