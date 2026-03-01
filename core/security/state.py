@@ -127,8 +127,8 @@ class SecurityState:
                 print(f"⚠️  [DATABASE ERROR] Failed to load security settings: {e}, using defaults")
                 import traceback
                 traceback.print_exc()
-                # Fallback to default
-            self.settings[org_id] = SecuritySettings(org_id=org_id)
+                # Fallback to default only if DB load fails
+                self.settings[org_id] = SecuritySettings(org_id=org_id)
         return self.settings[org_id]
     
     def save_to_disk(self):
