@@ -842,7 +842,7 @@
                 approval: { name: 'Request Approval', config: { assignee_source: 'platform_user', assignee_type: 'user', assignee_ids: [], timeout_hours: 24, message: '', notifyApprover: false, notificationMessage: '' } },
                 form: { name: 'Collect Information', config: { fields: [] } },
                 notification: { name: 'Send Message', config: { channel: 'email', template: '' } },
-                tool: { name: 'Connect to System', config: { toolId: toolId || '', params: {} } },
+                tool: { name: 'Connect to System', config: { toolId: toolId || '', params: {}, outputFields: [] } },
                 ai: { name: 'AI Step', config: { prompt: '', model: 'gpt-4o', instructions: [], creativity: 3, confidence: 3, aiMode: 'custom', outputFields: [], sourceField: '', sourceFields: [], docTitle: '', docFormat: 'docx', enabledToolIds: [] } },
                 end: { name: 'Finish', config: { output: '' } },
                 calculate: { name: 'Calculate', config: { operation: 'custom', expression: '', dataLabel: '' } },
@@ -3149,9 +3149,38 @@
                         nodeId: n.id
                     });
                 }
+                // Tool node with defined output fields
+                else if (n.type === 'tool' && outVar) {
+                    const stepName = n.name || 'System Call';
+                    const toolOutFields = Array.isArray(cfg.outputFields) ? cfg.outputFields.filter(f => f.name) : [];
+                    if (toolOutFields.length > 0) {
+                        toolOutFields.forEach(f => {
+                            outputs.push({
+                                name: outVar + '.' + f.name,
+                                label: f.label || humanizeFieldLabel(f.name),
+                                type: f.type || 'data',
+                                source: stepName,
+                                group: 'data',
+                                icon: '🔗',
+                                nodeId: n.id,
+                                parentVar: outVar
+                            });
+                        });
+                    } else {
+                        outputs.push({
+                            name: outVar,
+                            label: cfg.dataLabel || humanizeFieldLabel(outVar),
+                            type: 'data',
+                            source: stepName,
+                            group: 'data',
+                            icon: '🔗',
+                            nodeId: n.id
+                        });
+                    }
+                }
                 // Generic fallback: any node with output_variable not handled above
                 else if (outVar) {
-                    const icons = { calculate: '🧮', tool: '🔗', parallel: '⚡', loop: '🔄' };
+                    const icons = { calculate: '🧮', parallel: '⚡', loop: '🔄' };
                     const label = cfg.dataLabel || humanizeFieldLabel(outVar);
                     outputs.push({
                         name: outVar,
@@ -5569,11 +5598,50 @@
                 if (tool) node.name = tool.name;
                 if (!node.config.params) node.config.params = {};
                 refreshNode(node);
-                showProperties(node); // Refresh panel
+                showProperties(node);
                 saveToUndo();
             }
         }
-        
+
+        function updateToolOutputVar(nodeId, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            const v = String(value || '').trim().replace(/[^a-zA-Z0-9_]/g, '');
+            node.output_variable = v;
+            node.config.output_variable = v;
+            refreshNode(node);
+            saveToUndo();
+        }
+
+        function addToolOutputField(nodeId) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return;
+            if (!Array.isArray(node.config.outputFields)) node.config.outputFields = [];
+            node.config.outputFields.push({ name: '', label: '', type: 'text' });
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function removeToolOutputField(nodeId, idx) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !Array.isArray(node.config.outputFields)) return;
+            node.config.outputFields.splice(idx, 1);
+            showProperties(node);
+            saveToUndo();
+        }
+
+        function updateToolOutputField(nodeId, idx, key, value) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node || !Array.isArray(node.config.outputFields)) return;
+            if (!node.config.outputFields[idx]) return;
+            if (key === 'name') {
+                node.config.outputFields[idx].name = String(value || '').trim().replace(/[^a-zA-Z0-9_]/g, '');
+            } else {
+                node.config.outputFields[idx][key] = value;
+            }
+            saveToUndo();
+        }
+
         function updateToolParam(nodeId, paramName, value) {
             const node = state.nodes.find(n => n.id === nodeId);
             if (!node) return;

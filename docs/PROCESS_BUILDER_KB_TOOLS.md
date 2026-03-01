@@ -28,11 +28,23 @@ The tool runs, returns results, and the workflow continues to the next step.
     "params": {
       "<param_name>": "{{fieldName}}",
       "<param_name>": "fixed_value"
-    }
+    },
+    "outputFields": [
+      { "name": "recordId", "label": "Record ID", "type": "text" },
+      { "name": "status", "label": "Status", "type": "text" },
+      { "name": "amount", "label": "Amount", "type": "number" },
+      { "name": "lineItems", "label": "Line Items", "type": "list" }
+    ]
   },
   "output_variable": "toolResult"
 }
 ```
+
+**Output Fields:** Define the fields the tool is expected to return. This lets downstream
+steps reference each field individually: `{{toolResult.recordId}}`, `{{toolResult.amount}}`.
+Always infer output fields from the tool's name, description, and purpose.
+
+Field types: `text`, `number`, `boolean`, `date`, `list`, `object`.
 
 ### 2. Connected Tools on AI Step (`ai.config.enabledToolIds`) — AI-driven tool calling
 Use when the AI should autonomously decide when and how to call tools during its reasoning.

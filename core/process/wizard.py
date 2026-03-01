@@ -417,8 +417,22 @@ Node config rules:
   3. Add an instruction: "Return numeric fields as pure numbers (e.g., 500), not as formatted strings (e.g., '500 AED')."
   4. For multi-file inputs: the prompt MUST say "across ALL files/receipts/documents" (not just "from the receipt").
 - When an AI node parses data into JSON, subsequent condition nodes can reference fields from the parsed output (e.g., if AI stores result in "parsedData", a condition can check "parsedData.totalAmount").
-- tool.config must be: {{ "toolId": "<id from tools_json>", "params": {{...}} }}. Only use if tools_json has items.
-- tool nodes SHOULD include: "output_variable": "<variable_name>" to store tool output.
+- tool.config must include: {{ "toolId": "<id from tools_json>", "params": {{...}}, "outputFields": [...] }}.
+  Only use if tools_json has items.
+- tool nodes MUST include: "output_variable": "<variable_name>" to store tool output.
+- tool.config.outputFields: Define the expected response fields so downstream steps can reference them individually.
+  Each field: {{ "name": "<fieldName>", "label": "<Friendly Label>", "type": "<text|number|boolean|date|list|object>" }}.
+  Example: A PO lookup tool that returns order details:
+  "output_variable": "poData",
+  "outputFields": [
+    {{ "name": "poNumber", "label": "PO Number", "type": "text" }},
+    {{ "name": "poStatus", "label": "PO Status", "type": "text" }},
+    {{ "name": "totalAmount", "label": "Total Amount", "type": "number" }},
+    {{ "name": "lineItems", "label": "Line Items", "type": "list" }},
+    {{ "name": "vendorName", "label": "Vendor Name", "type": "text" }}
+  ]
+  Then downstream steps reference: {{{{poData.poNumber}}}}, {{{{poData.totalAmount}}}}, etc.
+  ALWAYS define outputFields based on what the tool's description says it returns. Infer sensible fields from the tool's purpose.
 - approval.config must include: assignee_source, assignee_type, assignee_ids (can be empty), timeout_hours, message, notifyApprover, notificationMessage.
   assignee_source options: "platform_user" | "user_directory" | "platform_role" | "platform_group" | "tool".
   notifyApprover: true | false — when true, the platform automatically sends an email to the approver(s) with the notificationMessage.
