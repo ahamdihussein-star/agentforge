@@ -2012,6 +2012,7 @@ async def _analyze_goal_prerequisites(
     departments = context.get("departments") or []
     groups = context.get("groups") or []
     roles = context.get("roles") or []
+    job_titles = context.get("job_titles") or []
     tools = context.get("tools") or context.get("available_tools") or []
     identity_ctx = context.get("identity_context") or {}
 
@@ -2027,6 +2028,7 @@ async def _analyze_goal_prerequisites(
     ) if departments else "None created yet"
     group_info = ", ".join(g.get("name", "?") for g in groups) if groups else "None created yet"
     role_info = ", ".join(r.get("name", "?") for r in roles) if roles else "None created yet"
+    job_titles_info = ", ".join(str(t) for t in job_titles) if job_titles else "None configured yet"
     tool_info = ", ".join(t.get("name", "?") for t in tools) if tools else "None created yet"
 
     print(f"🔍 [Pre-check] dept_info sent to LLM: {dept_info}")
@@ -2053,6 +2055,7 @@ CURRENTLY AVAILABLE ON THE PLATFORM:
 - Departments: {dept_info}
 - Teams/Groups: {group_info}
 - Roles: {role_info}
+- Job Titles/Positions: {job_titles_info}
 - Tools/Integrations: {tool_info}
 - Employee Directory: {id_status}
 - Managers assigned to employees: {has_mgrs}
@@ -2083,30 +2086,37 @@ Return this JSON:
 RULES:
 
 WHAT GOES IN "missing" (entity does NOT exist on the platform):
-1. type = "department" | "group" | "role" | "tool"
+1. type = "department" | "group" | "role" | "tool" | "job_title"
 2. Only include entities EXPLICITLY referenced in the description
 3. Only include entities that have NO semantic match on the platform
-4. "name" = the clean entity name (strip job titles: "Finance Manager" → "Finance")
+4. "name" = the clean entity name:
+   - If type is department/group/role/tool: strip job-title suffixes ("Finance Manager" → "Finance")
+   - If type is job_title: keep the full title ("Finance Manager")
 5. "why" = a direct quote from the description proving it's needed
 
+JOB TITLE MATCHING RULES:
+6. If the workflow mentions approvers by TITLE (e.g., "AP Manager", "Finance Director"):
+   - If that title (or a clear semantic match) EXISTS in Job Titles/Positions, it is NOT missing.
+   - Do NOT mislabel job titles as missing roles.
+
 WHAT GOES IN "misconfigured" (entity EXISTS but needs configuration):
-6. type = "department_no_manager" — ONLY when the platform state explicitly shows "(no manager)" next to the department name.
+7. type = "department_no_manager" — ONLY when the platform state explicitly shows "(no manager)" next to the department name.
    If the platform shows "(manager: SomeName)", that department HAS a manager and is properly configured — do NOT include it.
    Example: "Sales (no manager)" → misconfigured. "Marketing (manager: Jane)" → properly configured, do NOT include.
-7. "name" = the EXACT name as it appears on the platform (not the description's wording)
+8. "name" = the EXACT name as it appears on the platform (not the description's wording)
 
 BOOLEAN FLAGS:
-8. needs_manager_routing = true if description mentions routing to a "manager" or "supervisor"
-9. needs_escalation_hierarchy = true if description mentions escalation to a higher level
-10. needs_identity_directory = true if workflow needs employee profile data
+9. needs_manager_routing = true if description mentions routing to a "manager" or "supervisor"
+10. needs_escalation_hierarchy = true if description mentions escalation to a higher level
+11. needs_identity_directory = true if workflow needs employee profile data
 
 CRITICAL RULES:
-11. NEVER put an entity in "missing" if it already exists on the platform
-12. NEVER put a department in "misconfigured" if it already has a manager (shows "manager: NAME")
-13. NEVER invent entities not referenced in the description
-14. When in doubt, do NOT include it — false negatives are better than false positives
-15. Works for ANY domain — do not assume domain-specific entities
-16. Return empty arrays [] when nothing is missing or misconfigured"""
+12. NEVER put an entity in "missing" if it already exists on the platform
+13. NEVER put a department in "misconfigured" if it already has a manager (shows "manager: NAME")
+14. NEVER invent entities not referenced in the description
+15. When in doubt, do NOT include it — false negatives are better than false positives
+16. Works for ANY domain — do not assume domain-specific entities
+17. Return empty arrays [] when nothing is missing or misconfigured"""
 
     try:
         from core.llm.base import Message, MessageRole
@@ -2282,6 +2292,19 @@ async def _pre_check_platform_readiness(
                     "Go to Users & Access → Roles",
                     "Click + Create Role and name it \"{name}\"",
                     "Assign the role to the relevant users",
+                ],
+            },
+            "job_title": {
+                "icon": "badge",
+                "label": "job title",
+                "message": "has not been added as a job title on the platform yet. This workflow references that position.",
+                "guidance": "Add the \"{name}\" job title and assign it to the right people.",
+                "perm": "users:edit",
+                "steps": [
+                    "Go to Users & Access → Organization",
+                    "Open the relevant department",
+                    "Set a person's Title/Position to \"{name}\"",
+                    "Save",
                 ],
             },
             "tool": {

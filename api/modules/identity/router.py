@@ -325,6 +325,21 @@ async def create_department(body: CreateDepartmentRequest, user: User = Depends(
     from database.models.department import Department
     
     ctx = _extract_user_context(user)
+
+    # Normalize IDs to UUID for DB columns (prevents silent non-persistence issues)
+    parent_uuid = None
+    if body.parent_id:
+        try:
+            parent_uuid = uuid.UUID(str(body.parent_id))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid parent department ID")
+
+    manager_uuid = None
+    if body.manager_id:
+        try:
+            manager_uuid = uuid.UUID(str(body.manager_id))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid department head user ID")
     
     with get_session() as session:
         dept = Department(
@@ -332,8 +347,8 @@ async def create_department(body: CreateDepartmentRequest, user: User = Depends(
             org_id=ctx["org_id"],
             name=body.name,
             description=body.description,
-            parent_id=body.parent_id,
-            manager_id=body.manager_id,
+            parent_id=parent_uuid,
+            manager_id=manager_uuid,
         )
         session.add(dept)
         session.commit()
@@ -364,8 +379,14 @@ async def update_department(
     ctx = _extract_user_context(user)
     
     with get_session() as session:
+        # Normalize department_id for UUID PK comparisons
+        try:
+            dept_uuid = uuid.UUID(str(department_id))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid department ID")
+
         dept = session.query(Department).filter(
-            Department.id == department_id,
+            Department.id == dept_uuid,
             Department.org_id == ctx["org_id"]
         ).first()
         
@@ -378,15 +399,27 @@ async def update_department(
         if 'description' in provided:
             dept.description = body.description
         if 'parent_id' in provided:
-            dept.parent_id = body.parent_id if body.parent_id else None
+            if body.parent_id:
+                try:
+                    dept.parent_id = uuid.UUID(str(body.parent_id))
+                except Exception:
+                    raise HTTPException(status_code=400, detail="Invalid parent department ID")
+            else:
+                dept.parent_id = None
         if 'manager_id' in provided:
-            dept.manager_id = body.manager_id if body.manager_id else None
+            if body.manager_id:
+                try:
+                    dept.manager_id = uuid.UUID(str(body.manager_id))
+                except Exception:
+                    raise HTTPException(status_code=400, detail="Invalid department head user ID")
+            else:
+                dept.manager_id = None
         
         dept.updated_at = datetime.utcnow()
         session.commit()
         
         service = get_directory_service()
-        return service.get_department_info(department_id, ctx["org_id"])
+        return service.get_department_info(str(dept_uuid), ctx["org_id"])
 
 
 @router.delete("/departments/{department_id}")

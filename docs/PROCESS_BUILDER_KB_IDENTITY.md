@@ -260,6 +260,16 @@ If the requester is a Director or above, auto-approve; otherwise route to their 
 - To route based on a user's position within a department, use `department_manager` (routes to the head) or `dynamic_manager` (routes to the requester's direct manager, regardless of title).
 - The platform does NOT support routing to "anyone with job_title = X" — use roles or groups for function-based routing instead.
 
+### Important: Job titles are not roles
+
+- **Job titles/positions** (e.g., "AP Manager", "Finance Director") are **profile attributes** used for conditions, templates, and AI context.
+- **Roles / Groups / Departments** are **routing constructs** used to select approvers/recipients.
+
+If a prompt mentions an approver by title:
+- Prefer **department routing** when the title maps to a department head (example: "Finance Manager" → department_manager for "Finance").
+- Prefer **management chain routing** when the org chart defines escalation levels (direct manager / skip levels).
+- Use **group/role routing** only when those entities exist in the organization structure lists.
+
 ### Visual Builder Smart Value Pickers
 
 When configuring condition rules in the visual builder, the **value field** automatically shows smart dropdown options based on the selected field:
