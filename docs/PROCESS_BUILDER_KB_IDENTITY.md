@@ -43,6 +43,11 @@ trigger_input._user_context = {
   "is_manager": false,
   "direct_report_count": 0,
   
+  // Department Head (resolved from department's manager_id in org chart)
+  "department_head_id": "...",
+  "department_head_email": "head@company.com",
+  "department_head_name": "Sarah Wilson",
+  
   // Groups & Roles
   "role_ids": [...],
   "role_names": ["Presales", "Engineer"],
@@ -96,6 +101,17 @@ and any custom attribute the organization has configured.
 - People store their free-text title in `job_title` (exposed as `jobTitle` in workflow pickers).
 - Organizations may also configure an **optional suggestion list** of job titles (e.g., Director, Senior Analyst).
   - This list is used by the Identity Directory UI and exposed as safe picker options in the Process Builder.
+- Job titles are managed per-user within their department via the Org Chart UI.
+- New titles typed in the department modal are automatically saved to the org-wide suggestion library.
+
+### Department Structure (Org Chart)
+- Departments are managed visually in the Org Chart (drag-and-drop parent/child hierarchy).
+- Each department has:
+  - **Head** (`manager_id`): The person at the top of this department.
+  - **Members**: Users assigned to the department, each with their own `job_title` and `manager_id`.
+  - **Parent** (`parent_id`): Parent department in the hierarchy (set via drag-and-drop).
+- The Org Chart shows departments as nodes, not individual users. Double-click opens the department detail modal.
+- The process builder receives all department data including `parent_id`, `manager_name`, `manager_email`, `manager_title`, and `member_count` via the builder-context API.
 
 ## Approval Routing — Dynamic Resolution
 
@@ -121,9 +137,13 @@ appropriate `directory_assignee_type`. The engine resolves the actual person(s) 
   - `assignee_department_name` (string) — human-readable fallback for the engine
 - For `department_manager` without specifying a department, the engine falls back to the requester's own department.
 - CRITICAL: `dynamic_manager` is NOT the same as `department_manager`.
-  - `dynamic_manager` = the requester's DIRECT MANAGER (their supervisor)
-  - `department_manager` = the HEAD of a department (may be a different person)
+  - `dynamic_manager` = the requester's DIRECT MANAGER (their supervisor, set via Org Chart per-user)
+  - `department_manager` = the HEAD of a department (set via the department's `manager_id` in the Org Chart)
   When the user says "Finance Department Manager", use `department_manager` + `assignee_department_name: "Finance"`.
+- The visual builder shows the department head's name, title, and email when selecting a specific department,
+  so the user can verify they're routing to the right person.
+- Departments can be nested (parent/child) in the org chart. Routing always targets the selected department's head,
+  regardless of hierarchy level.
 
 ### Group and Role Routing
 - `platform_group` as `assignee_source` with `assignee_ids: ["<group_id>"]` routes to all members of the group.

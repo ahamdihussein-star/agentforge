@@ -3518,7 +3518,20 @@
                     const aToolId = aCfg.assignee_tool_id || '';
                     const timeoutVal = aCfg.timeout_hours != null ? aCfg.timeout_hours : (aCfg.timeout != null ? aCfg.timeout : 24);
                     const dirLabels = {'dynamic_manager':'Their direct manager','department_manager':'Department head','department_members':'Department members','management_chain':'Higher management (skip level)'};
-                    const dirTypeLabel = dirLabels[aCfg.directory_assignee_type] || '';
+                    let dirTypeLabel = dirLabels[aCfg.directory_assignee_type] || '';
+                    if (dirTypeLabel && (aCfg.directory_assignee_type === 'department_manager' || aCfg.directory_assignee_type === 'department_members')) {
+                        const _dId = aCfg.department_id || aCfg.departmentId || aCfg.assignee_department_id || '';
+                        const _dName = aCfg.assignee_department_name || aCfg.department_name || aCfg.departmentName || '';
+                        let deptLabel = _dName;
+                        if (!deptLabel && _dId && state.builderContext && Array.isArray(state.builderContext.departments)) {
+                            const _d = state.builderContext.departments.find(x => x && x.id === _dId);
+                            if (_d) deptLabel = _d.name;
+                        }
+                        if (deptLabel) dirTypeLabel += ' (' + deptLabel + ')';
+                    }
+                    if (aCfg.directory_assignee_type === 'management_chain' && aCfg.management_level) {
+                        dirTypeLabel += ' (Level ' + aCfg.management_level + ')';
+                    }
                     const approverLabel = aSrc === 'user_directory' ? (dirTypeLabel || 'Auto from directory') : aSrc === 'platform_role' ? (aIds.length + ' role(s)') : aSrc === 'platform_group' ? (aIds.length + ' group(s)') : aSrc === 'tool' ? ((state.tools.find(t => t.id === aToolId) || {}).name || 'Tool') : (aIds.length + ' person(s)');
                     const eEnabled = !!aCfg.escalation_enabled;
                     const eAfterValue = (aCfg.escalation_after_value != null ? aCfg.escalation_after_value : (aCfg.escalation_after_hours != null ? aCfg.escalation_after_hours : 12));
@@ -5620,7 +5633,16 @@
                     const deptOptions = (state.builderContext && Array.isArray(state.builderContext.departments))
                         ? state.builderContext.departments
                             .filter(d => d && d.id && d.name)
-                            .map(d => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)}</option>`)
+                            .map(d => {
+                                const head = d.manager_name || '';
+                                const mc = d.member_count || 0;
+                                let label = d.name;
+                                const meta = [];
+                                if (head) meta.push('Head: ' + head);
+                                if (mc) meta.push(mc + ' member' + (mc !== 1 ? 's' : ''));
+                                if (meta.length) label += ' (' + meta.join(' \u00b7 ') + ')';
+                                return `<option value="${escapeHtml(d.id)}">${escapeHtml(label)}</option>`;
+                            })
                             .join('')
                         : '';
                     deptSel.innerHTML = '<option value="">Use requester’s department</option>' + deptOptions;
@@ -5633,6 +5655,8 @@
                         }
                     }
                     deptSel.value = existingDeptId || '';
+                    deptSel.onchange = function() { _updateDeptHeadInfo(); };
+                    _updateDeptHeadInfo();
                 }
             }
             // Add change listener for directory type to toggle management level / department selector
@@ -5644,6 +5668,7 @@
                     const showDept = (dirType === 'department_manager' || dirType === 'department_members');
                     deptWrap.classList.toggle('hidden', !showDept);
                 }
+                _updateDeptHeadInfo();
             };
             onApprovalConfigSourceChange();
             modal.classList.add('show');
@@ -5664,8 +5689,38 @@
                     const showDept = (dirType === 'department_manager' || dirType === 'department_members');
                     deptWrap.classList.toggle('hidden', !showDept);
                 }
+                _updateDeptHeadInfo();
             }
         }
+        function _updateDeptHeadInfo() {
+            const infoEl = document.getElementById('approval-config-dept-head-info');
+            if (!infoEl) return;
+            const deptSel = document.getElementById('approval-config-dept');
+            const deptId = deptSel ? deptSel.value : '';
+            if (!deptId || !state.builderContext || !Array.isArray(state.builderContext.departments)) {
+                infoEl.innerHTML = '';
+                return;
+            }
+            const dept = state.builderContext.departments.find(d => d && d.id === deptId);
+            if (!dept) { infoEl.innerHTML = ''; return; }
+            const dirType = document.getElementById('approval-config-directory-type').value;
+            const parts = [];
+            if (dirType === 'department_manager') {
+                if (dept.manager_name) {
+                    let info = '<strong>' + escapeHtml(dept.manager_name) + '</strong>';
+                    if (dept.manager_title) info += ' &middot; ' + escapeHtml(dept.manager_title);
+                    if (dept.manager_email) info += ' &middot; ' + escapeHtml(dept.manager_email);
+                    parts.push('Approval will go to: ' + info);
+                } else {
+                    parts.push('<span style="color:#f59e0b;">No head assigned to this department. Please assign one in the Org Chart.</span>');
+                }
+            } else if (dirType === 'department_members') {
+                parts.push((dept.member_count || 0) + ' member(s) will receive this request.');
+                if (dept.manager_name) parts.push('Head: <strong>' + escapeHtml(dept.manager_name) + '</strong>');
+            }
+            infoEl.innerHTML = parts.length ? '<div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);font-size:12px;color:#c7d2fe;">' + parts.join('<br>') + '</div>' : '';
+        }
+
         function saveApprovalConfig() {
             if (!approvalConfigNodeId) return;
             const node = state.nodes.find(n => n.id === approvalConfigNodeId);

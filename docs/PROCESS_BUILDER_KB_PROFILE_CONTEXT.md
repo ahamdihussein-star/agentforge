@@ -57,9 +57,10 @@ The engine resolves the value at runtime from whichever identity source the orga
 - `orgId` — Organization ID
 
 ### Available When Identity Source Is Configured
-- `managerId`, `managerName`, `managerEmail` — Direct manager info (resolved automatically)
+- `managerId`, `managerName`, `managerEmail` — Direct manager info (resolved automatically from Org Chart)
 - `departmentId`, `departmentName` — Department info
-- `jobTitle` — Job title
+- `departmentHeadId`, `departmentHeadName`, `departmentHeadEmail` — Department head info (resolved from department's `manager_id`)
+- `jobTitle` — Job title / position (free-text, managed per-user in the department modal)
 - `employeeId` — HR employee identifier
 - `isManager` — Whether the user manages others
 - `directReportCount` — Number of direct reports
@@ -95,7 +96,9 @@ Beyond form prefill, user context is available in templates and expressions thro
 - `{{ trigger_input._user_context.manager_email }}` — Manager's email (resolved from identity directory)
 - `{{ trigger_input._user_context.manager_name }}` — Manager's name
 - `{{ trigger_input._user_context.department_name }}` — Department name
-- `{{ trigger_input._user_context.job_title }}` — Job title
+- `{{ trigger_input._user_context.department_head_name }}` — Department head's name
+- `{{ trigger_input._user_context.department_head_email }}` — Department head's email
+- `{{ trigger_input._user_context.job_title }}` — Job title / position
 - `{{ trigger_input._user_context.employee_id }}` — Employee ID
 
 ## Anti-Hallucination Rules

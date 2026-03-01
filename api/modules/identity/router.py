@@ -783,11 +783,25 @@ async def get_builder_context(user: User = Depends(require_auth)):
     try:
         dept_list = service.get_org_departments(ctx["org_id"])
         for d in (dept_list or []):
+            mgr_id = getattr(d, "manager_id", None)
+            mgr_email = None
+            mgr_title = None
+            if mgr_id:
+                try:
+                    mgr_attrs = service.get_user(str(mgr_id), ctx["org_id"])
+                    if mgr_attrs:
+                        mgr_email = mgr_attrs.email
+                        mgr_title = mgr_attrs.job_title
+                except Exception:
+                    pass
             departments.append({
                 "id": getattr(d, "id", ""),
                 "name": getattr(d, "name", ""),
-                "manager_id": getattr(d, "manager_id", None),
+                "parent_id": getattr(d, "parent_id", None),
+                "manager_id": mgr_id,
                 "manager_name": getattr(d, "manager_name", None),
+                "manager_email": mgr_email,
+                "manager_title": mgr_title,
                 "member_count": getattr(d, "member_count", 0),
             })
     except Exception:
