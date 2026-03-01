@@ -379,7 +379,7 @@ Node config rules:
   The prefill system is FULLY DYNAMIC — you can use ANY attribute available from the user's identity source.
   Common keys: email, name, firstName, lastName, phone, id, roles, groups, orgId,
     managerId, managerName, managerEmail, departmentId, departmentName, jobTitle, employeeId,
-    groupNames, roleNames, isManager, directReportCount.
+    groupNames, roleNames, isManager, directReportCount, departmentHeadId, departmentHeadName, departmentHeadEmail.
   Custom keys (from HR/LDAP): nationalId, hireDate, officeLocation, costCenter, badgeNumber, or ANY field the organization has configured in their HR system or LDAP directory.
   The engine resolves ALL these from the organization's configured identity source (Built-in, LDAP, or HR System) automatically at runtime. If a custom attribute exists in the directory, it will be available for prefill.
   BEST PRACTICE: For any process, ALWAYS prefill every piece of information the system already knows about the user (name, email, department, employee ID, phone, job title, manager, etc.). NEVER ask the user to manually enter data that is available from their profile. This eliminates manual entry and ensures accuracy.
@@ -969,12 +969,20 @@ class ProcessWizard:
                 org_lines.append("\n\nORGANIZATION DEPARTMENTS:")
                 org_lines.append("Use these for department-based approval routing and notifications.")
                 for d in depts[:50]:
+                    meta_parts = []
                     if d.get("has_manager"):
                         mgr_name = d.get("manager_name", "")
-                        mgr_note = f"manager: {mgr_name}" if mgr_name else "has manager assigned"
+                        mgr_title = d.get("manager_title", "")
+                        mgr_info = f"head: {mgr_name}" if mgr_name else "has head assigned"
+                        if mgr_title:
+                            mgr_info += f" ({mgr_title})"
+                        meta_parts.append(mgr_info)
                     else:
-                        mgr_note = "NO manager assigned"
-                    org_lines.append(f'  - "{d["name"]}" (id: {d["id"]}, {mgr_note})')
+                        meta_parts.append("NO head assigned")
+                    mc = d.get("member_count", 0)
+                    if mc:
+                        meta_parts.append(f"{mc} member{'s' if mc != 1 else ''}")
+                    org_lines.append(f'  - "{d["name"]}" (id: {d["id"]}, {", ".join(meta_parts)})')
                 org_lines.append(
                     "  → For approval by a specific department's manager: "
                     'assignee_source: "user_directory", directory_assignee_type: "department_manager", '
@@ -1017,8 +1025,18 @@ class ProcessWizard:
                     '  → For notification to a role: recipient: "role:<role_id>".'
                 )
 
+            job_titles = additional_context.get("job_titles")
+            if job_titles and isinstance(job_titles, list) and len(job_titles) > 0:
+                org_lines.append("\nJOB TITLES / POSITIONS (configured in the organization):")
+                org_lines.append(", ".join(f'"{t}"' for t in job_titles[:50]))
+                org_lines.append(
+                    "  These titles are assigned to users in their department. "
+                    "Use them in conditions (e.g., route differently based on requester's job_title) "
+                    "or in templates (e.g., {{trigger_input._user_context.job_title}})."
+                )
+
             if org_lines:
-                org_lines.insert(0, "\n\nORGANIZATION STRUCTURE (actual departments, groups, and roles configured):")
+                org_lines.insert(0, "\n\nORGANIZATION STRUCTURE (actual departments, groups, roles, and positions configured):")
                 org_lines.append(
                     "\nIMPORTANT: When the user's prompt mentions a specific department, group, team, or role name, "
                     "match it against the lists above and use the correct ID. "
@@ -1028,6 +1046,14 @@ class ProcessWizard:
                     "configuration using the entity name (e.g., assignee_department_name). The platform will "
                     "detect missing entities and guide the user to create them. Do NOT add workaround "
                     "notification nodes for missing entities."
+                )
+                org_lines.append(
+                    "\nJOB TITLE USAGE: The requester's job_title is automatically available as "
+                    "trigger_input._user_context.job_title. Use it in:\n"
+                    "  - Conditions: field='trigger_input._user_context.job_title', operator='equals', value='Director'\n"
+                    "  - Notifications: {{trigger_input._user_context.job_title}}\n"
+                    "  - Form prefill: prefill key='jobTitle' (readOnly: true)\n"
+                    "  - AI prompts: reference the requester's position for context"
                 )
                 org_structure_text = "\n".join(org_lines)
 
@@ -1140,13 +1166,17 @@ class ProcessWizard:
             "   When a process starts, the engine enriches the context with ALL user data from the configured identity source\n"
             "   (Built-in, LDAP, Active Directory, HR System). This data is available as trigger_input._user_context.\n"
             "   Available fields include: email, display_name, manager_id, manager_email, manager_name,\n"
-            "   department_name, employee_id, job_title, role_names, group_names, and any custom attributes.\n\n"
+            "   department_name, department_head_name, department_head_email, employee_id, job_title,\n"
+            "   role_names, group_names, is_manager, direct_report_count, and any custom attributes.\n\n"
             "   THEREFORE:\n"
             "   - NEVER add a 'Manager Email' or 'Manager Name' field to the form — the engine resolves it automatically.\n"
             "   - For approval routing, use assignee_source: 'user_directory' with directory_assignee_type: 'dynamic_manager'.\n"
             "   - For notifications to the employee/requester: set recipient to 'requester' (magic shortcut — engine resolves to email).\n"
             "   - For notifications to the manager: set recipient to 'manager' (magic shortcut — engine resolves to manager's email).\n"
+            "   - For notifications to the department head: set recipient to 'department_head' (magic shortcut).\n"
             "   - In notification templates, reference user data via {{trigger_input._user_context.display_name}}, etc.\n"
+            "   - Use trigger_input._user_context.job_title in conditions to route based on the requester's position.\n"
+            "   - Use trigger_input._user_context.department_head_name in templates to show the department head's name.\n"
             "   - NEVER try to manually resolve emails — the platform does this automatically.\n\n"
             "Return ONLY valid JSON that matches the schema exactly. No markdown, no explanation."
         )

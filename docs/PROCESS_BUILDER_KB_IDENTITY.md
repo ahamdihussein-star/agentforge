@@ -202,6 +202,63 @@ Notification nodes support **magic recipient shortcuts** that the engine resolve
 }
 ```
 
+## Using Job Titles / Positions in Workflows
+
+The requester's `job_title` (set per-user in the department modal) is automatically available at runtime.
+The AI can use it for conditions, templates, routing decisions, and form prefill.
+
+### Referencing job_title
+
+| Context | Syntax |
+|---------|--------|
+| Condition field | `trigger_input._user_context.job_title` |
+| Notification template | `{{trigger_input._user_context.job_title}}` |
+| Form prefill key | `jobTitle` |
+| AI prompt context | `{{trigger_input._user_context.job_title}}` |
+
+### Example: Auto-approve based on position
+
+If the requester is a Director or above, auto-approve; otherwise route to their manager:
+```json
+{
+  "type": "condition",
+  "config": {
+    "rules": [
+      { "field": "trigger_input._user_context.job_title", "operator": "contains", "value": "Director" }
+    ]
+  }
+}
+```
+- YES path → notification (auto-approved)
+- NO path → approval (dynamic_manager)
+
+### Example: Include position in notification
+
+```json
+{
+  "channel": "email",
+  "recipient": "manager",
+  "template": "A new request from {{trigger_input._user_context.display_name}} ({{trigger_input._user_context.job_title}}, {{trigger_input._user_context.department_name}}) requires your review."
+}
+```
+
+### Example: Show department head info
+
+```json
+{
+  "channel": "email",
+  "recipient": "requester",
+  "template": "Your request has been forwarded to your department head {{trigger_input._user_context.department_head_name}} for approval."
+}
+```
+
+### Using Other Users' Titles
+
+- The **department head's title** is available via the builder-context as `manager_title` on each department.
+- At runtime, the approval engine resolves the correct person — the workflow only needs to specify the routing type.
+- To route based on a user's position within a department, use `department_manager` (routes to the head) or `dynamic_manager` (routes to the requester's direct manager, regardless of title).
+- The platform does NOT support routing to "anyone with job_title = X" — use roles or groups for function-based routing instead.
+
 ## Decision Rules
 
 1. **Any approval that should go to the requester's supervisor** → Use `dynamic_manager`. NEVER ask the user to enter their manager's information.

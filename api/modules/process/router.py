@@ -3301,6 +3301,7 @@ async def generate_workflow_from_goal(
                 "id": str(d.id),
                 "name": d.name,
                 "has_manager": _has_mgr,
+                "parent_id": str(d.parent_id) if d.parent_id else None,
                 "member_count": _member_counts.get(str(d.id), 0),
             }
             if _has_mgr:
@@ -3312,6 +3313,8 @@ async def generate_workflow_from_goal(
                             or f"{_mgr.first_name or ''} {_mgr.last_name or ''}".strip()
                         )
                         entry["manager_name"] = _mname or "assigned"
+                        entry["manager_email"] = _mgr.email or ""
+                        entry["manager_title"] = getattr(_mgr, 'job_title', None) or (getattr(_mgr.profile, 'job_title', None) if getattr(_mgr, 'profile', None) else None) or ""
                         print(
                             f"   ✅ Manager found: {_mname!r} "
                             f"(display={_mgr.display_name!r}, "
@@ -3345,6 +3348,26 @@ async def generate_workflow_from_goal(
             {"id": str(r.id), "name": r.name}
             for r in _roles if not getattr(r, "is_system", False)
         ]
+
+        from database.models.organization import Organization as DBOrg
+        import json as _json_jt
+        _org_obj = db.query(DBOrg).filter(DBOrg.id == _org_uuid).first()
+        _jt_list = []
+        if _org_obj:
+            _settings = getattr(_org_obj, 'settings', None) or {}
+            if isinstance(_settings, str):
+                try:
+                    _settings = _json_jt.loads(_settings)
+                except Exception:
+                    _settings = {}
+            _jt_list = _settings.get("job_titles") or []
+        if not _jt_list:
+            _jt_rows = db.query(DBUser.job_title).filter(
+                DBUser.org_id == _org_uuid,
+                DBUser.job_title.isnot(None),
+            ).limit(100).all()
+            _jt_list = list(set(jt.strip() for (jt,) in _jt_rows if jt and jt.strip()))
+        context["job_titles"] = _jt_list[:100]
     except Exception as e:
         print(f"⚠️  [Wizard] Failed to discover org structure: {e}")
 

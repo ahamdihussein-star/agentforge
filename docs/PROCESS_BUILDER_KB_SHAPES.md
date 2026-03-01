@@ -109,6 +109,7 @@ When in doubt, use `"select"` — the admin can always edit the options later.
 Set `readOnly: true` + `prefill: { "source": "currentUser", "key": "<key>" }`.
 The system is FULLY DYNAMIC — any attribute from the user's identity source is available.
 Common keys: `name`, `email`, `firstName`, `lastName`, `phone`, `jobTitle`, `employeeId`, `departmentName`, `departmentId`, `managerName`, `managerEmail`, `managerId`, `departmentHeadName`, `departmentHeadEmail`, `departmentHeadId`, `isManager`, `directReportCount`, `groupNames`, `roleNames`.
+Job titles are free-text per user (set in the department modal) and also available as an org-wide suggestion library.
 Custom keys (from HR/LDAP): `nationalId`, `hireDate`, `officeLocation`, `costCenter`, `badgeNumber`, or ANY field the organization configured.
 BEST PRACTICE: ALWAYS prefill every piece of information the system already knows. NEVER ask users to type what the system knows.
 
@@ -289,6 +290,9 @@ Config (`condition.config`):
 - Multi-rule AND: `"rules": [{"field":"amount","operator":"greater_than","value":"1000"},{"field":"department","operator":"equals","value":"Finance"}], "connectors":["and"]`
 - Multi-rule OR: `"rules": [{"field":"priority","operator":"equals","value":"urgent"},{"field":"amount","operator":"greater_than","value":"5000"}], "connectors":["or"]`
 - Mixed: `"rules": [{"field":"isVIP","operator":"equals","value":"true"},{"field":"amount","operator":"less_than","value":"100"},{"field":"department","operator":"equals","value":"Finance"}], "connectors":["or","and"]`
+- By requester's job title: `"rules": [{"field":"trigger_input._user_context.job_title","operator":"contains","value":"Director"}]`
+- By requester's department: `"rules": [{"field":"trigger_input._user_context.department_name","operator":"equals","value":"Finance"}]`
+- By manager status: `"rules": [{"field":"trigger_input._user_context.is_manager","operator":"equals","value":"true"}]`
 
 Connection rules: MUST have exactly two outgoing edges — `type: "yes"` and `type: "no"`.
 Layout: "yes" path goes LEFT (x - 300), "no" path goes RIGHT (x + 300). Both reconverge to a shared node below.
@@ -425,8 +429,9 @@ These shapes are NOT available in the palette but old processes using them will 
 
 ### User Profile Data (Dynamic — Unlimited Fields)
 The platform loads ALL available user profile fields dynamically from the configured identity source.
-Standard fields: name, email, phone, jobTitle, employeeId, departmentName, managerName, managerEmail, directReportCount, isManager.
+Standard fields: name, email, phone, jobTitle, employeeId, departmentName, departmentId, managerName, managerEmail, managerId, departmentHeadName, departmentHeadEmail, departmentHeadId, directReportCount, isManager.
 Custom fields: Any attribute configured in the organization's HR system, LDAP, or identity provider (e.g., costCenter, officeLocation, badgeNumber, nationalId, hireDate).
 All profile fields are available for:
 - Form field prefill (`prefill.key`)
 - Person Information in notification/approval/AI templates (`{{trigger_input._user_context.<key>}}`)
+- Condition rules: use `trigger_input._user_context.<key>` as the field in condition nodes to branch based on the requester's profile (e.g., job title, department, manager status)
