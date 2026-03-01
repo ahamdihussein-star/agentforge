@@ -859,6 +859,26 @@ async def get_builder_context(user: User = Depends(require_auth)):
                         break
                 job_titles = cleaned
 
+            # Lightweight user list for visual pickers in the Process Builder
+            _active_users = session.query(DBUser).filter(
+                DBUser.org_id == ctx["org_id"],
+                DBUser.status == "active",
+            ).order_by(DBUser.email.asc()).limit(500).all()
+            _user_list: List[Dict[str, Any]] = []
+            for _u in _active_users:
+                _display = ""
+                if getattr(_u, "profile", None):
+                    _fn = getattr(_u.profile, "first_name", "") or ""
+                    _ln = getattr(_u.profile, "last_name", "") or ""
+                    _display = f"{_fn} {_ln}".strip()
+                if not _display:
+                    _display = getattr(_u, "email", "") or str(_u.id)
+                _user_list.append({
+                    "id": str(_u.id),
+                    "name": _display,
+                    "email": getattr(_u, "email", "") or "",
+                })
+
             # If no library is configured, derive a small suggestion set from existing users.
             if not job_titles:
                 rows = session.query(DBUser.job_title).filter(
@@ -885,6 +905,9 @@ async def get_builder_context(user: User = Depends(require_auth)):
     except Exception:
         role_names = role_names or []
         group_names = group_names or []
+
+    if '_user_list' not in locals():
+        _user_list = []
 
     for sf in standard_grouped:
         k = (sf.get("key") or "").strip()
@@ -917,6 +940,7 @@ async def get_builder_context(user: User = Depends(require_auth)):
         "groups": groups,
         "roles": roles,
         "job_titles": job_titles,
+        "users": _user_list,
     }
 
 

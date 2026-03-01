@@ -3259,7 +3259,6 @@
                         if (f && String(f.type || '').toLowerCase() === 'select' && Array.isArray(f.options) && f.options.length > 0) {
                             return f.options.filter(Boolean);
                         }
-                        // User context fields (standard + custom) may have org-defined options
                         const m = String(fieldName || '').match(/^trigger_input\._user_context\.(.+)$/);
                         if (m) {
                             const k = m[1];
@@ -3268,16 +3267,27 @@
                                 return pf.options.filter(Boolean);
                             }
                         }
-                        // Departments fallback (from directory)
+                        const ctx = state.builderContext || {};
                         if (fieldName === 'trigger_input._user_context.departmentName') {
-                            const depts = ((state.builderContext || {}).departments) || [];
-                            const names = depts.map(d => d && d.name).filter(Boolean);
+                            const names = (ctx.departments || []).map(d => d && d.name).filter(Boolean);
                             if (names.length > 0) return names;
                         }
-                        // Basic boolean heuristics (dynamic platform: still allow manual)
+                        if (fieldName === 'trigger_input._user_context.jobTitle' || fieldName === 'trigger_input._user_context.job_title') {
+                            const jt = ctx.job_titles || [];
+                            if (jt.length > 0) return jt;
+                        }
+                        if (fieldName === 'trigger_input._user_context.roles') {
+                            const rn = (ctx.roles || []).map(r => r.name).filter(Boolean);
+                            if (rn.length > 0) return rn;
+                        }
+                        if (fieldName === 'trigger_input._user_context.groups') {
+                            const gn = (ctx.groups || []).map(g => g.name).filter(Boolean);
+                            if (gn.length > 0) return gn;
+                        }
                         if (/(^|\.)(is[A-Z_]|has[A-Z_])/.test(fieldName) || /(Enabled|Active|Approved)$/.test(fieldName)) {
                             return ['true', 'false'];
                         }
+                        if (f && String(f.type || '').toLowerCase() === 'number') return null;
                         return null;
                     }
 
@@ -3322,10 +3332,10 @@
                                         onchange="if(this.value==='__custom__'){updateConditionRule('${node.id}', ${rIdx}, 'valueMode', 'custom');} else {updateConditionRule('${node.id}', ${rIdx}, 'valueMode', 'pick'); updateConditionRule('${node.id}', ${rIdx}, 'value', this.value);}">
                                     <option value="">-- Select a value --</option>
                                     ${valueOptions.map(opt => `<option value="${escapeHtml(opt)}" ${(rValueMode !== 'custom' && String(rValue) === String(opt)) ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}
-                                    <option value="__custom__" ${rValueMode === 'custom' ? 'selected' : ''}>Enter manually...</option>
+                                    <option value="__custom__" ${rValueMode === 'custom' ? 'selected' : ''}>Other value\u2026</option>
                                 </select>
                                 ${rValueMode === 'custom' ? `
-                                    <input type="text" class="property-input" placeholder="Custom value"
+                                    <input type="text" class="property-input" placeholder="Type a value"
                                            value="${escapeHtml(rValue || '')}"
                                            onchange="updateConditionRule('${node.id}', ${rIdx}, 'value', this.value)">
                                 ` : ``}
@@ -3373,22 +3383,14 @@
                                                     </option>
                                                 `).join('')}
                                             </optgroup>` : ''}
-                                            <option value="_custom" ${rField === '_custom' || rIsCustom ? 'selected' : ''}>
-                                                Enter manually...
-                                            </option>
                                         </select>
                                         <button type="button" class="org-pick-item-btn" style="padding:6px 10px;font-size:11px;"
                                                 onclick="openOrgDataPicker(function(ref,label){updateConditionRule('${node.id}',${rIdx},'field',ref.replace(/^\\{\\{|\\}\\}$/g,''));})">Browse\u2026</button>
                                         </div>
-                                        ${rField === '_custom' || rIsCustom ? `
-                                            <input type="text" class="property-input" placeholder="Field name" 
-                                                   value="${rField === '_custom' ? '' : escapeHtml(rField)}"
-                                                   onchange="updateConditionRule('${node.id}', ${rIdx}, 'field', this.value)">
-                                        ` : ''}
                                     ` : `
-                                        <input type="text" class="property-input" placeholder="e.g. amount, status" 
-                                               value="${escapeHtml(rField)}"
-                                               onchange="updateConditionRule('${node.id}', ${rIdx}, 'field', this.value)">
+                                        <div style="padding:10px 12px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:8px;font-size:11px;color:#fbbf24;">
+                                            Add a form or AI step first to make fields available here.
+                                        </div>
                                     `}
                                     <select class="property-select" onchange="updateConditionRule('${node.id}', ${rIdx}, 'operator', this.value)" style="width:100%;">
                                         <option value="equals" ${rOperator === 'equals' ? 'selected' : ''}>is equal to</option>
@@ -3486,13 +3488,13 @@
                                 <div class="tool-param-card tool-param-row">
                                     <div class="param-name">${escapeHtml(p.name)}${p.required ? ' <span style="color:#f87171;">*</span>' : ''}</div>
                                     ${p.description ? `<div class="param-desc">${escapeHtml(p.description)}</div>` : ''}
-                                    <span class="value-from-label">Value from</span>
+                                    <span class="value-from-label">Where does this come from?</span>
                                     <div class="value-from-row">
                                         <select class="property-select tool-param-source" data-node-id="${node.id}" data-param-name="${escapeHtml(paramName)}" onchange="onToolParamSourceChange(this)">
-                                            <option value="_fixed_" ${sourceVal === '_fixed_' ? 'selected' : ''}>Type a fixed value</option>
-                                            ${formSources.length ? `<optgroup label="📝 From form">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
-                                            ${dataSources.length ? `<optgroup label="📦 From previous steps">${dataSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
-                                            ${personSources.length ? `<optgroup label="👤 Person information">${personSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('')}</optgroup>` : ''}
+                                            <option value="_fixed_" ${sourceVal === '_fixed_' ? 'selected' : ''}>Enter a specific value</option>
+                                            ${formSources.length ? `<optgroup label="\uD83D\uDCDD From form">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${dataSources.length ? `<optgroup label="\uD83D\uDCE6 From previous steps">${dataSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${personSources.length ? `<optgroup label="\uD83D\uDC64 Person information">${personSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('')}</optgroup>` : ''}
                                         </select>
                                         <input type="text" class="property-input tool-param-fixed" placeholder="Enter value" 
                                                data-node-id="${node.id}" data-param-name="${escapeHtml(paramName)}"
@@ -3691,19 +3693,22 @@
                                         </option>
                                     `).join('')}
                                 </optgroup>` : ''}
-                                <option value="_custom" ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && node.config.recipient !== 'department_head' && node.config.recipient !== 'department_members' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('dept_members:') && !node.config.recipient.startsWith('group:') && !node.config.recipient.startsWith('role:') && !node.config.recipient.startsWith('skip_level') ? 'selected' : ''}>A specific email address...</option>
+                                ${(() => {
+                                    const _users = (state._notifUsers || []);
+                                    if (!_users.length) return '';
+                                    const items = _users.map(u => {
+                                        const label = (u.name || u.email || u.id || '').substring(0, 60);
+                                        const email = u.email || '';
+                                        return `<option value="${escapeHtml(email)}" ${node.config.recipient === email ? 'selected' : ''}>${escapeHtml(label)}${email ? ' (' + escapeHtml(email) + ')' : ''}</option>`;
+                                    }).join('');
+                                    return `<optgroup label="\uD83D\uDC64 Specific Person">${items}</optgroup>`;
+                                })()}
                             </select>
-                            ${node.config.recipient && node.config.recipient !== 'requester' && node.config.recipient !== 'manager' && node.config.recipient !== 'department_head' && node.config.recipient !== 'department_members' && !node.config.recipient.startsWith('{{') && !node.config.recipient.startsWith('dept_manager:') && !node.config.recipient.startsWith('dept_members:') && !node.config.recipient.startsWith('group:') && !node.config.recipient.startsWith('role:') && !node.config.recipient.startsWith('skip_level') && node.config.recipient !== '' ? `
-                                <input type="text" class="property-input" style="margin-top:8px;" placeholder="email@example.com" 
-                                       value="${escapeHtml(node.config.recipient || '')}"
-                                       onchange="updateNodeConfig('${node.id}', 'recipient', this.value)">
-                            ` : ''}
                         </div>
                         <div class="property-group">
                             <label class="property-label">Subject</label>
-                            <input type="text" class="property-input" placeholder="e.g. Your request has been approved"
-                                   value="${escapeHtml(node.config.title || '')}"
-                                   onchange="updateNodeConfig('${node.id}', 'title', this.value)">
+                            ${buildTemplateEditor(node.id, 'title', (node.config.title || ''), 'e.g. Your request has been approved', 38)}
+                            ${buildInsertDataDropdown(node.id, 'title', availableFields, upstreamData)}
                         </div>
                         <div class="property-group">
                             <label class="property-label">Message</label>
@@ -4555,19 +4560,11 @@
                                             </option>
                                         `).join('')}
                                     </optgroup>` : ''}
-                                    <option value="_custom" ${node.config.collection && !allLoopFields.find(f => f.name === node.config.collection) ? 'selected' : ''}>
-                                        ✏️ Custom...
-                                    </option>
                                 </select>
-                                ${(node.config.collection && !allLoopFields.find(f => f.name === node.config.collection)) ? `
-                                    <input type="text" class="property-input" style="margin-top:8px;" placeholder="e.g., items, data.results" 
-                                           value="${node.config.collection || ''}"
-                                           onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
-                                ` : ''}
                             ` : `
-                                <input type="text" class="property-input" placeholder="e.g., items, users, data.results" 
-                                       value="${node.config.collection || ''}"
-                                       onchange="updateNodeConfig('${node.id}', 'collection', this.value)">
+                                <div style="padding:10px 12px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:8px;font-size:11px;color:#fbbf24;">
+                                    Add an AI or extraction step first to make data lists available here.
+                                </div>
                             `}
                             <div style="font-size:11px;color:#6b7280;margin-top:4px;">
                                 The array/list to iterate over
@@ -4661,13 +4658,13 @@
                                 return `
                                 <div class="tool-param-card tool-param-row">
                                     <div class="param-name">${escapeHtml(pfLabel)}${pfRequired ? ' <span style="color:#f87171;">*</span>' : ''}</div>
-                                    <span class="value-from-label">Value from</span>
+                                    <span class="value-from-label">Where does this come from?</span>
                                     <div class="value-from-row">
                                         <select class="property-select" onchange="updateCallProcessMapping('${node.id}', '${escapeHtml(pfName)}', this.value, this.parentElement)">
-                                            <option value="_fixed_" ${sourceVal === '_fixed_' ? 'selected' : ''}>Type a fixed value</option>
-                                            ${formSources.length ? `<optgroup label="📝 From form">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
-                                            ${dataSources.length ? `<optgroup label="📦 From previous steps">${dataSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
-                                            ${personSources.length ? `<optgroup label="👤 Person information">${personSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('')}</optgroup>` : ''}
+                                            <option value="_fixed_" ${sourceVal === '_fixed_' ? 'selected' : ''}>Enter a specific value</option>
+                                            ${formSources.length ? `<optgroup label="\uD83D\uDCDD From form">${formSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From form: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${dataSources.length ? `<optgroup label="\uD83D\uDCE6 From previous steps">${dataSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label.replace('From step: ',''))}</option>`).join('')}</optgroup>` : ''}
+                                            ${personSources.length ? `<optgroup label="\uD83D\uDC64 Person information">${personSources.map(s => `<option value="${escapeHtml(s.value)}" ${sourceVal === s.value ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('')}</optgroup>` : ''}
                                         </select>
                                         <input type="text" class="property-input" placeholder="Enter value"
                                                value="${escapeHtml(fixedVal)}"
@@ -4683,13 +4680,24 @@
                             </div>
                         ` : '')}
                         <div class="property-group">
-                            <label class="property-label">Save the result as</label>
+                            <label class="property-label">Name this result</label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Name the data returned by the sub-process so other steps can use it.
+                                Give the result a friendly name so you can reference it in later steps.
                             </div>
-                            <input type="text" class="property-input" placeholder="e.g. approvalResult"
-                                   value="${escapeHtml(node.output_variable || node.config.outputVariable || '')}"
-                                   onchange="state.nodes.find(n=>n.id==='${node.id}').output_variable=this.value; renderConnections();">
+                            ${(() => {
+                                const _cpOut = node.output_variable || node.config.outputVariable || '';
+                                if (!_cpOut && selectedProcId) {
+                                    const _cpProc = (state.publishedProcesses||[]).find(p=>p.id===selectedProcId);
+                                    const _cpAuto = _cpProc ? toFieldKey(_cpProc.name || '') + 'Result' : 'subProcessResult';
+                                    node.output_variable = _cpAuto;
+                                    return `<input type="text" class="property-input" placeholder="e.g. Approval Result"
+                                           value="${escapeHtml(_cpAuto)}"
+                                           onchange="state.nodes.find(n=>n.id==='${node.id}').output_variable=this.value; renderConnections();">`;
+                                }
+                                return `<input type="text" class="property-input" placeholder="e.g. Approval Result"
+                                       value="${escapeHtml(_cpOut)}"
+                                       onchange="state.nodes.find(n=>n.id==='${node.id}').output_variable=this.value; renderConnections();">`;
+                            })()}
                         </div>
                     `;
                     break;
@@ -4837,7 +4845,7 @@
                             <select class="property-select" onchange="updateNodeConfig('${node.id}', 'collection', '{{' + this.value + '}}')">
                                 <option value="">-- Select a list --</option>
                                 ${arrayFields.map(d => `<option value="${d.name}" ${(node.config.collection||'').includes(d.name) ? 'selected' : ''}>${escapeHtml(d.label || d.name)} (from ${escapeHtml(d.source || 'previous step')})</option>`).join('')}
-                                <option value="_custom_">Enter manually...</option>
+                                ${arrayFields.length === 0 ? '<option value="" disabled>No lists available \u2014 add an AI or extraction step first</option>' : ''}
                             </select>
                         </div>
                         <div style="padding:10px 12px;background:color-mix(in srgb,var(--pb-primary) 8%,transparent);border:1px solid color-mix(in srgb,var(--pb-primary) 20%,transparent);border-radius:10px;margin-top:8px;">
@@ -4884,8 +4892,11 @@
                         </div>
                         `}
                         <div class="property-group">
-                            <label class="property-label">Save result as</label>
-                            <input type="text" class="property-input" placeholder="e.g. grandTotal, itemCount"
+                            <label class="property-label">Name this result</label>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
+                                Give this calculation a friendly name so you can use it in later steps.
+                            </div>
+                            <input type="text" class="property-input" placeholder="${{sum:'e.g. Total Amount',average:'e.g. Average Score',count:'e.g. Number of Items',concat:'e.g. Full Address',custom:'e.g. Grand Total'}[calcOp] || 'e.g. Calculated Value'}"
                                    value="${escapeHtml(node.config.dataLabel || '')}"
                                    onchange="updateNodeConfig('${node.id}', 'dataLabel', this.value)">
                         </div>
@@ -6377,6 +6388,7 @@
             .then(r => r.ok ? r.json() : Promise.reject(r.status))
             .then(data => {
                 state.builderContext = data;
+                state._notifUsers = Array.isArray(data.users) ? data.users : [];
                 const uf = data.user_fields || {};
                 const std = Array.isArray(uf.standard) ? uf.standard : [];
                 const custom = Array.isArray(uf.custom) ? uf.custom : [];
