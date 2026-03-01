@@ -286,7 +286,7 @@ async function editSecurityUser(userId) {
                 <div class="rounded-lg border border-gray-700 p-3 bg-gray-900/30">
                     <label class="block text-sm text-gray-400 mb-2">Password</label>
                     <div class="text-xs text-gray-500 mb-3">Send a reset link to the user\u2019s email. The user will choose a new password and then return to sign in.</div>
-                    <button class="btn-primary px-3 py-2 rounded-lg w-full" onclick="adminSendPasswordResetLink('${userId}')">Reset Password (Send Link)</button>
+                    <button class="btn-primary px-3 py-2 rounded-lg w-full" onclick="adminSendPasswordResetLink('${userId}')">Reset Password</button>
                 </div>
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">Organization Profile Fields</label>
@@ -398,7 +398,7 @@ async function editSecurityUser(userId) {
 
 async function adminSendPasswordResetLink(userId) {
     try {
-        if (!(await uiConfirm("Send a password reset link to this user?", { title: 'Reset password', confirmText: 'Send Link', cancelText: 'Cancel', danger: true }))) return;
+        if (!(await uiConfirm("Send a password reset link to this user?", { title: 'Reset password', confirmText: 'Send', cancelText: 'Cancel', danger: true }))) return;
 
         const res = await fetch('/api/security/users/' + userId + '/send-password-reset', {
             method: 'POST',
