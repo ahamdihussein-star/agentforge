@@ -2032,6 +2032,7 @@ async def _analyze_goal_prerequisites(
     tool_info = ", ".join(t.get("name", "?") for t in tools) if tools else "None created yet"
 
     print(f"🔍 [Pre-check] dept_info sent to LLM: {dept_info}")
+    print(f"🔍 [Pre-check] tool_info sent to LLM: {tool_info}")
     print(f"🔍 [Pre-check] group_info sent to LLM: {group_info}")
     id_status = (
         "Configured" if identity_ctx.get("source")
@@ -2056,9 +2057,19 @@ CURRENTLY AVAILABLE ON THE PLATFORM:
 - Teams/Groups: {group_info}
 - Roles: {role_info}
 - Job Titles/Positions: {job_titles_info}
-- Tools/Integrations: {tool_info}
+- Tools/Integrations (external): {tool_info}
 - Employee Directory: {id_status}
 - Managers assigned to employees: {has_mgrs}
+
+BUILT-IN PLATFORM CAPABILITIES (these are NOT tools — they are native features and NEVER need setup):
+- AI Analysis / AI Processing: The platform has built-in AI nodes that can analyze data, extract information, perform matching, detect anomalies, classify, and generate insights. These do NOT require an external tool.
+- Document Generation: The platform can natively generate XLSX, PDF, DOCX reports and documents. This is a built-in capability, NOT an external tool.
+- File/Image Processing: The platform can natively extract data from uploaded files and images (OCR, parsing). This is built-in.
+- Email Notifications: Built-in. No external email tool needed.
+- Approval Workflows: Built-in. No external tool needed.
+- Conditions/Branching: Built-in logic engine.
+
+IMPORTANT: When the workflow description mentions "AI analysis", "generate a report", "extract data from documents", "email notifications", "approval routing" — these are ALL built-in. Only flag as missing a "tool" if the workflow explicitly needs to connect to an EXTERNAL system (e.g., "Purchase Order System", "CRM", "ERP", "SAP", "Database") AND no matching tool exists in the Tools/Integrations list above.
 
 WORKFLOW DESCRIPTION:
 "{goal}"
@@ -2068,7 +2079,9 @@ COMPARE SEMANTICALLY — NOT literally. Examples of equivalent names:
 - "HR" = "Human Resources" (abbreviation)
 - "Dev team" = "Development team" (shortened name)
 - "QA" = "Quality Assurance" (abbreviation)
-If an entity ALREADY EXISTS on the platform (even with a slightly different name or extra words like "team", "department", "group"), it is NOT missing.
+- "Purchase Orders" tool on platform = "Purchase Order System" in description (same system)
+- "PO System" = "Purchase Orders" = "PO Validation" (same concept)
+If an entity ALREADY EXISTS on the platform (even with a slightly different name or extra words like "team", "department", "group", "system"), it is NOT missing.
 
 Return this JSON:
 {{
@@ -2110,13 +2123,22 @@ BOOLEAN FLAGS:
 10. needs_escalation_hierarchy = true if description mentions escalation to a higher level
 11. needs_identity_directory = true if workflow needs employee profile data
 
+TOOL MATCHING RULES (CRITICAL):
+12. NEVER flag built-in platform capabilities as missing tools. The following are ALL built-in:
+    - AI analysis, data extraction, anomaly detection, classification → built-in AI nodes
+    - Report/document generation (XLSX, PDF, DOCX) → built-in document generation
+    - Email sending → built-in notifications
+    - File/image OCR and parsing → built-in file processing
+13. Only flag a "tool" as missing if the workflow needs an EXTERNAL system (API, database, CRM, ERP, PO system, etc.) AND no semantically matching tool exists in the Tools/Integrations list.
+14. When matching tools, compare SEMANTICALLY: "Purchase Order System" in the description matches a "Purchase Orders" tool on the platform.
+
 CRITICAL RULES:
-12. NEVER put an entity in "missing" if it already exists on the platform
-13. NEVER put a department in "misconfigured" if it already has a manager (shows "manager: NAME")
-14. NEVER invent entities not referenced in the description
-15. When in doubt, do NOT include it — false negatives are better than false positives
-16. Works for ANY domain — do not assume domain-specific entities
-17. Return empty arrays [] when nothing is missing or misconfigured"""
+15. NEVER put an entity in "missing" if it already exists on the platform
+16. NEVER put a department in "misconfigured" if it already has a manager (shows "manager: NAME")
+17. NEVER invent entities not referenced in the description
+18. When in doubt, do NOT include it — false negatives are better than false positives
+19. Works for ANY domain — do not assume domain-specific entities
+20. Return empty arrays [] when nothing is missing or misconfigured"""
 
     try:
         from core.llm.base import Message, MessageRole
@@ -3393,6 +3415,36 @@ async def generate_workflow_from_goal(
         context["job_titles"] = _jt_list[:100]
     except Exception as e:
         print(f"⚠️  [Wizard] Failed to discover org structure: {e}")
+
+    # Server-side tool discovery (fallback if frontend didn't send tools)
+    if not context.get("tools"):
+        try:
+            from database.models.tool import Tool as DBTool
+            _org_uuid_str = str(_org_uuid) if '_org_uuid' in dir() else user_dict["org_id"]
+            _db_tools = db.query(DBTool).filter(
+                DBTool.org_id == _org_uuid_str,
+                DBTool.is_active.is_(True),
+            ).limit(40).all()
+            _tool_list = []
+            for _t in _db_tools:
+                _params = []
+                raw_params = getattr(_t, 'input_parameters', None) or getattr(_t, 'api_config', None)
+                if isinstance(raw_params, dict):
+                    raw_params = raw_params.get('input_parameters', [])
+                if isinstance(raw_params, list):
+                    _params = [{"name": p.get("name"), "description": p.get("description", ""), "data_type": p.get("data_type") or p.get("type", "string")} for p in raw_params if isinstance(p, dict)]
+                _tool_list.append({
+                    "id": _t.id,
+                    "name": _t.name,
+                    "type": _t.type,
+                    "description": _t.description or "",
+                    "input_parameters": _params,
+                })
+            if _tool_list:
+                context["tools"] = _tool_list
+                print(f"📋 [Wizard] Server-side tool discovery: {len(_tool_list)} tools found: {[t['name'] for t in _tool_list]}")
+        except Exception as e:
+            print(f"⚠️  [Wizard] Server-side tool discovery failed (non-blocking): {e}")
 
     # Discover published processes so the AI can suggest call_process nodes
     try:
