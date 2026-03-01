@@ -13039,11 +13039,10 @@ async def serve_ui_files(path: str, response: Response):
         
         # For other files, use FileResponse
         file_resp = FileResponse(file_path, media_type=media_type)
-        # JS/CSS are most impacted by stale CDN/browser caching in a no-build pipeline
-        if ext in ("js", "css"):
-            file_resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
-            file_resp.headers["Pragma"] = "no-cache"
-            file_resp.headers["Expires"] = "0"
+        # Disable caching for ALL UI assets to avoid stale behavior in managed hosting/CDNs.
+        file_resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        file_resp.headers["Pragma"] = "no-cache"
+        file_resp.headers["Expires"] = "0"
         return file_resp
     
     # File not found - for non-HTML paths, return 404
@@ -13052,7 +13051,11 @@ async def serve_ui_files(path: str, response: Response):
         ui_file = "ui/index.html"
         if os.path.exists(ui_file):
             with open(ui_file) as f:
-                return HTMLResponse(content=f.read())
+                html_resp = HTMLResponse(content=f.read())
+                html_resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+                html_resp.headers["Pragma"] = "no-cache"
+                html_resp.headers["Expires"] = "0"
+                return html_resp
     
     raise HTTPException(404, f"File not found: {path}")
 
@@ -13106,7 +13109,10 @@ async def serve_lab_portal(response: Response):
 @app.get("/frontend", response_class=HTMLResponse)
 @app.get("/frontend/", response_class=HTMLResponse)
 @app.get("/frontend/{path:path}", response_class=HTMLResponse)
-async def serve_frontend(path: str = ""):
+async def serve_frontend(response: Response, path: str = ""):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     ui_file = "ui/index.html"
     if os.path.exists(ui_file):
         with open(ui_file) as f:
@@ -13116,7 +13122,10 @@ async def serve_frontend(path: str = ""):
 
 @app.get("/admin", response_class=HTMLResponse)
 @app.get("/admin/", response_class=HTMLResponse)
-async def serve_admin():
+async def serve_admin(response: Response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     # Try ui folder first, then root
     for path in ["ui/admin.html", "admin.html"]:
         if os.path.exists(path):
@@ -13127,7 +13136,10 @@ async def serve_admin():
 
 @app.get("/monitor", response_class=HTMLResponse)
 @app.get("/monitor/", response_class=HTMLResponse)
-async def serve_monitor():
+async def serve_monitor(response: Response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     # Try ui folder first, then root
     for path in ["ui/monitor.html", "monitor.html"]:
         if os.path.exists(path):
