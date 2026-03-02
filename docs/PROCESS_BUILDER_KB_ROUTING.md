@@ -148,10 +148,10 @@ trigger → form → [data source A: extract/form/tool] → [data source B: tool
 **Why:** If the data from source A has no corresponding records in source B (e.g., an identifier in A doesn't exist in B's dataset), there is nothing to compare. Without this gate the AI step would still produce output (often flagging "no match" as an issue), the workflow would treat it as an actionable result, and continue to downstream steps (approvals, reports, escalations) that serve no purpose.
 
 **Generic rules:**
-- Any AI step whose task is to match, compare, reconcile, validate, or cross-reference data from two sources MUST include a `matchFound` (or `canProceed`) boolean in its `outputFields`.
-- The AI step's `instructions` MUST include a rule such as: "If the data from the first source cannot be matched against any record from the second source (e.g., no shared identifier exists), set matchFound to false and do not perform detailed analysis."
-- A condition node immediately after the AI step MUST check `matchFound`. Only the TRUE branch continues to detailed evaluation, approvals, or reports. The FALSE branch notifies the user and routes to end.
-- This pattern applies to ANY domain: finance (invoices vs. POs), HR (requests vs. policies), procurement (quotes vs. contracts), compliance (filings vs. regulations), etc.
+- Any AI step whose task is to match, compare, reconcile, validate, or cross-reference data from two sources MUST include a `matchFound` boolean in its `outputFields` AND a `matchFailureReason` text field.
+- The AI step's `instructions` MUST include a rule such as: "Set matchFound to false when the data from the first source cannot be matched against any record from the second source. This includes: (1) the first source is missing the identifier needed for lookup (e.g., no reference number present), (2) the identifier exists but no corresponding record was found in the second source, or (3) the second source returned no data. In all cases, populate matchFailureReason with a clear, business-friendly explanation of why matching was not possible, and do not perform detailed analysis."
+- A condition node immediately after the AI step MUST check `matchFound`. Only the TRUE branch continues to detailed evaluation, approvals, or reports. The FALSE branch sends a notification that includes `{{outputVariable.matchFailureReason}}` and routes to end.
+- This pattern applies to ANY domain: finance, HR, procurement, compliance, operations, etc.
 
 ## Process Complexity Guidelines
 

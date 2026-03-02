@@ -268,11 +268,11 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
 - Always ask yourself: "In a real office, what would happen first?" and design the flow accordingly.
 - DATA MATCHING VALIDATION GATE (CRITICAL):
   When an AI step's task is to match, compare, reconcile, validate, or cross-reference data from two different sources (extracted data vs. tool/API results, form input vs. database records, uploaded files vs. reference data — ANY two sources), you MUST:
-  1. Add a `matchFound` boolean to the AI step's `outputFields`.
-  2. Add an instruction to the AI step: "If the data from the first source cannot be matched against any record from the second source (e.g., no shared identifier exists, no corresponding record found), set matchFound to false and do not perform detailed analysis."
+  1. Add a `matchFound` boolean AND a `matchFailureReason` text field to the AI step's `outputFields`.
+  2. Add an instruction to the AI step: "Set matchFound to false when the data from the first source cannot be matched against any record from the second source. This includes: (1) the first source is missing the identifier needed for lookup (e.g., no reference number present), (2) the identifier exists but no corresponding record was found in the second source, or (3) the second source returned no data. In all cases, populate matchFailureReason with a clear business-friendly explanation and do not perform detailed analysis."
   3. Add a condition node BEFORE any downstream evaluation, approval, or escalation that checks `matchFound` first.
      - TRUE branch → continues to detailed result evaluation and downstream steps.
-     - FALSE branch → notifies the requester that the data could not be matched and routes to end.
+     - FALSE branch → sends a notification including the `matchFailureReason` explaining why the data could not be matched, then routes to end.
   This prevents workflows from proceeding to approvals or reports when no meaningful comparison was possible.
   This rule applies universally to ANY domain — finance, HR, procurement, compliance, operations, etc.
 - PARALLEL TASKS — WHEN TO USE THE PARALLEL NODE:
