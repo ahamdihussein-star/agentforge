@@ -8338,7 +8338,7 @@
                         </div>
                         </div>
                     </div>
-                    <div style="padding:18px;">
+                    <div id="engine-test-running-footer" style="padding:18px;">
                         <div style="display:flex;gap:10px;align-items:center;color:var(--pb-muted);font-size:13px;">
                             <div style="width:18px;height:18px;border-radius:999px;border:2px solid color-mix(in srgb, var(--tb-btn-primary-bg) 60%, transparent);border-top-color:transparent;animation: spin 0.9s linear infinite;"></div>
                             <div>We’ll show a full report when it finishes.</div>
@@ -8865,6 +8865,8 @@
                 const desc = runningModal.querySelector('#engine-test-approval-desc');
                 const reviewBody = runningModal.querySelector('#engine-test-approval-review-body');
                 approvalBox.style.display = '';
+                var _runFooter = runningModal.querySelector('#engine-test-running-footer');
+                if (_runFooter) _runFooter.style.display = 'none';
 
                 const approvalId = approval?.id || '';
                 const isSameApproval = approvalId && approvalId === _lastShownApprovalId;
@@ -8907,7 +8909,11 @@
                     }
                 }
             };
-            const hideApproval = () => { if (approvalBox) approvalBox.style.display = 'none'; };
+            const hideApproval = () => {
+                if (approvalBox) approvalBox.style.display = 'none';
+                var _runFooter = runningModal.querySelector('#engine-test-running-footer');
+                if (_runFooter) _runFooter.style.display = '';
+            };
 
             const decide = async (decision) => {
                 if (approvalHandled) return;
