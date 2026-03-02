@@ -584,16 +584,18 @@
                         var rows = nf.val.map(function (v, vi) {
                             var s = (v == null) ? '' : String(v);
                             var parts = null;
+                            var sepUsed = '';
                             if (s && typeof s === 'string') {
                                 var trimmed = s.trim();
                                 // Prefer pipe/semicolon first (less ambiguous), then commas.
                                 var sep = trimmed.indexOf('|') >= 0 ? '|' : (trimmed.indexOf(';') >= 0 ? ';' : (trimmed.indexOf(',') >= 0 ? ',' : null));
                                 if (sep) {
+                                    sepUsed = sep;
                                     var ps = trimmed.split(sep).map(function (x) { return String(x || '').trim(); }).filter(function (x) { return x !== ''; });
                                     if (ps.length >= 2) parts = ps;
                                 }
                             }
-                            return { vi: vi, raw: s, parts: parts || [] };
+                            return { vi: vi, raw: s, parts: parts || [], sep: sepUsed };
                         });
                         var maxParts = rows.reduce(function (m, r) { return Math.max(m, r.parts.length); }, 0);
                         // Only use parts-table if we actually have meaningful splitting (2+ parts) for at least 2 rows
@@ -606,8 +608,11 @@
                                 var tds = '';
                                 for (var ci2 = 0; ci2 < showCols; ci2++) {
                                     var pv = r.parts[ci2] || '';
-                                    tds += '<td style="color:var(--text-primary,var(--pb-text,#f1f5f9));">' + _esc(pv) + '</td>';
+                                    tds += '<td><input class="er-lineitem-part-input" type="text" value="' + _esc(pv) + '" data-part-idx="' + ci2 + '" onchange="window._afErLineItemPartsChanged&&window._afErLineItemPartsChanged(this)" style="width:100%;box-sizing:border-box;padding:2px 0;border:none;border-bottom:1px solid transparent;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.78rem;font-family:inherit;" /></td>';
                                 }
+                                var erKey = fk + '[' + ri + '].' + nf.key + '[' + r.vi + ']';
+                                // Hidden raw value bound to the real state key (this is what we actually submit)
+                                tds += '<td style="display:none;"><input type="hidden" class="er-card-input" value="' + _esc(String(r.raw || '')) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" data-er-lineitem-hidden="1" data-er-sep="' + _esc(String(r.sep || ',')) + '" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></td>';
                                 return '<tr>' + tds + '</tr>';
                             }).join('');
                             return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'
@@ -1186,6 +1191,33 @@
         if (el.classList.contains('er-card-input')) el.classList.add('er-card-input--edited');
         else if (el.classList.contains('er-table-input')) el.classList.add('er-table-input--edited');
         else el.classList.add('er-field-input--edited');
+    };
+
+    // Editable line items parts table: update the underlying hidden raw value (real state key)
+    // whenever a user edits any "Part" input.
+    window._afErLineItemPartsChanged = function (el) {
+        try {
+            if (!el) return;
+            el.style.borderBottomColor = 'var(--warning,#f59e0b)';
+            var tr = el.closest('tr');
+            if (!tr) return;
+            var hidden = tr.querySelector('input[data-er-lineitem-hidden="1"][data-er-key]');
+            if (!hidden) return;
+            var sep = (hidden.getAttribute('data-er-sep') || ',').trim() || ',';
+            var joiner = ', ';
+            if (sep === '|') joiner = ' | ';
+            else if (sep === ';') joiner = '; ';
+            else if (sep === ',') joiner = ', ';
+            else joiner = sep + ' ';
+            var parts = Array.prototype.slice.call(tr.querySelectorAll('input.er-lineitem-part-input')).map(function (p) {
+                return (p && p.value != null) ? String(p.value).trim() : '';
+            });
+            // Trim empty trailing parts so we don't generate noisy separators at the end
+            while (parts.length && !parts[parts.length - 1]) parts.pop();
+            var raw = parts.join(joiner);
+            hidden.value = raw;
+            if (window._afErFieldChanged) window._afErFieldChanged(hidden);
+        } catch (_) { /* ignore */ }
     };
 
     window.afRenderReviewData = afRenderReviewData;
