@@ -294,8 +294,13 @@
 
         function _isDatePlaceholder(s) {
             if (!s || typeof s !== 'string') return true;
-            var t = s.trim().toLowerCase();
-            return !t || /^dd[\/\-\.]mm[\/\-\.]yyyy$/i.test(t) || /^mm[\/\-\.]dd[\/\-\.]yyyy$/i.test(t) || /^yyyy[\/\-\.]mm[\/\-\.]dd$/i.test(t) || /^dd\/mm\/yy$/i.test(t) || t === 'dd/mm/yyyy' || t === 'mm/dd/yyyy' || t === 'yyyy-mm-dd';
+            var t = String(s).trim().toLowerCase();
+            if (!t) return true;
+            var ph = ['dd/mm/yyyy', 'mm/dd/yyyy', 'yyyy-mm-dd', 'dd-mm-yyyy', 'mm-dd-yyyy', 'dd.mm.yyyy', 'mm.dd.yyyy', 'dd/mm/yy', 'mm/dd/yy', 'dd-mm-yy', 'mm-dd-yy'];
+            if (ph.indexOf(t) >= 0) return true;
+            if (/^dd[\/\-\.]mm[\/\-\.]yyyy$/i.test(t) || /^mm[\/\-\.]dd[\/\-\.]yyyy$/i.test(t) || /^yyyy[\/\-\.]mm[\/\-\.]dd$/i.test(t) || /^dd\/mm\/yy$/i.test(t)) return true;
+            if (/dd\s*[\/\-\.]\s*mm\s*[\/\-\.]\s*yyyy/i.test(t) || /mm\s*[\/\-\.]\s*dd\s*[\/\-\.]\s*yyyy/i.test(t)) return true;
+            return false;
         }
         function _getNestedVal(obj, key) {
             if (!obj || key == null) return undefined;
@@ -559,29 +564,75 @@
                         el.appendChild(img);
                         el.setAttribute('data-er-loaded', '1');
                     } else if (isPdf) {
-                        var reader = new FileReader();
-                        reader.onload = function () {
-                            var dataUrl = reader.result;
-                            var iframe = document.createElement('iframe');
-                            iframe.src = dataUrl;
-                            iframe.className = 'er-doc-pdf';
-                            iframe.style.cssText = 'width:100%;min-height:500px;border:none;border-radius:8px;background:#fff;';
-                            el.appendChild(iframe);
-                            el.setAttribute('data-er-loaded', '1');
-                            _log('loadable[' + idx + '] PDF displayed (data URL)');
+                        var showPdfFallback = function () {
+                            var reader = new FileReader();
+                            reader.onload = function () {
+                                var dataUrl = reader.result;
+                                var iframe = document.createElement('iframe');
+                                iframe.src = dataUrl;
+                                iframe.className = 'er-doc-pdf';
+                                iframe.style.cssText = 'width:100%;min-height:500px;border:none;border-radius:8px;background:#fff;';
+                                el.appendChild(iframe);
+                                el.setAttribute('data-er-loaded', '1');
+                                _log('loadable[' + idx + '] PDF displayed (data URL fallback)');
+                            };
+                            reader.onerror = function () {
+                                var blobUrl = URL.createObjectURL(blob);
+                                var obj = document.createElement('object');
+                                obj.data = blobUrl;
+                                obj.type = 'application/pdf';
+                                obj.className = 'er-doc-pdf';
+                                obj.style.cssText = 'width:100%;min-height:500px;border:none;border-radius:8px;';
+                                el.appendChild(obj);
+                                el.setAttribute('data-er-loaded', '1');
+                                _log('loadable[' + idx + '] PDF displayed (blob URL fallback)');
+                            };
+                            reader.readAsDataURL(blob);
                         };
-                        reader.onerror = function () {
-                            var blobUrl = URL.createObjectURL(blob);
-                            var obj = document.createElement('object');
-                            obj.data = blobUrl;
-                            obj.type = 'application/pdf';
-                            obj.className = 'er-doc-pdf';
-                            obj.style.cssText = 'width:100%;min-height:500px;border:none;border-radius:8px;';
-                            el.appendChild(obj);
-                            el.setAttribute('data-er-loaded', '1');
-                            _log('loadable[' + idx + '] PDF fallback (blob URL)');
-                        };
-                        reader.readAsDataURL(blob);
+                        _loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js').then(function () {
+                            var pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+                            if (!pdfjsLib || !pdfjsLib.getDocument) return Promise.reject(new Error('PDF.js not loaded'));
+                            if (pdfjsLib.GlobalWorkerOptions) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                            return blob.arrayBuffer();
+                        }).then(function (ab) {
+                            var pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+                            return pdfjsLib.getDocument({ data: ab }).promise;
+                        }).then(function (pdfDoc) {
+                            var wrap = document.createElement('div');
+                            wrap.className = 'er-doc-pdf-wrap';
+                            wrap.style.cssText = 'width:100%;max-height:600px;overflow-y:auto;background:#525659;padding:12px;border-radius:8px;';
+                            el.appendChild(wrap);
+                            var numPages = Math.min(pdfDoc.numPages, 50);
+                            var renderNext = function (pageNum) {
+                                if (pageNum > numPages) {
+                                    if (pdfDoc.numPages > 50) {
+                                        var more = document.createElement('div');
+                                        more.style.cssText = 'text-align:center;color:#94a3b8;font-size:12px;padding:8px;';
+                                        more.textContent = '… Showing first 50 of ' + pdfDoc.numPages + ' pages. Use Download for full file.';
+                                        wrap.appendChild(more);
+                                    }
+                                    el.setAttribute('data-er-loaded', '1');
+                                    _log('loadable[' + idx + '] PDF displayed (PDF.js)');
+                                    return;
+                                }
+                                return pdfDoc.getPage(pageNum).then(function (page) {
+                                    var scale = 1.5;
+                                    var viewport = page.getViewport({ scale: scale });
+                                    var canvas = document.createElement('canvas');
+                                    var ctx = canvas.getContext('2d');
+                                    canvas.height = viewport.height;
+                                    canvas.width = viewport.width;
+                                    canvas.style.cssText = 'display:block;margin:0 auto 12px;max-width:100%;height:auto;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+                                    wrap.appendChild(canvas);
+                                    return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () { return renderNext(pageNum + 1); });
+                                });
+                            };
+                            return renderNext(1);
+                        }).catch(function (err) {
+                            _log('loadable[' + idx + '] PDF.js FAILED, using fallback', { error: err && err.message });
+                            el.innerHTML = '';
+                            showPdfFallback();
+                        });
                     }
                 }).catch(function (err) {
                     _log('loadable[' + idx + '] FAILED', { error: err && err.message, fileId: fileId });
