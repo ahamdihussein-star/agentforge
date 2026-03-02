@@ -178,7 +178,11 @@ class NotificationService:
                 if failed:
                     result['failed_recipients'] = failed
                 logger.info("[_send_email] Result: %s", result)
-                return result
+                # If platform email failed for ALL recipients, try SMTP fallback (if configured).
+                # This avoids "not sent" regressions when SendGrid rejects a payload.
+                if sent > 0:
+                    return result
+                logger.warning("[_send_email] Platform email failed for all recipients; trying SMTP fallback if configured")
             except Exception as e:
                 logger.warning(f"Platform email service failed: {e}, falling back to SMTP if configured")
         
