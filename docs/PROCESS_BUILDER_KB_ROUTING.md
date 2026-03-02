@@ -153,6 +153,42 @@ trigger → form → [data source A: extract/form/tool] → [data source B: tool
 - A condition node immediately after the AI step MUST check `matchFound`. Only the TRUE branch continues to detailed evaluation, approvals, or reports. The FALSE branch sends a notification that includes `{{outputVariable.matchFailureReason}}` and routes to end.
 - This pattern applies to ANY domain: finance, HR, procurement, compliance, operations, etc.
 
+### Classification-Based Multi-Level Routing Cascade
+When routing depends on a classification level (risk, severity, priority, compliance grade, etc.) with multiple tiers, use nested condition nodes to create a cascade. Each tier routes to the appropriate action.
+
+```
+ai (evaluate & classify) → condition1 (overallLevel is "Clean"?)
+                            ├── yes → auto-approve / notify only → ──────────┐
+                            └── no → condition2 (overallLevel is "Low"?)      │
+                                       ├── yes → first-level approval → ──────┤
+                                       └── no → higher-level approval → ──────┤
+                                                (with escalation)             │
+                                                                              └── end
+```
+
+Rules:
+- The AI step that performs evaluation MUST output an `overallLevel` (or equivalent) text field that condition nodes can check. This is the single field that drives routing.
+- Each condition checks ONE classification value. Use `equals` operator.
+- The YES branch handles the matched classification. The NO branch falls through to the next condition.
+- The last NO branch catches all remaining (highest severity) cases.
+- Escalation (e.g., "escalate to Director after 24 hours") is configured on the approval node using `escalation_enabled`, `escalation_after_hours`, and `escalation_assignee_ids`.
+- Notifications that should happen in ALL paths (e.g., "Always notify AP Team") should be placed on every branch before they converge, or use a shared notification after convergence.
+- This pattern is GENERIC — it works for any domain: financial risk levels, compliance grades, security threat levels, quality ratings, support ticket priorities, etc.
+
+### Report Generation from Upstream Data
+When the workflow generates a document (Excel, PDF, Word) that must include data from earlier steps:
+
+```
+ai (analyze → output_variable: "analysis") → ai (create_doc, prompt references {{analysis.results}})
+```
+
+Rules:
+- The report generation step (AI with `aiMode: "create_doc"`) MUST reference the upstream output variable in its `prompt` using `{{variableName.fieldName}}`.
+- The prompt MUST describe the exact document structure (sheets for Excel, sections for PDF/Word) with the specific columns/fields to include.
+- The AI generating the report reads the structured data from the upstream variable and populates the document accordingly.
+- For Excel reports with multiple sheets, describe each sheet name and its columns in the prompt.
+- Include an instruction: "Only include the data fields specified. Do not add extra columns like file IDs, system metadata, or internal references."
+
 ## Process Complexity Guidelines
 
 | Complexity | Steps | Includes |

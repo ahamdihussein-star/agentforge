@@ -264,6 +264,21 @@ For modes 4-7: use `prompt`, `instructions`, `outputFields`, `creativity`, `conf
 **Data Matching Validation Gate (IMPORTANT):**
 When an AI step's task is to match, compare, reconcile, validate, or cross-reference data from two different sources (extracted fields vs. API records, form data vs. database records, uploaded files vs. reference data, etc.), the step MUST include a `matchFound` boolean AND a `matchFailureReason` text field in `outputFields`. The AI step's `instructions` MUST tell the AI to set `matchFound` to `false` when the data from the first source cannot be matched against any record from the second source — whether because the first source is missing the identifier needed for lookup, the identifier exists but has no corresponding record, or the second source returned no data. In all cases, `matchFailureReason` must explain why in business-friendly language. A downstream condition node MUST check `matchFound` before routing to any detailed evaluation, approval, or reporting paths. The FALSE branch should send a notification including `matchFailureReason` and route to end.
 
+**Rule-Based Classification & Findings Pattern (IMPORTANT):**
+When the user's prompt describes rules that evaluate items and assign classifications (risk levels, severity, priority, compliance status, quality grades, etc.) and/or flag findings (anomalies, issues, violations, defects, discrepancies, warnings, etc.), the AI step MUST structure its `outputFields` to capture both the per-item details AND the overall summary. This enables downstream condition nodes to route based on the overall result, report generation steps to use the structured data, and notification templates to reference summary fields.
+
+Required `outputFields` pattern:
+1. A `results` field (type `list`): one entry per evaluated item. Each entry contains identification fields (e.g., invoiceNumber, employeeName, recordId), a `findings` sub-list (each finding has `type` and `riskLevel`/`severity`), and an item-level classification field.
+2. An overall classification field (type `text`, e.g., `overallRiskLevel`, `overallSeverity`, `overallStatus`): the highest/worst classification across all items. This is the field that downstream condition nodes check for routing.
+3. Summary count fields (type `number`): totals by classification category. For example: `totalItems`, `cleanCount`, `flaggedCount`, etc. These feed into report generation and notification templates.
+
+Required `instructions` pattern:
+- Each business rule from the user's prompt becomes one instruction string in the `instructions` array.
+- Add a final instruction: "Determine the overall classification as the highest severity across all evaluated items. Return all numeric fields as pure numbers."
+- Rules that use phrases like "flag anomaly", "flag as risk", "classify as", "mark as", "report as" should produce entries in the `findings` list with the specified type and classification.
+
+This pattern is GENERIC and applies to any domain: finance (risk levels), HR (compliance status), quality (defect severity), security (threat level), procurement (match status), etc. The wizard should NOT hardcode field names for a specific domain — it should derive the field names from the user's prompt (e.g., "risk level" → `riskLevel`, "compliance status" → `complianceStatus`).
+
 **Connected Tools (optional — any AI mode):**
 - `enabledToolIds` (array of strings): IDs of platform tools the AI can call during execution.
 - When connected, the AI can invoke these tools to fetch real-time data, query databases, call APIs, etc.

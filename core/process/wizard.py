@@ -275,6 +275,15 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
      - FALSE branch → sends a notification including the `matchFailureReason` explaining why the data could not be matched, then routes to end.
   This prevents workflows from proceeding to approvals or reports when no meaningful comparison was possible.
   This rule applies universally to ANY domain — finance, HR, procurement, compliance, operations, etc.
+- RULE-BASED CLASSIFICATION & FINDINGS (CRITICAL):
+  When the user's prompt describes rules that classify items or flag findings (e.g., "flag anomaly X as High Risk", "mark as non-compliant", "classify as Critical"), the AI step MUST:
+  1. Include a `results` list in `outputFields` with per-item details and their findings/classifications.
+  2. Include an `overallLevel` (or domain-appropriate equivalent like `overallRiskLevel`) text field — this is the field downstream conditions check.
+  3. Include summary count fields (e.g., `totalItems`, `flaggedCount`, `cleanCount`) for reports and notifications.
+  4. Each business rule from the prompt becomes one string in the `instructions` array.
+  5. Add a final instruction: "Determine the overall classification as the highest severity across all evaluated items."
+  This pattern is GENERIC — derive field names from the user's prompt, never hardcode domain-specific names.
+  For multi-level routing (e.g., "Clean → auto-approve, Low → Manager, High → Director"), use NESTED condition nodes — see the "Classification-Based Multi-Level Routing Cascade" pattern in the Knowledge Base.
 - PARALLEL TASKS — WHEN TO USE THE PARALLEL NODE:
   When the user mentions "parallel", "at the same time", "simultaneously", or when two or more INDEPENDENT actions (not approver notification) should run concurrently, you MUST use a "parallel" node.
   Common patterns that REQUIRE a parallel node:
@@ -425,6 +434,12 @@ Node config rules:
      GOOD: {{"name":"totalAmount","type":"number"}}, {{"name":"currency","type":"text"}}
   3. Add an instruction: "Return numeric fields as pure numbers (e.g., 500), not as formatted strings (e.g., '500 AED')."
   4. For multi-file inputs: the prompt MUST say "across ALL files/receipts/documents" (not just "from the receipt").
+- DOCUMENT GENERATION FROM UPSTREAM DATA (CRITICAL for reports):
+  When an AI step generates a document (create_doc) that must include data from earlier steps:
+  1. The prompt MUST reference the upstream output variable: "Using the data from {{{{analysisResult.results}}}}, generate..."
+  2. The prompt MUST describe the exact document structure (sheet names, column names, sections).
+  3. Add an instruction: "Only include the data fields specified. Do not add extra columns like file IDs, system metadata, user info, or internal references."
+  4. The upstream AI step's outputFields MUST include ALL data needed by the report — the report step cannot access data that wasn't explicitly output by a previous step.
 - When an AI node parses data into JSON, subsequent condition nodes can reference fields from the parsed output (e.g., if AI stores result in "parsedData", a condition can check "parsedData.totalAmount").
 - tool.config must include: {{ "toolId": "<id from tools_json>", "params": {{...}}, "outputFields": [...] }}.
   Only use if tools_json has items.
