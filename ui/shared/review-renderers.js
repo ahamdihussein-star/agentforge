@@ -46,7 +46,9 @@
             'execution_id', 'executionid', 'process_id', 'processid',
             'node_id', 'nodeid', 'step_id', 'stepid',
         ];
-        return skip.includes(nk);
+        if (skip.includes(nk)) return true;
+        if (/^(uploaded|upload|invoiceupload|uploadedinvoice|fileinput|fileupload)/i.test(nk)) return true;
+        return false;
     }
 
     function _isFileMetadataObj(v) {
@@ -193,6 +195,11 @@
             if (typeof v === 'string' && _looksLikeUuid(v) && /(^|_|\s)(id|uuid)(_|$)/i.test(String(k))) return false;
             if (typeof v === 'string' && _looksLikeUuid(v.trim())) return false;
             if (_isDuplicateFileRef(k, v, allEntries)) return false;
+            // Hide objects where all values are 0 (empty extraction result)
+            if (v && typeof v === 'object' && !Array.isArray(v) && !_isUploadedFile(v) && !_isFileMetadataObj(v)) {
+                var vals = Object.values(v);
+                if (vals.length > 0 && vals.every(function (x) { return x === 0 || x === '0' || x === '' || x === null; })) return false;
+            }
             return true;
         });
         if (!entries.length) return '';
@@ -373,18 +380,31 @@
             return false;
         }
         function _normalizeKey(s) { return String(s || '').toLowerCase().replace(/[\s_\-]+/g, ''); }
-        function _getNestedVal(obj, key) {
-            if (!obj || key == null) return undefined;
-            var k = String(key).trim();
-            if (!k) return undefined;
-            // Direct key
+        function _findInObj(obj, k) {
+            if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return undefined;
             if (obj[k] !== undefined) return obj[k];
             var objKeys = Object.keys(obj);
-            // Case-insensitive match
             var kLow = k.toLowerCase();
             for (var ci = 0; ci < objKeys.length; ci++) {
                 if (objKeys[ci].toLowerCase() === kLow) return obj[objKeys[ci]];
             }
+            var snake = k.replace(/([A-Z])/g, function (m) { return '_' + m.toLowerCase(); });
+            var camel = k.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
+            if (snake !== k && obj[snake] !== undefined) return obj[snake];
+            if (camel !== k && obj[camel] !== undefined) return obj[camel];
+            var kNorm = _normalizeKey(k);
+            for (var ni = 0; ni < objKeys.length; ni++) {
+                if (_normalizeKey(objKeys[ni]) === kNorm) return obj[objKeys[ni]];
+            }
+            return undefined;
+        }
+        function _getNestedVal(obj, key) {
+            if (!obj || key == null) return undefined;
+            var k = String(key).trim();
+            if (!k) return undefined;
+            // Direct and fuzzy match at top level
+            var found = _findInObj(obj, k);
+            if (found !== undefined) return found;
             // Dot-path traversal
             if (k.indexOf('.') >= 0) {
                 var parts = k.split('.');
@@ -392,15 +412,14 @@
                 for (var i = 0; i < parts.length && cur != null; i++) cur = cur[parts[i]];
                 if (cur !== undefined) return cur;
             }
-            // camelCase ↔ snake_case fallback
-            var snake = k.replace(/([A-Z])/g, function (m) { return '_' + m.toLowerCase(); });
-            var camel = k.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
-            if (snake !== k && obj[snake] !== undefined) return obj[snake];
-            if (camel !== k && obj[camel] !== undefined) return obj[camel];
-            // Normalized match (strip spaces, underscores, hyphens, case)
-            var kNorm = _normalizeKey(k);
-            for (var ni = 0; ni < objKeys.length; ni++) {
-                if (_normalizeKey(objKeys[ni]) === kNorm) return obj[objKeys[ni]];
+            // Search ONE level deeper: look inside nested objects
+            var objKeys = Object.keys(obj);
+            for (var di = 0; di < objKeys.length; di++) {
+                var child = obj[objKeys[di]];
+                if (child && typeof child === 'object' && !Array.isArray(child)) {
+                    var deepVal = _findInObj(child, k);
+                    if (deepVal !== undefined) return deepVal;
+                }
             }
             return undefined;
         }
@@ -410,12 +429,23 @@
         }
         var fieldsToRender = outputFields.length ? outputFields : _topLevelKeys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
         var _missingFields = [];
-        var dataRowsHtml = fieldsToRender.map(function (field) {
+        var _renderField = function (field) {
             var key = field.name || field;
             var label = field.label || _humanize(key);
             var val = _getNestedVal(extractedData, key);
             if (val === undefined || val === null) _missingFields.push(key);
             var fieldType = field.type || 'text';
+            if (val && typeof val === 'object' && !Array.isArray(val)) {
+                var subEntries = Object.entries(val).filter(function (e) { return e[1] != null && e[1] !== ''; });
+                if (subEntries.length) {
+                    var subRows = subEntries.map(function (e) {
+                        return '<div style="display:flex;gap:10px;align-items:baseline;padding:2px 0;">' +
+                            '<span style="min-width:100px;font-size:.76rem;font-weight:600;color:var(--text-secondary,var(--pb-muted,#94a3b8));">' + _esc(_humanize(e[0])) + '</span>' +
+                            '<span style="color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.85rem;">' + _esc(String(e[1])) + '</span></div>';
+                    }).join('');
+                    return '<div class="er-field er-field--full" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><div class="er-field-value" style="display:flex;flex-direction:column;gap:2px;">' + subRows + '</div></div>';
+                }
+            }
             if (Array.isArray(val)) {
                 return '<div class="er-field er-field--full" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><div class="er-field-value er-field-value--table">' + renderArray(val, key) + '</div></div>';
             }
@@ -426,9 +456,17 @@
             var ro = opts.readonly ? 'readonly' : '';
             var ph = isDateField && !displayVal ? ' placeholder="— Not extracted"' : '';
             return '<div class="er-field" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><input class="er-field-input" type="' + inputType + '" value="' + _esc(displayVal) + '" data-er-key="' + _esc(key) + '" data-er-type="' + _esc(fieldType) + '" ' + ro + ph + ' onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></div>';
-        }).join('');
+        };
+        var dataRowsHtml = fieldsToRender.map(_renderField).join('');
         if (_missingFields.length > 0) {
             try { console.warn('[afRenderExtractionReview] Fields with no value:', _missingFields, '| extractedData keys:', Object.keys(extractedData), '| rawExtracted keys:', Object.keys(rawExtracted)); } catch (_) {}
+        }
+        // Fallback: if ALL configured fields are empty, show raw data so it's not a blank panel
+        if (_missingFields.length === fieldsToRender.length && fieldsToRender.length > 0 && _topLevelKeys(extractedData).length > 0) {
+            try { console.warn('[afRenderExtractionReview] ALL fields empty – falling back to raw data view'); } catch (_) {}
+            var fallbackFields = _topLevelKeys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
+            _missingFields = [];
+            dataRowsHtml = fallbackFields.map(_renderField).join('');
         }
 
         function _hasAnomalyVal(obj) {
