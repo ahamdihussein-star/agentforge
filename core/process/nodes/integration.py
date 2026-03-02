@@ -1486,6 +1486,18 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
             "Write the document content now."
         )
 
+        logs.append(f"Document generation — title: {title}")
+        logs.append(f"Document generation — instructions ({len(instructions)} chars): {instructions[:400]}{'...' if len(instructions) > 400 else ''}")
+        logs.append(f"Document generation — available variables: {list(trimmed.keys())}")
+        for _vk in list(trimmed.keys())[:10]:
+            _vv = trimmed[_vk]
+            if isinstance(_vv, list):
+                logs.append(f"  {_vk}: list[{len(_vv)}]")
+            elif isinstance(_vv, dict):
+                logs.append(f"  {_vk}: dict with keys {list(_vv.keys())[:10]}")
+            else:
+                logs.append(f"  {_vk}: {repr(_vv)[:150]}")
+
         try:
             from core.llm.base import Message, MessageRole
             resp = await llm.chat(

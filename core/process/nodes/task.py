@@ -106,7 +106,7 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         # Interpolate prompt with variables
         try:
             prompt = state.interpolate_string(prompt_template)
-            logs.append(f"Interpolated prompt: {prompt[:100]}...")
+            logs.append(f"Interpolated prompt ({len(prompt)} chars): {prompt[:500]}{'...' if len(prompt) > 500 else ''}")
         except Exception as e:
             return NodeResult.failure(
                 error=ExecutionError.validation_error(f"Failed to interpolate prompt: {e}"),
@@ -517,9 +517,20 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         output = content
         if output_format == 'json' or output_schema:
             try:
-                # Try to extract JSON from response
                 output = self._parse_json_response(content)
-                logs.append("Parsed JSON output successfully")
+                if isinstance(output, dict):
+                    _out_keys = list(output.keys())
+                    logs.append(f"Parsed JSON output: {len(_out_keys)} fields → {_out_keys}")
+                    for _ok in _out_keys[:15]:
+                        _ov = output[_ok]
+                        if isinstance(_ov, list):
+                            logs.append(f"  {_ok}: list[{len(_ov)}]{' → ' + str(_ov[0])[:200] if _ov else ''}")
+                        elif isinstance(_ov, dict):
+                            logs.append(f"  {_ok}: dict → {str(_ov)[:200]}")
+                        else:
+                            logs.append(f"  {_ok}: {repr(_ov)[:200]}")
+                else:
+                    logs.append(f"Parsed JSON output (type={type(output).__name__}): {str(output)[:300]}")
             except json.JSONDecodeError as e:
                 # IMPORTANT: If JSON was requested, invalid JSON is a hard failure.
                 # Returning "success" here causes downstream nodes to see strings/None and fail silently
@@ -561,25 +572,29 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             # Step 3: Ensure total = sum(items), count = len(items)
             output = self._auto_correct_totals(output, logs)
         
-        # Typed field coercion: if outputFields with types are defined, validate and coerce
         output_fields = self.get_config_value(node, 'outputFields') or []
+        if output_fields:
+            _expected = [(f.get('name'), f.get('type', 'text')) for f in output_fields if f.get('name')]
+            logs.append(f"Expected output fields: {_expected}")
+            if isinstance(output, dict):
+                _missing = [n for n, _ in _expected if n not in output]
+                if _missing:
+                    logs.append(f"WARNING: Missing fields in AI output: {_missing}")
         if isinstance(output, dict) and output_fields:
             output = self._coerce_typed_fields(output, output_fields, logs)
 
-        # Update variables if output_variable specified
         variables_update = {}
         if node.output_variable:
             ov = node.output_variable
             if isinstance(output, dict) and ov in output and len(output) <= 5:
-                # Auto-flatten: the AI returned a dict containing a key that matches
-                # the output_variable name (e.g., output_variable="severity" and
-                # output={"severity":"Low","reasoning":"..."}). Store the matching
-                # value directly so {{severity}} resolves to "Low" instead of the
-                # full dict. The complete dict remains available in the step output.
                 variables_update[ov] = output[ov]
-                logs.append(f"Variable '{ov}' set to: {output[ov]}")
+                logs.append(f"Variable '{ov}' auto-flattened to: {repr(output[ov])[:300]}")
             else:
                 variables_update[ov] = output
+                if isinstance(output, dict):
+                    logs.append(f"Variable '{ov}' set as dict with keys: {list(output.keys())}")
+                else:
+                    logs.append(f"Variable '{ov}' set to: {repr(output)[:300]}")
         
         # ── Human Review gate ─────────────────────────────────────────
         # If the AI step has `humanReview: true`, pause execution so a

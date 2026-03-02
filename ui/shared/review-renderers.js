@@ -255,6 +255,10 @@
 .er-table{width:100%;border-collapse:collapse;font-size:.82rem;color:var(--text-primary,var(--pb-text,#f1f5f9))}
 .er-table th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--border-color,var(--pb-border,#333));font-weight:700;text-transform:uppercase;font-size:.72rem;letter-spacing:.3px;color:var(--text-secondary,var(--pb-muted,#94a3b8))}
 .er-table td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 50%, transparent);color:var(--text-primary,var(--pb-text,#f1f5f9))}
+.er-table-input{width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;transition:border-color .2s,background .2s}
+.er-table-input:hover{border-color:color-mix(in srgb, var(--border-color,var(--pb-border,#333)) 60%, transparent)}
+.er-table-input:focus{border-color:var(--primary,var(--pb-primary,#6366f1));background:var(--bg-input,var(--pb-bg,#2d2d3d));outline:none;box-shadow:0 0 0 2px color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 20%, transparent)}
+.er-table-input--edited{border-color:var(--warning,#f59e0b) !important;background:color-mix(in srgb, var(--warning,#f59e0b) 6%, transparent) !important}
 .er-confirm-section{padding:12px 16px;border-top:1px solid var(--border,var(--pb-border,#333));flex-shrink:0}
 .er-confirm-actions{display:flex;gap:10px;margin-top:10px}
 .er-anomaly-banner{background:color-mix(in srgb, var(--warning,#f59e0b) 8%, var(--bg-card,var(--pb-panel,#1e1e2e)));border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 40%, var(--border-color,#333));border-radius:12px;padding:14px 16px;margin-bottom:12px;animation:erBannerSlideIn .5s ease;color:var(--text-primary,var(--pb-text,#f1f5f9))}
@@ -394,7 +398,17 @@
             if (!arr || !arr.length) return '<em>empty</em>';
             if (typeof arr[0] !== 'object') return arr.map(function (v) { return '<div>' + _esc(String(v)) + '</div>'; }).join('');
             var cols = Object.keys(arr[0]);
-            return '<table class="er-table" data-er-field="' + _esc(fieldKey || '') + '"><thead><tr>' + cols.map(function (c) { return '<th>' + _esc(_humanize(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) { return '<tr data-row-idx="' + ri + '">' + cols.map(function (c) { return '<td>' + _cellVal(row[c]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+            var fk = fieldKey || '';
+            return '<table class="er-table" data-er-field="' + _esc(fk) + '"><thead><tr>' + cols.map(function (c) { return '<th>' + _esc(_humanize(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) {
+                return '<tr data-row-idx="' + ri + '">' + cols.map(function (c) {
+                    var v = row[c];
+                    if (v !== null && v !== undefined && typeof v !== 'object') {
+                        var erKey = fk + '[' + ri + '].' + c;
+                        return '<td><input class="er-table-input" type="text" value="' + _esc(String(v)) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></td>';
+                    }
+                    return '<td>' + _cellVal(v) + '</td>';
+                }).join('') + '</tr>';
+            }).join('') + '</tbody></table>';
         };
 
         function _isDatePlaceholder(s) {
@@ -717,15 +731,32 @@
                     _log('loadable[' + idx + '] blob received', { size: blob && blob.size });
                     el.innerHTML = '';
                     if (isImage) {
+                        var imgToolbar = document.createElement('div');
+                        imgToolbar.className = 'er-pdf-toolbar';
+                        var imgZoomOut = document.createElement('button'); imgZoomOut.textContent = '\u2212'; imgZoomOut.title = 'Zoom out';
+                        var imgZoomLabel = document.createElement('span'); imgZoomLabel.textContent = '100%';
+                        var imgZoomIn = document.createElement('button'); imgZoomIn.textContent = '+'; imgZoomIn.title = 'Zoom in';
+                        imgToolbar.appendChild(imgZoomOut); imgToolbar.appendChild(imgZoomLabel); imgToolbar.appendChild(imgZoomIn);
+                        el.appendChild(imgToolbar);
+
+                        var imgWrap = document.createElement('div');
+                        imgWrap.style.cssText = 'width:100%;overflow:auto;text-align:center;border-radius:8px;';
                         var blobUrl = URL.createObjectURL(blob);
                         var img = document.createElement('img');
                         img.src = blobUrl;
                         img.alt = fName;
                         img.className = 'er-doc-image er-doc-image--loaded';
-                        img.style.maxWidth = '100%';
-                        img.style.borderRadius = '8px';
-                        img.onload = function () { img.classList.add('er-doc-image--loaded'); el.setAttribute('data-er-loaded', '1'); _log('loadable[' + idx + '] image loaded'); };
-                        el.appendChild(img);
+                        img.style.cssText = 'max-width:100%;border-radius:8px;';
+                        img.onload = function () { img.classList.add('er-doc-image--loaded'); _log('loadable[' + idx + '] image loaded'); };
+                        imgWrap.appendChild(img);
+                        el.appendChild(imgWrap);
+
+                        var imgZoom = 1;
+                        imgZoomOut.onclick = function () { imgZoom = Math.max(0.5, imgZoom - 0.25); img.style.maxWidth = (100 / imgZoom) + '%'; img.style.width = (100 * imgZoom) + '%'; imgZoomLabel.textContent = Math.round(imgZoom * 100) + '%'; };
+                        imgZoomIn.onclick = function () { imgZoom = Math.min(3, imgZoom + 0.25); img.style.maxWidth = (100 / imgZoom) + '%'; img.style.width = (100 * imgZoom) + '%'; imgZoomLabel.textContent = Math.round(imgZoom * 100) + '%'; };
+
+                        el.style.display = 'block';
+                        el.style.minHeight = '';
                         el.setAttribute('data-er-loaded', '1');
                     } else if (isPdf) {
                         var showPdfFallback = function () {
@@ -762,6 +793,10 @@
                             var pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
                             return pdfjsLib.getDocument({ data: ab }).promise;
                         }).then(function (pdfDoc) {
+                            el.innerHTML = '';
+                            el.style.display = 'block';
+                            el.style.minHeight = '';
+
                             var toolbar = document.createElement('div');
                             toolbar.className = 'er-pdf-toolbar';
                             var zoomOut = document.createElement('button'); zoomOut.textContent = '\u2212'; zoomOut.title = 'Zoom out';
@@ -772,14 +807,18 @@
 
                             var wrap = document.createElement('div');
                             wrap.className = 'er-doc-pdf-wrap';
-                            wrap.style.cssText = 'width:100%;background:#525659;padding:12px;border-radius:8px;';
+                            wrap.style.cssText = 'width:100%;background:#525659;padding:12px;border-radius:8px;overflow:auto;';
                             el.appendChild(wrap);
 
                             var currentZoom = 1;
-                            zoomOut.onclick = function () { currentZoom = Math.max(0.5, currentZoom - 0.25); wrap.style.zoom = currentZoom; zoomLabel.textContent = Math.round(currentZoom * 100) + '%'; };
-                            zoomIn.onclick = function () { currentZoom = Math.min(3, currentZoom + 0.25); wrap.style.zoom = currentZoom; zoomLabel.textContent = Math.round(currentZoom * 100) + '%'; };
+                            var _applyPdfZoom = function () {
+                                var canvases = wrap.querySelectorAll('canvas');
+                                canvases.forEach(function (c) { c.style.width = (100 * currentZoom) + '%'; c.style.maxWidth = 'none'; });
+                                zoomLabel.textContent = Math.round(currentZoom * 100) + '%';
+                            };
+                            zoomOut.onclick = function () { currentZoom = Math.max(0.5, currentZoom - 0.25); _applyPdfZoom(); };
+                            zoomIn.onclick = function () { currentZoom = Math.min(3, currentZoom + 0.25); _applyPdfZoom(); };
 
-                            el.style.display = 'block';
                             var containerWidth = wrap.clientWidth || el.clientWidth || 500;
                             var numPages = Math.min(pdfDoc.numPages, 50);
                             var renderNext = function (pageNum) {
@@ -904,7 +943,9 @@
     };
 
     window._afErFieldChanged = function (el) {
-        if (el) el.classList.add('er-field-input--edited');
+        if (!el) return;
+        if (el.classList.contains('er-table-input')) el.classList.add('er-table-input--edited');
+        else el.classList.add('er-field-input--edited');
     };
 
     window.afRenderReviewData = afRenderReviewData;

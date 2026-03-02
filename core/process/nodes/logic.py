@@ -51,7 +51,14 @@ class ConditionNodeExecutor(BaseNodeExecutor):
         
         logs = [f"Evaluating condition: {expression}"]
         
-        # Evaluate condition
+        # Trace: resolve referenced variables so logs show actual values
+        try:
+            interpolated_expr = state.interpolate_string(expression)
+            if interpolated_expr != expression:
+                logs.append(f"Resolved values: {interpolated_expr[:300]}")
+        except Exception:
+            pass
+        
         try:
             result = state.evaluate_condition(expression)
             logs.append(f"Condition result: {result}")
