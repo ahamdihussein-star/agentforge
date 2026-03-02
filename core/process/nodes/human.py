@@ -487,9 +487,18 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     continue
                 if _k.lower().replace(' ', '_') in _SKIP_KEYS:
                     continue
-                # Skip large arrays of objects (likely raw tool/API outputs)
+                # Skip large arrays of objects (likely raw tool/API outputs),
+                # but keep arrays of uploaded files.
                 if isinstance(_v, list) and len(_v) > 5:
-                    if any(isinstance(item, dict) for item in _v):
+                    if any(
+                        isinstance(item, dict)
+                        and not (
+                            isinstance(item.get('kind'), str)
+                            and item['kind'].lower().replace('_', '') in ('uploadedfile',)
+                            or ('name' in item and ('file_type' in item or 'content_type' in item or 'download_url' in item))
+                        )
+                        for item in _v
+                    ):
                         continue
                 review_data[_k] = _v
         

@@ -313,7 +313,7 @@
             Object.keys(details).forEach(function (k) { if (!_isMetaKey(k)) topLevel[k] = details[k]; });
             if (_dataKeys(topLevel).length > 0) {
                 extractedData = _unwrapSingleKey(topLevel, outputVariable);
-                _log('extractedData: fell back to top-level details keys', { keys: Object.keys(extractedData) });
+                try { console.log('[afRenderExtractionReview] extractedData: fell back to top-level details keys', { keys: Object.keys(extractedData) }); } catch (_) {}
             }
         }
 
