@@ -38,9 +38,39 @@
     function _isInternalKey(k) {
         const nk = _keyNorm(k);
         if (!nk || nk.startsWith('_')) return true;
-        const skip = ['user_context', 'org_id', 'orgid', 'org', 'current_user', 'currentuser',
-            'submitted_information', 'submittedinformation', 'download_url', 'path', 'content_type', 'contenttype'];
+        const skip = [
+            'user_context', 'org_id', 'orgid', 'org', 'current_user', 'currentuser',
+            'submitted_information', 'submittedinformation', 'download_url', 'path',
+            'content_type', 'contenttype', 'trigger_input', 'triggerinput',
+            'approval_decision', 'approvaldecision',
+            'execution_id', 'executionid', 'process_id', 'processid',
+            'node_id', 'nodeid', 'step_id', 'stepid',
+        ];
         return skip.includes(nk);
+    }
+
+    function _isFileMetadataObj(v) {
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+        var keys = Object.keys(v);
+        var fileHints = ['filename', 'format', 'size', 'title'];
+        var matched = 0;
+        for (var i = 0; i < keys.length; i++) {
+            if (fileHints.indexOf(keys[i].toLowerCase()) !== -1) matched++;
+        }
+        return matched >= 2 && (v.filename || v.Filename);
+    }
+
+    function _isDuplicateFileRef(k, v, allEntries) {
+        if (!_isUploadedFile(v)) return false;
+        var vName = String(v && v.name || '').toLowerCase();
+        if (!vName) return false;
+        for (var i = 0; i < allEntries.length; i++) {
+            var ek = allEntries[i][0], ev = allEntries[i][1];
+            if (ek === k) continue;
+            if (_isUploadedFile(ev) && String(ev && ev.name || '').toLowerCase() === vName) return true;
+            if (Array.isArray(ev) && ev.some(function (x) { return _isUploadedFile(x) && String(x && x.name || '').toLowerCase() === vName; })) return true;
+        }
+        return false;
     }
 
     function _humanize(k) {
@@ -85,6 +115,17 @@
         } catch (_) { return ''; }
     }
 
+    function _renderFileMetadata(v) {
+        var fname = v.filename || v.Filename || v.name || v.title || 'File';
+        var fmt = v.format || v.Format || '';
+        var sz = (typeof v.size === 'number') ? (v.size > 1024 ? Math.round(v.size / 1024) + ' KB' : v.size + ' B') : '';
+        var meta = [fmt ? fmt.toUpperCase() : '', sz].filter(Boolean).join(' \u00b7 ');
+        return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;">'
+            + '<div style="min-width:0;"><div style="color:var(--text-primary,var(--pb-text,#eee));font-weight:700;word-break:break-word;">' + _esc(fname) + '</div>'
+            + (meta ? '<div style="margin-top:2px;color:var(--text-secondary,var(--pb-muted,#999));font-size:12px;">' + _esc(meta) + '</div>' : '')
+            + '</div></div>';
+    }
+
     function _renderValue(v, depth) {
         if (depth === undefined) depth = 0;
         try {
@@ -119,6 +160,7 @@
             }
             if (typeof v === 'object') {
                 if (_isUploadedFile(v)) return _renderFileLine(v);
+                if (_isFileMetadataObj(v)) return _renderFileMetadata(v);
                 if (depth >= 2) return '';
                 const entries = Object.entries(v).filter(([k]) => !_isInternalKey(k)).filter(([, val]) => val != null && val !== '');
                 if (!entries.length) return '';
@@ -144,10 +186,13 @@
             return `<div style="color:var(--text-secondary,var(--pb-muted,#999));font-size:13px;line-height:1.5;">${_esc(s.length > 320 ? s.slice(0, 320) + '\u2026' : s)}</div>`;
         }
         if (typeof rd !== 'object' || rd === null) return '';
-        const entries = Object.entries(rd).filter(([k, v]) => {
+        var allEntries = Object.entries(rd);
+        const entries = allEntries.filter(([k, v]) => {
             if (_isInternalKey(k)) return false;
             if (v === undefined || v === null || v === '') return false;
             if (typeof v === 'string' && _looksLikeUuid(v) && /(^|_|\s)(id|uuid)(_|$)/i.test(String(k))) return false;
+            if (typeof v === 'string' && _looksLikeUuid(v.trim())) return false;
+            if (_isDuplicateFileRef(k, v, allEntries)) return false;
             return true;
         });
         if (!entries.length) return '';

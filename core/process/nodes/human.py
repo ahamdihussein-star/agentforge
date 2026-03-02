@@ -472,8 +472,21 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                 logs.append(f"Warning: Failed to get review data: {e}")
                 review_data = {}
         else:
-            # Default: include relevant variables
-            review_data = state.get_all()
+            # Default: include relevant variables, but filter out
+            # internal/system keys that confuse non-technical approvers.
+            _raw = state.get_all()
+            _SKIP_PREFIXES = ('_', '__')
+            _SKIP_KEYS = {
+                'user_context', 'current_user', 'org_id', 'org',
+                'trigger_input', 'submitted_information',
+            }
+            review_data = {}
+            for _k, _v in _raw.items():
+                if any(_k.startswith(p) for p in _SKIP_PREFIXES):
+                    continue
+                if _k.lower().replace(' ', '_') in _SKIP_KEYS:
+                    continue
+                review_data[_k] = _v
         
         # Calculate deadline
         deadline = datetime.utcnow() + timedelta(hours=timeout_hours) if timeout_hours else None
