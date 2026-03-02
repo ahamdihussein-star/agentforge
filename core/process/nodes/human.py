@@ -1331,6 +1331,30 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             )
     
     # ── Attachment resolution ────────────────────────────────────────
+
+    _MIME_MAP = {
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'pdf': 'application/pdf',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'txt': 'text/plain',
+        'csv': 'text/csv',
+    }
+
+    def _try_resolve_file_info(self, val: Any) -> Optional[dict]:
+        """Extract {path, filename, format} from a state value that represents a generated document."""
+        import os
+        if not isinstance(val, dict):
+            return None
+        if val.get('path') and isinstance(val['path'], str):
+            if os.path.isfile(val['path']):
+                return val
+        data = val.get('data')
+        if isinstance(data, dict) and data.get('path') and isinstance(data['path'], str):
+            if os.path.isfile(data['path']):
+                return data
+        return None
+
     def _resolve_attachments(
         self, node, state, logs: list
     ) -> list:
@@ -1342,16 +1366,18 @@ class NotificationNodeExecutor(BaseNodeExecutor):
           - A raw string path (absolute filesystem path).
           - A dict with ``variable`` key (variable name whose state value has ``path``).
           - A dict with ``path`` key directly.
+
+        If no attachments are configured, auto-detects generated documents in state.
         """
         import os
 
         raw = self.get_config_value(node, 'attachments', [])
-        if not raw:
-            return []
-        if isinstance(raw, str):
+        logger.info("[NotifNode:%s] Attachments config raw: %s (type=%s)", node.name, raw, type(raw).__name__)
+
+        if isinstance(raw, str) and raw.strip():
             raw = [raw]
         if not isinstance(raw, list):
-            return []
+            raw = []
 
         result = []
         for entry in raw:
@@ -1359,28 +1385,25 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 file_info = None
 
                 if isinstance(entry, str):
-                    # Strip {{ }} wrapper if present to get the variable name
                     var_name = entry.strip()
                     if var_name.startswith('{{') and var_name.endswith('}}'):
                         var_name = var_name[2:-2].strip()
 
-                    # Try resolving as a state variable (returns raw dict for doc refs)
                     val = state.get(var_name)
-                    if isinstance(val, dict) and val.get('path'):
-                        file_info = val
-                    elif isinstance(val, str) and os.path.isfile(val):
+                    logger.info("[NotifNode:%s] Attachment var '%s' → type=%s, keys=%s",
+                                node.name, var_name, type(val).__name__,
+                                list(val.keys()) if isinstance(val, dict) else '(N/A)')
+                    file_info = self._try_resolve_file_info(val)
+                    if not file_info and isinstance(val, str) and os.path.isfile(val):
                         file_info = {'path': val, 'filename': os.path.basename(val)}
-                    else:
-                        # Fallback: try as literal path
-                        if os.path.isfile(entry):
-                            file_info = {'path': entry, 'filename': os.path.basename(entry)}
+                    if not file_info and os.path.isfile(entry):
+                        file_info = {'path': entry, 'filename': os.path.basename(entry)}
 
                 elif isinstance(entry, dict):
                     var_name = entry.get('variable') or entry.get('var')
                     if var_name:
                         val = state.get(str(var_name))
-                        if isinstance(val, dict) and val.get('path'):
-                            file_info = val
+                        file_info = self._try_resolve_file_info(val)
                     elif entry.get('path'):
                         file_info = entry
 
@@ -1393,15 +1416,7 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                         }
                         fmt = file_info.get('format', '')
                         if fmt:
-                            mime_map = {
-                                'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                                'pdf': 'application/pdf',
-                                'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                                'txt': 'text/plain',
-                                'csv': 'text/csv',
-                            }
-                            att['mime_type'] = mime_map.get(fmt, 'application/octet-stream')
+                            att['mime_type'] = self._MIME_MAP.get(fmt, 'application/octet-stream')
                         result.append(att)
                         logs.append(f"Attachment resolved: {att['filename']}")
                     else:
@@ -1410,6 +1425,29 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                     logs.append(f"Could not resolve attachment: {entry}")
             except Exception as exc:
                 logs.append(f"Attachment resolution error: {exc}")
+
+        # Auto-detect generated documents in state if no explicit attachments were configured or resolved
+        if not result:
+            logger.info("[NotifNode:%s] No attachments resolved from config, scanning state for generated docs", node.name)
+            try:
+                all_vars = state.get_all() if hasattr(state, 'get_all') else {}
+                for vk, vv in all_vars.items():
+                    fi = self._try_resolve_file_info(vv)
+                    if fi and fi.get('path') and fi.get('filename'):
+                        fpath = str(fi['path'])
+                        if os.path.isfile(fpath):
+                            att = {
+                                'path': fpath,
+                                'filename': fi.get('filename') or os.path.basename(fpath),
+                            }
+                            fmt = fi.get('format', '')
+                            if fmt:
+                                att['mime_type'] = self._MIME_MAP.get(fmt, 'application/octet-stream')
+                            result.append(att)
+                            logs.append(f"Auto-attached generated document: {att['filename']} (from variable '{vk}')")
+                            logger.info("[NotifNode:%s] Auto-attached: %s from var '%s'", node.name, att['filename'], vk)
+            except Exception as exc:
+                logs.append(f"Auto-attach scan error: {exc}")
 
         return result
 

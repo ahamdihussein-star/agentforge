@@ -520,9 +520,16 @@
                 Object.keys(row).forEach(function (c) {
                     var v = row[c];
                     if (typeof v === 'string' && v.length > 2 && (v[0] === '[' || v[0] === '{')) {
-                        try { var parsed = JSON.parse(v); if (Array.isArray(parsed)) { v = parsed; row[c] = parsed; } } catch (_) {}
+                        try {
+                            var parsed = JSON.parse(v);
+                            if (parsed && typeof parsed === 'object') { v = parsed; row[c] = parsed; }
+                        } catch (_) {}
                     }
                     if (Array.isArray(v)) nestedFields.push({ key: c, val: v });
+                    else if (v !== null && v !== undefined && typeof v === 'object') {
+                        var objArr = Array.isArray(v) ? v : [v];
+                        nestedFields.push({ key: c, val: objArr });
+                    }
                     else simpleFields.push({ key: c, val: v });
                 });
                 var gridHtml = simpleFields.map(function (sf) {
@@ -549,7 +556,9 @@
                                     + '</div>';
                             }).join('') + '</div></div>';
                     }
-                    var subCols = Object.keys(nf.val[0]);
+                    var subColSet = {};
+                    nf.val.forEach(function (sr) { if (sr && typeof sr === 'object') { Object.keys(sr).forEach(function (sk) { subColSet[sk] = 1; }); } });
+                    var subCols = Object.keys(subColSet);
                     return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'
                         + '<table class="er-card-sub-table"><thead><tr>' + subCols.map(function (sc) { return '<th>' + _esc(_humanize(sc)) + '</th>'; }).join('') + '</tr></thead><tbody>'
                         + nf.val.map(function (sr, si) {
