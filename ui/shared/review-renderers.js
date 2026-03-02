@@ -145,14 +145,29 @@
                 const arr = v.filter(x => x !== undefined && x !== null && x !== '');
                 if (!arr.length) return '';
                 if (arr.every(_isUploadedFile)) return `<div>${arr.slice(0, 10).map(_renderFileLine).join('')}${arr.length > 10 ? `<div style="margin-top:8px;color:var(--text-secondary,var(--pb-muted,#999));font-size:12px;">Showing 10 of ${arr.length} files.</div>` : ''}</div>`;
+                if (arr.length > 0 && arr[0] && typeof arr[0] === 'object' && !_isUploadedFile(arr[0])) {
+                    const allKeys = Object.keys(arr[0]);
+                    const primKeys = allKeys.filter(k => { const v0 = arr[0][k]; return v0 !== null && v0 !== undefined && typeof v0 !== 'object'; });
+                    const showKeys = primKeys.slice(0, 6);
+                    if (showKeys.length > 0) {
+                        const headerCells = showKeys.map(k => `<th style="padding:5px 8px;text-align:left;font-size:11px;font-weight:700;color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 40%, transparent);">${_esc(_humanize(k))}</th>`).join('');
+                        const bodyRows = arr.slice(0, 8).map(it => {
+                            const cells = showKeys.map(k => {
+                                const cv = it[k]; return `<td style="padding:5px 8px;font-size:12px;color:var(--text-primary,var(--pb-text,#eee));border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 20%, transparent);">${_esc(cv != null ? String(cv) : '')}</td>`;
+                            }).join('');
+                            return `<tr>${cells}</tr>`;
+                        }).join('');
+                        const moreRow = arr.length > 8 ? `<div style="margin-top:6px;color:var(--text-secondary,var(--pb-muted,#999));font-size:11px;">+ ${arr.length - 8} more items</div>` : '';
+                        return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>${moreRow}</div>`;
+                    }
+                }
                 const items = arr.slice(0, 6).map((it, idx) => {
                     if (typeof it === 'string' || typeof it === 'number' || typeof it === 'boolean') {
                         const r = _renderValue(it, depth + 1); return r ? `<div style="color:var(--text-primary,var(--pb-text,#eee));">\u2022 ${r}</div>` : '';
                     }
                     if (it && typeof it === 'object') {
-                        const pick = ['name','title','type','category','date','amount','total','vendor','status','decision'];
-                        const parts = [];
-                        for (const k of pick) { if (it[k] != null && it[k] !== '') { const r = _renderValue(it[k], depth + 1); if (r) parts.push(r); } if (parts.length >= 3) break; }
+                        const objKeys = Object.keys(it).filter(k => it[k] != null && it[k] !== '' && typeof it[k] !== 'object');
+                        const parts = objKeys.slice(0, 3).map(k => _esc(String(it[k])));
                         return `<div style="color:var(--text-primary,var(--pb-text,#eee));">\u2022 ${parts.length ? parts.join(' \u2014 ') : ('Item ' + (idx + 1))}</div>`;
                     }
                     return '';

@@ -507,7 +507,9 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         deadline = datetime.utcnow() + timedelta(hours=timeout_hours) if timeout_hours else None
         
         # Generate LLM approval summary so approvers see business-friendly context
-        if review_data and self.deps and self.deps.llm:
+        _has_llm = bool(self.deps and getattr(self.deps, 'llm', None))
+        logger.info("[ApprovalNode] LLM summary: review_data=%d keys, has_llm=%s", len(review_data) if review_data else 0, _has_llm)
+        if review_data and _has_llm:
             try:
                 _summary_data = {}
                 for _sk, _sv in review_data.items():
@@ -527,6 +529,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     except Exception:
                         _summary_data[_sk] = str(_sv)[:2000]
                 _summary_json = json.dumps(_summary_data, default=str, ensure_ascii=False)[:15000]
+                logger.info("[ApprovalNode] LLM summary: sending %d chars to LLM", len(_summary_json))
                 from core.llm.base import Message, MessageRole
                 _summary_resp = await asyncio.wait_for(
                     self.deps.llm.chat(
@@ -538,10 +541,10 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                                 "- Lead with the most important finding or action needed.\n"
                                 "- Include specific numbers, amounts, dates, and names from the data.\n"
                                 "- Highlight any risks, anomalies, or discrepancies with exact figures.\n"
-                                "- For comparisons, show both values side by side (e.g., 'Invoice: 13,333.75 AED vs PO: 63,000 AED').\n"
+                                "- For comparisons, show both values side by side (e.g., 'Actual: 13,333.75 vs Expected: 63,000').\n"
                                 "- Use plain business language. No technical terms, no JSON keys, no array indices.\n"
                                 "- End with a clear recommendation or the key question the approver needs to answer.\n"
-                                "- Format as bullet points using • character. No headers."
+                                "- Format as bullet points using the bullet character. No headers or markdown."
                             )),
                             Message(role=MessageRole.USER, content=(
                                 f"Approval step: {title}\n"
@@ -553,13 +556,18 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                         temperature=0.3,
                         max_tokens=600,
                     ),
-                    timeout=15
+                    timeout=30
                 )
                 if _summary_resp and _summary_resp.content:
                     review_data['_approval_summary'] = _summary_resp.content.strip()
                     logs.append(f"Generated approval summary ({len(_summary_resp.content)} chars)")
+                    logger.info("[ApprovalNode] LLM summary generated: %d chars", len(_summary_resp.content))
+                else:
+                    logs.append("Approval summary: LLM returned empty response")
+                    logger.warning("[ApprovalNode] LLM summary: empty response")
             except Exception as _se:
                 logs.append(f"Approval summary generation skipped: {_se}")
+                logger.warning("[ApprovalNode] LLM summary failed: %s", _se, exc_info=True)
 
         # Build approval request metadata
         approval_request = {
