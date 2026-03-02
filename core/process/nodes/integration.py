@@ -1443,16 +1443,14 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
 
         _data_quality_rules = (
             "\n\nDATA QUALITY RULES (CRITICAL):\n"
-            "- Use ACTUAL BUSINESS DATA from the provided variables: invoice numbers (e.g., INV-2026-4481),\n"
-            "  vendor names, PO numbers, amounts, dates, line items. These come from AI extraction and tool results.\n"
-            "- NEVER use file metadata (filenames like 'invoice1.pdf', file sizes, download URLs,\n"
-            "  content types, stored paths) as report data. These are internal system fields.\n"
-            "- Look for variables containing extracted/parsed data (e.g., 'parsedData', 'extractedData',\n"
-            "  'invoiceData', 'analysisResult') — these hold the actual business information.\n"
-            "- Look for variables containing tool/API responses (e.g., 'poData', 'toolResult') —\n"
-            "  these hold external system data like purchase orders.\n"
-            "- If the data includes anomalies, discrepancies, or comparison results, present them\n"
-            "  with SPECIFIC numbers (e.g., 'Invoice: 4,800 AED vs PO: 15,000 AED').\n"
+            "- Use ACTUAL BUSINESS DATA from the provided variables — reference numbers, names,\n"
+            "  amounts, dates, and structured records from AI extraction and external system results.\n"
+            "- NEVER use file metadata (filenames, file sizes, download URLs, content types,\n"
+            "  stored paths, MIME types) as report data. These are internal system fields.\n"
+            "- Identify variables that hold extracted/parsed business data and external system\n"
+            "  responses — these contain the actual information for the report.\n"
+            "- If the data includes discrepancies or comparison results, present them with\n"
+            "  SPECIFIC numbers showing both values side by side.\n"
             "- Tables must contain business data fields, NOT system/technical fields.\n"
         )
 
