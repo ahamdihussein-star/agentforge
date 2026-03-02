@@ -188,31 +188,47 @@
             return `<div style="color:var(--text-secondary,var(--pb-muted,#999));font-size:13px;line-height:1.5;">${_esc(s.length > 320 ? s.slice(0, 320) + '\u2026' : s)}</div>`;
         }
         if (typeof rd !== 'object' || rd === null) return '';
+
+        var summaryHtml = '';
+        if (rd._approval_summary && typeof rd._approval_summary === 'string') {
+            var summaryLines = rd._approval_summary.split('\n').filter(function (l) { return l.trim(); });
+            summaryHtml = '<div style="background:linear-gradient(135deg,color-mix(in srgb, var(--primary,#6366f1) 8%, var(--bg-card,#1a1a2e)),color-mix(in srgb, var(--primary,#6366f1) 4%, var(--bg-card,#1a1a2e)));border:1px solid color-mix(in srgb, var(--primary,#6366f1) 25%, var(--border-color,#333));border-radius:12px;padding:16px 20px;margin-bottom:16px;">'
+                + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;font-size:.9rem;color:var(--text-primary,var(--pb-text,#eee));">'
+                + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary,#6366f1)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+                + 'Summary</div>'
+                + '<div style="color:var(--text-primary,var(--pb-text,#eee));font-size:13px;line-height:1.7;">'
+                + summaryLines.map(function (l) {
+                    var trimmed = l.replace(/^[\s\u2022\-\*]+/, '').trim();
+                    if (!trimmed) return '';
+                    return '<div style="display:flex;gap:8px;align-items:flex-start;padding:2px 0;"><span style="color:var(--primary,#6366f1);font-size:16px;line-height:1.3;">\u2022</span><span>' + _esc(trimmed) + '</span></div>';
+                }).filter(Boolean).join('')
+                + '</div></div>';
+        }
+
         var allEntries = Object.entries(rd);
         const entries = allEntries.filter(([k, v]) => {
             if (_isInternalKey(k)) return false;
+            if (k === '_approval_summary') return false;
             if (v === undefined || v === null || v === '') return false;
             if (typeof v === 'string' && _looksLikeUuid(v) && /(^|_|\s)(id|uuid)(_|$)/i.test(String(k))) return false;
             if (typeof v === 'string' && _looksLikeUuid(v.trim())) return false;
             if (_isDuplicateFileRef(k, v, allEntries)) return false;
-            // Hide objects where all values are 0 (empty extraction result)
             if (v && typeof v === 'object' && !Array.isArray(v) && !_isUploadedFile(v) && !_isFileMetadataObj(v)) {
                 var vals = Object.values(v);
                 if (vals.length > 0 && vals.every(function (x) { return x === 0 || x === '0' || x === '' || x === null; })) return false;
             }
-            // Skip large arrays of objects (raw tool/API data, not useful for approvers)
             if (Array.isArray(v) && v.length > 5 && v.some(function (x) { return x && typeof x === 'object' && !_isUploadedFile(x); })) return false;
             return true;
         });
-        if (!entries.length) return '';
+        if (!entries.length && !summaryHtml) return '';
         const rows = entries.slice(0, maxRows).map(([k, v]) => {
             const rendered = _renderValue(v, 0);
             if (!rendered) return '';
             return `<tr style="border-bottom:1px solid color-mix(in srgb, var(--border-color,var(--pb-border,#333)) 22%, transparent);"><td style="padding:10px 14px 10px 0;color:var(--text-secondary,var(--pb-muted,#999));font-weight:750;white-space:nowrap;vertical-align:top;">${_esc(_humanize(k) || k)}</td><td style="padding:10px 0;color:var(--text-primary,var(--pb-text,#eee));vertical-align:top;">${rendered}</td></tr>`;
         }).filter(Boolean).join('');
-        if (!rows) return '';
         const more = entries.length > maxRows ? `<div style="margin-top:10px;color:var(--text-secondary,var(--pb-muted,#999));font-size:12px;">Showing ${maxRows} fields. Ask your administrator if you need more details.</div>` : '';
-        return `<div style="overflow-x:auto;"><table style="width:100%;font-size:13px;"><tbody>${rows}</tbody></table></div>${more}`;
+        var tableHtml = rows ? `<div style="overflow-x:auto;"><table style="width:100%;font-size:13px;"><tbody>${rows}</tbody></table></div>${more}` : '';
+        return summaryHtml + tableHtml;
     }
 
     function afRenderExtractionReview(details, opts) {
@@ -259,6 +275,27 @@
 .er-table-input:hover{border-color:color-mix(in srgb, var(--border-color,var(--pb-border,#333)) 60%, transparent)}
 .er-table-input:focus{border-color:var(--primary,var(--pb-primary,#6366f1));background:var(--bg-input,var(--pb-bg,#2d2d3d));outline:none;box-shadow:0 0 0 2px color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 20%, transparent)}
 .er-table-input--edited{border-color:var(--warning,#f59e0b) !important;background:color-mix(in srgb, var(--warning,#f59e0b) 6%, transparent) !important}
+.er-card{background:var(--bg-input,var(--pb-bg,#2d2d3d));border:1px solid var(--border-color,var(--pb-border,#333));border-radius:10px;margin-bottom:12px;overflow:hidden;transition:border-color .2s}
+.er-card:hover{border-color:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 40%, var(--border-color,#333))}
+.er-card-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 8%, var(--bg-input,#2d2d3d));border-bottom:1px solid var(--border-color,var(--pb-border,#333))}
+.er-card-title{font-weight:700;font-size:.85rem;color:var(--text-primary,var(--pb-text,#f1f5f9));display:flex;align-items:center;gap:8px}
+.er-card-badge{padding:2px 10px;border-radius:20px;font-size:.7rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+.er-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:color-mix(in srgb, var(--border-color,var(--pb-border,#333)) 40%, transparent)}
+@media(max-width:500px){.er-card-grid{grid-template-columns:1fr}}
+.er-card-cell{padding:8px 12px;background:var(--bg-input,var(--pb-bg,#2d2d3d))}
+.er-card-cell-label{font-size:.7rem;font-weight:650;color:var(--text-secondary,var(--pb-muted,#94a3b8));text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.er-card-cell input.er-card-input{width:100%;box-sizing:border-box;padding:4px 0;border:none;border-bottom:1px solid transparent;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.84rem;font-weight:500;transition:border-color .2s}
+.er-card-cell input.er-card-input:hover{border-bottom-color:color-mix(in srgb, var(--border-color,#333) 80%, transparent)}
+.er-card-cell input.er-card-input:focus{border-bottom-color:var(--primary,var(--pb-primary,#6366f1));outline:none}
+.er-card-cell input.er-card-input.er-card-input--edited{border-bottom-color:var(--warning,#f59e0b)}
+.er-card-sub{padding:0 12px 10px}
+.er-card-sub-title{font-size:.72rem;font-weight:700;color:var(--text-secondary,var(--pb-muted,#94a3b8));text-transform:uppercase;letter-spacing:.3px;padding:8px 0 4px}
+.er-card-sub-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.er-card-sub-table th{text-align:left;padding:4px 8px;font-weight:700;font-size:.7rem;color:var(--text-secondary,var(--pb-muted,#94a3b8));text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border-color,var(--pb-border,#333))}
+.er-card-sub-table td{padding:4px 8px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 30%, transparent);color:var(--text-primary,var(--pb-text,#f1f5f9))}
+.er-card-sub-table input.er-card-input{width:100%;box-sizing:border-box;padding:2px 0;border:none;border-bottom:1px solid transparent;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.78rem;transition:border-color .2s}
+.er-card-sub-table input.er-card-input:focus{border-bottom-color:var(--primary,var(--pb-primary,#6366f1));outline:none}
+.er-card-sub-table input.er-card-input.er-card-input--edited{border-bottom-color:var(--warning,#f59e0b)}
 .er-confirm-section{padding:12px 16px;border-top:1px solid var(--border,var(--pb-border,#333));flex-shrink:0}
 .er-confirm-actions{display:flex;gap:10px;margin-top:10px}
 .er-anomaly-banner{background:color-mix(in srgb, var(--warning,#f59e0b) 8%, var(--bg-card,var(--pb-panel,#1e1e2e)));border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 40%, var(--border-color,#333));border-radius:12px;padding:14px 16px;margin-bottom:12px;animation:erBannerSlideIn .5s ease;color:var(--text-primary,var(--pb-text,#f1f5f9))}
@@ -394,21 +431,71 @@
             });
             return parts.join('<br>') || _esc(JSON.stringify(v).slice(0, 120));
         };
+        var _identityKeys = ['invoicenumber','invoice_number','ponumber','po_number','poreferencenumber','po_reference_number','vendorname','vendor_name','name','title','id','batchname','batch_name','employeename','employee_name','recordid','record_id','ordernumber','order_number'];
+        var _labelKeys = ['invoicenumber','invoice_number','ponumber','po_number','poreferencenumber','vendorname','vendor_name','name','title'];
+        function _findCardTitle(row, idx) {
+            var keys = Object.keys(row);
+            for (var i = 0; i < keys.length; i++) {
+                if (_labelKeys.indexOf(keys[i].toLowerCase().replace(/[\s_\-]+/g, '')) >= 0 && row[keys[i]] != null && row[keys[i]] !== '') return String(row[keys[i]]);
+            }
+            return 'Item ' + (idx + 1);
+        }
+
         var renderArray = function (arr, fieldKey) {
             if (!arr || !arr.length) return '<em>empty</em>';
             if (typeof arr[0] !== 'object') return arr.map(function (v) { return '<div>' + _esc(String(v)) + '</div>'; }).join('');
-            var cols = Object.keys(arr[0]);
             var fk = fieldKey || '';
-            return '<table class="er-table" data-er-field="' + _esc(fk) + '"><thead><tr>' + cols.map(function (c) { return '<th>' + _esc(_humanize(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) {
-                return '<tr data-row-idx="' + ri + '">' + cols.map(function (c) {
+            var hasNested = arr.some(function (row) { return Object.values(row).some(function (v) { return Array.isArray(v); }); });
+            if (!hasNested && Object.keys(arr[0]).length <= 4) {
+                var cols = Object.keys(arr[0]);
+                return '<table class="er-table" data-er-field="' + _esc(fk) + '"><thead><tr>' + cols.map(function (c) { return '<th>' + _esc(_humanize(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) {
+                    return '<tr data-row-idx="' + ri + '">' + cols.map(function (c) {
+                        var v = row[c];
+                        if (v !== null && v !== undefined && typeof v !== 'object') {
+                            var erKey = fk + '[' + ri + '].' + c;
+                            return '<td><input class="er-table-input" type="text" value="' + _esc(String(v)) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></td>';
+                        }
+                        return '<td>' + _cellVal(v) + '</td>';
+                    }).join('') + '</tr>';
+                }).join('') + '</tbody></table>';
+            }
+            return '<div data-er-field="' + _esc(fk) + '">' + arr.map(function (row, ri) {
+                var title = _findCardTitle(row, ri);
+                var simpleFields = [];
+                var nestedFields = [];
+                Object.keys(row).forEach(function (c) {
                     var v = row[c];
-                    if (v !== null && v !== undefined && typeof v !== 'object') {
-                        var erKey = fk + '[' + ri + '].' + c;
-                        return '<td><input class="er-table-input" type="text" value="' + _esc(String(v)) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></td>';
+                    if (Array.isArray(v)) nestedFields.push({ key: c, val: v });
+                    else simpleFields.push({ key: c, val: v });
+                });
+                var gridHtml = simpleFields.map(function (sf) {
+                    var erKey = fk + '[' + ri + '].' + sf.key;
+                    var displayVal = (sf.val == null) ? '' : String(sf.val);
+                    return '<div class="er-card-cell"><div class="er-card-cell-label">' + _esc(_humanize(sf.key)) + '</div>'
+                        + '<input class="er-card-input" type="text" value="' + _esc(displayVal) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" />'
+                        + '</div>';
+                }).join('');
+                var nestedHtml = nestedFields.map(function (nf) {
+                    if (!nf.val || !nf.val.length) return '';
+                    if (typeof nf.val[0] !== 'object') {
+                        return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + '</div><div style="padding:0 8px 4px;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;">' + nf.val.map(function (v) { return _esc(String(v)); }).join(', ') + '</div></div>';
                     }
-                    return '<td>' + _cellVal(v) + '</td>';
-                }).join('') + '</tr>';
-            }).join('') + '</tbody></table>';
+                    var subCols = Object.keys(nf.val[0]);
+                    return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'
+                        + '<table class="er-card-sub-table"><thead><tr>' + subCols.map(function (sc) { return '<th>' + _esc(_humanize(sc)) + '</th>'; }).join('') + '</tr></thead><tbody>'
+                        + nf.val.map(function (sr, si) {
+                            return '<tr>' + subCols.map(function (sc) {
+                                var sv = sr[sc];
+                                if (sv !== null && sv !== undefined && typeof sv !== 'object') {
+                                    var subKey = fk + '[' + ri + '].' + nf.key + '[' + si + '].' + sc;
+                                    return '<td><input class="er-card-input" type="text" value="' + _esc(String(sv)) + '" data-er-key="' + _esc(subKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></td>';
+                                }
+                                return '<td>' + _cellVal(sv) + '</td>';
+                            }).join('') + '</tr>';
+                        }).join('') + '</tbody></table></div>';
+                }).join('');
+                return '<div class="er-card" data-row-idx="' + ri + '"><div class="er-card-header"><div class="er-card-title"><span style="color:var(--primary,var(--pb-primary,#6366f1));font-size:1.1rem;">\u2756</span> ' + _esc(title) + '</div><span class="er-card-badge" style="background:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 15%, transparent);color:var(--primary,var(--pb-primary,#6366f1));">#' + (ri + 1) + '</span></div><div class="er-card-grid">' + gridHtml + '</div>' + nestedHtml + '</div>';
+            }).join('') + '</div>';
         };
 
         function _isDatePlaceholder(s) {
@@ -939,12 +1026,20 @@
                     });
                 }
             });
+            document.querySelectorAll('[data-er-field] > .er-card[data-row-idx]').forEach(function (card) {
+                var cardParent = card.parentElement;
+                var cards = cardParent.querySelectorAll('.er-card[data-row-idx]');
+                if (cards.length === totalTabs) {
+                    card.style.display = (parseInt(card.getAttribute('data-row-idx'), 10) === idx) ? '' : 'none';
+                }
+            });
         }
     };
 
     window._afErFieldChanged = function (el) {
         if (!el) return;
-        if (el.classList.contains('er-table-input')) el.classList.add('er-table-input--edited');
+        if (el.classList.contains('er-card-input')) el.classList.add('er-card-input--edited');
+        else if (el.classList.contains('er-table-input')) el.classList.add('er-table-input--edited');
         else el.classList.add('er-field-input--edited');
     };
 

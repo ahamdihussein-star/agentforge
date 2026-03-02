@@ -1450,8 +1450,22 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
             "- Identify variables that hold extracted/parsed business data and external system\n"
             "  responses — these contain the actual information for the report.\n"
             "- If the data includes discrepancies or comparison results, present them with\n"
-            "  SPECIFIC numbers showing both values side by side.\n"
+            "  SPECIFIC numbers showing both values side by side (e.g., 'Invoice: 13,333.75 vs PO: 63,000').\n"
             "- Tables must contain business data fields, NOT system/technical fields.\n"
+            "\nCOUNTING & CLASSIFICATION RULES:\n"
+            "- 'Matched' means a record was successfully matched to its counterpart (e.g., Invoice matched to PO),\n"
+            "  even if anomalies were found. 'Matched' and 'Has Anomalies' are NOT mutually exclusive.\n"
+            "- 'Unmatched' means no counterpart was found (e.g., no PO found for invoice, missing reference).\n"
+            "- Count every record in the data. Total must equal the number of items in the list.\n"
+            "- If a 'results' or similar list exists, iterate through EVERY item to build your report tables.\n"
+            "  Do NOT skip items.\n"
+            "\nANOMALY / FINDINGS REPORTING RULES:\n"
+            "- For EACH item with findings/anomalies, list every finding individually with:\n"
+            "  1. The finding type/name\n"
+            "  2. The classification/risk level\n"
+            "  3. A brief explanation with specific values showing the discrepancy\n"
+            "- If an item has a 'findings' list, each entry in that list is a separate anomaly to report.\n"
+            "- Group anomaly details by the parent item (e.g., by invoice number).\n"
         )
 
         if target_format == "xlsx":

@@ -8918,7 +8918,7 @@
                     setText(decision === 'approved' ? 'Approved. Continuing…' : 'Rejected. Continuing…');
 
                     let decisionData = {};
-                    const editedFields = approvalBox?.querySelectorAll('.er-field-input, .er-table-input');
+                    const editedFields = approvalBox?.querySelectorAll('.er-field-input, .er-table-input, .er-card-input');
                     if (editedFields && editedFields.length) {
                         editedFields.forEach(inp => {
                             const key = inp.getAttribute('data-er-key');

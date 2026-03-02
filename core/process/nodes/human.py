@@ -8,6 +8,7 @@ These nodes involve human interaction:
 - NOTIFICATION: Send notification without waiting
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -505,6 +506,61 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         # Calculate deadline
         deadline = datetime.utcnow() + timedelta(hours=timeout_hours) if timeout_hours else None
         
+        # Generate LLM approval summary so approvers see business-friendly context
+        if review_data and self.deps and self.deps.llm:
+            try:
+                _summary_data = {}
+                for _sk, _sv in review_data.items():
+                    if _sk.startswith('_'):
+                        continue
+                    try:
+                        _sj = json.dumps(_sv, default=str)
+                        if len(_sj) > 8000:
+                            if isinstance(_sv, dict):
+                                _summary_data[_sk] = {k: v for i, (k, v) in enumerate(_sv.items()) if i < 20}
+                            elif isinstance(_sv, list):
+                                _summary_data[_sk] = _sv[:10]
+                            else:
+                                _summary_data[_sk] = str(_sv)[:4000]
+                        else:
+                            _summary_data[_sk] = _sv
+                    except Exception:
+                        _summary_data[_sk] = str(_sv)[:2000]
+                _summary_json = json.dumps(_summary_data, default=str, ensure_ascii=False)[:15000]
+                from core.llm.base import Message, MessageRole
+                _summary_resp = await asyncio.wait_for(
+                    self.deps.llm.chat(
+                        messages=[
+                            Message(role=MessageRole.SYSTEM, content=(
+                                "You are an executive assistant writing a brief approval summary for a business manager. "
+                                "Write a clear, professional summary in 3-8 bullet points that helps the approver make a decision. "
+                                "Rules:\n"
+                                "- Lead with the most important finding or action needed.\n"
+                                "- Include specific numbers, amounts, dates, and names from the data.\n"
+                                "- Highlight any risks, anomalies, or discrepancies with exact figures.\n"
+                                "- For comparisons, show both values side by side (e.g., 'Invoice: 13,333.75 AED vs PO: 63,000 AED').\n"
+                                "- Use plain business language. No technical terms, no JSON keys, no array indices.\n"
+                                "- End with a clear recommendation or the key question the approver needs to answer.\n"
+                                "- Format as bullet points using • character. No headers."
+                            )),
+                            Message(role=MessageRole.USER, content=(
+                                f"Approval step: {title}\n"
+                                f"Description: {description}\n\n"
+                                f"Data for review:\n{_summary_json}\n\n"
+                                "Write the approval summary now."
+                            )),
+                        ],
+                        temperature=0.3,
+                        max_tokens=600,
+                    ),
+                    timeout=15
+                )
+                if _summary_resp and _summary_resp.content:
+                    review_data['_approval_summary'] = _summary_resp.content.strip()
+                    logs.append(f"Generated approval summary ({len(_summary_resp.content)} chars)")
+            except Exception as _se:
+                logs.append(f"Approval summary generation skipped: {_se}")
+
         # Build approval request metadata
         approval_request = {
             'node_id': node.id,
