@@ -153,9 +153,9 @@ Config (`notification.config`):
   Can use `{{trigger_input._user_context.<key>}}` for person information (name, email, department, etc.).
 
 - `attachments` (array of strings, optional): Variable references to generated documents that should be attached to the email.
-  When a previous AI Step generates a document (`aiMode: "create_doc"`) and stores it in `output_variable` (e.g., `"reconciliationReport"`),
-  reference it here as `"{{reconciliationReport}}"`. The engine resolves the variable to the file on disk and attaches it.
-  Example: `"attachments": ["{{reconciliationReport}}"]`
+  When a previous AI Step generates a document (`aiMode: "create_doc"`) and stores it in `output_variable` (e.g., `"generatedReport"`),
+  reference it here as `"{{generatedReport}}"`. The engine resolves the variable to the file on disk and attaches it.
+  Example: `"attachments": ["{{generatedReport}}"]`
   Multiple files: `"attachments": ["{{report1}}", "{{report2}}"]`
   BEST PRACTICE: Whenever the process generates a report or document that the recipient needs, ALWAYS include it in `attachments`.
 
@@ -268,7 +268,7 @@ When an AI step's task is to match, compare, reconcile, validate, or cross-refer
 When the user's prompt describes rules that evaluate items and assign classifications (risk levels, severity, priority, compliance status, quality grades, etc.) and/or flag findings (anomalies, issues, violations, defects, discrepancies, warnings, etc.), the AI step MUST structure its `outputFields` to capture both the per-item details AND the overall summary. This enables downstream condition nodes to route based on the overall result, report generation steps to use the structured data, and notification templates to reference summary fields.
 
 Required `outputFields` pattern:
-1. A `results` field (type `list`): one entry per evaluated item. Each entry contains identification fields (e.g., invoiceNumber, employeeName, recordId), a `findings` sub-list (each finding has `type` and `riskLevel`/`severity`), and an item-level classification field.
+1. A `results` field (type `list`): one entry per evaluated item. Each entry contains identification fields (derived from the user's prompt, e.g., itemNumber, employeeName, recordId), a `findings` sub-list (each finding has `type` and `riskLevel`/`severity`), and an item-level classification field.
 2. An overall classification field (type `text`, e.g., `overallRiskLevel`, `overallSeverity`, `overallStatus`): the highest/worst classification across all items. This is the field that downstream condition nodes check for routing.
 3. Summary count fields (type `number`): totals by classification category. For example: `totalItems`, `cleanCount`, `flaggedCount`, etc. These feed into report generation and notification templates.
 
@@ -290,7 +290,7 @@ This pattern is GENERIC and applies to any domain: finance (risk levels), HR (co
 - The reviewer sees source documents (images, PDFs) on the left and editable extracted fields on the right. They can correct values before confirming.
 - Edited values are sent back to the process engine as `decision_data` and the process continues with the corrected data.
 - Anomaly fields (names containing "anomaly", "discrepancy", "risk", "fraud", "mismatch", "warning") are automatically highlighted with animated severity banners.
-- **WIZARD AUTO-GENERATION RULE:** Set `humanReview: true` when the process involves financial documents (invoices, receipts, POs), legal/compliance documents, or when the user mentions reviewing/verifying/confirming extracted data.
+- **WIZARD AUTO-GENERATION RULE:** Set `humanReview: true` when the process involves data extraction from uploaded documents that will be used for downstream decisions, or when the user mentions reviewing/verifying/confirming extracted data.
 
 Note: `read_document` and `create_document` are legacy node types automatically converted to AI modes.
 

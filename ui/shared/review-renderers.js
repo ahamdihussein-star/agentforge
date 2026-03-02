@@ -47,7 +47,7 @@
             'node_id', 'nodeid', 'step_id', 'stepid',
         ];
         if (skip.includes(nk)) return true;
-        if (/^(uploaded|upload|invoiceupload|uploadedinvoice|fileinput|fileupload)/i.test(nk)) return true;
+        if (/^(uploaded|upload|fileinput|fileupload)/i.test(nk) || /upload$/i.test(nk)) return true;
         return false;
     }
 
@@ -431,12 +431,20 @@
             });
             return parts.join('<br>') || _esc(JSON.stringify(v).slice(0, 120));
         };
-        var _identityKeys = ['invoicenumber','invoice_number','ponumber','po_number','poreferencenumber','po_reference_number','vendorname','vendor_name','name','title','id','batchname','batch_name','employeename','employee_name','recordid','record_id','ordernumber','order_number'];
-        var _labelKeys = ['invoicenumber','invoice_number','ponumber','po_number','poreferencenumber','vendorname','vendor_name','name','title'];
         function _findCardTitle(row, idx) {
             var keys = Object.keys(row);
+            var nk;
             for (var i = 0; i < keys.length; i++) {
-                if (_labelKeys.indexOf(keys[i].toLowerCase().replace(/[\s_\-]+/g, '')) >= 0 && row[keys[i]] != null && row[keys[i]] !== '') return String(row[keys[i]]);
+                nk = keys[i].toLowerCase().replace(/[\s_\-]+/g, '');
+                if (/name|title|label|subject/.test(nk) && row[keys[i]] != null && row[keys[i]] !== '' && typeof row[keys[i]] !== 'object') return String(row[keys[i]]);
+            }
+            for (var j = 0; j < keys.length; j++) {
+                nk = keys[j].toLowerCase().replace(/[\s_\-]+/g, '');
+                if (/number|code|ref|id$/.test(nk) && row[keys[j]] != null && row[keys[j]] !== '' && typeof row[keys[j]] !== 'object') return String(row[keys[j]]);
+            }
+            for (var k = 0; k < keys.length; k++) {
+                var v = row[keys[k]];
+                if (typeof v === 'string' && v.trim() && v.length < 60) return v;
             }
             return 'Item ' + (idx + 1);
         }

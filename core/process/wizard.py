@@ -375,8 +375,8 @@ Node config rules:
   - type (text | textarea | number | date | email | select | file)
   - required (true/false)
   - placeholder (business-friendly hint)
-  - For file fields: accepts ANY document or image type (PDF, Word, Excel, PNG, JPG, receipts, invoices, photos, etc.). The platform handles all file types dynamically.
-    IMPORTANT: If the business context implies the user may upload MORE THAN ONE file (e.g., expense receipts, supporting documents, multiple invoices, attachments), you MUST add "multiple": true. When in doubt, default to "multiple": true — it is better UX to allow multiple uploads than to force the user to submit only one.
+  - For file fields: accepts ANY document or image type (PDF, Word, Excel, PNG, JPG, etc.). The platform handles all file types dynamically.
+    IMPORTANT: If the business context implies the user may upload MORE THAN ONE file (e.g., supporting documents, multiple attachments, batch uploads), you MUST add "multiple": true. When in doubt, default to "multiple": true — it is better UX to allow multiple uploads than to force the user to submit only one.
 - FIELD TYPE SELECTION RULE (MANDATORY — NEVER use "text" when "select" is appropriate):
   A field MUST be type "select" (dropdown) if ANY of these apply:
     1. The field name contains: category, type, status, priority, level, method, currency, rating, frequency, severity, department, classification, source, reason, or similar classifying words.
@@ -446,11 +446,11 @@ Node config rules:
 - tool nodes MUST include: "output_variable": "<variable_name>" to store tool output.
 - tool.config.outputFields: Define the expected response fields so downstream steps can reference them individually.
   Each field: {{ "name": "<fieldName>", "label": "<Friendly Label>", "type": "<text|number|boolean|date|list|object>" }}.
-  Example: A PO lookup tool that returns order details:
-  "output_variable": "poData",
+  Example: A lookup tool that returns record details:
+  "output_variable": "lookupData",
   "outputFields": [
-    {{ "name": "poNumber", "label": "PO Number", "type": "text" }},
-    {{ "name": "poStatus", "label": "PO Status", "type": "text" }},
+    {{ "name": "referenceNumber", "label": "Reference Number", "type": "text" }},
+    {{ "name": "recordStatus", "label": "Status", "type": "text" }},
     {{ "name": "totalAmount", "label": "Total Amount", "type": "number" }},
     {{ "name": "lineItems", "label": "Line Items", "type": "list" }},
     {{ "name": "vendorName", "label": "Vendor Name", "type": "text" }}
@@ -533,8 +533,8 @@ Node config rules:
   - attachments (optional): Array of variable references pointing to generated documents.
     When a previous step generates a document (aiMode: "create_doc"), its output_variable stores
     a file reference (with path, filename, format). To attach that document to the email:
-      attachments: ["{{{{reconciliationReport}}}}"]
-    where "reconciliationReport" is the output_variable of the create_doc step.
+      attachments: ["{{{{generatedReport}}}}"]
+    where "generatedReport" is the output_variable of the create_doc step.
     Multiple attachments are supported: attachments: ["{{{{report1}}}}", "{{{{report2}}}}"]
     BEST PRACTICE: Whenever the process generates a document that should be sent to users,
     always include it in the notification's attachments array. This is especially important
@@ -582,7 +582,7 @@ Node config rules:
        can edit values before confirming. Use when accuracy is critical (financial data, legal, compliance,
        anomaly detection) or when the user asks for review/verification of extracted data.
        RULE: If the user's prompt mentions "review", "verify", "confirm", "check", "validate" the extracted data,
-       or if the process involves financial documents, invoices, contracts, or compliance — set humanReview: true.
+       or if the process involves documents that will be used for downstream decisions — set humanReview: true.
      Example:
        "aiMode": "extract_file", "sourceField": "receipt",
        "prompt": "Extract expense data from each receipt (type, date, vendor, amount). Calculate the total amount across all receipts.",
@@ -598,12 +598,12 @@ Node config rules:
      - Set node.output_variable to store the document reference
 
   3. aiMode: "batch_files" — Analyze & calculate across multiple files
-     - config.sourceFields: array of file field names (e.g., ["invoiceUpload", "receiptPhotos"])
+     - config.sourceFields: array of file field names (e.g., ["uploadedFiles", "supportingDocs"])
      - config.prompt: what to calculate/analyze across ALL selected files
      - config.outputFields: typed output fields for the calculation results
      - The engine reads ALL files from the selected fields and sends their contents to the AI
      - Use this when the user needs cross-file calculations (sums, comparisons, aggregations)
-     - Example: sourceFields: ["invoices"], prompt: "Sum all invoice totals and find the highest"
+     - Example: sourceFields: ["uploadedFiles"], prompt: "Sum all totals across the uploaded files and find the highest"
 
   4. aiMode: "analyze" — Analyze or summarize data
   5. aiMode: "generate" — Generate content (emails, text, etc.)
