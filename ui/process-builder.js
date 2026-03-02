@@ -8338,10 +8338,10 @@
                         </div>
                         </div>
                     </div>
-                    <div id="engine-test-running-footer" style="padding:18px;">
-                        <div style="display:flex;gap:10px;align-items:center;color:var(--pb-muted);font-size:13px;">
+                    <div id="engine-test-running-footer" style="padding:18px;max-width:100%;overflow:hidden;">
+                        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:0;color:var(--pb-muted);font-size:13px;">
                             <div style="width:18px;height:18px;border-radius:999px;border:2px solid color-mix(in srgb, var(--tb-btn-primary-bg) 60%, transparent);border-top-color:transparent;animation: spin 0.9s linear infinite;"></div>
-                            <div>We’ll show a full report when it finishes.</div>
+                            <div style="min-width:0;overflow-wrap:break-word;word-break:break-word;">We’ll show a full report when it finishes.</div>
                         </div>
                     </div>
                 </div>
