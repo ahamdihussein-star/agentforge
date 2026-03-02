@@ -1420,11 +1420,41 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         try:
             variables = state.get_masked_variables()
             trimmed = {}
+            _budget = 80_000
+            _used = 0
             for k in list(variables.keys())[:60]:
-                trimmed[k] = variables.get(k)
+                v = variables.get(k)
+                try:
+                    v_size = len(json.dumps(v, default=str))
+                except Exception:
+                    v_size = len(str(v))
+                if v_size > 25_000:
+                    if isinstance(v, dict):
+                        v = {kk: vv for i, (kk, vv) in enumerate(v.items()) if i < 40}
+                    elif isinstance(v, list):
+                        v = v[:30]
+                trimmed[k] = v
+                _used += min(v_size, 25_000)
+                if _used > _budget:
+                    break
             variables_json = json.dumps(trimmed, ensure_ascii=False, indent=2)
         except Exception:
             variables_json = "{}"
+
+        _data_quality_rules = (
+            "\n\nDATA QUALITY RULES (CRITICAL):\n"
+            "- Use ACTUAL BUSINESS DATA from the provided variables: invoice numbers (e.g., INV-2026-4481),\n"
+            "  vendor names, PO numbers, amounts, dates, line items. These come from AI extraction and tool results.\n"
+            "- NEVER use file metadata (filenames like 'invoice1.pdf', file sizes, download URLs,\n"
+            "  content types, stored paths) as report data. These are internal system fields.\n"
+            "- Look for variables containing extracted/parsed data (e.g., 'parsedData', 'extractedData',\n"
+            "  'invoiceData', 'analysisResult') — these hold the actual business information.\n"
+            "- Look for variables containing tool/API responses (e.g., 'poData', 'toolResult') —\n"
+            "  these hold external system data like purchase orders.\n"
+            "- If the data includes anomalies, discrepancies, or comparison results, present them\n"
+            "  with SPECIFIC numbers (e.g., 'Invoice: 4,800 AED vs PO: 15,000 AED').\n"
+            "- Tables must contain business data fields, NOT system/technical fields.\n"
+        )
 
         if target_format == "xlsx":
             system_prompt = (
@@ -1440,6 +1470,7 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                 "7. Do NOT invent data; only use what is provided.\n"
                 "8. Every data table MUST have a proper header row.\n"
                 "9. Use numbers for numeric data (not text like 'zero'), booleans as Yes/No.\n"
+                + _data_quality_rules
             )
         else:
             system_prompt = (
@@ -1447,6 +1478,7 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                 "Write clear, well-structured content for business users. "
                 "Use markdown headings and bullet lists. "
                 "Do NOT invent company-specific facts; only use provided data."
+                + _data_quality_rules
             )
 
         user_prompt = (

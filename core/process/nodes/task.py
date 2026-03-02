@@ -241,7 +241,6 @@ class AITaskNodeExecutor(BaseNodeExecutor):
 
         # Extraction safety: if this AI step is reading uploaded files and producing structured data,
         # enforce strict "no guessing" rules regardless of node configuration.
-        # This reduces hallucinations under load/model variability.
         _is_file_extraction = bool(source_fields) and (output_format == "json" or output_schema or bool(self.get_config_value(node, "outputFields")))
         if _is_file_extraction:
             _combined_system += (
@@ -251,10 +250,40 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 "- If a value is missing or unclear, return null (or an empty string if the field is typed as text).\n"
                 "- Keep numbers as pure numbers (no extra words).\n"
             )
-            # Clamp temperature for extraction (unless explicitly overridden)
             if self.get_config_value(node, "temperature") is None:
                 temperature = min(float(temperature or 0.2), 0.2)
                 logs.append(f"Extraction mode: clamped temperature={temperature}")
+
+        # Analysis safety: when the AI step has PROCESS DATA and produces structured
+        # output, enforce rigorous data comparison rules so the LLM does systematic
+        # numerical/factual analysis instead of superficial matching.
+        _ai_mode = self.get_config_value(node, 'aiMode') or ''
+        _has_output_fields = bool(self.get_config_value(node, "outputFields"))
+        _is_analysis = (
+            _ai_mode in ("analyze", "custom", "")
+            and not _is_file_extraction
+            and _process_data_block
+            and _has_output_fields
+        )
+        if _is_analysis:
+            _combined_system += (
+                "\n\nANALYSIS ACCURACY RULES (MANDATORY):\n"
+                "- You MUST perform PRECISE numerical comparisons. Never approximate or round.\n"
+                "- When comparing two data sets (e.g., invoice vs purchase order):\n"
+                "  1. Match records by their reference/ID fields (PO number, invoice number, etc.).\n"
+                "  2. For EACH matched pair, compare EVERY line item: description, quantity, unit price, total.\n"
+                "  3. Flag ANY difference — even small ones — as a discrepancy with the exact values.\n"
+                "  4. Calculate percentage deviation: abs(value1 - value2) / max(value1, value2) * 100.\n"
+                "  5. List EACH discrepancy individually with specific numbers.\n"
+                "- NEVER say 'no anomalies' or 'matched' unless you have verified EVERY field and number.\n"
+                "- If a record exists in one data set but not the other, flag it as missing.\n"
+                "- Compare totals: if the sum of line items differs from the stated total, flag it.\n"
+                "- When in doubt, FLAG it — false positives are acceptable, false negatives are NOT.\n"
+                "- Return concrete numbers in your output, not vague descriptions.\n"
+            )
+            if self.get_config_value(node, "temperature") is None:
+                temperature = min(float(temperature or 0.3), 0.3)
+                logs.append(f"Analysis mode: clamped temperature={temperature}")
         
         # Inject confidence guidance
         if _node_confidence is not None and isinstance(_node_confidence, (int, float)):
