@@ -8885,6 +8885,7 @@
                     if (reviewBody) {
                         reviewBody.innerHTML = extractionHtml;
                         if (typeof window.afLoadExtractionReviewMedia === 'function') window.afLoadExtractionReviewMedia(reviewBody);
+                        if (typeof window._afErSwitchFile === 'function') setTimeout(function () { window._afErSwitchFile(0); }, 50);
                     }
                     approvalBox.style.maxHeight = '80vh';
                     approvalBox.style.overflowY = 'auto';

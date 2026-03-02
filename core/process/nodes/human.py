@@ -479,6 +479,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             _SKIP_KEYS = {
                 'user_context', 'current_user', 'org_id', 'org',
                 'trigger_input', 'submitted_information',
+                'execution_id', 'process_id', 'node_id',
             }
             review_data = {}
             for _k, _v in _raw.items():
@@ -486,6 +487,10 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     continue
                 if _k.lower().replace(' ', '_') in _SKIP_KEYS:
                     continue
+                # Skip large arrays of objects (likely raw tool/API outputs)
+                if isinstance(_v, list) and len(_v) > 5:
+                    if any(isinstance(item, dict) for item in _v):
+                        continue
                 review_data[_k] = _v
         
         # Calculate deadline

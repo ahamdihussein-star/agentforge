@@ -946,6 +946,7 @@
                         ${extractionHtml}
                     `;
                     if (typeof window.afLoadExtractionReviewMedia === 'function') window.afLoadExtractionReviewMedia(detailsEl);
+                    if (typeof window._afErSwitchFile === 'function') setTimeout(function () { window._afErSwitchFile(0); }, 50);
                 } else {
                     const reviewHtml = renderReviewData(reviewData);
                     detailsEl.innerHTML = `

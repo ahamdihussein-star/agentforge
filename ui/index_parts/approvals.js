@@ -112,6 +112,7 @@
                         </div>
                     `).join('');
                     if (typeof window.afLoadExtractionReviewMedia === 'function') window.afLoadExtractionReviewMedia(container);
+                    if (typeof window._afErSwitchFile === 'function') setTimeout(function () { window._afErSwitchFile(0); }, 50);
                 }
                 
                 document.getElementById('approval-dashboard-modal').classList.remove('hidden');

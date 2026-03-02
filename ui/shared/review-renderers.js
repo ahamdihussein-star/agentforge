@@ -200,6 +200,8 @@
                 var vals = Object.values(v);
                 if (vals.length > 0 && vals.every(function (x) { return x === 0 || x === '0' || x === '' || x === null; })) return false;
             }
+            // Skip large arrays of objects (raw tool/API data, not useful for approvers)
+            if (Array.isArray(v) && v.length > 5 && v.some(function (x) { return x && typeof x === 'object' && !_isUploadedFile(x); })) return false;
             return true;
         });
         if (!entries.length) return '';
@@ -229,8 +231,13 @@
 .er-file-tab{padding:5px 12px;border-radius:6px;border:1px solid var(--border-color,var(--pb-border,#333));background:transparent;cursor:pointer;font-size:.78rem;color:var(--text-secondary,var(--pb-muted,#94a3b8));transition:all .2s}
 .er-file-tab:hover{background:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 15%, transparent);color:var(--text-primary,var(--pb-text,#f1f5f9))}
 .er-file-tab--active{background:var(--primary,var(--pb-primary,#6366f1));color:#fff;border-color:var(--primary,var(--pb-primary,#6366f1))}
-.er-doc-viewer{flex:1;overflow:auto;padding:12px;display:flex;align-items:center;justify-content:center;min-height:200px;background:var(--bg-secondary,var(--pb-bg,#16161e))}
-.er-doc-loadable{min-height:200px;display:flex;align-items:center;justify-content:center;position:relative}
+.er-doc-viewer{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:200px;background:var(--bg-secondary,var(--pb-bg,#16161e))}
+.er-file-preview{width:100%}
+.er-doc-loadable{min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;width:100%}
+.er-pdf-toolbar{display:flex;justify-content:center;gap:8px;padding:6px 12px;background:rgba(0,0,0,.45);border-radius:8px;margin-bottom:8px;align-items:center;position:sticky;top:0;z-index:5}
+.er-pdf-toolbar button{width:32px;height:32px;border:none;background:rgba(255,255,255,.15);color:#fff;border-radius:6px;cursor:pointer;font-size:18px;font-weight:700;transition:background .2s}
+.er-pdf-toolbar button:hover{background:rgba(255,255,255,.3)}
+.er-pdf-toolbar span{color:#fff;font-size:13px;line-height:32px;min-width:44px;text-align:center}
 .er-doc-loading{color:var(--text-muted,var(--pb-muted,#94a3b8));font-size:.9rem}
 .er-doc-image{max-width:100%;border-radius:8px;opacity:0;transform:scale(.97);transition:all .5s ease}
 .er-doc-image--loaded{opacity:1;transform:scale(1)}
@@ -362,11 +369,32 @@
             return '<div class="er-file-preview" data-file-idx="' + f.idx + '" style="' + (f.idx > 0 ? 'display:none;' : '') + '">' + viewer + '</div>';
         }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted,var(--pb-muted,#94a3b8));">No source documents attached</div>';
 
-        var renderArray = function (arr) {
+        var _cellVal = function (v) {
+            if (v === null || v === undefined) return '';
+            if (typeof v !== 'object') return _esc(String(v));
+            if (Array.isArray(v)) {
+                return v.map(function (item, ii) {
+                    if (item && typeof item === 'object') {
+                        var parts = [];
+                        Object.keys(item).slice(0, 5).forEach(function (k) {
+                            if (item[k] != null && item[k] !== '' && typeof item[k] !== 'object') parts.push('<b>' + _esc(_humanize(k)) + ':</b> ' + _esc(String(item[k])));
+                        });
+                        return '<div style="padding:3px 0;' + (ii > 0 ? 'border-top:1px solid rgba(148,163,184,.15);margin-top:3px;' : '') + '">' + (parts.join(', ') || _esc('Item ' + (ii + 1))) + '</div>';
+                    }
+                    return '<div>' + _esc(String(item != null ? item : '')) + '</div>';
+                }).join('');
+            }
+            var parts = [];
+            Object.keys(v).slice(0, 5).forEach(function (k) {
+                if (v[k] != null && v[k] !== '' && typeof v[k] !== 'object') parts.push('<b>' + _esc(_humanize(k)) + ':</b> ' + _esc(String(v[k])));
+            });
+            return parts.join('<br>') || _esc(JSON.stringify(v).slice(0, 120));
+        };
+        var renderArray = function (arr, fieldKey) {
             if (!arr || !arr.length) return '<em>empty</em>';
             if (typeof arr[0] !== 'object') return arr.map(function (v) { return '<div>' + _esc(String(v)) + '</div>'; }).join('');
             var cols = Object.keys(arr[0]);
-            return '<table class="er-table"><thead><tr>' + cols.map(function (c) { return '<th>' + _esc(_humanize(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row) { return '<tr>' + cols.map(function (c) { return '<td>' + _esc(String(row[c] != null ? row[c] : '')) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+            return '<table class="er-table" data-er-field="' + _esc(fieldKey || '') + '"><thead><tr>' + cols.map(function (c) { return '<th>' + _esc(_humanize(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) { return '<tr data-row-idx="' + ri + '">' + cols.map(function (c) { return '<td>' + _cellVal(row[c]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
         };
 
         function _isDatePlaceholder(s) {
@@ -447,7 +475,8 @@
                 }
             }
             if (Array.isArray(val)) {
-                return '<div class="er-field er-field--full" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><div class="er-field-value er-field-value--table">' + renderArray(val, key) + '</div></div>';
+                var tableHtml = renderArray(val, key);
+                return '<div class="er-field er-field--full" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><div class="er-field-value er-field-value--table" style="overflow-x:auto;">' + tableHtml + '</div></div>';
             }
             var displayVal = (val == null) ? '' : String(val);
             if ((fieldType === 'date' || /date/i.test(key)) && _isDatePlaceholder(displayVal)) displayVal = '';
@@ -733,34 +762,48 @@
                             var pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
                             return pdfjsLib.getDocument({ data: ab }).promise;
                         }).then(function (pdfDoc) {
+                            var toolbar = document.createElement('div');
+                            toolbar.className = 'er-pdf-toolbar';
+                            var zoomOut = document.createElement('button'); zoomOut.textContent = '\u2212'; zoomOut.title = 'Zoom out';
+                            var zoomLabel = document.createElement('span'); zoomLabel.textContent = '100%';
+                            var zoomIn = document.createElement('button'); zoomIn.textContent = '+'; zoomIn.title = 'Zoom in';
+                            toolbar.appendChild(zoomOut); toolbar.appendChild(zoomLabel); toolbar.appendChild(zoomIn);
+                            el.appendChild(toolbar);
+
                             var wrap = document.createElement('div');
                             wrap.className = 'er-doc-pdf-wrap';
-                            wrap.style.cssText = 'width:100%;max-height:600px;overflow-y:auto;background:#525659;padding:12px;border-radius:8px;';
+                            wrap.style.cssText = 'width:100%;background:#525659;padding:12px;border-radius:8px;';
                             el.appendChild(wrap);
-                            var containerWidth = wrap.clientWidth || el.clientWidth || 400;
+
+                            var currentZoom = 1;
+                            zoomOut.onclick = function () { currentZoom = Math.max(0.5, currentZoom - 0.25); wrap.style.zoom = currentZoom; zoomLabel.textContent = Math.round(currentZoom * 100) + '%'; };
+                            zoomIn.onclick = function () { currentZoom = Math.min(3, currentZoom + 0.25); wrap.style.zoom = currentZoom; zoomLabel.textContent = Math.round(currentZoom * 100) + '%'; };
+
+                            el.style.display = 'block';
+                            var containerWidth = wrap.clientWidth || el.clientWidth || 500;
                             var numPages = Math.min(pdfDoc.numPages, 50);
                             var renderNext = function (pageNum) {
                                 if (pageNum > numPages) {
                                     if (pdfDoc.numPages > 50) {
                                         var more = document.createElement('div');
                                         more.style.cssText = 'text-align:center;color:#94a3b8;font-size:12px;padding:8px;';
-                                        more.textContent = '… Showing first 50 of ' + pdfDoc.numPages + ' pages. Use Download for full file.';
+                                        more.textContent = '\u2026 Showing first 50 of ' + pdfDoc.numPages + ' pages. Use Download for full file.';
                                         wrap.appendChild(more);
                                     }
                                     el.setAttribute('data-er-loaded', '1');
-                                    _log('loadable[' + idx + '] PDF displayed (PDF.js)');
+                                    _log('loadable[' + idx + '] PDF displayed (PDF.js), pages=' + numPages);
                                     return;
                                 }
                                 return pdfDoc.getPage(pageNum).then(function (page) {
-                                    var desiredWidth = containerWidth - 24;
+                                    var desiredWidth = Math.max(containerWidth - 24, 450);
                                     var defaultViewport = page.getViewport({ scale: 1 });
-                                    var scale = Math.max(1, desiredWidth / defaultViewport.width);
+                                    var scale = Math.max(1.5, desiredWidth / defaultViewport.width);
                                     var viewport = page.getViewport({ scale: scale });
                                     var canvas = document.createElement('canvas');
                                     var ctx = canvas.getContext('2d');
                                     canvas.height = viewport.height;
                                     canvas.width = viewport.width;
-                                    canvas.style.cssText = 'display:block;margin:0 auto 12px;width:100%;height:auto;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+                                    canvas.style.cssText = 'display:block;margin:0 auto 12px;max-width:100%;height:auto;box-shadow:0 2px 8px rgba(0,0,0,.3);border-radius:4px;';
                                     wrap.appendChild(canvas);
                                     return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () { return renderNext(pageNum + 1); });
                                 });
@@ -847,6 +890,17 @@
         var preview = document.querySelector('.er-file-preview[data-file-idx="' + idx + '"]');
         if (tab) tab.classList.add('er-file-tab--active');
         if (preview) preview.style.display = '';
+        var totalTabs = document.querySelectorAll('.er-file-tab').length;
+        if (totalTabs > 1) {
+            document.querySelectorAll('.er-table[data-er-field]').forEach(function (table) {
+                var rows = table.querySelectorAll('tbody tr[data-row-idx]');
+                if (rows.length === totalTabs) {
+                    rows.forEach(function (row) {
+                        row.style.display = (parseInt(row.getAttribute('data-row-idx'), 10) === idx) ? '' : 'none';
+                    });
+                }
+            });
+        }
     };
 
     window._afErFieldChanged = function (el) {
