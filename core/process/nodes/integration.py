@@ -1362,7 +1362,10 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
 
         logs.append(f"Generating document: {title} ({fmt})")
 
-        content_md = await self._generate_document_markdown(title=title, instructions=instructions, state=state, logs=logs)
+        content_md = await self._generate_document_markdown(
+            title=title, instructions=instructions, state=state, logs=logs,
+            target_format=fmt,
+        )
 
         actual_format = fmt
         try:
@@ -1406,14 +1409,14 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         title: str,
         instructions: str,
         state: ProcessState,
-        logs: list
+        logs: list,
+        target_format: str = "docx",
     ) -> str:
         """Generate document content as markdown using the platform LLM (if available)."""
         llm = getattr(self.deps, 'llm', None)
         if not llm:
             return f"## Overview\n{instructions}\n\n## Details\n(LLM not configured)\n"
 
-        # Limit variable context to avoid huge prompts; sensitive values are masked.
         try:
             variables = state.get_masked_variables()
             trimmed = {}
@@ -1423,12 +1426,29 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         except Exception:
             variables_json = "{}"
 
-        system_prompt = (
-            "You are a professional document writer. "
-            "Write clear, well-structured content for business users. "
-            "Use markdown headings and bullet lists. "
-            "Do NOT invent company-specific facts; only use provided data."
-        )
+        if target_format == "xlsx":
+            system_prompt = (
+                "You are a professional business report writer creating content for an Excel spreadsheet.\n"
+                "FORMATTING RULES (MANDATORY):\n"
+                "1. Use ## for section headings (each becomes a styled section header row).\n"
+                "2. For tabular data, ALWAYS use markdown tables with | header | header | and |---|---| separator.\n"
+                "3. For key-value summary data, use this exact format:\n"
+                "   **Label**: Value\n"
+                "4. Keep text concise — spreadsheets need short, scannable content.\n"
+                "5. Do NOT write long paragraphs. Use bullet points (- item) for lists.\n"
+                "6. Separate sections with blank lines.\n"
+                "7. Do NOT invent data; only use what is provided.\n"
+                "8. Every data table MUST have a proper header row.\n"
+                "9. Use numbers for numeric data (not text like 'zero'), booleans as Yes/No.\n"
+            )
+        else:
+            system_prompt = (
+                "You are a professional document writer. "
+                "Write clear, well-structured content for business users. "
+                "Use markdown headings and bullet lists. "
+                "Do NOT invent company-specific facts; only use provided data."
+            )
+
         user_prompt = (
             f"Document title: {title}\n\n"
             f"Instructions:\n{instructions}\n\n"
@@ -1444,7 +1464,7 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     Message(role=MessageRole.USER, content=user_prompt),
                 ],
                 temperature=0.4,
-                max_tokens=2500,
+                max_tokens=3000,
             )
             text = (resp.content or "").strip() if resp else ""
             if text:
@@ -1522,26 +1542,249 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
         return os.path.getsize(filepath)
 
     def _create_xlsx(self, filepath: str, title: str, content: str) -> int:
-        """Create an Excel file (simple sheet) from content (requires openpyxl)."""
+        """Create a professionally formatted Excel workbook from markdown content."""
         import os
+        import re
         from openpyxl import Workbook
-        from openpyxl.styles import Font
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
 
         wb = Workbook()
         ws = wb.active
-        ws.title = (title or 'Sheet')[:31]
+        ws.title = (title or 'Report')[:31]
 
-        ws['A1'] = title
-        ws['A1'].font = Font(bold=True, size=16)
-        ws.merge_cells('A1:E1')
+        # ── Style palette ─────────────────────────────────────────────
+        COLOR_PRIMARY = "1B3A5C"
+        COLOR_ACCENT = "2E86C1"
+        COLOR_HEADER_BG = "1B3A5C"
+        COLOR_HEADER_FG = "FFFFFF"
+        COLOR_SECTION_BG = "D6EAF8"
+        COLOR_SECTION_FG = "1B3A5C"
+        COLOR_ALT_ROW = "F2F8FD"
+        COLOR_KV_LABEL = "EBF5FB"
+        COLOR_ANOMALY_BG = "FDEDEC"
+        COLOR_SUCCESS_BG = "EAFAF1"
+        COLOR_BORDER = "BDC3C7"
 
-        row = 3
-        for raw in (content or "").split('\n'):
-            line = raw.strip()
-            if not line:
+        font_title = Font(name="Calibri", bold=True, size=18, color=COLOR_PRIMARY)
+        font_subtitle = Font(name="Calibri", size=11, color="7F8C8D")
+        font_section = Font(name="Calibri", bold=True, size=13, color=COLOR_SECTION_FG)
+        font_table_hdr = Font(name="Calibri", bold=True, size=11, color=COLOR_HEADER_FG)
+        font_normal = Font(name="Calibri", size=11)
+        font_bold = Font(name="Calibri", bold=True, size=11)
+        font_kv_label = Font(name="Calibri", bold=True, size=11, color=COLOR_PRIMARY)
+        font_bullet = Font(name="Calibri", size=11, color="2C3E50")
+
+        fill_header = PatternFill(start_color=COLOR_HEADER_BG, end_color=COLOR_HEADER_BG, fill_type="solid")
+        fill_section = PatternFill(start_color=COLOR_SECTION_BG, end_color=COLOR_SECTION_BG, fill_type="solid")
+        fill_alt_row = PatternFill(start_color=COLOR_ALT_ROW, end_color=COLOR_ALT_ROW, fill_type="solid")
+        fill_kv_label = PatternFill(start_color=COLOR_KV_LABEL, end_color=COLOR_KV_LABEL, fill_type="solid")
+        fill_anomaly = PatternFill(start_color=COLOR_ANOMALY_BG, end_color=COLOR_ANOMALY_BG, fill_type="solid")
+        fill_success = PatternFill(start_color=COLOR_SUCCESS_BG, end_color=COLOR_SUCCESS_BG, fill_type="solid")
+
+        thin_border = Border(
+            left=Side(style="thin", color=COLOR_BORDER),
+            right=Side(style="thin", color=COLOR_BORDER),
+            top=Side(style="thin", color=COLOR_BORDER),
+            bottom=Side(style="thin", color=COLOR_BORDER),
+        )
+        align_wrap = Alignment(wrap_text=True, vertical="top")
+        align_center = Alignment(horizontal="center", vertical="center")
+
+        max_col_used = 6
+        col_widths = {}
+
+        def _track_width(col_idx: int, value: str):
+            length = min(len(str(value or "")), 60) + 2
+            col_widths[col_idx] = max(col_widths.get(col_idx, 8), length)
+
+        def _clean_md(text: str) -> str:
+            """Strip markdown bold/italic markers for cell values."""
+            t = re.sub(r'\*\*(.+?)\*\*', r'\1', str(text))
+            t = re.sub(r'\*(.+?)\*', r'\1', t)
+            t = re.sub(r'__(.+?)__', r'\1', t)
+            t = re.sub(r'_(.+?)_', r'\1', t)
+            t = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', t)
+            return t.strip()
+
+        def _is_anomaly_section(heading: str) -> bool:
+            lh = heading.lower()
+            return any(w in lh for w in ("anomal", "discrepanc", "risk", "issue", "flag", "error", "warning"))
+
+        def _is_success_section(heading: str) -> bool:
+            lh = heading.lower()
+            return any(w in lh for w in ("match", "clean", "success", "pass", "compliant", "approved"))
+
+        # ── Title block ───────────────────────────────────────────────
+        row = 1
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=max_col_used)
+        cell = ws.cell(row=row, column=1, value=title)
+        cell.font = font_title
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+        ws.row_dimensions[row].height = 36
+
+        row = 2
+        from datetime import datetime
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=max_col_used)
+        cell = ws.cell(row=row, column=1, value=f"Generated on {datetime.utcnow().strftime('%B %d, %Y at %H:%M UTC')}")
+        cell.font = font_subtitle
+        ws.row_dimensions[row].height = 20
+        row = 4
+
+        # ── Parse markdown into structured blocks ─────────────────────
+        lines = (content or "").split('\n')
+        i = 0
+        current_section = ""
+
+        while i < len(lines):
+            raw = lines[i]
+            stripped = raw.strip()
+
+            # Skip empty lines
+            if not stripped:
+                i += 1
                 continue
-            ws.cell(row=row, column=1, value=line)
-            row += 1
+
+            # ── Headings → section header row ──
+            if stripped.startswith('#'):
+                level = len(stripped) - len(stripped.lstrip('#'))
+                heading_text = _clean_md(stripped.lstrip('#').strip())
+                current_section = heading_text
+
+                if level <= 1:
+                    row += 1
+
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=max_col_used)
+                cell = ws.cell(row=row, column=1, value=heading_text)
+                cell.font = font_section if level >= 2 else Font(name="Calibri", bold=True, size=15, color=COLOR_PRIMARY)
+
+                section_fill = fill_section
+                if _is_anomaly_section(heading_text):
+                    section_fill = fill_anomaly
+                elif _is_success_section(heading_text):
+                    section_fill = fill_success
+
+                for c in range(1, max_col_used + 1):
+                    ws.cell(row=row, column=c).fill = section_fill
+                    ws.cell(row=row, column=c).border = thin_border
+                ws.row_dimensions[row].height = 28
+                row += 1
+                i += 1
+                continue
+
+            # ── Markdown table → formatted Excel table ──
+            if '|' in stripped and not stripped.startswith('-'):
+                table_lines = []
+                while i < len(lines) and '|' in lines[i].strip():
+                    tl = lines[i].strip()
+                    if tl and not re.match(r'^\|[\s\-:|]+\|$', tl):
+                        cells = [_clean_md(c.strip()) for c in tl.strip('|').split('|')]
+                        table_lines.append(cells)
+                    i += 1
+
+                if table_lines:
+                    header = table_lines[0]
+                    num_cols = len(header)
+
+                    for ci, h in enumerate(header, 1):
+                        cell = ws.cell(row=row, column=ci, value=h)
+                        cell.font = font_table_hdr
+                        cell.fill = fill_header
+                        cell.alignment = align_center
+                        cell.border = thin_border
+                        _track_width(ci, h)
+                    row += 1
+
+                    for ri, data_row in enumerate(table_lines[1:]):
+                        is_alt = ri % 2 == 0
+                        for ci, val in enumerate(data_row, 1):
+                            if ci > num_cols:
+                                break
+                            cell = ws.cell(row=row, column=ci, value=val)
+                            cell.font = font_normal
+                            cell.border = thin_border
+                            cell.alignment = align_wrap
+                            if is_alt:
+                                cell.fill = fill_alt_row
+                            _track_width(ci, val)
+                        for ci in range(len(data_row) + 1, num_cols + 1):
+                            ws.cell(row=row, column=ci).border = thin_border
+                            if is_alt:
+                                ws.cell(row=row, column=ci).fill = fill_alt_row
+                        row += 1
+
+                    row += 1
+                continue
+
+            # ── Key-value pair: **Label**: Value ──
+            kv_match = re.match(r'^[-•*]?\s*\*\*(.+?)\*\*\s*:\s*(.+)$', stripped)
+            if kv_match:
+                label = kv_match.group(1).strip()
+                value = _clean_md(kv_match.group(2))
+
+                cell_l = ws.cell(row=row, column=1, value=label)
+                cell_l.font = font_kv_label
+                cell_l.fill = fill_kv_label
+                cell_l.border = thin_border
+                cell_l.alignment = align_wrap
+                _track_width(1, label)
+
+                ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=max_col_used)
+                cell_v = ws.cell(row=row, column=2, value=value)
+                cell_v.font = font_normal
+                cell_v.border = thin_border
+                cell_v.alignment = align_wrap
+                _track_width(2, value)
+                row += 1
+                i += 1
+                continue
+
+            # ── Bullet points ──
+            if stripped.startswith(('- ', '* ', '• ')):
+                text = _clean_md(stripped[2:])
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=max_col_used)
+                cell = ws.cell(row=row, column=1, value=f"  •  {text}")
+                cell.font = font_bullet
+                cell.alignment = align_wrap
+                row += 1
+                i += 1
+                continue
+
+            # ── Numbered list ──
+            num_match = re.match(r'^(\d+)\.\s+(.+)$', stripped)
+            if num_match:
+                text = _clean_md(num_match.group(2))
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=max_col_used)
+                cell = ws.cell(row=row, column=1, value=f"  {num_match.group(1)}.  {text}")
+                cell.font = font_bullet
+                cell.alignment = align_wrap
+                row += 1
+                i += 1
+                continue
+
+            # ── Regular text ──
+            text = _clean_md(stripped)
+            if text:
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=max_col_used)
+                cell = ws.cell(row=row, column=1, value=text)
+                cell.font = font_normal
+                cell.alignment = align_wrap
+                row += 1
+            i += 1
+
+        # ── Auto-fit column widths ─────────────────────────────────────
+        for ci, width in col_widths.items():
+            ws.column_dimensions[get_column_letter(ci)].width = min(width, 45)
+        if 1 not in col_widths:
+            ws.column_dimensions['A'].width = 30
+        for ci in range(1, max_col_used + 1):
+            if ci not in col_widths:
+                ws.column_dimensions[get_column_letter(ci)].width = 18
+
+        # ── Print setup ───────────────────────────────────────────────
+        ws.sheet_properties.pageSetUpPr = None
+        ws.page_setup.orientation = "landscape"
+        ws.page_setup.fitToWidth = 1
 
         wb.save(filepath)
         return os.path.getsize(filepath)
