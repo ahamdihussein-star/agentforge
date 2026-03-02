@@ -8886,9 +8886,15 @@
                         reviewBody.innerHTML = extractionHtml;
                         if (typeof window.afLoadExtractionReviewMedia === 'function') window.afLoadExtractionReviewMedia(reviewBody);
                     }
-                    approvalBox.style.maxHeight = '70vh';
+                    approvalBox.style.maxHeight = '80vh';
                     approvalBox.style.overflowY = 'auto';
+                    // Widen modal for split-screen extraction review
+                    var _innerBox = approvalBox.closest('div[style*="width:760px"]') || approvalBox.parentElement;
+                    if (_innerBox) { _innerBox.style.width = '95vw'; _innerBox.style.maxWidth = '1400px'; }
                 } else {
+                    // Restore default modal width for generic approvals
+                    var _innerBox2 = approvalBox.closest('div[style*="95vw"]') || approvalBox.parentElement;
+                    if (_innerBox2 && _innerBox2.style.width === '95vw') { _innerBox2.style.width = '760px'; _innerBox2.style.maxWidth = '100%'; }
                     if (heading) heading.textContent = 'Waiting for approval';
                     if (title) title.textContent = approval?.title || approval?.step_name || 'Approval';
                     if (desc) desc.textContent = approval?.description || 'This step requires approval to continue.';
@@ -8963,6 +8969,7 @@
                     setText(node ? `Running: ${node.name || 'Step'}` : 'Running…');
                     hideApproval();
                     approvalHandled = false;
+                    _lastShownApprovalId = null;
                 }
 
                 await _sleep(1200);
