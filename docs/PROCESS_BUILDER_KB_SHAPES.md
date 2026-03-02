@@ -269,8 +269,10 @@ For modes 4-7: use `prompt`, `instructions`, `outputFields`, `creativity`, `conf
 
 **Human Review (optional — any AI mode):**
 - `humanReview` (boolean): When `true`, the process pauses after the AI step completes and shows a split-screen review UI where a human verifies the extracted data against source documents before the process continues.
-- Use when accuracy is critical (financial data, legal documents, compliance) or when the process detects anomalies that need human judgment.
-- Anomaly fields (names containing "anomaly", "discrepancy", "risk", "fraud", etc.) are automatically highlighted with animated severity indicators.
+- The reviewer sees source documents (images, PDFs) on the left and editable extracted fields on the right. They can correct values before confirming.
+- Edited values are sent back to the process engine as `decision_data` and the process continues with the corrected data.
+- Anomaly fields (names containing "anomaly", "discrepancy", "risk", "fraud", "mismatch", "warning") are automatically highlighted with animated severity banners.
+- **WIZARD AUTO-GENERATION RULE:** Set `humanReview: true` when the process involves financial documents (invoices, receipts, POs), legal/compliance documents, or when the user mentions reviewing/verifying/confirming extracted data.
 
 Note: `read_document` and `create_document` are legacy node types automatically converted to AI modes.
 
@@ -385,6 +387,7 @@ Config (`tool.config`):
 | Run steps simultaneously | Run in Parallel (`parallel`) | Connect to multiple next steps |
 | Invoke another published process | Call Process (`call_process`) | `processId`, `inputMapping` |
 | Extract data from files/images | AI Step (`ai`) | `aiMode: "extract_file"`, `sourceField` |
+| Extract with human verification | AI Step (`ai`) | `aiMode: "extract_file"`, `humanReview: true` |
 | Calculate across multiple files | AI Step (`ai`) | `aiMode: "batch_files"`, `sourceFields` |
 | Generate a document | AI Step (`ai`) | `aiMode: "create_doc"`, `docTitle`, `docFormat` |
 | Analyze / summarize | AI Step (`ai`) | `aiMode: "analyze"`, `prompt` |

@@ -119,6 +119,49 @@ downstream notification node's `attachments` array so the recipient gets the fil
 The engine resolves `{{reconciliationReport}}` to the generated file's disk path
 and attaches it to the email (SendGrid or SMTP). Multiple attachments are supported.
 
+## Human Review for Extraction (Split-Screen Verification)
+
+When an AI extraction step has `humanReview: true`, the process pauses after extraction and shows a
+**split-screen review UI**: source documents on the left, extracted data (editable) on the right.
+
+```json
+{
+  "type": "ai",
+  "name": "Extract Invoice Data",
+  "config": {
+    "aiMode": "extract_file",
+    "sourceField": "uploadedInvoices",
+    "prompt": "Extract vendor name, invoice number, line items, subtotal, VAT, and grand total",
+    "humanReview": true,
+    "creativity": 1,
+    "outputFields": [
+      {"label": "Vendor Name", "name": "vendorName", "type": "text"},
+      {"label": "Invoice Number", "name": "invoiceNumber", "type": "text"},
+      {"label": "Grand Total", "name": "grandTotal", "type": "number"},
+      {"label": "Line Items", "name": "lineItems", "type": "list"}
+    ]
+  },
+  "output_variable": "extractedData"
+}
+```
+
+**How it works:**
+1. The AI extracts data and produces structured output per `outputFields`.
+2. The engine creates a review task showing the original documents and extracted values.
+3. The reviewer can **edit** any value (e.g., correct a misread amount) and click "Approve & Continue".
+4. The corrected data is sent back as `decision_data` and the process continues with verified values.
+
+**When to use:**
+- Financial documents (invoices, receipts, POs) where accuracy is critical
+- Legal/compliance documents requiring human verification
+- Any process where the user mentions "review", "verify", or "confirm" extracted data
+- Anomaly detection workflows where the reviewer decides next steps
+
+**Anomaly highlighting:**
+If the AI output includes fields with names like `anomalies`, `discrepancies`, `riskFlags`, `mismatch`,
+or `warnings`, the review UI automatically shows animated severity banners above the data panel,
+color-coded by severity (critical=red, warning=amber, info=blue).
+
 ## Data Flow Patterns
 
 ### Pattern 1: Upload → Extract → Route → Notify
@@ -126,24 +169,34 @@ and attaches it to the email (SendGrid or SMTP). Multiple attachments are suppor
 form (file upload) → AI extract_file → condition (route by data) → approval/notification
 ```
 
-### Pattern 2: Upload → Extract → Calculate → Report → Notify with Attachment
+### Pattern 2: Upload → Extract → Human Review → Route → Notify
+```
+form (file upload) → AI extract_file (humanReview:true) → [reviewer verifies] → condition → approval/notification
+```
+
+### Pattern 3: Upload → Extract → Calculate → Report → Notify with Attachment
 ```
 form (file upload) → AI extract_file → calculate (formula) → AI create_doc → notification (with attachments)
 ```
 
-### Pattern 3: Multiple Files → Cross-File Analysis
+### Pattern 4: Multiple Files → Cross-File Analysis
 ```
 form (multiple file uploads) → AI batch_files → condition → notification
 ```
 
-### Pattern 4: Upload → Validate → Approve → Archive
+### Pattern 5: Upload → Validate → Approve → Archive
 ```
 form (file upload) → AI extract_file → condition (valid?) → approval → tool (archive to system)
 ```
 
-### Pattern 5: Scheduled Data Collection → Report Generation
+### Pattern 6: Scheduled Data Collection → Report Generation
 ```
 trigger (scheduled) → tool (fetch data) → AI analyze → AI create_doc → notification (with attachments)
+```
+
+### Pattern 7: Upload → Extract (Review) → Tool Match → Analyze → Report → Route
+```
+form (file upload) → AI extract_file (humanReview:true) → tool (lookup external data) → AI analyze (compare) → AI create_doc → condition (anomalies?) → approval/auto-notify
 ```
 
 ## Anti-Hallucination Rules

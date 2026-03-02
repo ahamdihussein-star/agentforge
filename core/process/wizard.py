@@ -947,6 +947,7 @@ class ProcessWizard:
             query += "\n\nrecipient requester manager _user_context enrich runtime resolution identity_source"
             query += "\n\nlayout visual spacing connection lines nodes positioning end node branches"
             query += "\n\ntool toolId params integration external system api database knowledge_base matching"
+            query += "\n\nhumanReview split-screen review verify confirm extraction review_data anomaly"
             query += "\n\nparallel call_process sub_process branches simultaneous published_processes composition reuse"
 
             platform_knowledge = retrieve_platform_knowledge(query, top_k=8, max_chars=6000)

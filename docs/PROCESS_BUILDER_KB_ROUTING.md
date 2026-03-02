@@ -123,6 +123,12 @@ trigger (scheduled) → tool (fetch data) → ai (analyze/transform) → notific
 trigger → form (upload files) → ai extract_file (parse) → condition (route by content) → approval → ai create_doc (generate report) → notification → end
 ```
 
+### Document Processing with Human Review
+```
+trigger → form (upload files) → ai extract_file (humanReview:true) → [reviewer verifies data] → tool (match against external system) → ai analyze → condition (anomalies?) → approval/auto-notify → end
+```
+Use `humanReview: true` on the extraction step when accuracy is critical (financial, legal, compliance) or when the user asks for verification.
+
 ### Multi-File Calculation
 ```
 trigger → form (upload multiple files) → ai batch_files (analyze across all) → condition (threshold?) → approval/notification → end

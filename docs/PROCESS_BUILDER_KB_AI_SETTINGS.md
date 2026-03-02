@@ -245,20 +245,32 @@ AI steps support an optional `humanReview` flag that pauses the process after ex
 When `humanReview: true`:
 - After the AI completes extraction, the process **pauses** and creates a review task.
 - The reviewer sees a **split-screen UI**: source documents on the left, extracted data (editable) on the right.
-- If anomalies are detected (fields with names containing "anomaly", "discrepancy", "risk", "fraud", "mismatch", "warning"), they are highlighted with animated banners.
+- If anomalies are detected (fields with names containing "anomaly", "discrepancy", "risk", "fraud", "mismatch", "warning"), they are highlighted with animated severity banners.
 - The reviewer can **edit** any extracted value before confirming.
-- Once confirmed, the process continues with the verified (potentially corrected) data.
+- Once confirmed, the **edited data** is sent back to the process engine as `decision_data`, and the process continues with the verified (potentially corrected) values.
 
-**When to use `humanReview`:**
-- Data extraction where accuracy is critical (financial documents, legal contracts, compliance evidence)
-- Processes that detect anomalies and need human judgment
-- Regulatory workflows requiring human verification before proceeding
-- Any step where the user asks for review, verification, or confirmation of AI output
+**How the split-screen review works:**
+1. The AI extracts data and produces structured output per `outputFields`.
+2. The engine creates a review task with `_review_type: "extraction_review"`, attaching:
+   - `_source_files`: The original uploaded documents/images (displayed on the left panel).
+   - `_extracted_data`: The AI's structured output (shown as editable fields on the right panel).
+   - `_output_fields`: The field definitions (labels, types) used to render typed input fields.
+3. The reviewer sees both panels side by side, edits values if needed, then clicks "Approve & Continue".
+4. Edited field values are sent as `decision_data` and merged into the process state.
+
+**When to use `humanReview` (WIZARD AUTO-GENERATION RULE):**
+The wizard MUST set `humanReview: true` when ANY of these apply:
+- The user's prompt mentions "review", "verify", "confirm", "check", or "validate" the extracted data
+- The process involves **financial documents** (invoices, receipts, purchase orders, expense reports)
+- The process involves **legal or compliance documents** (contracts, agreements, regulatory filings)
+- The process detects anomalies and needs human judgment before routing
+- The process involves high-value or high-risk data entry (medical records, insurance claims)
 
 **When NOT to use:**
 - Simple classification or routing decisions
 - Auto-approved flows where speed matters
 - Steps where human review would add unnecessary delay
+- Scheduled data imports where no human is involved
 
 ## Connected Tools
 
