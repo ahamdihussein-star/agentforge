@@ -594,8 +594,15 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     continue
                 items = sf_val if isinstance(sf_val, list) else [sf_val]
                 for fi in items:
-                    if isinstance(fi, dict) and fi.get("name"):
-                        source_file_refs.append(fi)
+                    if not isinstance(fi, dict) or not fi.get("name"):
+                        continue
+                    # Ensure id is present for frontend preview (extract from download_url if needed)
+                    ref = dict(fi)
+                    if not ref.get("id") and ref.get("download_url"):
+                        m = re.search(r"/uploads/([a-fA-F0-9-]+)(?:/|$)", str(ref.get("download_url", "")))
+                        if m:
+                            ref["id"] = m.group(1)
+                    source_file_refs.append(ref)
 
             review_payload = {
                 "_review_type": "extraction_review",

@@ -172,26 +172,28 @@
 .er-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;min-height:380px}
 @media(max-width:860px){.er-split{grid-template-columns:1fr}}
 .er-split-left,.er-split-right{background:var(--card-bg,var(--pb-card-bg,#1a1a2e));border:1px solid var(--border,var(--pb-border,#333));border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
-.er-panel-header{display:flex;align-items:center;gap:8px;padding:12px 16px;font-weight:700;font-size:.88rem;border-bottom:1px solid var(--border,var(--pb-border,#333))}
+.er-panel-header{display:flex;align-items:center;gap:8px;padding:12px 16px;font-weight:700;font-size:.88rem;color:#e8e8e8;border-bottom:1px solid var(--border,var(--pb-border,#333))}
 .er-file-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border,var(--pb-border,#333));flex-wrap:wrap}
-.er-file-tab{padding:5px 12px;border-radius:6px;border:1px solid var(--border,var(--pb-border,#333));background:transparent;cursor:pointer;font-size:.78rem;color:var(--text-secondary,var(--pb-muted,#999));transition:all .2s}
-.er-file-tab:hover{background:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 15%, transparent)}
+.er-file-tab{padding:5px 12px;border-radius:6px;border:1px solid var(--border,var(--pb-border,#333));background:transparent;cursor:pointer;font-size:.78rem;color:#b8b8b8;transition:all .2s}
+.er-file-tab:hover{background:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 15%, transparent);color:#e0e0e0}
 .er-file-tab--active{background:var(--primary,var(--pb-primary,#6366f1));color:#fff;border-color:var(--primary,var(--pb-primary,#6366f1))}
 .er-doc-viewer{flex:1;overflow:auto;padding:12px;display:flex;align-items:center;justify-content:center;min-height:200px}
+.er-doc-loadable{min-height:200px;display:flex;align-items:center;justify-content:center;position:relative}
+.er-doc-loading{color:#a0a0a0;font-size:.9rem}
 .er-doc-image{max-width:100%;border-radius:8px;opacity:0;transform:scale(.97);transition:all .5s ease}
 .er-doc-image--loaded{opacity:1;transform:scale(1)}
 .er-doc-pdf{width:100%;min-height:500px;border:none;border-radius:8px}
-.er-doc-fallback{display:flex;flex-direction:column;align-items:center;gap:4px;padding:24px;color:var(--text-muted,var(--pb-muted,#999));text-align:center}
+.er-doc-fallback{display:flex;flex-direction:column;align-items:center;gap:4px;padding:24px;color:#b0b0b0;text-align:center}
 .er-download-btn{margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--primary,var(--pb-primary,#6366f1));background:transparent;color:var(--primary,var(--pb-primary,#6366f1));cursor:pointer;font-size:.82rem}
 .er-fields{flex:1;overflow-y:auto;padding:12px 16px}
 .er-field{margin-bottom:10px}
 .er-field--full{margin-bottom:14px}
-.er-field-label{font-size:.78rem;font-weight:650;color:var(--text-muted,var(--pb-muted,#999));margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+.er-field-label{font-size:.78rem;font-weight:650;color:#b8b8b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
 .er-field-input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--border,var(--pb-border,#333));background:var(--bg,var(--pb-bg,#0d0d1a));color:var(--text,var(--pb-text,#eee));font-size:.88rem;transition:all .2s}
 .er-field-input:focus{outline:none;border-color:var(--primary,var(--pb-primary,#6366f1));box-shadow:0 0 0 3px color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 20%, transparent)}
 .er-field-input--edited{border-color:var(--warning,#f59e0b);background:color-mix(in srgb, var(--warning,#f59e0b) 6%, var(--bg,#0d0d1a))}
 .er-table{width:100%;border-collapse:collapse;font-size:.82rem}
-.er-table th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--border,var(--pb-border,#333));font-weight:700;text-transform:uppercase;font-size:.72rem;letter-spacing:.3px;color:var(--text-muted,var(--pb-muted,#999))}
+.er-table th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--border,var(--pb-border,#333));font-weight:700;text-transform:uppercase;font-size:.72rem;letter-spacing:.3px;color:#b8b8b8}
 .er-table td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb, var(--border,#333) 50%, transparent)}
 .er-confirm-section{padding:12px 16px;border-top:1px solid var(--border,var(--pb-border,#333));flex-shrink:0}
 .er-confirm-actions{display:flex;gap:10px;margin-top:10px}
@@ -217,8 +219,19 @@
         const outputFields = details._output_fields || [];
         const stepName = details._step_name || 'AI Extraction';
 
+        function _extractFileId(fileObj) {
+            var id = fileObj.id || fileObj.file_id || fileObj.upload_id || '';
+            if (id) return String(id).trim();
+            var dl = fileObj.download_url || fileObj.downloadUrl || '';
+            if (typeof dl === 'string' && dl.indexOf('/uploads/') >= 0) {
+                var m = dl.match(/\/uploads\/([a-fA-F0-9-]+)(?:\/|$)/);
+                if (m) return m[1];
+            }
+            return '';
+        }
+
         const filesInfo = sourceFiles.map(function (f, i) {
-            const fId = f.id || '';
+            const fId = _extractFileId(f);
             const fName = f.name || ('File ' + (i + 1));
             const fType = (f.file_type || f.content_type || '').toLowerCase();
             return { fId: fId, fName: fName, fType: fType, isImage: /\b(png|jpg|jpeg|gif|webp|bmp|tiff|heic|svg)\b/.test(fType), isPdf: /pdf/.test(fType), idx: i };
@@ -231,19 +244,16 @@
             : '';
 
         var filePreviews = filesInfo.map(function (f) {
-            var url = f.fId ? (API_BASE + '/process/uploads/' + encodeURIComponent(f.fId) + '/download') : '';
             var viewer = '';
-            if (f.isImage && url) {
-                viewer = '<img src="' + url + '" alt="' + _esc(f.fName) + '" class="er-doc-image" onload="this.classList.add(\'er-doc-image--loaded\')" style="max-width:100%;border-radius:8px;" />';
-            } else if (f.isPdf && url) {
-                viewer = '<object data="' + url + '" type="application/pdf" class="er-doc-pdf"><p>PDF preview not available. <a href="' + url + '" target="_blank">Download</a></p></object>';
-            } else if (url) {
-                viewer = '<div class="er-doc-fallback"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style="margin-top:8px;font-weight:600;">' + _esc(f.fName) + '</div><a href="' + url + '" target="_blank" class="er-download-btn">Download</a></div>';
+            if (f.fId && (f.isImage || f.isPdf)) {
+                viewer = '<div class="er-doc-loadable" data-file-id="' + _esc(f.fId) + '" data-file-name="' + _esc(f.fName) + '" data-is-image="' + (f.isImage ? '1' : '0') + '" data-is-pdf="' + (f.isPdf ? '1' : '0') + '"><div class="er-doc-loading">Loading document…</div></div>';
+            } else if (f.fId) {
+                viewer = '<div class="er-doc-fallback"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style="margin-top:8px;font-weight:600;">' + _esc(f.fName) + '</div><button type="button" class="er-download-btn er-doc-dl-btn" data-er-file-id="' + _esc(f.fId) + '" data-er-file-name="' + _esc(f.fName) + '">Download</button></div>';
             } else {
-                viewer = '<div class="er-doc-fallback" style="padding:24px;">No preview</div>';
+                viewer = '<div class="er-doc-fallback" style="padding:24px;">No file reference</div>';
             }
             return '<div class="er-file-preview" data-file-idx="' + f.idx + '" style="' + (f.idx > 0 ? 'display:none;' : '') + '">' + viewer + '</div>';
-        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted,#999);">No source documents attached</div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:#b0b0b0;">No source documents attached</div>';
 
         var renderArray = function (arr) {
             if (!arr || !arr.length) return '<em>empty</em>';
@@ -302,6 +312,78 @@
             '</div>';
     }
 
+    function afLoadExtractionReviewMedia(container) {
+        container = container || document.body;
+        if (!container || !container.querySelector) return;
+        var getToken = window.getAuthToken || (typeof getAuthToken === 'function' ? getAuthToken : null);
+        var token = (getToken && getToken()) || (typeof localStorage !== 'undefined' && localStorage.getItem('agentforge_token')) || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('agentforge_token')) || '';
+        var API_BASE = (typeof API !== 'undefined' ? API : '');
+        var loadables = container.querySelectorAll('.er-doc-loadable');
+        loadables.forEach(function (el) {
+            var fileId = el.getAttribute('data-file-id');
+            var fName = el.getAttribute('data-file-name') || 'document';
+            var isImage = el.getAttribute('data-is-image') === '1';
+            var isPdf = el.getAttribute('data-is-pdf') === '1';
+            if (!fileId || !token) return;
+            var url = API_BASE + '/process/uploads/' + encodeURIComponent(fileId) + '/download';
+            fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(function (r) { return r.ok ? r.blob() : Promise.reject(new Error('Failed to load')); })
+                .then(function (blob) {
+                    var blobUrl = URL.createObjectURL(blob);
+                    el.innerHTML = '';
+                    if (isImage) {
+                        var img = document.createElement('img');
+                        img.src = blobUrl;
+                        img.alt = fName;
+                        img.className = 'er-doc-image er-doc-image--loaded';
+                        img.style.maxWidth = '100%';
+                        img.style.borderRadius = '8px';
+                        img.onload = function () { img.classList.add('er-doc-image--loaded'); };
+                        el.appendChild(img);
+                    } else if (isPdf) {
+                        var obj = document.createElement('object');
+                        obj.data = blobUrl;
+                        obj.type = 'application/pdf';
+                        obj.className = 'er-doc-pdf';
+                        obj.style.width = '100%';
+                        obj.style.minHeight = '500px';
+                        obj.style.border = 'none';
+                        obj.style.borderRadius = '8px';
+                        el.appendChild(obj);
+                    }
+                })
+                .catch(function () {
+                    el.innerHTML = '<div class="er-doc-fallback"><span>Could not load document.</span><button type="button" class="er-download-btn er-doc-dl-btn" data-er-file-id="' + (fileId || '') + '" data-er-file-name="' + (fName || '') + '">Download</button></div>';
+                });
+        });
+        if (!window._afErDlDelegated) {
+            window._afErDlDelegated = true;
+            document.addEventListener('click', function (e) {
+                var btn = e.target && e.target.closest && e.target.closest('.er-doc-dl-btn');
+                if (btn) {
+                    var fid = btn.getAttribute('data-er-file-id');
+                    var fname = btn.getAttribute('data-er-file-name') || 'download';
+                    if (fid && typeof afDownloadProcessUploadFile === 'function') afDownloadProcessUploadFile(fid, fname);
+                }
+            });
+        }
+        if (typeof MutationObserver !== 'undefined' && !window._afErObserver) {
+            window._afErObserver = true;
+            var mo = new MutationObserver(function (mutations) {
+                for (var i = 0; i < mutations.length; i++) {
+                    var nodes = mutations[i].addedNodes;
+                    for (var j = 0; j < nodes.length; j++) {
+                        var n = nodes[j];
+                        if (n.nodeType !== 1) continue;
+                        if (n.querySelector && n.querySelector('.er-doc-loadable')) afLoadExtractionReviewMedia(n);
+                        else if (n.classList && n.classList.contains('er-doc-loadable')) afLoadExtractionReviewMedia(n.parentElement || document.body);
+                    }
+                }
+            });
+            if (document.body) mo.observe(document.body, { childList: true, subtree: true });
+        }
+    }
+
     function afDownloadProcessUploadFile(fileId, filename) {
         var id = String(fileId || '').trim();
         if (!id) return;
@@ -347,7 +429,8 @@
         if (el) el.classList.add('er-field-input--edited');
     };
 
-    if (!window.afRenderReviewData) window.afRenderReviewData = afRenderReviewData;
-    if (!window.afRenderExtractionReview) window.afRenderExtractionReview = afRenderExtractionReview;
-    if (!window.afDownloadProcessUploadFile) window.afDownloadProcessUploadFile = afDownloadProcessUploadFile;
+    window.afRenderReviewData = afRenderReviewData;
+    window.afRenderExtractionReview = afRenderExtractionReview;
+    window.afLoadExtractionReviewMedia = afLoadExtractionReviewMedia;
+    window.afDownloadProcessUploadFile = afDownloadProcessUploadFile;
 })();

@@ -8895,7 +8895,10 @@
                     if (heading) heading.textContent = 'Review Extracted Data';
                     if (title) title.textContent = approval?.title || 'AI Extraction Review';
                     if (desc) desc.textContent = 'Review the extracted data against the source documents and confirm or correct the values.';
-                    if (reviewBody) reviewBody.innerHTML = extractionHtml;
+                    if (reviewBody) {
+                        reviewBody.innerHTML = extractionHtml;
+                        if (typeof window.afLoadExtractionReviewMedia === 'function') window.afLoadExtractionReviewMedia(reviewBody);
+                    }
                     approvalBox.style.maxHeight = '70vh';
                     approvalBox.style.overflowY = 'auto';
                 } else {
