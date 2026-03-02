@@ -553,11 +553,18 @@ Node config rules:
      - PROMPT vs INSTRUCTIONS separation (MANDATORY):
        config.prompt = ONLY the task description.
        config.instructions = array of individual rule strings (injected as system prompt).
+     - config.humanReview (boolean, optional): When true, the process PAUSES after extraction and shows a
+       split-screen review UI (source documents on the left, extracted data on the right). A human reviewer
+       can edit values before confirming. Use when accuracy is critical (financial data, legal, compliance,
+       anomaly detection) or when the user asks for review/verification of extracted data.
+       RULE: If the user's prompt mentions "review", "verify", "confirm", "check", "validate" the extracted data,
+       or if the process involves financial documents, invoices, contracts, or compliance — set humanReview: true.
      Example:
        "aiMode": "extract_file", "sourceField": "receipt",
        "prompt": "Extract expense data from each receipt (type, date, vendor, amount). Calculate the total amount across all receipts.",
        "outputFields": [{{"label":"Total Amount","name":"totalAmount","type":"number"}},{{"label":"Vendor","name":"vendor","type":"text"}},{{"label":"Currency","name":"currency","type":"text"}}],
        "instructions": ["Only extract explicitly present data","Return numeric fields as pure numbers (e.g., 500 not '500 AED')"],
+       "humanReview": true,
        "creativity": 1
 
   2. aiMode: "create_doc" — Generate a document

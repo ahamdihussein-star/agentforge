@@ -8456,15 +8456,17 @@
             return (items || []).find(a => String(a?.process_execution_id || a?.run_id || a?.execution_id || a?.executionId || '') === execId) || null;
         }
 
-        async function _decideApproval(approvalId, decision) {
+        async function _decideApproval(approvalId, decision, decisionData) {
             const token = getAuthToken();
+            const payload = { decision };
+            if (decisionData && Object.keys(decisionData).length) payload.decision_data = decisionData;
             const res = await fetch('/process/approvals/' + encodeURIComponent(String(approvalId)) + '/decide', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + token
                 },
-                body: JSON.stringify({ decision })
+                body: JSON.stringify(payload)
             });
             let data = null;
             try { data = await res.json(); } catch (_) { data = null; }
@@ -8917,7 +8919,22 @@
                     const appr = await _fetchPendingApprovalForExecution(executionId);
                     if (!appr || !appr.id) throw new Error('Approval request not found.');
                     setText(decision === 'approved' ? 'Approved. Continuing…' : 'Rejected. Continuing…');
-                    await _decideApproval(appr.id, decision);
+
+                    let decisionData = {};
+                    const editedFields = approvalBox?.querySelectorAll('.er-field-input');
+                    if (editedFields && editedFields.length) {
+                        editedFields.forEach(inp => {
+                            const key = inp.getAttribute('data-er-key');
+                            const typ = inp.getAttribute('data-er-type') || 'text';
+                            if (!key) return;
+                            let val = inp.value;
+                            if (typ === 'number' || typ === 'currency') val = parseFloat(val) || 0;
+                            else if (typ === 'boolean') val = val === 'true' || val === '1';
+                            decisionData[key] = val;
+                        });
+                    }
+
+                    await _decideApproval(appr.id, decision, decisionData);
                     hideApproval();
                 } catch (e) {
                     approvalHandled = false;
