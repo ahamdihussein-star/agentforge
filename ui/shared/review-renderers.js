@@ -547,6 +547,45 @@
                 var nestedHtml = nestedFields.map(function (nf) {
                     if (!nf.val || !nf.val.length) return '';
                     if (typeof nf.val[0] !== 'object') {
+                        // Primitive arrays (often line items) — try to render as a table by splitting strings
+                        // into parts (comma/pipe separated). Keep a "Raw" editable column that maps to the
+                        // actual state key, to avoid inventing new structured keys.
+                        var rows = nf.val.map(function (v, vi) {
+                            var s = (v == null) ? '' : String(v);
+                            var parts = null;
+                            if (s && typeof s === 'string') {
+                                var trimmed = s.trim();
+                                // Prefer pipe/semicolon first (less ambiguous), then commas.
+                                var sep = trimmed.indexOf('|') >= 0 ? '|' : (trimmed.indexOf(';') >= 0 ? ';' : (trimmed.indexOf(',') >= 0 ? ',' : null));
+                                if (sep) {
+                                    var ps = trimmed.split(sep).map(function (x) { return String(x || '').trim(); }).filter(function (x) { return x !== ''; });
+                                    if (ps.length >= 2) parts = ps;
+                                }
+                            }
+                            return { vi: vi, raw: s, parts: parts || [] };
+                        });
+                        var maxParts = rows.reduce(function (m, r) { return Math.max(m, r.parts.length); }, 0);
+                        // Only use parts-table if we actually have meaningful splitting (2+ parts) for at least 2 rows
+                        var partRowsCount = rows.filter(function (r) { return r.parts.length >= 2; }).length;
+                        if (maxParts >= 2 && partRowsCount >= Math.min(2, rows.length)) {
+                            var showCols = Math.min(maxParts, 6);
+                            var headers = '';
+                            for (var ci = 0; ci < showCols; ci++) headers += '<th>' + _esc('Part ' + (ci + 1)) + '</th>';
+                            headers += '<th style="min-width:220px;">Raw</th>';
+                            var body = rows.map(function (r) {
+                                var tds = '';
+                                for (var ci2 = 0; ci2 < showCols; ci2++) {
+                                    var pv = r.parts[ci2] || '';
+                                    tds += '<td style="color:var(--text-primary,var(--pb-text,#f1f5f9));">' + _esc(pv) + '</td>';
+                                }
+                                var erKey = fk + '[' + ri + '].' + nf.key + '[' + r.vi + ']';
+                                tds += '<td><input class="er-card-input" type="text" value="' + _esc(String(r.raw || '')) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></td>';
+                                return '<tr>' + tds + '</tr>';
+                            }).join('');
+                            return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'
+                                + '<table class="er-card-sub-table"><thead><tr>' + headers + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+                        }
+                        // Fallback — simple editable list
                         return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div><div style="padding:4px 8px 8px;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;">'
                             + nf.val.map(function (v, vi) {
                                 var erKey = fk + '[' + ri + '].' + nf.key + '[' + vi + ']';
