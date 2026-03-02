@@ -7758,19 +7758,6 @@
                             <div>
                                 <h2 style="margin:0; font-size:18px;">Test run</h2>
                                 <p style="margin:6px 0 0; color:var(--pb-muted); font-size:13px;">${escapeHtml(subtitle)}</p>
-                                <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
-                                    <label style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;">
-                                        <input id="test-send-real-emails" type="checkbox" checked style="width:16px;height:16px;accent-color: var(--success);">
-                                        Send email notifications for real (SendGrid)
-                                    </label>
-                                    <label style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--pb-muted);cursor:pointer;user-select:none;">
-                                        <input id="test-run-real-engine" type="checkbox" style="width:16px;height:16px;accent-color: var(--tb-btn-primary-bg);">
-                                        Run using the real engine (shows extracted/API results)
-                                    </label>
-                                    <div style="font-size:11px;color:var(--pb-muted);margin-left:26px;">
-                                        Engine mode runs tools and steps for real (it may send real notifications).
-                                    </div>
-                                </div>
                             </div>
                             <button type="button" onclick="closeTestModal()" style="background:transparent;border:none;color:var(--pb-muted);font-size:22px;line-height:1;cursor:pointer;">×</button>
                         </div>
@@ -8122,10 +8109,8 @@
                 }
             }
 
-            const runWithEngine = !!document.getElementById('test-run-real-engine')?.checked;
-            if (runWithEngine) {
-                // Upload file fields (so the real engine/extraction steps can use the actual document)
-                for (const f of fieldDefs) {
+            // Always run with real engine (real data, real extraction, real notifications)
+            for (const f of fieldDefs) {
                     if (!f || String(f.type || '').toLowerCase() !== 'file') continue;
                     const el = document.querySelector(`#test-workflow-form [data-field-key="${CSS.escape(f.name)}"]`);
                     const fileList = el && el.files ? el.files : [];
@@ -8153,9 +8138,7 @@
                     } else {
                         values[f.name] = null;
                     }
-                }
             }
-            const sendRealEmails = !!document.getElementById('test-send-real-emails')?.checked;
             let currentUser = null;
             try {
                 const me = await getCurrentUserProfile();
@@ -8173,11 +8156,7 @@
                 currentUser = null;
             }
             closeTestModal();
-            if (runWithEngine) {
-                await runWorkflowTestWithEngine(values, { fieldDefs, currentUser });
-            } else {
-                await simulateWorkflow(values, { fieldDefs, sendRealEmails, currentUser });
-            }
+            await runWorkflowTestWithEngine(values, { fieldDefs, currentUser });
         }
 
         async function uploadPbTestRunFile(fileObj) {
@@ -8878,6 +8857,7 @@
             const approveBtn = runningModal.querySelector('#engine-test-approve-btn');
             const rejectBtn = runningModal.querySelector('#engine-test-reject-btn');
 
+            let _lastShownApprovalId = null;
             const showApproval = (approval) => {
                 if (!approvalBox) return;
                 const heading = runningModal.querySelector('#engine-test-approval-heading');
@@ -8885,6 +8865,13 @@
                 const desc = runningModal.querySelector('#engine-test-approval-desc');
                 const reviewBody = runningModal.querySelector('#engine-test-approval-review-body');
                 approvalBox.style.display = '';
+
+                const approvalId = approval?.id || '';
+                const isSameApproval = approvalId && approvalId === _lastShownApprovalId;
+                if (isSameApproval && reviewBody && reviewBody.innerHTML.trim()) {
+                    return;
+                }
+                _lastShownApprovalId = approvalId;
 
                 const reviewData = approval?.review_data || approval?.details_to_review || {};
                 const extractionHtml = (typeof window.afRenderExtractionReview === 'function')

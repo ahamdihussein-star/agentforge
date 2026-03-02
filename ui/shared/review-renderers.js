@@ -220,7 +220,21 @@
 
         const API_BASE = (typeof API !== 'undefined' ? API : '');
         const sourceFiles = details._source_files || [];
-        const extractedData = details._extracted_data || {};
+        var rawExtracted = details._extracted_data || {};
+        const outputVariable = details._output_variable || '';
+        var extractedData = rawExtracted;
+        if (typeof rawExtracted === 'object' && rawExtracted !== null && !Array.isArray(rawExtracted)) {
+            var keys = Object.keys(rawExtracted);
+            var ov = (outputVariable || '').trim();
+            if (keys.length === 1 && ov && rawExtracted[ov] && typeof rawExtracted[ov] === 'object' && !Array.isArray(rawExtracted[ov])) {
+                extractedData = rawExtracted[ov];
+            } else if (keys.length === 1 && !ov) {
+                var singleVal = rawExtracted[keys[0]];
+                if (singleVal && typeof singleVal === 'object' && !Array.isArray(singleVal) && Object.keys(singleVal).some(function (k) { return k !== '_' && !/^_/.test(k); })) {
+                    extractedData = singleVal;
+                }
+            }
+        }
         const outputFields = details._output_fields || [];
         const stepName = details._step_name || 'AI Extraction';
         try { console.log('[afRenderExtractionReview] sourceFiles', sourceFiles.length, sourceFiles); } catch (_) {}
@@ -283,11 +297,25 @@
             var t = s.trim().toLowerCase();
             return !t || /^dd[\/\-\.]mm[\/\-\.]yyyy$/i.test(t) || /^mm[\/\-\.]dd[\/\-\.]yyyy$/i.test(t) || /^yyyy[\/\-\.]mm[\/\-\.]dd$/i.test(t) || /^dd\/mm\/yy$/i.test(t) || t === 'dd/mm/yyyy' || t === 'mm/dd/yyyy' || t === 'yyyy-mm-dd';
         }
-        var fieldsToRender = outputFields.length ? outputFields : Object.keys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
+        function _getNestedVal(obj, key) {
+            if (!obj || key == null) return undefined;
+            var k = String(key).trim();
+            if (!k) return undefined;
+            if (k.indexOf('.') < 0) return obj[k];
+            var parts = k.split('.');
+            var cur = obj;
+            for (var i = 0; i < parts.length && cur != null; i++) cur = cur[parts[i]];
+            return cur;
+        }
+        function _topLevelKeys(o) {
+            if (!o || typeof o !== 'object' || Array.isArray(o)) return [];
+            return Object.keys(o).filter(function (k) { return !/^_/.test(k) && k !== 'download_url' && k !== 'path' && k !== 'content_type'; });
+        }
+        var fieldsToRender = outputFields.length ? outputFields : _topLevelKeys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
         var dataRowsHtml = fieldsToRender.map(function (field) {
             var key = field.name || field;
             var label = field.label || _humanize(key);
-            var val = extractedData[key];
+            var val = _getNestedVal(extractedData, key);
             var fieldType = field.type || 'text';
             if (Array.isArray(val)) {
                 return '<div class="er-field er-field--full" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><div class="er-field-value er-field-value--table">' + renderArray(val, key) + '</div></div>';
@@ -301,17 +329,32 @@
             return '<div class="er-field" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><input class="er-field-input" type="' + inputType + '" value="' + _esc(displayVal) + '" data-er-key="' + _esc(key) + '" data-er-type="' + _esc(fieldType) + '" ' + ro + ph + ' onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></div>';
         }).join('');
 
-        var hasAnomalies = Object.keys(extractedData).some(function (k) { return /anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && extractedData[k]; });
+        function _hasAnomalyVal(obj) {
+            if (!obj || typeof obj !== 'object') return false;
+            var keys = Object.keys(obj);
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
+                if (/anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && obj[k]) return true;
+                if (typeof obj[k] === 'object' && obj[k] !== null && _hasAnomalyVal(obj[k])) return true;
+            }
+            return false;
+        }
+        var hasAnomalies = _hasAnomalyVal(extractedData) || _hasAnomalyVal(rawExtracted);
         var anomalyHtml = '';
         if (hasAnomalies) {
-            var anomalyKeys = Object.keys(extractedData).filter(function (k) { return /anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && extractedData[k]; });
+            function _collectAnomalies(obj, out) {
+                if (!obj || typeof obj !== 'object') return;
+                Object.keys(obj).forEach(function (k) {
+                    var v = obj[k];
+                    if (!/anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) || !v) return;
+                    if (Array.isArray(v)) v.forEach(function (item) { out.push(typeof item === 'object' ? item : { detail: String(item) }); });
+                    else if (typeof v === 'object' && v !== null && !Array.isArray(v)) _collectAnomalies(v, out);
+                    else out.push({ detail: String(v) });
+                });
+            }
             var items = [];
-            anomalyKeys.forEach(function (k) {
-                var v = extractedData[k];
-                if (Array.isArray(v)) v.forEach(function (item) { items.push(typeof item === 'object' ? item : { detail: String(item) }); });
-                else if (typeof v === 'object' && v !== null) items.push(v);
-                else items.push({ detail: String(v) });
-            });
+            _collectAnomalies(extractedData, items);
+            _collectAnomalies(rawExtracted, items);
             if (items.length) {
                 anomalyHtml = '<div class="er-anomaly-banner"><div class="er-anomaly-header"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning,#f59e0b)" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>' + items.length + ' Anomal' + (items.length === 1 ? 'y' : 'ies') + ' Detected</span></div><div class="er-anomaly-list">' + items.map(function (item, idx) {
                     var sev = item.severity || item.level || '';
@@ -357,6 +400,7 @@
         }
 
         loadables.forEach(function (el, idx) {
+            if (el.getAttribute('data-er-loaded') === '1') return;
             var fileId = el.getAttribute('data-file-id');
             var fName = el.getAttribute('data-file-name') || 'document';
             var isImage = el.getAttribute('data-is-image') === '1';
@@ -416,6 +460,7 @@
                         wrap.appendChild(pre);
                     }
                     el.appendChild(wrap);
+                    el.setAttribute('data-er-loaded', '1');
                     _log('loadable[' + idx + '] text displayed');
                 }).catch(function (err) {
                     _log('loadable[' + idx + '] FAILED', { error: err && err.message, fileId: fileId });
@@ -435,6 +480,7 @@
                             wrap.style.cssText = 'max-height:500px;overflow:auto;padding:16px;background:var(--bg-input,var(--pb-bg,#0d0d1a));border-radius:8px;border:1px solid var(--border-color,var(--pb-border,#333));color:var(--text-primary,var(--pb-text,#eee));font-size:14px;line-height:1.6;';
                             wrap.innerHTML = (result && result.value) || '';
                             el.appendChild(wrap);
+                            el.setAttribute('data-er-loaded', '1');
                             _log('loadable[' + idx + '] Word displayed');
                         }).catch(function (err) {
                             _log('loadable[' + idx + '] Word FAILED', { error: err && err.message });
@@ -468,6 +514,7 @@
                             });
                             wrap.appendChild(table);
                             el.appendChild(wrap);
+                            el.setAttribute('data-er-loaded', '1');
                             _log('loadable[' + idx + '] Excel displayed');
                         }).catch(function (err) {
                             _log('loadable[' + idx + '] Excel FAILED', { error: err && err.message });
@@ -485,6 +532,7 @@
                             var viewer = new ViewerClass(wrap);
                             return (viewer.load && viewer.load(ab)) || (viewer.load && viewer.load(new Uint8Array(ab))) || Promise.reject(new Error('load failed'));
                         }).then(function () {
+                            el.setAttribute('data-er-loaded', '1');
                             _log('loadable[' + idx + '] PowerPoint displayed');
                         }).catch(function (err) {
                             _log('loadable[' + idx + '] PowerPoint FAILED', { error: err && err.message });
@@ -507,8 +555,9 @@
                         img.className = 'er-doc-image er-doc-image--loaded';
                         img.style.maxWidth = '100%';
                         img.style.borderRadius = '8px';
-                        img.onload = function () { img.classList.add('er-doc-image--loaded'); _log('loadable[' + idx + '] image loaded'); };
+                        img.onload = function () { img.classList.add('er-doc-image--loaded'); el.setAttribute('data-er-loaded', '1'); _log('loadable[' + idx + '] image loaded'); };
                         el.appendChild(img);
+                        el.setAttribute('data-er-loaded', '1');
                     } else if (isPdf) {
                         var reader = new FileReader();
                         reader.onload = function () {
@@ -518,6 +567,7 @@
                             iframe.className = 'er-doc-pdf';
                             iframe.style.cssText = 'width:100%;min-height:500px;border:none;border-radius:8px;background:#fff;';
                             el.appendChild(iframe);
+                            el.setAttribute('data-er-loaded', '1');
                             _log('loadable[' + idx + '] PDF displayed (data URL)');
                         };
                         reader.onerror = function () {
@@ -528,6 +578,7 @@
                             obj.className = 'er-doc-pdf';
                             obj.style.cssText = 'width:100%;min-height:500px;border:none;border-radius:8px;';
                             el.appendChild(obj);
+                            el.setAttribute('data-er-loaded', '1');
                             _log('loadable[' + idx + '] PDF fallback (blob URL)');
                         };
                         reader.readAsDataURL(blob);
