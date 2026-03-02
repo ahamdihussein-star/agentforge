@@ -990,6 +990,25 @@ const API='';
             try { createFlowReset(); } catch (_) {}
         }
         
+        // Auto-toggle modal panel sizing when generating animation is shown/hidden
+        (function _initGeneratingModeObserver() {
+            var genEl = document.getElementById('wizard-generating');
+            var panelEl = document.querySelector('.create-wizard-modal-panel');
+            if (!genEl || !panelEl) {
+                document.addEventListener('DOMContentLoaded', function () {
+                    genEl = document.getElementById('wizard-generating');
+                    panelEl = document.querySelector('.create-wizard-modal-panel');
+                    if (genEl && panelEl) _observe(genEl, panelEl);
+                });
+            } else { _observe(genEl, panelEl); }
+            function _observe(g, p) {
+                new MutationObserver(function () {
+                    if (g.classList.contains('hidden')) { p.classList.remove('generating-mode'); }
+                    else { p.classList.add('generating-mode'); }
+                }).observe(g, { attributes: true, attributeFilter: ['class'] });
+            }
+        })();
+
         // Restore wizard step 0 original content if it was replaced
         function restoreWizardStep0() {
             const step0 = document.getElementById('wizard-step-0');
