@@ -134,23 +134,24 @@ Use `humanReview: true` on the extraction step when accuracy is critical (financ
 trigger → form (upload multiple files) → ai batch_files (analyze across all) → condition (threshold?) → approval/notification → end
 ```
 
-### Analysis with Validation Gate (IMPORTANT)
-When a workflow compares data from one source against data from another (e.g., extracted documents vs. external system records), the AI analysis step MUST output a `canProceed` boolean field that indicates whether meaningful analysis was possible. A condition BEFORE the detailed-result conditions should check `canProceed` to short-circuit the workflow when there is nothing actionable.
+### Data Matching Validation Gate (IMPORTANT)
+When a workflow requires matching or comparing data from one source against data from another source (extracted documents vs. tool/API results, form input vs. database records, uploaded files vs. reference data, etc.), the AI step performing the match MUST determine whether the match itself was successful before the workflow proceeds.
 
 ```
-trigger → form → ai extract_file → tool (fetch reference data)
-       → ai analyze (outputs: canProceed, results…)
-       → condition (canProceed?)
-            ├── yes → condition (results need action?) → approval/notification → end
-            └── no  → notification ("Analysis not possible — data could not be matched") → end
+trigger → form → [data source A: extract/form/tool] → [data source B: tool/API]
+       → ai (match A against B; outputs: matchFound, results…)
+       → condition (matchFound?)
+            ├── yes → [process the matched results: conditions, approvals, reports…] → end
+            └── no  → notification ("Could not match the provided data against the reference source") → end
 ```
 
-**Why:** Without this gate, the AI may report "no match found" as an anomaly, which increments the anomaly count and triggers approvals even though no real analysis was performed. The `canProceed` flag lets the workflow distinguish between "comparison done, issues found" and "comparison not possible."
+**Why:** If the data from source A has no corresponding records in source B (e.g., an identifier in A doesn't exist in B's dataset), there is nothing to compare. Without this gate the AI step would still produce output (often flagging "no match" as an issue), the workflow would treat it as an actionable result, and continue to downstream steps (approvals, reports, escalations) that serve no purpose.
 
 **Generic rules:**
-- The analysis AI step's `instructions` MUST include: "If the input data lacks the reference needed for comparison (e.g., no matching identifier in the reference data), set `canProceed` to false and skip detailed analysis."
-- The `canProceed` field MUST be added to the AI step's `outputFields` as a boolean.
-- The first condition after the analysis checks `canProceed`; only the TRUE branch continues to detailed evaluation.
+- Any AI step whose task is to match, compare, reconcile, validate, or cross-reference data from two sources MUST include a `matchFound` (or `canProceed`) boolean in its `outputFields`.
+- The AI step's `instructions` MUST include a rule such as: "If the data from the first source cannot be matched against any record from the second source (e.g., no shared identifier exists), set matchFound to false and do not perform detailed analysis."
+- A condition node immediately after the AI step MUST check `matchFound`. Only the TRUE branch continues to detailed evaluation, approvals, or reports. The FALSE branch notifies the user and routes to end.
+- This pattern applies to ANY domain: finance (invoices vs. POs), HR (requests vs. policies), procurement (quotes vs. contracts), compliance (filings vs. regulations), etc.
 
 ## Process Complexity Guidelines
 

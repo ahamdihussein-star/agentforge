@@ -261,8 +261,8 @@ Config (`ai.config`):
 
 For modes 4-7: use `prompt`, `instructions`, `outputFields`, `creativity`, `confidence` as described above.
 
-**Validation Gate for Analysis Steps (IMPORTANT):**
-When an AI step compares or matches data from one source against another (e.g., extracted fields vs. API records, submitted data vs. reference data), you MUST include a `canProceed` boolean in `outputFields`. The AI step's `instructions` MUST include a rule telling the AI to set `canProceed` to `false` when the input data lacks the necessary reference or identifier for meaningful comparison. A downstream condition node MUST check `canProceed` before routing to detailed analysis or approval paths. This prevents the workflow from continuing with approvals or escalations when there is nothing actionable to review.
+**Data Matching Validation Gate (IMPORTANT):**
+When an AI step's task is to match, compare, reconcile, validate, or cross-reference data from two different sources (extracted fields vs. API records, form data vs. database records, uploaded files vs. reference data, etc.), the step MUST include a `matchFound` boolean in `outputFields`. The AI step's `instructions` MUST include a rule telling the AI to set `matchFound` to `false` when the data from the first source cannot be matched against any record from the second source (e.g., no shared identifier exists). A downstream condition node MUST check `matchFound` before routing to any detailed evaluation, approval, or reporting paths. This prevents the workflow from continuing when there is nothing actionable — the FALSE branch should notify the user and route to end.
 
 **Connected Tools (optional — any AI mode):**
 - `enabledToolIds` (array of strings): IDs of platform tools the AI can call during execution.
