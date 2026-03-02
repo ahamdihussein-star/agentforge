@@ -111,6 +111,7 @@
                             </div>
                         </div>
                     `).join('');
+                    if (typeof window.afLoadExtractionReviewMedia === 'function') window.afLoadExtractionReviewMedia(container);
                 }
                 
                 document.getElementById('approval-dashboard-modal').classList.remove('hidden');

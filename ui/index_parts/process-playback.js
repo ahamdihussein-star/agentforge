@@ -945,6 +945,7 @@
                         </div>
                         ${extractionHtml}
                     `;
+                    if (typeof window.afLoadExtractionReviewMedia === 'function') window.afLoadExtractionReviewMedia(detailsEl);
                 } else {
                     const reviewHtml = renderReviewData(reviewData);
                     detailsEl.innerHTML = `

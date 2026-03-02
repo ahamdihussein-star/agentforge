@@ -431,8 +431,9 @@ const API='';
         };
 
         // Expose helpers for other parts (approvals, chat, playback)
+        // Note: afRenderExtractionReview is provided by review-renderers.js (loads first) for auth-aware image/PDF display
         try { window.afRenderReviewData = afRenderReviewData; } catch (_) {}
-        try { window.afRenderExtractionReview = afRenderExtractionReview; } catch (_) {}
+        try { if (!window.afRenderExtractionReview) window.afRenderExtractionReview = afRenderExtractionReview; } catch (_) {}
         try { window.afDownloadProcessUploadFile = afDownloadProcessUploadFile; } catch (_) {}
         
         let step=0,wizard={name:'',icon:'',goal:'',originalGoal:'',personality:null,tasks:[],tool_ids:[],suggestedTools:[],guardrails:{},model:'',modelReason:'',editId:null,deployTarget:'cloud',cloudProvider:''},allTools=[],toolType=null,uploadedFiles=[],agentTab='published',conv=null,testAgent=null,apiStep=1,apiParams=[],configMode='manual',chatAttachments=[],testAttachments=[];

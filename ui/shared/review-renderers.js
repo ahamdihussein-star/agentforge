@@ -210,6 +210,10 @@
 .er-anomaly--warning .er-anomaly-badge{background:var(--warning,#f59e0b);color:#000}
 .er-anomaly--info .er-anomaly-badge{background:var(--primary,#6366f1);color:#fff}
 @keyframes erBannerSlideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.er-doc-word p,.er-doc-word li,.er-doc-word td,.er-doc-word th{color:var(--text-primary,var(--pb-text,#f1f5f9))}
+.er-doc-word table{border-collapse:collapse;width:100%;margin:8px 0}
+.er-doc-word th,.er-doc-word td{border:1px solid var(--border-color,var(--pb-border,#333));padding:6px 8px;text-align:left}
+.er-doc-word h1,.er-doc-word h2,.er-doc-word h3{color:var(--text-primary,var(--pb-text,#f1f5f9));margin:12px 0 6px}
 `;
             document.head.appendChild(s);
         }
@@ -236,7 +240,16 @@
             const fId = _extractFileId(f);
             const fName = f.name || ('File ' + (i + 1));
             const fType = (f.file_type || f.content_type || '').toLowerCase();
-            return { fId: fId, fName: fName, fType: fType, isImage: /\b(png|jpg|jpeg|gif|webp|bmp|tiff|heic|svg)\b/.test(fType), isPdf: /pdf/.test(fType), idx: i };
+            const isImage = /\b(png|jpg|jpeg|gif|webp|bmp|tiff|heic|svg)\b/.test(fType);
+            const isPdf = /pdf/.test(fType);
+            const isTxt = /\b(txt|text|plain)\b/.test(fType) || /^text\/plain/.test(fType);
+            const isCsv = /\bcsv\b/.test(fType) || /^text\/csv/.test(fType);
+            const isTextLike = isTxt || isCsv;
+            const isWord = /\b(doc|docx)\b/.test(fType) || /wordprocessingml|msword/.test(fType);
+            const isExcel = /\b(xls|xlsx)\b/.test(fType) || /spreadsheetml|ms-excel/.test(fType);
+            const isPpt = /\b(ppt|pptx)\b/.test(fType) || /presentationml|ms-powerpoint/.test(fType);
+            const isOfficePreview = isWord || isExcel || isPpt;
+            return { fId: fId, fName: fName, fType: fType, isImage: isImage, isPdf: isPdf, isTextLike: isTextLike, isCsv: isCsv, isWord: isWord, isExcel: isExcel, isPpt: isPpt, isOfficePreview: isOfficePreview, idx: i };
         });
         try { console.log('[afRenderExtractionReview] filesInfo', filesInfo); } catch (_) {}
 
@@ -248,8 +261,8 @@
 
         var filePreviews = filesInfo.map(function (f) {
             var viewer = '';
-            if (f.fId && (f.isImage || f.isPdf)) {
-                viewer = '<div class="er-doc-loadable" data-file-id="' + _esc(f.fId) + '" data-file-name="' + _esc(f.fName) + '" data-is-image="' + (f.isImage ? '1' : '0') + '" data-is-pdf="' + (f.isPdf ? '1' : '0') + '"><div class="er-doc-loading">Loading document…</div></div>';
+            if (f.fId && (f.isImage || f.isPdf || f.isTextLike || f.isOfficePreview)) {
+                viewer = '<div class="er-doc-loadable" data-file-id="' + _esc(f.fId) + '" data-file-name="' + _esc(f.fName) + '" data-is-image="' + (f.isImage ? '1' : '0') + '" data-is-pdf="' + (f.isPdf ? '1' : '0') + '" data-is-textlike="' + (f.isTextLike ? '1' : '0') + '" data-is-csv="' + (f.isCsv ? '1' : '0') + '" data-is-word="' + (f.isWord ? '1' : '0') + '" data-is-excel="' + (f.isExcel ? '1' : '0') + '" data-is-ppt="' + (f.isPpt ? '1' : '0') + '"><div class="er-doc-loading">Loading document…</div></div>';
             } else if (f.fId) {
                 viewer = '<div class="er-doc-fallback"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style="margin-top:8px;font-weight:600;">' + _esc(f.fName) + '</div><button type="button" class="er-download-btn er-doc-dl-btn" data-er-file-id="' + _esc(f.fId) + '" data-er-file-name="' + _esc(f.fName) + '">Download</button></div>';
             } else {
@@ -265,6 +278,11 @@
             return '<table class="er-table"><thead><tr>' + cols.map(function (c) { return '<th>' + _esc(_humanize(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row) { return '<tr>' + cols.map(function (c) { return '<td>' + _esc(String(row[c] != null ? row[c] : '')) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
         };
 
+        function _isDatePlaceholder(s) {
+            if (!s || typeof s !== 'string') return true;
+            var t = s.trim().toLowerCase();
+            return !t || /^dd[\/\-\.]mm[\/\-\.]yyyy$/i.test(t) || /^mm[\/\-\.]dd[\/\-\.]yyyy$/i.test(t) || /^yyyy[\/\-\.]mm[\/\-\.]dd$/i.test(t) || /^dd\/mm\/yy$/i.test(t) || t === 'dd/mm/yyyy' || t === 'mm/dd/yyyy' || t === 'yyyy-mm-dd';
+        }
         var fieldsToRender = outputFields.length ? outputFields : Object.keys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
         var dataRowsHtml = fieldsToRender.map(function (field) {
             var key = field.name || field;
@@ -275,9 +293,12 @@
                 return '<div class="er-field er-field--full" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><div class="er-field-value er-field-value--table">' + renderArray(val, key) + '</div></div>';
             }
             var displayVal = (val == null) ? '' : String(val);
-            var inputType = (fieldType === 'number' || fieldType === 'currency') ? 'number' : fieldType === 'date' ? 'date' : 'text';
+            if ((fieldType === 'date' || /date/i.test(key)) && _isDatePlaceholder(displayVal)) displayVal = '';
+            var isDateField = fieldType === 'date' || /date/i.test(key);
+            var inputType = (fieldType === 'number' || fieldType === 'currency') ? 'number' : (isDateField && displayVal) ? 'date' : 'text';
             var ro = opts.readonly ? 'readonly' : '';
-            return '<div class="er-field" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><input class="er-field-input" type="' + inputType + '" value="' + _esc(displayVal) + '" data-er-key="' + _esc(key) + '" data-er-type="' + _esc(fieldType) + '" ' + ro + ' onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></div>';
+            var ph = isDateField && !displayVal ? ' placeholder="— Not extracted"' : '';
+            return '<div class="er-field" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><input class="er-field-input" type="' + inputType + '" value="' + _esc(displayVal) + '" data-er-key="' + _esc(key) + '" data-er-type="' + _esc(fieldType) + '" ' + ro + ph + ' onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></div>';
         }).join('');
 
         var hasAnomalies = Object.keys(extractedData).some(function (k) { return /anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && extractedData[k]; });
@@ -316,6 +337,7 @@
     }
 
     function afLoadExtractionReviewMedia(container) {
+        _afErSetupObserver();
         var _log = function (msg, data) { try { console.log('[afLoadExtractionReviewMedia] ' + msg, data !== undefined ? data : ''); } catch (_) {} };
         container = container || document.body;
         _log('called', { hasContainer: !!container, containerId: container && container.id, containerTag: container && container.tagName });
@@ -326,12 +348,26 @@
         var API_BASE = (typeof API !== 'undefined' ? API : '') || '';
         var loadables = container.querySelectorAll('.er-doc-loadable');
         _log('loadables found', { count: loadables.length });
+        function _loadScript(src) {
+            if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
+            var s = document.createElement('script');
+            s.src = src;
+            document.head.appendChild(s);
+            return new Promise(function (res, rej) { s.onload = res; s.onerror = rej; });
+        }
+
         loadables.forEach(function (el, idx) {
             var fileId = el.getAttribute('data-file-id');
             var fName = el.getAttribute('data-file-name') || 'document';
             var isImage = el.getAttribute('data-is-image') === '1';
             var isPdf = el.getAttribute('data-is-pdf') === '1';
-            _log('loadable[' + idx + ']', { fileId: fileId || '(empty)', fName: fName, isImage: isImage, isPdf: isPdf, willFetch: !!(fileId && token) });
+            var isTextLike = el.getAttribute('data-is-textlike') === '1';
+            var isCsv = el.getAttribute('data-is-csv') === '1';
+            var isWord = el.getAttribute('data-is-word') === '1';
+            var isExcel = el.getAttribute('data-is-excel') === '1';
+            var isPpt = el.getAttribute('data-is-ppt') === '1';
+            var isOfficePreview = isWord || isExcel || isPpt;
+            _log('loadable[' + idx + ']', { fileId: fileId || '(empty)', fName: fName, isImage: isImage, isPdf: isPdf, isTextLike: isTextLike, isWord: isWord, isExcel: isExcel, isPpt: isPpt, willFetch: !!(fileId && token) });
             if (!fileId || !token) {
                 _log('loadable[' + idx + '] SKIP', { reason: !fileId ? 'no fileId' : 'no token' });
                 if (!fileId) el.innerHTML = '<div class="er-doc-fallback"><span>No file ID in review data.</span></div>';
@@ -340,16 +376,131 @@
             }
             var url = API_BASE + '/process/uploads/' + encodeURIComponent(fileId) + '/download';
             _log('loadable[' + idx + '] fetching', { url: url });
-            fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
-                .then(function (r) {
-                    _log('loadable[' + idx + '] response', { status: r.status, statusText: r.statusText, ok: r.ok });
-                    return r.ok ? r.blob() : Promise.reject(new Error('HTTP ' + r.status + ' ' + r.statusText));
-                })
-                .then(function (blob) {
+            var fetchOpts = { headers: { 'Authorization': 'Bearer ' + token } };
+            var promise = fetch(url, fetchOpts).then(function (r) {
+                _log('loadable[' + idx + '] response', { status: r.status, statusText: r.statusText, ok: r.ok });
+                if (!r.ok) return Promise.reject(new Error('HTTP ' + r.status + ' ' + r.statusText));
+                if (isTextLike) return r.text();
+                if (isOfficePreview) return r.arrayBuffer();
+                return r.blob();
+            });
+            if (isTextLike) {
+                promise.then(function (text) {
+                    _log('loadable[' + idx + '] text received', { len: text && text.length });
+                    el.innerHTML = '';
+                    var wrap = document.createElement('div');
+                    wrap.className = 'er-doc-text';
+                    wrap.style.cssText = 'max-height:500px;overflow:auto;padding:12px;background:var(--bg-input,var(--pb-bg,#0d0d1a));border-radius:8px;border:1px solid var(--border-color,var(--pb-border,#333));font-family:monospace;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:var(--text-primary,var(--pb-text,#eee));text-align:left;';
+                    if (isCsv) {
+                        var rows = (text || '').split(/\r?\n/).filter(function (r) { return r.trim(); });
+                        var table = document.createElement('table');
+                        table.className = 'er-table';
+                        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:11px;';
+                        rows.forEach(function (row, ri) {
+                            var tr = document.createElement('tr');
+                            var cells = row.split(',').map(function (c) { return c.replace(/^["\s]+|["\s]+$/g, '').replace(/""/g, '"'); });
+                            cells.forEach(function (cell) {
+                                var td = document.createElement(ri === 0 ? 'th' : 'td');
+                                td.textContent = cell;
+                                td.style.cssText = 'padding:6px 8px;border:1px solid var(--border-color,var(--pb-border,#333));text-align:left;';
+                                tr.appendChild(td);
+                            });
+                            table.appendChild(tr);
+                        });
+                        wrap.appendChild(table);
+                    } else {
+                        var pre = document.createElement('pre');
+                        pre.textContent = (text || '').slice(0, 50000);
+                        if ((text || '').length > 50000) pre.textContent += '\n\n… (truncated, use Download for full file)';
+                        pre.style.cssText = 'margin:0;';
+                        wrap.appendChild(pre);
+                    }
+                    el.appendChild(wrap);
+                    _log('loadable[' + idx + '] text displayed');
+                }).catch(function (err) {
+                    _log('loadable[' + idx + '] FAILED', { error: err && err.message, fileId: fileId });
+                    el.innerHTML = '<div class="er-doc-fallback"><span>Could not load document.</span><button type="button" class="er-download-btn er-doc-dl-btn" data-er-file-id="' + (fileId || '') + '" data-er-file-name="' + (fName || '') + '">Download</button></div>';
+                });
+            } else if (isOfficePreview) {
+                promise.then(function (ab) {
+                    _log('loadable[' + idx + '] arrayBuffer received', { size: ab && ab.byteLength });
+                    var failHtml = '<div class="er-doc-fallback"><span>Could not load document.</span><button type="button" class="er-download-btn er-doc-dl-btn" data-er-file-id="' + (fileId || '') + '" data-er-file-name="' + (fName || '') + '">Download</button></div>';
+                    if (isWord) {
+                        _loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js').then(function () {
+                            return (window.mammoth || {}).convertToHtml ? window.mammoth.convertToHtml({ arrayBuffer: ab }) : Promise.reject(new Error('Mammoth not loaded'));
+                        }).then(function (result) {
+                            el.innerHTML = '';
+                            var wrap = document.createElement('div');
+                            wrap.className = 'er-doc-word';
+                            wrap.style.cssText = 'max-height:500px;overflow:auto;padding:16px;background:var(--bg-input,var(--pb-bg,#0d0d1a));border-radius:8px;border:1px solid var(--border-color,var(--pb-border,#333));color:var(--text-primary,var(--pb-text,#eee));font-size:14px;line-height:1.6;';
+                            wrap.innerHTML = (result && result.value) || '';
+                            el.appendChild(wrap);
+                            _log('loadable[' + idx + '] Word displayed');
+                        }).catch(function (err) {
+                            _log('loadable[' + idx + '] Word FAILED', { error: err && err.message });
+                            el.innerHTML = failHtml;
+                        });
+                    } else if (isExcel) {
+                        _loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').then(function () {
+                            var X = window.XLSX;
+                            if (!X || !X.read) return Promise.reject(new Error('XLSX not loaded'));
+                            var wb = X.read(ab, { type: 'array' });
+                            var first = wb.SheetNames && wb.SheetNames[0] ? wb.Sheets[wb.SheetNames[0]] : null;
+                            if (!first) return Promise.reject(new Error('No sheet'));
+                            var rows = X.utils.sheet_to_json(first, { header: 1, defval: '' });
+                            el.innerHTML = '';
+                            var wrap = document.createElement('div');
+                            wrap.className = 'er-doc-excel';
+                            wrap.style.cssText = 'max-height:500px;overflow:auto;padding:12px;';
+                            var table = document.createElement('table');
+                            table.className = 'er-table';
+                            table.style.cssText = 'width:100%;border-collapse:collapse;font-size:12px;';
+                            (rows || []).forEach(function (row, ri) {
+                                var tr = document.createElement('tr');
+                                var arr = Array.isArray(row) ? row : [row];
+                                arr.forEach(function (cell) {
+                                    var td = document.createElement(ri === 0 ? 'th' : 'td');
+                                    td.textContent = cell != null ? String(cell) : '';
+                                    td.style.cssText = 'padding:6px 8px;border:1px solid var(--border-color,var(--pb-border,#333));text-align:left;';
+                                    tr.appendChild(td);
+                                });
+                                table.appendChild(tr);
+                            });
+                            wrap.appendChild(table);
+                            el.appendChild(wrap);
+                            _log('loadable[' + idx + '] Excel displayed');
+                        }).catch(function (err) {
+                            _log('loadable[' + idx + '] Excel FAILED', { error: err && err.message });
+                            el.innerHTML = failHtml;
+                        });
+                    } else if (isPpt) {
+                        _loadScript('https://unpkg.com/pptx-viewer@0.1.0/dist/pptx-viewer.umd.js').then(function () {
+                            var Pv = window.PPTXViewer;
+                            var ViewerClass = (Pv && (Pv.PPTXViewer || Pv.default || Pv)) || Pv;
+                            if (!ViewerClass) return Promise.reject(new Error('PPTXViewer not loaded'));
+                            el.innerHTML = '';
+                            var wrap = document.createElement('div');
+                            wrap.style.cssText = 'width:100%;min-height:400px;';
+                            el.appendChild(wrap);
+                            var viewer = new ViewerClass(wrap);
+                            return (viewer.load && viewer.load(ab)) || (viewer.load && viewer.load(new Uint8Array(ab))) || Promise.reject(new Error('load failed'));
+                        }).then(function () {
+                            _log('loadable[' + idx + '] PowerPoint displayed');
+                        }).catch(function (err) {
+                            _log('loadable[' + idx + '] PowerPoint FAILED', { error: err && err.message });
+                            el.innerHTML = failHtml;
+                        });
+                    }
+                }).catch(function (err) {
+                    _log('loadable[' + idx + '] Office fetch FAILED', { error: err && err.message, fileId: fileId });
+                    el.innerHTML = '<div class="er-doc-fallback"><span>Could not load document.</span><button type="button" class="er-download-btn er-doc-dl-btn" data-er-file-id="' + (fileId || '') + '" data-er-file-name="' + (fName || '') + '">Download</button></div>';
+                });
+            } else {
+                promise.then(function (blob) {
                     _log('loadable[' + idx + '] blob received', { size: blob && blob.size });
-                    var blobUrl = URL.createObjectURL(blob);
                     el.innerHTML = '';
                     if (isImage) {
+                        var blobUrl = URL.createObjectURL(blob);
                         var img = document.createElement('img');
                         img.src = blobUrl;
                         img.alt = fName;
@@ -359,22 +510,33 @@
                         img.onload = function () { img.classList.add('er-doc-image--loaded'); _log('loadable[' + idx + '] image loaded'); };
                         el.appendChild(img);
                     } else if (isPdf) {
-                        var obj = document.createElement('object');
-                        obj.data = blobUrl;
-                        obj.type = 'application/pdf';
-                        obj.className = 'er-doc-pdf';
-                        obj.style.width = '100%';
-                        obj.style.minHeight = '500px';
-                        obj.style.border = 'none';
-                        obj.style.borderRadius = '8px';
-                        el.appendChild(obj);
-                        _log('loadable[' + idx + '] PDF element added');
+                        var reader = new FileReader();
+                        reader.onload = function () {
+                            var dataUrl = reader.result;
+                            var iframe = document.createElement('iframe');
+                            iframe.src = dataUrl;
+                            iframe.className = 'er-doc-pdf';
+                            iframe.style.cssText = 'width:100%;min-height:500px;border:none;border-radius:8px;background:#fff;';
+                            el.appendChild(iframe);
+                            _log('loadable[' + idx + '] PDF displayed (data URL)');
+                        };
+                        reader.onerror = function () {
+                            var blobUrl = URL.createObjectURL(blob);
+                            var obj = document.createElement('object');
+                            obj.data = blobUrl;
+                            obj.type = 'application/pdf';
+                            obj.className = 'er-doc-pdf';
+                            obj.style.cssText = 'width:100%;min-height:500px;border:none;border-radius:8px;';
+                            el.appendChild(obj);
+                            _log('loadable[' + idx + '] PDF fallback (blob URL)');
+                        };
+                        reader.readAsDataURL(blob);
                     }
-                })
-                .catch(function (err) {
+                }).catch(function (err) {
                     _log('loadable[' + idx + '] FAILED', { error: err && err.message, fileId: fileId });
                     el.innerHTML = '<div class="er-doc-fallback"><span>Could not load document.</span><button type="button" class="er-download-btn er-doc-dl-btn" data-er-file-id="' + (fileId || '') + '" data-er-file-name="' + (fName || '') + '">Download</button></div>';
                 });
+            }
         });
         if (!window._afErDlDelegated) {
             window._afErDlDelegated = true;
@@ -387,21 +549,23 @@
                 }
             });
         }
-        if (typeof MutationObserver !== 'undefined' && !window._afErObserver) {
-            window._afErObserver = true;
-            var mo = new MutationObserver(function (mutations) {
-                for (var i = 0; i < mutations.length; i++) {
-                    var nodes = mutations[i].addedNodes;
-                    for (var j = 0; j < nodes.length; j++) {
-                        var n = nodes[j];
-                        if (n.nodeType !== 1) continue;
-                        if (n.querySelector && n.querySelector('.er-doc-loadable')) afLoadExtractionReviewMedia(n);
-                        else if (n.classList && n.classList.contains('er-doc-loadable')) afLoadExtractionReviewMedia(n.parentElement || document.body);
-                    }
+    }
+
+    function _afErSetupObserver() {
+        if (typeof MutationObserver === 'undefined' || window._afErObserver) return;
+        window._afErObserver = true;
+        var mo = new MutationObserver(function (mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+                var nodes = mutations[i].addedNodes;
+                for (var j = 0; j < nodes.length; j++) {
+                    var n = nodes[j];
+                    if (n.nodeType !== 1) continue;
+                    if (n.querySelector && n.querySelector('.er-doc-loadable')) afLoadExtractionReviewMedia(n);
+                    else if (n.classList && n.classList.contains('er-doc-loadable')) afLoadExtractionReviewMedia(n.parentElement || document.body);
                 }
-            });
-            if (document.body) mo.observe(document.body, { childList: true, subtree: true });
-        }
+            }
+        });
+        if (document.body) mo.observe(document.body, { childList: true, subtree: true });
     }
 
     function afDownloadProcessUploadFile(fileId, filename) {
@@ -453,4 +617,5 @@
     window.afRenderExtractionReview = afRenderExtractionReview;
     window.afLoadExtractionReviewMedia = afLoadExtractionReviewMedia;
     window.afDownloadProcessUploadFile = afDownloadProcessUploadFile;
+    _afErSetupObserver();
 })();
