@@ -509,6 +509,41 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         # Generate LLM approval summary so approvers see business-friendly context
         _has_llm = bool(self.deps and getattr(self.deps, 'llm', None))
         logger.info("[ApprovalNode] LLM summary: review_data=%d keys, has_llm=%s", len(review_data) if review_data else 0, _has_llm)
+        def _fallback_summary(data: dict) -> str:
+            """Generic, business-friendly fallback summary (no LLM)."""
+            try:
+                lines = []
+                for k, v in list(data.items())[:40]:
+                    if not k or str(k).startswith('_'):
+                        continue
+                    if isinstance(v, dict):
+                        # Prefer human-visible fields
+                        fn = v.get('filename') or v.get('name')
+                        if fn and v.get('path'):
+                            lines.append(f"• Attachment: {fn}")
+                            continue
+                        # Show a few key/value pairs
+                        pairs = []
+                        for kk, vv in list(v.items())[:6]:
+                            if vv is None or vv == '':
+                                continue
+                            if isinstance(vv, (dict, list)):
+                                continue
+                            pairs.append(f"{kk}: {vv}")
+                        if pairs:
+                            lines.append(f"• {k}: " + ", ".join(pairs))
+                        else:
+                            lines.append(f"• {k}: (details available)")
+                    elif isinstance(v, list):
+                        lines.append(f"• {k}: {len(v)} item(s)")
+                    else:
+                        s = str(v).strip()
+                        if s:
+                            lines.append(f"• {k}: {s[:180]}")
+                return "\n".join(lines[:25])
+            except Exception:
+                return "• Summary is available, but detailed formatting is temporarily unavailable."
+
         if review_data and _has_llm:
             try:
                 _summary_data = {}
@@ -535,16 +570,19 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     self.deps.llm.chat(
                         messages=[
                             Message(role=MessageRole.SYSTEM, content=(
-                                "You are an executive assistant writing a brief approval summary for a business manager. "
-                                "Write a clear, professional summary in 3-8 bullet points that helps the approver make a decision. "
+                                "You are an executive assistant writing a comprehensive approval summary for a business manager. "
+                                "Write a clear, professional summary that contains ALL important details the approver needs. "
                                 "Rules:\n"
                                 "- Lead with the most important finding or action needed.\n"
                                 "- Include specific numbers, amounts, dates, and names from the data.\n"
                                 "- Highlight any risks, anomalies, or discrepancies with exact figures.\n"
                                 "- For comparisons, show both values side by side (e.g., 'Actual: 13,333.75 vs Expected: 63,000').\n"
+                                "- If there are multiple items (e.g., multiple documents/records), cover EACH item.\n"
+                                "- If there is a findings/anomalies list, include EACH finding as its own bullet with the exact values.\n"
+                                "- If any report/document is available, mention its filename so the approver knows what to download.\n"
                                 "- Use plain business language. No technical terms, no JSON keys, no array indices.\n"
                                 "- End with a clear recommendation or the key question the approver needs to answer.\n"
-                                "- Format as bullet points using the bullet character. No headers or markdown."
+                                "- Format as bullet points using the bullet character. One bullet per line. No headers."
                             )),
                             Message(role=MessageRole.USER, content=(
                                 f"Approval step: {title}\n"
@@ -554,7 +592,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                             )),
                         ],
                         temperature=0.3,
-                        max_tokens=600,
+                        max_tokens=900,
                     ),
                     timeout=30
                 )
@@ -568,6 +606,13 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             except Exception as _se:
                 logs.append(f"Approval summary generation skipped: {_se}")
                 logger.warning("[ApprovalNode] LLM summary failed: %s", _se, exc_info=True)
+                if review_data and not review_data.get('_approval_summary'):
+                    review_data['_approval_summary'] = _fallback_summary(review_data)
+                    logs.append("Approval summary: used fallback summary (LLM failure)")
+        elif review_data and not review_data.get('_approval_summary'):
+            # No LLM configured: always provide a fallback summary so the UI can stay business-friendly
+            review_data['_approval_summary'] = _fallback_summary(review_data)
+            logs.append("Approval summary: used fallback summary (no LLM configured)")
 
         # Build approval request metadata
         approval_request = {

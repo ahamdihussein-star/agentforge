@@ -235,6 +235,7 @@
         }
         if (typeof rd !== 'object' || rd === null) return '';
 
+        var allEntries = Object.entries(rd);
         var summaryHtml = '';
         if (rd._approval_summary && typeof rd._approval_summary === 'string') {
             var summaryLines = rd._approval_summary.split('\n').filter(function (l) { return l.trim(); });
@@ -251,7 +252,37 @@
                 + '</div></div>';
         }
 
-        var allEntries = Object.entries(rd);
+        // Summary-only mode: if backend provided an approval summary, hide the raw tables.
+        // Still show any attached/generated documents (so approvers can download) inside the same Summary box.
+        if (summaryHtml) {
+            function _isFileRefLike(v) {
+                if (!v || typeof v !== 'object') return false;
+                if (_isUploadedFile(v) || _isFileMetadataObj(v)) return true;
+                // Generated document refs are often {title,format,path,filename,size} or similar
+                return !!(v.path && v.filename);
+            }
+            var files = allEntries
+                .filter(function (kv) { return kv && kv.length === 2; })
+                .filter(function ([k, v]) {
+                    if (!k || _isInternalKey(k) || k === '_approval_summary') return false;
+                    if (_isDuplicateFileRef(k, v, allEntries)) return false;
+                    return _isFileRefLike(v);
+                })
+                .slice(0, 6);
+            var filesHtml = '';
+            if (files.length) {
+                filesHtml = '<div style="margin-top:-4px;margin-bottom:16px;padding:12px 14px;border:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);border-radius:12px;background:color-mix(in srgb, var(--bg-card,#1a1a2e) 92%, transparent);">'
+                    + '<div style="font-weight:800;font-size:12px;letter-spacing:.3px;text-transform:uppercase;color:var(--text-secondary,var(--pb-muted,#999));margin-bottom:8px;">Attachments</div>'
+                    + files.map(function ([k, v]) {
+                        var rv = _renderValue(v, 0);
+                        if (!rv) return '';
+                        return '<div style="padding:6px 0;border-top:1px solid color-mix(in srgb, var(--border-color,#333) 20%, transparent);">' + rv + '</div>';
+                    }).filter(Boolean).join('')
+                    + '</div>';
+            }
+            return summaryHtml + filesHtml;
+        }
+
         const entries = allEntries.filter(([k, v]) => {
             if (_isInternalKey(k)) return false;
             if (k === '_approval_summary') return false;
@@ -571,15 +602,12 @@
                             var showCols = Math.min(maxParts, 6);
                             var headers = '';
                             for (var ci = 0; ci < showCols; ci++) headers += '<th>' + _esc('Part ' + (ci + 1)) + '</th>';
-                            headers += '<th style="min-width:220px;">Raw</th>';
                             var body = rows.map(function (r) {
                                 var tds = '';
                                 for (var ci2 = 0; ci2 < showCols; ci2++) {
                                     var pv = r.parts[ci2] || '';
                                     tds += '<td style="color:var(--text-primary,var(--pb-text,#f1f5f9));">' + _esc(pv) + '</td>';
                                 }
-                                var erKey = fk + '[' + ri + '].' + nf.key + '[' + r.vi + ']';
-                                tds += '<td><input class="er-card-input" type="text" value="' + _esc(String(r.raw || '')) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></td>';
                                 return '<tr>' + tds + '</tr>';
                             }).join('');
                             return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'
