@@ -9,9 +9,12 @@ These nodes perform actual work:
 """
 
 import json
+import logging
 import asyncio
 import re
 import time
+
+logger = logging.getLogger(__name__)
 from typing import Optional, Dict, Any
 from ..schemas import ProcessNode, NodeType
 from ..state import ProcessState, ProcessContext
@@ -591,10 +594,12 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             for sf_name in source_fields:
                 sf_val = state.get(sf_name)
                 if sf_val is None:
+                    logs.append(f"Human review: source field '{sf_name}' not in state")
                     continue
                 items = sf_val if isinstance(sf_val, list) else [sf_val]
                 for fi in items:
                     if not isinstance(fi, dict) or not fi.get("name"):
+                        logs.append(f"Human review: skipped file item (missing name): {type(fi).__name__}")
                         continue
                     # Ensure id is present for frontend preview (extract from download_url if needed)
                     ref = dict(fi)
@@ -602,6 +607,9 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                         m = re.search(r"/uploads/([a-fA-F0-9-]+)(?:/|$)", str(ref.get("download_url", "")))
                         if m:
                             ref["id"] = m.group(1)
+                            logs.append(f"Human review: extracted id from download_url for '{ref.get('name')}'")
+                    if not ref.get("id"):
+                        logs.append(f"Human review: file '{ref.get('name')}' has no id (frontend cannot load preview)")
                     source_file_refs.append(ref)
 
             review_payload = {
@@ -618,6 +626,11 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 f"Human review requested — pausing for verification "
                 f"({len(source_file_refs)} source file(s), "
                 f"{len(output)} extracted field(s))"
+            )
+            logger.info(
+                "[HumanReview] source_files=%s source_file_refs=%s",
+                source_fields,
+                [{"name": r.get("name"), "id": r.get("id"), "download_url": r.get("download_url")} for r in source_file_refs],
             )
 
             return NodeResult.waiting(

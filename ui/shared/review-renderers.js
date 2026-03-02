@@ -171,33 +171,34 @@
             s.textContent = `
 .er-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;min-height:380px}
 @media(max-width:860px){.er-split{grid-template-columns:1fr}}
-.er-split-left,.er-split-right{background:var(--card-bg,var(--pb-card-bg,#1a1a2e));border:1px solid var(--border,var(--pb-border,#333));border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
-.er-panel-header{display:flex;align-items:center;gap:8px;padding:12px 16px;font-weight:700;font-size:.88rem;color:#e8e8e8;border-bottom:1px solid var(--border,var(--pb-border,#333))}
-.er-file-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border,var(--pb-border,#333));flex-wrap:wrap}
-.er-file-tab{padding:5px 12px;border-radius:6px;border:1px solid var(--border,var(--pb-border,#333));background:transparent;cursor:pointer;font-size:.78rem;color:#b8b8b8;transition:all .2s}
-.er-file-tab:hover{background:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 15%, transparent);color:#e0e0e0}
+.er-split-left,.er-split-right{background:var(--bg-card,var(--pb-panel,#1e1e2e));border:1px solid var(--border-color,var(--pb-border,#333));border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.er-panel-header{display:flex;align-items:center;gap:8px;padding:12px 16px;font-weight:700;font-size:.88rem;color:var(--text-primary,var(--pb-text,#f1f5f9));border-bottom:1px solid var(--border-color,var(--pb-border,#333))}
+.er-file-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border-color,var(--pb-border,#333));flex-wrap:wrap}
+.er-file-tab{padding:5px 12px;border-radius:6px;border:1px solid var(--border-color,var(--pb-border,#333));background:transparent;cursor:pointer;font-size:.78rem;color:var(--text-secondary,var(--pb-muted,#94a3b8));transition:all .2s}
+.er-file-tab:hover{background:color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 15%, transparent);color:var(--text-primary,var(--pb-text,#f1f5f9))}
 .er-file-tab--active{background:var(--primary,var(--pb-primary,#6366f1));color:#fff;border-color:var(--primary,var(--pb-primary,#6366f1))}
-.er-doc-viewer{flex:1;overflow:auto;padding:12px;display:flex;align-items:center;justify-content:center;min-height:200px}
+.er-doc-viewer{flex:1;overflow:auto;padding:12px;display:flex;align-items:center;justify-content:center;min-height:200px;background:var(--bg-secondary,var(--pb-bg,#16161e))}
 .er-doc-loadable{min-height:200px;display:flex;align-items:center;justify-content:center;position:relative}
-.er-doc-loading{color:#a0a0a0;font-size:.9rem}
+.er-doc-loading{color:var(--text-muted,var(--pb-muted,#94a3b8));font-size:.9rem}
 .er-doc-image{max-width:100%;border-radius:8px;opacity:0;transform:scale(.97);transition:all .5s ease}
 .er-doc-image--loaded{opacity:1;transform:scale(1)}
 .er-doc-pdf{width:100%;min-height:500px;border:none;border-radius:8px}
-.er-doc-fallback{display:flex;flex-direction:column;align-items:center;gap:4px;padding:24px;color:#b0b0b0;text-align:center}
+.er-doc-fallback{display:flex;flex-direction:column;align-items:center;gap:4px;padding:24px;color:var(--text-secondary,var(--pb-muted,#94a3b8));text-align:center}
 .er-download-btn{margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--primary,var(--pb-primary,#6366f1));background:transparent;color:var(--primary,var(--pb-primary,#6366f1));cursor:pointer;font-size:.82rem}
-.er-fields{flex:1;overflow-y:auto;padding:12px 16px}
+.er-fields{flex:1;overflow-y:auto;padding:12px 16px;background:var(--bg-card,var(--pb-panel,#1e1e2e))}
 .er-field{margin-bottom:10px}
 .er-field--full{margin-bottom:14px}
-.er-field-label{font-size:.78rem;font-weight:650;color:#b8b8b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
-.er-field-input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--border,var(--pb-border,#333));background:var(--bg,var(--pb-bg,#0d0d1a));color:var(--text,var(--pb-text,#eee));font-size:.88rem;transition:all .2s}
+.er-field-label{font-size:.78rem;font-weight:650;color:var(--text-secondary,var(--pb-muted,#94a3b8));margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+.er-field-input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--border-color,var(--pb-border,#333));background:var(--bg-input,var(--pb-bg,#2d2d3d));color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.88rem;transition:all .2s}
 .er-field-input:focus{outline:none;border-color:var(--primary,var(--pb-primary,#6366f1));box-shadow:0 0 0 3px color-mix(in srgb, var(--primary,var(--pb-primary,#6366f1)) 20%, transparent)}
-.er-field-input--edited{border-color:var(--warning,#f59e0b);background:color-mix(in srgb, var(--warning,#f59e0b) 6%, var(--bg,#0d0d1a))}
-.er-table{width:100%;border-collapse:collapse;font-size:.82rem}
-.er-table th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--border,var(--pb-border,#333));font-weight:700;text-transform:uppercase;font-size:.72rem;letter-spacing:.3px;color:#b8b8b8}
-.er-table td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb, var(--border,#333) 50%, transparent)}
+.er-field-input--edited{border-color:var(--warning,#f59e0b);background:color-mix(in srgb, var(--warning,#f59e0b) 6%, var(--bg-input,#2d2d3d))}
+.er-field-value,.er-field-value--table{color:var(--text-primary,var(--pb-text,#f1f5f9));background:var(--bg-input,var(--pb-bg,#2d2d3d));padding:8px 10px;border-radius:6px;border:1px solid var(--border-color,var(--pb-border,#333))}
+.er-table{width:100%;border-collapse:collapse;font-size:.82rem;color:var(--text-primary,var(--pb-text,#f1f5f9))}
+.er-table th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--border-color,var(--pb-border,#333));font-weight:700;text-transform:uppercase;font-size:.72rem;letter-spacing:.3px;color:var(--text-secondary,var(--pb-muted,#94a3b8))}
+.er-table td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 50%, transparent);color:var(--text-primary,var(--pb-text,#f1f5f9))}
 .er-confirm-section{padding:12px 16px;border-top:1px solid var(--border,var(--pb-border,#333));flex-shrink:0}
 .er-confirm-actions{display:flex;gap:10px;margin-top:10px}
-.er-anomaly-banner{background:color-mix(in srgb, var(--warning,#f59e0b) 8%, var(--card-bg,#1a1a2e));border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 40%, var(--border,#333));border-radius:12px;padding:14px 16px;margin-bottom:12px;animation:erBannerSlideIn .5s ease}
+.er-anomaly-banner{background:color-mix(in srgb, var(--warning,#f59e0b) 8%, var(--bg-card,var(--pb-panel,#1e1e2e)));border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 40%, var(--border-color,#333));border-radius:12px;padding:14px 16px;margin-bottom:12px;animation:erBannerSlideIn .5s ease;color:var(--text-primary,var(--pb-text,#f1f5f9))}
 .er-anomaly-header{display:flex;align-items:center;gap:8px;font-weight:700;font-size:.92rem;margin-bottom:10px}
 .er-anomaly-list{display:flex;flex-direction:column;gap:6px}
 .er-anomaly-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;animation:erBannerSlideIn .5s ease}
@@ -218,6 +219,7 @@
         const extractedData = details._extracted_data || {};
         const outputFields = details._output_fields || [];
         const stepName = details._step_name || 'AI Extraction';
+        try { console.log('[afRenderExtractionReview] sourceFiles', sourceFiles.length, sourceFiles); } catch (_) {}
 
         function _extractFileId(fileObj) {
             var id = fileObj.id || fileObj.file_id || fileObj.upload_id || '';
@@ -236,6 +238,7 @@
             const fType = (f.file_type || f.content_type || '').toLowerCase();
             return { fId: fId, fName: fName, fType: fType, isImage: /\b(png|jpg|jpeg|gif|webp|bmp|tiff|heic|svg)\b/.test(fType), isPdf: /pdf/.test(fType), idx: i };
         });
+        try { console.log('[afRenderExtractionReview] filesInfo', filesInfo); } catch (_) {}
 
         var fileTabsHtml = filesInfo.length > 1
             ? '<div class="er-file-tabs">' + filesInfo.map(function (f) {
@@ -253,7 +256,7 @@
                 viewer = '<div class="er-doc-fallback" style="padding:24px;">No file reference</div>';
             }
             return '<div class="er-file-preview" data-file-idx="' + f.idx + '" style="' + (f.idx > 0 ? 'display:none;' : '') + '">' + viewer + '</div>';
-        }).join('') || '<div style="padding:24px;text-align:center;color:#b0b0b0;">No source documents attached</div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted,var(--pb-muted,#94a3b8));">No source documents attached</div>';
 
         var renderArray = function (arr) {
             if (!arr || !arr.length) return '<em>empty</em>';
@@ -313,22 +316,37 @@
     }
 
     function afLoadExtractionReviewMedia(container) {
+        var _log = function (msg, data) { try { console.log('[afLoadExtractionReviewMedia] ' + msg, data !== undefined ? data : ''); } catch (_) {} };
         container = container || document.body;
-        if (!container || !container.querySelector) return;
+        _log('called', { hasContainer: !!container, containerId: container && container.id, containerTag: container && container.tagName });
+        if (!container || !container.querySelector) { _log('early return: no container or querySelector'); return; }
         var getToken = window.getAuthToken || (typeof getAuthToken === 'function' ? getAuthToken : null);
         var token = (getToken && getToken()) || (typeof localStorage !== 'undefined' && localStorage.getItem('agentforge_token')) || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('agentforge_token')) || '';
-        var API_BASE = (typeof API !== 'undefined' ? API : '');
+        _log('auth', { hasToken: !!token, tokenLen: token ? token.length : 0 });
+        var API_BASE = (typeof API !== 'undefined' ? API : '') || '';
         var loadables = container.querySelectorAll('.er-doc-loadable');
-        loadables.forEach(function (el) {
+        _log('loadables found', { count: loadables.length });
+        loadables.forEach(function (el, idx) {
             var fileId = el.getAttribute('data-file-id');
             var fName = el.getAttribute('data-file-name') || 'document';
             var isImage = el.getAttribute('data-is-image') === '1';
             var isPdf = el.getAttribute('data-is-pdf') === '1';
-            if (!fileId || !token) return;
+            _log('loadable[' + idx + ']', { fileId: fileId || '(empty)', fName: fName, isImage: isImage, isPdf: isPdf, willFetch: !!(fileId && token) });
+            if (!fileId || !token) {
+                _log('loadable[' + idx + '] SKIP', { reason: !fileId ? 'no fileId' : 'no token' });
+                if (!fileId) el.innerHTML = '<div class="er-doc-fallback"><span>No file ID in review data.</span></div>';
+                else if (!token) el.innerHTML = '<div class="er-doc-fallback"><span>Not authenticated. Please log in.</span></div>';
+                return;
+            }
             var url = API_BASE + '/process/uploads/' + encodeURIComponent(fileId) + '/download';
+            _log('loadable[' + idx + '] fetching', { url: url });
             fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
-                .then(function (r) { return r.ok ? r.blob() : Promise.reject(new Error('Failed to load')); })
+                .then(function (r) {
+                    _log('loadable[' + idx + '] response', { status: r.status, statusText: r.statusText, ok: r.ok });
+                    return r.ok ? r.blob() : Promise.reject(new Error('HTTP ' + r.status + ' ' + r.statusText));
+                })
                 .then(function (blob) {
+                    _log('loadable[' + idx + '] blob received', { size: blob && blob.size });
                     var blobUrl = URL.createObjectURL(blob);
                     el.innerHTML = '';
                     if (isImage) {
@@ -338,7 +356,7 @@
                         img.className = 'er-doc-image er-doc-image--loaded';
                         img.style.maxWidth = '100%';
                         img.style.borderRadius = '8px';
-                        img.onload = function () { img.classList.add('er-doc-image--loaded'); };
+                        img.onload = function () { img.classList.add('er-doc-image--loaded'); _log('loadable[' + idx + '] image loaded'); };
                         el.appendChild(img);
                     } else if (isPdf) {
                         var obj = document.createElement('object');
@@ -350,9 +368,11 @@
                         obj.style.border = 'none';
                         obj.style.borderRadius = '8px';
                         el.appendChild(obj);
+                        _log('loadable[' + idx + '] PDF element added');
                     }
                 })
-                .catch(function () {
+                .catch(function (err) {
+                    _log('loadable[' + idx + '] FAILED', { error: err && err.message, fileId: fileId });
                     el.innerHTML = '<div class="er-doc-fallback"><span>Could not load document.</span><button type="button" class="er-download-btn er-doc-dl-btn" data-er-file-id="' + (fileId || '') + '" data-er-file-name="' + (fName || '') + '">Download</button></div>';
                 });
         });
