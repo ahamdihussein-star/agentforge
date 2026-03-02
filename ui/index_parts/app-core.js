@@ -951,6 +951,15 @@ const API='';
             apiPersonalityDescriptions = {};
             lastGoalText = '';
             
+            // Sync panel sizing: shrink when generating, expand otherwise
+            (function _initGenModeSync() {
+                var panel = document.querySelector('.create-wizard-modal-panel');
+                var gen = document.getElementById('wizard-generating');
+                if (!panel || !gen) return;
+                function sync() { panel.classList.toggle('generating-mode', !gen.classList.contains('hidden')); }
+                try { new MutationObserver(sync).observe(gen, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
+            })();
+
             // Reset UI
             document.getElementById('wizard-step-0')?.classList.remove('hidden');
             document.getElementById('wizard-generating')?.classList.add('hidden');
