@@ -473,12 +473,20 @@
                 var nestedFields = [];
                 Object.keys(row).forEach(function (c) {
                     var v = row[c];
+                    if (typeof v === 'string' && v.length > 2 && (v[0] === '[' || v[0] === '{')) {
+                        try { var parsed = JSON.parse(v); if (Array.isArray(parsed)) { v = parsed; row[c] = parsed; } } catch (_) {}
+                    }
                     if (Array.isArray(v)) nestedFields.push({ key: c, val: v });
                     else simpleFields.push({ key: c, val: v });
                 });
                 var gridHtml = simpleFields.map(function (sf) {
                     var erKey = fk + '[' + ri + '].' + sf.key;
-                    var displayVal = (sf.val == null) ? '' : String(sf.val);
+                    var displayVal = (sf.val == null) ? '' : (typeof sf.val === 'object' ? JSON.stringify(sf.val) : String(sf.val));
+                    if (displayVal.length > 120) {
+                        return '<div class="er-card-cell" style="grid-column:1/-1;"><div class="er-card-cell-label">' + _esc(_humanize(sf.key)) + '</div>'
+                            + '<textarea class="er-card-input" rows="3" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" style="resize:vertical;width:100%;box-sizing:border-box;padding:6px;border:none;border-bottom:1px solid transparent;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;font-family:inherit;">' + _esc(displayVal) + '</textarea>'
+                            + '</div>';
+                    }
                     return '<div class="er-card-cell"><div class="er-card-cell-label">' + _esc(_humanize(sf.key)) + '</div>'
                         + '<input class="er-card-input" type="text" value="' + _esc(displayVal) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" />'
                         + '</div>';
@@ -486,7 +494,14 @@
                 var nestedHtml = nestedFields.map(function (nf) {
                     if (!nf.val || !nf.val.length) return '';
                     if (typeof nf.val[0] !== 'object') {
-                        return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + '</div><div style="padding:0 8px 4px;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;">' + nf.val.map(function (v) { return _esc(String(v)); }).join(', ') + '</div></div>';
+                        return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div><div style="padding:4px 8px 8px;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;">'
+                            + nf.val.map(function (v, vi) {
+                                var erKey = fk + '[' + ri + '].' + nf.key + '[' + vi + ']';
+                                return '<div style="display:flex;gap:6px;align-items:center;padding:2px 0;' + (vi > 0 ? 'border-top:1px solid color-mix(in srgb, var(--border-color,#333) 30%, transparent);margin-top:2px;' : '') + '">'
+                                    + '<span style="color:var(--text-secondary,var(--pb-muted,#94a3b8));font-size:.72rem;min-width:18px;">' + (vi + 1) + '.</span>'
+                                    + '<input class="er-card-input" type="text" value="' + _esc(String(v)) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" />'
+                                    + '</div>';
+                            }).join('') + '</div></div>';
                     }
                     var subCols = Object.keys(nf.val[0]);
                     return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'

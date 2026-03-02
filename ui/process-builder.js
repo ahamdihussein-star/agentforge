@@ -8606,7 +8606,7 @@
                         </div>
                     </div>
                     <!-- BUSINESS VIEW (default) -->
-                    <div id="report-business-view" style="padding:18px; display:grid;grid-template-columns: 360px 1fr; gap:16px;">
+                    <div id="report-business-view" style="padding:18px; display:grid;grid-template-columns: 340px 1fr; gap:16px;overflow:hidden;">
                         <div>
                             <div style="padding:14px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;">
                                 <div style="font-weight:900;color:var(--pb-text);margin-bottom:10px;">Submitted information</div>
@@ -8618,7 +8618,7 @@
                             </div>
                         </div>
                         <div>
-                            <div id="business-summary-content" style="padding:18px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;min-height:120px;">
+                            <div id="business-summary-content" style="padding:18px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;min-height:120px;min-width:0;overflow-wrap:break-word;word-break:break-word;">
                                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
                                     <div style="font-weight:900;color:var(--pb-text);font-size:15px;">What happened</div>
                                 </div>
@@ -8632,7 +8632,7 @@
                         </div>
                     </div>
                     <!-- TECHNICAL VIEW (hidden by default) -->
-                    <div id="report-technical-view" style="padding:18px; display:none; grid-template-columns: 360px 1fr; gap:16px;">
+                    <div id="report-technical-view" style="padding:18px; display:none; grid-template-columns: 340px 1fr; gap:16px;overflow:hidden;">
                         <div>
                             <div style="padding:14px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;">
                                 <div style="font-weight:900;color:var(--pb-text);margin-bottom:10px;">Submitted information</div>
@@ -9844,7 +9844,7 @@
                                 <div style="font-weight:700;color:var(--pb-text);">${escapeHtml(t.title || 'Step')}</div>
                                 <div style="font-size:12px;color:var(--pb-muted);">${escapeHtml(String(t.type || '').toUpperCase())}</div>
                             </div>
-                            <div style="margin-top:6px;font-size:13px;color:color-mix(in srgb, var(--pb-text) 86%, var(--pb-muted));line-height:1.35;">${escapeHtml(t.message || '')}</div>
+                            <div style="margin-top:6px;font-size:13px;color:color-mix(in srgb, var(--pb-text) 86%, var(--pb-muted));line-height:1.35;overflow-wrap:break-word;word-break:break-word;">${escapeHtml(t.message || '')}</div>
                         </div>
                     </div>`;
                 }).join('');
@@ -9871,7 +9871,7 @@
                             </button>
                         </div>
                     </div>
-                    <div style="padding:18px; display:grid;grid-template-columns: 340px 1fr; gap:16px;">
+                    <div style="padding:18px; display:grid;grid-template-columns: 340px 1fr; gap:16px;overflow:hidden;">
                         <div>
                             <div style="padding:14px;background:var(--bg-input);border:1px solid color-mix(in srgb, var(--pb-muted) 22%, transparent);border-radius:16px;">
                                 <div style="font-weight:800;color:var(--pb-text);margin-bottom:10px;">Submitted information</div>
