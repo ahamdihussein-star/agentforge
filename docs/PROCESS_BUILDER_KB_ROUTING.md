@@ -134,6 +134,24 @@ Use `humanReview: true` on the extraction step when accuracy is critical (financ
 trigger → form (upload multiple files) → ai batch_files (analyze across all) → condition (threshold?) → approval/notification → end
 ```
 
+### Analysis with Validation Gate (IMPORTANT)
+When a workflow compares data from one source against data from another (e.g., extracted documents vs. external system records), the AI analysis step MUST output a `canProceed` boolean field that indicates whether meaningful analysis was possible. A condition BEFORE the detailed-result conditions should check `canProceed` to short-circuit the workflow when there is nothing actionable.
+
+```
+trigger → form → ai extract_file → tool (fetch reference data)
+       → ai analyze (outputs: canProceed, results…)
+       → condition (canProceed?)
+            ├── yes → condition (results need action?) → approval/notification → end
+            └── no  → notification ("Analysis not possible — data could not be matched") → end
+```
+
+**Why:** Without this gate, the AI may report "no match found" as an anomaly, which increments the anomaly count and triggers approvals even though no real analysis was performed. The `canProceed` flag lets the workflow distinguish between "comparison done, issues found" and "comparison not possible."
+
+**Generic rules:**
+- The analysis AI step's `instructions` MUST include: "If the input data lacks the reference needed for comparison (e.g., no matching identifier in the reference data), set `canProceed` to false and skip detailed analysis."
+- The `canProceed` field MUST be added to the AI step's `outputFields` as a boolean.
+- The first condition after the analysis checks `canProceed`; only the TRUE branch continues to detailed evaluation.
+
 ## Process Complexity Guidelines
 
 | Complexity | Steps | Includes |

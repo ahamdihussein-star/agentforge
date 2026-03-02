@@ -261,6 +261,9 @@ Config (`ai.config`):
 
 For modes 4-7: use `prompt`, `instructions`, `outputFields`, `creativity`, `confidence` as described above.
 
+**Validation Gate for Analysis Steps (IMPORTANT):**
+When an AI step compares or matches data from one source against another (e.g., extracted fields vs. API records, submitted data vs. reference data), you MUST include a `canProceed` boolean in `outputFields`. The AI step's `instructions` MUST include a rule telling the AI to set `canProceed` to `false` when the input data lacks the necessary reference or identifier for meaningful comparison. A downstream condition node MUST check `canProceed` before routing to detailed analysis or approval paths. This prevents the workflow from continuing with approvals or escalations when there is nothing actionable to review.
+
 **Connected Tools (optional — any AI mode):**
 - `enabledToolIds` (array of strings): IDs of platform tools the AI can call during execution.
 - When connected, the AI can invoke these tools to fetch real-time data, query databases, call APIs, etc.
