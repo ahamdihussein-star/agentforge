@@ -627,10 +627,13 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 f"({len(source_file_refs)} source file(s), "
                 f"{len(output)} extracted field(s))"
             )
+            output_keys = list(output.keys()) if isinstance(output, dict) else str(type(output))
             logger.info(
-                "[HumanReview] source_files=%s source_file_refs=%s",
+                "[HumanReview] source_files=%s source_file_refs=%s output_keys=%s output_sample=%s",
                 source_fields,
                 [{"name": r.get("name"), "id": r.get("id"), "download_url": r.get("download_url")} for r in source_file_refs],
+                output_keys,
+                str(output)[:500],
             )
 
             return NodeResult.waiting(

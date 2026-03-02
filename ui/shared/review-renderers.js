@@ -222,22 +222,47 @@
         const sourceFiles = details._source_files || [];
         var rawExtracted = details._extracted_data || {};
         const outputVariable = details._output_variable || '';
-        var extractedData = rawExtracted;
-        if (typeof rawExtracted === 'object' && rawExtracted !== null && !Array.isArray(rawExtracted)) {
-            var keys = Object.keys(rawExtracted);
-            var ov = (outputVariable || '').trim();
-            if (keys.length === 1 && ov && rawExtracted[ov] && typeof rawExtracted[ov] === 'object' && !Array.isArray(rawExtracted[ov])) {
-                extractedData = rawExtracted[ov];
-            } else if (keys.length === 1 && !ov) {
-                var singleVal = rawExtracted[keys[0]];
-                if (singleVal && typeof singleVal === 'object' && !Array.isArray(singleVal) && Object.keys(singleVal).some(function (k) { return k !== '_' && !/^_/.test(k); })) {
-                    extractedData = singleVal;
+
+        // --- Robust extraction-data resolution ---
+        // The backend sets _extracted_data = output AND also does review_payload.update(output),
+        // so data may live under _extracted_data, or directly as top-level keys in `details`.
+        function _isMetaKey(k) { return /^_/.test(k) || /^(download_url|path|content_type|id|run_id|step_name|status|title|description|details_to_review|urgency|approvers_needed|approvals_received|assignee_type|assigned_user_ids|assigned_role_ids|assigned_group_ids|decided_by|decided_at|decision|comments|due_by|created_at|node_id|node_name|review_data|process_execution_id|priority|min_approvals|approval_count|deadline_at|decision_comments)$/.test(k); }
+        function _dataKeys(o) {
+            if (!o || typeof o !== 'object' || Array.isArray(o)) return [];
+            return Object.keys(o).filter(function (k) { return !_isMetaKey(k); });
+        }
+        function _unwrapSingleKey(obj, ov) {
+            if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+            var dk = _dataKeys(obj);
+            if (dk.length === 1) {
+                var inner = obj[dk[0]];
+                if (inner && typeof inner === 'object' && !Array.isArray(inner) && _dataKeys(inner).length > 0) {
+                    return inner;
                 }
             }
+            if (ov && obj[ov] && typeof obj[ov] === 'object' && !Array.isArray(obj[ov])) {
+                return obj[ov];
+            }
+            return obj;
         }
+
+        var extractedData = _unwrapSingleKey(rawExtracted, outputVariable);
+
+        // Fallback: if _extracted_data produced nothing useful, try top-level details keys
+        if (_dataKeys(extractedData).length === 0) {
+            var topLevel = {};
+            Object.keys(details).forEach(function (k) { if (!_isMetaKey(k)) topLevel[k] = details[k]; });
+            if (_dataKeys(topLevel).length > 0) {
+                extractedData = _unwrapSingleKey(topLevel, outputVariable);
+                _log('extractedData: fell back to top-level details keys', { keys: Object.keys(extractedData) });
+            }
+        }
+
         const outputFields = details._output_fields || [];
         const stepName = details._step_name || 'AI Extraction';
-        try { console.log('[afRenderExtractionReview] sourceFiles', sourceFiles.length, sourceFiles); } catch (_) {}
+        try { console.log('[afRenderExtractionReview] _extracted_data keys:', Object.keys(rawExtracted), 'extractedData keys:', Object.keys(extractedData), 'outputFields:', outputFields.length, 'outputVariable:', outputVariable, 'sourceFiles:', sourceFiles.length); } catch (_) {}
+        try { console.log('[afRenderExtractionReview] extractedData:', JSON.stringify(extractedData).slice(0, 800)); } catch (_) {}
+        try { console.log('[afRenderExtractionReview] FULL details keys:', Object.keys(details)); } catch (_) {}
 
         function _extractFileId(fileObj) {
             var id = fileObj.id || fileObj.file_id || fileObj.upload_id || '';
@@ -302,25 +327,49 @@
             if (/dd\s*[\/\-\.]\s*mm\s*[\/\-\.]\s*yyyy/i.test(t) || /mm\s*[\/\-\.]\s*dd\s*[\/\-\.]\s*yyyy/i.test(t)) return true;
             return false;
         }
+        function _normalizeKey(s) { return String(s || '').toLowerCase().replace(/[\s_\-]+/g, ''); }
         function _getNestedVal(obj, key) {
             if (!obj || key == null) return undefined;
             var k = String(key).trim();
             if (!k) return undefined;
-            if (k.indexOf('.') < 0) return obj[k];
-            var parts = k.split('.');
-            var cur = obj;
-            for (var i = 0; i < parts.length && cur != null; i++) cur = cur[parts[i]];
-            return cur;
+            // Direct key
+            if (obj[k] !== undefined) return obj[k];
+            var objKeys = Object.keys(obj);
+            // Case-insensitive match
+            var kLow = k.toLowerCase();
+            for (var ci = 0; ci < objKeys.length; ci++) {
+                if (objKeys[ci].toLowerCase() === kLow) return obj[objKeys[ci]];
+            }
+            // Dot-path traversal
+            if (k.indexOf('.') >= 0) {
+                var parts = k.split('.');
+                var cur = obj;
+                for (var i = 0; i < parts.length && cur != null; i++) cur = cur[parts[i]];
+                if (cur !== undefined) return cur;
+            }
+            // camelCase ↔ snake_case fallback
+            var snake = k.replace(/([A-Z])/g, function (m) { return '_' + m.toLowerCase(); });
+            var camel = k.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
+            if (snake !== k && obj[snake] !== undefined) return obj[snake];
+            if (camel !== k && obj[camel] !== undefined) return obj[camel];
+            // Normalized match (strip spaces, underscores, hyphens, case)
+            var kNorm = _normalizeKey(k);
+            for (var ni = 0; ni < objKeys.length; ni++) {
+                if (_normalizeKey(objKeys[ni]) === kNorm) return obj[objKeys[ni]];
+            }
+            return undefined;
         }
         function _topLevelKeys(o) {
             if (!o || typeof o !== 'object' || Array.isArray(o)) return [];
-            return Object.keys(o).filter(function (k) { return !/^_/.test(k) && k !== 'download_url' && k !== 'path' && k !== 'content_type'; });
+            return Object.keys(o).filter(function (k) { return !_isMetaKey(k); });
         }
         var fieldsToRender = outputFields.length ? outputFields : _topLevelKeys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
+        var _missingFields = [];
         var dataRowsHtml = fieldsToRender.map(function (field) {
             var key = field.name || field;
             var label = field.label || _humanize(key);
             var val = _getNestedVal(extractedData, key);
+            if (val === undefined || val === null) _missingFields.push(key);
             var fieldType = field.type || 'text';
             if (Array.isArray(val)) {
                 return '<div class="er-field er-field--full" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><div class="er-field-value er-field-value--table">' + renderArray(val, key) + '</div></div>';
@@ -333,6 +382,9 @@
             var ph = isDateField && !displayVal ? ' placeholder="— Not extracted"' : '';
             return '<div class="er-field" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><input class="er-field-input" type="' + inputType + '" value="' + _esc(displayVal) + '" data-er-key="' + _esc(key) + '" data-er-type="' + _esc(fieldType) + '" ' + ro + ph + ' onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></div>';
         }).join('');
+        if (_missingFields.length > 0) {
+            try { console.warn('[afRenderExtractionReview] Fields with no value:', _missingFields, '| extractedData keys:', Object.keys(extractedData), '| rawExtracted keys:', Object.keys(rawExtracted)); } catch (_) {}
+        }
 
         function _hasAnomalyVal(obj) {
             if (!obj || typeof obj !== 'object') return false;
@@ -602,6 +654,7 @@
                             wrap.className = 'er-doc-pdf-wrap';
                             wrap.style.cssText = 'width:100%;max-height:600px;overflow-y:auto;background:#525659;padding:12px;border-radius:8px;';
                             el.appendChild(wrap);
+                            var containerWidth = wrap.clientWidth || el.clientWidth || 400;
                             var numPages = Math.min(pdfDoc.numPages, 50);
                             var renderNext = function (pageNum) {
                                 if (pageNum > numPages) {
@@ -616,13 +669,15 @@
                                     return;
                                 }
                                 return pdfDoc.getPage(pageNum).then(function (page) {
-                                    var scale = 1.5;
+                                    var desiredWidth = containerWidth - 24;
+                                    var defaultViewport = page.getViewport({ scale: 1 });
+                                    var scale = Math.max(1, desiredWidth / defaultViewport.width);
                                     var viewport = page.getViewport({ scale: scale });
                                     var canvas = document.createElement('canvas');
                                     var ctx = canvas.getContext('2d');
                                     canvas.height = viewport.height;
                                     canvas.width = viewport.width;
-                                    canvas.style.cssText = 'display:block;margin:0 auto 12px;max-width:100%;height:auto;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+                                    canvas.style.cssText = 'display:block;margin:0 auto 12px;width:100%;height:auto;box-shadow:0 2px 8px rgba(0,0,0,.3);';
                                     wrap.appendChild(canvas);
                                     return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () { return renderNext(pageNum + 1); });
                                 });
