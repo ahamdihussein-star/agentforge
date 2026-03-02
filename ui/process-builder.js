@@ -8337,7 +8337,6 @@
                             <button type="button" id="engine-test-reject-btn" class="toolbar-btn btn-secondary" style="flex:1; padding:12px 12px; border-radius:12px; border:1px solid color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent);">Reject</button>
                         </div>
                         </div>
-                    </div>
                     <div id="engine-test-running-footer" style="padding:18px;max-width:100%;overflow:hidden;">
                         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:0;color:var(--pb-muted);font-size:13px;">
                             <div style="width:18px;height:18px;border-radius:999px;border:2px solid color-mix(in srgb, var(--tb-btn-primary-bg) 60%, transparent);border-top-color:transparent;animation: spin 0.9s linear infinite;"></div>
