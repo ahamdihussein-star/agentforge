@@ -181,6 +181,37 @@
                 if (depth >= 2) return '';
                 const entries = Object.entries(v).filter(([k]) => !_isInternalKey(k)).filter(([, val]) => val != null && val !== '');
                 if (!entries.length) return '';
+                var bracketRx = /^(.+)\[(\d+)\]\.(.+)$/;
+                var hasBracket = entries.some(([k]) => bracketRx.test(k));
+                if (hasBracket) {
+                    var groups = {}, cols = [], maxIdx = -1;
+                    entries.forEach(([k, val]) => {
+                        var m = k.match(bracketRx);
+                        if (m) {
+                            var idx = parseInt(m[2], 10);
+                            var field = m[3];
+                            if (!groups[idx]) groups[idx] = {};
+                            groups[idx][field] = val;
+                            if (cols.indexOf(field) === -1) cols.push(field);
+                            if (idx > maxIdx) maxIdx = idx;
+                        }
+                    });
+                    if (cols.length > 0 && maxIdx >= 0) {
+                        var showCols = cols.slice(0, 7);
+                        var thCells = showCols.map(c => `<th style="padding:5px 8px;text-align:left;font-size:11px;font-weight:700;color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 40%, transparent);white-space:nowrap;">${_esc(_humanize(c))}</th>`).join('');
+                        var trRows = [];
+                        for (var gi = 0; gi <= maxIdx && gi < 10; gi++) {
+                            if (!groups[gi]) continue;
+                            var tds = showCols.map(c => {
+                                var cv = groups[gi][c]; return `<td style="padding:5px 8px;font-size:12px;color:var(--text-primary,var(--pb-text,#eee));border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 20%, transparent);word-break:break-word;">${_esc(cv != null ? String(cv) : '')}</td>`;
+                            }).join('');
+                            trRows.push(`<tr>${tds}</tr>`);
+                        }
+                        var moreNote = (maxIdx >= 10) ? `<div style="margin-top:6px;color:var(--text-secondary,var(--pb-muted,#999));font-size:11px;">+ ${maxIdx - 9} more items</div>` : '';
+                        var extraCols = cols.length > 7 ? `<div style="margin-top:4px;color:var(--text-secondary,var(--pb-muted,#999));font-size:11px;">+ ${cols.length - 7} more fields</div>` : '';
+                        return `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${thCells}</tr></thead><tbody>${trRows.join('')}</tbody></table>${moreNote}${extraCols}</div>`;
+                    }
+                }
                 const rows = entries.slice(0, 8).map(([k, val]) => {
                     const r = _renderValue(val, depth + 1);
                     return r ? `<div style="display:flex;gap:10px;align-items:flex-start;"><div style="min-width:140px;color:var(--text-secondary,var(--pb-muted,#999));font-size:12px;font-weight:650;">${_esc(_humanize(k))}</div><div style="color:var(--text-primary,var(--pb-text,#eee));font-size:13px;line-height:1.5;word-break:break-word;">${r}</div></div>` : '';
