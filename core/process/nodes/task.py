@@ -171,21 +171,41 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         # ── End source file pre-reading ────────────────────────────────
 
         # ── Inject process data context when no files are being read ───
-        # AI steps in "custom" mode often need access to form data and
-        # previous-step outputs even when sourceFields isn't configured.
-        # Without this, the LLM receives only the prompt text and has no
-        # data to act on (e.g., "classify severity" with no dates).
+        # AI steps in "custom"/"analyze" mode need access to form data and
+        # previous-step outputs (including tool call results, extracted data,
+        # etc.). Without this, the LLM receives only the prompt text and has
+        # no data to act on.
         _process_data_block = ""
         if not _file_context_block:
             _all_vars = state.get_all()
             _display_vars: dict = {}
             _internal_prefixes = ("_",)
+            _PER_VAR_LIMIT = 30_000
+            _TOTAL_BUDGET = 100_000
+            _total_size = 0
             for k, v in _all_vars.items():
                 if any(k.startswith(p) for p in _internal_prefixes):
                     continue
-                if isinstance(v, (dict, list)) and len(json.dumps(v, default=str)) > 3000:
-                    continue
-                _display_vars[k] = v
+                try:
+                    v_json = json.dumps(v, default=str)
+                    v_len = len(v_json)
+                except Exception:
+                    v_len = len(str(v))
+                if v_len > _PER_VAR_LIMIT:
+                    logs.append(f"Truncated large variable '{k}' ({v_len} chars)")
+                    if isinstance(v, dict):
+                        _display_vars[k] = {kk: vv for i, (kk, vv) in enumerate(v.items()) if i < 40}
+                    elif isinstance(v, list):
+                        _display_vars[k] = v[:30]
+                    else:
+                        _display_vars[k] = str(v)[:_PER_VAR_LIMIT]
+                    _total_size += min(v_len, _PER_VAR_LIMIT)
+                else:
+                    _display_vars[k] = v
+                    _total_size += v_len
+                if _total_size > _TOTAL_BUDGET:
+                    logs.append(f"Process data context budget reached ({_total_size} chars), remaining variables skipped")
+                    break
             if _display_vars:
                 try:
                     _vars_json = json.dumps(
@@ -198,7 +218,7 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     + _vars_json
                     + "\n=== END PROCESS DATA ==="
                 )
-                logs.append(f"Injected {len(_display_vars)} process data variables as AI context")
+                logs.append(f"Injected {len(_display_vars)} process data variables as AI context ({_total_size} chars)")
         # ── End process data injection ─────────────────────────────────
 
         # Build messages
