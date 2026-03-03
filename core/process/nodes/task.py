@@ -1105,8 +1105,18 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         # - "Invoice: 1, PO: 1"
         # - "Document=1 | System=1"
         _pair_patterns = [
-            re.compile(r"(?:actual|source|invoice|value\s*1|left|a)\s*[:=]\s*([-0-9.,]+).*?(?:expected|target|po|value\s*2|right|b)\s*[:=]\s*([-0-9.,]+)", re.I),
+            re.compile(
+                r"(?:actual|source|invoice|value\s*1|left|a)\s*[:=]\s*([-0-9.,]+).*?"
+                r"(?:expected|target|po|value\s*2|right|b)\s*[:=]\s*([-0-9.,]+)",
+                re.I
+            ),
             re.compile(r"(?:document)\s*[:=\-]\s*([-0-9.,]+).*?(?:system)\s*[:=\-]\s*([-0-9.,]+)", re.I),
+            # Common phrasing in findings: "Expected quantity 1, found 1"
+            re.compile(
+                r"(?:expected|target)\s*(?:quantity|qty|count|amount|total|value)?\s*[:=\s]*([-0-9.,]+).*?"
+                r"(?:found|actual)\s*(?:quantity|qty|count|amount|total|value)?\s*[:=\s]*([-0-9.,]+)",
+                re.I
+            ),
             re.compile(r"([-0-9.,]+)\s*(?:vs|versus)\s*([-0-9.,]+)", re.I),
         ]
 
