@@ -543,6 +543,189 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             doc_words = ["extract", "parsed", "document", "source", "input", "upload", "submitted", "form", "request"]
             sys_words = ["system", "lookup", "external", "reference", "master", "response", "result", "api", "erp", "database"]
 
+            def _looks_like_id_key(k: str) -> bool:
+                kn = str(k or "").lower().replace(" ", "").replace("_", "").replace("-", "")
+                return any(s in kn for s in ("id", "uuid", "number", "code", "ref", "reference", "key"))
+
+            def _is_empty_marker(x: Any) -> bool:
+                t = str(x).strip().lower() if x is not None else ""
+                return t in ("", "n/a", "na", "none", "null", "-")
+
+            def _norm_id_val(x: Any) -> str:
+                return re.sub(r"[^a-z0-9]+", "", str(x or "").lower())
+
+            def _extract_record_list(v: Any) -> Optional[list]:
+                """Extract a list[dict] from common envelopes (response/data/results/items/records)."""
+                if isinstance(v, list) and v and all(isinstance(i, dict) for i in v[:3]):
+                    return v
+                if isinstance(v, dict):
+                    for kk in ("response", "data", "results", "items", "records"):
+                        vv = v.get(kk)
+                        if isinstance(vv, list) and vv and all(isinstance(i, dict) for i in vv[:3]):
+                            return vv
+                return None
+
+            # Prefer per-record comparisons when we can detect record lists on both sides.
+            doc_lists = []
+            sys_lists = []
+            for rk, rv in (review_data or {}).items():
+                if not rk or str(rk).startswith("_"):
+                    continue
+                if _is_file_ref_like(rv):
+                    continue
+                recs = _extract_record_list(rv)
+                if recs:
+                    doc_lists.append({
+                        "key": str(rk),
+                        "records": recs,
+                        "doc_score": _score_key(str(rk), doc_words),
+                        "sys_score": _score_key(str(rk), sys_words),
+                    })
+                    sys_lists.append({
+                        "key": str(rk),
+                        "records": recs,
+                        "doc_score": _score_key(str(rk), doc_words),
+                        "sys_score": _score_key(str(rk), sys_words),
+                    })
+
+            best_doc_list = max(doc_lists, key=lambda c: (c["doc_score"], len(c["records"])), default=None)
+            best_sys_list = max(sys_lists, key=lambda c: (c["sys_score"], len(c["records"])), default=None)
+
+            if best_doc_list and best_sys_list and best_doc_list["records"] and best_sys_list["records"]:
+                comparisons = []
+                sys_records = best_sys_list["records"]
+
+                # Pre-index system records by any id-like field values for fast matching
+                sys_index = {}
+                for sr in sys_records:
+                    if not isinstance(sr, dict):
+                        continue
+                    for sk, sv in sr.items():
+                        if not _looks_like_id_key(sk) or _is_empty_marker(sv):
+                            continue
+                        nv = _norm_id_val(sv)
+                        if not nv:
+                            continue
+                        sys_index.setdefault(nv, []).append(sr)
+
+                def _item_label(d: dict, fallback: str) -> str:
+                    # Generic label selection: name/title first, then id/ref/number
+                    for kk in d.keys():
+                        nk = str(kk).lower().replace(" ", "").replace("_", "").replace("-", "")
+                        vv = d.get(kk)
+                        if re.search(r"(name|title|label|subject)", nk):
+                            if vv is not None and vv != "" and not isinstance(vv, (dict, list)):
+                                return str(vv)
+                    for kk in d.keys():
+                        nk = str(kk).lower().replace(" ", "").replace("_", "").replace("-", "")
+                        vv = d.get(kk)
+                        if re.search(r"(number|code|ref|id)$", nk):
+                            if vv is not None and vv != "" and not isinstance(vv, (dict, list)):
+                                return str(vv)
+                    return fallback
+
+                def _to_num(x: Any) -> Optional[float]:
+                    try:
+                        if isinstance(x, (int, float)):
+                            return float(x)
+                        if isinstance(x, str):
+                            t = x.strip().replace(",", "")
+                            t = re.sub(r"[^0-9.\-]", "", t)
+                            if not t or t in ("-", "."):
+                                return None
+                            return float(t)
+                    except Exception:
+                        return None
+                    return None
+
+                def _eq(a: Any, b: Any) -> bool:
+                    na = _to_num(a)
+                    nb = _to_num(b)
+                    if na is not None and nb is not None:
+                        return abs(na - nb) <= 1e-9
+                    sa = str(a).strip().lower() if a is not None else ""
+                    sb = str(b).strip().lower() if b is not None else ""
+                    empties = {"", "n/a", "na", "none", "null", "-"}
+                    if sa in empties and sb in empties:
+                        return True
+                    return sa == sb
+
+                for di, dr in enumerate(best_doc_list["records"][:12]):
+                    if not isinstance(dr, dict):
+                        continue
+                    prim_doc = _primitive_items(dr)
+                    # Gather doc id candidates
+                    doc_ids = []
+                    for dk, dv in prim_doc.items():
+                        if not _looks_like_id_key(dk) or _is_empty_marker(dv):
+                            continue
+                        nv = _norm_id_val(dv)
+                        if nv:
+                            doc_ids.append({"field": dk, "value": str(dv), "norm": nv})
+
+                    matched_sr = None
+                    binding = []
+                    for cand in doc_ids:
+                        hits = sys_index.get(cand["norm"]) or []
+                        if hits:
+                            matched_sr = hits[0]
+                            binding = [{"field": cand["field"], "value": cand["value"]}]
+                            break
+
+                    item = {
+                        "itemLabel": _item_label(prim_doc, f"Item {di+1}"),
+                        "leftLabel": best_doc_list["key"],
+                        "rightLabel": best_sys_list["key"],
+                        "binding": binding,
+                        "rows": [],
+                        "unmatched": False,
+                        "reason": "",
+                    }
+
+                    if not matched_sr:
+                        item["unmatched"] = True
+                        item["reason"] = "No matching system record for this item (no shared reference/ID value)."
+                        comparisons.append(item)
+                        continue
+
+                    prim_sys = _primitive_items(matched_sr)
+                    sys_norm_map = { _norm_key(k): k for k in prim_sys.keys() }
+                    # Compare by normalized key intersection (handles snake/camel differences)
+                    rows = []
+                    for dk, dv in prim_doc.items():
+                        nk = _norm_key(dk)
+                        sk = sys_norm_map.get(nk)
+                        if not sk:
+                            continue
+                        sv = prim_sys.get(sk)
+                        rows.append({
+                            "field": dk,
+                            "left": dv,
+                            "right": sv,
+                            "match": _eq(dv, sv),
+                        })
+                    # Stable ordering and cap
+                    rows = sorted(rows, key=lambda r: (len(str(r.get("field") or "")), str(r.get("field") or "").lower()))[:24]
+                    item["rows"] = rows
+                    comparisons.append(item)
+
+                if comparisons:
+                    review_data["_approval_comparisons"] = {
+                        "leftLabel": best_doc_list["key"],
+                        "rightLabel": best_sys_list["key"],
+                        "items": comparisons,
+                    }
+                    # Back-compat: set a single comparison for older renderers (prefer first matched)
+                    first = next((c for c in comparisons if not c.get("unmatched") and c.get("rows")), comparisons[0])
+                    review_data["_approval_comparison"] = {
+                        "leftLabel": first.get("leftLabel"),
+                        "rightLabel": first.get("rightLabel"),
+                        "rows": first.get("rows") or [],
+                        "binding": first.get("binding") or [],
+                        "unmatched": bool(first.get("unmatched")),
+                        "reason": first.get("reason") or "",
+                    }
+
             candidates = []
             for rk, rv in (review_data or {}).items():
                 if not rk or str(rk).startswith("_"):
@@ -584,10 +767,6 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                 def _norm_id_val(x: Any) -> str:
                     # Normalize identifier values so "po-2026-0042" == "PO 2026 0042"
                     return re.sub(r"[^a-z0-9]+", "", str(x or "").lower())
-
-                def _looks_like_id_key(k: str) -> bool:
-                    kn = str(k or "").lower().replace(" ", "").replace("_", "").replace("-", "")
-                    return any(s in kn for s in ("id", "uuid", "number", "code", "ref", "reference", "key"))
 
                 binding = []
                 for kk in left.keys():

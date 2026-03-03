@@ -303,10 +303,61 @@
         }
 
         if (summaryOnly && summaryHtml) {
-            // Optional: render a side-by-side comparison table (generic) when provided by backend
+            // Optional: render side-by-side comparison tables (generic) when provided by backend
+            var cmpList = rd._approval_comparisons;
             var cmp = rd._approval_comparison;
             var cmpHtml = '';
             try {
+                if (cmpList && cmpList.items && Array.isArray(cmpList.items) && cmpList.items.length) {
+                    var blocks = cmpList.items.slice(0, 12).map(function (it, idx) {
+                        var title = _esc(String(it.itemLabel || ('Item ' + (idx + 1))));
+                        if (it.unmatched) {
+                            return '<div style="margin-top:10px;padding:12px 14px;border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 35%, transparent);border-radius:12px;background:color-mix(in srgb, var(--warning,#f59e0b) 8%, transparent);">'
+                                + '<div style="font-weight:900;color:var(--text-primary,var(--pb-text,#eee));margin-bottom:6px;">' + title + ' — No matching system record</div>'
+                                + '<div style="color:color-mix(in srgb, var(--pb-text,#eee) 88%, var(--pb-muted,#999));font-size:12px;line-height:1.5;">'
+                                + _esc(String(it.reason || 'A system match could not be confirmed, so comparison was skipped to avoid incorrect results.'))
+                                + '</div></div>';
+                        }
+                        var lLabel = _humanize(it.leftLabel || cmpList.leftLabel || 'Document');
+                        var rLabel = _humanize(it.rightLabel || cmpList.rightLabel || 'System');
+                        var rows = (it.rows && Array.isArray(it.rows)) ? it.rows : [];
+                        if (!rows.length) return '';
+                        var rowsHtml = rows.slice(0, 24).map(function (row) {
+                            var f = _esc(_humanize(row.field || 'Field'));
+                            var lv = _esc(row.left == null ? '' : String(row.left));
+                            var rv = _esc(row.right == null ? '' : String(row.right));
+                            var ok = !!row.match;
+                            var badge = ok
+                                ? '<span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;background:color-mix(in srgb, var(--success,#22c55e) 18%, transparent);color:color-mix(in srgb, var(--success,#22c55e) 90%, white);">Match</span>'
+                                : '<span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;background:color-mix(in srgb, var(--danger,#ef4444) 18%, transparent);color:color-mix(in srgb, var(--danger,#ef4444) 90%, white);">Diff</span>';
+                            return '<tr>'
+                                + '<td style="padding:8px 10px;font-weight:750;color:var(--text-secondary,var(--pb-muted,#999));white-space:nowrap;vertical-align:top;">' + f + '</td>'
+                                + '<td style="padding:8px 10px;color:var(--text-primary,var(--pb-text,#eee));vertical-align:top;word-break:break-word;">' + lv + '</td>'
+                                + '<td style="padding:8px 10px;color:var(--text-primary,var(--pb-text,#eee));vertical-align:top;word-break:break-word;">' + rv + '</td>'
+                                + '<td style="padding:8px 10px;vertical-align:top;">' + badge + '</td>'
+                                + '</tr>';
+                        }).join('');
+                        return '<div style="margin-top:10px;padding:12px 14px;border:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);border-radius:12px;background:color-mix(in srgb, var(--bg-card,#1a1a2e) 92%, transparent);">'
+                            + '<div style="font-weight:900;color:var(--text-primary,var(--pb-text,#eee));margin-bottom:8px;">' + title + '</div>'
+                            + '<div style="overflow-x:auto;">'
+                            + '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+                            + '<thead><tr>'
+                            + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;font-size:11px;">Field</th>'
+                            + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;font-size:11px;">' + _esc(lLabel) + '</th>'
+                            + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;font-size:11px;">' + _esc(rLabel) + '</th>'
+                            + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;font-size:11px;">Status</th>'
+                            + '</tr></thead>'
+                            + '<tbody>' + rowsHtml + '</tbody>'
+                            + '</table></div></div>';
+                    }).filter(Boolean).join('');
+                    if (blocks) {
+                        cmpHtml =
+                            '<div style="margin-top:-4px;margin-bottom:16px;">'
+                            + '<div style="font-weight:800;font-size:12px;letter-spacing:.3px;text-transform:uppercase;color:var(--text-secondary,var(--pb-muted,#999));margin-bottom:8px;">Comparison (same formatting)</div>'
+                            + blocks
+                            + '</div>';
+                    }
+                } else
                 if (cmp && cmp.unmatched && (!cmp.rows || !cmp.rows.length)) {
                     cmpHtml =
                         '<div style="margin-top:-4px;margin-bottom:16px;padding:12px 14px;border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 35%, transparent);border-radius:12px;background:color-mix(in srgb, var(--warning,#f59e0b) 8%, transparent);">'
