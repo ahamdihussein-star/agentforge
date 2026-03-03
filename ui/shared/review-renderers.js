@@ -266,7 +266,15 @@
                     if (!kv || kv.length !== 2) return;
                     var k = kv[0], v = kv[1];
                     if (!k || _isInternalKey(k) || k === '_approval_summary') return;
+                    // Avoid technical-looking flattened keys in fallback summaries
+                    if (String(k).indexOf('[') >= 0 || String(k).indexOf(']') >= 0) return;
                     if (v === undefined || v === null || v === '') return;
+                    // Hide IDs/UUIDs in fallback summary
+                    try {
+                        var kn = String(k || '').toLowerCase().replace(/\s+/g, '');
+                        if ((kn.endsWith('id') || kn.includes('uuid')) && typeof v === 'string' && _looksLikeUuid(v)) return;
+                        if (typeof v === 'string' && _looksLikeUuid(v.trim())) return;
+                    } catch (_) {}
                     if (typeof v === 'string' && v.length > 240) v = v.slice(0, 240) + '…';
                     if (typeof v === 'object') {
                         if (_isUploadedFile(v) || _isFileMetadataObj(v) || (v && v.path && v.filename)) {

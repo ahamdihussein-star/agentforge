@@ -8920,7 +8920,8 @@
                 try {
                     const appr = await _fetchPendingApprovalForExecution(executionId);
                     if (!appr || !appr.id) throw new Error('Approval request not found.');
-                    setText(decision === 'approved' ? 'Approved. Continuing…' : 'Rejected. Continuing…');
+                    const isRejected = String(decision || '').toLowerCase() === 'rejected';
+                    setText(isRejected ? 'Rejected. Stopping…' : 'Approved. Continuing…');
 
                     let decisionData = {};
                     const editedFields = approvalBox?.querySelectorAll('.er-field-input, .er-table-input, .er-card-input');
@@ -8938,6 +8939,17 @@
 
                     await _decideApproval(appr.id, decision, decisionData);
                     hideApproval();
+
+                    // Rejection is terminal for enterprise workflows: don't keep reopening approvals.
+                    if (isRejected) {
+                        try {
+                            // Give the engine a moment to persist status, then exit the polling loop.
+                            finishedExecution = await _fetchExecution(executionId);
+                        } catch (_) {}
+                        // Force-close the running modal now; the caller will show the final report.
+                        try { runningModal.remove(); } catch (_) {}
+                        return;
+                    }
                 } catch (e) {
                     approvalHandled = false;
                     pbToast(String(e?.message || 'Could not submit the approval decision.'), 'error');
