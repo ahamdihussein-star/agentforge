@@ -1422,8 +1422,125 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
             trimmed = {}
             _budget = 80_000
             _used = 0
+            import re as _re
+
+            def _norm_key(s: str) -> str:
+                return str(s or "").lower().replace(" ", "").replace("_", "").replace("-", "")
+
+            def _is_uploaded_file_dict(d: Any) -> bool:
+                try:
+                    if not isinstance(d, dict):
+                        return False
+                    kind = str(d.get("kind") or "").lower().replace("_", "").replace("-", "")
+                    if kind in ("uploadedfile", "uploadfile", "file"):
+                        return True
+                    keys = {_norm_key(k) for k in d.keys()}
+                    if ("downloadurl" in keys or "contenttype" in keys) and ("path" in keys or "name" in keys or "filename" in keys):
+                        return True
+                except Exception:
+                    return False
+                return False
+
+            def _to_norm_id(v: Any) -> str:
+                return _re.sub(r"[^a-z0-9]+", "", str(v or "").lower())
+
+            def _looks_like_id_key(k: str) -> bool:
+                kn = _norm_key(k)
+                return any(s in kn for s in ("id", "uuid", "number", "code", "ref", "reference", "key"))
+
+            def _collect_reference_values(obj: Any, out: set, depth: int = 0):
+                if depth > 5:
+                    return
+                if isinstance(obj, dict):
+                    for kk, vv in obj.items():
+                        if _looks_like_id_key(str(kk)) and isinstance(vv, (str, int, float)) and str(vv).strip():
+                            nv = _to_norm_id(vv)
+                            if nv and len(nv) >= 6:
+                                out.add(nv)
+                        _collect_reference_values(vv, out, depth + 1)
+                elif isinstance(obj, list):
+                    for it in obj[:40]:
+                        _collect_reference_values(it, out, depth + 1)
+
+            # Collect reference values from all variables (to filter big external responses)
+            ref_vals: set = set()
+            try:
+                for _k, _v in list(variables.items())[:60]:
+                    _collect_reference_values(_v, ref_vals)
+            except Exception:
+                ref_vals = set()
+
+            def _sanitize_value(v: Any, depth: int = 0) -> Any:
+                if depth > 5:
+                    return None
+                if v is None:
+                    return None
+                if isinstance(v, (str, int, float, bool)):
+                    return v
+                if isinstance(v, list):
+                    if not v:
+                        return []
+                    # Uploaded files list -> names only
+                    if all(isinstance(x, dict) and _is_uploaded_file_dict(x) for x in v[:5] if isinstance(x, dict)):
+                        names = []
+                        for x in v[:20]:
+                            if isinstance(x, dict):
+                                n = x.get("filename") or x.get("name")
+                                if n:
+                                    names.append(str(n))
+                        return names
+                    out = []
+                    for it in v[:30]:
+                        sv = _sanitize_value(it, depth + 1)
+                        if sv is not None:
+                            out.append(sv)
+                    return out
+                if isinstance(v, dict):
+                    # Tool/API response: filter response list to matching refs where possible
+                    if isinstance(v.get("response"), list) and (v.get("status_code") is not None or v.get("tool_type") or v.get("mode")):
+                        resp = v.get("response") or []
+                        kept = []
+                        for r in resp:
+                            if not isinstance(r, dict):
+                                continue
+                            # keep if any id-like field matches known refs
+                            hit = False
+                            for kk, vv in r.items():
+                                if _looks_like_id_key(str(kk)) and isinstance(vv, (str, int, float)):
+                                    if _to_norm_id(vv) in ref_vals:
+                                        hit = True
+                                        break
+                            if hit:
+                                kept.append(r)
+                        if not kept:
+                            kept = [x for x in resp[:8] if isinstance(x, dict)]
+                        # sanitize kept records to primitive fields only
+                        slim = []
+                        for r in kept:
+                            rr = {}
+                            for kk, vv in list(r.items())[:30]:
+                                if isinstance(vv, (str, int, float, bool)):
+                                    rr[kk] = vv
+                            if rr:
+                                slim.append(rr)
+                        out = dict(v)
+                        out["response"] = slim
+                        return out
+                    # Generic dict: drop technical keys and sanitize children
+                    drop = {"id","uuid","path","storedpath","downloadurl","contenttype","mimetype","size","bytes","createdat","updatedat"}
+                    out = {}
+                    for kk, vv in list(v.items())[:60]:
+                        if _norm_key(kk) in drop:
+                            continue
+                        sv = _sanitize_value(vv, depth + 1)
+                        if sv is None or sv == "" or sv == [] or sv == {}:
+                            continue
+                        out[kk] = sv
+                    return out
+                return None
+
             for k in list(variables.keys())[:60]:
-                v = variables.get(k)
+                v = _sanitize_value(variables.get(k))
                 try:
                     v_size = len(json.dumps(v, default=str))
                 except Exception:

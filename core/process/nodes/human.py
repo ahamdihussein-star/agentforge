@@ -939,21 +939,107 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
 
         if review_data and _has_llm:
             try:
+                def _is_uploaded_file_dict(d: Any) -> bool:
+                    try:
+                        if not isinstance(d, dict):
+                            return False
+                        kind = str(d.get("kind") or "").lower().replace("_", "").replace("-", "")
+                        if kind in ("uploadedfile", "uploadfile", "file"):
+                            return True
+                        keys = {str(k).lower().replace("_", "").replace("-", "") for k in d.keys()}
+                        if ("downloadurl" in keys or "contenttype" in keys) and ("path" in keys or "name" in keys or "filename" in keys):
+                            return True
+                    except Exception:
+                        return False
+                    return False
+
+                def _is_tool_envelope(d: Any) -> bool:
+                    if not isinstance(d, dict):
+                        return False
+                    return bool(d.get("status_code") is not None or d.get("tool_type") or d.get("mode")) and isinstance(d.get("response"), list)
+
+                _DROP_KEYS = {
+                    "id", "uuid", "path", "stored_path", "storedpath", "download_url", "downloadurl",
+                    "content_type", "contenttype", "mime_type", "mimetype", "size", "bytes", "created_at", "updated_at"
+                }
+
+                def _sanitize_for_summary(val: Any, depth: int = 0) -> Any:
+                    # Keep it small and business-friendly
+                    if depth > 4:
+                        return None
+                    if val is None:
+                        return None
+                    if isinstance(val, (str, int, float, bool)):
+                        return val
+                    if isinstance(val, list):
+                        if not val:
+                            return []
+                        # Uploaded files list -> names only
+                        if all(isinstance(x, dict) and _is_uploaded_file_dict(x) for x in val[:5] if isinstance(x, dict)):
+                            names = []
+                            for x in val[:10]:
+                                if isinstance(x, dict):
+                                    n = x.get("filename") or x.get("name")
+                                    if n:
+                                        names.append(str(n))
+                            return names
+                        # Generic list: sanitize first N
+                        out = []
+                        for x in val[:12]:
+                            sx = _sanitize_for_summary(x, depth + 1)
+                            if sx is not None and sx != "":
+                                out.append(sx)
+                        return out
+                    if isinstance(val, dict):
+                        if _is_uploaded_file_dict(val):
+                            return {"filename": val.get("filename") or val.get("name") or "file"}
+                        if _is_tool_envelope(val):
+                            # Never dump entire tool response into summary input
+                            resp = val.get("response") or []
+                            return {
+                                "status_code": val.get("status_code"),
+                                "status": val.get("status"),
+                                "response_count": len(resp) if isinstance(resp, list) else 0,
+                            }
+                        out = {}
+                        for kk, vv in list(val.items())[:40]:
+                            k_norm = str(kk).lower().replace(" ", "").replace("_", "").replace("-", "")
+                            if k_norm in {x.replace("_", "") for x in _DROP_KEYS}:
+                                continue
+                            if k_norm in ("downloadurl", "path", "contenttype", "mimetype"):
+                                continue
+                            sv = _sanitize_for_summary(vv, depth + 1)
+                            if sv is None or sv == "" or sv == [] or sv == {}:
+                                continue
+                            out[kk] = sv
+                        return out
+                    return None
+
                 _summary_data = {}
                 for _sk, _sv in review_data.items():
-                    if _sk.startswith('_'):
+                    # Keep key internal comparison structures for grounded summaries
+                    _force_include_internal = _sk in ("_approval_comparisons", "_approval_comparison")
+                    if _sk.startswith('_') and not _force_include_internal:
+                        continue
+                    # Keep comparisons (already business-focused), drop bulky raw tool responses and upload metadata
+                    if isinstance(_sv, dict) and _is_tool_envelope(_sv) and isinstance(_sv.get("response"), list) and len(_sv.get("response") or []) > 5:
+                        _summary_data[_sk] = _sanitize_for_summary(_sv)
+                        continue
+                    if isinstance(_sv, list) and _sv and all(isinstance(x, dict) and _is_uploaded_file_dict(x) for x in _sv[:2] if isinstance(x, dict)):
+                        _summary_data[_sk] = _sanitize_for_summary(_sv)
                         continue
                     try:
-                        _sj = json.dumps(_sv, default=str)
+                        _clean = _sanitize_for_summary(_sv)
+                        _sj = json.dumps(_clean, default=str)
                         if len(_sj) > 8000:
-                            if isinstance(_sv, dict):
-                                _summary_data[_sk] = {k: v for i, (k, v) in enumerate(_sv.items()) if i < 20}
-                            elif isinstance(_sv, list):
-                                _summary_data[_sk] = _sv[:10]
+                            if isinstance(_clean, dict):
+                                _summary_data[_sk] = {k: v for i, (k, v) in enumerate(_clean.items()) if i < 20}
+                            elif isinstance(_clean, list):
+                                _summary_data[_sk] = _clean[:10]
                             else:
-                                _summary_data[_sk] = str(_sv)[:4000]
+                                _summary_data[_sk] = str(_clean)[:4000]
                         else:
-                            _summary_data[_sk] = _sv
+                            _summary_data[_sk] = _clean
                     except Exception:
                         _summary_data[_sk] = str(_sv)[:2000]
                 _summary_json = json.dumps(_summary_data, default=str, ensure_ascii=False)[:15000]
@@ -969,7 +1055,8 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                                 "- Lead with the most important finding or action needed.\n"
                                 "- Include specific numbers, amounts, dates, and names from the data.\n"
                                 "- Highlight any risks, anomalies, or discrepancies with exact figures.\n"
-                                "- For comparisons, show both values side by side (e.g., 'Actual: 13,333.75 vs Expected: 63,000').\n"
+                                "- For comparisons, show both values side by side ONLY when they differ (e.g., 'Actual: 13,333.75 vs Expected: 63,000').\n"
+                                "- Do NOT list fields where Document and System are the same. If a shared identifier/value is important (e.g., reference number, record number, name), show it ONCE (no Document/System).\n"
                                 "- If a side-by-side comparison table is present in the data, use it to present the SAME fields\n"
                                 "  for 'Document' vs 'System' in the same order so it is easy to compare.\n"
                                 "- When you mention a field, show it consistently for both sides: 'Field: Document=<x> | System=<y>'.\n"
@@ -978,6 +1065,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                                 "- If any report/document is available, mention its filename so the approver knows what to download.\n"
                                 "- Use plain business language. No technical terms, no JSON keys, no array indices.\n"
                                 "- Do NOT use markdown (no **, no backticks, no headers). No asterisks.\n"
+                                "- Keep it scannable. Prefer fewer bullets that focus on differences, risks, and key identifiers.\n"
                                 "- End with a clear recommendation or the key question the approver needs to answer.\n"
                                 "- Format as bullet points using the bullet character. One bullet per line. No headers."
                             )),
@@ -1020,6 +1108,48 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                         _s = "\n".join(cleaned).strip()
                     except Exception:
                         pass
+
+                    # Post-format: collapse equal "Document=... | System=..." lines into a single value
+                    try:
+                        import re as _re2
+
+                        def _norm_text(x: str) -> str:
+                            t = str(x or "").strip()
+                            t = _re2.sub(r"\s+", " ", t)
+                            t = t.strip(" .;,-")
+                            return t.lower()
+
+                        _cmp_rx = _re2.compile(
+                            r"^\s*(?:[•\-\*]\s*)?(?P<label>[^:]{2,80}?)\s*:\s*"
+                            r"document\s*[:=]\s*(?P<doc>.+?)\s*\|\s*system\s*[:=]\s*(?P<sys>.+?)\s*$",
+                            _re2.I
+                        )
+                        collapsed = []
+                        for line in _s.splitlines():
+                            m = _cmp_rx.match(line or "")
+                            if not m:
+                                collapsed.append(line)
+                                continue
+                            label = (m.group("label") or "").strip()
+                            doc_v = (m.group("doc") or "").strip()
+                            sys_v = (m.group("sys") or "").strip()
+                            a = _to_num(doc_v)
+                            b = _to_num(sys_v)
+                            eq = False
+                            if a is not None and b is not None:
+                                eq = abs(a - b) <= 1e-9
+                            else:
+                                eq = _norm_text(doc_v) == _norm_text(sys_v) and _norm_text(doc_v) != ""
+                            if eq:
+                                # Keep key identifiers once; avoid Document/System duplication noise
+                                bullet = "• "
+                                collapsed.append(f"{bullet}{label}: {doc_v}")
+                            else:
+                                collapsed.append(line)
+                        _s = "\n".join([ln for ln in collapsed if str(ln or "").strip()]).strip()
+                    except Exception:
+                        pass
+
                     review_data['_approval_summary'] = _s
                     logs.append(f"Generated approval summary ({len(_summary_resp.content)} chars)")
                     logger.info("[ApprovalNode] LLM summary generated: %d chars", len(_summary_resp.content))
