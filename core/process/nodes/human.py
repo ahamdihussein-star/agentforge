@@ -520,10 +520,25 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     return True
                 return False
 
+            def _looks_like_uuid(v: Any) -> bool:
+                try:
+                    return bool(re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", str(v or "").strip(), re.I))
+                except Exception:
+                    return False
+
             def _primitive_items(dct: dict) -> dict:
                 out = {}
                 for kk, vv in (dct or {}).items():
                     if vv is None or vv == "":
+                        continue
+                    k_norm = str(kk or "").lower().replace(" ", "").replace("_", "").replace("-", "")
+                    # Skip technical/file metadata fields (generic)
+                    if k_norm in (
+                        "id", "uuid", "kind", "path", "downloadurl", "url", "size", "filetype",
+                        "contenttype", "mimetype", "storedpath", "createdat", "updatedat"
+                    ):
+                        continue
+                    if isinstance(vv, str) and _looks_like_uuid(vv):
                         continue
                     if isinstance(vv, (str, int, float, bool)):
                         out[str(kk)] = vv
@@ -554,42 +569,82 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
             def _norm_id_val(x: Any) -> str:
                 return re.sub(r"[^a-z0-9]+", "", str(x or "").lower())
 
-            def _extract_record_list(v: Any) -> Optional[list]:
-                """Extract a list[dict] from common envelopes (response/data/results/items/records)."""
+            def _is_uploaded_file_dict(d: dict) -> bool:
+                """Detect uploaded file metadata dicts (generic)."""
+                try:
+                    if not isinstance(d, dict):
+                        return False
+                    kind = str(d.get("kind") or "").lower().replace("_", "").replace("-", "")
+                    if kind in ("uploadedfile", "uploadfile", "file"):
+                        return True
+                    # Heuristic: file metadata typically has path/name/content_type/download_url
+                    keys = {str(k).lower().replace("_", "").replace("-", "") for k in d.keys()}
+                    if ("downloadurl" in keys or "contenttype" in keys) and ("path" in keys or "name" in keys or "filename" in keys):
+                        return True
+                except Exception:
+                    return False
+                return False
+
+            def _is_mostly_file_records(recs: list) -> bool:
+                try:
+                    if not recs:
+                        return False
+                    sample = recs[:5]
+                    hits = sum(1 for x in sample if isinstance(x, dict) and _is_uploaded_file_dict(x))
+                    return hits >= max(2, int(len(sample) * 0.6))
+                except Exception:
+                    return False
+
+            def _extract_record_list(v: Any) -> Optional[dict]:
+                """Extract list[dict] from common envelopes; returns {records, meta}."""
                 if isinstance(v, list) and v and all(isinstance(i, dict) for i in v[:3]):
-                    return v
+                    return {"records": v, "meta": {"envelope": False, "envelope_key": ""}}
                 if isinstance(v, dict):
-                    for kk in ("response", "data", "results", "items", "records"):
+                    for kk in ("response", "data", "results", "items", "records", "entries", "transactions", "invoices", "documents", "requests"):
                         vv = v.get(kk)
                         if isinstance(vv, list) and vv and all(isinstance(i, dict) for i in vv[:3]):
-                            return vv
+                            # Tool/API style envelope detection (generic)
+                            env = bool(v.get("status_code") is not None or v.get("tool_type") or v.get("mode") or v.get("status"))
+                            return {"records": vv, "meta": {"envelope": env, "envelope_key": kk}}
+                # Generic fallback: any list[dict] value
+                for kk, vv in (v or {}).items():
+                    if isinstance(vv, list) and vv and all(isinstance(i, dict) for i in vv[:3]):
+                        return {"records": vv, "meta": {"envelope": False, "envelope_key": str(kk)}}
                 return None
 
             # Prefer per-record comparisons when we can detect record lists on both sides.
-            doc_lists = []
-            sys_lists = []
+            record_lists = []
             for rk, rv in (review_data or {}).items():
                 if not rk or str(rk).startswith("_"):
                     continue
                 if _is_file_ref_like(rv):
                     continue
-                recs = _extract_record_list(rv)
-                if recs:
-                    doc_lists.append({
+                recs_info = _extract_record_list(rv)
+                if recs_info and recs_info.get("records"):
+                    recs = recs_info["records"]
+                    if _is_mostly_file_records(recs):
+                        continue
+                    meta = recs_info.get("meta") or {}
+                    # Prefer tool/API response envelopes as system candidates
+                    sys_env_bonus = 8 if meta.get("envelope") and str(meta.get("envelope_key")) == "response" else 0
+                    record_lists.append({
                         "key": str(rk),
                         "records": recs,
                         "doc_score": _score_key(str(rk), doc_words),
-                        "sys_score": _score_key(str(rk), sys_words),
-                    })
-                    sys_lists.append({
-                        "key": str(rk),
-                        "records": recs,
-                        "doc_score": _score_key(str(rk), doc_words),
-                        "sys_score": _score_key(str(rk), sys_words),
+                        "sys_score": _score_key(str(rk), sys_words) + sys_env_bonus,
+                        "meta": meta,
                     })
 
-            best_doc_list = max(doc_lists, key=lambda c: (c["doc_score"], len(c["records"])), default=None)
-            best_sys_list = max(sys_lists, key=lambda c: (c["sys_score"], len(c["records"])), default=None)
+            best_doc_list = max(record_lists, key=lambda c: (c["doc_score"], -c["sys_score"], len(c["records"])), default=None)
+            best_sys_list = None
+            if best_doc_list:
+                # Pick a DIFFERENT list for system, prefer sys_score then envelope then size.
+                candidates_sys = [c for c in record_lists if c.get("key") != best_doc_list.get("key")]
+                best_sys_list = max(
+                    candidates_sys,
+                    key=lambda c: (c["sys_score"], 1 if (c.get("meta") or {}).get("envelope") else 0, len(c["records"])),
+                    default=None
+                )
 
             if best_doc_list and best_sys_list and best_doc_list["records"] and best_sys_list["records"]:
                 comparisons = []
@@ -674,8 +729,10 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
 
                     item = {
                         "itemLabel": _item_label(prim_doc, f"Item {di+1}"),
-                        "leftLabel": best_doc_list["key"],
-                        "rightLabel": best_sys_list["key"],
+                        "leftLabel": "Document",
+                        "rightLabel": "System",
+                        "leftSourceKey": best_doc_list["key"],
+                        "rightSourceKey": best_sys_list["key"],
                         "binding": binding,
                         "rows": [],
                         "unmatched": False,
@@ -711,8 +768,10 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
 
                 if comparisons:
                     review_data["_approval_comparisons"] = {
-                        "leftLabel": best_doc_list["key"],
-                        "rightLabel": best_sys_list["key"],
+                        "leftLabel": "Document",
+                        "rightLabel": "System",
+                        "leftSourceKey": best_doc_list["key"],
+                        "rightSourceKey": best_sys_list["key"],
                         "items": comparisons,
                     }
                     # Back-compat: set a single comparison for older renderers (prefer first matched)
