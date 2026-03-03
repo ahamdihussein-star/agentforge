@@ -757,7 +757,15 @@
                             // Infer business-friendly column names when possible (generic heuristics).
                             function _toNum(s) {
                                 if (s == null) return null;
-                                var t = String(s).trim();
+                                var raw = String(s).trim();
+                                if (!raw) return null;
+                                // Treat as numeric ONLY if the whole value looks numeric (optionally with a short currency code).
+                                // This prevents description text like "HP ProBook 450" from being misclassified as a number.
+                                if (/[A-Za-z]/.test(raw)) {
+                                    // Allow currency-like short codes only if they are at the edges (e.g., "AED 1,200" or "1,200 AED")
+                                    if (!/^([A-Za-z]{2,4}\s*)?[-0-9.,]+(\s*[A-Za-z]{2,4})?$/.test(raw)) return null;
+                                }
+                                var t = raw;
                                 if (!t) return null;
                                 t = t.replace(/[, ]+/g, '').replace(/[^0-9.\-]/g, '');
                                 if (!t) return null;
@@ -768,18 +776,23 @@
                             for (var ci0 = 0; ci0 < showCols; ci0++) {
                                 var vals = rows.map(function (r) { return (r.parts[ci0] == null) ? '' : String(r.parts[ci0]).trim(); }).filter(function (x) { return x !== ''; });
                                 var nums = vals.map(_toNum).filter(function (x) { return typeof x === 'number'; });
+                                var alphaHits = vals.filter(function (v) { return /[A-Za-z]/.test(String(v)); }).length;
                                 var numRatio = vals.length ? (nums.length / vals.length) : 0;
                                 var intRatio = nums.length ? (nums.filter(function (n) { return Math.abs(n - Math.round(n)) < 1e-9; }).length / nums.length) : 0;
                                 var avgAbs = nums.length ? (nums.reduce(function (a, n) { return a + Math.abs(n); }, 0) / nums.length) : 0;
                                 var avgLen = vals.length ? (vals.reduce(function (a, s) { return a + s.length; }, 0) / vals.length) : 0;
-                                colStats.push({ numRatio: numRatio, intRatio: intRatio, avgAbs: avgAbs, avgLen: avgLen });
+                                var alphaRatio = vals.length ? (alphaHits / vals.length) : 0;
+                                colStats.push({ numRatio: numRatio, intRatio: intRatio, avgAbs: avgAbs, avgLen: avgLen, alphaRatio: alphaRatio });
                             }
                             var labels = [];
                             for (var li = 0; li < showCols; li++) labels.push('Part ' + (li + 1));
                             // Detect the most likely description column (text-heavy) even if it is not first.
                             var descIdx = -1;
                             for (var di0 = 0; di0 < showCols; di0++) {
-                                if (colStats[di0].numRatio < 0.25 && colStats[di0].avgLen >= 6) {
+                                // Prefer columns that contain letters in most rows (descriptions), otherwise text-heavy columns.
+                                if (colStats[di0].alphaRatio >= 0.5) {
+                                    if (descIdx === -1 || colStats[di0].avgLen > colStats[descIdx].avgLen) descIdx = di0;
+                                } else if (colStats[di0].numRatio < 0.25 && colStats[di0].avgLen >= 6) {
                                     if (descIdx === -1 || colStats[di0].avgLen > colStats[descIdx].avgLen) descIdx = di0;
                                 }
                             }
