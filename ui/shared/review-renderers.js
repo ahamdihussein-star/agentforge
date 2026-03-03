@@ -864,7 +864,7 @@
                                 return '<tr>' + tds + '</tr>';
                             }).join('');
                             return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'
-                                + '<table class="er-card-sub-table" style="direction:ltr;"><thead><tr>' + headers + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+                                + '<table class="er-card-sub-table" dir="ltr" style="direction:ltr!important;"><thead><tr>' + headers + '</tr></thead><tbody>' + body + '</tbody></table></div>';
                         }
                         // Fallback — simple editable list
                         return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div><div style="padding:4px 8px 8px;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;">'
