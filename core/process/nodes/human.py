@@ -717,7 +717,33 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     timeout=30
                 )
                 if _summary_resp and _summary_resp.content:
-                    review_data['_approval_summary'] = _summary_resp.content.strip()
+                    # Post-verify: remove any false "mismatch" bullets where Document == System
+                    _s = _summary_resp.content.strip()
+                    try:
+                        import re as _re
+                        def _to_num(x: str):
+                            try:
+                                t = str(x).strip().replace(",", "")
+                                t = _re.sub(r"[^0-9.\-]", "", t)
+                                if not t or t in ("-", "."):
+                                    return None
+                                return float(t)
+                            except Exception:
+                                return None
+                        _rx = _re.compile(r"mismatch.*?document\s*[:=\-]\s*([-0-9.,]+).*?system\s*[:=\-]\s*([-0-9.,]+)", _re.I)
+                        cleaned = []
+                        for line in _s.splitlines():
+                            m = _rx.search(line or "")
+                            if m:
+                                a = _to_num(m.group(1)); b = _to_num(m.group(2))
+                                if a is not None and b is not None and abs(a - b) <= 1e-9:
+                                    logs.append(f"🧹 Removed false mismatch line from summary: Document==System ({a})")
+                                    continue
+                            cleaned.append(line)
+                        _s = "\n".join(cleaned).strip()
+                    except Exception:
+                        pass
+                    review_data['_approval_summary'] = _s
                     logs.append(f"Generated approval summary ({len(_summary_resp.content)} chars)")
                     logger.info("[ApprovalNode] LLM summary generated: %d chars", len(_summary_resp.content))
                 else:

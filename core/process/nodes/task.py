@@ -1099,9 +1099,14 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             except Exception:
                 return None
 
-        # Parse "A: 1, B: 1" / "Actual: 1 vs Expected: 1" / "Invoice: 1, PO: 1"
+        # Parse common comparison pairs like:
+        # - "A: 1, B: 1"
+        # - "Actual: 1 vs Expected: 1"
+        # - "Invoice: 1, PO: 1"
+        # - "Document=1 | System=1"
         _pair_patterns = [
             re.compile(r"(?:actual|source|invoice|value\s*1|left|a)\s*[:=]\s*([-0-9.,]+).*?(?:expected|target|po|value\s*2|right|b)\s*[:=]\s*([-0-9.,]+)", re.I),
+            re.compile(r"(?:document)\s*[:=\-]\s*([-0-9.,]+).*?(?:system)\s*[:=\-]\s*([-0-9.,]+)", re.I),
             re.compile(r"([-0-9.,]+)\s*(?:vs|versus)\s*([-0-9.,]+)", re.I),
         ]
 
@@ -1145,8 +1150,14 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     name = str(item.get("type") or item.get("name") or item.get("finding") or "").lower()
                     is_disc = ("mismatch" in name) or ("discrep" in name) or ("diff" in name) or ("variance" in name) or ("deviation" in name)
                     if is_disc:
-                        a = _to_num(item.get("actual") or item.get("source") or item.get("invoice") or item.get("value1"))
-                        b = _to_num(item.get("expected") or item.get("target") or item.get("po") or item.get("value2"))
+                        a = _to_num(
+                            item.get("actual") or item.get("source") or item.get("invoice") or item.get("value1")
+                            or item.get("document") or item.get("doc")
+                        )
+                        b = _to_num(
+                            item.get("expected") or item.get("target") or item.get("po") or item.get("value2")
+                            or item.get("system") or item.get("sys")
+                        )
                         if _eq(a, b):
                             nonlocal_removed += 1
                             logs.append(f"🧹 Removed false discrepancy in '{list_key}': values equal ({a} vs {b})")
