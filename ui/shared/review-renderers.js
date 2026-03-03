@@ -602,8 +602,86 @@
                         var partRowsCount = rows.filter(function (r) { return r.parts.length >= 2; }).length;
                         if (maxParts >= 2 && partRowsCount >= Math.min(2, rows.length)) {
                             var showCols = Math.min(maxParts, 6);
+                            // Infer business-friendly column names when possible (generic heuristics).
+                            function _toNum(s) {
+                                if (s == null) return null;
+                                var t = String(s).trim();
+                                if (!t) return null;
+                                t = t.replace(/[, ]+/g, '').replace(/[^0-9.\-]/g, '');
+                                if (!t) return null;
+                                var n = parseFloat(t);
+                                return isFinite(n) ? n : null;
+                            }
+                            var colStats = [];
+                            for (var ci0 = 0; ci0 < showCols; ci0++) {
+                                var vals = rows.map(function (r) { return (r.parts[ci0] == null) ? '' : String(r.parts[ci0]).trim(); }).filter(function (x) { return x !== ''; });
+                                var nums = vals.map(_toNum).filter(function (x) { return typeof x === 'number'; });
+                                var numRatio = vals.length ? (nums.length / vals.length) : 0;
+                                var intRatio = nums.length ? (nums.filter(function (n) { return Math.abs(n - Math.round(n)) < 1e-9; }).length / nums.length) : 0;
+                                var avgAbs = nums.length ? (nums.reduce(function (a, n) { return a + Math.abs(n); }, 0) / nums.length) : 0;
+                                var avgLen = vals.length ? (vals.reduce(function (a, s) { return a + s.length; }, 0) / vals.length) : 0;
+                                colStats.push({ numRatio: numRatio, intRatio: intRatio, avgAbs: avgAbs, avgLen: avgLen });
+                            }
+                            var labels = [];
+                            for (var li = 0; li < showCols; li++) labels.push('Part ' + (li + 1));
+                            // Column 0: likely a text label/description
+                            if (showCols >= 2 && colStats[0].numRatio < 0.25 && colStats[0].avgLen >= 6) {
+                                labels[0] = 'Description';
+                            } else if (showCols >= 2 && colStats[0].numRatio < 0.25) {
+                                labels[0] = 'Item';
+                            }
+                            // Try to find Quantity + Unit + Total (numeric pattern) without hardcoding domain:
+                            // pick a likely quantity column (mostly integers, relatively small magnitudes)
+                            var qtyIdx = -1;
+                            for (var qi = 1; qi < showCols; qi++) {
+                                if (colStats[qi].numRatio > 0.85 && colStats[qi].intRatio > 0.85 && colStats[qi].avgAbs > 0 && colStats[qi].avgAbs <= 100000) {
+                                    // Prefer smaller average magnitude as quantity
+                                    if (qtyIdx === -1 || colStats[qi].avgAbs < colStats[qtyIdx].avgAbs) qtyIdx = qi;
+                                }
+                            }
+                            function _matchScore(qi, ui, ti) {
+                                var ok = 0, tot = 0;
+                                for (var ri0 = 0; ri0 < rows.length; ri0++) {
+                                    var r0 = rows[ri0];
+                                    var q = _toNum(r0.parts[qi]);
+                                    var u = _toNum(r0.parts[ui]);
+                                    var t = _toNum(r0.parts[ti]);
+                                    if (q == null || u == null || t == null) continue;
+                                    tot += 1;
+                                    var prod = q * u;
+                                    var rel = Math.abs(prod - t) / Math.max(Math.abs(t), 1);
+                                    if (rel <= 0.02) ok += 1;
+                                }
+                                return tot ? (ok / tot) : 0;
+                            }
+                            if (qtyIdx !== -1 && showCols >= 4) {
+                                var best = { score: 0, unitIdx: -1, totalIdx: -1 };
+                                for (var ui0 = 1; ui0 < showCols; ui0++) {
+                                    if (ui0 === qtyIdx) continue;
+                                    for (var ti0 = 1; ti0 < showCols; ti0++) {
+                                        if (ti0 === qtyIdx || ti0 === ui0) continue;
+                                        var sc0 = _matchScore(qtyIdx, ui0, ti0);
+                                        if (sc0 > best.score) best = { score: sc0, unitIdx: ui0, totalIdx: ti0 };
+                                    }
+                                }
+                                if (best.score >= 0.6) {
+                                    labels[qtyIdx] = 'Quantity';
+                                    labels[best.unitIdx] = 'Unit value';
+                                    labels[best.totalIdx] = 'Total value';
+                                }
+                            }
+                            // Fallback labeling for other numeric columns
+                            var vCounter = 1;
+                            for (var li2 = 1; li2 < showCols; li2++) {
+                                if (labels[li2].indexOf('Part') === 0) {
+                                    if (colStats[li2].numRatio > 0.85) {
+                                        labels[li2] = 'Value ' + vCounter;
+                                        vCounter += 1;
+                                    }
+                                }
+                            }
                             var headers = '';
-                            for (var ci = 0; ci < showCols; ci++) headers += '<th>' + _esc('Part ' + (ci + 1)) + '</th>';
+                            for (var ci = 0; ci < showCols; ci++) headers += '<th>' + _esc(labels[ci]) + '</th>';
                             var body = rows.map(function (r) {
                                 var tds = '';
                                 for (var ci2 = 0; ci2 < showCols; ci2++) {
