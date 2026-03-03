@@ -307,7 +307,14 @@
             var cmp = rd._approval_comparison;
             var cmpHtml = '';
             try {
-                if (cmp && cmp.rows && Array.isArray(cmp.rows) && cmp.rows.length) {
+                if (cmp && cmp.unmatched && (!cmp.rows || !cmp.rows.length)) {
+                    cmpHtml =
+                        '<div style="margin-top:-4px;margin-bottom:16px;padding:12px 14px;border:1px solid color-mix(in srgb, var(--warning,#f59e0b) 35%, transparent);border-radius:12px;background:color-mix(in srgb, var(--warning,#f59e0b) 8%, transparent);">'
+                        + '<div style="font-weight:900;color:var(--text-primary,var(--pb-text,#eee));margin-bottom:6px;">No matching system record</div>'
+                        + '<div style="color:color-mix(in srgb, var(--pb-text,#eee) 88%, var(--pb-muted,#999));font-size:12px;line-height:1.5;">'
+                        + _esc(String(cmp.reason || 'A system match could not be confirmed, so comparison was skipped to avoid incorrect results.'))
+                        + '</div></div>';
+                } else if (cmp && cmp.rows && Array.isArray(cmp.rows) && cmp.rows.length) {
                     var lLabel = _humanize(cmp.leftLabel || 'Document');
                     var rLabel = _humanize(cmp.rightLabel || 'System');
                     var rowsHtml = cmp.rows.slice(0, 24).map(function (row) {

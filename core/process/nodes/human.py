@@ -574,51 +574,90 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                 left = doc_c["prim"]
                 right = sys_c["prim"]
 
-                def _to_num(x: Any) -> Optional[float]:
-                    try:
-                        if isinstance(x, (int, float)):
-                            return float(x)
-                        if isinstance(x, str):
-                            t = x.strip().replace(",", "")
-                            t = re.sub(r"[^0-9.\-]", "", t)
-                            if not t or t in ("-", "."):
-                                return None
-                            return float(t)
-                    except Exception:
-                        return None
-                    return None
+                # ---- Match binding guardrail (generic) ----
+                # Only compare "Document vs System" when we can prove they refer to the SAME record
+                # using at least one shared reference/identifier field with the same non-empty value.
+                def _is_empty_marker(x: Any) -> bool:
+                    t = str(x).strip().lower() if x is not None else ""
+                    return t in ("", "n/a", "na", "none", "null", "-")
 
-                def _eq(a: Any, b: Any) -> bool:
-                    na = _to_num(a)
-                    nb = _to_num(b)
-                    if na is not None and nb is not None:
-                        return abs(na - nb) <= 1e-9
-                    sa = str(a).strip().lower() if a is not None else ""
-                    sb = str(b).strip().lower() if b is not None else ""
-                    # Treat common "empty" markers as equivalent
-                    empties = {"", "n/a", "na", "none", "null", "-"}
-                    if sa in empties and sb in empties:
-                        return True
-                    return sa == sb
+                def _norm_id_val(x: Any) -> str:
+                    # Normalize identifier values so "po-2026-0042" == "PO 2026 0042"
+                    return re.sub(r"[^a-z0-9]+", "", str(x or "").lower())
 
-                shared_keys = [k for k in left.keys() if k in right]
-                # Prefer stable order: shorter keys first, then alphabetical
-                shared_keys = sorted(shared_keys, key=lambda x: (len(x), x.lower()))[:24]
-                rows = []
-                for kk in shared_keys:
-                    rows.append({
-                        "field": kk,
-                        "left": left.get(kk),
-                        "right": right.get(kk),
-                        "match": _eq(left.get(kk), right.get(kk)),
-                    })
+                def _looks_like_id_key(k: str) -> bool:
+                    kn = str(k or "").lower().replace(" ", "").replace("_", "").replace("-", "")
+                    return any(s in kn for s in ("id", "uuid", "number", "code", "ref", "reference", "key"))
 
-                if rows:
+                binding = []
+                for kk in left.keys():
+                    if kk not in right:
+                        continue
+                    if not _looks_like_id_key(kk):
+                        continue
+                    lv = left.get(kk)
+                    rv = right.get(kk)
+                    if _is_empty_marker(lv) or _is_empty_marker(rv):
+                        continue
+                    if _norm_id_val(lv) and _norm_id_val(lv) == _norm_id_val(rv):
+                        binding.append({"field": kk, "value": str(lv)})
+
+                if not binding:
+                    # No proof of match -> do NOT compare; prevent hallucinated "system" values.
                     review_data["_approval_comparison"] = {
                         "leftLabel": doc_c["key"],
                         "rightLabel": sys_c["key"],
-                        "rows": rows,
+                        "rows": [],
+                        "unmatched": True,
+                        "reason": "No shared reference/ID value found between document data and system data. Comparison skipped to prevent incorrect matching.",
                     }
+                else:
+                    def _to_num(x: Any) -> Optional[float]:
+                        try:
+                            if isinstance(x, (int, float)):
+                                return float(x)
+                            if isinstance(x, str):
+                                t = x.strip().replace(",", "")
+                                t = re.sub(r"[^0-9.\-]", "", t)
+                                if not t or t in ("-", "."):
+                                    return None
+                                return float(t)
+                        except Exception:
+                            return None
+                        return None
+
+                    def _eq(a: Any, b: Any) -> bool:
+                        na = _to_num(a)
+                        nb = _to_num(b)
+                        if na is not None and nb is not None:
+                            return abs(na - nb) <= 1e-9
+                        sa = str(a).strip().lower() if a is not None else ""
+                        sb = str(b).strip().lower() if b is not None else ""
+                        # Treat common "empty" markers as equivalent
+                        empties = {"", "n/a", "na", "none", "null", "-"}
+                        if sa in empties and sb in empties:
+                            return True
+                        return sa == sb
+
+                    shared_keys = [k for k in left.keys() if k in right]
+                    # Prefer stable order: shorter keys first, then alphabetical
+                    shared_keys = sorted(shared_keys, key=lambda x: (len(x), x.lower()))[:24]
+                    rows = []
+                    for kk in shared_keys:
+                        rows.append({
+                            "field": kk,
+                            "left": left.get(kk),
+                            "right": right.get(kk),
+                            "match": _eq(left.get(kk), right.get(kk)),
+                        })
+
+                    if rows:
+                        review_data["_approval_comparison"] = {
+                            "leftLabel": doc_c["key"],
+                            "rightLabel": sys_c["key"],
+                            "rows": rows,
+                            "binding": binding,
+                        }
         except Exception as _cmp_exc:
             logs.append(f"Approval comparison generation skipped: {_cmp_exc}")
         
