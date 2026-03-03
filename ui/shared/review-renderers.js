@@ -776,16 +776,25 @@
                             }
                             var labels = [];
                             for (var li = 0; li < showCols; li++) labels.push('Part ' + (li + 1));
-                            // Column 0: likely a text label/description
-                            if (showCols >= 2 && colStats[0].numRatio < 0.25 && colStats[0].avgLen >= 6) {
-                                labels[0] = 'Description';
-                            } else if (showCols >= 2 && colStats[0].numRatio < 0.25) {
-                                labels[0] = 'Item';
+                            // Detect the most likely description column (text-heavy) even if it is not first.
+                            var descIdx = -1;
+                            for (var di0 = 0; di0 < showCols; di0++) {
+                                if (colStats[di0].numRatio < 0.25 && colStats[di0].avgLen >= 6) {
+                                    if (descIdx === -1 || colStats[di0].avgLen > colStats[descIdx].avgLen) descIdx = di0;
+                                }
+                            }
+                            if (descIdx !== -1) labels[descIdx] = 'Description';
+                            else {
+                                // Fallback: first non-numeric column becomes Item
+                                for (var ii0 = 0; ii0 < showCols; ii0++) {
+                                    if (colStats[ii0].numRatio < 0.25) { labels[ii0] = 'Item'; break; }
+                                }
                             }
                             // Try to find Quantity + Unit + Total (numeric pattern) without hardcoding domain:
                             // pick a likely quantity column (mostly integers, relatively small magnitudes)
                             var qtyIdx = -1;
-                            for (var qi = 1; qi < showCols; qi++) {
+                            for (var qi = 0; qi < showCols; qi++) {
+                                if (qi === descIdx) continue;
                                 if (colStats[qi].numRatio > 0.85 && colStats[qi].intRatio > 0.85 && colStats[qi].avgAbs > 0 && colStats[qi].avgAbs <= 100000) {
                                     // Prefer smaller average magnitude as quantity
                                     if (qtyIdx === -1 || colStats[qi].avgAbs < colStats[qtyIdx].avgAbs) qtyIdx = qi;
@@ -808,10 +817,12 @@
                             }
                             if (qtyIdx !== -1 && showCols >= 4) {
                                 var best = { score: 0, unitIdx: -1, totalIdx: -1 };
-                                for (var ui0 = 1; ui0 < showCols; ui0++) {
+                                for (var ui0 = 0; ui0 < showCols; ui0++) {
                                     if (ui0 === qtyIdx) continue;
+                                    if (ui0 === descIdx) continue;
                                     for (var ti0 = 1; ti0 < showCols; ti0++) {
                                         if (ti0 === qtyIdx || ti0 === ui0) continue;
+                                        if (ti0 === descIdx) continue;
                                         var sc0 = _matchScore(qtyIdx, ui0, ti0);
                                         if (sc0 > best.score) best = { score: sc0, unitIdx: ui0, totalIdx: ti0 };
                                     }
@@ -824,7 +835,8 @@
                             }
                             // Fallback labeling for other numeric columns
                             var vCounter = 1;
-                            for (var li2 = 1; li2 < showCols; li2++) {
+                            for (var li2 = 0; li2 < showCols; li2++) {
+                                if (li2 === descIdx) continue;
                                 if (labels[li2].indexOf('Part') === 0) {
                                     if (colStats[li2].numRatio > 0.85) {
                                         labels[li2] = 'Value ' + vCounter;
@@ -832,13 +844,19 @@
                                     }
                                 }
                             }
+                            // Display order: Description first (left-to-right), then remaining columns.
+                            var order = [];
+                            if (descIdx !== -1) order.push(descIdx);
+                            for (var oi = 0; oi < showCols; oi++) if (oi !== descIdx) order.push(oi);
                             var headers = '';
-                            for (var ci = 0; ci < showCols; ci++) headers += '<th>' + _esc(labels[ci]) + '</th>';
+                            for (var hi = 0; hi < order.length; hi++) headers += '<th>' + _esc(labels[order[hi]]) + '</th>';
                             var body = rows.map(function (r) {
                                 var tds = '';
-                                for (var ci2 = 0; ci2 < showCols; ci2++) {
-                                    var pv = r.parts[ci2] || '';
-                                    tds += '<td><input class="er-lineitem-part-input" type="text" value="' + _esc(pv) + '" data-part-idx="' + ci2 + '" onchange="window._afErLineItemPartsChanged&&window._afErLineItemPartsChanged(this)" style="width:100%;box-sizing:border-box;padding:2px 0;border:none;border-bottom:1px solid transparent;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.78rem;font-family:inherit;" /></td>';
+                                for (var di = 0; di < order.length; di++) {
+                                    var origIdx = order[di];
+                                    var pv = r.parts[origIdx] || '';
+                                    // data-part-idx preserves ORIGINAL index so saving keeps the original raw order
+                                    tds += '<td><input class="er-lineitem-part-input" type="text" value="' + _esc(pv) + '" data-part-idx="' + origIdx + '" onchange="window._afErLineItemPartsChanged&&window._afErLineItemPartsChanged(this)" style="width:100%;box-sizing:border-box;padding:2px 0;border:none;border-bottom:1px solid transparent;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.78rem;font-family:inherit;" /></td>';
                                 }
                                 var erKey = fk + '[' + ri + '].' + nf.key + '[' + r.vi + ']';
                                 // Hidden raw value bound to the real state key (this is what we actually submit)
@@ -846,7 +864,7 @@
                                 return '<tr>' + tds + '</tr>';
                             }).join('');
                             return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'
-                                + '<table class="er-card-sub-table"><thead><tr>' + headers + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+                                + '<table class="er-card-sub-table" style="direction:ltr;"><thead><tr>' + headers + '</tr></thead><tbody>' + body + '</tbody></table></div>';
                         }
                         // Fallback — simple editable list
                         return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div><div style="padding:4px 8px 8px;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;">'
@@ -1441,7 +1459,16 @@
             else if (sep === ';') joiner = '; ';
             else if (sep === ',') joiner = ', ';
             else joiner = sep + ' ';
-            var parts = Array.prototype.slice.call(tr.querySelectorAll('input.er-lineitem-part-input')).map(function (p) {
+            // Reconstruct raw string in ORIGINAL part order (independent of UI display order).
+            var inputs = Array.prototype.slice.call(tr.querySelectorAll('input.er-lineitem-part-input'));
+            inputs.sort(function (a, b) {
+                var ai = parseInt(a && a.getAttribute('data-part-idx') || '0', 10);
+                var bi = parseInt(b && b.getAttribute('data-part-idx') || '0', 10);
+                if (isNaN(ai)) ai = 0;
+                if (isNaN(bi)) bi = 0;
+                return ai - bi;
+            });
+            var parts = inputs.map(function (p) {
                 return (p && p.value != null) ? String(p.value).trim() : '';
             });
             // Trim empty trailing parts so we don't generate noisy separators at the end
