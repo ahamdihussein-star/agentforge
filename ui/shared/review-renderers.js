@@ -685,8 +685,66 @@
             var hasNested = arr.some(function (row) { return Object.values(row).some(function (v) { return Array.isArray(v); }); });
             if (!hasNested && Object.keys(arr[0]).length <= 4) {
                 var cols = Object.keys(arr[0]);
-                return '<table class="er-table" data-er-field="' + _esc(fk) + '"><thead><tr>' + cols.map(function (c) { return '<th>' + _esc(_humanize(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) {
-                    return '<tr data-row-idx="' + ri + '">' + cols.map(function (c) {
+
+                function _nk(s) { return String(s || '').toLowerCase().replace(/[\s_\-]+/g, ''); }
+                function _colStatsForKey(k) {
+                    try {
+                        var vals = arr.map(function (r) { return (r && r[k] != null) ? String(r[k]).trim() : ''; }).filter(function (x) { return x !== ''; });
+                        if (!vals.length) return { alphaRatio: 0, avgLen: 0 };
+                        var alphaHits = vals.filter(function (v) { return /[A-Za-z]/.test(String(v)); }).length;
+                        var avgLen = vals.reduce(function (a, s) { return a + s.length; }, 0) / vals.length;
+                        return { alphaRatio: alphaHits / vals.length, avgLen: avgLen };
+                    } catch (_) { return { alphaRatio: 0, avgLen: 0 }; }
+                }
+
+                // Infer a "Description" column when keys are generic (part1/part2) or description-like.
+                var descKey = null;
+                for (var ciA = 0; ciA < cols.length; ciA++) {
+                    var kn = _nk(cols[ciA]);
+                    if (/^(description|desc|item|name|label|title)$/.test(kn)) { descKey = cols[ciA]; break; }
+                }
+                if (!descKey) {
+                    for (var ciB = 0; ciB < cols.length; ciB++) {
+                        var kn2 = _nk(cols[ciB]);
+                        if (/^part1$/.test(kn2)) {
+                            var st = _colStatsForKey(cols[ciB]);
+                            if (st.alphaRatio >= 0.4) { descKey = cols[ciB]; break; }
+                        }
+                    }
+                }
+                if (!descKey) {
+                    var best = { k: null, alphaRatio: 0, avgLen: 0 };
+                    for (var ciC = 0; ciC < cols.length; ciC++) {
+                        var st2 = _colStatsForKey(cols[ciC]);
+                        if (st2.alphaRatio >= 0.5) {
+                            if (!best.k || st2.avgLen > best.avgLen) best = { k: cols[ciC], alphaRatio: st2.alphaRatio, avgLen: st2.avgLen };
+                        }
+                    }
+                    if (best.k) descKey = best.k;
+                }
+
+                // Reorder columns: Description first, then the rest in original order.
+                var ordered = cols.slice();
+                if (descKey && ordered.indexOf(descKey) >= 0) {
+                    ordered = [descKey].concat(ordered.filter(function (c) { return c !== descKey; }));
+                }
+
+                function _headerLabel(c) {
+                    var cn = _nk(c);
+                    if (descKey && c === descKey) return 'Description';
+                    var m = cn.match(/^part(\d+)$/);
+                    if (m) {
+                        var n = parseInt(m[1], 10);
+                        if (!isNaN(n)) return 'Value ' + n;
+                    }
+                    return _humanize(c);
+                }
+
+                // Force LTR for "part" columns so RTL pages don't flip table reading order.
+                var forceLtr = ordered.some(function (c) { return /^part\d+$/i.test(_nk(c)); }) || !!descKey;
+
+                return '<table class="er-table" data-er-field="' + _esc(fk) + '"' + (forceLtr ? ' dir="ltr" style="direction:ltr!important;"' : '') + '><thead><tr>' + ordered.map(function (c) { return '<th>' + _esc(_headerLabel(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) {
+                    return '<tr data-row-idx="' + ri + '">' + ordered.map(function (c) {
                         var v = row[c];
                         if (v !== null && v !== undefined && typeof v !== 'object') {
                             var erKey = fk + '[' + ri + '].' + c;
