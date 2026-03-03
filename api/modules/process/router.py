@@ -286,6 +286,7 @@ async def upload_process_file(
 @router.get("/uploads/{file_id}/download")
 async def download_process_file(
     file_id: str,
+    preview: bool = Query(False, description="When true, return inline content-disposition for preview rendering."),
     user: User = Depends(require_auth)
 ):
     """
@@ -326,10 +327,25 @@ async def download_process_file(
         raise HTTPException(status_code=404, detail="File not found.")
 
     original_name = match[len(prefix):] or "download"
+    import mimetypes as _mt
+    mime = _mt.guess_type(original_name)[0] or "application/octet-stream"
+
+    # NOTE: Some browsers may treat responses with Content-Disposition: attachment
+    # as downloads even when fetched for preview. For split-screen previews, we
+    # return inline disposition to avoid opening the Downloads UI.
+    headers = None
+    if preview:
+        safe_name = original_name.replace('"', "").replace("\n", " ").replace("\r", " ").strip() or "document"
+        headers = {"Content-Disposition": f'inline; filename="{safe_name}"'}
+        return FileResponse(
+            path,
+            media_type=mime,
+            headers=headers,
+        )
     return FileResponse(
         path,
         filename=original_name,
-        media_type="application/octet-stream"
+        media_type=mime,
     )
 
 

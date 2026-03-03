@@ -1068,7 +1068,9 @@
                 else if (!token) el.innerHTML = '<div class="er-doc-fallback"><span>Not authenticated. Please log in.</span></div>';
                 return;
             }
-            var url = API_BASE + '/process/uploads/' + encodeURIComponent(fileId) + '/download';
+            // Use preview mode so the backend returns inline disposition (prevents browsers
+            // from treating this request as a file download when rendering the split-screen).
+            var url = API_BASE + '/process/uploads/' + encodeURIComponent(fileId) + '/download?preview=1';
             _log('loadable[' + idx + '] fetching', { url: url });
             var fetchOpts = { headers: { 'Authorization': 'Bearer ' + token } };
             var promise = fetch(url, fetchOpts).then(function (r) {
