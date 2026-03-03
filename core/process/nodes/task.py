@@ -190,7 +190,38 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         _PER_VAR_LIMIT = 12_000 if _file_context_block else 30_000
         _TOTAL_BUDGET = 35_000 if _file_context_block else 100_000
         _total_size = 0
-        for k, v in _all_vars.items():
+        # Prioritize variables likely needed for stable comparisons:
+        # - arrays of records/line items
+        # - external/system/lookup responses
+        # This is generic scoring (no domain-specific assumptions).
+        def _var_score(k: str, v: Any) -> int:
+            kn = str(k or "").lower().replace("_", "").replace("-", "").replace(" ", "")
+            score = 0
+            if any(w in kn for w in ("lineitem", "lineitems", "items", "entries", "records", "results")):
+                score += 6
+            if any(w in kn for w in ("system", "lookup", "external", "reference", "response", "api", "tool")):
+                score += 6
+            if isinstance(v, list) and v:
+                if all(isinstance(x, dict) for x in v[:5]):
+                    score += 4
+                    # bump if numeric fields appear (comparison-relevant)
+                    try:
+                        keys = set()
+                        for x in v[:5]:
+                            keys.update([str(kk).lower() for kk in x.keys()])
+                        if any(kw in keys for kw in ("quantity", "qty", "unitprice", "price", "total", "amount", "value")):
+                            score += 3
+                    except Exception:
+                        pass
+            if isinstance(v, dict):
+                # bump for typical response envelope shapes
+                if any(x in v for x in ("response", "data", "results", "items", "lineItems", "line_items")):
+                    score += 3
+            return score
+
+        _sorted_vars = sorted(_all_vars.items(), key=lambda kv: (_var_score(kv[0], kv[1]), str(kv[0]).lower()))
+
+        for k, v in _sorted_vars:
             if any(k.startswith(p) for p in _internal_prefixes):
                 continue
             try:
@@ -1092,60 +1123,73 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 return False
             return abs(a - b) <= 1e-9
 
-        removed = 0
+        _list_keys = {"anomalies", "findings", "issues", "discrepancies", "results"}
 
-        # Walk lists under common keys and remove false positives
-        for k, v in list(output.items()):
-            if not isinstance(v, list):
-                continue
-            k_norm = str(k).lower().replace("_", "").replace("-", "")
-            if k_norm not in ("anomalies", "findings", "issues", "discrepancies", "results"):
-                continue
-
+        def _sanitize_list(list_key: str, items_list: list, container: dict) -> list:
+            nonlocal_removed = 0
             new_list = []
-            for item in v:
+            for item in items_list:
                 # String finding
                 if isinstance(item, str):
                     if _is_discrepancy_text(item):
                         a, b = _extract_pair_from_text(item)
                         if _eq(a, b):
-                            removed += 1
-                            logs.append(f"🧹 Removed false discrepancy in '{k}': values equal ({a} vs {b})")
+                            nonlocal_removed += 1
+                            logs.append(f"🧹 Removed false discrepancy in '{list_key}': values equal ({a} vs {b})")
                             continue
                     new_list.append(item)
                     continue
 
                 # Dict finding (structured)
                 if isinstance(item, dict):
-                    # Find any two numeric fields that look like a comparison
                     name = str(item.get("type") or item.get("name") or item.get("finding") or "").lower()
                     is_disc = ("mismatch" in name) or ("discrep" in name) or ("diff" in name) or ("variance" in name) or ("deviation" in name)
                     if is_disc:
                         a = _to_num(item.get("actual") or item.get("source") or item.get("invoice") or item.get("value1"))
                         b = _to_num(item.get("expected") or item.get("target") or item.get("po") or item.get("value2"))
                         if _eq(a, b):
-                            removed += 1
-                            logs.append(f"🧹 Removed false discrepancy in '{k}': values equal ({a} vs {b})")
+                            nonlocal_removed += 1
+                            logs.append(f"🧹 Removed false discrepancy in '{list_key}': values equal ({a} vs {b})")
                             continue
                     new_list.append(item)
                     continue
 
                 new_list.append(item)
 
-            if removed:
-                output[k] = new_list
-                # If there is a corresponding count field, align it.
-                for ck, cv in list(output.items()):
+            # Align count fields on the SAME container dict (generic)
+            if nonlocal_removed and isinstance(container, dict):
+                k_norm = str(list_key).lower().replace("_", "").replace("-", "")
+                for ck, cv in list(container.items()):
                     if not isinstance(cv, (int, float)):
                         continue
                     cn = str(ck).lower().replace("_", "").replace("-", "")
                     if k_norm == "anomalies" and ("anomaly" in cn and "count" in cn):
-                        output[ck] = len(new_list)
+                        container[ck] = len(new_list)
                     if k_norm == "findings" and ("finding" in cn and "count" in cn):
-                        output[ck] = len(new_list)
+                        container[ck] = len(new_list)
                     if k_norm == "issues" and ("issue" in cn and "count" in cn):
-                        output[ck] = len(new_list)
+                        container[ck] = len(new_list)
+                    if k_norm == "results" and ("result" in cn and "count" in cn):
+                        container[ck] = len(new_list)
+            return new_list
 
+        def _walk(node):
+            # Recurse through nested dict/list structures
+            if isinstance(node, dict):
+                for kk, vv in list(node.items()):
+                    k_norm = str(kk).lower().replace("_", "").replace("-", "")
+                    if isinstance(vv, list) and k_norm in _list_keys:
+                        node[kk] = _sanitize_list(kk, vv, node)
+                        # also recurse into items (they may contain nested findings lists)
+                        for it in node[kk]:
+                            _walk(it)
+                    else:
+                        _walk(vv)
+            elif isinstance(node, list):
+                for it in node:
+                    _walk(it)
+
+        _walk(output)
         return output
 
     def _parse_json_response(self, content: str) -> Any:
