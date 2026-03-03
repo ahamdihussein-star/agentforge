@@ -246,6 +246,8 @@
                 + '<div style="color:var(--text-primary,var(--pb-text,#eee));font-size:13px;line-height:1.7;">'
                 + summaryLines.map(function (l) {
                     var trimmed = l.replace(/^[\s\u2022\-\*]+/, '').trim();
+                    // Strip common markdown artifacts the LLM may output
+                    trimmed = trimmed.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/__/g, '');
                     if (!trimmed) return '';
                     return '<div style="display:flex;gap:8px;align-items:flex-start;padding:2px 0;"><span style="color:var(--primary,#6366f1);font-size:16px;line-height:1.3;">\u2022</span><span>' + _esc(trimmed) + '</span></div>';
                 }).filter(Boolean).join('')
@@ -255,6 +257,44 @@
         // Summary-only mode: if backend provided an approval summary, hide the raw tables.
         // Still show any attached/generated documents (so approvers can download) inside the same Summary box.
         if (summaryHtml) {
+            // Optional: render a side-by-side comparison table (generic) when provided by backend
+            var cmp = rd._approval_comparison;
+            var cmpHtml = '';
+            try {
+                if (cmp && cmp.rows && Array.isArray(cmp.rows) && cmp.rows.length) {
+                    var lLabel = _humanize(cmp.leftLabel || 'Document');
+                    var rLabel = _humanize(cmp.rightLabel || 'System');
+                    var rowsHtml = cmp.rows.slice(0, 24).map(function (row) {
+                        var f = _esc(_humanize(row.field || 'Field'));
+                        var lv = _esc(row.left == null ? '' : String(row.left));
+                        var rv = _esc(row.right == null ? '' : String(row.right));
+                        var ok = !!row.match;
+                        var badge = ok
+                            ? '<span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;background:color-mix(in srgb, var(--success,#22c55e) 18%, transparent);color:color-mix(in srgb, var(--success,#22c55e) 90%, white);">Match</span>'
+                            : '<span style="display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;background:color-mix(in srgb, var(--danger,#ef4444) 18%, transparent);color:color-mix(in srgb, var(--danger,#ef4444) 90%, white);">Diff</span>';
+                        return '<tr>'
+                            + '<td style="padding:8px 10px;font-weight:750;color:var(--text-secondary,var(--pb-muted,#999));white-space:nowrap;vertical-align:top;">' + f + '</td>'
+                            + '<td style="padding:8px 10px;color:var(--text-primary,var(--pb-text,#eee));vertical-align:top;word-break:break-word;">' + lv + '</td>'
+                            + '<td style="padding:8px 10px;color:var(--text-primary,var(--pb-text,#eee));vertical-align:top;word-break:break-word;">' + rv + '</td>'
+                            + '<td style="padding:8px 10px;vertical-align:top;">' + badge + '</td>'
+                            + '</tr>';
+                    }).join('');
+                    cmpHtml =
+                        '<div style="margin-top:-4px;margin-bottom:16px;padding:12px 14px;border:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);border-radius:12px;background:color-mix(in srgb, var(--bg-card,#1a1a2e) 92%, transparent);">'
+                        + '<div style="font-weight:800;font-size:12px;letter-spacing:.3px;text-transform:uppercase;color:var(--text-secondary,var(--pb-muted,#999));margin-bottom:8px;">Comparison (same formatting)</div>'
+                        + '<div style="overflow-x:auto;">'
+                        + '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+                        + '<thead><tr>'
+                        + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;font-size:11px;">Field</th>'
+                        + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;font-size:11px;">' + _esc(lLabel) + '</th>'
+                        + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;font-size:11px;">' + _esc(rLabel) + '</th>'
+                        + '<th style="text-align:left;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--border-color,#333) 35%, transparent);color:var(--text-secondary,var(--pb-muted,#999));text-transform:uppercase;letter-spacing:.3px;font-size:11px;">Status</th>'
+                        + '</tr></thead>'
+                        + '<tbody>' + rowsHtml + '</tbody>'
+                        + '</table></div></div>';
+                }
+            } catch (_) { cmpHtml = ''; }
+
             function _isFileRefLike(v) {
                 if (!v || typeof v !== 'object') return false;
                 if (_isUploadedFile(v) || _isFileMetadataObj(v)) return true;
@@ -280,7 +320,7 @@
                     }).filter(Boolean).join('')
                     + '</div>';
             }
-            return summaryHtml + filesHtml;
+            return summaryHtml + cmpHtml + filesHtml;
         }
 
         const entries = allEntries.filter(([k, v]) => {

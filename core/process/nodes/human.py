@@ -505,6 +505,122 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         
         # Calculate deadline
         deadline = datetime.utcnow() + timedelta(hours=timeout_hours) if timeout_hours else None
+
+        # Build a generic, side-by-side comparison structure when we can detect
+        # "document/source" data and "system/reference" data in review_data.
+        # This keeps the platform dynamic: no domain-specific keys are required.
+        try:
+            def _is_file_ref_like(v: Any) -> bool:
+                if not isinstance(v, dict):
+                    return False
+                if v.get("path") and (v.get("filename") or v.get("name")):
+                    return True
+                d = v.get("data")
+                if isinstance(d, dict) and d.get("path") and (d.get("filename") or d.get("name")):
+                    return True
+                return False
+
+            def _primitive_items(dct: dict) -> dict:
+                out = {}
+                for kk, vv in (dct or {}).items():
+                    if vv is None or vv == "":
+                        continue
+                    if isinstance(vv, (str, int, float, bool)):
+                        out[str(kk)] = vv
+                return out
+
+            def _norm_key(s: str) -> str:
+                return str(s or "").lower().replace(" ", "").replace("_", "").replace("-", "")
+
+            def _score_key(name: str, positive: list[str]) -> int:
+                n = _norm_key(name)
+                sc = 0
+                for w in positive:
+                    if w in n:
+                        sc += 3
+                return sc
+
+            doc_words = ["extract", "parsed", "document", "source", "input", "upload", "submitted", "form", "request"]
+            sys_words = ["system", "lookup", "external", "reference", "master", "response", "result", "api", "erp", "database"]
+
+            candidates = []
+            for rk, rv in (review_data or {}).items():
+                if not rk or str(rk).startswith("_"):
+                    continue
+                if _is_file_ref_like(rv):
+                    continue
+                if isinstance(rv, dict):
+                    prim = _primitive_items(rv)
+                    if len(prim) >= 4:
+                        candidates.append({
+                            "key": str(rk),
+                            "value": rv,
+                            "prim": prim,
+                            "doc_score": _score_key(str(rk), doc_words),
+                            "sys_score": _score_key(str(rk), sys_words),
+                        })
+
+            doc_c = max(candidates, key=lambda c: (c["doc_score"], len(c["prim"])), default=None)
+            sys_c = max(candidates, key=lambda c: (c["sys_score"], len(c["prim"])), default=None)
+
+            # If heuristics are weak but we have 2+ candidates, pick two richest dicts.
+            if doc_c and doc_c["doc_score"] == 0 and sys_c and sys_c["sys_score"] == 0:
+                if len(candidates) >= 2:
+                    ranked = sorted(candidates, key=lambda c: len(c["prim"]), reverse=True)
+                    doc_c = ranked[0]
+                    sys_c = ranked[1]
+
+            if doc_c and sys_c and doc_c["key"] != sys_c["key"]:
+                left = doc_c["prim"]
+                right = sys_c["prim"]
+
+                def _to_num(x: Any) -> Optional[float]:
+                    try:
+                        if isinstance(x, (int, float)):
+                            return float(x)
+                        if isinstance(x, str):
+                            t = x.strip().replace(",", "")
+                            t = re.sub(r"[^0-9.\-]", "", t)
+                            if not t or t in ("-", "."):
+                                return None
+                            return float(t)
+                    except Exception:
+                        return None
+                    return None
+
+                def _eq(a: Any, b: Any) -> bool:
+                    na = _to_num(a)
+                    nb = _to_num(b)
+                    if na is not None and nb is not None:
+                        return abs(na - nb) <= 1e-9
+                    sa = str(a).strip().lower() if a is not None else ""
+                    sb = str(b).strip().lower() if b is not None else ""
+                    # Treat common "empty" markers as equivalent
+                    empties = {"", "n/a", "na", "none", "null", "-"}
+                    if sa in empties and sb in empties:
+                        return True
+                    return sa == sb
+
+                shared_keys = [k for k in left.keys() if k in right]
+                # Prefer stable order: shorter keys first, then alphabetical
+                shared_keys = sorted(shared_keys, key=lambda x: (len(x), x.lower()))[:24]
+                rows = []
+                for kk in shared_keys:
+                    rows.append({
+                        "field": kk,
+                        "left": left.get(kk),
+                        "right": right.get(kk),
+                        "match": _eq(left.get(kk), right.get(kk)),
+                    })
+
+                if rows:
+                    review_data["_approval_comparison"] = {
+                        "leftLabel": doc_c["key"],
+                        "rightLabel": sys_c["key"],
+                        "rows": rows,
+                    }
+        except Exception as _cmp_exc:
+            logs.append(f"Approval comparison generation skipped: {_cmp_exc}")
         
         # Generate LLM approval summary so approvers see business-friendly context
         _has_llm = bool(self.deps and getattr(self.deps, 'llm', None))
@@ -577,10 +693,14 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                                 "- Include specific numbers, amounts, dates, and names from the data.\n"
                                 "- Highlight any risks, anomalies, or discrepancies with exact figures.\n"
                                 "- For comparisons, show both values side by side (e.g., 'Actual: 13,333.75 vs Expected: 63,000').\n"
+                                "- If a side-by-side comparison table is present in the data, use it to present the SAME fields\n"
+                                "  for 'Document' vs 'System' in the same order so it is easy to compare.\n"
+                                "- When you mention a field, show it consistently for both sides: 'Field: Document=<x> | System=<y>'.\n"
                                 "- If there are multiple items (e.g., multiple documents/records), cover EACH item.\n"
                                 "- If there is a findings/anomalies list, include EACH finding as its own bullet with the exact values.\n"
                                 "- If any report/document is available, mention its filename so the approver knows what to download.\n"
                                 "- Use plain business language. No technical terms, no JSON keys, no array indices.\n"
+                                "- Do NOT use markdown (no **, no backticks, no headers). No asterisks.\n"
                                 "- End with a clear recommendation or the key question the approver needs to answer.\n"
                                 "- Format as bullet points using the bullet character. One bullet per line. No headers."
                             )),
