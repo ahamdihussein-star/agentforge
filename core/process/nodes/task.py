@@ -584,6 +584,8 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 logs.extend(hallucination_warnings)
             # Step 3: Ensure total = sum(items), count = len(items)
             output = self._auto_correct_totals(output, logs)
+            # Step 4: Remove false numeric discrepancies (e.g., "mismatch" where values are equal)
+            output = self._sanitize_false_numeric_discrepancies(output, logs)
         
         output_fields = self.get_config_value(node, 'outputFields') or []
         if output_fields:
@@ -1029,6 +1031,114 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 f"(actual files: {', '.join(actual_file_names)})."
             )
         
+        return output
+
+    @staticmethod
+    def _sanitize_false_numeric_discrepancies(output: dict, logs: list) -> dict:
+        """
+        Generic verifier: remove/neutralize discrepancy findings that contain two numeric values
+        which are actually equal (or equal within a tiny tolerance).
+
+        This is platform-level validation (math consistency), not business logic.
+        It prevents cases like: "Quantity mismatch (A: 1, B: 1)".
+        """
+        import re
+
+        def _to_num(s):
+            try:
+                if s is None:
+                    return None
+                t = str(s).strip()
+                if not t:
+                    return None
+                # keep digits, dot, minus; drop thousands separators and currency symbols
+                t = t.replace(",", "")
+                t = re.sub(r"[^0-9.\-]", "", t)
+                if not t or t == "-" or t == ".":
+                    return None
+                n = float(t)
+                return n
+            except Exception:
+                return None
+
+        # Parse "A: 1, B: 1" / "Actual: 1 vs Expected: 1" / "Invoice: 1, PO: 1"
+        _pair_patterns = [
+            re.compile(r"(?:actual|source|invoice|value\s*1|left|a)\s*[:=]\s*([-0-9.,]+).*?(?:expected|target|po|value\s*2|right|b)\s*[:=]\s*([-0-9.,]+)", re.I),
+            re.compile(r"([-0-9.,]+)\s*(?:vs|versus)\s*([-0-9.,]+)", re.I),
+        ]
+
+        def _extract_pair_from_text(t: str):
+            if not t:
+                return None, None
+            for rx in _pair_patterns:
+                m = rx.search(t)
+                if m and len(m.groups()) >= 2:
+                    return _to_num(m.group(1)), _to_num(m.group(2))
+            return None, None
+
+        def _is_discrepancy_text(t: str) -> bool:
+            tl = (t or "").lower()
+            return any(w in tl for w in ("mismatch", "discrep", "difference", "differs", "variance", "deviation"))
+
+        def _eq(a, b) -> bool:
+            if a is None or b is None:
+                return False
+            return abs(a - b) <= 1e-9
+
+        removed = 0
+
+        # Walk lists under common keys and remove false positives
+        for k, v in list(output.items()):
+            if not isinstance(v, list):
+                continue
+            k_norm = str(k).lower().replace("_", "").replace("-", "")
+            if k_norm not in ("anomalies", "findings", "issues", "discrepancies", "results"):
+                continue
+
+            new_list = []
+            for item in v:
+                # String finding
+                if isinstance(item, str):
+                    if _is_discrepancy_text(item):
+                        a, b = _extract_pair_from_text(item)
+                        if _eq(a, b):
+                            removed += 1
+                            logs.append(f"🧹 Removed false discrepancy in '{k}': values equal ({a} vs {b})")
+                            continue
+                    new_list.append(item)
+                    continue
+
+                # Dict finding (structured)
+                if isinstance(item, dict):
+                    # Find any two numeric fields that look like a comparison
+                    name = str(item.get("type") or item.get("name") or item.get("finding") or "").lower()
+                    is_disc = ("mismatch" in name) or ("discrep" in name) or ("diff" in name) or ("variance" in name) or ("deviation" in name)
+                    if is_disc:
+                        a = _to_num(item.get("actual") or item.get("source") or item.get("invoice") or item.get("value1"))
+                        b = _to_num(item.get("expected") or item.get("target") or item.get("po") or item.get("value2"))
+                        if _eq(a, b):
+                            removed += 1
+                            logs.append(f"🧹 Removed false discrepancy in '{k}': values equal ({a} vs {b})")
+                            continue
+                    new_list.append(item)
+                    continue
+
+                new_list.append(item)
+
+            if removed:
+                output[k] = new_list
+                # If there is a corresponding count field, align it.
+                for ck, cv in list(output.items()):
+                    if not isinstance(cv, (int, float)):
+                        continue
+                    cn = str(ck).lower().replace("_", "").replace("-", "")
+                    if k_norm == "anomalies" and ("anomaly" in cn and "count" in cn):
+                        output[ck] = len(new_list)
+                    if k_norm == "findings" and ("finding" in cn and "count" in cn):
+                        output[ck] = len(new_list)
+                    if k_norm == "issues" and ("issue" in cn and "count" in cn):
+                        output[ck] = len(new_list)
+
         return output
 
     def _parse_json_response(self, content: str) -> Any:
