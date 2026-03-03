@@ -173,55 +173,62 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 logs.append(f"Warning: all {_total_files} files failed to read")
         # ── End source file pre-reading ────────────────────────────────
 
-        # ── Inject process data context when no files are being read ───
+        # ── Inject process data context (ALWAYS) ───────────────────────
         # AI steps in "custom"/"analyze" mode need access to form data and
         # previous-step outputs (including tool call results, extracted data,
-        # etc.). Without this, the LLM receives only the prompt text and has
-        # no data to act on.
+        # external lookups, etc.). If we only inject file contents, the LLM
+        # may ignore or never see system/reference data, leading to unstable
+        # comparisons (sometimes line items are considered, sometimes not).
+        #
+        # Best practice: inject BOTH file contents (when present) AND a bounded,
+        # trimmed snapshot of process variables.
         _process_data_block = ""
-        if not _file_context_block:
-            _all_vars = state.get_all()
-            _display_vars: dict = {}
-            _internal_prefixes = ("_",)
-            _PER_VAR_LIMIT = 30_000
-            _TOTAL_BUDGET = 100_000
-            _total_size = 0
-            for k, v in _all_vars.items():
-                if any(k.startswith(p) for p in _internal_prefixes):
-                    continue
-                try:
-                    v_json = json.dumps(v, default=str)
-                    v_len = len(v_json)
-                except Exception:
-                    v_len = len(str(v))
-                if v_len > _PER_VAR_LIMIT:
-                    logs.append(f"Truncated large variable '{k}' ({v_len} chars)")
-                    if isinstance(v, dict):
-                        _display_vars[k] = {kk: vv for i, (kk, vv) in enumerate(v.items()) if i < 40}
-                    elif isinstance(v, list):
-                        _display_vars[k] = v[:30]
-                    else:
-                        _display_vars[k] = str(v)[:_PER_VAR_LIMIT]
-                    _total_size += min(v_len, _PER_VAR_LIMIT)
+        _all_vars = state.get_all()
+        _display_vars: dict = {}
+        _internal_prefixes = ("_",)
+        # Use smaller budgets when we also inject file contents (token safety)
+        _PER_VAR_LIMIT = 12_000 if _file_context_block else 30_000
+        _TOTAL_BUDGET = 35_000 if _file_context_block else 100_000
+        _total_size = 0
+        for k, v in _all_vars.items():
+            if any(k.startswith(p) for p in _internal_prefixes):
+                continue
+            try:
+                v_json = json.dumps(v, default=str)
+                v_len = len(v_json)
+            except Exception:
+                v_len = len(str(v))
+            if v_len > _PER_VAR_LIMIT:
+                logs.append(f"Truncated large variable '{k}' ({v_len} chars)")
+                if isinstance(v, dict):
+                    _display_vars[k] = {kk: vv for i, (kk, vv) in enumerate(v.items()) if i < 40}
+                elif isinstance(v, list):
+                    _display_vars[k] = v[:30]
                 else:
-                    _display_vars[k] = v
-                    _total_size += v_len
-                if _total_size > _TOTAL_BUDGET:
-                    logs.append(f"Process data context budget reached ({_total_size} chars), remaining variables skipped")
-                    break
-            if _display_vars:
-                try:
-                    _vars_json = json.dumps(
-                        _display_vars, indent=2, default=str, ensure_ascii=False
-                    )
-                except Exception:
-                    _vars_json = str(_display_vars)
-                _process_data_block = (
-                    "\n\n=== PROCESS DATA (information from the submitted form and previous steps) ===\n"
-                    + _vars_json
-                    + "\n=== END PROCESS DATA ==="
+                    _display_vars[k] = str(v)[:_PER_VAR_LIMIT]
+                _total_size += min(v_len, _PER_VAR_LIMIT)
+            else:
+                _display_vars[k] = v
+                _total_size += v_len
+            if _total_size > _TOTAL_BUDGET:
+                logs.append(f"Process data context budget reached ({_total_size} chars), remaining variables skipped")
+                break
+        if _display_vars:
+            try:
+                _vars_json = json.dumps(
+                    _display_vars, indent=2, default=str, ensure_ascii=False
                 )
-                logs.append(f"Injected {len(_display_vars)} process data variables as AI context ({_total_size} chars)")
+            except Exception:
+                _vars_json = str(_display_vars)
+            _process_data_block = (
+                "\n\n=== PROCESS DATA (information from the submitted form and previous steps) ===\n"
+                + _vars_json
+                + "\n=== END PROCESS DATA ==="
+            )
+            logs.append(
+                f"Injected {len(_display_vars)} process data variables as AI context "
+                f"({_total_size} chars, budgets per_var={_PER_VAR_LIMIT} total={_TOTAL_BUDGET})"
+            )
         # ── End process data injection ─────────────────────────────────
 
         # Build messages
