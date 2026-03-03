@@ -8902,7 +8902,7 @@
                     if (desc) desc.textContent = approval?.description || 'This step requires approval to continue.';
                     if (reviewBody) {
                         const genericHtml = (typeof window.afRenderReviewData === 'function')
-                            ? window.afRenderReviewData(reviewData, { maxRows: 20 })
+                            ? window.afRenderReviewData(reviewData, { maxRows: 20, summaryOnly: true })
                             : '';
                         reviewBody.innerHTML = genericHtml || '';
                     }

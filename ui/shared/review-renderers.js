@@ -226,6 +226,7 @@
     function afRenderReviewData(rd, opts) {
         opts = opts || {};
         const maxRows = (typeof opts.maxRows === 'number') ? opts.maxRows : 24;
+        const summaryOnly = !!opts.summaryOnly;
         if (!rd) return '';
         rd = _tryParseJson(rd);
         if (typeof rd === 'string') {
@@ -256,7 +257,52 @@
 
         // Summary-only mode: if backend provided an approval summary, hide the raw tables.
         // Still show any attached/generated documents (so approvers can download) inside the same Summary box.
-        if (summaryHtml) {
+        if (summaryOnly && !summaryHtml) {
+            // Frontend fallback summary (generic): keep the approval experience business-friendly
+            // even if backend summary wasn't available for any reason.
+            try {
+                var lines = [];
+                allEntries.forEach(function (kv) {
+                    if (!kv || kv.length !== 2) return;
+                    var k = kv[0], v = kv[1];
+                    if (!k || _isInternalKey(k) || k === '_approval_summary') return;
+                    if (v === undefined || v === null || v === '') return;
+                    if (typeof v === 'string' && v.length > 240) v = v.slice(0, 240) + '…';
+                    if (typeof v === 'object') {
+                        if (_isUploadedFile(v) || _isFileMetadataObj(v) || (v && v.path && v.filename)) {
+                            lines.push('Attachment: ' + (v.filename || v.name || 'file'));
+                            return;
+                        }
+                        // Summarize small dicts by primitive pairs
+                        if (!Array.isArray(v)) {
+                            var pairs = [];
+                            Object.keys(v).slice(0, 6).forEach(function (kk) {
+                                var vv = v[kk];
+                                if (vv === undefined || vv === null || vv === '' || typeof vv === 'object') return;
+                                pairs.push(_humanize(kk) + ': ' + String(vv));
+                            });
+                            if (pairs.length) lines.push(_humanize(k) + ': ' + pairs.join(', '));
+                            return;
+                        }
+                        lines.push(_humanize(k) + ': ' + (Array.isArray(v) ? (v.length + ' item(s)') : 'details'));
+                        return;
+                    }
+                    lines.push(_humanize(k) + ': ' + String(v));
+                });
+                var summaryLines2 = lines.slice(0, 14);
+                summaryHtml = '<div style="background:linear-gradient(135deg,color-mix(in srgb, var(--primary,#6366f1) 8%, var(--bg-card,#1a1a2e)),color-mix(in srgb, var(--primary,#6366f1) 4%, var(--bg-card,#1a1a2e)));border:1px solid color-mix(in srgb, var(--primary,#6366f1) 25%, var(--border-color,#333));border-radius:12px;padding:16px 20px;margin-bottom:16px;">'
+                    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700;font-size:.9rem;color:var(--text-primary,var(--pb-text,#eee));">'
+                    + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary,#6366f1)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+                    + 'Summary</div>'
+                    + '<div style="color:var(--text-primary,var(--pb-text,#eee));font-size:13px;line-height:1.7;">'
+                    + summaryLines2.map(function (t) {
+                        return '<div style="display:flex;gap:8px;align-items:flex-start;padding:2px 0;"><span style="color:var(--primary,#6366f1);font-size:16px;line-height:1.3;">\u2022</span><span>' + _esc(String(t)) + '</span></div>';
+                    }).join('')
+                    + '</div></div>';
+            } catch (_) {}
+        }
+
+        if (summaryOnly && summaryHtml) {
             // Optional: render a side-by-side comparison table (generic) when provided by backend
             var cmp = rd._approval_comparison;
             var cmpHtml = '';
