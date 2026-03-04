@@ -1675,6 +1675,11 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                 "7. Do NOT invent data; only use what is provided.\n"
                 "8. Every data table MUST have a proper header row.\n"
                 "9. Use numbers for numeric data (not text like 'zero'), booleans as Yes/No.\n"
+                "\nSTRUCTURE RULES (CRITICAL):\n"
+                "- If the Instructions include an explicit report structure (section names, ordering, subsections),\n"
+                "  you MUST follow that structure exactly and in the same order.\n"
+                "- Do NOT add extra sections that were not requested.\n"
+                "- If a requested section has no applicable data, still include the section and write 'None'.\n"
                 + _data_quality_rules
             )
         else:

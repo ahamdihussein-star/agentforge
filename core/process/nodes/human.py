@@ -2039,7 +2039,7 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         """Resolve config.attachments into a list of {path, filename, mime_type} dicts.
 
         Supported config values for each attachment entry:
-          - A string variable reference like "{{reconciliationReport}}" that points
+          - A string variable reference like "{{generatedReport}}" that points
             to a dict with at least a ``path`` key (produced by create_doc / file_operation).
           - A raw string path (absolute filesystem path).
           - A dict with ``variable`` key (variable name whose state value has ``path``).

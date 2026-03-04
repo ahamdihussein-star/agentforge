@@ -2371,18 +2371,16 @@ const API='';
                 {
                     id: "invoice_reconciliation",
                     icon: "🔄",
-                    title: "Invoice Reconciliation & Anomaly Detection",
-                    subtitle: "Cross-reference invoices against POs, detect discrepancies, generate reconciliation report",
-                    tags: ["Finance", "AI Cross-Reference", "Fraud Detection", "Human Review", "Document Generation"],
+                    title: "Document Reconciliation & Anomaly Detection",
+                    subtitle: "Cross-reference uploaded documents vs system records, detect discrepancies, generate a report",
+                    tags: ["Operations", "AI Cross-Reference", "Quality Control", "Human Review", "Document Generation"],
                     prompt:
-                        "Generate an Invoice Reconciliation & Anomaly Detection process. Start with an Accounts Payable user entering: reconciliation batch name, and uploading invoices to reconcile (multiple files — PDF or images). " +
-                        "Extract detailed data from all uploaded invoices using batch file analysis: vendor name, vendor code, invoice number, invoice date, due date, PO reference number, line items (description, quantity, unit price, total), subtotal, VAT, and grand total for each invoice. Enable human review on the extraction step so the user can verify the extracted data against the source invoices before the process continues. " +
-                        "Then use an AI analysis step connected to any available tools to perform 3-way matching: for each invoice, look up the PO data using the PO reference number, then cross-reference every line item — check for: (1) price discrepancies between invoice and PO, (2) quantity mismatches, (3) line items on the invoice not found in the PO, (4) duplicate invoice numbers, (5) invoices without valid PO references, (6) total amount deviations beyond 2% tolerance. Output: totalInvoices (number), matchedInvoices (number), anomalyCount (number), totalInvoiceValue (currency), anomalies (list with invoiceNumber, anomalyType, severity, details, poAmount, invoiceAmount), overallRiskLevel (text). " +
-                        "Generate a Reconciliation Report (XLSX) with two sections: Matched Invoices (clean matches) and Anomaly Report (each anomaly with invoice number, type, severity, PO vs Invoice comparison, and recommended action). " +
-                        "If anomalyCount is 0, auto-approve and email the AP team a clean reconciliation summary. " +
-                        "If anomalies exist but overall risk is Low (minor price differences under 500), route to AP Manager for approval. " +
-                        "If overall risk is Medium or High (missing POs, added line items, or large discrepancies), route to Finance Manager for approval with escalation after 24 hours to Finance Director. In parallel, notify the AP team about the flagged invoices. " +
-                        "After approval, email the requester with the reconciliation results and a reference to the generated report."
+                        "Generate a Document Reconciliation & Anomaly Detection process. Start with a business user entering a batch name and uploading one or more documents to reconcile (multiple files). " +
+                        "Extract the key header fields and line items requested by the prompt from each uploaded document. Enable human review on the extraction step so the user can verify the extracted data against the source documents before the process continues. " +
+                        "Then use an AI analysis step connected to any available tools to match each document to the correct system record using a reference/ID. If a document has no reference or no match is found, mark it as Not Matched and stop further comparisons for that document. " +
+                        "For matched items, compare line items and totals. Output: totalRecords (number), matchedRecords (number), unmatchedRecords (number), anomalyCount (number), anomalies (list), overallRiskLevel (text). " +
+                        "Generate an Excel Report (XLSX) that follows the structure specified in the user's prompt (sections and ordering). " +
+                        "Route based on overallRiskLevel: auto-complete for Clean/Low, otherwise request manager approval with escalation after 24 hours."
                 }
             ]
         };

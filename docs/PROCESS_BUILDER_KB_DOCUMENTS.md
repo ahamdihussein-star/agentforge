@@ -110,13 +110,13 @@ downstream notification node's `attachments` array so the recipient gets the fil
   "config": {
     "channel": "email",
     "recipient": "requester",
-    "template": "Please find the attached reconciliation report.",
-    "attachments": ["{{reconciliationReport}}"]
+    "template": "Please find the attached report.",
+    "attachments": ["{{generatedReport}}"]
   }
 }
 ```
 
-The engine resolves `{{reconciliationReport}}` to the generated file's disk path
+The engine resolves `{{generatedReport}}` to the generated file's disk path
 and attaches it to the email (SendGrid or SMTP). Multiple attachments are supported.
 
 ## Human Review for Extraction (Split-Screen Verification)
@@ -127,17 +127,17 @@ When an AI extraction step has `humanReview: true`, the process pauses after ext
 ```json
 {
   "type": "ai",
-  "name": "Extract Invoice Data",
+  "name": "Extract Document Data",
   "config": {
     "aiMode": "extract_file",
-    "sourceField": "uploadedInvoices",
-    "prompt": "Extract vendor name, invoice number, line items, subtotal, VAT, and grand total",
+    "sourceField": "uploadedFiles",
+    "prompt": "Extract the key fields and line items requested by the process prompt",
     "humanReview": true,
     "creativity": 1,
     "outputFields": [
-      {"label": "Vendor Name", "name": "vendorName", "type": "text"},
-      {"label": "Invoice Number", "name": "invoiceNumber", "type": "text"},
-      {"label": "Grand Total", "name": "grandTotal", "type": "number"},
+      {"label": "Reference Number", "name": "referenceNumber", "type": "text"},
+      {"label": "Document Date", "name": "documentDate", "type": "date"},
+      {"label": "Total Amount", "name": "totalAmount", "type": "currency"},
       {"label": "Line Items", "name": "lineItems", "type": "list"}
     ]
   },
