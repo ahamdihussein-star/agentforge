@@ -1462,11 +1462,54 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     for it in obj[:40]:
                         _collect_reference_values(it, out, depth + 1)
 
-            # Collect reference values from all variables (to filter big external responses)
+            doc_words = ("extract", "parsed", "document", "source", "input", "upload", "submitted", "form", "request")
+            sys_words = ("system", "lookup", "external", "reference", "master", "response", "result", "api", "erp", "database")
+
+            def _docness_score(k: str) -> int:
+                kn = _norm_key(k)
+                sc = 0
+                for w in doc_words:
+                    if w in kn:
+                        sc += 3
+                for w in sys_words:
+                    if w in kn:
+                        sc -= 2
+                return sc
+
+            def _is_tool_envelope(v: Any) -> bool:
+                try:
+                    return isinstance(v, dict) and isinstance(v.get("response"), list) and (v.get("status_code") is not None or v.get("tool_type") or v.get("mode"))
+                except Exception:
+                    return False
+
+            # Collect reference values from *document-side* variables first, so we can
+            # filter large system lists to only relevant records. Avoid collecting refs
+            # from system responses themselves (otherwise we keep everything).
             ref_vals: set = set()
             try:
-                for _k, _v in list(variables.items())[:60]:
+                _keys = [k for k in list(variables.keys())[:120] if k and not str(k).startswith("_")]
+                _keys = sorted(_keys, key=lambda kk: (_docness_score(str(kk)), str(kk).lower()), reverse=True)
+                picked = 0
+                for _k in _keys:
+                    _v = variables.get(_k)
+                    if _is_tool_envelope(_v):
+                        continue
+                    # Skip huge record lists when collecting refs (likely system-side or too noisy)
+                    if isinstance(_v, list) and len(_v) > 80 and all(isinstance(x, dict) for x in _v[:3]):
+                        continue
+                    if _docness_score(str(_k)) < 1:
+                        continue
                     _collect_reference_values(_v, ref_vals)
+                    picked += 1
+                    if picked >= 18:
+                        break
+                # Fallback: if still empty, collect from first variables excluding tool envelopes
+                if not ref_vals:
+                    for _k in list(variables.keys())[:40]:
+                        _v = variables.get(_k)
+                        if _is_tool_envelope(_v):
+                            continue
+                        _collect_reference_values(_v, ref_vals)
             except Exception:
                 ref_vals = set()
 
@@ -1500,18 +1543,20 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     if isinstance(v.get("response"), list) and (v.get("status_code") is not None or v.get("tool_type") or v.get("mode")):
                         resp = v.get("response") or []
                         kept = []
-                        for r in resp:
-                            if not isinstance(r, dict):
-                                continue
-                            # keep if any id-like field matches known refs
-                            hit = False
-                            for kk, vv in r.items():
-                                if _looks_like_id_key(str(kk)) and isinstance(vv, (str, int, float)):
-                                    if _to_norm_id(vv) in ref_vals:
-                                        hit = True
-                                        break
-                            if hit:
-                                kept.append(r)
+                        if ref_vals:
+                            for r in resp:
+                                if not isinstance(r, dict):
+                                    continue
+                                # keep if any id-like field matches known doc-side refs
+                                hit = False
+                                for kk, vv in r.items():
+                                    if _looks_like_id_key(str(kk)) and isinstance(vv, (str, int, float)):
+                                        if _to_norm_id(vv) in ref_vals:
+                                            hit = True
+                                            break
+                                if hit:
+                                    kept.append(r)
+                        # Fallback: keep a small sample (never dump huge system tables)
                         if not kept:
                             kept = [x for x in resp[:8] if isinstance(x, dict)]
                         # sanitize kept records to primitive fields only
@@ -1539,7 +1584,31 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
                     return out
                 return None
 
-            for k in list(variables.keys())[:60]:
+            def _var_score(k: str, v: Any) -> int:
+                kn = _norm_key(k)
+                sc = 0
+                if any(w in kn for w in ("anomal", "finding", "issue", "discrep", "mismatch", "risk", "classification", "validation")):
+                    sc += 50
+                if any(w in kn for w in ("result", "results", "comparison", "reconcile", "match", "summary")):
+                    sc += 35
+                if any(w in kn for w in ("lineitem", "lineitems", "items", "entries", "records", "table")):
+                    sc += 20
+                if any(w in kn for w in doc_words):
+                    sc += 10
+                if any(w in kn for w in ("uploaded", "downloadurl", "contenttype", "mimetype", "path", "storedpath", "file")):
+                    sc -= 25
+                if _is_tool_envelope(v):
+                    sc += 8  # can still be useful after filtering
+                if isinstance(v, list) and v and all(isinstance(x, dict) for x in v[:3]):
+                    sc += 6
+                if isinstance(v, dict) and any(isinstance(x, list) for x in v.values()):
+                    sc += 3
+                return sc
+
+            _sorted_keys = [k for k in list(variables.keys())[:120] if k and not str(k).startswith("_")]
+            _sorted_keys = sorted(_sorted_keys, key=lambda kk: (_var_score(str(kk), variables.get(kk)), str(kk).lower()), reverse=True)
+
+            for k in _sorted_keys:
                 v = _sanitize_value(variables.get(k))
                 try:
                     v_size = len(json.dumps(v, default=str))
@@ -1587,6 +1656,8 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
             "- ONLY report a finding when the two values being compared are ACTUALLY DIFFERENT.\n"
             "  If source value equals target value (e.g., qty 1 vs qty 1), there is NO finding.\n"
             "- If an item has a 'findings' list, each entry in that list is a separate finding to report.\n"
+            "- Completeness check: if an item has an anomalies/findings/issues list of length N,\n"
+            "  your report MUST include N findings for that item (do not summarize multiple findings into one).\n"
             "- Group finding details by the parent item (e.g., by item identifier or reference number).\n"
         )
 
