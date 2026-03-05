@@ -13,6 +13,8 @@
 
     if (window.__afReviewRenderersLoaded) return;
     window.__afReviewRenderersLoaded = true;
+    // Debug build/version marker (helps confirm cache busting).
+    window.__afReviewRenderersVersion = '20260305a';
 
     const _esc = (function () {
         if (typeof window.escHtml === 'function') return window.escHtml;
