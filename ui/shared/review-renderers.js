@@ -14,7 +14,8 @@
     if (window.__afReviewRenderersLoaded) return;
     window.__afReviewRenderersLoaded = true;
     // Debug build/version marker (helps confirm cache busting).
-    window.__afReviewRenderersVersion = '20260305a';
+    window.__afReviewRenderersVersion = '20260305b';
+    try { console.log('[AgentForge] review-renderers version', window.__afReviewRenderersVersion); } catch (_) {}
 
     const _esc = (function () {
         if (typeof window.escHtml === 'function') return window.escHtml;
@@ -745,7 +746,7 @@
                 // Force LTR for "part" columns so RTL pages don't flip table reading order.
                 var forceLtr = ordered.some(function (c) { return /^part\d+$/i.test(_nk(c)); }) || !!descKey;
 
-                return '<table class="er-table" data-er-field="' + _esc(fk) + '"' + (forceLtr ? ' dir="ltr" style="direction:ltr!important;"' : '') + '><thead><tr>' + ordered.map(function (c) { return '<th>' + _esc(_headerLabel(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) {
+                return '<table class="er-table" data-er-field="' + _esc(fk) + '"' + (forceLtr ? ' dir="ltr" style="direction:ltr!important;unicode-bidi:bidi-override;text-align:left;"' : '') + '><thead><tr>' + ordered.map(function (c) { return '<th>' + _esc(_headerLabel(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' + arr.map(function (row, ri) {
                     return '<tr data-row-idx="' + ri + '">' + ordered.map(function (c) {
                         var v = row[c];
                         if (v !== null && v !== undefined && typeof v !== 'object') {
