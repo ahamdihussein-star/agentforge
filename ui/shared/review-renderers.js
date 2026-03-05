@@ -950,8 +950,33 @@
                     var subColSet = {};
                     nf.val.forEach(function (sr) { if (sr && typeof sr === 'object') { Object.keys(sr).forEach(function (sk) { subColSet[sk] = 1; }); } });
                     var subCols = Object.keys(subColSet);
+
+                    // Deterministic column order for object-row tables (prevents "random" key order and RTL flips).
+                    function _nk2(s) { return String(s || '').toLowerCase().replace(/[\s_\-]+/g, ''); }
+                    function _colRank(sc) {
+                        var kn = _nk2(sc);
+                        // Description-like fields first
+                        if (/^(description|desc|item|name|label|title|part1)$/.test(kn) || /description/.test(kn)) return 0;
+                        // Quantity-like fields next
+                        if (/^(quantity|qty|count|units)$/.test(kn) || /quantity|qty|count/.test(kn)) return 10;
+                        // Unit price/rate/cost next
+                        if (/^(unitprice|unit_price|unitvalue|unit_value|rate|price|unitcost|unit_cost)$/.test(kn) || /unit.*(price|value|cost)|rate/.test(kn)) return 20;
+                        // Line total / total / amount last among the main fields
+                        if (/^(linetotal|line_total|total|amount|value|extended)$/.test(kn) || /total|amount/.test(kn)) return 30;
+                        return 40;
+                    }
+                    function _headerLabel2(sc) {
+                        var kn = _nk2(sc);
+                        if (/^(part1|description|desc)$/.test(kn) || /description/.test(kn)) return 'Description';
+                        return _humanize(sc);
+                    }
+                    subCols = subCols.slice().sort(function (a, b) {
+                        var ra = _colRank(a), rb = _colRank(b);
+                        if (ra !== rb) return ra - rb;
+                        return String(a).localeCompare(String(b));
+                    });
                     return '<div class="er-card-sub"><div class="er-card-sub-title">' + _esc(_humanize(nf.key)) + ' (' + nf.val.length + ')</div>'
-                        + '<table class="er-card-sub-table"><thead><tr>' + subCols.map(function (sc) { return '<th>' + _esc(_humanize(sc)) + '</th>'; }).join('') + '</tr></thead><tbody>'
+                        + '<table class="er-card-sub-table" dir="ltr" style="direction:ltr!important;"><thead><tr>' + subCols.map(function (sc) { return '<th>' + _esc(_headerLabel2(sc)) + '</th>'; }).join('') + '</tr></thead><tbody>'
                         + nf.val.map(function (sr, si) {
                             return '<tr>' + subCols.map(function (sc) {
                                 var sv = sr[sc];
