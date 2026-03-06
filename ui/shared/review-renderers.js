@@ -14,7 +14,7 @@
     if (window.__afReviewRenderersLoaded) return;
     window.__afReviewRenderersLoaded = true;
     // Debug build/version marker (helps confirm cache busting).
-    window.__afReviewRenderersVersion = '20260305c';
+    window.__afReviewRenderersVersion = '20260305d';
     try { console.log('[AgentForge] review-renderers version', window.__afReviewRenderersVersion); } catch (_) {}
 
     const _esc = (function () {
