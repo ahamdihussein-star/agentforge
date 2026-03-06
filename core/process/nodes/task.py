@@ -120,6 +120,7 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         if _single_source and not source_fields:
             source_fields = [_single_source]
         _file_context_block = ""
+        _file_sections = []
         if source_fields and isinstance(source_fields, list):
             from .integration import FileOperationNodeExecutor
             _file_reader = FileOperationNodeExecutor(self.deps)
@@ -171,6 +172,7 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 logs.append(f"Injected {len(_file_sections)} file(s) into context ({_total_files} total, {len(_failed_files)} failed)")
             elif _total_files > 0:
                 logs.append(f"Warning: all {_total_files} files failed to read")
+        _multi_file_count = len(_file_sections) if _file_sections else 0
         # ── End source file pre-reading ────────────────────────────────
 
         # ── Inject process data context (ALWAYS) ───────────────────────
@@ -291,6 +293,17 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 "- If a value is missing or unclear, return null (or an empty string if the field is typed as text).\n"
                 "- Keep numbers as pure numbers (no extra words).\n"
             )
+            if _multi_file_count > 1:
+                _combined_system += (
+                    f"\n\nMULTI-DOCUMENT EXTRACTION (CRITICAL):\n"
+                    f"The uploaded files contain {_multi_file_count} separate documents.\n"
+                    f"You MUST return a JSON ARRAY with exactly {_multi_file_count} elements.\n"
+                    f"Each element must have the SAME structure with all requested output fields.\n"
+                    f"The order of elements MUST match the order the files appear above.\n"
+                    f"Example: [{{\"field1\": \"...\"}}, {{\"field1\": \"...\"}}]\n"
+                    f"Even if one document is missing a field, include that element with null values.\n"
+                )
+                logs.append(f"Multi-file extraction: instructed AI to return array of {_multi_file_count}")
             if self.get_config_value(node, "temperature") is None:
                 temperature = min(float(temperature or 0.2), 0.2)
                 logs.append(f"Extraction mode: clamped temperature={temperature}")
@@ -633,8 +646,14 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 _missing = [n for n, _ in _expected if n not in output]
                 if _missing:
                     logs.append(f"WARNING: Missing fields in AI output: {_missing}")
+        # Coerce typed fields (works on dict; for multi-file arrays, coerce each element)
         if isinstance(output, dict) and output_fields:
             output = self._coerce_typed_fields(output, output_fields, logs)
+        elif isinstance(output, list) and output_fields and _multi_file_count > 1:
+            for _mfi, _mfitem in enumerate(output):
+                if isinstance(_mfitem, dict):
+                    output[_mfi] = self._coerce_typed_fields(_mfitem, output_fields, logs)
+            logs.append(f"Multi-file coercion: coerced {len(output)} elements")
 
         variables_update = {}
         if node.output_variable:
@@ -646,6 +665,8 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 variables_update[ov] = output
                 if isinstance(output, dict):
                     logs.append(f"Variable '{ov}' set as dict with keys: {list(output.keys())}")
+                elif isinstance(output, list):
+                    logs.append(f"Variable '{ov}' set as list with {len(output)} elements")
                 else:
                     logs.append(f"Variable '{ov}' set to: {repr(output)[:300]}")
         
@@ -657,7 +678,8 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         # and the structured AI output, enabling a split-screen
         # document-vs-data review UI in the portal.
         human_review = self.get_config_value(node, 'humanReview', False)
-        if human_review and isinstance(output, dict):
+        _output_is_reviewable = isinstance(output, dict) or (isinstance(output, list) and _multi_file_count > 1)
+        if human_review and _output_is_reviewable:
             source_file_refs = []
             for sf_name in source_fields:
                 sf_val = state.get(sf_name)
@@ -669,7 +691,6 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     if not isinstance(fi, dict) or not fi.get("name"):
                         logs.append(f"Human review: skipped file item (missing name): {type(fi).__name__}")
                         continue
-                    # Ensure id is present for frontend preview (extract from download_url if needed)
                     ref = dict(fi)
                     if not ref.get("id") and ref.get("download_url"):
                         m = re.search(r"/uploads/([a-fA-F0-9-]+)(?:/|$)", str(ref.get("download_url", "")))
@@ -688,14 +709,16 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 "_output_fields": self.get_config_value(node, 'outputFields') or [],
                 "_step_name": node.name,
             }
-            review_payload.update(output)
+            if isinstance(output, dict):
+                review_payload.update(output)
 
+            _output_len = len(output) if isinstance(output, (dict, list)) else 0
             logs.append(
                 f"Human review requested — pausing for verification "
                 f"({len(source_file_refs)} source file(s), "
-                f"{len(output)} extracted field(s))"
+                f"{_output_len} extracted {'element(s)' if isinstance(output, list) else 'field(s)'})"
             )
-            output_keys = list(output.keys()) if isinstance(output, dict) else str(type(output))
+            output_keys = list(output.keys()) if isinstance(output, dict) else f"list[{len(output)}]" if isinstance(output, list) else str(type(output))
             logger.info(
                 "[HumanReview] source_files=%s source_file_refs=%s output_keys=%s output_sample=%s",
                 source_fields,

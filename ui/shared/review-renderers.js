@@ -581,7 +581,8 @@
         var extractedData = _unwrapSingleKey(rawExtracted, outputVariable);
 
         // Fallback: if _extracted_data produced nothing useful, try top-level details keys
-        if (_dataKeys(extractedData).length === 0) {
+        // Skip fallback when extractedData is already a valid array (multi-file extraction)
+        if (!Array.isArray(extractedData) && _dataKeys(extractedData).length === 0) {
             var topLevel = {};
             Object.keys(details).forEach(function (k) { if (!_isMetaKey(k)) topLevel[k] = details[k]; });
             if (_dataKeys(topLevel).length > 0) {
@@ -592,7 +593,7 @@
 
         const outputFields = details._output_fields || [];
         const stepName = details._step_name || 'AI Extraction';
-        try { console.log('[afRenderExtractionReview] _extracted_data keys:', Object.keys(rawExtracted), 'extractedData keys:', Object.keys(extractedData), 'outputFields:', outputFields.length, 'outputVariable:', outputVariable, 'sourceFiles:', sourceFiles.length); } catch (_) {}
+        try { console.log('[afRenderExtractionReview] _extracted_data keys:', Object.keys(rawExtracted), 'extractedData:', Array.isArray(extractedData) ? ('array[' + extractedData.length + ']') : Object.keys(extractedData), 'outputFields:', outputFields.length, 'outputVariable:', outputVariable, 'sourceFiles:', sourceFiles.length); } catch (_) {}
         try { console.log('[afRenderExtractionReview] extractedData:', JSON.stringify(extractedData).slice(0, 800)); } catch (_) {}
         try { console.log('[afRenderExtractionReview] FULL details keys:', Object.keys(details)); } catch (_) {}
 
