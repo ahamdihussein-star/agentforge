@@ -1060,8 +1060,11 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                                 "- If a side-by-side comparison table is present in the data, use it to present the SAME fields\n"
                                 "  for 'Document' vs 'System' in the same order so it is easy to compare.\n"
                                 "- When you mention a field, show it consistently for both sides: 'Field: Document=<x> | System=<y>'.\n"
-                                "- If there are multiple items (e.g., multiple documents/records), cover EACH item.\n"
-                                "- If there is a findings/anomalies list, include EACH finding as its own bullet with the exact values.\n"
+                                "- If there are multiple items (e.g., multiple documents/records), cover EACH item separately.\n"
+                                "  Do NOT skip any item. If 3 items were analyzed, all 3 must appear in the summary.\n"
+                                "- If there is a findings/anomalies/discrepancies list, include EVERY finding as its own bullet\n"
+                                "  with the type, severity/risk, and the exact values that triggered it.\n"
+                                "  Do NOT collapse or summarize multiple findings into one.\n"
                                 "- If any report/document is available, mention its filename so the approver knows what to download.\n"
                                 "- Use plain business language. No technical terms, no JSON keys, no array indices.\n"
                                 "- Do NOT use markdown (no **, no backticks, no headers). No asterisks.\n"
@@ -1077,7 +1080,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                             )),
                         ],
                         temperature=0.3,
-                        max_tokens=900,
+                        max_tokens=1500,
                     ),
                     timeout=30
                 )

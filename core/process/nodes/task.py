@@ -350,6 +350,23 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 "- If a record exists in one data set but not the other, flag it as missing/unmatched.\n"
                 "- Compare totals: if the sum of individual items differs from the stated total, flag it.\n"
                 "- Return concrete numbers in your output, not vague descriptions.\n"
+                "\n"
+                "MULTI-RECORD PROCESSING (CRITICAL):\n"
+                "- If any input variable is an ARRAY of records (e.g., multiple invoices, documents, requests),\n"
+                "  you MUST process and analyze EVERY record individually. Do NOT skip any.\n"
+                "- Your output MUST contain classification and findings for ALL input records.\n"
+                "- Do NOT merge, average, or summarize multiple records into one result.\n"
+                "- Each record must be evaluated independently against its corresponding system data.\n"
+                "- If 5 records are provided, your output must cover all 5.\n"
+                "\n"
+                "ANOMALY / FINDING REPORTING (CRITICAL):\n"
+                "- List EVERY anomaly, discrepancy, or rule violation individually. Never collapse multiple\n"
+                "  findings into a single summary. If a record has 3 issues, output 3 separate findings.\n"
+                "- Each finding MUST include: the record identifier, the type of anomaly, the severity/risk,\n"
+                "  and a clear explanation with the actual values that triggered it.\n"
+                "- Follow the user's prompt rules for classification and risk exactly as specified.\n"
+                "  The prompt defines what constitutes each risk level — use those definitions, not your own.\n"
+                "- If a record has NO anomalies, explicitly classify it (e.g., 'Clean', 'No Risk').\n"
             )
             if self.get_config_value(node, "temperature") is None:
                 temperature = min(float(temperature or 0.3), 0.3)
