@@ -453,10 +453,31 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                         for _mk, _mv in _all_vars.items():
                             if any(_mk.startswith(p) for p in _internal_prefixes):
                                 continue
-                            if isinstance(_mv, list) and len(_mv) > 1 and all(isinstance(x, dict) for x in _mv[:10]):
+                            _is_list = isinstance(_mv, list)
+                            _list_len = len(_mv) if _is_list else 0
+                            _all_dicts = (
+                                all(isinstance(x, dict) for x in _mv[:10])
+                                if _is_list and _list_len > 0
+                                else False
+                            )
+                            if _is_list and _list_len > 1 and _all_dicts:
                                 _has_multirecord_input = True
-                                _multirecord_count = max(_multirecord_count, len(_mv))
+                                _multirecord_count = max(_multirecord_count, _list_len)
+                                logger.info(
+                                    "[AITask] multi-record HIT var='%s' len=%d",
+                                    _mk, _list_len,
+                                )
                                 break
+                            elif _is_list and _list_len > 0:
+                                logger.debug(
+                                    "[AITask] multi-record SKIP var='%s' is_list=%s len=%d all_dicts=%s",
+                                    _mk, _is_list, _list_len, _all_dicts,
+                                )
+                        if not _has_multirecord_input:
+                            logger.info(
+                                "[AITask] multi-record detection: NONE found. var_keys=%s",
+                                [k for k in _all_vars if not any(k.startswith(p) for p in _internal_prefixes)],
+                            )
 
                     if _multi_file_count > 1:
                         schema_instruction = (
@@ -520,6 +541,37 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                         pass
             if _record_injections:
                 prompt += "".join(_record_injections)
+
+            # Safety net: if injection found multi-record data but schema
+            # detection missed it, append per-record instructions now.
+            if _injected_record_count > 1 and not _has_multirecord_input:
+                _has_multirecord_input = True
+                _multirecord_count = _injected_record_count
+                _example_record = {
+                    "recordId": "identifier",
+                    "status": "Clean/Low/Medium/High",
+                    "findings": [{"type": "anomaly type", "severity": "level", "detail": "explanation"}],
+                }
+                _late_schema = (
+                    f"\n\nCRITICAL — MULTI-RECORD REQUIREMENT:\n"
+                    f"The input contains {_multirecord_count} records. "
+                    f"Your JSON response MUST include a 'recordAnalysis' array with EXACTLY "
+                    f"{_multirecord_count} elements (one per input record).\n"
+                    f"Each element must include: the record identifier, its risk/status, "
+                    f"and ALL findings/anomalies.\n"
+                    f"Example element: {json.dumps(_example_record)}\n"
+                    f"Summary fields should reflect the WORST risk across all records."
+                )
+                prompt += _late_schema
+                logs.append(
+                    f"Late multi-record catch: detection missed but injection found "
+                    f"{_injected_record_count} records — appended recordAnalysis requirement"
+                )
+                logger.warning(
+                    "[AITask] Late multi-record catch for '%s': injected=%d but detection was False",
+                    node.name, _injected_record_count,
+                )
+
             logger.info(
                 "[AITask] Analysis step '%s': _is_analysis=%s multi_record=%s injected_records=%d "
                 "process_data_vars=%d prompt_len=%d",

@@ -1413,7 +1413,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                     emails.append(email)
                 continue
 
-            if aid_lower in ("requester", "submitter", "initiator", "self"):
+            if aid_lower in ("requester", "submitter", "initiator", "self", "platform_user", "user", "current_user"):
                 email = user_ctx.get("email") or getattr(context, 'user_email', None) or ""
                 if email:
                     emails.append(email)
@@ -1668,7 +1668,7 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             r_lower = r_str.lower()
             
             # Shortcut: "requester" → the user who started the process
-            if r_lower in ("requester", "submitter", "initiator", "self"):
+            if r_lower in ("requester", "submitter", "initiator", "self", "platform_user", "user", "current_user"):
                 email = user_context.get("email") or ""
                 # Fallback chain: _user_context.email → context.user_email (from auth token)
                 if not email:
@@ -1910,8 +1910,21 @@ class NotificationNodeExecutor(BaseNodeExecutor):
                 except Exception as e:
                     logs.append(f"Warning: Failed to resolve user ID {r_str[:8]}…: {e}")
             
-            # Fallback: use as-is (might be an email without @, a name, etc.)
-            resolved_recipients.append(r_str)
+            # Fallback: if it doesn't look like an email, try resolving
+            # to the requester as a last resort (wizard sometimes generates
+            # ambiguous shortcut names).
+            if "@" not in r_str:
+                logs.append(
+                    f"⚠️ Unrecognized recipient shortcut '{r_str}' — attempting requester fallback"
+                )
+                _fb_email = user_context.get("email") or getattr(context, 'user_email', None) or ""
+                if _fb_email:
+                    resolved_recipients.append(_fb_email)
+                    logs.append(f"Resolved unrecognized '{r_str}' → requester email {_fb_email}")
+                else:
+                    logs.append(f"⚠️ Could not resolve '{r_str}' — no fallback email available")
+            else:
+                resolved_recipients.append(r_str)
         
         interpolated_recipients = [r for r in resolved_recipients if r and r.strip()]
         logger.info(
@@ -1927,7 +1940,7 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             # Build a specific business message based on what was attempted
             attempted_shortcuts = [str(r).strip().lower() for r in (recipients or []) if r]
             specific_hints = []
-            if any(s in ("requester", "submitter", "initiator", "self") for s in attempted_shortcuts):
+            if any(s in ("requester", "submitter", "initiator", "self", "platform_user", "user", "current_user") for s in attempted_shortcuts):
                 if not user_context.get("email"):
                     specific_hints.append("The requester's email address is not available — check the user's profile in Organization > People & Departments.")
             if any(s in ("manager", "supervisor", "direct_manager") for s in attempted_shortcuts):
