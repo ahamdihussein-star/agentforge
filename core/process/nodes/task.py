@@ -352,6 +352,12 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 "- Do NOT merge, average, or summarize multiple records into one result.\n"
                 "- Each record must be evaluated independently against its corresponding system data.\n"
                 "- If 5 records are provided, your output must cover all 5.\n"
+                "- OUTPUT STRUCTURE: When analyzing multiple records, your JSON response MUST include\n"
+                "  a 'recordAnalysis' array at the top level. Each element represents ONE input record and must have:\n"
+                "    * A record identifier (e.g., invoice number, document name, ID)\n"
+                "    * Individual classification/risk level for that record\n"
+                "    * An array of all findings/anomalies for that record\n"
+                "  The summary-level fields reflect the AGGREGATE across all records.\n"
                 "\n"
                 "ANOMALY / FINDING REPORTING (CRITICAL):\n"
                 "- List EVERY anomaly, discrepancy, or rule violation individually. Never collapse multiple\n"
@@ -439,6 +445,17 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                             _example_obj[_fn] = []
                         else:
                             _example_obj[_fn] = ""
+                    _has_multirecord_input = False
+                    _multirecord_count = 0
+                    if _is_analysis:
+                        for _mk, _mv in _all_vars.items():
+                            if any(_mk.startswith(p) for p in _internal_prefixes):
+                                continue
+                            if isinstance(_mv, list) and len(_mv) > 1 and all(isinstance(x, dict) for x in _mv[:10]):
+                                _has_multirecord_input = True
+                                _multirecord_count = max(_multirecord_count, len(_mv))
+                                break
+
                     if _multi_file_count > 1:
                         schema_instruction = (
                             "\n\nIMPORTANT: You MUST respond with valid JSON only. "
@@ -448,6 +465,23 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                             + "\n}\n"
                             + "Example for one element: " + json.dumps(_example_obj)
                         )
+                    elif _has_multirecord_input:
+                        _example_record = {"recordId": "identifier", "status": "Clean/Low/Medium/High", "findings": [{"type": "anomaly type", "severity": "level", "detail": "explanation"}]}
+                        schema_instruction = (
+                            f"\n\nIMPORTANT: You MUST respond with valid JSON only. "
+                            f"The input contains {_multirecord_count} records that you MUST analyze individually.\n"
+                            f"Return a JSON object that includes AT LEAST these summary fields:\n{{\n"
+                            + ",\n".join(_field_lines)
+                            + f',\n  "recordAnalysis": [exactly {_multirecord_count} per-record detail objects]'
+                            + "\n}\n"
+                            + f"The 'recordAnalysis' array is MANDATORY and MUST contain EXACTLY {_multirecord_count} elements "
+                            + "(one per input record). "
+                            + "Each element must include: the record identifier (invoice number, document name, etc.), "
+                            + "its individual risk/status classification, and ALL findings/anomalies for that record.\n"
+                            + "Example recordAnalysis element: " + json.dumps(_example_record) + "\n"
+                            + "Summary fields (like overallRiskLevel) should reflect the WORST/HIGHEST risk across all records."
+                        )
+                        logs.append(f"Multi-record input detected ({_multirecord_count} records): schema expanded to require 'recordAnalysis' array")
                     else:
                         schema_instruction = (
                             "\n\nIMPORTANT: You MUST respond with valid JSON only. "
@@ -462,6 +496,7 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         
         # For analysis steps, inject array-of-record variables as structured JSON
         # directly in the user message so the LLM processes every record.
+        _injected_record_count = 0
         if _is_analysis:
             _record_injections = []
             for _rk, _rv in _all_vars.items():
@@ -477,11 +512,25 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                                 f"=== END INPUT RECORDS ===\n"
                                 f"You MUST analyze ALL {len(_rv)} records above individually."
                             )
+                            _injected_record_count = max(_injected_record_count, len(_rv))
                             logs.append(f"Injected '{_rk}' ({len(_rv)} records) as structured JSON into user prompt")
                     except Exception:
                         pass
             if _record_injections:
                 prompt += "".join(_record_injections)
+            logger.info(
+                "[AITask] Analysis step '%s': _is_analysis=%s multi_record=%s injected_records=%d "
+                "process_data_vars=%d prompt_len=%d",
+                node.name, _is_analysis, _has_multirecord_input if (output_format == 'json' or output_schema) else 'n/a',
+                _injected_record_count, len(_display_vars), len(prompt),
+            )
+
+        # Ensure sufficient max_tokens for multi-record analysis output
+        if _is_analysis and _injected_record_count > 1:
+            _min_tokens = max(2000, _injected_record_count * 600)
+            if max_tokens is None or (isinstance(max_tokens, (int, float)) and max_tokens < _min_tokens):
+                logs.append(f"Multi-record analysis: raised max_tokens from {max_tokens} to {_min_tokens}")
+                max_tokens = _min_tokens
 
         # User prompt
         messages.append({
@@ -705,6 +754,25 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             output = self._auto_correct_totals(output, logs)
             # Step 4: Remove false numeric discrepancies (e.g., "mismatch" where values are equal)
             output = self._sanitize_false_numeric_discrepancies(output, logs)
+
+        # Multi-record validation: verify recordAnalysis covers all input records
+        if isinstance(output, dict) and _is_analysis and _injected_record_count > 1:
+            _ra = output.get("recordAnalysis")
+            if isinstance(_ra, list):
+                if len(_ra) < _injected_record_count:
+                    logger.warning(
+                        "[AITask] '%s': recordAnalysis has %d entries but expected %d — AI may have skipped records",
+                        node.name, len(_ra), _injected_record_count,
+                    )
+                    logs.append(f"WARNING: recordAnalysis has {len(_ra)} entries, expected {_injected_record_count}")
+                else:
+                    logs.append(f"recordAnalysis validation passed: {len(_ra)} entries for {_injected_record_count} input records")
+            else:
+                logger.warning(
+                    "[AITask] '%s': expected 'recordAnalysis' array in output but got %s — AI ignored multi-record instruction",
+                    node.name, type(_ra).__name__ if _ra is not None else "missing",
+                )
+                logs.append(f"WARNING: 'recordAnalysis' array missing from output (got {type(_ra).__name__ if _ra is not None else 'None'})")
         
         output_fields = self.get_config_value(node, 'outputFields') or []
         if output_fields:
@@ -1481,40 +1549,93 @@ class ToolCallNodeExecutor(BaseNodeExecutor):
                 }
             )
         
+        # ── Auto-iteration: when arguments contain parallel arrays (from
+        #    array property access, e.g. extractedData.poReferenceNumber
+        #    resolved to ["PO-001", "PO-002"]), call the tool once per
+        #    element and aggregate the results into a list. ──────────────
+        _array_keys: dict = {}
+        _iter_count = 0
+        for _ak, _av in interpolated_args.items():
+            if isinstance(_av, list) and _av and all(not isinstance(x, (dict, list)) for x in _av[:20]):
+                _array_keys[_ak] = _av
+        if _array_keys:
+            _lengths = set(len(v) for v in _array_keys.values())
+            if len(_lengths) == 1:
+                _iter_count = _lengths.pop()
+        _should_iterate = _iter_count > 1
+
         # Execute tool
         start_time = time.time()
         try:
-            result = await tool.execute(**interpolated_args)
-            duration_ms = (time.time() - start_time) * 1000
-            
-            logs.append(f"Tool executed in {duration_ms:.0f}ms")
-            
-            if result.success:
-                logs.append("Tool execution successful")
-                
+            if _should_iterate:
+                logs.append(f"Auto-iterating tool call: {_iter_count} iterations over keys {list(_array_keys.keys())}")
+                _all_results = []
+                _any_failed = False
+                for _idx in range(_iter_count):
+                    _iter_args = {}
+                    for _ik, _iv in interpolated_args.items():
+                        if _ik in _array_keys:
+                            _iter_args[_ik] = _array_keys[_ik][_idx]
+                        else:
+                            _iter_args[_ik] = _iv
+                    try:
+                        _iter_result = await tool.execute(**_iter_args)
+                        if _iter_result.success:
+                            _all_results.append(_iter_result.data)
+                        else:
+                            logs.append(f"Iteration {_idx + 1}/{_iter_count} failed: {_iter_result.error}")
+                            _all_results.append({"_error": _iter_result.error or "failed", "_iteration": _idx})
+                            _any_failed = True
+                    except Exception as _ie:
+                        logs.append(f"Iteration {_idx + 1}/{_iter_count} error: {_ie}")
+                        _all_results.append({"_error": str(_ie), "_iteration": _idx})
+                        _any_failed = True
+
+                duration_ms = (time.time() - start_time) * 1000
+                logs.append(f"Tool executed {_iter_count} iterations in {duration_ms:.0f}ms (failures={_any_failed})")
+
                 variables_update = {}
                 if node.output_variable:
-                    variables_update[node.output_variable] = result.data
-                
+                    variables_update[node.output_variable] = _all_results
+
                 return NodeResult.success(
-                    output=result.data,
+                    output=_all_results,
                     variables_update=variables_update,
                     duration_ms=duration_ms,
                     logs=logs
                 )
             else:
-                logs.append(f"Tool execution failed: {result.error}")
-                return NodeResult.failure(
-                    error=ExecutionError(
-                        category=ErrorCategory.EXTERNAL,
-                        code="TOOL_ERROR",
-                        message=result.error or "Tool execution failed",
-                        is_retryable=True
-                    ),
-                    duration_ms=duration_ms,
-                    logs=logs
-                )
-                
+                result = await tool.execute(**interpolated_args)
+                duration_ms = (time.time() - start_time) * 1000
+
+                logs.append(f"Tool executed in {duration_ms:.0f}ms")
+
+                if result.success:
+                    logs.append("Tool execution successful")
+
+                    variables_update = {}
+                    if node.output_variable:
+                        variables_update[node.output_variable] = result.data
+
+                    return NodeResult.success(
+                        output=result.data,
+                        variables_update=variables_update,
+                        duration_ms=duration_ms,
+                        logs=logs
+                    )
+                else:
+                    logs.append(f"Tool execution failed: {result.error}")
+                    return NodeResult.failure(
+                        error=ExecutionError(
+                            category=ErrorCategory.EXTERNAL,
+                            code="TOOL_ERROR",
+                            message=result.error or "Tool execution failed",
+                            is_retryable=True
+                        ),
+                        duration_ms=duration_ms,
+                        logs=logs
+                    )
+
         except Exception as e:
             return NodeResult.failure(
                 error=ExecutionError.internal_error(f"Tool execution error: {e}"),

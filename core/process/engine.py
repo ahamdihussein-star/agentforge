@@ -279,6 +279,18 @@ class ProcessEngine:
                     )
                 
                 if result.is_waiting:
+                    # Apply variables_update BEFORE checkpointing so the
+                    # data produced by this node (e.g. extractedData from an
+                    # extraction step with humanReview) survives the
+                    # checkpoint/resume cycle and is available to downstream
+                    # nodes after approval.
+                    if result.variables_update:
+                        self.state.update(result.variables_update, changed_by=current_node.id)
+                        logger.info(
+                            "[Engine] Applied variables_update for waiting node %s: keys=%s",
+                            current_node.id, list(result.variables_update.keys()),
+                        )
+
                     await self._call_callback(
                         self._on_node_complete,
                         node=current_node,
@@ -416,12 +428,14 @@ class ProcessEngine:
                     return
                 
                 if result.is_waiting:
+                    if result.variables_update:
+                        self.state.update(result.variables_update, changed_by=current_node.id)
                     yield ProcessEvent(
                         'process_waiting',
                         {'waiting_for': result.waiting_for, 'node_id': current_node.id}
                     )
                     return
-                
+
                 # Update state
                 self.state.mark_completed(current_node.id, result.output)
                 if result.variables_update:
@@ -652,6 +666,54 @@ class ProcessEngine:
         # Apply resume input to state
         if resume_input:
             self.state.update(resume_input, changed_by='resume')
+
+            # When an extraction review is confirmed, the user-edited data
+            # arrives as approval_data.confirmed_output.  Write it back into
+            # the ORIGINAL output variable so downstream steps see the
+            # corrected values instead of the pre-review originals.
+            _confirmed = (resume_input.get('approval_data') or {}).get('confirmed_output')
+            if _confirmed is not None:
+                _waiting_node = self.definition.get_node(self.state.get_current_node() or '')
+                if _waiting_node:
+                    _prev_outputs = checkpoint_data.get('node_outputs', {})
+                    _waiting_output = _prev_outputs.get(_waiting_node.id, {})
+                    _orig_var = None
+                    if isinstance(_waiting_output, dict):
+                        _orig_var = _waiting_output.get('_output_variable')
+                    # The waiting node itself may have output_variable set (e.g.
+                    # an AI extraction step with humanReview).  Since the waiting
+                    # node is never added to completed_nodes or node_outputs,
+                    # check it directly.
+                    if not _orig_var and getattr(_waiting_node, 'output_variable', None):
+                        _wov = _waiting_node.output_variable
+                        _cur = self.state.get(_wov)
+                        if _cur is not None:
+                            if not isinstance(_confirmed, (list, dict)) or not isinstance(_cur, (list, dict)) or type(_cur) == type(_confirmed):
+                                _orig_var = _wov
+                                logger.debug("[Engine] Resolved _orig_var from waiting node's output_variable: %s", _wov)
+                    if not _orig_var:
+                        for _cnode_id in (checkpoint_data.get('completed_nodes') or []):
+                            _cnode = self.definition.get_node(_cnode_id)
+                            if _cnode and _cnode.output_variable and self.state.get(_cnode.output_variable) is not None:
+                                _cur_val = self.state.get(_cnode.output_variable)
+                                if isinstance(_cur_val, (list, dict)) and isinstance(_confirmed, (list, dict)):
+                                    if type(_cur_val) == type(_confirmed):
+                                        _orig_var = _cnode.output_variable
+                    if _orig_var:
+                        self.state.set(_orig_var, _confirmed, changed_by='confirmed_output')
+                        logger.info(
+                            "[Engine] Updated '%s' with confirmed_output (%s, %d items)",
+                            _orig_var, type(_confirmed).__name__,
+                            len(_confirmed) if isinstance(_confirmed, (list, dict)) else 1
+                        )
+                    else:
+                        logger.warning(
+                            "[Engine] Could not find original variable for confirmed_output "
+                            "(type=%s, waiting_node=%s, output_variable=%s)",
+                            type(_confirmed).__name__,
+                            _waiting_node.id if _waiting_node else None,
+                            getattr(_waiting_node, 'output_variable', None),
+                        )
         
         # Get current node
         current_node_id = self.state.get_current_node()
@@ -734,6 +796,8 @@ class ProcessEngine:
                 )
             
             if result.is_waiting:
+                if result.variables_update:
+                    self.state.update(result.variables_update, changed_by=current_node.id)
                 await self._call_callback(
                     self._on_node_complete,
                     node=current_node,

@@ -3580,6 +3580,8 @@
         // =====================================================================
         let _extractionReviewData = null;
 
+        let _erActiveFileIdx = 0;
+
         function _renderExtractionReviewDetail(approval, details, bodyEl, subEl) {
             if (subEl) subEl.textContent = 'Review the extracted data against the source documents, then confirm.';
 
@@ -3589,6 +3591,11 @@
             const stepName = details._step_name || 'AI Extraction';
 
             _extractionReviewData = Array.isArray(extractedData) ? [...extractedData] : { ...extractedData };
+            _erActiveFileIdx = 0;
+
+            const _isMultiDoc = Array.isArray(extractedData) && extractedData.length > 1
+                && sourceFiles.length > 1
+                && extractedData.every(r => r && typeof r === 'object' && !Array.isArray(r));
 
             const filesHtml = sourceFiles.length
                 ? sourceFiles.map((f, i) => {
@@ -3623,28 +3630,59 @@
                 return `<div class="er-file-preview" data-file-idx="${f.idx}" style="${f.idx > 0 ? 'display:none;' : ''}">${viewer}</div>`;
             }).join('');
 
-            const fieldsToRender = outputFields.length ? outputFields : Object.keys(extractedData).map(k => ({ name: k, label: _humanizeKey(k), type: 'text' }));
-            const dataRowsHtml = fieldsToRender.map(field => {
-                const key = field.name || field;
-                const label = field.label || _humanizeKey(key);
-                const val = extractedData[key];
-                const fieldType = field.type || 'text';
+            let dataRowsHtml = '';
 
-                if (Array.isArray(val)) {
-                    const tableHtml = _renderExtractedArray(val, key);
-                    return `<div class="er-field er-field--full" data-field-key="${escapeHtml(key)}">
+            if (_isMultiDoc) {
+                dataRowsHtml = extractedData.map((docData, docIdx) => {
+                    const fields = outputFields.length
+                        ? outputFields
+                        : Object.keys(docData).map(k => ({ name: k, label: _humanizeKey(k), type: 'text' }));
+                    const fieldsHtml = fields.map(field => {
+                        const key = field.name || field;
+                        const label = field.label || _humanizeKey(key);
+                        const val = docData[key];
+                        const fieldType = field.type || 'text';
+                        if (Array.isArray(val)) {
+                            const tableHtml = _renderExtractedArray(val, key);
+                            return `<div class="er-field er-field--full" data-field-key="${escapeHtml(key)}">
+                                <div class="er-field-label">${escapeHtml(label)}</div>
+                                <div class="er-field-value er-field-value--table">${tableHtml}</div>
+                            </div>`;
+                        }
+                        const displayVal = (val === null || val === undefined) ? '' : String(val);
+                        const inputType = (fieldType === 'number' || fieldType === 'currency') ? 'number' : fieldType === 'date' ? 'date' : 'text';
+                        return `<div class="er-field" data-field-key="${escapeHtml(key)}">
+                            <div class="er-field-label">${escapeHtml(label)}</div>
+                            <input class="er-field-input" type="${inputType}" value="${escapeHtml(displayVal)}" data-er-key="${escapeHtml(key)}" data-er-doc-idx="${docIdx}" data-er-type="${escapeHtml(fieldType)}" onchange="_erFieldChanged(this)" />
+                        </div>`;
+                    }).join('');
+                    return `<div class="er-file-data-group" data-file-data-idx="${docIdx}" style="${docIdx > 0 ? 'display:none;' : ''}">${fieldsHtml}</div>`;
+                }).join('');
+            } else {
+                const dataSrc = _isMultiDoc ? extractedData[0] : (Array.isArray(extractedData) ? extractedData[0] || {} : extractedData);
+                const fieldsToRender = outputFields.length ? outputFields : Object.keys(dataSrc).map(k => ({ name: k, label: _humanizeKey(k), type: 'text' }));
+                dataRowsHtml = fieldsToRender.map(field => {
+                    const key = field.name || field;
+                    const label = field.label || _humanizeKey(key);
+                    const val = dataSrc[key];
+                    const fieldType = field.type || 'text';
+
+                    if (Array.isArray(val)) {
+                        const tableHtml = _renderExtractedArray(val, key);
+                        return `<div class="er-field er-field--full" data-field-key="${escapeHtml(key)}">
+                            <div class="er-field-label">${escapeHtml(label)}</div>
+                            <div class="er-field-value er-field-value--table">${tableHtml}</div>
+                        </div>`;
+                    }
+
+                    const displayVal = (val === null || val === undefined) ? '' : String(val);
+                    const inputType = (fieldType === 'number' || fieldType === 'currency') ? 'number' : fieldType === 'date' ? 'date' : 'text';
+                    return `<div class="er-field" data-field-key="${escapeHtml(key)}">
                         <div class="er-field-label">${escapeHtml(label)}</div>
-                        <div class="er-field-value er-field-value--table">${tableHtml}</div>
+                        <input class="er-field-input" type="${inputType}" value="${escapeHtml(displayVal)}" data-er-key="${escapeHtml(key)}" data-er-type="${escapeHtml(fieldType)}" onchange="_erFieldChanged(this)" />
                     </div>`;
-                }
-
-                const displayVal = (val === null || val === undefined) ? '' : String(val);
-                const inputType = (fieldType === 'number' || fieldType === 'currency') ? 'number' : fieldType === 'date' ? 'date' : 'text';
-                return `<div class="er-field" data-field-key="${escapeHtml(key)}">
-                    <div class="er-field-label">${escapeHtml(label)}</div>
-                    <input class="er-field-input" type="${inputType}" value="${escapeHtml(displayVal)}" data-er-key="${escapeHtml(key)}" data-er-type="${escapeHtml(fieldType)}" onchange="_erFieldChanged(this)" />
-                </div>`;
-            }).join('');
+                }).join('');
+            }
 
             const hasAnomalies = Object.keys(extractedData).some(k =>
                 /anomal|discrepanc|flag|risk|fraud|mismatch|warning/i.test(k) && extractedData[k]
@@ -3722,22 +3760,34 @@
         }
 
         function _erSwitchFile(idx) {
+            _erActiveFileIdx = idx;
             document.querySelectorAll('.er-file-tab').forEach(t => t.classList.remove('er-file-tab--active'));
             document.querySelectorAll('.er-file-preview').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('.er-file-data-group').forEach(g => g.style.display = 'none');
             const tab = document.querySelector(`.er-file-tab[data-file-idx="${idx}"]`);
             const preview = document.querySelector(`.er-file-preview[data-file-idx="${idx}"]`);
+            const dataGroup = document.querySelector(`.er-file-data-group[data-file-data-idx="${idx}"]`);
             if (tab) tab.classList.add('er-file-tab--active');
             if (preview) preview.style.display = '';
+            if (dataGroup) dataGroup.style.display = '';
         }
 
         function _erFieldChanged(input) {
             if (!_extractionReviewData) return;
             const key = input.getAttribute('data-er-key');
             const ftype = input.getAttribute('data-er-type') || 'text';
+            const docIdxAttr = input.getAttribute('data-er-doc-idx');
             let val = input.value;
             if (ftype === 'number' || ftype === 'currency') val = val ? parseFloat(val) : null;
             else if (ftype === 'boolean') val = val === 'true';
-            _extractionReviewData[key] = val;
+            if (docIdxAttr !== null && Array.isArray(_extractionReviewData)) {
+                const docIdx = parseInt(docIdxAttr, 10);
+                if (_extractionReviewData[docIdx] && typeof _extractionReviewData[docIdx] === 'object') {
+                    _extractionReviewData[docIdx][key] = val;
+                }
+            } else {
+                _extractionReviewData[key] = val;
+            }
             input.classList.add('er-field-input--edited');
         }
 

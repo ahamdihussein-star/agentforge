@@ -964,8 +964,7 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                 }
 
                 def _sanitize_for_summary(val: Any, depth: int = 0) -> Any:
-                    # Keep it small and business-friendly
-                    if depth > 4:
+                    if depth > 6:
                         return None
                     if val is None:
                         return None
@@ -1042,8 +1041,21 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                             _summary_data[_sk] = _clean
                     except Exception:
                         _summary_data[_sk] = str(_sv)[:2000]
-                _summary_json = json.dumps(_summary_data, default=str, ensure_ascii=False)[:15000]
-                logger.info("[ApprovalNode] LLM summary: sending %d chars to LLM", len(_summary_json))
+                # Detect if any variable contains per-record analysis data
+                _has_record_analysis = False
+                _record_analysis_count = 0
+                for _rdv in _summary_data.values():
+                    if isinstance(_rdv, dict):
+                        _ra = _rdv.get("recordAnalysis")
+                        if isinstance(_ra, list) and len(_ra) > 0:
+                            _has_record_analysis = True
+                            _record_analysis_count = max(_record_analysis_count, len(_ra))
+                _summary_limit = 30000 if _has_record_analysis else 15000
+                _summary_json = json.dumps(_summary_data, default=str, ensure_ascii=False)[:_summary_limit]
+                logger.info(
+                    "[ApprovalNode] LLM summary: sending %d chars to LLM (has_record_analysis=%s, record_count=%d)",
+                    len(_summary_json), _has_record_analysis, _record_analysis_count,
+                )
                 from core.llm.base import Message, MessageRole
                 _summary_resp = await asyncio.wait_for(
                     self.deps.llm.chat(
@@ -1062,6 +1074,9 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                                 "- When you mention a field, show it consistently for both sides: 'Field: Document=<x> | System=<y>'.\n"
                                 "- If there are multiple items (e.g., multiple documents/records), cover EACH item separately.\n"
                                 "  Do NOT skip any item. If 3 items were analyzed, all 3 must appear in the summary.\n"
+                                "- If the data contains a 'recordAnalysis' array, it holds per-record details from the analysis.\n"
+                                "  Each element is a separate record. Present EVERY record's findings under its own heading/section.\n"
+                                "  Show the record identifier, its individual risk level, and ALL its findings.\n"
                                 "- If there is a findings/anomalies/discrepancies list, include EVERY finding as its own bullet\n"
                                 "  with the type, severity/risk, and the exact values that triggered it.\n"
                                 "  Do NOT collapse or summarize multiple findings into one.\n"
@@ -1080,9 +1095,9 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
                             )),
                         ],
                         temperature=0.3,
-                        max_tokens=1500,
+                        max_tokens=2500 if _has_record_analysis else 1500,
                     ),
-                    timeout=30
+                    timeout=45 if _has_record_analysis else 30
                 )
                 if _summary_resp and _summary_resp.content:
                     # Post-verify: remove any false "mismatch" bullets where Document == System

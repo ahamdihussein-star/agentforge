@@ -238,7 +238,25 @@ class ProcessState:
                     index = int(part)
                     value = value[index]
                 except (ValueError, IndexError):
-                    return default
+                    # Non-numeric key on a list of dicts → collect that property
+                    # from every element.  e.g. extractedData.poReferenceNumber
+                    # where extractedData = [{poReferenceNumber: "PO-1"}, …]
+                    if value and all(isinstance(item, dict) for item in value[:20]):
+                        collected = []
+                        for item in value:
+                            v = item.get(part)
+                            if v is None:
+                                for alt in _alias_keys(part):
+                                    v = item.get(alt)
+                                    if v is not None:
+                                        break
+                            collected.append(v)
+                        if len(collected) == 1:
+                            value = collected[0]
+                        else:
+                            value = collected
+                    else:
+                        return default
             else:
                 return default
             
