@@ -14,7 +14,7 @@
     if (window.__afReviewRenderersLoaded) return;
     window.__afReviewRenderersLoaded = true;
     // Debug build/version marker (helps confirm cache busting).
-    window.__afReviewRenderersVersion = '20260305b';
+    window.__afReviewRenderersVersion = '20260305c';
     try { console.log('[AgentForge] review-renderers version', window.__afReviewRenderersVersion); } catch (_) {}
 
     const _esc = (function () {
@@ -683,7 +683,81 @@
 
         var renderArray = function (arr, fieldKey) {
             if (!arr || !arr.length) return '<em>empty</em>';
-            if (typeof arr[0] !== 'object') return arr.map(function (v) { return '<div>' + _esc(String(v)) + '</div>'; }).join('');
+            if (typeof arr[0] !== 'object') {
+                // Primitive array: try to split comma/pipe/semicolon-separated strings into a table.
+                var _toNumSimple = function (s) {
+                    if (s == null) return null;
+                    var raw = String(s).trim();
+                    if (!raw) return null;
+                    if (/[A-Za-z]/.test(raw)) {
+                        if (!/^([A-Za-z]{2,4}\s*)?[-0-9.,]+(\s*[A-Za-z]{2,4})?$/.test(raw)) return null;
+                    }
+                    var t = raw.replace(/[, ]+/g, '').replace(/[^0-9.\-]/g, '');
+                    if (!t) return null;
+                    var n = parseFloat(t);
+                    return isFinite(n) ? n : null;
+                };
+                var _rows = arr.map(function (v, vi) {
+                    var s = (v == null) ? '' : String(v);
+                    var parts = null;
+                    var sepUsed = '';
+                    if (s && typeof s === 'string') {
+                        var trimmed = s.trim();
+                        var sep = trimmed.indexOf('|') >= 0 ? '|' : (trimmed.indexOf(';') >= 0 ? ';' : (trimmed.indexOf(',') >= 0 ? ',' : null));
+                        if (sep) {
+                            sepUsed = sep;
+                            var ps = trimmed.split(sep).map(function (x) { return String(x || '').trim(); }).filter(function (x) { return x !== ''; });
+                            if (ps.length >= 2) parts = ps;
+                        }
+                    }
+                    return { vi: vi, raw: s, parts: parts || [], sep: sepUsed };
+                });
+                var _maxParts = _rows.reduce(function (m, r) { return Math.max(m, r.parts.length); }, 0);
+                var _partRowsCount = _rows.filter(function (r) { return r.parts.length >= 2; }).length;
+                if (_maxParts >= 2 && _partRowsCount >= Math.min(2, _rows.length)) {
+                    var _showCols = Math.min(_maxParts, 6);
+                    var _colStats = [];
+                    for (var _ci = 0; _ci < _showCols; _ci++) {
+                        var _vals = _rows.map(function (r) { return (r.parts[_ci] == null) ? '' : String(r.parts[_ci]).trim(); }).filter(function (x) { return x !== ''; });
+                        var _alphaHits = _vals.filter(function (v) { return /[A-Za-z]/.test(String(v)); }).length;
+                        var _nums = _vals.map(_toNumSimple).filter(function (x) { return typeof x === 'number'; });
+                        var _numRatio = _vals.length ? (_nums.length / _vals.length) : 0;
+                        var _avgLen = _vals.length ? (_vals.reduce(function (a, s) { return a + s.length; }, 0) / _vals.length) : 0;
+                        var _alphaRatio = _vals.length ? (_alphaHits / _vals.length) : 0;
+                        _colStats.push({ numRatio: _numRatio, avgLen: _avgLen, alphaRatio: _alphaRatio });
+                    }
+                    var _descIdx = -1;
+                    for (var _di = 0; _di < _showCols; _di++) {
+                        if (_colStats[_di].alphaRatio >= 0.5) {
+                            if (_descIdx === -1 || _colStats[_di].avgLen > _colStats[_descIdx].avgLen) _descIdx = _di;
+                        } else if (_colStats[_di].numRatio < 0.25 && _colStats[_di].avgLen >= 6) {
+                            if (_descIdx === -1 || _colStats[_di].avgLen > _colStats[_descIdx].avgLen) _descIdx = _di;
+                        }
+                    }
+                    var _labels = [];
+                    for (var _li = 0; _li < _showCols; _li++) _labels.push('Value ' + (_li + 1));
+                    if (_descIdx !== -1) _labels[_descIdx] = 'Description';
+                    var _order = [];
+                    if (_descIdx !== -1) _order.push(_descIdx);
+                    for (var _oi = 0; _oi < _showCols; _oi++) if (_oi !== _descIdx) _order.push(_oi);
+                    var _fk = fieldKey || '';
+                    var _hdr = _order.map(function (ci) { return '<th>' + _esc(_labels[ci]) + '</th>'; }).join('');
+                    var _body = _rows.map(function (r) {
+                        var tds = _order.map(function (ci) {
+                            var pv = r.parts[ci] || '';
+                            var erKey = _fk + '[' + r.vi + ']';
+                            return '<td><input class="er-lineitem-part-input" type="text" value="' + _esc(pv) + '" data-part-idx="' + ci + '" onchange="window._afErLineItemPartsChanged&&window._afErLineItemPartsChanged(this)" style="width:100%;box-sizing:border-box;padding:2px 0;border:none;border-bottom:1px solid transparent;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;font-family:inherit;" /></td>';
+                        }).join('');
+                        tds += '<td style="display:none;"><input type="hidden" class="er-card-input" value="' + _esc(String(r.raw || '')) + '" data-er-key="' + _esc(_fk + '[' + r.vi + ']') + '" data-er-type="text" data-er-lineitem-hidden="1" data-er-sep="' + _esc(String(r.sep || ',')) + '" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></td>';
+                        return '<tr>' + tds + '</tr>';
+                    }).join('');
+                    return '<table class="er-table" dir="ltr" style="direction:ltr!important;unicode-bidi:bidi-override;text-align:left;"><thead><tr>' + _hdr + '</tr></thead><tbody>' + _body + '</tbody></table>';
+                }
+                return arr.map(function (v, vi) {
+                    var erKey = (fieldKey || '') + '[' + vi + ']';
+                    return '<div style="padding:2px 0;"><input class="er-card-input" type="text" value="' + _esc(String(v)) + '" data-er-key="' + _esc(erKey) + '" data-er-type="text" onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" style="width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid var(--border-color,var(--pb-border,#333));border-radius:4px;background:transparent;color:var(--text-primary,var(--pb-text,#f1f5f9));font-size:.82rem;" /></div>';
+                }).join('');
+            }
             var fk = fieldKey || '';
             var hasNested = arr.some(function (row) { return Object.values(row).some(function (v) { return Array.isArray(v); }); });
             if (!hasNested && Object.keys(arr[0]).length <= 4) {
@@ -1055,11 +1129,12 @@
         }
         var fieldsToRender = outputFields.length ? outputFields : _topLevelKeys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
         var _missingFields = [];
-        var _renderField = function (field) {
+        var _renderField = function (field, dataSrc) {
+            var source = dataSrc || extractedData;
             var key = field.name || field;
             var label = field.label || _humanize(key);
-            var val = _getNestedVal(extractedData, key);
-            if (val === undefined || val === null) _missingFields.push(key);
+            var val = _getNestedVal(source, key);
+            if (!dataSrc && (val === undefined || val === null)) _missingFields.push(key);
             var fieldType = field.type || 'text';
             if (val && typeof val === 'object' && !Array.isArray(val)) {
                 var subEntries = Object.entries(val).filter(function (e) { return e[1] != null && e[1] !== ''; });
@@ -1084,16 +1159,44 @@
             var ph = isDateField && !displayVal ? ' placeholder="— Not extracted"' : '';
             return '<div class="er-field" data-field-key="' + _esc(key) + '"><div class="er-field-label">' + _esc(label) + '</div><input class="er-field-input" type="' + inputType + '" value="' + _esc(displayVal) + '" data-er-key="' + _esc(key) + '" data-er-type="' + _esc(fieldType) + '" ' + ro + ph + ' onchange="window._afErFieldChanged&&window._afErFieldChanged(this)" /></div>';
         };
-        var dataRowsHtml = fieldsToRender.map(_renderField).join('');
-        if (_missingFields.length > 0) {
-            try { console.warn('[afRenderExtractionReview] Fields with no value:', _missingFields, '| extractedData keys:', Object.keys(extractedData), '| rawExtracted keys:', Object.keys(rawExtracted)); } catch (_) {}
+        // --- Multi-file data detection: per-file extracted data ---
+        var _multiFileRecords = null;
+        if (filesInfo.length > 1) {
+            if (Array.isArray(extractedData) && extractedData.length === filesInfo.length && extractedData.every(function (r) { return r && typeof r === 'object' && !Array.isArray(r); })) {
+                _multiFileRecords = extractedData;
+                try { console.log('[afRenderExtractionReview] multi-file mode: extractedData IS array, len=' + extractedData.length); } catch (_) {}
+            }
+            if (!_multiFileRecords) {
+                var _dkMf = _topLevelKeys(extractedData);
+                for (var _mfIdx = 0; _mfIdx < _dkMf.length; _mfIdx++) {
+                    var _mfVal = extractedData[_dkMf[_mfIdx]];
+                    if (Array.isArray(_mfVal) && _mfVal.length === filesInfo.length && _mfVal.every(function (r) { return r && typeof r === 'object' && !Array.isArray(r); })) {
+                        _multiFileRecords = _mfVal;
+                        try { console.log('[afRenderExtractionReview] multi-file mode: found array key=' + _dkMf[_mfIdx] + ', len=' + _mfVal.length); } catch (_) {}
+                        break;
+                    }
+                }
+            }
         }
-        // Fallback: if ALL configured fields are empty, show raw data so it's not a blank panel
-        if (_missingFields.length === fieldsToRender.length && fieldsToRender.length > 0 && _topLevelKeys(extractedData).length > 0) {
-            try { console.warn('[afRenderExtractionReview] ALL fields empty – falling back to raw data view'); } catch (_) {}
-            var fallbackFields = _topLevelKeys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
-            _missingFields = [];
-            dataRowsHtml = fallbackFields.map(_renderField).join('');
+
+        var dataRowsHtml;
+        if (_multiFileRecords) {
+            dataRowsHtml = _multiFileRecords.map(function (fileData, fi) {
+                var perFields = outputFields.length ? outputFields : _topLevelKeys(fileData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
+                var html = perFields.map(function (f) { return _renderField(f, fileData); }).join('');
+                return '<div class="er-file-data-group" data-file-data-idx="' + fi + '" style="' + (fi > 0 ? 'display:none;' : '') + '">' + html + '</div>';
+            }).join('');
+        } else {
+            dataRowsHtml = fieldsToRender.map(function (f) { return _renderField(f); }).join('');
+            if (_missingFields.length > 0) {
+                try { console.warn('[afRenderExtractionReview] Fields with no value:', _missingFields, '| extractedData keys:', Object.keys(extractedData), '| rawExtracted keys:', Object.keys(rawExtracted)); } catch (_) {}
+            }
+            if (_missingFields.length === fieldsToRender.length && fieldsToRender.length > 0 && _topLevelKeys(extractedData).length > 0) {
+                try { console.warn('[afRenderExtractionReview] ALL fields empty – falling back to raw data view'); } catch (_) {}
+                var fallbackFields = _topLevelKeys(extractedData).map(function (k) { return { name: k, label: _humanize(k), type: 'text' }; });
+                _missingFields = [];
+                dataRowsHtml = fallbackFields.map(function (f) { return _renderField(f); }).join('');
+            }
         }
 
         function _hasAnomalyVal(obj) {
@@ -1517,6 +1620,11 @@
         if (preview) preview.style.display = '';
         var totalTabs = document.querySelectorAll('.er-file-tab').length;
         if (totalTabs > 1) {
+            // Per-file data groups (multi-file extraction)
+            document.querySelectorAll('.er-file-data-group[data-file-data-idx]').forEach(function (g) {
+                g.style.display = (parseInt(g.getAttribute('data-file-data-idx'), 10) === idx) ? '' : 'none';
+            });
+            // Table rows with data-row-idx matching tab count
             document.querySelectorAll('.er-table[data-er-field]').forEach(function (table) {
                 var rows = table.querySelectorAll('tbody tr[data-row-idx]');
                 if (rows.length === totalTabs) {
@@ -1525,6 +1633,7 @@
                     });
                 }
             });
+            // Cards with data-row-idx matching tab count
             document.querySelectorAll('[data-er-field] > .er-card[data-row-idx]').forEach(function (card) {
                 var cardParent = card.parentElement;
                 var cards = cardParent.querySelectorAll('.er-card[data-row-idx]');
