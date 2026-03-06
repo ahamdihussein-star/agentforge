@@ -405,6 +405,8 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 messages.append(msg)
         
         # Add structured output instructions if needed
+        _has_multirecord_input = False
+        _multirecord_count = 0
         if output_format == 'json' or output_schema:
             schema_instruction = ""
             if output_schema:
