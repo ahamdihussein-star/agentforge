@@ -297,13 +297,16 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 _combined_system += (
                     f"\n\nMULTI-DOCUMENT EXTRACTION (CRITICAL):\n"
                     f"The uploaded files contain {_multi_file_count} separate documents.\n"
-                    f"You MUST return a JSON ARRAY with exactly {_multi_file_count} elements.\n"
-                    f"Each element must have the SAME structure with all requested output fields.\n"
-                    f"The order of elements MUST match the order the files appear above.\n"
-                    f"Example: [{{\"field1\": \"...\"}}, {{\"field1\": \"...\"}}]\n"
-                    f"Even if one document is missing a field, include that element with null values.\n"
+                    f"You MUST return a JSON object with a single key \"documents\" whose value is an array "
+                    f"of exactly {_multi_file_count} objects.\n"
+                    f"Each object must have the SAME structure with all requested output fields, "
+                    f"filled with the values extracted from the corresponding document.\n"
+                    f"The order MUST match the order the files appear above.\n"
+                    f"Example: {{\"documents\": [{{\"field1\": \"value from doc 1\"}}, {{\"field1\": \"value from doc 2\"}}]}}\n"
+                    f"Even if one document is missing a field, include that object with null values.\n"
+                    f"IMPORTANT: Extract ACTUAL values from each document. Do NOT return field definitions or schema.\n"
                 )
-                logs.append(f"Multi-file extraction: instructed AI to return array of {_multi_file_count}")
+                logs.append(f"Multi-file extraction: instructed AI to return {{documents: [...]}} with {_multi_file_count} elements")
             if self.get_config_value(node, "temperature") is None:
                 temperature = min(float(temperature or 0.2), 0.2)
                 logs.append(f"Extraction mode: clamped temperature={temperature}")
@@ -388,7 +391,15 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         if output_format == 'json' or output_schema:
             schema_instruction = ""
             if output_schema:
-                schema_instruction = f"\n\nRespond with valid JSON matching this schema:\n{json.dumps(output_schema, indent=2)}"
+                if _multi_file_count > 1:
+                    schema_instruction = (
+                        "\n\nIMPORTANT: You MUST respond with valid JSON only. "
+                        f"Return a JSON object with a \"documents\" key containing an array of exactly {_multi_file_count} elements. "
+                        "Each element must match this schema:\n" + json.dumps(output_schema, indent=2)
+                        + "\n\nExample: {\"documents\": [{...}, {...}]}"
+                    )
+                else:
+                    schema_instruction = f"\n\nRespond with valid JSON matching this schema:\n{json.dumps(output_schema, indent=2)}"
             else:
                 # Build a concrete schema from outputFields so the LLM knows
                 # exactly which keys and types to return.
@@ -417,13 +428,23 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                             _example_obj[_fn] = []
                         else:
                             _example_obj[_fn] = ""
-                    schema_instruction = (
-                        "\n\nIMPORTANT: You MUST respond with valid JSON only. "
-                        "Return a JSON object with EXACTLY these fields:\n{\n"
-                        + ",\n".join(_field_lines)
-                        + "\n}\n"
-                        + "Example structure: " + json.dumps(_example_obj)
-                    )
+                    if _multi_file_count > 1:
+                        schema_instruction = (
+                            "\n\nIMPORTANT: You MUST respond with valid JSON only. "
+                            "Return a JSON object with a \"documents\" key containing an array. "
+                            "Each element in the array must have EXACTLY these fields:\n{\n"
+                            + ",\n".join(_field_lines)
+                            + "\n}\n"
+                            + "Example for one element: " + json.dumps(_example_obj)
+                        )
+                    else:
+                        schema_instruction = (
+                            "\n\nIMPORTANT: You MUST respond with valid JSON only. "
+                            "Return a JSON object with EXACTLY these fields:\n{\n"
+                            + ",\n".join(_field_lines)
+                            + "\n}\n"
+                            + "Example structure: " + json.dumps(_example_obj)
+                        )
                 else:
                     schema_instruction = "\n\nRespond with valid JSON only."
             prompt += schema_instruction
@@ -621,6 +642,19 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     logs=logs + [f"JSON parse failed: {e}", f"Tokens used: {tokens_used}"],
                     duration_ms=duration_ms,
                 )
+
+        # Unwrap multi-file envelope: {"documents": [{...}, {...}]} → [{...}, {...}]
+        if isinstance(output, dict) and _multi_file_count > 1:
+            _unwrap_keys = ("documents", "results", "items", "records", "data")
+            for _uwk in _unwrap_keys:
+                _uwv = output.get(_uwk)
+                if isinstance(_uwv, list) and len(_uwv) == _multi_file_count:
+                    logs.append(f"Multi-file unwrap: extracted list from key '{_uwk}' ({len(_uwv)} items)")
+                    output = _uwv
+                    break
+            if isinstance(output, dict):
+                # AI returned a flat dict despite multi-file instruction; fallback — still usable
+                logs.append(f"Multi-file unwrap: AI returned flat dict, using as-is (keys={list(output.keys())[:10]})")
 
         # ANTI-HALLUCINATION pipeline (order matters):
         #   1. Cross-reference items against actual source files (remove phantoms)
