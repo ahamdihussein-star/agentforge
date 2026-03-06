@@ -3588,7 +3588,7 @@
             const outputFields = details._output_fields || [];
             const stepName = details._step_name || 'AI Extraction';
 
-            _extractionReviewData = { ...extractedData };
+            _extractionReviewData = Array.isArray(extractedData) ? [...extractedData] : { ...extractedData };
 
             const filesHtml = sourceFiles.length
                 ? sourceFiles.map((f, i) => {

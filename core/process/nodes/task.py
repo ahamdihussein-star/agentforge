@@ -187,15 +187,11 @@ class AITaskNodeExecutor(BaseNodeExecutor):
         _process_data_block = ""
         _all_vars = state.get_all()
         _display_vars: dict = {}
-        _internal_prefixes = ("_",)
-        # Use smaller budgets when we also inject file contents (token safety)
+        _internal_prefixes = ("_", "approval_")
         _PER_VAR_LIMIT = 12_000 if _file_context_block else 30_000
         _TOTAL_BUDGET = 35_000 if _file_context_block else 100_000
         _total_size = 0
-        # Prioritize variables likely needed for stable comparisons:
-        # - arrays of records/line items
-        # - external/system/lookup responses
-        # This is generic scoring (no domain-specific assumptions).
+
         def _var_score(k: str, v: Any) -> int:
             kn = str(k or "").lower().replace("_", "").replace("-", "").replace(" ", "")
             score = 0
@@ -206,7 +202,6 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             if isinstance(v, list) and v:
                 if all(isinstance(x, dict) for x in v[:5]):
                     score += 4
-                    # bump if numeric fields appear (comparison-relevant)
                     try:
                         keys = set()
                         for x in v[:5]:
@@ -216,12 +211,11 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     except Exception:
                         pass
             if isinstance(v, dict):
-                # bump for typical response envelope shapes
                 if any(x in v for x in ("response", "data", "results", "items", "lineItems", "line_items")):
                     score += 3
             return score
 
-        _sorted_vars = sorted(_all_vars.items(), key=lambda kv: (_var_score(kv[0], kv[1]), str(kv[0]).lower()))
+        _sorted_vars = sorted(_all_vars.items(), key=lambda kv: (-_var_score(kv[0], kv[1]), str(kv[0]).lower()))
 
         for k, v in _sorted_vars:
             if any(k.startswith(p) for p in _internal_prefixes):
@@ -466,6 +460,29 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     schema_instruction = "\n\nRespond with valid JSON only."
             prompt += schema_instruction
         
+        # For analysis steps, inject array-of-record variables as structured JSON
+        # directly in the user message so the LLM processes every record.
+        if _is_analysis:
+            _record_injections = []
+            for _rk, _rv in _all_vars.items():
+                if any(_rk.startswith(p) for p in _internal_prefixes):
+                    continue
+                if isinstance(_rv, list) and len(_rv) > 1 and all(isinstance(x, dict) for x in _rv[:10]):
+                    try:
+                        _rj = json.dumps(_rv, indent=2, default=str, ensure_ascii=False)
+                        if len(_rj) < 60_000:
+                            _record_injections.append(
+                                f"\n\n=== INPUT RECORDS: '{_rk}' ({len(_rv)} records) ===\n"
+                                f"{_rj}\n"
+                                f"=== END INPUT RECORDS ===\n"
+                                f"You MUST analyze ALL {len(_rv)} records above individually."
+                            )
+                            logs.append(f"Injected '{_rk}' ({len(_rv)} records) as structured JSON into user prompt")
+                    except Exception:
+                        pass
+            if _record_injections:
+                prompt += "".join(_record_injections)
+
         # User prompt
         messages.append({
             "role": "user",
