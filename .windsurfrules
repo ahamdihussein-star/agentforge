@@ -1,0 +1,112 @@
+# AgentForge Development Rules
+
+## 🤖 AUTO-CONTEXT SYSTEM
+
+**Windsurf automatically uses:**
+1. 📋 This file (`.windsurfrules`) - Core principles
+2. 🔍 RAG Search (`.ai/context/`) - Similar code patterns
+3. 📚 Project Brain (`project-brain/`) - Architecture & knowledge
+4. ⚠️ Regression Watchlist - Critical behaviors to preserve
+
+**Before ANY code change, Windsurf will:**
+- Search RAG for similar patterns
+- Check regression watchlist
+- Follow enterprise standards
+- Use modular, reusable patterns
+
+---
+
+## 🎯 PLATFORM VISION
+
+AgentForge = Enterprise No-Code AI Platform
+
+**Target Users**: Non-technical (government, business)
+**Core Principle**: Zero hardcoding, everything configurable
+**Architecture**: Modular, cloud-agnostic, database-first
+
+---
+
+## 🚨 MANDATORY RULES
+
+### 1. User Experience
+❌ NEVER show: JSON, UUID, Stack Trace, technical errors
+✅ ALWAYS use: Plain business language, clear next steps
+
+### 2. No Hardcoding
+❌ NEVER: `if process_name == 'Expense'`
+✅ ALWAYS: Generic, configurable features
+
+### 3. Enterprise Security
+✅ ALWAYS scope by `org_id`
+✅ ALWAYS check permissions at service layer
+✅ ALWAYS log security events
+
+### 4. Modularity
+✅ ALWAYS build reusable components
+✅ ALWAYS separate concerns
+✅ ALWAYS think: "Can this be used elsewhere?"
+
+### 5. Cloud-Agnostic
+❌ NEVER use database-specific types
+✅ ALWAYS use `database/column_types.py`
+✅ ALWAYS abstract infrastructure
+
+---
+
+## 📚 KNOWLEDGE SOURCES
+
+**Quick Reference:**
+- `project-brain/product.md` - What we're building
+- `project-brain/architecture.md` - How it works
+- `project-brain/module-map.md` - Where to find code
+
+**Deep Reference:**
+- `docs/MASTER_DOCUMENTATION_UPDATED.md` - Full technical docs
+- `database/COMMON_ISSUES.md` - Database patterns
+
+**Critical:**
+- `project-brain/regression-watchlist.md` - Don't break these!
+
+---
+
+## 🔄 WORKFLOW
+
+1. **Understand** - User speaks business, you translate to tech
+2. **Search RAG** - Find similar patterns (auto-triggered)
+3. **Plan** - Modular, reusable solution
+4. **Implement** - Follow existing patterns
+5. **Test** - Happy path + edge cases
+6. **Update Context** - Re-index changed files (auto-triggered)
+7. **Commit** - Auto-commit with clear message
+
+---
+
+## 🎨 UI/UX STANDARDS
+
+✅ "Manager not assigned" ❌ "NullReferenceException"
+✅ "Please select department" ❌ "dept_id required"
+✅ "Workflow saved" ❌ "POST /api/process 200"
+
+---
+
+## 🏗️ ARCHITECTURE PATTERNS
+
+- **Stateless Backend** - Horizontally scalable
+- **Service Layer** - All DB through `database/services/`
+- **Database-Only** - PostgreSQL single source of truth
+- **Async Tasks** - Long operations in background
+
+---
+
+## 📝 DOCUMENTATION
+
+**Auto-Update:**
+- Code changes → RAG re-indexes automatically
+- New features → Update `project-brain/product.md`
+- Architecture changes → Update `project-brain/architecture.md`
+- Important decisions → Add to `project-brain/decision-log.md`
+
+---
+
+**Built for non-technical users in large organizations.**
+**Every decision prioritizes: Simplicity, Security, Flexibility.**

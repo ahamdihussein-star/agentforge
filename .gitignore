@@ -23,6 +23,9 @@ data/*
 uploads/*
 !uploads/.gitkeep
 
+# === AI Context System (embeddings are too large)
+.ai/context/embeddings/
+
 # === Python ===
 __pycache__/
 *.py[cod]

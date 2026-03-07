@@ -44,13 +44,14 @@
 4. [Folder Structure](#-folder-structure)
 
 ## Part 2: Features & Components
-5. [Features - Complete List](#-features---complete-list)
-6. [LLM Providers](#-llm-providers)
-7. [Tools System](#-tools-system)
-8. [Knowledge Base / RAG](#-knowledge-base--rag)
-9. [Security Module](#-security-module)
-10. [Demo Lab](#-demo-lab)
-11. [Process Builder & Workflow Engine](#-process-builder--workflow-engine)
+5. [Runtime Architecture](#-runtime-architecture)
+6. [Features - Complete List](#-features---complete-list)
+7. [LLM Providers](#-llm-providers)
+8. [Tools System](#-tools-system)
+9. [Knowledge Base / RAG](#-knowledge-base--rag)
+10. [Security Module](#-security-module)
+11. [Demo Lab](#-demo-lab)
+12. [Process Builder & Workflow Engine](#-process-builder--workflow-engine)
 
 ## Part 3: Technical Assessment
 12. [Platform Assessment](#-platform-assessment)
@@ -252,34 +253,36 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 │  │ Agents │ Chat │ Tools │ RAG │ Process │ Demo │ Settings      │ │
 │  │                                                             │ │
 │  │                    api/security.py                           │ │
-│  │                   (~3,700 lines)                             │ │
+│  │                   (~4,100 lines)                             │ │
 │  │ Auth │ Users │ Roles │ MFA │ OAuth │ RBAC │ Audit            │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                    │
 │                              ▼                                    │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │              core/security/state.py                           │ │
-│  │              (Database-First State Management)                │ │
-│  │  load_from_disk() → Database First, JSON Fallback            │ │
-│  │  save_to_disk() → Database Primary, JSON Backup              │ │
+│  │              (Database-Only State Management)                 │ │
+│  │  load_from_disk() → Database Only (No JSON Fallback)         │ │
+│  │  save_to_disk() → Database Only (No JSON Backup)             │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 │                              │                                    │
 │                    ┌─────────┴─────────┐                         │
 │                    │                   │                         │
 │                    ▼                   ▼                         │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐     │
-│  │   PostgreSQL Database    │  │   JSON Files (Backup)    │     │
-│  │   (Primary Storage)       │  │   (Read-Only Backup)     │     │
-│  │                           │  │                          │     │
-│  │  • Users                  │  │  • users.json           │     │
-│  │  • Roles                  │  │  • roles.json           │     │
-│  │  • Organizations          │  │  • organizations.json   │     │
-│  │  • Settings               │  │  • settings.json        │     │
-│  │  • Audit Logs             │  │  • audit_logs.json      │     │
-│  │  • Invitations            │  │  • invitations.json     │     │
-│  │  • Tools                  │  │  • tools.json           │     │
-│  │  • Agents                 │  │  • agents.json          │     │
-│  └──────────────────────────┘  └──────────────────────────┘     │
+│  ┌──────────────────────────┐                                     │
+│  │   PostgreSQL Database    │                                     │
+│  │   (Single Source of Truth)│                                    │
+│  │                           │                                     │
+│  │  • Users                  │                                     │
+│  │  • Roles                  │                                     │
+│  │  • Organizations          │                                     │
+│  │  • Settings               │                                     │
+│  │  • Audit Logs             │                                     │
+│  │  • Invitations            │                                     │
+│  │  • Tools                  │                                     │
+│  │  • Agents                 │                                     │
+│  │  • Conversations          │                                     │
+│  │  • Process Executions     │                                     │
+│  └──────────────────────────┘                                     │
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │              database/services/                               │ │
@@ -290,11 +293,11 @@ AgentForge is an Enterprise AI Agent Builder platform that enables users to crea
 └──────────────────────────────────────────────────────────────────┘
 
 Current State:
-✅ Database-first architecture (PostgreSQL primary)
-✅ JSON files as backup only (written after DB saves)
+✅ Database-only architecture (PostgreSQL single source of truth)
+✅ No JSON fallback - all data in database
 ✅ Complete service layer for all entities
 ✅ Database-agnostic design (via SQLAlchemy; cross-DB support depends on dialect compatibility and is not validated for every DB in this repository)
-✅ Comprehensive error handling and fallback
+✅ Comprehensive error handling
 ⚠️ Still monolithic (single file structure)
 ⚠️ Cannot scale horizontally (yet)
 ⚠️ No separation of concerns (yet)
@@ -639,6 +642,215 @@ agentforge/
 
 ---
 
+# 🔧 Runtime Architecture
+
+This section explains how the system actually executes agents and processes at runtime, based on the code implementation.
+
+## Agent Execution Model (Chat-Based Agents)
+
+**Implementation**: `core/agent/engine.py` - `AgentEngine` class
+
+**Execution Flow**:
+```
+User sends message
+    ↓
+AgentEngine.chat() called
+    ↓
+1. Add user message to Memory
+2. Select LLM (fixed model or auto-route via LLMRouter)
+3. Build system prompt from agent config
+4. Enter agentic loop (max_iterations limit):
+   ├─ Call LLM with messages + tool definitions
+   ├─ If LLM returns tool_calls:
+   │  ├─ Execute each tool via _execute_tool()
+   │  ├─ Check approval requirements
+   │  ├─ Add tool results to memory
+   │  └─ Continue loop
+   └─ If no tool_calls: return final response
+5. Return AgentResponse
+```
+
+**Key Components**:
+- **AgentConfig** (line 47): Configuration with id, name, objective, llm_settings, tools, tasks
+- **Memory** (line 77): Manages conversation messages with max_messages limit
+- **AgentEngine** (line 117): Core execution engine
+  - `_init_llm()` (line 181): Creates LLM from config using LLMFactory
+  - `_init_tools()` (line 212): Initializes tools from ToolRegistry
+  - `_select_llm()` (line 279): Selects LLM (fixed or auto via LLMRouter)
+  - `_execute_tool()` (line 304): Executes tool with approval checks
+  - `chat()` (line 337): Main agentic loop
+  - `stream()` (line 440): Streaming version with AgentEvent yields
+
+## Process Execution Model (Workflow Agents)
+
+**Implementation**: `core/process/engine.py` - `ProcessEngine` class
+
+**Execution Flow**:
+```
+Process triggered (manual/webhook/schedule)
+    ↓
+ProcessEngine.execute() called
+    ↓
+1. Find START node from process definition
+2. Initialize ProcessState (variables, completed_nodes)
+3. Node-by-node execution loop:
+   ├─ Check execution limits (max_nodes, max_time)
+   ├─ Get executor from NodeExecutorRegistry by node type
+   ├─ Execute node via _execute_node():
+   │  ├─ Validate node config
+   │  ├─ Call executor.execute_with_timeout()
+   │  │  └─ executor.execute_with_retry()
+   │  │     └─ executor.execute() (actual node logic)
+   │  └─ Return NodeResult
+   ├─ Handle result:
+   │  ├─ If failure: return ProcessResult.failure
+   │  ├─ If waiting (approval): save checkpoint, return ProcessResult.waiting
+   │  ├─ If success: update state, find next node
+   │  └─ Save checkpoint if enabled
+   └─ Continue until END node or terminal state
+4. Return ProcessResult
+```
+
+**Key Components**:
+- **ProcessEngine** (line 64): Core workflow orchestrator
+  - `execute()` (line 183): Main execution loop
+  - `_execute_node()` (line 466): Single node execution
+  - `_get_next_node()` (line 571): Determines next node from edges/conditions
+  - `resume()` (line 644): Resumes from checkpoint
+- **ProcessState** (`core/process/state.py:128`): Manages variables, completed_nodes, checkpoints
+- **NodeExecutorRegistry** (`core/process/nodes/base.py:268`): Maps node types to executors
+- **BaseNodeExecutor** (`core/process/nodes/base.py:75`): Abstract base for all executors
+  - `execute_with_timeout()`: Wraps execution with timeout handling
+  - `execute_with_retry()`: Wraps execution with retry logic
+  - `execute()`: Abstract method implemented by each node type
+
+**Node Executors** (all in `core/process/nodes/`):
+- **task.py**: AITaskNodeExecutor, ToolCallNodeExecutor, ScriptNodeExecutor
+- **flow.py**: StartNodeExecutor, EndNodeExecutor, ConditionNodeExecutor
+- **logic.py**: LoopNodeExecutor, SwitchNodeExecutor, ParallelNodeExecutor
+- **human.py**: ApprovalNodeExecutor, HumanTaskNodeExecutor, NotificationNodeExecutor
+- **integration.py**: HTTPRequestNodeExecutor, FileOperationNodeExecutor, DatabaseQueryNodeExecutor
+- **data.py**: TransformNodeExecutor, ValidateNodeExecutor, FilterNodeExecutor, MapNodeExecutor
+- **timing.py**: DelayNodeExecutor, ScheduleNodeExecutor
+
+**Registration Pattern**:
+```python
+@register_executor(NodeType.AI_TASK)
+class AITaskNodeExecutor(BaseNodeExecutor):
+    async def execute(self, node, state, context) -> NodeResult:
+        # Node-specific logic
+```
+
+## LLM Provider Wiring
+
+**Three-Layer Architecture**:
+
+### Layer 1: Registry
+**Implementation**: `core/llm/registry.py` - `LLMRegistry` class
+
+- Stores `LLMConfig` objects for all registered models
+- Loads/saves to database via `SystemSettingsService`
+- Default presets (line 363-478): gpt-4o, claude-3-5-sonnet, llama3-70b, etc.
+- Query methods: `get()`, `get_by_provider()`, `get_by_capability()`, `get_by_strength()`
+
+### Layer 2: Factory
+**Implementation**: `core/llm/factory.py` - `LLMFactory` class
+
+- Maps provider names to implementation classes
+- `register_provider()` (line 24): Registers provider class
+- `create()` (line 35): Creates LLM instance from LLMConfig
+- `_auto_load_provider()` (line 85): Dynamically imports provider modules
+- Auto-initialization (line 130-156): Registers all providers on import
+
+### Layer 3: Provider Implementations
+**Base Interface**: `core/llm/base.py` - `BaseLLM` abstract class (line 118)
+
+**Required Methods**:
+- `chat()`: Send messages, get LLMResponse with content/tool_calls/tokens
+- `stream()`: Stream response tokens and tool calls
+
+**Concrete Providers**:
+- **OpenAI** (`core/llm/providers/openai.py:21`): OpenAILLM class
+  - Uses `AsyncOpenAI` client
+  - Supports OpenAI API, Azure OpenAI, OpenAI-compatible endpoints
+- **Azure** (`core/llm/providers/openai.py:241`): AzureOpenAILLM extends OpenAILLM
+- **Anthropic** (`core/llm/providers/anthropic.py`): AnthropicLLM class
+- **Ollama** (`core/llm/providers/ollama.py`): OllamaLLM class
+- **Google** (`core/llm/providers/google.py`): GoogleLLM class
+
+**Provider Pattern**:
+```python
+class OpenAILLM(BaseLLM):
+    def __init__(self, config: LLMConfig):
+        self.client = AsyncOpenAI(
+            api_key=config.api_key,
+            base_url=config.base_url
+        )
+    
+    async def chat(self, messages, tools, temperature, max_tokens):
+        # Convert to provider format
+        # Call API
+        # Parse response including tool_calls
+        return LLMResponse(...)
+```
+
+### Intelligent Routing (Optional)
+**Implementation**: `core/llm/router.py` - `LLMRouter` class (line 184)
+
+- Analyzes prompts to extract characteristics (language, code, math, complexity)
+- Scores available models based on capabilities, strengths, cost, speed
+- Returns `RoutingDecision` with selected model and reasoning
+- Used when AgentConfig has `mode: "auto"` or `mode: "hybrid"`
+
+**Routing Flow**:
+```
+Prompt received
+    ↓
+PromptAnalyzer.analyze(prompt)
+    ↓
+Extract: task_type, language, has_code, complexity
+    ↓
+Filter models by required capabilities
+    ↓
+Score each model:
+  - Task match score
+  - Language support
+  - Complexity handling
+  - Optimization goal (quality/cost/speed)
+    ↓
+Return highest-scoring model
+```
+
+## Database Persistence
+
+**Process Execution Tracking**:
+
+**Models** (`database/models/process_execution.py`):
+- **ProcessExecution** (line 24): Tracks execution instance
+  - Fields: id, org_id, agent_id, status, current_node_id, completed_nodes, variables, trigger_input, checkpoint_data, error_message, metrics
+  - Relationships: node_executions, approval_requests, child_executions
+- **ProcessNodeExecution** (line 239): Tracks individual node execution
+  - Fields: id, process_execution_id, node_id, node_type, status, input_data, output_data, variables_before, variables_after, tool_result, llm_tokens_used, duration_ms
+- **ProcessApprovalRequest** (line 367): Tracks approval requests
+  - Fields: id, process_execution_id, node_id, status, title, assigned_user_ids, decision, decided_by, deadline_at
+
+**Service Layer** (`database/services/process_execution_service.py`):
+- `create_execution()`: Creates ProcessExecution record
+- `update_execution_status()`: Updates status and error fields
+- `update_execution_variables()`: Updates variables field
+- `complete_execution()`: Sets final status and metrics
+- `create_node_execution()`: Creates ProcessNodeExecution record
+- `update_node_execution()`: Updates node execution status
+- `create_approval_request()`: Creates ProcessApprovalRequest
+- `update_approval_decision()`: Records approval/rejection
+
+**API Integration** (`api/modules/process/service.py`):
+- Bridges API layer with ProcessEngine
+- Uses ProcessExecutionService for database operations
+- Handles security/access control integration
+
+---
+
 # ✨ Features - Complete List
 
 ## Feature Status Legend
@@ -728,8 +940,8 @@ agentforge/
 |---------|--------|----------|--------|
 | Docker Deployment | ✅ | - | - |
 | PostgreSQL Database | ✅ | - | - |
-| Database Migration | ✅ (DB-first) | - | - |
-| Dual-Write Strategy (DB + JSON backup) | ✅ | - | - |
+| Database Migration | ✅ (Complete - DB-only) | - | - |
+| Database-Only Architecture | ✅ | - | - |
 | Kubernetes Ready | 🔴 | Critical | High |
 | Multi-Cloud Support | 🔴 | Critical | High |
 | Multi-Tenancy | 🔶 | Critical | High |
@@ -988,44 +1200,24 @@ Use this mental model when tracing access/security issues:
    Default Values
    ```
 
-3. **Data Saving Priority:**
-   ```
-   Database (Primary)
-       ↓ (always)
-   JSON Files (Backup)
-   ```
+**Database-Only Implementation**
 
-**Example: User Loading**
+The system uses database-only persistence with no JSON fallback:
 
 ```python
-# In SecurityState.load_from_disk()
-try:
-    from database.services import UserService
-    db_users = UserService.get_all_users()
-    if db_users:
-        for user in db_users:
-            self.users[user.id] = user
-        print(f"✅ [DATABASE] Loaded {len(db_users)} users from database")
-        db_users_loaded = True
-except Exception as db_error:
-    print(f"❌ [DATABASE ERROR] Failed to load users: {e}")
-    # Fallback to JSON files
-    # ... load from users.json
+# In SecurityState.load_from_disk() - actual implementation
+def load_from_disk(self):
+    """Load security state from database (DB-only, no JSON files)."""
+    # Loads all security data from PostgreSQL database
+    # No JSON file fallback exists in current implementation
 ```
 
-**Example: User Saving**
-
 ```python
-# In SecurityState.save_to_disk()
-try:
-    from database.services import UserService
-    for user in self.users.values():
-        UserService.save_user(user)
-    print("💾 Security state saved to database")
-except Exception as db_error:
-    print(f"❌ Database save failed: {e}")
-    # Still save to JSON as backup
-    # ... save to users.json
+# In SecurityState.save_to_disk() - actual implementation
+def save_to_disk(self):
+    """Save security state to database (DB-only)."""
+    # All security data is persisted to the database
+    # No JSON file backup is written — the database is the single source of truth
 ```
 
 ## Authentication Flow
@@ -5979,9 +6171,9 @@ Safety constraints:
 
 3. **State Management:**
    - **Location:** `core/security/state.py`
-   - **Pattern:** Database-first, JSON fallback
-   - **Never:** Modify JSON files directly
-   - **Always:** Use database services for persistence
+   - **Pattern:** Database-only (no JSON fallback)
+   - **Never:** Rely on JSON files for data persistence
+   - **Always:** Use database services for all persistence operations
 
 4. **Model Changes:**
    - **Location:** `database/models/`
@@ -6026,7 +6218,7 @@ Safety constraints:
 
 **Key Patterns to Follow:**
 
-1. **Database-First:** Always save to database first, JSON as backup
+1. **Database-Only:** All data persisted to database (no JSON backup)
 2. **Service Layer:** All database operations through services
 3. **Error Handling:** Try-except with comprehensive logging
 4. **JSON Parsing:** Handle double-encoding (role_ids, permissions)
@@ -6036,6 +6228,6 @@ Safety constraints:
 
 ---
 
-*Last Updated: February 11, 2026*  
-*Document Version: 3.5*  
+*Last Updated: March 8, 2026*  
+*Document Version: 3.6*  
 *Platform Version: 3.5*
