@@ -40,7 +40,7 @@ function selectEmailProvider(provider) {
 async function loadEmailSettings() {
     try {
         const response = await fetch('/api/settings/email', {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            headers: getAuthHeaders()
         });
         
         if (!response.ok) {
@@ -148,7 +148,7 @@ async function saveEmailSettings() {
         const response = await fetch('/api/settings/email', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                ...getAuthHeaders(),
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(settings)
@@ -199,7 +199,7 @@ async function testEmailSettings() {
         const response = await fetch('/api/settings/email/test', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                ...getAuthHeaders(),
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
