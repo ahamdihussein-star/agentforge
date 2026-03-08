@@ -446,16 +446,17 @@ class EmailService:
     def _get_settings(cls, org_id: str = None):
         """Get email settings from database (preferred) or environment variables (fallback)"""
         if org_id:
+            db = None
             try:
                 from database.config import get_db_session
                 from database.services.email_settings_service import EmailSettingsService
                 
-                db = next(get_db_session())
+                db = get_db_session()
                 service = EmailSettingsService(db)
                 settings = service.get_by_org(org_id)
                 
                 if settings and settings.is_active:
-                    return {
+                    result = {
                         'provider': settings.provider,
                         'sendgrid_api_key': settings.sendgrid_api_key,
                         'smtp_host': settings.smtp_host,
@@ -466,8 +467,16 @@ class EmailService:
                         'from_email': settings.from_email,
                         'from_name': settings.from_name,
                     }
+                    db.close()
+                    return result
             except Exception as e:
                 print(f"⚠️ Could not load email settings from database: {e}")
+            finally:
+                if db:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
         
         # Fallback to environment variables
         return {
