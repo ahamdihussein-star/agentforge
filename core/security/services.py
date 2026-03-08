@@ -521,8 +521,11 @@ class EmailService:
         smtp_host = settings.get('smtp_host')
         smtp_user = settings.get('smtp_user')
         smtp_pass = settings.get('smtp_password')
+        smtp_port = settings.get('smtp_port') or 587
         from_email = settings.get('from_email') or cls.FROM_EMAIL
         from_name = settings.get('from_name') or cls.FROM_NAME
+        
+        print(f"📧 [EmailService] Sending to {to_email} | Provider: {settings.get('provider', 'unknown')} | Host: {smtp_host} | From: {from_email}")
         
         # Prefer SendGrid when configured
         if not sendgrid_key:
@@ -562,19 +565,30 @@ class EmailService:
                         part.add_header("Content-Disposition", "attachment", filename=fname or os.path.basename(fpath))
                         msg.attach(part)
 
+                    # Port 587 = STARTTLS, Port 465 = implicit SSL
+                    use_implicit_tls = (smtp_port == 465)
+                    use_starttls = settings.get('smtp_use_tls', True) and not use_implicit_tls
+                    
+                    print(f"📧 [SMTP] Connecting to {smtp_host}:{smtp_port} (TLS={use_implicit_tls}, STARTTLS={use_starttls})")
+                    
                     smtp = aiosmtplib.SMTP(
                         hostname=smtp_host,
-                        port=settings.get('smtp_port') or 587,
-                        use_tls=settings.get('smtp_use_tls', True),
+                        port=smtp_port,
+                        use_tls=use_implicit_tls,
+                        start_tls=use_starttls,
                     )
                     await smtp.connect()
+                    print(f"📧 [SMTP] Connected, logging in as {smtp_user}...")
                     await smtp.login(smtp_user, smtp_pass)
+                    print(f"📧 [SMTP] Logged in, sending message...")
                     await smtp.send_message(msg)
                     await smtp.quit()
-                    print(f"✅ Email sent to {to_email} (SMTP)")
+                    print(f"✅ Email sent to {to_email} via SMTP ({smtp_host})")
                     return True
                 except Exception as e:
+                    import traceback
                     print(f"❌ Error sending email via SMTP: {e}")
+                    traceback.print_exc()
                     return False
 
             print(f"⚠️ Email not configured. Email to {to_email} not sent.")
