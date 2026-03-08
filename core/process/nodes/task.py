@@ -392,6 +392,17 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 "  using the user's prompt rule for unmatched/extra items — not as a quantity or value mismatch.\n"
                 "- NEVER report a quantity mismatch when both values are numerically equal.\n"
                 "- A single item can have MULTIPLE findings simultaneously (e.g., quantity issue AND value issue).\n"
+                "\n"
+                "CLASSIFICATION CONSISTENCY (MANDATORY — derive from findings, never guess independently):\n"
+                "- DERIVE the classification of EVERY record directly from its findings list:\n"
+                "    * findings count == 0  →  Clean / No Risk / Approved\n"
+                "    * findings count  > 0  →  Matched with Issues / Anomalous / At Risk\n"
+                "- A record CANNOT appear in BOTH a clean category AND an anomalies category at the same time.\n"
+                "- Before finalising output, run this self-check for EVERY record:\n"
+                "    IF record.findings is empty   → classification must be Clean   (remove from any anomaly list)\n"
+                "    IF record.findings is NOT empty → classification must NOT be Clean (remove from any clean list)\n"
+                "- Summary counts MUST equal the actual array lengths: clean_count = len(clean_list),\n"
+                "  anomaly_count = len(anomaly_list). Recalculate — never guess counts.\n"
             )
             if self.get_config_value(node, "temperature") is None:
                 temperature = min(float(temperature or 0.3), 0.3)
@@ -833,6 +844,9 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             output = self._auto_correct_totals(output, logs)
             # Step 4: Remove false numeric discrepancies (e.g., "mismatch" where values are equal)
             output = self._sanitize_false_numeric_discrepancies(output, logs)
+            # Step 5: Enforce classification consistency — records with findings cannot be "clean"
+            if _is_analysis:
+                output = self._enforce_classification_consistency(output, logs)
 
         # Multi-record validation: verify recordAnalysis covers all input records
         if isinstance(output, dict) and _is_analysis and _injected_record_count > 1:
@@ -1473,6 +1487,100 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                     _walk(it)
 
         _walk(output)
+        return output
+
+    @staticmethod
+    def _enforce_classification_consistency(output: dict, logs: list) -> dict:
+        """
+        Deterministic platform enforcer: a record that has non-empty anomaly/finding arrays
+        CANNOT simultaneously appear in clean/approved/no-risk category lists.
+
+        This is pure math — no AI judgment. It overrides any LLM contradiction.
+        Flow:
+          1. Collect all record IDs whose own anomaly arrays are non-empty.
+          2. Walk every 'clean-like' array in the output and remove those IDs.
+          3. Adjust any associated count fields on the same container.
+        """
+
+        def _nk(k: str) -> str:
+            return str(k).lower().replace("_", "").replace("-", "").replace(" ", "")
+
+        _anomaly_words  = ("anomal", "finding", "issue", "discrepanc", "flag", "violation", "error", "mismatch")
+        _clean_words    = ("clean", "approved", "norisk", "noissue", "nofinding", "noanomali",
+                           "passed", "valid", "compliant", "ok", "clear")
+
+        def _record_id(item) -> str | None:
+            if isinstance(item, str):
+                return item.strip() or None
+            if isinstance(item, dict):
+                for f in ("invoiceNumber", "invoice_number", "invoiceNum", "id",
+                          "recordId", "record_id", "number", "reference", "ref",
+                          "documentNumber", "name", "identifier"):
+                    v = item.get(f)
+                    if v and isinstance(v, (str, int)):
+                        return str(v).strip()
+            return None
+
+        # ── Pass 1: collect IDs that have non-empty anomaly sub-arrays ──
+        _anomalous_ids: set = set()
+
+        def _collect_anomalous(node):
+            if isinstance(node, dict):
+                has_anomaly_array = False
+                for k, v in node.items():
+                    if isinstance(v, list) and v and any(w in _nk(k) for w in _anomaly_words):
+                        has_anomaly_array = True
+                if has_anomaly_array:
+                    rid = _record_id(node)
+                    if rid:
+                        _anomalous_ids.add(rid)
+                for v in node.values():
+                    _collect_anomalous(v)
+            elif isinstance(node, list):
+                for item in node:
+                    _collect_anomalous(item)
+
+        _collect_anomalous(output)
+
+        if not _anomalous_ids:
+            return output
+
+        logs.append(f"\U0001f4cb Records with anomalies: {sorted(_anomalous_ids)}")
+
+        # ── Pass 2: remove those IDs from any clean-like arrays ──
+        def _purge_from_clean_lists(node):
+            if isinstance(node, dict):
+                for k, v in list(node.items()):
+                    if isinstance(v, list) and any(w in _nk(k) for w in _clean_words):
+                        original_len = len(v)
+                        new_list = []
+                        moved = []
+                        for item in v:
+                            rid = _record_id(item)
+                            if rid and rid in _anomalous_ids:
+                                moved.append(rid)
+                            else:
+                                new_list.append(item)
+                        if moved:
+                            node[k] = new_list
+                            logs.append(
+                                f"\U0001f527 Removed {moved} from clean list '{k}' — "
+                                f"they have anomalies (platform override)"
+                            )
+                            # Fix any count fields on the same container
+                            for ck, cv in list(node.items()):
+                                if not isinstance(cv, (int, float)):
+                                    continue
+                                cn = _nk(ck)
+                                if any(w in cn for w in _clean_words) and ("count" in cn or "total" in cn or "num" in cn):
+                                    node[ck] = len(new_list)
+                    else:
+                        _purge_from_clean_lists(v)
+            elif isinstance(node, list):
+                for item in node:
+                    _purge_from_clean_lists(item)
+
+        _purge_from_clean_lists(output)
         return output
 
     def _parse_json_response(self, content: str) -> Any:
