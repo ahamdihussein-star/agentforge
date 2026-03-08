@@ -4407,7 +4407,7 @@ except ImportError as e:
 # Settings module (Email notifications, etc.)
 try:
     from api.modules.settings import router as settings_router
-    app.include_router(settings_router)
+    app.include_router(settings_router, prefix="/api/settings")
     print("✅ Settings module registered")
 except ImportError as e:
     print(f"⚠️ Settings module not available: {e}")

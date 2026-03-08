@@ -12,7 +12,7 @@ from database.services.email_settings_service import EmailSettingsService
 from core.security import EmailService
 from api.dependencies import require_auth, User
 
-router = APIRouter(prefix="/api/settings", tags=["settings"])
+router = APIRouter(tags=["settings"])
 
 
 # ============================================================================
