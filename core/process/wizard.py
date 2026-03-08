@@ -275,6 +275,12 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
      - FALSE branch → sends a notification including the `matchFailureReason` explaining why the data could not be matched, then routes to end.
   This prevents workflows from proceeding to approvals or reports when no meaningful comparison was possible.
   This rule applies universally to ANY domain — finance, HR, procurement, compliance, operations, etc.
+  ⚠️ EXCEPTION — BATCH PROCESSING WITH ALWAYS-DO REPORT:
+  If the user's goal describes generating a report or document that covers ALL items regardless of their individual match status
+  (e.g., "Generate a reconciliation report showing Missing PO, Invalid PO, Clean, and Matched invoices"),
+  that report generation step MUST be placed on the MAIN flow path BEFORE the matchFound condition — NOT inside a branch.
+  Pattern: [Analysis AI] → [Generate Report] → [condition: matchFound / overallRisk] → [TRUE: approval/auto-approve] / [FALSE: notify failure]
+  The FALSE branch must include the generated report as an attachment in the failure notification.
 - RULE-BASED CLASSIFICATION & FINDINGS (CRITICAL):
   When the user's prompt describes rules that classify items or flag findings (e.g., "flag anomaly X as High Risk", "mark as non-compliant", "classify as Critical"), the AI step MUST:
   1. Include a `results` list in `outputFields` with per-item details and their findings/classifications.
@@ -1362,6 +1368,13 @@ class ProcessWizard:
             "11. CONDITION RULES: condition.config must have a 'rules' array (even for single conditions). "
             "Each rule: {field, operator, value}. Use 'connectors' to join rules (and/or), and allow mixed logic. "
             "Set legacy fields: field/operator/value from the first rule.\n\n"
+            "12. ALWAYS-DO STEPS BEFORE CONDITIONS: If the original goal describes a step that applies to "
+            "ALL outcomes (e.g., 'Generate a report for all processed items', 'Create a summary document'), "
+            "that step MUST be on the MAIN flow path BEFORE any condition node — NOT inside a conditional branch. "
+            "Check: if a 'file_operation', 'ai' (create_doc/generate_report), or similar node is only reachable via "
+            "the TRUE branch of a condition but the goal says to generate it for ALL cases (including failures), "
+            "MOVE it to the main path before the condition. Update edges accordingly. "
+            "This is the most common generation mistake for batch/document processing workflows.\n\n"
             "Return the CORRECTED process JSON (full object). No markdown, no explanation."
         )
 
