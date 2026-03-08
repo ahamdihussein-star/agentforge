@@ -125,7 +125,7 @@ async def test_email_settings(
     user: User = Depends(require_auth),
     db: Session = Depends(get_db)
 ):
-    """Send a test email to verify configuration"""
+    """Send a test email to verify configuration - sends DIRECTLY using DB settings"""
     service = EmailSettingsService(db)
     settings = service.get_by_org(user.org_id)
     
@@ -135,16 +135,23 @@ async def test_email_settings(
             detail="Email settings not configured or inactive"
         )
     
+    # Get user display name safely
+    user_name = "there"
+    try:
+        user_name = user.profile.first_name or user.email.split("@")[0]
+    except Exception:
+        pass
+    
     # Build test email HTML
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #7c3aed;">✅ Email Test Successful!</h2>
-        <p>Hi {user.profile.first_name},</p>
+        <h2 style="color: #7c3aed;">Email Test Successful!</h2>
+        <p>Hi {user_name},</p>
         <p>{request.message}</p>
         <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p><strong>Provider:</strong> {settings.provider.upper()}</p>
             <p><strong>From:</strong> {settings.from_email}</p>
-            <p><strong>Configuration:</strong> Active ✓</p>
+            <p><strong>Configuration:</strong> Active</p>
         </div>
         <p style="color: #666; font-size: 14px;">If you received this email, your notification system is working correctly.</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
@@ -152,42 +159,89 @@ async def test_email_settings(
     </div>
     """
     
-    # Send test email
+    # Send DIRECTLY via SMTP using the settings from DB (bypass _get_settings)
+    error_detail = None
     try:
-        success = await EmailService.send_email(
-            to_email=request.to_email,
-            subject=request.subject,
-            html_content=html,
-            org_id=user.org_id
-        )
-        
-        # Update test status
-        service.update(
-            user.org_id,
-            last_test_success=success,
-            last_error=None if success else "Failed to send test email"
-        )
-        
-        if success:
+        if settings.provider == 'smtp':
+            import aiosmtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            
+            smtp_host = settings.smtp_host
+            smtp_port = settings.smtp_port or 587
+            smtp_user = settings.smtp_user
+            smtp_pass = settings.smtp_password
+            from_email = settings.from_email
+            
+            print(f"📧 [TEST] SMTP direct send: host={smtp_host}, port={smtp_port}, user={smtp_user}, from={from_email}")
+            
+            if not smtp_host or not smtp_user or not smtp_pass:
+                raise ValueError(f"SMTP config incomplete: host={bool(smtp_host)}, user={bool(smtp_user)}, pass={bool(smtp_pass)}")
+            
+            msg = MIMEMultipart("alternative")
+            msg["From"] = f"{settings.from_name or 'AgentForge'} <{from_email}>"
+            msg["To"] = request.to_email
+            msg["Subject"] = request.subject
+            msg.attach(MIMEText(request.message, "plain"))
+            msg.attach(MIMEText(html, "html"))
+            
+            # Port 465 = implicit SSL, anything else = let aiosmtplib auto-detect STARTTLS
+            if smtp_port == 465:
+                smtp_client = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port, use_tls=True)
+            else:
+                smtp_client = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port)
+            
+            print(f"📧 [TEST] Connecting...")
+            await smtp_client.connect()
+            print(f"📧 [TEST] Connected! Logging in...")
+            await smtp_client.login(smtp_user, smtp_pass)
+            print(f"📧 [TEST] Logged in! Sending...")
+            await smtp_client.send_message(msg)
+            await smtp_client.quit()
+            print(f"✅ [TEST] Email sent to {request.to_email}")
+            
+            # Update test status
+            service.update(user.org_id, last_test_success=True, last_error=None)
+            
             return {
                 "status": "success",
                 "message": f"Test email sent successfully to {request.to_email}"
             }
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to send test email. Please check your configuration."
+        
+        elif settings.provider == 'sendgrid':
+            success = await EmailService.send_email(
+                to_email=request.to_email,
+                subject=request.subject,
+                html_content=html,
+                org_id=user.org_id
             )
+            if success:
+                service.update(user.org_id, last_test_success=True, last_error=None)
+                return {"status": "success", "message": f"Test email sent to {request.to_email}"}
+            else:
+                error_detail = "SendGrid send returned False"
+                raise ValueError(error_detail)
+        else:
+            error_detail = f"Unsupported provider: {settings.provider}"
+            raise ValueError(error_detail)
+            
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        error_msg = str(e) or "Unknown error"
+        print(f"❌ [TEST] Failed: {error_msg}")
+        
         # Update error status
-        service.update(
-            user.org_id,
-            last_test_success=False,
-            last_error=str(e)
-        )
+        try:
+            service.update(user.org_id, last_test_success=False, last_error=error_msg)
+        except Exception:
+            pass
+        
         raise HTTPException(
             status_code=500,
-            detail=f"Error sending test email: {str(e)}"
+            detail=f"Email sending failed: {error_msg}"
         )
 
 

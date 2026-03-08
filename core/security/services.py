@@ -445,6 +445,7 @@ class EmailService:
     @classmethod
     def _get_settings(cls, org_id: str = None):
         """Get email settings from database (preferred) or environment variables (fallback)"""
+        print(f"📧 [_get_settings] org_id={org_id}")
         if org_id:
             db = None
             try:
@@ -452,8 +453,10 @@ class EmailService:
                 from database.services.email_settings_service import EmailSettingsService
                 
                 db = get_db_session()
+                print(f"📧 [_get_settings] DB session created")
                 service = EmailSettingsService(db)
                 settings = service.get_by_org(org_id)
+                print(f"📧 [_get_settings] DB query result: {settings}, is_active={getattr(settings, 'is_active', None)}")
                 
                 if settings and settings.is_active:
                     result = {
@@ -462,15 +465,22 @@ class EmailService:
                         'smtp_host': settings.smtp_host,
                         'smtp_port': settings.smtp_port,
                         'smtp_user': settings.smtp_user,
-                        'smtp_password': settings.smtp_password,
+                        'smtp_password': '***' if settings.smtp_password else None,
                         'smtp_use_tls': settings.smtp_use_tls,
                         'from_email': settings.from_email,
                         'from_name': settings.from_name,
                     }
+                    print(f"📧 [_get_settings] Loaded from DB: provider={result['provider']}, host={result['smtp_host']}, user={result['smtp_user']}")
+                    # Re-read password (not masked)
+                    result['smtp_password'] = settings.smtp_password
                     db.close()
                     return result
+                else:
+                    print(f"📧 [_get_settings] No active settings found in DB for org {org_id}")
             except Exception as e:
+                import traceback
                 print(f"⚠️ Could not load email settings from database: {e}")
+                traceback.print_exc()
             finally:
                 if db:
                     try:
@@ -565,18 +575,24 @@ class EmailService:
                         part.add_header("Content-Disposition", "attachment", filename=fname or os.path.basename(fpath))
                         msg.attach(part)
 
-                    # Port 587 = STARTTLS, Port 465 = implicit SSL
+                    # aiosmtplib 3.0 auto-handles STARTTLS for port 587
+                    # Only set use_tls=True for port 465 (implicit SSL)
                     use_implicit_tls = (smtp_port == 465)
-                    use_starttls = settings.get('smtp_use_tls', True) and not use_implicit_tls
                     
-                    print(f"📧 [SMTP] Connecting to {smtp_host}:{smtp_port} (TLS={use_implicit_tls}, STARTTLS={use_starttls})")
+                    print(f"📧 [SMTP] Connecting to {smtp_host}:{smtp_port} (implicit_tls={use_implicit_tls})")
                     
-                    smtp = aiosmtplib.SMTP(
-                        hostname=smtp_host,
-                        port=smtp_port,
-                        use_tls=use_implicit_tls,
-                        start_tls=use_starttls,
-                    )
+                    if use_implicit_tls:
+                        smtp = aiosmtplib.SMTP(
+                            hostname=smtp_host,
+                            port=smtp_port,
+                            use_tls=True,
+                        )
+                    else:
+                        # Port 587 or other: let aiosmtplib auto-detect STARTTLS
+                        smtp = aiosmtplib.SMTP(
+                            hostname=smtp_host,
+                            port=smtp_port,
+                        )
                     await smtp.connect()
                     print(f"📧 [SMTP] Connected, logging in as {smtp_user}...")
                     await smtp.login(smtp_user, smtp_pass)
