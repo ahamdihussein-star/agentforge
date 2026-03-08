@@ -429,7 +429,7 @@ class TokenService:
 class EmailService:
     """Email service for sending security-related emails"""
     
-    # Get settings from environment
+    # Get settings from environment (fallback)
     SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
     FROM_EMAIL = os.environ.get("EMAIL_FROM", "notifications@agentforge.to")
     FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "AgentForge")
@@ -443,6 +443,46 @@ class EmailService:
     SMTP_USE_TLS = (os.environ.get("SMTP_USE_TLS", "true") or "true").strip().lower() in ["1", "true", "yes", "y"]
     
     @classmethod
+    def _get_settings(cls, org_id: str = None):
+        """Get email settings from database (preferred) or environment variables (fallback)"""
+        if org_id:
+            try:
+                from database.config import get_db_session
+                from database.services.email_settings_service import EmailSettingsService
+                
+                db = next(get_db_session())
+                service = EmailSettingsService(db)
+                settings = service.get_by_org(org_id)
+                
+                if settings and settings.is_active:
+                    return {
+                        'provider': settings.provider,
+                        'sendgrid_api_key': settings.sendgrid_api_key,
+                        'smtp_host': settings.smtp_host,
+                        'smtp_port': settings.smtp_port,
+                        'smtp_user': settings.smtp_user,
+                        'smtp_password': settings.smtp_password,
+                        'smtp_use_tls': settings.smtp_use_tls,
+                        'from_email': settings.from_email,
+                        'from_name': settings.from_name,
+                    }
+            except Exception as e:
+                print(f"⚠️ Could not load email settings from database: {e}")
+        
+        # Fallback to environment variables
+        return {
+            'provider': 'sendgrid' if cls.SENDGRID_API_KEY else 'smtp',
+            'sendgrid_api_key': cls.SENDGRID_API_KEY,
+            'smtp_host': cls.SMTP_HOST,
+            'smtp_port': cls.SMTP_PORT,
+            'smtp_user': cls.SMTP_USER,
+            'smtp_password': cls.SMTP_PASS,
+            'smtp_use_tls': cls.SMTP_USE_TLS,
+            'from_email': cls.FROM_EMAIL,
+            'from_name': cls.FROM_NAME,
+        }
+    
+    @classmethod
     async def send_email(
         cls,
         to_email: str,
@@ -450,19 +490,35 @@ class EmailService:
         html_content: str,
         text_content: str = None,
         attachments: list = None,
+        org_id: str = None,
     ) -> bool:
-        """Send an email using SendGrid (preferred) with SMTP fallback.
+        """Send an email using configured provider (database settings or environment).
 
         Args:
-            attachments: Optional list of dicts, each with keys:
-                - path (str): absolute filesystem path to the file
-                - filename (str): name shown to recipient
-                - mime_type (str, optional): MIME type (auto-detected if omitted)
+            to_email: Recipient email address
+            subject: Email subject
+            html_content: HTML email body
+            text_content: Plain text email body (optional)
+            attachments: Optional list of dicts with keys: path, filename, mime_type
+            org_id: Organization ID to load settings from database (optional)
+
+        Returns:
+            True if email sent successfully, False otherwise
         """
+        # Load settings from database or environment
+        settings = cls._get_settings(org_id)
+        
+        sendgrid_key = settings.get('sendgrid_api_key')
+        smtp_host = settings.get('smtp_host')
+        smtp_user = settings.get('smtp_user')
+        smtp_pass = settings.get('smtp_password')
+        from_email = settings.get('from_email') or cls.FROM_EMAIL
+        from_name = settings.get('from_name') or cls.FROM_NAME
+        
         # Prefer SendGrid when configured
-        if not cls.SENDGRID_API_KEY:
+        if not sendgrid_key:
             # Fallback to SMTP when configured
-            if cls.SMTP_HOST and cls.SMTP_USER and cls.SMTP_PASS:
+            if smtp_host and smtp_user and smtp_pass:
                 try:
                     import aiosmtplib
                     from email.mime.text import MIMEText
@@ -472,7 +528,7 @@ class EmailService:
                     import mimetypes
 
                     msg = MIMEMultipart()
-                    msg["From"] = cls.FROM_EMAIL
+                    msg["From"] = from_email
                     msg["To"] = to_email
                     msg["Subject"] = (subject or "Notification").strip() or "Notification"
 
@@ -498,12 +554,12 @@ class EmailService:
                         msg.attach(part)
 
                     smtp = aiosmtplib.SMTP(
-                        hostname=cls.SMTP_HOST,
-                        port=cls.SMTP_PORT,
-                        use_tls=cls.SMTP_USE_TLS,
+                        hostname=smtp_host,
+                        port=settings.get('smtp_port') or 587,
+                        use_tls=settings.get('smtp_use_tls', True),
                     )
                     await smtp.connect()
-                    await smtp.login(cls.SMTP_USER, cls.SMTP_PASS)
+                    await smtp.login(smtp_user, smtp_pass)
                     await smtp.send_message(msg)
                     await smtp.quit()
                     print(f"✅ Email sent to {to_email} (SMTP)")
@@ -525,7 +581,7 @@ class EmailService:
         try:
             payload = {
                 "personalizations": [{"to": [{"email": to_email}]}],
-                "from": {"email": cls.FROM_EMAIL, "name": cls.FROM_NAME},
+                "from": {"email": from_email, "name": from_name},
                 "subject": subject,
                 "content": [
                     {"type": "text/plain", "value": text_content or html_content},
@@ -558,7 +614,7 @@ class EmailService:
                 response = await client.post(
                     "https://api.sendgrid.com/v3/mail/send",
                     headers={
-                        "Authorization": f"Bearer {cls.SENDGRID_API_KEY}",
+                        "Authorization": f"Bearer {sendgrid_key}",
                         "Content-Type": "application/json"
                     },
                     json=payload,
@@ -574,8 +630,9 @@ class EmailService:
             return False
     
     @classmethod
-    async def send_verification_email(cls, user) -> bool:
+    async def send_verification_email(cls, user, org_id: str = None) -> bool:
         """Send email verification"""
+        org_id = org_id or getattr(user, 'org_id', None)
         verify_url = f"{cls.BASE_URL}/ui/#verify-email?token={user.verification_token}"
         username_line = ""
         try:
@@ -602,11 +659,12 @@ class EmailService:
         </div>
         """
         
-        return await cls.send_email(user.email, "Verify your AgentForge email", html)
+        return await cls.send_email(user.email, "Verify your AgentForge email", html, org_id=org_id)
     
     @classmethod
-    async def send_password_reset_email(cls, user, token: str) -> bool:
+    async def send_password_reset_email(cls, user, token: str, org_id: str = None) -> bool:
         """Send password reset email"""
+        org_id = org_id or getattr(user, 'org_id', None)
         reset_url = f"{cls.BASE_URL}/ui/#reset-password?token={token}"
         username_line = ""
         try:
@@ -634,11 +692,12 @@ class EmailService:
         </div>
         """
         
-        return await cls.send_email(user.email, "Reset your AgentForge password", html)
+        return await cls.send_email(user.email, "Reset your AgentForge password", html, org_id=org_id)
     
     @classmethod
-    async def send_welcome_email(cls, user, temp_password: str) -> bool:
+    async def send_welcome_email(cls, user, temp_password: str, org_id: str = None) -> bool:
         """Send welcome email with temporary password"""
+        org_id = org_id or getattr(user, 'org_id', None)
         login_url = f"{cls.BASE_URL}/ui/#login"
         username_line = ""
         try:
@@ -668,11 +727,12 @@ class EmailService:
         </div>
         """
         
-        return await cls.send_email(user.email, "Welcome to AgentForge - Your account is ready!", html)
+        return await cls.send_email(user.email, "Welcome to AgentForge - Your account is ready!", html, org_id=org_id)
     
     @classmethod
-    async def send_invitation_email(cls, invitation, inviter) -> bool:
+    async def send_invitation_email(cls, invitation, inviter, org_id: str = None) -> bool:
         """Send invitation email"""
+        org_id = org_id or getattr(invitation, 'org_id', None)
         accept_url = f"{cls.BASE_URL}/ui/#register?token={invitation.token}"
         inviter_name = inviter if isinstance(inviter, str) else (inviter.get_display_name() if hasattr(inviter, 'get_display_name') else inviter.email)
         
@@ -694,15 +754,16 @@ class EmailService:
         </div>
         """
         
-        sent = await cls.send_email(invitation.email, f"You're invited to join AgentForge by {inviter_name}", html)
+        sent = await cls.send_email(invitation.email, f"You're invited to join AgentForge by {inviter_name}", html, org_id=org_id)
         if sent:
             invitation.email_sent = True
             invitation.email_sent_at = datetime.utcnow().isoformat()
         return sent
     
     @classmethod
-    async def send_mfa_code(cls, user, code: str) -> bool:
+    async def send_mfa_code(cls, user, code: str, org_id: str = None) -> bool:
         """Send MFA verification code"""
+        org_id = org_id or getattr(user, 'org_id', None)
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #7c3aed;">Your Verification Code 🔐</h2>
@@ -720,11 +781,12 @@ class EmailService:
         </div>
         """
         
-        return await cls.send_email(user.email, f"Your AgentForge verification code: {code}", html)
+        return await cls.send_email(user.email, f"Your AgentForge verification code: {code}", html, org_id=org_id)
     
     @classmethod
-    async def send_login_notification(cls, user, ip_address: str, user_agent: str) -> bool:
+    async def send_login_notification(cls, user, ip_address: str, user_agent: str, org_id: str = None) -> bool:
         """Send notification of new login"""
+        org_id = org_id or getattr(user, 'org_id', None)
         html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #7c3aed;">New Login Detected 🔔</h2>
@@ -742,7 +804,7 @@ class EmailService:
         </div>
         """
         
-        return await cls.send_email(user.email, "New login to your AgentForge account", html)
+        return await cls.send_email(user.email, "New login to your AgentForge account", html, org_id=org_id)
 
 
 class LDAPService:

@@ -41,6 +41,7 @@ from .settings import (
     SystemSetting, OrganizationSetting,
     APIKey, Integration, UserIntegration
 )
+from .email_settings import EmailSettings
 
 # Audit & Compliance
 from .audit import (
@@ -78,6 +79,7 @@ __all__ = [
     # Configuration
     'SystemSetting', 'OrganizationSetting',
     'APIKey', 'Integration', 'UserIntegration',
+    'EmailSettings',
     
     # Audit & Compliance
     'AuditLog', 'SecurityEvent', 'DataExport', 'ComplianceReport',
