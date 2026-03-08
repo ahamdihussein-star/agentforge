@@ -185,20 +185,47 @@ async def test_email_settings(
             msg.attach(MIMEText(request.message, "plain"))
             msg.attach(MIMEText(html, "html"))
             
-            # Port 465 = implicit SSL, anything else = let aiosmtplib auto-detect STARTTLS
-            if smtp_port == 465:
-                smtp_client = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port, use_tls=True)
-            else:
-                smtp_client = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port)
+            # Try configured port first, then fallback to alternative port
+            # Cloud providers often block port 587, so fallback to 465 (SSL)
+            ports_to_try = [smtp_port]
+            if smtp_port == 587:
+                ports_to_try.append(465)
+            elif smtp_port == 465:
+                ports_to_try.append(587)
             
-            print(f"📧 [TEST] Connecting...")
-            await smtp_client.connect()
-            print(f"📧 [TEST] Connected! Logging in...")
-            await smtp_client.login(smtp_user, smtp_pass)
-            print(f"📧 [TEST] Logged in! Sending...")
-            await smtp_client.send_message(msg)
-            await smtp_client.quit()
-            print(f"✅ [TEST] Email sent to {request.to_email}")
+            last_error = None
+            for port in ports_to_try:
+                try:
+                    print(f"📧 [TEST] Trying port {port}...")
+                    if port == 465:
+                        smtp_client = aiosmtplib.SMTP(hostname=smtp_host, port=port, use_tls=True, timeout=15)
+                    else:
+                        smtp_client = aiosmtplib.SMTP(hostname=smtp_host, port=port, timeout=15)
+                    
+                    await smtp_client.connect()
+                    print(f"📧 [TEST] Connected on port {port}! Logging in...")
+                    await smtp_client.login(smtp_user, smtp_pass)
+                    print(f"📧 [TEST] Logged in! Sending...")
+                    await smtp_client.send_message(msg)
+                    await smtp_client.quit()
+                    print(f"✅ [TEST] Email sent to {request.to_email} via port {port}")
+                    
+                    # Update saved port if fallback worked
+                    if port != smtp_port:
+                        print(f"📧 [TEST] Updating saved port from {smtp_port} to {port}")
+                        service.update(user.org_id, smtp_port=port)
+                    
+                    last_error = None
+                    break
+                except Exception as port_err:
+                    last_error = port_err
+                    print(f"❌ [TEST] Port {port} failed: {port_err}")
+                    continue
+            
+            if last_error:
+                raise last_error
+            
+            print(f"✅ [TEST] Email sent successfully")
             
             # Update test status
             service.update(user.org_id, last_test_success=True, last_error=None)

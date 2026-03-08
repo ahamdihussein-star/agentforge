@@ -575,32 +575,35 @@ class EmailService:
                         part.add_header("Content-Disposition", "attachment", filename=fname or os.path.basename(fpath))
                         msg.attach(part)
 
-                    # aiosmtplib 3.0 auto-handles STARTTLS for port 587
-                    # Only set use_tls=True for port 465 (implicit SSL)
-                    use_implicit_tls = (smtp_port == 465)
+                    # Try configured port first, fallback to alternative
+                    # Cloud providers often block port 587, so try 465 (SSL) as fallback
+                    ports_to_try = [smtp_port]
+                    if smtp_port == 587:
+                        ports_to_try.append(465)
+                    elif smtp_port == 465:
+                        ports_to_try.append(587)
                     
-                    print(f"📧 [SMTP] Connecting to {smtp_host}:{smtp_port} (implicit_tls={use_implicit_tls})")
+                    for port in ports_to_try:
+                        try:
+                            print(f"📧 [SMTP] Trying {smtp_host}:{port}...")
+                            if port == 465:
+                                smtp = aiosmtplib.SMTP(hostname=smtp_host, port=port, use_tls=True, timeout=15)
+                            else:
+                                smtp = aiosmtplib.SMTP(hostname=smtp_host, port=port, timeout=15)
+                            await smtp.connect()
+                            print(f"📧 [SMTP] Connected on port {port}, logging in...")
+                            await smtp.login(smtp_user, smtp_pass)
+                            print(f"📧 [SMTP] Logged in, sending...")
+                            await smtp.send_message(msg)
+                            await smtp.quit()
+                            print(f"✅ Email sent to {to_email} via SMTP ({smtp_host}:{port})")
+                            return True
+                        except Exception as port_err:
+                            print(f"❌ [SMTP] Port {port} failed: {port_err}")
+                            continue
                     
-                    if use_implicit_tls:
-                        smtp = aiosmtplib.SMTP(
-                            hostname=smtp_host,
-                            port=smtp_port,
-                            use_tls=True,
-                        )
-                    else:
-                        # Port 587 or other: let aiosmtplib auto-detect STARTTLS
-                        smtp = aiosmtplib.SMTP(
-                            hostname=smtp_host,
-                            port=smtp_port,
-                        )
-                    await smtp.connect()
-                    print(f"📧 [SMTP] Connected, logging in as {smtp_user}...")
-                    await smtp.login(smtp_user, smtp_pass)
-                    print(f"📧 [SMTP] Logged in, sending message...")
-                    await smtp.send_message(msg)
-                    await smtp.quit()
-                    print(f"✅ Email sent to {to_email} via SMTP ({smtp_host})")
-                    return True
+                    print(f"❌ All SMTP ports failed for {smtp_host}")
+                    return False
                 except Exception as e:
                     import traceback
                     print(f"❌ Error sending email via SMTP: {e}")
