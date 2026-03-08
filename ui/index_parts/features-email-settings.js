@@ -62,7 +62,7 @@ async function loadEmailSettings() {
         
         if (data.provider === 'smtp') {
             document.getElementById('email-smtp-host').value = data.smtp_host || '';
-            document.getElementById('email-smtp-port').value = data.smtp_port || 587;
+            document.getElementById('email-smtp-port').value = data.smtp_port || 465;
             document.getElementById('email-smtp-user').value = data.smtp_user || '';
             document.getElementById('email-smtp-tls').checked = data.smtp_use_tls !== false;
         }
@@ -127,7 +127,7 @@ async function saveEmailSettings() {
         }
         
         settings.smtp_host = smtpHost;
-        settings.smtp_port = parseInt(document.getElementById('email-smtp-port').value) || 587;
+        settings.smtp_port = parseInt(document.getElementById('email-smtp-port').value) || 465;
         settings.smtp_user = smtpUser;
         settings.smtp_password = smtpPass;
         settings.smtp_use_tls = document.getElementById('email-smtp-tls').checked;
