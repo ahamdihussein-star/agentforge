@@ -70,6 +70,7 @@ def main():
             SystemSetting, OrganizationSetting,
             APIKey, Integration, UserIntegration
         )
+        from database.models.email_settings import EmailSettings
         
         print("   🔒 Loading Audit & Compliance models...")
         from database.models.audit import AuditLog, SecurityEvent, DataExport, ComplianceReport

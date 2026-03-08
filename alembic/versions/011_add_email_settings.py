@@ -1,7 +1,10 @@
 """Add email_settings table
 
-Revision ID: 20240115_email_settings
-Revises: 
+Centralized email notification configuration per organization.
+Supports SMTP, SendGrid, and AWS SES providers.
+
+Revision ID: 011_add_email_settings
+Revises: 010_add_username_login
 Create Date: 2024-01-15
 
 """
@@ -10,8 +13,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '20240115_email_settings'
-down_revision = None
+revision = '011_add_email_settings'
+down_revision = '010_add_username_login'
 branch_labels = None
 depends_on = None
 
