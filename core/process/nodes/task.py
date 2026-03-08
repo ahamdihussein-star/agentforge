@@ -367,6 +367,30 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 "- Follow the user's prompt rules for classification and risk exactly as specified.\n"
                 "  The prompt defines what constitutes each risk level — use those definitions, not your own.\n"
                 "- If a record has NO anomalies, explicitly classify it (e.g., 'Clean', 'No Risk').\n"
+                "\n"
+                "LINE ITEM VALIDATION ORDER (MANDATORY — follow this exact sequence for EACH line item):\n"
+                "  STEP 1 — DESCRIPTION CHECK: Does the invoice line item description exist in the PO line items?\n"
+                "    - Use exact or near-exact matching. Minor spelling/abbreviation differences count as matched\n"
+                "      (e.g., 'Consulting Fee' vs 'Consulting Fees'). Major semantic differences do NOT match\n"
+                "      (e.g., 'Storage Services' vs 'Storage Rental' are different items).\n"
+                "    - If NOT found: flag as 'Extra Line Item'. DO NOT proceed to quantity or price check for this item.\n"
+                "    - If found: proceed to STEP 2.\n"
+                "  STEP 2 — QUANTITY CHECK: Compare invoice line item quantity vs PO line item quantity.\n"
+                "    - ONLY flag 'Quantity Mismatch' if the two quantities are DIFFERENT numbers.\n"
+                "    - If invoice_qty == po_qty (same number), there is NO quantity finding — skip.\n"
+                "  STEP 3 — PRICE CHECK: Compare invoice unit price vs PO unit price.\n"
+                "    - You MUST perform this check for EVERY matched line item. Never skip.\n"
+                "    - Calculate absolute difference: abs(invoice_price - po_price).\n"
+                "    - Apply the classification rules from the user's prompt exactly.\n"
+                "    - If price difference is 0, there is NO price finding — skip.\n"
+                "\n"
+                "ANOMALY TYPE DISAMBIGUATION:\n"
+                "- 'Extra Line Item': invoice has an item whose description does NOT match any PO line item.\n"
+                "- 'Quantity Mismatch': descriptions match BUT quantities differ (invoice_qty != po_qty).\n"
+                "- NEVER classify a finding as 'Quantity Mismatch' when the two quantities are equal.\n"
+                "- NEVER classify a finding as 'Quantity Mismatch' when the descriptions don't match\n"
+                "  (that is an 'Extra Line Item', not a quantity issue).\n"
+                "- A single line item can have MULTIPLE findings (e.g., both Quantity Mismatch AND Price Discrepancy).\n"
             )
             if self.get_config_value(node, "temperature") is None:
                 temperature = min(float(temperature or 0.3), 0.3)
@@ -1331,6 +1355,18 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                 re.I
             ),
             re.compile(r"([-0-9.,]+)\s*(?:vs|versus)\s*([-0-9.,]+)", re.I),
+            # Catches: "quantity 1 does not match ... quantity 1"
+            re.compile(
+                r"(?:quantity|qty|price|amount|total)\s+([-0-9.,]+)\s+does\s+not\s+match.*?"
+                r"(?:quantity|qty|price|amount|total)\s+([-0-9.,]+)",
+                re.I | re.DOTALL
+            ),
+            # Catches: "item quantity: 1, PO quantity: 1" or "invoice qty 1, po qty 1"
+            re.compile(
+                r"(?:invoice|item|source)\s+(?:quantity|qty|price|amount)\s*[:=]?\s*([-0-9.,]+).*?"
+                r"(?:po|purchase\s*order|target|expected)\s+(?:quantity|qty|price|amount)\s*[:=]?\s*([-0-9.,]+)",
+                re.I | re.DOTALL
+            ),
         ]
 
         def _extract_pair_from_text(t: str):
@@ -1381,6 +1417,18 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                             item.get("expected") or item.get("target") or item.get("po") or item.get("value2")
                             or item.get("system") or item.get("sys")
                         )
+                        # Fallback: parse free-text detail/description field when structured fields absent
+                        if a is None or b is None:
+                            detail_text = str(
+                                item.get("detail") or item.get("description") or item.get("explanation")
+                                or item.get("message") or item.get("reason") or ""
+                            )
+                            if detail_text:
+                                fa, fb = _extract_pair_from_text(detail_text)
+                                if a is None:
+                                    a = fa
+                                if b is None:
+                                    b = fb
                         if _eq(a, b):
                             nonlocal_removed += 1
                             logs.append(f"🧹 Removed false discrepancy in '{list_key}': values equal ({a} vs {b})")
