@@ -533,7 +533,7 @@ async def test_send_notification(
     from core.process.services.notification import NotificationService
     from core.security import EmailService as PlatformEmailService
 
-    svc = NotificationService(db=db, platform_email_service=PlatformEmailService)
+    svc = NotificationService(db=db, platform_email_service=PlatformEmailService, org_id=str(user.org_id))
     result = await svc.send(
         channel="email",
         recipients=[str(x).strip() for x in request.recipients if str(x).strip()],

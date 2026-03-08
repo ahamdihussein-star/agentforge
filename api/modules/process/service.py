@@ -2275,10 +2275,11 @@ class ProcessAPIService:
             from core.security import EmailService as PlatformEmailService
             notification_service = NotificationService(
                 db=self.db,
-                platform_email_service=PlatformEmailService
+                platform_email_service=PlatformEmailService,
+                org_id=org_id,
             )
         except ImportError:
-            notification_service = NotificationService(db=self.db)
+            notification_service = NotificationService(db=self.db, org_id=org_id)
         
         # Build approval service
         approval_service = ApprovalService(

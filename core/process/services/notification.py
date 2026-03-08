@@ -28,7 +28,13 @@ class NotificationService:
     When platform_email_service is set, email channel uses the same service as reset password and MFA.
     """
     
-    def __init__(self, db=None, config: Dict[str, Any] = None, platform_email_service: Any = None):
+    def __init__(
+        self,
+        db=None,
+        config: Dict[str, Any] = None,
+        platform_email_service: Any = None,
+        org_id: str = None,
+    ):
         """
         Initialize notification service.
         
@@ -41,6 +47,7 @@ class NotificationService:
         self.db = db
         self.config = config or {}
         self.platform_email_service = platform_email_service
+        self.org_id = org_id
         
         # Channel handlers
         self._handlers = {
@@ -162,6 +169,7 @@ class NotificationService:
                         html_content,
                         text_content=text_content,
                         attachments=attachments,
+                        org_id=self.org_id,
                     )
                     if ok:
                         sent += 1
@@ -190,12 +198,12 @@ class NotificationService:
         smtp_config = self.config.get('email', config or {})
         
         if not smtp_config.get('smtp_host'):
-            logger.info(f"Email notification (no SMTP): {title} -> {recipients}")
+            logger.info(f"Email notification not sent (no provider configured): {title} -> {recipients}")
             return {
-                'success': True,
+                'success': False,
                 'channel': 'email',
                 'recipients_count': len(recipients),
-                'note': 'SMTP not configured - notification logged only'
+                'reason': 'Email sending is not configured yet. Please set up Email Notifications in Settings.'
             }
         
         # Send via SMTP (with attachment support)
