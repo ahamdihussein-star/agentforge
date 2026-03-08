@@ -39,6 +39,7 @@ python-multipart==0.0.6
 
 # Async Support
 aiofiles==23.2.1
+aiosmtplib==3.0.1
 
 # Utils
 python-dotenv==1.0.0

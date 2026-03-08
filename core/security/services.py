@@ -435,6 +435,13 @@ class EmailService:
     FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "AgentForge")
     BASE_URL = os.environ.get("BASE_URL", "http://localhost:8001")
     
+    # Optional SMTP fallback (when SendGrid is not configured)
+    SMTP_HOST = os.environ.get("SMTP_HOST", "")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", "587") or "587")
+    SMTP_USER = os.environ.get("SMTP_USER", "")
+    SMTP_PASS = os.environ.get("SMTP_PASS", "")
+    SMTP_USE_TLS = (os.environ.get("SMTP_USE_TLS", "true") or "true").strip().lower() in ["1", "true", "yes", "y"]
+    
     @classmethod
     async def send_email(
         cls,
@@ -444,7 +451,7 @@ class EmailService:
         text_content: str = None,
         attachments: list = None,
     ) -> bool:
-        """Send an email using SendGrid.
+        """Send an email using SendGrid (preferred) with SMTP fallback.
 
         Args:
             attachments: Optional list of dicts, each with keys:
@@ -452,8 +459,60 @@ class EmailService:
                 - filename (str): name shown to recipient
                 - mime_type (str, optional): MIME type (auto-detected if omitted)
         """
+        # Prefer SendGrid when configured
         if not cls.SENDGRID_API_KEY:
-            print(f"⚠️ SendGrid not configured. Email to {to_email} not sent.")
+            # Fallback to SMTP when configured
+            if cls.SMTP_HOST and cls.SMTP_USER and cls.SMTP_PASS:
+                try:
+                    import aiosmtplib
+                    from email.mime.text import MIMEText
+                    from email.mime.multipart import MIMEMultipart
+                    from email.mime.base import MIMEBase
+                    from email import encoders
+                    import mimetypes
+
+                    msg = MIMEMultipart()
+                    msg["From"] = cls.FROM_EMAIL
+                    msg["To"] = to_email
+                    msg["Subject"] = (subject or "Notification").strip() or "Notification"
+
+                    # Build multipart alternative (text + html)
+                    alt = MIMEMultipart("alternative")
+                    alt.attach(MIMEText(text_content or html_content or "", "plain"))
+                    alt.attach(MIMEText(html_content or (text_content or ""), "html"))
+                    msg.attach(alt)
+
+                    # Attachments (optional)
+                    for att in (attachments or []):
+                        fpath = (att or {}).get("path", "")
+                        fname = (att or {}).get("filename", "")
+                        if not fpath or not os.path.isfile(fpath):
+                            continue
+                        mime = (att or {}).get("mime_type") or mimetypes.guess_type(fname or fpath)[0] or "application/octet-stream"
+                        maintype, subtype = mime.split("/", 1) if "/" in mime else ("application", "octet-stream")
+                        part = MIMEBase(maintype, subtype)
+                        with open(fpath, "rb") as fp:
+                            part.set_payload(fp.read())
+                        encoders.encode_base64(part)
+                        part.add_header("Content-Disposition", "attachment", filename=fname or os.path.basename(fpath))
+                        msg.attach(part)
+
+                    smtp = aiosmtplib.SMTP(
+                        hostname=cls.SMTP_HOST,
+                        port=cls.SMTP_PORT,
+                        use_tls=cls.SMTP_USE_TLS,
+                    )
+                    await smtp.connect()
+                    await smtp.login(cls.SMTP_USER, cls.SMTP_PASS)
+                    await smtp.send_message(msg)
+                    await smtp.quit()
+                    print(f"✅ Email sent to {to_email} (SMTP)")
+                    return True
+                except Exception as e:
+                    print(f"❌ Error sending email via SMTP: {e}")
+                    return False
+
+            print(f"⚠️ Email not configured. Email to {to_email} not sent.")
             print(f"   Subject: {subject}")
             return False
         
