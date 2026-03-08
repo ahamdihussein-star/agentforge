@@ -541,18 +541,44 @@ class EmailService:
         # Resend (HTTP-based, works on all cloud providers)
         if provider == 'resend' and sendgrid_key:
             try:
+                import os
+                import base64
+                import mimetypes
                 import httpx
+                payload = {
+                    "from": f"{from_name} <{from_email}>",
+                    "to": [to_email],
+                    "subject": (subject or "Notification").strip() or "Notification",
+                    "html": html_content or (text_content or ""),
+                    "text": text_content or "",
+                }
+
+                if attachments:
+                    resend_attachments = []
+                    for att in (attachments or []):
+                        try:
+                            fpath = (att or {}).get("path", "")
+                            fname = (att or {}).get("filename", "")
+                            if not fpath or not os.path.isfile(fpath):
+                                continue
+                            mime = (att or {}).get("mime_type") or mimetypes.guess_type(fname or fpath)[0] or "application/octet-stream"
+                            with open(fpath, "rb") as f:
+                                b64 = base64.b64encode(f.read()).decode("utf-8")
+                            resend_attachments.append({
+                                "filename": fname or os.path.basename(fpath),
+                                "content": b64,
+                                "content_type": mime,
+                            })
+                        except Exception:
+                            continue
+                    if resend_attachments:
+                        payload["attachments"] = resend_attachments
+
                 async with httpx.AsyncClient() as client:
                     resp = await client.post(
                         "https://api.resend.com/emails",
                         headers={"Authorization": f"Bearer {sendgrid_key}", "Content-Type": "application/json"},
-                        json={
-                            "from": f"{from_name} <{from_email}>",
-                            "to": [to_email],
-                            "subject": (subject or "Notification").strip() or "Notification",
-                            "html": html_content or (text_content or ""),
-                            "text": text_content or ""
-                        },
+                        json=payload,
                         timeout=30
                     )
                 if resp.status_code in (200, 201):
