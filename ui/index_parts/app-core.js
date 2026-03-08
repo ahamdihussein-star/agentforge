@@ -2580,6 +2580,18 @@ const API='';
             // Toggle AI prompt blocks
             document.getElementById('create-ai-conversational')?.classList.toggle('hidden', selectedAgentType !== 'conversational');
             document.getElementById('create-ai-process')?.classList.toggle('hidden', selectedAgentType !== 'process');
+
+            // Update generate button label per agent type
+            const _genBtn = document.getElementById('create-flow-generate-btn');
+            if (_genBtn) {
+                _genBtn.textContent = (selectedAgentType === 'process') ? 'Suggest Tasks →' : 'Generate with AI';
+            }
+            // Always show nav when switching type (reset any hidden state from tasks step)
+            if (selectedAgentType === 'process') {
+                document.getElementById('proc-substep-tasks')?.classList.add('hidden');
+                document.getElementById('proc-substep-goal')?.classList.remove('hidden');
+                document.getElementById('proc-wizard-nav')?.classList.remove('hidden');
+            }
         }
         
         // =========================================================================
@@ -2698,11 +2710,163 @@ const API='';
         
         function createFlowGenerate() {
             if (selectedAgentType === 'process') {
-                return generateProcessConfig();
+                return proc_suggestTasks();
             }
             return generateAgentConfig();
         }
         
+        // =========================================================================
+        // STRUCTURED PROCESS WIZARD — Goal → Tasks → Generate
+        // =========================================================================
+
+        let _procTasks = []; // Current task list state
+
+        async function proc_suggestTasks() {
+            const goal = document.getElementById('w-process-goal')?.value.trim();
+            if (!goal) {
+                showToast('Please describe your workflow goal first.', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('create-flow-generate-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Analyzing...'; }
+
+            try {
+                const res = await fetch('/process/wizard/analyze-goal', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (authToken || localStorage.getItem('agentforge_token'))
+                    },
+                    body: JSON.stringify({ goal })
+                });
+                const data = await res.json();
+                if (data.success && Array.isArray(data.tasks) && data.tasks.length > 0) {
+                    _procTasks = data.tasks.map((t, i) => ({
+                        id: t.id || ('task_' + (i + 1)),
+                        name: t.name || ('Task ' + (i + 1)),
+                        type: t.type || 'ai',
+                        instructions: (t.suggested_instructions || []).join('\n')
+                    }));
+                    proc_showTasksStep();
+                } else {
+                    showToast('Could not suggest tasks. Please try again.', 'error');
+                }
+            } catch (e) {
+                console.error('proc_suggestTasks error:', e);
+                showToast('Could not connect. Please try again.', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Suggest Tasks →'; }
+            }
+        }
+
+        function proc_showTasksStep() {
+            document.getElementById('proc-substep-goal')?.classList.add('hidden');
+            document.getElementById('proc-wizard-nav')?.classList.add('hidden');
+            const tasksPanel = document.getElementById('proc-substep-tasks');
+            if (tasksPanel) tasksPanel.classList.remove('hidden');
+            proc_renderTaskList();
+        }
+
+        function proc_goBackToGoal() {
+            document.getElementById('proc-substep-tasks')?.classList.add('hidden');
+            document.getElementById('proc-substep-goal')?.classList.remove('hidden');
+            document.getElementById('proc-wizard-nav')?.classList.remove('hidden');
+            const btn = document.getElementById('create-flow-generate-btn');
+            if (btn) { btn.disabled = false; btn.textContent = 'Suggest Tasks →'; }
+        }
+
+        const TASK_TYPE_LABELS = {
+            form: { icon: '📋', label: 'Form', color: 'blue' },
+            ai: { icon: '🧠', label: 'AI', color: 'purple' },
+            tool: { icon: '🔧', label: 'Tool / API', color: 'yellow' },
+            condition: { icon: '⚡', label: 'Condition', color: 'orange' },
+            approval: { icon: '✅', label: 'Approval', color: 'green' },
+            notification: { icon: '📧', label: 'Notification', color: 'sky' },
+        };
+
+        function proc_renderTaskList() {
+            const container = document.getElementById('proc-task-list');
+            if (!container) return;
+            container.innerHTML = '';
+            _procTasks.forEach((task, idx) => {
+                const meta = TASK_TYPE_LABELS[task.type] || { icon: '⚙️', label: task.type, color: 'gray' };
+                const card = document.createElement('div');
+                card.className = 'rounded-xl border border-gray-700 bg-gray-900/50 p-4';
+                card.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-xs font-bold text-gray-300 mt-0.5">${idx + 1}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-2 flex-wrap">
+                                <input type="text" value="${_escHtml(task.name)}" onchange="proc_updateTask(${idx},'name',this.value)"
+                                    class="input-field rounded-lg px-3 py-1.5 text-sm font-semibold flex-1 min-w-0" placeholder="Task name" />
+                                <select onchange="proc_updateTask(${idx},'type',this.value)"
+                                    class="input-field rounded-lg px-2 py-1.5 text-xs" style="max-width:140px;">
+                                    ${Object.entries(TASK_TYPE_LABELS).map(([v, m]) =>
+                                        `<option value="${v}"${task.type===v?' selected':''}>${m.icon} ${m.label}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                            <textarea rows="3" onchange="proc_updateTask(${idx},'instructions',this.value)"
+                                class="input-field w-full rounded-lg px-3 py-2 text-xs text-gray-300 resize-none" placeholder="Instructions for this task (one per line)...">${_escHtml(task.instructions)}</textarea>
+                        </div>
+                        <button onclick="proc_removeTask(${idx})" title="Remove task"
+                            class="flex-shrink-0 w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center transition text-base">&times;</button>
+                    </div>`;
+                container.appendChild(card);
+            });
+        }
+
+        function _escHtml(s) {
+            return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function proc_updateTask(idx, field, value) {
+            if (_procTasks[idx]) _procTasks[idx][field] = value;
+        }
+
+        function proc_removeTask(idx) {
+            _procTasks.splice(idx, 1);
+            proc_renderTaskList();
+        }
+
+        function proc_addTask() {
+            _procTasks.push({
+                id: 'task_' + (_procTasks.length + 1),
+                name: '',
+                type: 'ai',
+                instructions: ''
+            });
+            proc_renderTaskList();
+            // Scroll to last card
+            const container = document.getElementById('proc-task-list');
+            if (container) container.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function proc_generateFromTasks() {
+            if (_procTasks.length === 0) {
+                showToast('Please add at least one task.', 'warning');
+                return;
+            }
+            // Convert to payload format: each task has name, type, instructions array
+            wizard._structuredTasks = _procTasks.map(t => ({
+                id: t.id,
+                name: t.name || 'Unnamed Task',
+                type: t.type,
+                instructions: (t.instructions || '')
+                    .split('\n')
+                    .map(s => s.trim())
+                    .filter(Boolean)
+            }));
+            generateProcessConfig();
+        }
+
+        window.proc_goBackToGoal = proc_goBackToGoal;
+        window.proc_addTask = proc_addTask;
+        window.proc_removeTask = proc_removeTask;
+        window.proc_updateTask = proc_updateTask;
+        window.proc_generateFromTasks = proc_generateFromTasks;
+
         function startManualConversationalWizard() {
             try {
                 wizard.creationMode = 'manual';
@@ -2924,6 +3088,7 @@ const API='';
 
                 wizard._lastGeneratePayload = {
                     goal: goal,
+                    tasks: wizard._structuredTasks || undefined,
                     output_format: 'visual_builder',
                     context: { tools: toolsForContext }
                 };

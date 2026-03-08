@@ -2113,32 +2113,55 @@
                             </div>
 
                             <div id="create-ai-process" class="hidden">
-                                <div class="text-center mb-5">
-                                    <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl mb-3">🔄</div>
-                                    <div class="font-bold text-lg">Describe your business process</div>
-                                    <div class="text-sm text-gray-500">AgentForge AI generates the full workflow and opens it in the visual editor</div>
+                                <!-- Sub-step A: Goal Input -->
+                                <div id="proc-substep-goal">
+                                    <div class="text-center mb-5">
+                                        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl mb-3">🔄</div>
+                                        <div class="font-bold text-lg">Describe your workflow goal</div>
+                                        <div class="text-sm text-gray-400 mt-1">AI will suggest the tasks — you review and customize each step before generating</div>
+                                    </div>
+                                    <label class="text-sm text-gray-400 mb-2 block">What should this workflow do? *</label>
+                                    <textarea id="w-process-goal" rows="5" class="input-field w-full rounded-lg px-4 py-4" placeholder="Example: Reconcile invoices against purchase orders, detect anomalies, generate a reconciliation report, and route for approval based on risk level..."></textarea>
+                                    <div class="mt-4 pt-4 border-t border-gray-800">
+                                        <div class="flex items-center justify-between gap-3 mb-3">
+                                            <p class="text-sm text-gray-500">Start from a template (optional):</p>
+                                            <button onclick="openCreateTemplateGallery('process')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition flex items-center gap-2">
+                                                <span>✨</span> Browse templates
+                                            </button>
+                                        </div>
+                                        <div id="proc-template-chips" class="flex flex-wrap gap-2"></div>
+                                    </div>
                                 </div>
-                                <label class="text-sm text-gray-400 mb-2 block">Workflow description *</label>
-                                <textarea id="w-process-goal" rows="4" class="input-field w-full rounded-lg px-4 py-4" placeholder="Example: When an expense over $500 is submitted, send it to the requester’s manager for approval, then notify Finance and update the system..."></textarea>
-                                <div class="mt-5 pt-5 border-t border-gray-800">
-                                    <div class="flex items-center justify-between gap-3 mb-3">
-                                        <p class="text-sm text-gray-500">Start from a template (optional):</p>
-                                        <button onclick="openCreateTemplateGallery('process')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition flex items-center gap-2">
-                                            <span>✨</span> Browse templates
+
+                                <!-- Sub-step B: Tasks Editor -->
+                                <div id="proc-substep-tasks" class="hidden">
+                                    <div class="flex items-start justify-between mb-4 gap-3">
+                                        <div>
+                                            <div class="font-bold text-base">Review workflow tasks</div>
+                                            <div class="text-sm text-gray-400 mt-0.5">Tasks run in this order. Edit the instructions to control exactly what each step does — no guessing by the AI.</div>
+                                        </div>
+                                        <button onclick="proc_goBackToGoal()" class="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition">← Edit Goal</button>
+                                    </div>
+                                    <div id="proc-task-list" class="space-y-3 mb-3"></div>
+                                    <button onclick="proc_addTask()" class="w-full py-2.5 rounded-lg border border-dashed border-gray-700 text-sm text-gray-400 hover:border-gray-500 hover:text-gray-200 transition">
+                                        + Add Task
+                                    </button>
+                                    <p class="text-xs text-gray-500 mt-3">Each task maps to one node in the workflow. The platform follows your instructions exactly — nothing is added or removed.</p>
+                                    <div class="mt-4">
+                                        <button onclick="proc_generateFromTasks()" class="btn-primary w-full py-3 rounded-lg font-medium text-sm">
+                                            Generate Workflow →
                                         </button>
                                     </div>
-                                    <div id="proc-template-chips" class="flex flex-wrap gap-2"></div>
-                                    <p class="text-xs text-gray-500 mt-3">Choosing a template only fills the description above — you can edit it before you press “Generate with AI”.</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="mt-5 flex gap-3">
+                        <div id="proc-wizard-nav" class="mt-5 flex gap-3">
                             <button onclick="createFlowGo('method')" class="px-5 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition">
                                 Back
                             </button>
                             <button onclick="createFlowGenerate()" id="create-flow-generate-btn" class="btn-primary px-6 py-3 rounded-lg flex-1 font-medium">
-                                Generate with AI
+                                Suggest Tasks →
                             </button>
                         </div>
                         <p class="text-xs text-gray-500 mt-3 text-center">You can review and edit everything after generation.</p>

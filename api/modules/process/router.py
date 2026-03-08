@@ -3465,6 +3465,46 @@ def _validate_process_prerequisites(
     return prerequisites
 
 
+@router.post("/wizard/analyze-goal")
+async def analyze_goal_to_tasks(
+    request: Dict[str, Any],
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+):
+    """
+    Break down a workflow goal into an ordered list of explicit tasks.
+    Returns suggested tasks with names, types, and per-task instructions
+    that the process owner can review and edit before generating.
+    """
+    from core.process.wizard import ProcessWizard
+    from database.services.process_settings_service import ProcessSettingsService
+
+    user_dict = _user_to_dict(user)
+    goal = (request.get('goal') or '').strip()
+    if not goal:
+        raise HTTPException(status_code=400, detail="Please provide a workflow goal.")
+
+    settings_service = ProcessSettingsService(db)
+    org_settings = settings_service.get_org_settings(user_dict["org_id"])
+
+    llm = None
+    try:
+        registry = _get_llm_registry()
+        models = registry.list_all(active_only=True)
+        if models:
+            from core.llm.factory import LLMFactory
+            llm = LLMFactory.create(models[0])
+    except Exception:
+        llm = None
+
+    wizard = ProcessWizard(llm=llm, org_settings=org_settings)
+    try:
+        tasks = await wizard.analyze_goal_to_tasks(goal)
+        return {"success": True, "tasks": tasks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not analyze the goal. Please try again.")
+
+
 @router.post("/wizard/generate")
 async def generate_workflow_from_goal(
     request: Dict[str, Any],
@@ -3472,19 +3512,17 @@ async def generate_workflow_from_goal(
     db: Session = Depends(get_db)
 ):
     """
-    Create a workflow from your description
-    
-    Just describe what you want the workflow to do in plain language,
-    and we'll create it for you!
-    
-    Example:
-        "Create an approval workflow for expense reports over $500"
+    Create a workflow from your description.
+    Supports two modes:
+    - Structured: provide goal + tasks (each with name, type, instructions) for precise generation
+    - Classic: provide goal only (AI infers the full structure)
     """
     from core.process.wizard import ProcessWizard
     from database.services.process_settings_service import ProcessSettingsService
     
     user_dict = _user_to_dict(user)
     goal = (request.get('goal') or '').strip()
+    tasks = request.get('tasks')  # Optional: structured task list
     output_format = request.get('output_format') or request.get('format') or 'visual_builder'
     skip_prerequisites = bool(request.get('skip_prerequisites'))
     context = request.get('context') or {}
@@ -3791,11 +3829,20 @@ async def generate_workflow_from_goal(
     wizard = ProcessWizard(llm=llm, org_settings=org_settings)
 
     try:
-        process_def = await wizard.generate_from_goal(
-            goal=goal,
-            additional_context=context,
-            output_format=output_format
-        )
+        # Structured mode: process owner explicitly defined tasks with per-task instructions
+        if tasks and isinstance(tasks, list) and len(tasks) > 0:
+            process_def = await wizard.generate_from_structured_goal(
+                goal=goal,
+                tasks=tasks,
+                additional_context=context,
+            )
+        else:
+            # Classic mode: AI infers the full structure from the goal alone
+            process_def = await wizard.generate_from_goal(
+                goal=goal,
+                additional_context=context,
+                output_format=output_format
+            )
 
         # Post-generation: thorough node-by-node validation for edge
         # cases the pre-check couldn't catch (hallucinated IDs, stale

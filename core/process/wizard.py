@@ -90,6 +90,91 @@ PROCESS_PATTERNS = {
 # WIZARD PROMPTS
 # =============================================================================
 
+TASK_SUGGESTION_PROMPT = """
+You are an expert workflow designer. Break down the user's workflow goal into an ordered list of explicit tasks.
+
+User Goal:
+{goal}
+
+For each task provide:
+- id: "task_N" (sequential)
+- name: Business-friendly name for this step (same language as the goal)
+- type: EXACTLY one of: form | ai | tool | condition | approval | notification
+  - form: collecting input from a user (file upload, form fields)
+  - ai: AI analysis, extraction, classification, document generation
+  - tool: calling an external API or system
+  - condition: branching logic / routing decision
+  - approval: human review and approval
+  - notification: sending an email/message
+- suggested_instructions: A list of SPECIFIC, ACTIONABLE instruction strings for this exact task.
+  Instructions must be precise enough that an AI can execute this task without guessing.
+  BAD: "Process the data"  GOOD: "Extract Invoice Number, PO Number, Vendor Name, Line Items"
+  For condition tasks: specify the exact branching logic and what happens on each branch.
+  For notification tasks: specify who receives it and what the message says.
+
+Rules:
+- List tasks in EXECUTION ORDER
+- Each task must be distinct and independently executable
+- Do NOT merge unrelated logic into one task
+- Do NOT add tasks that were not requested or implied by the goal
+
+Respond ONLY with valid JSON:
+{{
+  "tasks": [
+    {{
+      "id": "task_1",
+      "name": "<business name>",
+      "type": "<form|ai|tool|condition|approval|notification>",
+      "suggested_instructions": ["<specific instruction 1>", "<specific instruction 2>"]
+    }}
+  ]
+}}
+"""
+
+
+STRUCTURED_GENERATION_PROMPT = """
+You are an expert workflow designer. Generate a complete visual-builder process definition from explicitly defined tasks.
+
+Process Goal:
+{goal}
+
+Explicit Task Definitions (execute IN THIS ORDER):
+{tasks_json}
+
+Your responsibilities:
+1. Create exactly ONE node per task (plus trigger at start and end node at finish)
+2. Node name = task name, Node type = task type
+3. STRICTLY use the provided instructions for each node's config — do NOT add, remove, or change them
+4. Wire nodes together in the EXACT ORDER listed
+5. Set up output_variable names and {{{{variableName}}}} references so data flows between nodes
+6. For condition nodes: create yes/no branches exactly as described in the instructions
+7. For approval nodes: set notifyApprover:true with a message from the instructions
+8. For notification nodes: set recipients and template content from the instructions
+9. For form nodes: infer fields from the instructions
+10. For tool nodes: set toolId by matching tool name from available tools
+
+Platform Knowledge:
+{platform_knowledge}
+
+Available tools:
+{tools_json}
+
+Organization structure:
+{org_context}
+
+Node types allowed: trigger, form, ai, tool, condition, approval, notification, end, parallel, call_process
+
+Return ONLY valid JSON in this exact format (same as visual builder):
+- nodes array with id, type, name, config, output_variable (if applicable), x, y
+- edges array with id, source, target, type (yes/no/default)
+- name, description fields
+- condition nodes need config.onTrue, config.onFalse, config.rules array
+- ai nodes need config.aiMode (extract_file / analyze / create_doc), config.prompt or config.instructions array, output_format:json for analysis, outputFields
+- Spacing: 260px vertical between sequential nodes, 520px horizontal between branches
+- "yes" branch goes LEFT (condition.x - 520), "no" branch goes RIGHT (condition.x + 520)
+"""
+
+
 GOAL_ANALYSIS_PROMPT = """You are an expert workflow designer. Analyze the user's goal and determine the best process pattern.
 
 User's Goal: {goal}
@@ -275,12 +360,6 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
      - FALSE branch → sends a notification including the `matchFailureReason` explaining why the data could not be matched, then routes to end.
   This prevents workflows from proceeding to approvals or reports when no meaningful comparison was possible.
   This rule applies universally to ANY domain — finance, HR, procurement, compliance, operations, etc.
-  ⚠️ EXCEPTION — BATCH PROCESSING WITH ALWAYS-DO REPORT:
-  If the user's goal describes generating a report or document that covers ALL items regardless of their individual match status
-  (e.g., "Generate a reconciliation report showing Missing PO, Invalid PO, Clean, and Matched invoices"),
-  that report generation step MUST be placed on the MAIN flow path BEFORE the matchFound condition — NOT inside a branch.
-  Pattern: [Analysis AI] → [Generate Report] → [condition: matchFound / overallRisk] → [TRUE: approval/auto-approve] / [FALSE: notify failure]
-  The FALSE branch must include the generated report as an attachment in the failure notification.
 - RULE-BASED CLASSIFICATION & FINDINGS (CRITICAL):
   When the user's prompt describes rules that classify items or flag findings (e.g., "flag anomaly X as High Risk", "mark as non-compliant", "classify as Critical"), the AI step MUST:
   1. Include a `results` list in `outputFields` with per-item details and their findings/classifications.
@@ -848,6 +927,106 @@ class ProcessWizard:
         content = getattr(response, "content", None)
         return self._extract_json(content or "")
     
+    async def analyze_goal_to_tasks(self, goal: str) -> List[Dict[str, Any]]:
+        """
+        Break down a workflow goal into an ordered list of explicit tasks.
+        Each task has: id, name, type, suggested_instructions.
+        """
+        if not self.llm:
+            return []
+        system_prompt = (
+            "You are an expert workflow designer. "
+            "Return ONLY valid JSON. No markdown, no comments, no extra text."
+        )
+        user_prompt = TASK_SUGGESTION_PROMPT.format(goal=goal)
+        try:
+            data = await self._chat_json(system_prompt, user_prompt, temperature=0.2, max_tokens=2000)
+            if isinstance(data, dict) and isinstance(data.get("tasks"), list):
+                return data["tasks"]
+        except Exception as e:
+            logger.warning("[Wizard] analyze_goal_to_tasks failed: %s", e)
+        return []
+
+    async def generate_from_structured_goal(
+        self,
+        goal: str,
+        tasks: List[Dict[str, Any]],
+        additional_context: Dict[str, Any] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate a process from explicitly defined tasks (structured wizard mode).
+        Each task in `tasks` has: name, type, instructions (list of strings).
+        The AI strictly follows the provided instructions — no inference about structure.
+        """
+        if not self.llm:
+            return self._generate_visual_from_template(goal)
+
+        # Build tools/org context (same as generate_from_goal)
+        tools = []
+        org_context_text = ""
+        platform_knowledge = ""
+        tools_json = "[]"
+        try:
+            if additional_context and isinstance(additional_context, dict):
+                maybe_tools = additional_context.get("tools") or []
+                for t in maybe_tools[:30]:
+                    if isinstance(t, dict):
+                        tools.append({
+                            "id": t.get("id"), "name": t.get("name"),
+                            "type": t.get("type"), "description": t.get("description"),
+                            "input_parameters": t.get("input_parameters") or [],
+                        })
+            tools_json = json.dumps(tools, ensure_ascii=False, indent=2) if tools else "[]"
+        except Exception:
+            pass
+
+        try:
+            query = f"{goal}\n\n" + " ".join(t.get("name", "") for t in tasks)
+            platform_knowledge = retrieve_platform_knowledge(query, top_k=6, max_chars=4000)
+        except Exception:
+            platform_knowledge = ""
+
+        # Build org context (departments, groups) if available
+        org_lines = []
+        if additional_context and isinstance(additional_context, dict):
+            depts = additional_context.get("departments") or []
+            for d in depts[:20]:
+                org_lines.append(f'  - Dept: "{d.get("name")}" (id: {d.get("id")})')
+            groups = additional_context.get("groups") or []
+            for g in groups[:20]:
+                org_lines.append(f'  - Group: "{g.get("name")}" (id: {g.get("id")})')
+        org_context_text = "\n".join(org_lines) if org_lines else "(none)"
+
+        tasks_json = json.dumps(tasks, ensure_ascii=False, indent=2)
+
+        user_prompt = STRUCTURED_GENERATION_PROMPT.format(
+            goal=goal,
+            tasks_json=tasks_json,
+            platform_knowledge=platform_knowledge or "(none)",
+            tools_json=tools_json,
+            org_context=org_context_text,
+        )
+        system_prompt = (
+            "You are an expert workflow designer. "
+            "Generate a visual-builder process JSON from explicitly defined tasks. "
+            "Follow the task instructions EXACTLY — do NOT add, remove, or change them. "
+            "Return ONLY valid JSON. No markdown, no explanation."
+        )
+
+        try:
+            process_def = await self._chat_json(
+                system_prompt, user_prompt, temperature=0.1, max_tokens=6000
+            )
+            if not isinstance(process_def, dict):
+                raise ValueError("Expected dict")
+            # Run the same review + validate passes as the standard wizard
+            process_def = await self._review_and_fix_process(process_def, goal)
+            process_def = self._validate_and_enhance_visual_builder(process_def, {})
+            return process_def
+        except Exception as e:
+            logger.error("[Wizard] generate_from_structured_goal failed: %s", e)
+            return self._generate_visual_from_template(goal)
+
     async def generate_from_goal(
         self,
         goal: str,
@@ -1368,13 +1547,6 @@ class ProcessWizard:
             "11. CONDITION RULES: condition.config must have a 'rules' array (even for single conditions). "
             "Each rule: {field, operator, value}. Use 'connectors' to join rules (and/or), and allow mixed logic. "
             "Set legacy fields: field/operator/value from the first rule.\n\n"
-            "12. ALWAYS-DO STEPS BEFORE CONDITIONS: If the original goal describes a step that applies to "
-            "ALL outcomes (e.g., 'Generate a report for all processed items', 'Create a summary document'), "
-            "that step MUST be on the MAIN flow path BEFORE any condition node — NOT inside a conditional branch. "
-            "Check: if a 'file_operation', 'ai' (create_doc/generate_report), or similar node is only reachable via "
-            "the TRUE branch of a condition but the goal says to generate it for ALL cases (including failures), "
-            "MOVE it to the main path before the condition. Update edges accordingly. "
-            "This is the most common generation mistake for batch/document processing workflows.\n\n"
             "Return the CORRECTED process JSON (full object). No markdown, no explanation."
         )
 
