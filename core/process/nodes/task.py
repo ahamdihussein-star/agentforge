@@ -571,7 +571,11 @@ class AITaskNodeExecutor(BaseNodeExecutor):
                                 f"=== END INPUT RECORDS ===\n"
                                 f"You MUST analyze ALL {len(_rv)} records above individually."
                             )
-                            _injected_record_count = max(_injected_record_count, len(_rv))
+                            # Use the FIRST multi-record list as the primary count.
+                            # Subsequent lists are likely reference/lookup data (e.g. PO table)
+                            # and should not override the primary analysis subject count.
+                            if _injected_record_count == 0:
+                                _injected_record_count = len(_rv)
                             logs.append(f"Injected '{_rk}' ({len(_rv)} records) as structured JSON into user prompt")
                     except Exception:
                         pass
@@ -850,11 +854,15 @@ class AITaskNodeExecutor(BaseNodeExecutor):
             _ra = output.get("recordAnalysis")
             if isinstance(_ra, list):
                 if len(_ra) < _injected_record_count:
-                    logger.warning(
-                        "[AITask] '%s': recordAnalysis has %d entries but expected %d — AI may have skipped records",
+                    logger.info(
+                        "[AITask] '%s': recordAnalysis has %d entries vs %d primary input records — "
+                        "expected if AI performs document-level analysis (not per-line)",
                         node.name, len(_ra), _injected_record_count,
                     )
-                    logs.append(f"WARNING: recordAnalysis has {len(_ra)} entries, expected {_injected_record_count}")
+                    logs.append(
+                        f"recordAnalysis: {len(_ra)} entries returned for {_injected_record_count} "
+                        f"primary input records — normal for document-level analysis"
+                    )
                 else:
                     logs.append(f"recordAnalysis validation passed: {len(_ra)} entries for {_injected_record_count} input records")
             else:

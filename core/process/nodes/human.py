@@ -1988,6 +1988,15 @@ class NotificationNodeExecutor(BaseNodeExecutor):
         # ── Resolve file attachments ──────────────────────────────────────
         resolved_attachments = self._resolve_attachments(node, state, logs)
 
+        if resolved_attachments:
+            logs.append(f"Attachments ready to send: {[a['filename'] for a in resolved_attachments]}")
+        else:
+            logs.append(
+                "ℹ️ No file attachment will be included in this notification. "
+                "If a report was expected to be attached, make sure a 'Report Generation' "
+                "step runs and completes BEFORE this notification in the process flow."
+            )
+
         # Send notification
         try:
             logger.info(
@@ -2010,15 +2019,20 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             
             logs.append(f"Notification sent successfully")
             
-            return NodeResult.success(
-                output={
-                    'sent': True,
-                    'channel': channel,
-                    'recipients_count': len(interpolated_recipients),
-                    'result': result
-                },
-                logs=logs
-            )
+            _out: dict = {
+                'sent': True,
+                'channel': channel,
+                'recipients_count': len(interpolated_recipients),
+                'attachments_sent': len(resolved_attachments),
+                'result': result,
+            }
+            if not resolved_attachments:
+                _out['attachment_notice'] = (
+                    "Notification sent without any file attachment. "
+                    "If a report was expected, ensure a Report Generation step runs "
+                    "before this notification in the process flow."
+                )
+            return NodeResult.success(output=_out, logs=logs)
             
         except Exception as e:
             logs.append(f"Failed to send notification: {e}")
