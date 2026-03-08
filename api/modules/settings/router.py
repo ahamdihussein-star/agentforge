@@ -271,8 +271,21 @@ async def test_email_settings(
                 service.update(user.org_id, last_test_success=True, last_error=None)
                 return {"status": "success", "message": f"Test email sent to {request.to_email}"}
             else:
-                error_body = resp.text
-                raise ValueError(f"Resend API error ({resp.status_code}): {error_body}")
+                friendly_error = "Email provider rejected the request. Please check your configuration."
+                try:
+                    data = resp.json() if resp.text else {}
+                    msg = (data or {}).get("message") or ""
+                    if resp.status_code == 403 and "domain" in msg.lower() and "not verified" in msg.lower():
+                        friendly_error = (
+                            "Your email domain is not verified in Resend yet. "
+                            "Please open Resend → Domains, add 'agentforge.to', then add the DNS records and wait for verification."
+                        )
+                    elif msg:
+                        friendly_error = msg
+                except Exception:
+                    pass
+
+                raise ValueError(friendly_error)
         
         elif settings.provider == 'sendgrid':
             success = await EmailService.send_email(
@@ -296,7 +309,7 @@ async def test_email_settings(
     except Exception as e:
         import traceback
         traceback.print_exc()
-        error_msg = str(e) or "Unknown error"
+        error_msg = str(e) or "Email sending failed"
         print(f"❌ [TEST] Failed: {error_msg}")
         
         # Update error status
@@ -305,10 +318,14 @@ async def test_email_settings(
         except Exception:
             pass
         
-        # Provide user-friendly error message
         user_msg = error_msg
         if 'Timed out' in error_msg:
-            user_msg = "Could not connect to email server. This hosting provider may block SMTP. Try using Resend (HTTP-based) instead."
+            user_msg = "Could not connect to the email server. This hosting provider may block SMTP. Please use Resend (recommended for cloud)."
+        if 'not verified' in error_msg.lower() and 'domain' in error_msg.lower():
+            user_msg = (
+                "Your email domain is not verified yet. "
+                "In Resend, add the domain and complete the DNS verification, then try again."
+            )
         raise HTTPException(
             status_code=500,
             detail=user_msg
