@@ -1853,8 +1853,14 @@ class FileOperationNodeExecutor(BaseNodeExecutor):
             col_widths[col_idx] = max(col_widths.get(col_idx, 8), length)
 
         def _clean_md(text: str) -> str:
-            """Strip markdown bold/italic markers for cell values."""
-            t = re.sub(r'\*\*(.+?)\*\*', r'\1', str(text))
+            """Strip markdown bold/italic markers and HTML tags for cell values."""
+            t = str(text)
+            # Replace HTML line breaks with actual newlines before stripping tags
+            t = re.sub(r'<br\s*/?>', '\n', t, flags=re.I)
+            # Strip remaining HTML tags
+            t = re.sub(r'<[^>]+>', '', t)
+            # Strip markdown formatting
+            t = re.sub(r'\*\*(.+?)\*\*', r'\1', t)
             t = re.sub(r'\*(.+?)\*', r'\1', t)
             t = re.sub(r'__(.+?)__', r'\1', t)
             t = re.sub(r'_(.+?)_', r'\1', t)
