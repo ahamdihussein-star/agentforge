@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr
 from database.config import get_db
 from database.services.email_settings_service import EmailSettingsService
 from core.security import EmailService
-from api.dependencies import require_auth, User
+from api.security import require_auth, User
 
 router = APIRouter(tags=["settings"])
 
