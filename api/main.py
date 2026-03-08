@@ -4403,6 +4403,14 @@ try:
     print("✅ Identity & Org Chart module registered")
 except ImportError as e:
     print(f"⚠️ Identity & Org Chart module not available: {e}")
+
+# Settings module (Email notifications, etc.)
+try:
+    from api.modules.settings import router as settings_router
+    app.include_router(settings_router)
+    print("✅ Settings module registered")
+except ImportError as e:
+    print(f"⚠️ Settings module not available: {e}")
     import traceback
     traceback.print_exc()
 
