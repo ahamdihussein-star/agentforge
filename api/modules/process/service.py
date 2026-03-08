@@ -2245,6 +2245,10 @@ class ProcessAPIService:
         """
         llm = None
         tools = {}
+
+        # Resolve org_id for downstream services (notifications, approvals, etc.)
+        # Prefer the Agent's org_id since dependencies are built per agent.
+        org_id = str(getattr(agent, "org_id", "") or "")
         
         # Get LLM
         if self.llm_registry and agent.model_id:
