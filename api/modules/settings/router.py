@@ -67,6 +67,8 @@ async def get_email_settings(
     return {
         "configured": True,
         "provider": settings.provider,
+        "has_api_key": bool(settings.sendgrid_api_key),
+        "has_smtp_password": bool(settings.smtp_password),
         "smtp_host": settings.smtp_host,
         "smtp_port": settings.smtp_port,
         "smtp_user": settings.smtp_user,
@@ -94,14 +96,12 @@ async def create_or_update_email_settings(
     
     # Store Resend API key in sendgrid_api_key field (reuse column, provider field distinguishes)
     api_key = request.sendgrid_api_key or request.resend_api_key
-    
+
     settings_data = {
         "provider": request.provider,
-        "sendgrid_api_key": api_key,
         "smtp_host": request.smtp_host,
         "smtp_port": request.smtp_port,
         "smtp_user": request.smtp_user,
-        "smtp_password": request.smtp_password,
         "smtp_use_tls": request.smtp_use_tls,
         "from_email": request.from_email,
         "from_name": request.from_name,
@@ -109,10 +109,21 @@ async def create_or_update_email_settings(
         "is_active": request.is_active,
         "updated_by": user.id
     }
+
+    # Only update secrets if explicitly provided (avoid wiping on save)
+    if api_key not in (None, ""):
+        settings_data["sendgrid_api_key"] = api_key
+    if request.smtp_password not in (None, ""):
+        settings_data["smtp_password"] = request.smtp_password
     
     if existing:
         settings = service.update(user.org_id, **settings_data)
     else:
+        # New config needs its secret at least once
+        if request.provider in ("sendgrid", "resend") and api_key in (None, ""):
+            raise HTTPException(status_code=400, detail="API Key is required")
+        if request.provider == "smtp" and request.smtp_password in (None, ""):
+            raise HTTPException(status_code=400, detail="SMTP password is required")
         settings_data["created_by"] = user.id
         settings = service.create(user.org_id, **settings_data)
     
