@@ -535,7 +535,35 @@ class EmailService:
         from_email = settings.get('from_email') or cls.FROM_EMAIL
         from_name = settings.get('from_name') or cls.FROM_NAME
         
-        print(f"📧 [EmailService] Sending to {to_email} | Provider: {settings.get('provider', 'unknown')} | Host: {smtp_host} | From: {from_email}")
+        provider = settings.get('provider', 'unknown')
+        print(f"📧 [EmailService] Sending to {to_email} | Provider: {provider} | Host: {smtp_host} | From: {from_email}")
+        
+        # Resend (HTTP-based, works on all cloud providers)
+        if provider == 'resend' and sendgrid_key:
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://api.resend.com/emails",
+                        headers={"Authorization": f"Bearer {sendgrid_key}", "Content-Type": "application/json"},
+                        json={
+                            "from": f"{from_name} <{from_email}>",
+                            "to": [to_email],
+                            "subject": (subject or "Notification").strip() or "Notification",
+                            "html": html_content or (text_content or ""),
+                            "text": text_content or ""
+                        },
+                        timeout=30
+                    )
+                if resp.status_code in (200, 201):
+                    print(f"✅ Email sent to {to_email} via Resend API")
+                    return True
+                else:
+                    print(f"❌ Resend API error ({resp.status_code}): {resp.text}")
+                    return False
+            except Exception as e:
+                print(f"❌ Error sending email via Resend: {e}")
+                return False
         
         # Prefer SendGrid when configured
         if not sendgrid_key:

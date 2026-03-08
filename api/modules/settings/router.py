@@ -21,8 +21,9 @@ router = APIRouter(tags=["settings"])
 
 class EmailSettingsRequest(BaseModel):
     """Request model for email settings"""
-    provider: str  # 'sendgrid', 'smtp', 'ses'
+    provider: str  # 'sendgrid', 'smtp', 'resend'
     sendgrid_api_key: Optional[str] = None
+    resend_api_key: Optional[str] = None
     smtp_host: Optional[str] = None
     smtp_port: Optional[int] = 587
     smtp_user: Optional[str] = None
@@ -91,9 +92,12 @@ async def create_or_update_email_settings(
     service = EmailSettingsService(db)
     existing = service.get_by_org(user.org_id)
     
+    # Store Resend API key in sendgrid_api_key field (reuse column, provider field distinguishes)
+    api_key = request.sendgrid_api_key or request.resend_api_key
+    
     settings_data = {
         "provider": request.provider,
-        "sendgrid_api_key": request.sendgrid_api_key,
+        "sendgrid_api_key": api_key,
         "smtp_host": request.smtp_host,
         "smtp_port": request.smtp_port,
         "smtp_user": request.smtp_user,
@@ -235,6 +239,41 @@ async def test_email_settings(
                 "message": f"Test email sent successfully to {request.to_email}"
             }
         
+        elif settings.provider == 'resend':
+            import httpx
+            
+            api_key = settings.sendgrid_api_key  # Resend key stored in this field
+            from_email = settings.from_email
+            from_name = settings.from_name or 'AgentForge'
+            
+            print(f"📧 [TEST] Resend API send: from={from_name} <{from_email}>, to={request.to_email}")
+            
+            if not api_key:
+                raise ValueError("Resend API key not configured")
+            
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={
+                        "from": f"{from_name} <{from_email}>",
+                        "to": [request.to_email],
+                        "subject": request.subject,
+                        "html": html,
+                        "text": request.message
+                    },
+                    timeout=30
+                )
+            
+            print(f"📧 [TEST] Resend response: {resp.status_code} {resp.text}")
+            
+            if resp.status_code in (200, 201):
+                service.update(user.org_id, last_test_success=True, last_error=None)
+                return {"status": "success", "message": f"Test email sent to {request.to_email}"}
+            else:
+                error_body = resp.text
+                raise ValueError(f"Resend API error ({resp.status_code}): {error_body}")
+        
         elif settings.provider == 'sendgrid':
             success = await EmailService.send_email(
                 to_email=request.to_email,
@@ -266,9 +305,13 @@ async def test_email_settings(
         except Exception:
             pass
         
+        # Provide user-friendly error message
+        user_msg = error_msg
+        if 'Timed out' in error_msg:
+            user_msg = "Could not connect to email server. This hosting provider may block SMTP. Try using Resend (HTTP-based) instead."
         raise HTTPException(
             status_code=500,
-            detail=f"Email sending failed: {error_msg}"
+            detail=user_msg
         )
 
 

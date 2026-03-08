@@ -21,13 +21,18 @@ function selectEmailProvider(provider) {
     // Show/hide configuration sections
     const smtpConfig = document.getElementById('email-smtp-config');
     const sendgridConfig = document.getElementById('email-sendgrid-config');
+    const resendConfig = document.getElementById('email-resend-config');
+    
+    smtpConfig.classList.add('hidden');
+    sendgridConfig.classList.add('hidden');
+    resendConfig.classList.add('hidden');
     
     if (provider === 'smtp') {
         smtpConfig.classList.remove('hidden');
-        sendgridConfig.classList.add('hidden');
     } else if (provider === 'sendgrid') {
-        smtpConfig.classList.add('hidden');
         sendgridConfig.classList.remove('hidden');
+    } else if (provider === 'resend') {
+        resendConfig.classList.remove('hidden');
     }
     
     // Enable test button if provider is selected
@@ -140,6 +145,15 @@ async function saveEmailSettings() {
         }
         
         settings.sendgrid_api_key = apiKey;
+    } else if (selectedEmailProvider === 'resend') {
+        const apiKey = document.getElementById('email-resend-key').value.trim();
+        
+        if (!apiKey) {
+            showEmailMessage('Resend API Key is required', 'error');
+            return;
+        }
+        
+        settings.resend_api_key = apiKey;
     }
     
     try {
@@ -171,6 +185,8 @@ async function saveEmailSettings() {
             document.getElementById('email-smtp-pass').value = '';
         } else if (selectedEmailProvider === 'sendgrid') {
             document.getElementById('email-sendgrid-key').value = '';
+        } else if (selectedEmailProvider === 'resend') {
+            document.getElementById('email-resend-key').value = '';
         }
         
         // Enable test button

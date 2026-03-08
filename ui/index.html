@@ -568,7 +568,7 @@
                             <!-- Provider Selection -->
                             <div>
                                 <label class="block text-sm font-medium mb-2">Email Provider</label>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <button onclick="selectEmailProvider('smtp')" id="email-provider-smtp" class="email-provider-btn card rounded-xl p-4 text-left border-2 border-transparent hover:border-purple-500/50 transition-all">
                                         <div class="flex items-center gap-3 mb-2">
                                             <div class="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center text-xl">📮</div>
@@ -588,6 +588,16 @@
                                             </div>
                                         </div>
                                         <p class="text-xs text-gray-500">Fast, reliable email delivery via SendGrid API</p>
+                                    </button>
+                                    <button onclick="selectEmailProvider('resend')" id="email-provider-resend" class="email-provider-btn card rounded-xl p-4 text-left border-2 border-transparent hover:border-purple-500/50 transition-all">
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <div class="w-10 h-10 rounded-lg bg-green-600/20 flex items-center justify-center text-xl">🚀</div>
+                                            <div>
+                                                <div class="font-semibold">Resend</div>
+                                                <div class="text-xs text-green-400">Recommended for cloud</div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-gray-500">HTTP-based API, works on all cloud providers</p>
                                     </button>
                                 </div>
                             </div>
@@ -625,6 +635,15 @@
                                 <div>
                                     <label class="block text-xs font-medium mb-1">SendGrid API Key</label>
                                     <input type="password" id="email-sendgrid-key" class="w-full input-field rounded-lg px-3 py-2 text-sm" placeholder="SG.xxxxxxxxxxxxx">
+                                </div>
+                            </div>
+
+                            <!-- Resend Configuration -->
+                            <div id="email-resend-config" class="hidden space-y-3">
+                                <div>
+                                    <label class="block text-xs font-medium mb-1">Resend API Key</label>
+                                    <input type="password" id="email-resend-key" class="w-full input-field rounded-lg px-3 py-2 text-sm" placeholder="re_xxxxxxxxxxxxx">
+                                    <p class="text-xs text-gray-500 mt-1">Get your API key from <a href="https://resend.com" target="_blank" class="text-purple-400 hover:underline">resend.com</a> - Free tier: 100 emails/day</p>
                                 </div>
                             </div>
 
@@ -7133,7 +7152,7 @@ Option 3"></textarea>
     <script src="/ui/index_parts/features-chat.js?v=20260225a" defer></script>
     <script src="/ui/index_parts/features-auth-permissions.js?v=20260301a" defer></script>
     <script src="/ui/index_parts/features-security-identity.js?v=20260223h" defer></script>
-    <script src="/ui/index_parts/features-email-settings.js?v=20260308a" defer></script>
+    <script src="/ui/index_parts/features-email-settings.js?v=20260308b" defer></script>
     <script src="/ui/index_parts/features-approvals-page.js?v=20260223h" defer></script>
 <!-- Tool Edit Slide-over Panel -->
 <div id="tool-edit-panel" class="fixed inset-0 z-[9999] hidden">
