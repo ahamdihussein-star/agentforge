@@ -20,6 +20,14 @@ depends_on = None
 
 
 def upgrade():
+    # Check if table already exists (created by init_db create_all)
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'email_settings')"
+    ))
+    if result.scalar():
+        return
+    
     op.create_table(
         'email_settings',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
