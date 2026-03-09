@@ -2511,20 +2511,35 @@ const API='';
                 try { selectAgentType('process'); } catch (_) {}
                 try { createFlowGo('ai'); } catch (_) {}
 
-                // Pre-fill goal with template name + description
+                const procDef = tpl.process_definition;
+
+                // Restore original wizard goal (saved text), or fall back to template title
+                const savedGoal = procDef.wizard_goal || '';
                 const goalEl = document.getElementById('w-process-goal');
                 if (goalEl) {
-                    goalEl.value = tpl.subtitle
-                        ? tpl.title + ': ' + tpl.subtitle
-                        : (tpl.title || '');
+                    goalEl.value = savedGoal
+                        || (tpl.subtitle ? tpl.title + ': ' + tpl.subtitle : (tpl.title || ''));
                 }
 
-                // Extract tasks from saved process_definition nodes
-                const nodes = Array.isArray(tpl.process_definition?.nodes) ? tpl.process_definition.nodes : [];
-                const SKIP_TYPES = new Set(['trigger', 'end', 'start']);
-                const taskNodes = nodes.filter(n => !SKIP_TYPES.has((n.type || '').toLowerCase()));
+                // Restore original wizard tasks (saved by user), or fall back to node extraction
+                const savedTasks = Array.isArray(procDef.wizard_tasks) && procDef.wizard_tasks.length > 0
+                    ? procDef.wizard_tasks
+                    : null;
 
-                if (taskNodes.length > 0) {
+                if (savedTasks) {
+                    _procTasks = savedTasks.map((t, i) => ({
+                        id: t.id || ('task_' + (i + 1)),
+                        name: t.name || ('Task ' + (i + 1)),
+                        type: (t.type || 'ai').toLowerCase(),
+                        instructions: Array.isArray(t.instructions) && t.instructions.length > 0
+                            ? t.instructions
+                            : ['']
+                    }));
+                } else {
+                    // Fallback: extract from nodes
+                    const SKIP_TYPES = new Set(['trigger', 'end', 'start']);
+                    const taskNodes = (Array.isArray(procDef.nodes) ? procDef.nodes : [])
+                        .filter(n => !SKIP_TYPES.has((n.type || '').toLowerCase()));
                     _procTasks = taskNodes.map((n, i) => ({
                         id: n.id || ('task_' + (i + 1)),
                         name: n.name || n.label || ('Task ' + (i + 1)),
@@ -2534,14 +2549,23 @@ const API='';
                             return inst.length > 0 ? inst : [''];
                         })()
                     }));
-                } else {
-                    _procTasks = [];
-                    try { proc_addTask(); } catch (_) {}
                 }
 
-                // Navigate to tasks review step
-                try { proc_showTasksStep(); } catch (_) {}
-                try { showToast('Template loaded — review the tasks and click Generate Workflow when ready.', 'success'); } catch (_) {}
+                // Show GOAL step first so user sees and can confirm the goal
+                // _procTasks is pre-loaded; clicking "Define Tasks Manually" will show them
+                document.getElementById('proc-substep-goal')?.classList.remove('hidden');
+                document.getElementById('proc-substep-tasks')?.classList.add('hidden');
+                document.getElementById('proc-wizard-nav')?.classList.remove('hidden');
+
+                const hasOriginal = !!savedGoal;
+                try {
+                    showToast(
+                        hasOriginal
+                            ? 'Template loaded — your goal and tasks are ready. Review the goal then click "Define Tasks Manually" to edit tasks.'
+                            : 'Template loaded — review the goal then edit the tasks.',
+                        'success'
+                    );
+                } catch (_) {}
                 return;
             }
 
@@ -3059,8 +3083,10 @@ const API='';
         }
 
         function proc_startManually() {
-            _procTasks = [];
-            proc_addTask();
+            // If tasks were pre-loaded from a template, show them instead of resetting
+            if (_procTasks.length === 0) {
+                proc_addTask();
+            }
             proc_showTasksStep();
         }
 
@@ -3360,7 +3386,9 @@ const API='';
                             sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
                                 goal: goal,
                                 name: data.workflow.name || 'My Workflow',
-                                animate: true
+                                animate: true,
+                                wizard_goal: goal,
+                                wizard_tasks: wizard._structuredTasks || []
                             }));
                             if (hasIssues) {
                                 sessionStorage.setItem('agentforge_process_builder_setup', JSON.stringify(data.setup_required));
@@ -3548,7 +3576,9 @@ const API='';
                         sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
                             goal: payload.goal,
                             name: data.workflow.name || 'My Workflow',
-                            animate: true
+                            animate: true,
+                            wizard_goal: payload.goal,
+                            wizard_tasks: payload.tasks || []
                         }));
                         const postIssues = data.setup_required && data.setup_required.length > 0;
                         if (postIssues) {

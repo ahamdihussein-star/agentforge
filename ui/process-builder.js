@@ -7612,10 +7612,15 @@
             ) : Promise.resolve(''));
             if (description === null) return;
 
+            let _wizardMeta = {};
+            try { _wizardMeta = JSON.parse(sessionStorage.getItem('agentforge_process_builder_draft_meta') || '{}'); } catch (_) {}
+
             const def = {
                 name: workflowName,
                 nodes: state.nodes,
-                edges: state.connections
+                edges: state.connections,
+                wizard_goal: _wizardMeta.wizard_goal || _wizardMeta.goal || '',
+                wizard_tasks: Array.isArray(_wizardMeta.wizard_tasks) ? _wizardMeta.wizard_tasks : []
             };
 
             try {
