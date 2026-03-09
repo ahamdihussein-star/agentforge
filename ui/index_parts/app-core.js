@@ -2720,6 +2720,8 @@ const API='';
         // =========================================================================
 
         let _procTasks = []; // Current task list state
+        let _procDragTaskIndex = null;
+        let _procDragInstruction = null;
 
         async function proc_suggestTasks() {
             const goal = document.getElementById('w-process-goal')?.value.trim();
@@ -2792,23 +2794,36 @@ const API='';
             _procTasks.forEach((task, idx) => {
                 const insts = Array.isArray(task.instructions) ? task.instructions : [task.instructions || ''];
                 const instRows = insts.map((inst, ii) => `
-                    <div class="flex gap-1.5 items-start">
-                        <input type="text" value="${_escHtml(inst)}"
+                    <div class="flex gap-1.5 items-start rounded-lg border border-gray-800/80 bg-gray-950/30 p-2"
+                        draggable="true"
+                        ondragstart="proc_startInstructionDrag(${idx},${ii})"
+                        ondragover="proc_allowDrop(event)"
+                        ondrop="proc_dropInstruction(${idx},${ii})">
+                        <div class="flex-shrink-0 cursor-grab text-gray-500 text-sm px-1 py-2 select-none" title="Drag to reorder instruction">⋮⋮</div>
+                        <textarea
                             onchange="proc_updateInstruction(${idx},${ii},this.value)"
-                            class="input-field flex-1 rounded-lg px-3 py-1.5 text-xs text-gray-300"
-                            placeholder="Instruction ${ii + 1}..." />
+                            oninput="proc_updateInstruction(${idx},${ii},this.value)"
+                            class="input-field flex-1 rounded-lg px-3 py-2 text-xs text-gray-300 resize-y min-h-[42px]"
+                            placeholder="Instruction ${ii + 1}...">${_escHtml(inst)}</textarea>
                         ${insts.length > 1 ? `<button onclick="proc_removeInstruction(${idx},${ii})" title="Remove"
-                            class="flex-shrink-0 w-6 h-6 mt-0.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center transition text-xs">&times;</button>` : ''}
+                            class="flex-shrink-0 w-6 h-6 mt-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center transition text-xs">&times;</button>` : ''}
                     </div>`).join('');
                 const card = document.createElement('div');
                 card.className = 'rounded-xl border border-gray-700 bg-gray-900/50 p-4';
+                card.draggable = true;
+                card.setAttribute('ondragstart', `proc_startTaskDrag(${idx})`);
+                card.setAttribute('ondragover', 'proc_allowDrop(event)');
+                card.setAttribute('ondrop', `proc_dropTask(${idx})`);
                 card.innerHTML = `
                     <div class="flex items-start gap-3">
-                        <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-xs font-bold text-gray-300 mt-0.5">${idx + 1}</div>
+                        <div class="flex-shrink-0 flex items-start gap-2">
+                            <div class="cursor-grab text-gray-500 text-sm pt-2 select-none" title="Drag to reorder task">⋮⋮</div>
+                            <div class="w-7 h-7 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-xs font-bold text-gray-300 mt-0.5">${idx + 1}</div>
+                        </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 mb-3 flex-wrap">
-                                <input type="text" value="${_escHtml(task.name)}" onchange="proc_updateTask(${idx},'name',this.value)"
-                                    class="input-field rounded-lg px-3 py-1.5 text-sm font-semibold flex-1 min-w-0" placeholder="Task name" />
+                                <textarea onchange="proc_updateTask(${idx},'name',this.value)" oninput="proc_updateTask(${idx},'name',this.value)"
+                                    class="input-field rounded-lg px-3 py-2 text-sm font-semibold flex-1 min-w-0 resize-y min-h-[44px]" placeholder="Task name">${_escHtml(task.name)}</textarea>
                                 <select onchange="proc_updateTask(${idx},'type',this.value)"
                                     class="input-field rounded-lg px-2 py-1.5 text-xs" style="max-width:140px;">
                                     ${Object.entries(TASK_TYPE_LABELS).map(([v, m]) =>
@@ -2816,7 +2831,10 @@ const API='';
                                     ).join('')}
                                 </select>
                             </div>
-                            <div class="text-xs text-gray-500 mb-1.5 font-medium">Instructions:</div>
+                            <div class="flex items-center justify-between gap-3 mb-1.5">
+                                <div class="text-xs text-gray-500 font-medium">Instructions:</div>
+                                <div class="text-[11px] text-gray-600">Drag to reorder</div>
+                            </div>
                             <div id="proc-inst-${idx}" class="space-y-1.5">${instRows}</div>
                             <button onclick="proc_addInstruction(${idx})"
                                 class="mt-2 text-xs text-gray-400 hover:text-gray-200 transition flex items-center gap-1">+ Add instruction</button>
@@ -2832,6 +2850,48 @@ const API='';
             if (_procTasks[taskIdx] && Array.isArray(_procTasks[taskIdx].instructions)) {
                 _procTasks[taskIdx].instructions[instIdx] = value;
             }
+        }
+
+        function proc_allowDrop(event) {
+            if (event) event.preventDefault();
+        }
+
+        function proc_startTaskDrag(taskIdx) {
+            _procDragTaskIndex = taskIdx;
+        }
+
+        function proc_dropTask(targetIdx) {
+            if (_procDragTaskIndex === null || _procDragTaskIndex === targetIdx) return;
+            const moved = _procTasks.splice(_procDragTaskIndex, 1)[0];
+            _procTasks.splice(targetIdx, 0, moved);
+            _procDragTaskIndex = null;
+            proc_renderTaskList();
+        }
+
+        function proc_startInstructionDrag(taskIdx, instIdx) {
+            _procDragInstruction = { taskIdx, instIdx };
+        }
+
+        function proc_dropInstruction(targetTaskIdx, targetInstIdx) {
+            if (!_procDragInstruction) return;
+            const { taskIdx, instIdx } = _procDragInstruction;
+            if (taskIdx !== targetTaskIdx) {
+                _procDragInstruction = null;
+                return;
+            }
+            if (instIdx === targetInstIdx) {
+                _procDragInstruction = null;
+                return;
+            }
+            const insts = _procTasks[taskIdx]?.instructions;
+            if (!Array.isArray(insts)) {
+                _procDragInstruction = null;
+                return;
+            }
+            const moved = insts.splice(instIdx, 1)[0];
+            insts.splice(targetInstIdx, 0, moved);
+            _procDragInstruction = null;
+            proc_renderTaskList();
         }
 
         function proc_addInstruction(taskIdx) {
@@ -2909,6 +2969,11 @@ const API='';
         window.proc_removeTask = proc_removeTask;
         window.proc_updateTask = proc_updateTask;
         window.proc_updateInstruction = proc_updateInstruction;
+        window.proc_allowDrop = proc_allowDrop;
+        window.proc_startTaskDrag = proc_startTaskDrag;
+        window.proc_dropTask = proc_dropTask;
+        window.proc_startInstructionDrag = proc_startInstructionDrag;
+        window.proc_dropInstruction = proc_dropInstruction;
         window.proc_addInstruction = proc_addInstruction;
         window.proc_removeInstruction = proc_removeInstruction;
         window.proc_generateFromTasks = proc_generateFromTasks;
