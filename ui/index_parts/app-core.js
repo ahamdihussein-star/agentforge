@@ -2461,23 +2461,90 @@ const API='';
             return true;
         }
 
+        function _extractNodeInstructions(node) {
+            const cfg = node.config || {};
+            const ntype = (node.type || '').toLowerCase();
+            const out = [];
+            if (ntype === 'form') {
+                const fields = Array.isArray(cfg.fields) ? cfg.fields : [];
+                if (fields.length > 0) {
+                    const names = fields.map(f => f.label || f.name).filter(Boolean).join(', ');
+                    out.push('Collect the following fields: ' + names);
+                }
+            } else if (ntype === 'ai') {
+                if (cfg.prompt) out.push(String(cfg.prompt).substring(0, 200));
+                else if (Array.isArray(cfg.instructions)) {
+                    cfg.instructions.slice(0, 3).forEach(inst => { if (inst) out.push(String(inst).substring(0, 150)); });
+                }
+            } else if (ntype === 'approval') {
+                if (cfg.message) out.push(String(cfg.message).substring(0, 150));
+                else out.push('Request approval from the assigned approver');
+            } else if (ntype === 'notification') {
+                if (cfg.subject) out.push('Send notification: ' + cfg.subject);
+                else if (cfg.template) out.push(String(cfg.template).substring(0, 150));
+                else out.push('Send notification to the requester');
+            } else if (ntype === 'condition') {
+                const rules = Array.isArray(cfg.rules) ? cfg.rules : [];
+                if (rules.length > 0) {
+                    const r = rules[0];
+                    out.push('Route based on: ' + [r.field, r.operator, r.value].filter(Boolean).join(' '));
+                } else if (cfg.expression) {
+                    out.push(String(cfg.expression).substring(0, 150));
+                }
+            } else if (ntype === 'tool') {
+                const tid = cfg.toolId || cfg.tool_id || '';
+                out.push(tid ? 'Use tool: ' + tid : 'Execute tool integration');
+            }
+            return out.filter(Boolean);
+        }
+
         function applyCreateTemplate(templateId) {
             const tpl = _findCreateTemplateById(templateId);
             if (!tpl) return;
             const processTemplates = _getProcessTemplateList();
             const kind = (tpl && processTemplates.some(p => p.id === tpl.id)) ? 'process' : 'conversational';
+
             if (kind === 'process' && tpl.process_definition) {
-                try {
-                    sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(tpl.process_definition));
-                    sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
-                        goal: '',
-                        name: tpl.title || 'Saved Template',
-                        animate: false
+                try { closeCreateTemplateGallery(); } catch (_) {}
+
+                // Ensure wizard is on process / AI describe path
+                try { selectAgentType('process'); } catch (_) {}
+                try { createFlowGo('ai'); } catch (_) {}
+
+                // Pre-fill goal with template name + description
+                const goalEl = document.getElementById('w-process-goal');
+                if (goalEl) {
+                    goalEl.value = tpl.subtitle
+                        ? tpl.title + ': ' + tpl.subtitle
+                        : (tpl.title || '');
+                }
+
+                // Extract tasks from saved process_definition nodes
+                const nodes = Array.isArray(tpl.process_definition?.nodes) ? tpl.process_definition.nodes : [];
+                const SKIP_TYPES = new Set(['trigger', 'end', 'start']);
+                const taskNodes = nodes.filter(n => !SKIP_TYPES.has((n.type || '').toLowerCase()));
+
+                if (taskNodes.length > 0) {
+                    _procTasks = taskNodes.map((n, i) => ({
+                        id: n.id || ('task_' + (i + 1)),
+                        name: n.name || n.label || ('Task ' + (i + 1)),
+                        type: (n.type || 'ai').toLowerCase(),
+                        instructions: (() => {
+                            const inst = _extractNodeInstructions(n);
+                            return inst.length > 0 ? inst : [''];
+                        })()
                     }));
-                    window.location.href = '/ui/process-builder.html?draft=1';
-                    return;
-                } catch (_) { /* ignore and fallback */ }
+                } else {
+                    _procTasks = [];
+                    try { proc_addTask(); } catch (_) {}
+                }
+
+                // Navigate to tasks review step
+                try { proc_showTasksStep(); } catch (_) {}
+                try { showToast('Template loaded — review the tasks and click Generate Workflow when ready.', 'success'); } catch (_) {}
+                return;
             }
+
             _setCreatePromptText(kind, tpl.prompt);
             try { showToast('Template loaded. You can edit it, then continue building.', 'success'); } catch (_) {}
         }
