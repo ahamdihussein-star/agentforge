@@ -2511,6 +2511,8 @@ const API='';
             modal.classList.add('flex');
             switchCreateTemplateTab(_createTemplateTab);
             _renderCreateTemplateGallery();
+            // Always refresh saved templates from backend when gallery opens
+            loadDynamicProcessTemplates();
         }
         window.openCreateTemplateGallery = openCreateTemplateGallery;
 

@@ -1962,6 +1962,44 @@
                     </div>
                 </div>
 
+                <!-- AI Generating Animation (MUST be outside wizard-step-0 so hiding step-0 does not hide the animation) -->
+                <div id="wizard-generating" class="hidden max-w-2xl mx-auto">
+                    <div class="card rounded-xl p-8 text-center">
+                        <div class="relative w-24 h-24 mx-auto mb-6">
+                            <div class="absolute inset-0 rounded-full border-4 border-purple-500/30 animate-ping"></div>
+                            <div class="absolute inset-2 rounded-full border-4 border-blue-500/30 animate-ping" style="animation-delay: 0.2s"></div>
+                            <div class="absolute inset-4 rounded-full border-4 border-purple-500/30 animate-ping" style="animation-delay: 0.4s"></div>
+                            <div class="relative w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-3xl">
+                                🧠
+                            </div>
+                        </div>
+                        <h3 class="text-xl font-bold mb-2" id="generating-title">Configuring Your Agent...</h3>
+                        <p class="text-gray-400 mb-6" id="generating-status">Analyzing your goal...</p>
+                        <div class="space-y-2 text-left max-w-md mx-auto">
+                            <div class="flex items-center gap-3 text-sm" id="gen-step-1">
+                                <span class="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center animate-pulse">✓</span>
+                                <span id="gen-label-1">Understanding your requirements</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm text-gray-500" id="gen-step-2">
+                                <span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center">○</span>
+                                <span id="gen-label-2">Selecting optimal AI model</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm text-gray-500" id="gen-step-3">
+                                <span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center">○</span>
+                                <span id="gen-label-3">Defining tasks & capabilities</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm text-gray-500" id="gen-step-4">
+                                <span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center">○</span>
+                                <span id="gen-label-4">Recommending tools</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm text-gray-500" id="gen-step-5">
+                                <span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center">○</span>
+                                <span id="gen-label-5">Setting up guardrails</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Step 0: Goal Input (Initial Step) -->
                 <div id="wizard-step-0" class="max-w-2xl mx-auto">
                     <div class="flex justify-end mb-2">
@@ -2189,44 +2227,6 @@
                         <div class="p-5 overflow-auto" style="flex:1;">
                             <div id="create-template-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
                             <div id="create-template-empty" class="hidden text-center text-sm text-gray-500 py-10">No templates match your search.</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- AI Generating Animation -->
-                <div id="wizard-generating" class="hidden max-w-2xl mx-auto">
-                    <div class="card rounded-xl p-8 text-center">
-                        <div class="relative w-24 h-24 mx-auto mb-6">
-                            <div class="absolute inset-0 rounded-full border-4 border-purple-500/30 animate-ping"></div>
-                            <div class="absolute inset-2 rounded-full border-4 border-blue-500/30 animate-ping" style="animation-delay: 0.2s"></div>
-                            <div class="absolute inset-4 rounded-full border-4 border-purple-500/30 animate-ping" style="animation-delay: 0.4s"></div>
-                            <div class="relative w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-3xl">
-                                🧠
-                            </div>
-                        </div>
-                        <h3 class="text-xl font-bold mb-2" id="generating-title">Configuring Your Agent...</h3>
-                        <p class="text-gray-400 mb-6" id="generating-status">Analyzing your goal...</p>
-                        <div class="space-y-2 text-left max-w-md mx-auto">
-                            <div class="flex items-center gap-3 text-sm" id="gen-step-1">
-                                <span class="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center animate-pulse">✓</span>
-                                <span id="gen-label-1">Understanding your requirements</span>
-                            </div>
-                            <div class="flex items-center gap-3 text-sm text-gray-500" id="gen-step-2">
-                                <span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center">○</span>
-                                <span id="gen-label-2">Selecting optimal AI model</span>
-                            </div>
-                            <div class="flex items-center gap-3 text-sm text-gray-500" id="gen-step-3">
-                                <span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center">○</span>
-                                <span id="gen-label-3">Defining tasks & capabilities</span>
-                            </div>
-                            <div class="flex items-center gap-3 text-sm text-gray-500" id="gen-step-4">
-                                <span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center">○</span>
-                                <span id="gen-label-4">Recommending tools</span>
-                            </div>
-                            <div class="flex items-center gap-3 text-sm text-gray-500" id="gen-step-5">
-                                <span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center">○</span>
-                                <span id="gen-label-5">Setting up guardrails</span>
-                            </div>
                         </div>
                     </div>
                 </div>
