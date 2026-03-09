@@ -2746,7 +2746,7 @@ const API='';
                         id: t.id || ('task_' + (i + 1)),
                         name: t.name || ('Task ' + (i + 1)),
                         type: t.type || 'ai',
-                        instructions: (t.suggested_instructions || []).join('\n')
+                        instructions: t.suggested_instructions && t.suggested_instructions.length ? t.suggested_instructions : ['']
                     }));
                     proc_showTasksStep();
                 } else {
@@ -2790,14 +2790,23 @@ const API='';
             if (!container) return;
             container.innerHTML = '';
             _procTasks.forEach((task, idx) => {
-                const meta = TASK_TYPE_LABELS[task.type] || { icon: '⚙️', label: task.type, color: 'gray' };
+                const insts = Array.isArray(task.instructions) ? task.instructions : [task.instructions || ''];
+                const instRows = insts.map((inst, ii) => `
+                    <div class="flex gap-1.5 items-start">
+                        <input type="text" value="${_escHtml(inst)}"
+                            onchange="proc_updateInstruction(${idx},${ii},this.value)"
+                            class="input-field flex-1 rounded-lg px-3 py-1.5 text-xs text-gray-300"
+                            placeholder="Instruction ${ii + 1}..." />
+                        ${insts.length > 1 ? `<button onclick="proc_removeInstruction(${idx},${ii})" title="Remove"
+                            class="flex-shrink-0 w-6 h-6 mt-0.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center transition text-xs">&times;</button>` : ''}
+                    </div>`).join('');
                 const card = document.createElement('div');
                 card.className = 'rounded-xl border border-gray-700 bg-gray-900/50 p-4';
                 card.innerHTML = `
                     <div class="flex items-start gap-3">
                         <div class="flex-shrink-0 w-7 h-7 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-xs font-bold text-gray-300 mt-0.5">${idx + 1}</div>
                         <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 mb-2 flex-wrap">
+                            <div class="flex items-center gap-2 mb-3 flex-wrap">
                                 <input type="text" value="${_escHtml(task.name)}" onchange="proc_updateTask(${idx},'name',this.value)"
                                     class="input-field rounded-lg px-3 py-1.5 text-sm font-semibold flex-1 min-w-0" placeholder="Task name" />
                                 <select onchange="proc_updateTask(${idx},'type',this.value)"
@@ -2807,14 +2816,40 @@ const API='';
                                     ).join('')}
                                 </select>
                             </div>
-                            <textarea rows="3" onchange="proc_updateTask(${idx},'instructions',this.value)"
-                                class="input-field w-full rounded-lg px-3 py-2 text-xs text-gray-300 resize-none" placeholder="Instructions for this task (one per line)...">${_escHtml(task.instructions)}</textarea>
+                            <div class="text-xs text-gray-500 mb-1.5 font-medium">Instructions:</div>
+                            <div id="proc-inst-${idx}" class="space-y-1.5">${instRows}</div>
+                            <button onclick="proc_addInstruction(${idx})"
+                                class="mt-2 text-xs text-gray-400 hover:text-gray-200 transition flex items-center gap-1">+ Add instruction</button>
                         </div>
                         <button onclick="proc_removeTask(${idx})" title="Remove task"
-                            class="flex-shrink-0 w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center transition text-base">&times;</button>
+                            class="flex-shrink-0 w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center transition text-sm">&times;</button>
                     </div>`;
                 container.appendChild(card);
             });
+        }
+
+        function proc_updateInstruction(taskIdx, instIdx, value) {
+            if (_procTasks[taskIdx] && Array.isArray(_procTasks[taskIdx].instructions)) {
+                _procTasks[taskIdx].instructions[instIdx] = value;
+            }
+        }
+
+        function proc_addInstruction(taskIdx) {
+            if (!_procTasks[taskIdx]) return;
+            if (!Array.isArray(_procTasks[taskIdx].instructions)) {
+                _procTasks[taskIdx].instructions = [_procTasks[taskIdx].instructions || ''];
+            }
+            _procTasks[taskIdx].instructions.push('');
+            proc_renderTaskList();
+        }
+
+        function proc_removeInstruction(taskIdx, instIdx) {
+            if (!_procTasks[taskIdx]) return;
+            const insts = _procTasks[taskIdx].instructions;
+            if (Array.isArray(insts) && insts.length > 1) {
+                insts.splice(instIdx, 1);
+                proc_renderTaskList();
+            }
         }
 
         function _escHtml(s) {
@@ -2822,7 +2857,9 @@ const API='';
         }
 
         function proc_updateTask(idx, field, value) {
-            if (_procTasks[idx]) _procTasks[idx][field] = value;
+            if (_procTasks[idx] && field !== 'instructions') {
+                _procTasks[idx][field] = value;
+            }
         }
 
         function proc_removeTask(idx) {
@@ -2830,12 +2867,18 @@ const API='';
             proc_renderTaskList();
         }
 
+        function proc_startManually() {
+            _procTasks = [];
+            proc_addTask();
+            proc_showTasksStep();
+        }
+
         function proc_addTask() {
             _procTasks.push({
                 id: 'task_' + (_procTasks.length + 1),
                 name: '',
                 type: 'ai',
-                instructions: ''
+                instructions: ['']
             });
             proc_renderTaskList();
             // Scroll to last card
@@ -2853,18 +2896,21 @@ const API='';
                 id: t.id,
                 name: t.name || 'Unnamed Task',
                 type: t.type,
-                instructions: (t.instructions || '')
-                    .split('\n')
-                    .map(s => s.trim())
-                    .filter(Boolean)
+                instructions: Array.isArray(t.instructions)
+                    ? t.instructions.map(s => (s || '').trim()).filter(Boolean)
+                    : (t.instructions || '').split('\n').map(s => s.trim()).filter(Boolean)
             }));
             generateProcessConfig();
         }
 
         window.proc_goBackToGoal = proc_goBackToGoal;
+        window.proc_startManually = proc_startManually;
         window.proc_addTask = proc_addTask;
         window.proc_removeTask = proc_removeTask;
         window.proc_updateTask = proc_updateTask;
+        window.proc_updateInstruction = proc_updateInstruction;
+        window.proc_addInstruction = proc_addInstruction;
+        window.proc_removeInstruction = proc_removeInstruction;
         window.proc_generateFromTasks = proc_generateFromTasks;
 
         function startManualConversationalWizard() {
