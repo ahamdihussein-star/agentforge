@@ -142,16 +142,18 @@ Explicit Task Definitions (execute IN THIS ORDER):
 {tasks_json}
 
 Your responsibilities:
-1. Create exactly ONE node per task (plus trigger at start and end node at finish)
-2. Node name = task name, Node type = task type
-3. STRICTLY use the provided instructions for each node's config — do NOT add, remove, or change them
-4. Wire nodes together in the EXACT ORDER listed
-5. Set up output_variable names and {{{{variableName}}}} references so data flows between nodes
-6. For condition nodes: create yes/no branches exactly as described in the instructions
-7. For approval nodes: set notifyApprover:true with a message from the instructions
-8. For notification nodes: set recipients and template content from the instructions
-9. For form nodes: infer fields from the instructions
-10. For tool nodes: set toolId by matching tool name from available tools
+1. Build a REAL workflow that accomplishes the goal using the task list as the primary source of truth
+2. Preserve the listed task order as the main flow unless a task's own instructions explicitly require branching or parallel work
+3. Use each task's name, type, and instructions to choose the correct node configuration
+4. You MAY add the minimum helper structure needed for a valid workflow, such as form fields, output variables, yes/no edges, branch targets, and merge points
+5. Do NOT ignore, weaken, or replace the provided instructions; they are mandatory requirements for the workflow logic
+6. Set up output_variable names and {{{{variableName}}}} references so data flows correctly between steps
+7. For condition nodes: create concrete yes/no routing that matches the instructions, with meaningful rules and valid branch targets
+8. For approval nodes: configure the assignee and notification behavior based on the instructions and platform context
+9. For notification nodes: configure clear business-friendly recipients and message content based on the instructions
+10. For form nodes: infer the actual input fields the process owner would need to capture from the instructions and the goal
+11. For tool nodes: set toolId by matching the best available tool from the provided tools list
+12. Make the result production-usable, not a placeholder example or skeleton
 
 Platform Knowledge:
 {platform_knowledge}
@@ -172,6 +174,7 @@ Return ONLY valid JSON in this exact format (same as visual builder):
 - ai nodes need config.aiMode (extract_file / analyze / create_doc), config.prompt or config.instructions array, output_format:json for analysis, outputFields
 - Spacing: 260px vertical between sequential nodes, 520px horizontal between branches
 - "yes" branch goes LEFT (condition.x - 520), "no" branch goes RIGHT (condition.x + 520)
+- Do NOT return a trivial placeholder workflow such as Start -> single generic step -> End unless the provided tasks truly contain only one generic action
 """
 
 
@@ -959,7 +962,8 @@ class ProcessWizard:
         The AI strictly follows the provided instructions — no inference about structure.
         """
         if not self.llm:
-            return self._generate_visual_from_template(goal)
+            synthesized_goal = self._build_structured_goal_summary(goal, tasks)
+            return self._generate_visual_from_template(synthesized_goal)
 
         # Build tools/org context (same as generate_from_goal)
         tools = []
@@ -1007,9 +1011,12 @@ class ProcessWizard:
             org_context=org_context_text,
         )
         system_prompt = (
-            "You are an expert workflow designer. "
-            "Generate a visual-builder process JSON from explicitly defined tasks. "
-            "Follow the task instructions EXACTLY — do NOT add, remove, or change them. "
+            "You are an expert workflow designer with deep knowledge of business processes, "
+            "approvals, notifications, data collection, tool integrations, AI steps, and conditional routing. "
+            "The user already defined the intended tasks. Your job is to convert those explicit tasks into a high-quality, "
+            "production-usable visual workflow JSON. "
+            "Respect the provided tasks and instructions exactly, but still build a complete valid workflow with proper data flow, "
+            "field definitions, node configuration, routing, and references. "
             "Return ONLY valid JSON. No markdown, no explanation."
         )
 
@@ -1025,7 +1032,42 @@ class ProcessWizard:
             return process_def
         except Exception as e:
             logger.error("[Wizard] generate_from_structured_goal failed: %s", e)
-            return self._generate_visual_from_template(goal)
+            synthesized_goal = self._build_structured_goal_summary(goal, tasks)
+            try:
+                return await self.generate_from_goal(
+                    goal=synthesized_goal,
+                    additional_context=additional_context,
+                    output_format="visual_builder",
+                )
+            except Exception as fallback_error:
+                logger.error(
+                    "[Wizard] structured fallback via generate_from_goal failed: %s",
+                    fallback_error,
+                )
+                return self._generate_visual_from_template(synthesized_goal)
+
+    def _build_structured_goal_summary(
+        self,
+        goal: str,
+        tasks: List[Dict[str, Any]],
+    ) -> str:
+        lines = [f"Primary workflow goal: {goal.strip()}"]
+        if tasks and isinstance(tasks, list):
+            lines.append("Required workflow tasks in order:")
+            for idx, task in enumerate(tasks, 1):
+                name = str(task.get("name") or f"Task {idx}").strip()
+                task_type = str(task.get("type") or "task").strip()
+                instructions = task.get("instructions") or []
+                if not isinstance(instructions, list):
+                    instructions = [instructions]
+                clean_instructions = [str(item).strip() for item in instructions if str(item).strip()]
+                lines.append(f"{idx}. {name} (type: {task_type})")
+                for inst_idx, instruction in enumerate(clean_instructions, 1):
+                    lines.append(f"   - Instruction {inst_idx}: {instruction}")
+        lines.append(
+            "The generated workflow must implement these tasks faithfully, with proper form fields, routing, approvals, notifications, outputs, and data flow between steps."
+        )
+        return "\n".join(lines)
 
     async def generate_from_goal(
         self,
