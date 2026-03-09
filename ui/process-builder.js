@@ -7580,6 +7580,73 @@
                 pbToast(String(e.message || 'Could not save workflow.'), 'error');
             }
         }
+
+        async function saveWorkflowAsTemplate() {
+            const token = getAuthToken();
+            if (!token) {
+                pbAlert('Please sign in first to save this workflow as a template.', { title: 'Sign in required', buttonText: 'OK' });
+                return;
+            }
+
+            const workflowName = String(document.getElementById('workflow-name')?.value || 'Workflow').trim() || 'Workflow';
+            const templateName = await (window.afPrompt ? window.afPrompt(
+                'Enter a template name. This will be shown when creating a new process agent.',
+                {
+                    title: 'Save as Template',
+                    placeholder: 'Example: Supplier Approval Base Flow',
+                    defaultValue: workflowName,
+                    confirmText: 'Save Template',
+                    required: true
+                }
+            ) : Promise.resolve(workflowName));
+            if (!templateName) return;
+
+            const description = await (window.afPrompt ? window.afPrompt(
+                'Add a short business description so other users understand when to use this template.',
+                {
+                    title: 'Template Description',
+                    placeholder: 'Example: Reusable approval workflow with intake, manager review, and notification steps.',
+                    confirmText: 'Continue',
+                    multiline: true
+                }
+            ) : Promise.resolve(''));
+            if (description === null) return;
+
+            const def = {
+                name: workflowName,
+                nodes: state.nodes,
+                edges: state.connections
+            };
+
+            try {
+                const response = await fetch('/process/config/templates', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({
+                        name: String(templateName).trim(),
+                        description: String(description || '').trim(),
+                        category: 'general',
+                        is_public: false,
+                        process_definition: def
+                    })
+                });
+
+                let data = null;
+                try { data = await response.json(); } catch (_) { data = null; }
+                if (!response.ok) {
+                    throw new Error(data?.detail || data?.message || 'Could not save template.');
+                }
+
+                pbToast('Template saved. It will now appear in Process Templates when creating a new agent.', 'success');
+            } catch (e) {
+                console.error('Save template error:', e);
+                pbToast(String(e.message || 'Could not save template.'), 'error');
+            }
+        }
+        window.saveWorkflowAsTemplate = saveWorkflowAsTemplate;
         
         async function publishWorkflow() {
             if (!state.agentId) {

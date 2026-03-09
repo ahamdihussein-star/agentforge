@@ -2397,6 +2397,39 @@ const API='';
             ]
         };
 
+        let _dynamicProcessTemplates = [];
+
+        async function loadDynamicProcessTemplates() {
+            try {
+                const token = authToken || localStorage.getItem('agentforge_token');
+                if (!token) return;
+                const res = await fetch('/process/config/templates', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await res.json();
+                const templates = Array.isArray(data?.templates) ? data.templates : [];
+                _dynamicProcessTemplates = templates.map(t => ({
+                    id: `saved_process_template_${t.id}`,
+                    source: 'saved_process',
+                    backendTemplateId: t.id,
+                    icon: t.icon || '📚',
+                    title: t.name || 'Saved Process Template',
+                    subtitle: t.description || 'Reusable workflow template',
+                    tags: ['Saved Template', t.category || 'General'],
+                    prompt: '',
+                    process_definition: t.process_definition || null
+                }));
+                try { _renderTemplateChips(); } catch (_) {}
+                try { _renderCreateTemplateGallery(); } catch (_) {}
+            } catch (e) {
+                console.warn('Could not load process templates:', e);
+            }
+        }
+
+        function _getProcessTemplateList() {
+            return [...(AF_CREATE_TEMPLATES.process || []), ...(_dynamicProcessTemplates || [])];
+        }
+
         let _createTemplateTab = 'conversational';
         let _createTemplateQuery = '';
         const _createTplEsc = (input) => {
@@ -2410,7 +2443,7 @@ const API='';
         };
 
         function _findCreateTemplateById(id) {
-            const all = [...(AF_CREATE_TEMPLATES.conversational || []), ...(AF_CREATE_TEMPLATES.process || [])];
+            const all = [...(AF_CREATE_TEMPLATES.conversational || []), ..._getProcessTemplateList()];
             return all.find(t => t && t.id === id) || null;
         }
 
@@ -2431,9 +2464,22 @@ const API='';
         function applyCreateTemplate(templateId) {
             const tpl = _findCreateTemplateById(templateId);
             if (!tpl) return;
-            const kind = (tpl && (AF_CREATE_TEMPLATES.process || []).some(p => p.id === tpl.id)) ? 'process' : 'conversational';
+            const processTemplates = _getProcessTemplateList();
+            const kind = (tpl && processTemplates.some(p => p.id === tpl.id)) ? 'process' : 'conversational';
+            if (kind === 'process' && tpl.process_definition) {
+                try {
+                    sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(tpl.process_definition));
+                    sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                        goal: '',
+                        name: tpl.title || 'Saved Template',
+                        animate: false
+                    }));
+                    window.location.href = '/ui/process-builder.html?draft=1';
+                    return;
+                } catch (_) { /* ignore and fallback */ }
+            }
             _setCreatePromptText(kind, tpl.prompt);
-            try { showToast('Template loaded. You can edit it, then press “Generate with AI”.', 'success'); } catch (_) {}
+            try { showToast('Template loaded. You can edit it, then continue building.', 'success'); } catch (_) {}
         }
         window.applyCreateTemplate = applyCreateTemplate;
 
@@ -2447,7 +2493,7 @@ const API='';
                 ).join('');
             }
             if (procWrap) {
-                const picks = (AF_CREATE_TEMPLATES.process || []).slice(0, 6);
+                const picks = _getProcessTemplateList().slice(0, 6);
                 procWrap.innerHTML = picks.map(t =>
                     `<button onclick="applyCreateTemplate('${t.id}')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition">${t.icon} ${t.title}</button>`
                 ).join('');
@@ -2503,7 +2549,7 @@ const API='';
             const empty = document.getElementById('create-template-empty');
             const titleEl = document.getElementById('create-template-modal-title');
             if (!grid) return;
-            const list = (_createTemplateTab === 'process' ? AF_CREATE_TEMPLATES.process : AF_CREATE_TEMPLATES.conversational) || [];
+            const list = (_createTemplateTab === 'process' ? _getProcessTemplateList() : AF_CREATE_TEMPLATES.conversational) || [];
             const q = _createTemplateQuery.trim().toLowerCase();
             const filtered = list.filter(t => {
                 if (!q) return true;
@@ -2546,6 +2592,8 @@ const API='';
         }
         window.useAgentTemplate = useAgentTemplate;
         window.useProcessTemplate = useProcessTemplate;
+
+        try { loadDynamicProcessTemplates(); } catch (_) { /* ignore */ }
         
         // =========================================================================
         // AGENT TYPE SELECTION (Conversational vs Workflow)
