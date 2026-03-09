@@ -2795,11 +2795,9 @@ const API='';
                 const insts = Array.isArray(task.instructions) ? task.instructions : [task.instructions || ''];
                 const instRows = insts.map((inst, ii) => `
                     <div class="flex gap-1.5 items-start rounded-lg border border-gray-800/80 bg-gray-950/30 p-2"
-                        draggable="true"
-                        ondragstart="proc_startInstructionDrag(${idx},${ii})"
                         ondragover="proc_allowDrop(event)"
                         ondrop="proc_dropInstruction(${idx},${ii})">
-                        <div class="flex-shrink-0 cursor-grab text-gray-500 text-sm px-1 py-2 select-none" title="Drag to reorder instruction">⋮⋮</div>
+                        <div class="flex-shrink-0 cursor-grab text-gray-500 text-sm px-1 py-2 select-none" title="Drag to reorder instruction" draggable="true" ondragstart="proc_startInstructionDrag(${idx},${ii},event)">⋮⋮</div>
                         <textarea
                             onchange="proc_updateInstruction(${idx},${ii},this.value)"
                             oninput="proc_updateInstruction(${idx},${ii},this.value)"
@@ -2810,14 +2808,12 @@ const API='';
                     </div>`).join('');
                 const card = document.createElement('div');
                 card.className = 'rounded-xl border border-gray-700 bg-gray-900/50 p-4';
-                card.draggable = true;
-                card.setAttribute('ondragstart', `proc_startTaskDrag(${idx})`);
                 card.setAttribute('ondragover', 'proc_allowDrop(event)');
                 card.setAttribute('ondrop', `proc_dropTask(${idx})`);
                 card.innerHTML = `
                     <div class="flex items-start gap-3">
                         <div class="flex-shrink-0 flex items-start gap-2">
-                            <div class="cursor-grab text-gray-500 text-sm pt-2 select-none" title="Drag to reorder task">⋮⋮</div>
+                            <div class="cursor-grab text-gray-500 text-sm pt-2 select-none" title="Drag to reorder task" draggable="true" ondragstart="proc_startTaskDrag(${idx},event)">⋮⋮</div>
                             <div class="w-7 h-7 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-xs font-bold text-gray-300 mt-0.5">${idx + 1}</div>
                         </div>
                         <div class="flex-1 min-w-0">
@@ -2856,7 +2852,10 @@ const API='';
             if (event) event.preventDefault();
         }
 
-        function proc_startTaskDrag(taskIdx) {
+        function proc_startTaskDrag(taskIdx, event) {
+            if (event) {
+                event.stopPropagation();
+            }
             _procDragTaskIndex = taskIdx;
         }
 
@@ -2868,7 +2867,10 @@ const API='';
             proc_renderTaskList();
         }
 
-        function proc_startInstructionDrag(taskIdx, instIdx) {
+        function proc_startInstructionDrag(taskIdx, instIdx, event) {
+            if (event) {
+                event.stopPropagation();
+            }
             _procDragInstruction = { taskIdx, instIdx };
         }
 
