@@ -1025,6 +1025,18 @@ const API='';
             try { selectAgentType(selectedAgentType || 'conversational'); } catch (_) {}
             try { createFlowReset(); } catch (_) {}
         }
+
+        let _wizardGeneratingOriginalHtml = null;
+
+        function restoreWizardGeneratingPanel() {
+            const genEl = document.getElementById('wizard-generating');
+            if (!genEl) return;
+            if (_wizardGeneratingOriginalHtml === null) {
+                _wizardGeneratingOriginalHtml = genEl.innerHTML;
+                return;
+            }
+            genEl.innerHTML = _wizardGeneratingOriginalHtml;
+        }
         
         async function updateStepsNew() {
             console.log('=== updateStepsNew called, step:', step);
@@ -3165,6 +3177,9 @@ const API='';
             
             wizard.originalGoal = goal;
             wizard.agentType = 'process';
+
+            // Ensure the generating panel is reset to the animation UI if it was replaced
+            restoreWizardGeneratingPanel();
             
             // Show generating animation
             document.getElementById('wizard-step-0').classList.add('hidden');
