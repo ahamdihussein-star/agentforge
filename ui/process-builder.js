@@ -315,14 +315,18 @@
                 const meta = data.meta || {};
                 if (!workflow || typeof workflow !== 'object') return;
                 try { stopDraftWaitPolling(); } catch (_) {}
-                // Persist as a fallback (refresh-safe)
+                // Persist as a fallback (refresh-safe) — keep wizard_goal / wizard_tasks intact
                 try {
                     sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(workflow));
-                    sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                    const _metaToSave = {
                         goal: meta.goal || '',
                         name: meta.name || workflow.name || 'My Workflow',
-                        animate: true
-                    }));
+                        animate: true,
+                        wizard_goal: meta.wizard_goal || meta.goal || '',
+                        wizard_tasks: Array.isArray(meta.wizard_tasks) ? meta.wizard_tasks : []
+                    };
+                    sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify(_metaToSave));
+                    _savedWizardMeta = _metaToSave;
                 } catch (_) { /* ignore */ }
                 // Start cinematic build immediately
                 try { startBuildAnimation(workflow, { goal: meta.goal || '', name: meta.name || workflow.name || 'My Workflow' }); } catch (e) {
@@ -7003,6 +7007,8 @@
         const PROCESS_BUILDER_DRAFT_KEY = 'agentforge_process_builder_draft';
         const PROCESS_BUILDER_DRAFT_META_KEY = 'agentforge_process_builder_draft_meta';
         let _draftWaitInterval = null;
+        // In-memory copy of wizard meta (goal + tasks + instructions) — survives sessionStorage removal
+        let _savedWizardMeta = {};
 
         function startDraftWaitPolling() {
             stopDraftWaitPolling();
@@ -7037,6 +7043,8 @@
                 const name = draft.name || meta.name || 'My Workflow';
                 const shouldAnimate = meta.animate === true || /[?&]animate=1/.test(window.location.search || '');
                 if (shouldAnimate) {
+                    // Save wizard meta to memory BEFORE clearing sessionStorage
+                    _savedWizardMeta = Object.assign({}, meta);
                     try {
                         sessionStorage.removeItem(PROCESS_BUILDER_DRAFT_KEY);
                         sessionStorage.removeItem(PROCESS_BUILDER_DRAFT_META_KEY);
@@ -7612,8 +7620,11 @@
             ) : Promise.resolve(''));
             if (description === null) return;
 
-            let _wizardMeta = {};
-            try { _wizardMeta = JSON.parse(sessionStorage.getItem('agentforge_process_builder_draft_meta') || '{}'); } catch (_) {}
+            // Use in-memory meta first (survives sessionStorage cleanup), fall back to sessionStorage
+            let _wizardMeta = Object.assign({}, _savedWizardMeta);
+            if (!_wizardMeta.wizard_goal) {
+                try { const _ss = JSON.parse(sessionStorage.getItem('agentforge_process_builder_draft_meta') || '{}'); Object.assign(_wizardMeta, _ss); } catch (_) {}
+            }
 
             const def = {
                 name: workflowName,
