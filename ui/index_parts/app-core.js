@@ -2584,7 +2584,7 @@ const API='';
             // Update generate button label per agent type
             const _genBtn = document.getElementById('create-flow-generate-btn');
             if (_genBtn) {
-                _genBtn.textContent = (selectedAgentType === 'process') ? 'Suggest Tasks →' : 'Generate with AI';
+                _genBtn.textContent = (selectedAgentType === 'process') ? 'AI Generate Agent Tasks' : 'Generate with AI';
             }
             // Always show nav when switching type (reset any hidden state from tasks step)
             if (selectedAgentType === 'process') {
@@ -2756,7 +2756,7 @@ const API='';
                 console.error('proc_suggestTasks error:', e);
                 showToast('Could not connect. Please try again.', 'error');
             } finally {
-                if (btn) { btn.disabled = false; btn.textContent = 'Suggest Tasks →'; }
+                if (btn) { btn.disabled = false; btn.textContent = 'AI Generate Agent Tasks'; }
             }
         }
 
@@ -2773,7 +2773,7 @@ const API='';
             document.getElementById('proc-substep-goal')?.classList.remove('hidden');
             document.getElementById('proc-wizard-nav')?.classList.remove('hidden');
             const btn = document.getElementById('create-flow-generate-btn');
-            if (btn) { btn.disabled = false; btn.textContent = 'Suggest Tasks →'; }
+            if (btn) { btn.disabled = false; btn.textContent = 'AI Generate Agent Tasks'; }
         }
 
         const TASK_TYPE_LABELS = {
