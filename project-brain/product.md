@@ -12,7 +12,7 @@ AgentForge is an enterprise AI agent platform that lets organizations build, dep
 
 ### Process Agents (Workflows)
 - Visual workflow builder for business processes
-- Generate workflows from natural language descriptions
+- Generate workflows from a structured wizard that starts with a goal, then explicit tasks and task instructions
 - Execute multi-step processes with approvals, conditions, loops
 - Track execution history and state
 
@@ -33,7 +33,9 @@ AgentForge is an enterprise AI agent platform that lets organizations build, dep
 - Monitor agent usage and executions
 
 **For Business Users:**
-- Describe a workflow in plain English → get visual process
+- Define a workflow goal, then review or manually define ordered tasks before generation
+- Provide multiple explicit instructions per task so the generated workflow follows business intent step by step
+- Choose between AI-generated task suggestions or defining tasks manually from the start
 - Test workflows with step-by-step playback
 - Approve/reject process steps
 - Track process execution status
@@ -45,6 +47,7 @@ AgentForge is an enterprise AI agent platform that lets organizations build, dep
 - **Access Control**: Agent-level permissions, delegated admin
 - **Multi-Tenancy**: Organization isolation
 - **Process Builder**: AI-powered workflow generation with grounded validation
+- **Structured Process Wizard**: Goal → Tasks → Generate flow with explicit per-task instructions and optional manual task entry
 - **Database-First**: PostgreSQL with full persistence
 - **Tool Ecosystem**: API calls, RAG, email, web scraping, file operations
 

@@ -100,6 +100,47 @@ Trigger → ProcessEngine.execute()
 - `conversations/`: Conversation management
 - `lab/`: Demo/test data generator
 
+## Process Wizard Generation Architecture
+
+**Frontend flow** (`ui/index.html`, `ui/index_parts/app-core.js`):
+
+```
+Process Agent → AI Build Mode
+  → Goal input
+  → Either:
+    ├─ AI Generate Agent Tasks
+    │   → POST /process/wizard/analyze-goal
+    │   → Returns ordered task suggestions with suggested instructions
+    │   → User reviews/edits task names, task types, and multiple instructions per task
+    └─ Define Tasks Manually
+        → Opens the same task editor without AI suggestions
+  → Generate Workflow
+    → POST /process/wizard/generate with goal + explicit tasks
+    → Opens generated workflow in Process Builder
+```
+
+**Backend flow** (`api/modules/process/router.py`, `core/process/wizard.py`):
+
+```
+POST /process/wizard/analyze-goal
+  → ProcessWizard.analyze_goal_to_tasks(goal)
+  → LLM returns ordered tasks with type + suggested_instructions
+
+POST /process/wizard/generate
+  ├─ If tasks were provided:
+  │    → ProcessWizard.generate_from_structured_goal(goal, tasks)
+  │    → LLM wires nodes from explicit task definitions
+  └─ If tasks were not provided:
+       → ProcessWizard.generate_from_goal(goal)
+       → Legacy goal-only generation path
+```
+
+**Key behavior**:
+- Structured mode is instruction-first: the process owner defines the task list and per-task instructions explicitly.
+- The AI acts primarily as a workflow wiring and data-flow generator, not as a business-intent guesser.
+- Each task supports multiple separate instructions.
+- Manual and AI-suggested task entry both converge on the same structured generation payload.
+
 ## Key Execution Paths
 
 **Chat Flow**:
