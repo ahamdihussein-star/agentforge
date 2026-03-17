@@ -951,15 +951,6 @@ const API='';
             apiPersonalityDescriptions = {};
             lastGoalText = '';
             
-            // Sync panel sizing: shrink when generating, expand otherwise
-            (function _initGenModeSync() {
-                var panel = document.querySelector('.create-wizard-modal-panel');
-                var gen = document.getElementById('wizard-generating');
-                if (!panel || !gen) return;
-                function sync() { panel.classList.toggle('generating-mode', !gen.classList.contains('hidden')); }
-                try { new MutationObserver(sync).observe(gen, { attributes: true, attributeFilter: ['class'] }); } catch (_) {}
-            })();
-
             // Reset UI
             document.getElementById('wizard-step-0')?.classList.remove('hidden');
             document.getElementById('wizard-generating')?.classList.add('hidden');
@@ -2399,7 +2390,32 @@ const API='';
 
         let _dynamicProcessTemplates = [];
 
-        async function loadDynamicProcessTemplates() {
+        function _inferTemplateIcon(procDef) {
+            const nodes = Array.isArray(procDef?.nodes) ? procDef.nodes : [];
+            const types = new Set(nodes.map(n => (n.type || '').toLowerCase()));
+            if (types.has('approval')) return '✅';
+            if (types.has('form')) return '📋';
+            if (types.has('notification')) return '📧';
+            if (types.has('condition')) return '⚡';
+            if (types.has('tool')) return '🔧';
+            return '🔄';
+        }
+
+        async function loadDynamicProcessTemplates(silent = true) {
+            // Show loading indicator in grid if gallery is open
+            if (!silent) {
+                const grid = document.getElementById('create-template-grid');
+                if (grid && _createTemplateTab === 'process') {
+                    let loadEl = document.getElementById('template-grid-loading');
+                    if (!loadEl) {
+                        loadEl = document.createElement('div');
+                        loadEl.id = 'template-grid-loading';
+                        loadEl.className = 'col-span-full text-center text-xs text-gray-500 py-3 animate-pulse';
+                        loadEl.textContent = '🔄 Loading saved templates...';
+                        grid.appendChild(loadEl);
+                    }
+                }
+            }
             try {
                 const token = authToken || localStorage.getItem('agentforge_token');
                 if (!token) return;
@@ -2412,7 +2428,7 @@ const API='';
                     id: `saved_process_template_${t.id}`,
                     source: 'saved_process',
                     backendTemplateId: t.id,
-                    icon: t.icon || '📚',
+                    icon: _inferTemplateIcon(t.process_definition),
                     title: t.name || 'Saved Process Template',
                     subtitle: t.description || 'Reusable workflow template',
                     tags: ['Saved Template', t.category || 'General'],
@@ -2423,8 +2439,34 @@ const API='';
                 try { _renderCreateTemplateGallery(); } catch (_) {}
             } catch (e) {
                 console.warn('Could not load process templates:', e);
+                document.getElementById('template-grid-loading')?.remove();
+                if (!silent) {
+                    try { showToast('Could not load saved templates. Check your connection.', 'warning'); } catch (_) {}
+                }
             }
         }
+
+        async function deleteSavedTemplate(templateId) {
+            const tpl = _findCreateTemplateById(templateId);
+            if (!tpl) return;
+            if (!confirm(`Delete template "${tpl.title}"? This cannot be undone.`)) return;
+            try {
+                const token = authToken || localStorage.getItem('agentforge_token');
+                const res = await fetch(`/process/config/templates/${tpl.backendTemplateId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (res.ok) {
+                    try { showToast('Template deleted.', 'success'); } catch (_) {}
+                    await loadDynamicProcessTemplates(false);
+                } else {
+                    try { showToast('Could not delete template.', 'error'); } catch (_) {}
+                }
+            } catch (e) {
+                try { showToast('Could not delete template.', 'error'); } catch (_) {}
+            }
+        }
+        window.deleteSavedTemplate = deleteSavedTemplate;
 
         function _getProcessTemplateList() {
             return [...(AF_CREATE_TEMPLATES.process || []), ...(_dynamicProcessTemplates || [])];
@@ -2557,15 +2599,24 @@ const API='';
                 document.getElementById('proc-substep-tasks')?.classList.add('hidden');
                 document.getElementById('proc-wizard-nav')?.classList.remove('hidden');
 
-                const hasOriginal = !!savedGoal;
-                try {
-                    showToast(
-                        hasOriginal
-                            ? 'Template loaded — your goal and tasks are ready. Review the goal then click "Define Tasks Manually" to edit tasks.'
-                            : 'Template loaded — review the goal then edit the tasks.',
-                        'success'
-                    );
-                } catch (_) {}
+                // Mark template tasks as loaded + update button label
+                _templateTasksLoaded = true;
+                const _manualBtn = document.getElementById('proc-start-manually-btn');
+                if (_manualBtn) _manualBtn.textContent = 'Review Template Tasks \u2192';
+
+                // Show visual badge indicating tasks are ready
+                const _goalSection = document.getElementById('proc-substep-goal');
+                if (_goalSection) {
+                    document.getElementById('proc-template-tasks-hint')?.remove();
+                    const _hint = document.createElement('div');
+                    _hint.id = 'proc-template-tasks-hint';
+                    _hint.className = 'mt-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2';
+                    const _count = _procTasks.length;
+                    _hint.innerHTML = `<span class="text-base">\u2705</span><span><strong>${_count} task${_count !== 1 ? 's' : ''} loaded from template</strong> \u2014 click <strong>Review Template Tasks \u2192</strong> to see and edit them, or use AI to suggest new ones.</span>`;
+                    _goalSection.appendChild(_hint);
+                }
+
+                try { showToast('Template loaded \u2014 review your goal and click "Review Template Tasks \u2192".', 'success'); } catch (_) {}
                 return;
             }
 
@@ -2602,8 +2653,8 @@ const API='';
             modal.classList.add('flex');
             switchCreateTemplateTab(_createTemplateTab);
             _renderCreateTemplateGallery();
-            // Always refresh saved templates from backend when gallery opens
-            loadDynamicProcessTemplates();
+            // Always refresh saved templates from backend when gallery opens (show loading indicator)
+            loadDynamicProcessTemplates(false);
         }
         window.openCreateTemplateGallery = openCreateTemplateGallery;
 
@@ -2655,19 +2706,26 @@ const API='';
                 const tagHtml = (t.tags || []).slice(0, 4).map(x =>
                     `<span class="text-[11px] px-2 py-0.5 rounded-full" style="background:var(--bg-input);color:var(--text-secondary);border:1px solid color-mix(in srgb, var(--border-color) 70%, transparent);">${_createTplEsc(String(x))}</span>`
                 ).join(' ');
-                const snippet = String(t.prompt || '').trim().replace(/\s+/g, ' ');
-                const short = snippet.length > 160 ? (snippet.slice(0, 160) + '…') : snippet;
+                const isSaved = t.source === 'saved_process';
+                const snippet = String(t.prompt || (isSaved ? (t.process_definition?.wizard_goal || '') : '')).trim().replace(/\s+/g, ' ');
+                const short = snippet.length > 160 ? (snippet.slice(0, 160) + '\u2026') : snippet;
+                const deleteBtn = isSaved
+                    ? `<button onclick="event.stopPropagation();deleteSavedTemplate('${t.id}')" title="Delete template" class="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition text-sm">\u{1F5D1}</button>`
+                    : '';
                 return `
                     <div class="card p-4 rounded-xl transition-transform" style="cursor:default;">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex items-start gap-3 min-w-0">
-                                <div class="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style="background:var(--bg-input);border:1px solid color-mix(in srgb, var(--border-color) 65%, transparent);">${t.icon || '✨'}</div>
+                                <div class="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style="background:var(--bg-input);border:1px solid color-mix(in srgb, var(--border-color) 65%, transparent);">${t.icon || '\u2728'}</div>
                                 <div class="min-w-0">
                                     <div class="font-semibold leading-tight" style="color:var(--text-primary);">${_createTplEsc(t.title || 'Template')}</div>
                                     <div class="text-xs mt-0.5" style="color:var(--text-secondary);">${_createTplEsc(t.subtitle || '')}</div>
                                 </div>
                             </div>
-                            <button onclick="applyCreateTemplate('${t.id}'); closeCreateTemplateGallery()" class="btn-primary px-3 py-2 rounded-lg text-sm font-medium transition flex-shrink-0">Use</button>
+                            <div class="flex items-center gap-1 flex-shrink-0">
+                                ${deleteBtn}
+                                <button onclick="applyCreateTemplate('${t.id}'); closeCreateTemplateGallery()" class="btn-primary px-3 py-2 rounded-lg text-sm font-medium transition">Use</button>
+                            </div>
                         </div>
                         <div class="mt-3 flex flex-wrap gap-1.5">${tagHtml}</div>
                         <div class="mt-3 text-xs leading-relaxed" style="color:var(--text-secondary);">${_createTplEsc(short)}</div>
@@ -2695,7 +2753,7 @@ const API='';
         let selectedAgentType = 'conversational'; // Default
         
         function selectAgentType(type) {
-            console.log('🎯 [CREATE] selectAgentType() called with type:', type);
+            console.log('\u{1F3AF} [CREATE] selectAgentType() called with type:', type);
             selectedAgentType = type === 'process' ? 'process' : 'conversational';
             
             // Update card styles
@@ -2708,7 +2766,7 @@ const API='';
                 procCard?.classList.remove('border-green-500');
                 procCard?.classList.add('border-transparent');
                 // Update selection text
-                if (convCard) convCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
+                if (convCard) convCard.querySelector('.text-sm:last-child').textContent = '\u2713 Selected';
                 if (procCard) procCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
                 if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-purple-400 font-medium';
                 if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
@@ -2718,7 +2776,7 @@ const API='';
                 convCard?.classList.remove('border-purple-500');
                 convCard?.classList.add('border-transparent');
                 // Update selection text
-                if (procCard) procCard.querySelector('.text-sm:last-child').textContent = '✓ Selected';
+                if (procCard) procCard.querySelector('.text-sm:last-child').textContent = '\u2713 Selected';
                 if (convCard) convCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
                 if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-green-400 font-medium';
                 if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
@@ -2754,6 +2812,14 @@ const API='';
         function createFlowReset() {
             _createFlowStep = 'type';
             _createBuildMode = null;
+            _procTasks = [];
+            _templateTasksLoaded = false;
+            if (wizard) wizard._structuredTasks = null;
+            // Reset manual button label
+            const _mb = document.getElementById('proc-start-manually-btn');
+            if (_mb) _mb.textContent = 'Define Tasks Manually';
+            // Remove template hint if present
+            document.getElementById('proc-template-tasks-hint')?.remove();
             selectBuildMode(null);
             createFlowGo('type');
         }
@@ -2826,13 +2892,13 @@ const API='';
             if (mode === 'manual') {
                 manualCard?.classList.add('border-blue-500');
                 manualCard?.classList.remove('border-transparent');
-                if (manualSel) { manualSel.textContent = '✓ Selected'; manualSel.className = 'text-sm text-blue-400 font-medium'; }
+                if (manualSel) { manualSel.textContent = '\u2713 Selected'; manualSel.className = 'text-sm text-blue-400 font-medium'; }
                 if (aiSel) { aiSel.textContent = 'Click to select'; aiSel.className = 'text-sm text-gray-500'; }
                 if (continueBtn) continueBtn.textContent = 'Start Setup';
             } else if (mode === 'ai') {
                 aiCard?.classList.add('border-purple-500');
                 aiCard?.classList.remove('border-transparent');
-                if (aiSel) { aiSel.textContent = '✓ Selected'; aiSel.className = 'text-sm text-purple-400 font-medium'; }
+                if (aiSel) { aiSel.textContent = '\u2713 Selected'; aiSel.className = 'text-sm text-purple-400 font-medium'; }
                 if (manualSel) { manualSel.textContent = 'Click to select'; manualSel.className = 'text-sm text-gray-500'; }
                 if (continueBtn) continueBtn.textContent = 'Continue';
             } else {
@@ -2873,6 +2939,7 @@ const API='';
         // =========================================================================
 
         let _procTasks = []; // Current task list state
+        let _templateTasksLoaded = false; // true when tasks pre-loaded from a saved template
         let _procDragTaskIndex = null;
         let _procDragInstruction = null;
 
@@ -2881,6 +2948,12 @@ const API='';
             if (!goal) {
                 showToast('Please describe your workflow goal first.', 'warning');
                 return;
+            }
+
+            // Warn before overwriting pre-loaded template tasks
+            if (_procTasks.length > 0) {
+                const ok = confirm('This will replace your current tasks with AI suggestions. Continue?');
+                if (!ok) return;
             }
 
             const btn = document.getElementById('create-flow-generate-btn');
@@ -2903,6 +2976,11 @@ const API='';
                         type: t.type || 'ai',
                         instructions: t.suggested_instructions && t.suggested_instructions.length ? t.suggested_instructions : ['']
                     }));
+                    // AI replaced tasks — clear template state
+                    _templateTasksLoaded = false;
+                    document.getElementById('proc-template-tasks-hint')?.remove();
+                    const _manualBtn = document.getElementById('proc-start-manually-btn');
+                    if (_manualBtn) _manualBtn.textContent = 'Define Tasks Manually';
                     proc_showTasksStep();
                 } else {
                     showToast('Could not suggest tasks. Please try again.', 'error');
@@ -2929,15 +3007,22 @@ const API='';
             document.getElementById('proc-wizard-nav')?.classList.remove('hidden');
             const btn = document.getElementById('create-flow-generate-btn');
             if (btn) { btn.disabled = false; btn.textContent = 'AI Generate Agent Tasks'; }
+            // Restore manual button label based on current state
+            const manualBtn = document.getElementById('proc-start-manually-btn');
+            if (manualBtn) {
+                manualBtn.textContent = (_templateTasksLoaded && _procTasks.length > 0)
+                    ? 'Review Template Tasks \u2192'
+                    : 'Define Tasks Manually';
+            }
         }
 
         const TASK_TYPE_LABELS = {
-            form: { icon: '📋', label: 'Form', color: 'blue' },
-            ai: { icon: '🧠', label: 'AI', color: 'purple' },
-            tool: { icon: '🔧', label: 'Tool / API', color: 'yellow' },
-            condition: { icon: '⚡', label: 'Condition', color: 'orange' },
-            approval: { icon: '✅', label: 'Approval', color: 'green' },
-            notification: { icon: '📧', label: 'Notification', color: 'sky' },
+            form: { icon: '\u{1F4C3}', label: 'Form', color: 'blue' },
+            ai: { icon: '\u{1F9E0}', label: 'AI', color: 'purple' },
+            tool: { icon: '\u{1F6E0}', label: 'Tool / API', color: 'yellow' },
+            condition: { icon: '\u{26A1}', label: 'Condition', color: 'orange' },
+            approval: { icon: '\u{2705}', label: 'Approval', color: 'green' },
+            notification: { icon: '\u{1F4E9}', label: 'Notification', color: 'sky' },
         };
 
         function proc_renderTaskList() {
@@ -2950,7 +3035,7 @@ const API='';
                     <div class="flex gap-1.5 items-start rounded-lg border border-gray-800/80 bg-gray-950/30 p-2"
                         ondragover="proc_allowDrop(event)"
                         ondrop="proc_dropInstruction(${idx},${ii})">
-                        <div class="flex-shrink-0 cursor-grab text-gray-500 text-sm px-1 py-2 select-none" title="Drag to reorder instruction" draggable="true" ondragstart="proc_startInstructionDrag(${idx},${ii},event)">⋮⋮</div>
+                        <div class="flex-shrink-0 cursor-grab text-gray-500 text-sm px-1 py-2 select-none" title="Drag to reorder instruction" draggable="true" ondragstart="proc_startInstructionDrag(${idx},${ii},event)">\u{1F589}\u{1F589}</div>
                         <textarea
                             onchange="proc_updateInstruction(${idx},${ii},this.value)"
                             oninput="proc_updateInstruction(${idx},${ii},this.value)"
@@ -2966,7 +3051,7 @@ const API='';
                 card.innerHTML = `
                     <div class="flex items-start gap-3">
                         <div class="flex-shrink-0 flex items-start gap-2">
-                            <div class="cursor-grab text-gray-500 text-sm pt-2 select-none" title="Drag to reorder task" draggable="true" ondragstart="proc_startTaskDrag(${idx},event)">⋮⋮</div>
+                            <div class="cursor-grab text-gray-500 text-sm pt-2 select-none" title="Drag to reorder task" draggable="true" ondragstart="proc_startTaskDrag(${idx},event)">\u{1F589}\u{1F589}</div>
                             <div class="w-7 h-7 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-xs font-bold text-gray-300 mt-0.5">${idx + 1}</div>
                         </div>
                         <div class="flex-1 min-w-0">
@@ -3185,11 +3270,11 @@ const API='';
                 if (idx === 0) {
                     el.classList.remove('text-gray-500');
                     icon.className = 'w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center animate-pulse';
-                    icon.textContent = '✓';
+                    icon.textContent = '\u2713';
                 } else {
                     el.classList.add('text-gray-500');
                     icon.className = 'w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center';
-                    icon.textContent = '○';
+                    icon.textContent = '\u25CB';
                 }
             });
         }
@@ -3264,7 +3349,7 @@ const API='';
                             const icon = prev.querySelector('span');
                             if (icon) {
                                 icon.className = 'w-5 h-5 rounded-full bg-green-500 flex items-center justify-center';
-                                icon.textContent = '✓';
+                                icon.textContent = '\u2713';
                             }
                             prev.classList.remove('text-gray-500');
                         }
@@ -3275,7 +3360,7 @@ const API='';
                         const icon = cur.querySelector('span');
                         if (icon) {
                             icon.className = 'w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center animate-pulse';
-                            icon.textContent = '✓';
+                            icon.textContent = '\u2713';
                         }
                         cur.classList.remove('text-gray-500');
                     }
@@ -3298,7 +3383,7 @@ const API='';
                             const icon = el.querySelector('span');
                             if (icon) {
                                 icon.className = 'w-5 h-5 rounded-full bg-green-500 flex items-center justify-center';
-                                icon.textContent = '✓';
+                                icon.textContent = '\u2713';
                             }
                             el.classList.remove('text-gray-500');
                         }
@@ -3320,6 +3405,10 @@ const API='';
             
             wizard.originalGoal = goal;
             wizard.agentType = 'process';
+            // Clear stale structured tasks if this is a direct-goal run (not from proc_generateFromTasks)
+            if (_procTasks.length === 0 && wizard._structuredTasks && wizard._structuredTasks.length > 0) {
+                wizard._structuredTasks = null;
+            }
 
             // Ensure the generating panel is reset to the animation UI if it was replaced
             restoreWizardGeneratingPanel();

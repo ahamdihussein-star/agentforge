@@ -2008,6 +2008,26 @@ async def create_process_template(
     return template
 
 
+@router.delete("/config/templates/{template_id}")
+async def delete_process_template(
+    template_id: str,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
+):
+    """Delete a saved process template (org-scoped)"""
+    from database.services.process_settings_service import ProcessSettingsService
+    user_dict = _user_to_dict(user)
+    settings_service = ProcessSettingsService(db)
+    deleted = settings_service.delete_template(
+        template_id=template_id,
+        org_id=user_dict["org_id"]
+    )
+    if not deleted:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Template not found or access denied")
+    return {"success": True}
+
+
 @router.post("/config/templates/{template_id}/use")
 async def use_process_template(
     template_id: str,

@@ -585,6 +585,20 @@ class ProcessSettingsService:
         
         return template.to_dict()
     
+    def delete_template(self, template_id: str, org_id: str) -> bool:
+        """Delete a process template (only by owning org)"""
+        template_id_str = str(template_id) if hasattr(template_id, 'hex') else template_id
+        org_id_str = str(org_id) if hasattr(org_id, 'hex') else org_id
+        template = self.db.query(ProcessTemplate).filter(
+            ProcessTemplate.id == template_id_str,
+            ProcessTemplate.org_id == org_id_str
+        ).first()
+        if not template:
+            return False
+        self.db.delete(template)
+        self.db.commit()
+        return True
+
     def use_template(self, template_id: str) -> Dict[str, Any]:
         """Get template and increment use count"""
         # Use string comparison for database-agnostic compatibility
