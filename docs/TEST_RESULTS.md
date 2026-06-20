@@ -137,6 +137,17 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 ## ✅ gpt-4o path confirmed
 - Switching the agent to **gpt-4o** removed the Gemini 403; chat works. (Saving the draft made the in-wizard test chat use the selected model.)
 
+## ✅ Process Agent (Generate with AI) — generation + visual builder WORK
+- Plain-English expense-reimbursement description → AI generated a clean **7-task** workflow with correct task TYPES: Form (Collect), AI (Validate), Decision (Determine Approval Path), Auto-Approve, Approval (Manager), Notification (Notify employee), Tool/API (Record Outcome).
+- The visual Workflow Builder rendered the graph correctly with a **branching decision** (Yes → Auto-Approve, No → Manager Approval) converging to Notify → Record → End. Demo-worthy quality.
+- "Test run" dialog correctly auto-derived input fields (Receipt Document + Claimed Amount) from the Collect task.
+
+## 🟠 NOTE for Ahmed — Process generation/build is SLOW (needs review)
+- "AI Generate Agent Tasks" + "Generate Workflow" + the node-build animation together take tens of seconds; the build animation cycled through its stages and *looked* like it was hanging before the builder finally opened. Ahmed flagged this directly: **too slow, needs review/optimization.** Investigate generation latency + the build/animation step.
+
+## 🟠 Minor bug — process templates fail to load on startup
+- Console at load: `Could not load process templates: ReferenceError: authToken is not defined at loadDynamicProcessTemplates (app-core.js:2430)`. Templates still appear (fallback), but the dynamic load is broken — `authToken` is undefined there. Easy fix (use the correct token getter).
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it
