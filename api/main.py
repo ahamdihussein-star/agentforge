@@ -10613,7 +10613,7 @@ async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: Us
     if request.is_active is not None:
         tool.is_active = request.is_active
     if request.api_config is not None:
-        tool.api_config = APIConfig(**request.api_config)
+        tool.api_config = APIEndpointConfig(**request.api_config)
     
     # Update access control fields (ONLY owner can change these)
     is_owner = tool.owner_id == user_id
