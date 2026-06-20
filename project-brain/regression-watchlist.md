@@ -90,6 +90,15 @@
 - **Do not** hardcode business logic (keep everything configurable)
 - **Do not** use database-specific types (use column_types.py)
 - **Do not** expose technical errors to users (plain language only)
+- **Do not** add a new public `/api/*` route without either putting it behind auth or adding it to the allowlist in `api/auth_gate.py` (otherwise it's silently blocked once `AUTH_GATE_MODE=enforce`)
+- **Do not** weaken the auth gate back to fail-open, or re-expose `/api/debug/*` in production
+
+### API Auth Gate (api/auth_gate.py)
+- **Login funnel must stay public**: `/api/security/auth/login|register|refresh|logout|forgot-password|reset-password|accept-invitation|verify-email|resend-verification|password-policy|first-login-password-change`, `/api/security/mfa/send-login-code|verify`, and `/api/health*`. If a login/bootstrap call starts 401-ing, it's missing from the allowlist.
+- **Channels namespace**: per-agent public endpoints must live under `/api/public/*` (already allowlisted) and authenticate via per-agent API key, not user token.
+- **Rollout**: `monitor` logs only; flip to `enforce` only after logs are clean.
+
+**Test**: with `enforce`, login still works end-to-end; SPA loads after login; `/api/debug/*` and a random `/api/*` without a token return 404/401.
 
 ## Files That Are Critical
 
@@ -100,4 +109,5 @@
 - `core/security/state.py` - Security state management
 - `database/services/*.py` - All service layer classes
 - `api/security.py` - Authentication and authorization
+- `api/auth_gate.py` - Coarse API auth gate (public allowlist + fail-closed)
 - `database/column_types.py` - Database-agnostic types

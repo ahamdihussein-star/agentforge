@@ -3,6 +3,8 @@
 .env.local
 *.pem
 *.key
+scripts/.deploy.env
+*.deploy.env
 
 # === macOS ===
 .DS_Store

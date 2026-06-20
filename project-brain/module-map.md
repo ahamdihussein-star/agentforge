@@ -56,6 +56,7 @@
 - `security.py`: Security endpoints (~4.1K lines)
   - Auth, Users, Roles, MFA, OAuth, RBAC, Audit
 - `health.py`: Health check endpoints
+- `auth_gate.py`: AuthGateMiddleware — single coarse auth gate over all `/api/*` (public allowlist for login/health/`/api/public/*`); blocks `/api/debug/*`; fail-closed; `AUTH_GATE_MODE=monitor|enforce`
 
 ### `api/modules/`
 - `access_control/`: Agent permissions, delegated admin

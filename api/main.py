@@ -4350,6 +4350,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AgentForge", version="3.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+# Coarse-grained API auth gate: requires a valid bearer token on every /api/* route
+# except an explicit public allowlist (login/health/channels). Safe by default:
+# runs in "monitor" mode (logs would-be blocks, blocks nothing) until AUTH_GATE_MODE=enforce.
+try:
+    from api.auth_gate import AuthGateMiddleware
+    app.add_middleware(AuthGateMiddleware)
+    print("✅ API auth gate registered (mode=" + (os.environ.get("AUTH_GATE_MODE", "monitor")) + ")")
+except Exception as _ag_err:
+    print(f"⚠️ API auth gate NOT registered: {_ag_err}")
+
 # Include Security Router
 if SECURITY_AVAILABLE:
     app.include_router(security_router)
@@ -7581,12 +7591,21 @@ async def get_settings():
             provider['models'] = provider_default_models.get(provider.get('provider'), [])
     
     # Mask sensitive values
+    def _mask_key(v):
+        if not v:
+            return v
+        return ('***' + v[-4:]) if len(v) > 4 else '****'
+
     if settings['llm']['api_key']:
-        settings['llm']['api_key'] = '***' + settings['llm']['api_key'][-4:] if len(settings['llm']['api_key']) > 4 else '****'
+        settings['llm']['api_key'] = _mask_key(settings['llm']['api_key'])
     if settings['embedding']['api_key']:
-        settings['embedding']['api_key'] = '***' + settings['embedding']['api_key'][-4:] if len(settings['embedding']['api_key']) > 4 else '****'
+        settings['embedding']['api_key'] = _mask_key(settings['embedding']['api_key'])
     if settings['vector_db']['pinecone_api_key']:
-        settings['vector_db']['pinecone_api_key'] = '***' + settings['vector_db']['pinecone_api_key'][-4:] if len(settings['vector_db']['pinecone_api_key']) > 4 else '****'
+        settings['vector_db']['pinecone_api_key'] = _mask_key(settings['vector_db']['pinecone_api_key'])
+    # Also mask the per-provider keys in the multi-provider array (previously returned in plaintext)
+    for _provider in settings.get('llm_providers', []):
+        if isinstance(_provider, dict) and _provider.get('api_key'):
+            _provider['api_key'] = _mask_key(_provider['api_key'])
     return {"settings": settings}
 
 
