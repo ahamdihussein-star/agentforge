@@ -63,8 +63,8 @@
         
         async function scrapeUrlForTool(toolId) {
             const url = document.getElementById('scrape-url')?.value?.trim();
-            if (!url) return alert('Please enter a URL');
-            if (!url.startsWith('http')) return alert('Please enter a valid URL starting with http:// or https://');
+            if (!url) return showToast('Please enter a URL');
+            if (!url.startsWith('http')) return showToast('Please enter a valid URL starting with http:// or https://');
             
             const recursive = document.getElementById('scrape-recursive')?.checked || false;
             const maxPages = parseInt(document.getElementById('scrape-max')?.value) || 10;
@@ -299,7 +299,7 @@
                             }
                         }
                     } catch(err) {
-                        alert('Failed to parse Excel file: ' + err.message);
+                        showToast('Failed to parse Excel file: ' + err.message);
                     }
                 };
                 reader.readAsArrayBuffer(file);
@@ -348,8 +348,8 @@
         
         async function saveNewTable() {
             const tableName = document.getElementById('table-name')?.value?.trim();
-            if(!tableName) return alert('Please enter a table name');
-            if(currentTableData.headers.length === 0) return alert('Table must have at least one column');
+            if(!tableName) return showToast('Please enter a table name');
+            if(currentTableData.headers.length === 0) return showToast('Table must have at least one column');
             
             // Convert table to searchable text format
             const tableContent = convertTableToText(tableName, currentTableData);
@@ -367,14 +367,14 @@
                 const data = await r.json();
                 
                 if(data.status === 'success') {
-                    alert('✅ Table added!');
+                    showToast('✅ Table added!');
                     document.getElementById('add-table-modal')?.remove();
                     viewTool(currentTableToolId);
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to add'));
+                    showToast('Error: ' + (data.error || 'Failed to add'));
                 }
             } catch(e) {
-                alert('Failed to add: ' + e.message);
+                showToast('Failed to add: ' + e.message);
             }
         }
         
@@ -469,7 +469,7 @@
                 renderTableEditor('view-table-editor');
                 
             } catch(e) {
-                alert('Failed to load table: ' + e.message);
+                showToast('Failed to load table: ' + e.message);
             }
         }
         
@@ -488,14 +488,14 @@
                 const data = await r.json();
                 
                 if(data.status === 'success') {
-                    alert('✅ Table updated!');
+                    showToast('✅ Table updated!');
                     document.getElementById('view-table-modal')?.remove();
                     viewTool(currentTableToolId);
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to update'));
+                    showToast('Error: ' + (data.error || 'Failed to update'));
                 }
             } catch(e) {
-                alert('Failed to update: ' + e.message);
+                showToast('Failed to update: ' + e.message);
             }
         }
         
@@ -525,7 +525,7 @@
                 a.click();
                 URL.revokeObjectURL(url);
             } catch(e) {
-                alert('Failed to download: ' + e.message);
+                showToast('Failed to download: ' + e.message);
             }
         }
         
@@ -542,9 +542,9 @@
             const body = bodyEl?.value?.trim();
             const html = htmlEl?.checked || false;
             
-            if (!to) return alert('Please enter recipient email');
-            if (!subject) return alert('Please enter email subject');
-            if (!body) return alert('Please enter email message');
+            if (!to) return showToast('Please enter recipient email');
+            if (!subject) return showToast('Please enter email subject');
+            if (!body) return showToast('Please enter email message');
             
             // Show loading
             resultEl.classList.remove('hidden');
@@ -606,7 +606,7 @@
         
         async function askKnowledgeBase(toolId) {
             const query = document.getElementById('kb-search-'+toolId)?.value;
-            if(!query) return alert('Please enter a question');
+            if(!query) return showToast('Please enter a question');
             
             const mode = document.getElementById('kb-mode-'+toolId)?.value || 'ai';
             const resultsDiv = document.getElementById('kb-results-'+toolId);
@@ -730,7 +730,7 @@
                 `;
                 document.body.appendChild(modal);
             } catch(e) {
-                alert('Failed to load page: ' + e.message);
+                showToast('Failed to load page: ' + e.message);
             }
         }
         
@@ -759,9 +759,9 @@
                     body: JSON.stringify({ api_config: config })
                 });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
-                if (typeof showToast === 'function') showToast('✅ Configuration saved!', 'success'); else alert('✅ Configuration saved!');
+                if (typeof showToast === 'function') showToast('✅ Configuration saved!', 'success'); else showToast('✅ Configuration saved!');
             } catch(e) {
-                if (typeof showToast === 'function') showToast('Failed to save: ' + e.message, 'error'); else alert('Failed to save: ' + e.message);
+                if (typeof showToast === 'function') showToast('Failed to save: ' + e.message, 'error'); else showToast('Failed to save: ' + e.message);
             }
         }
         
@@ -776,12 +776,12 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ config: { mock_response: mockResponse, demo_mode: true } })
                 });
-                alert('✅ Mock response saved!');
+                showToast('✅ Mock response saved!');
             } catch(e) {
                 if(e instanceof SyntaxError) {
-                    alert('Invalid JSON format. Please check your input.');
+                    showToast('Invalid JSON format. Please check your input.');
                 } else {
-                    alert('Failed to save: ' + e.message);
+                    showToast('Failed to save: ' + e.message);
                 }
             }
         }
@@ -812,9 +812,9 @@
                         } 
                     })
                 });
-                alert('✅ Output transformation saved!');
+                showToast('✅ Output transformation saved!');
             } catch(e) {
-                alert('Failed to save: ' + e.message);
+                showToast('Failed to save: ' + e.message);
             }
         }
         
@@ -839,7 +839,7 @@
                 const params = data.parameters;
                 
                 if (data.error) {
-                    alert('Analysis failed: ' + data.error);
+                    showToast('Analysis failed: ' + data.error);
                     if (btn) {
                         btn.innerHTML = '❌ Failed';
                         setTimeout(() => { btn.innerHTML = '🔍 Analyze Parameters'; btn.disabled = false; }, 2000);
@@ -939,7 +939,7 @@
                     }
                 }
             } catch (e) {
-                alert('Analysis error: ' + e.message);
+                showToast('Analysis error: ' + e.message);
                 if (btn) {
                     btn.innerHTML = '❌ Failed';
                     setTimeout(() => { btn.innerHTML = '🔍 Analyze Parameters'; btn.disabled = false; }, 2000);
@@ -972,14 +972,14 @@
                         : JSON.stringify(data.generated_data, null, 2);
                 } else if (data.error) {
                     paramInput.value = originalValue;
-                    alert('Generation failed: ' + data.error);
+                    showToast('Generation failed: ' + data.error);
                 } else {
                     paramInput.value = originalValue;
-                    alert('Could not generate data. Check LLM configuration.');
+                    showToast('Could not generate data. Check LLM configuration.');
                 }
             } catch (e) {
                 paramInput.value = originalValue;
-                alert('Error: ' + e.message);
+                showToast('Error: ' + e.message);
             }
             
             paramInput.disabled = false;
@@ -1147,16 +1147,16 @@
                     btn.innerHTML = '✅ Filled!';
                     setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 2000);
                 } else if (data.error) {
-                    alert('Failed to auto-fill: ' + data.error);
+                    showToast('Failed to auto-fill: ' + data.error);
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 } else {
-                    alert('Could not generate data. Check LLM configuration.');
+                    showToast('Could not generate data. Check LLM configuration.');
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
             } catch (e) {
-                alert('Error: ' + e.message);
+                showToast('Error: ' + e.message);
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
@@ -1239,7 +1239,7 @@
             try {
                 config = JSON.parse(configText || '{}');
             } catch(e) {
-                alert('Invalid JSON in configuration');
+                showToast('Invalid JSON in configuration');
                 return;
             }
             
@@ -1249,9 +1249,9 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ name, description, config })
                 });
-                alert('✅ Configuration saved!');
+                showToast('✅ Configuration saved!');
             } catch(e) {
-                alert('Failed to save: ' + e.message);
+                showToast('Failed to save: ' + e.message);
             }
         }
         
@@ -1292,7 +1292,7 @@
             const url=document.getElementById('scrape-url').value;
             const rec=document.getElementById('scrape-rec').checked;
             const max=parseInt(document.getElementById('scrape-max').value);
-            if(!url){alert('Enter URL');return;}
+            if(!url){showToast('Enter URL');return;}
             
             // Show progress modal
             showProgressModal('Scraping website...');
@@ -1330,7 +1330,7 @@
                 } catch(e) {
                     clearInterval(progressInterval);
                     hideProgressModal();
-                    alert('Error scraping: ' + e.message);
+                    showToast('Error scraping: ' + e.message);
                 }
             } else {
                 updateProgress(30, '📄 Fetching page content...');
@@ -1342,7 +1342,7 @@
                     viewTool(tid);
                 } catch(e) {
                     hideProgressModal();
-                    alert('Error scraping: ' + e.message);
+                    showToast('Error scraping: ' + e.message);
                 }
             }
         }
@@ -3105,7 +3105,7 @@ async function saveToolEdit() {
             }
             if (!content) return;
             navigator.clipboard.writeText(content);
-            alert('Content copied to clipboard!');
+            showToast('Content copied to clipboard!');
         }
         
         function downloadDataContent() {
@@ -3236,9 +3236,9 @@ async function saveToolEdit() {
             document.getElementById('search-api-hint').textContent = hints[p] || '';
         }
         function onImageProviderChange(){}
-        function testDBConnection(){alert('Database connection test coming soon!');}
-        function testSheetConnection(){alert('Spreadsheet connection test coming soon!');}
-        function testEmailConnection(){alert('Email connection test coming soon!');}
+        function testDBConnection(){showToast('Database connection test coming soon!');}
+        function testSheetConnection(){showToast('Spreadsheet connection test coming soon!');}
+        function testEmailConnection(){showToast('Email connection test coming soon!');}
 
         // Knowledge Base helper functions
         function toggleKBEmbedding(){
@@ -3346,9 +3346,9 @@ async function saveToolEdit() {
                     apiParams=ep.parameters.map(p=>({id:Date.now()+Math.random(),name:p.name,description:p.description,data_type:p.data_type,required:p.required,location:p.location}));
                     renderApiParams();
                 }
-                alert('OpenAPI spec loaded!');
+                showToast('OpenAPI spec loaded!');
                 setConfigMode('manual');
-            }catch(e){alert('Failed to parse spec');}
+            }catch(e){showToast('Failed to parse spec');}
         }
 
         function toggleAuthFields(){
@@ -3450,7 +3450,7 @@ async function saveToolEdit() {
         }
 
         async function createTool(){
-            if(!toolType){alert('Select tool type');return;}
+            if(!toolType){showToast('Select tool type');return;}
             let name,desc,config={},api_config=null;
             
             // Helper function to check if name exists (skip for same tool when editing)
@@ -3467,9 +3467,9 @@ async function saveToolEdit() {
             if(toolType==='knowledge'){
                 name=document.getElementById('kb-name').value?.trim();
                 desc=document.getElementById('kb-desc').value;
-                if(!name){alert('Enter knowledge base name');return;}
+                if(!name){showToast('Enter knowledge base name');return;}
                 if(isNameDuplicate(name)){
-                    alert(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
+                    showToast(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
                     return;
                 }
                 
@@ -3506,9 +3506,9 @@ async function saveToolEdit() {
             else if(toolType==='document'){
                 name=document.getElementById('doc-name').value?.trim();
                 desc=document.getElementById('doc-desc').value;
-                if(!name){alert('Enter tool name');return;}
+                if(!name){showToast('Enter tool name');return;}
                 if(isNameDuplicate(name)){
-                    alert(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
+                    showToast(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
                     return;
                 }
             }else if(toolType==='website'){
@@ -3517,18 +3517,18 @@ async function saveToolEdit() {
                 config.url=document.getElementById('web-url').value;
                 config.recursive=document.getElementById('web-recursive').checked;
                 config.max_pages=parseInt(document.getElementById('web-max').value);
-                if(!name){alert('Enter tool name');return;}
+                if(!name){showToast('Enter tool name');return;}
                 if(isNameDuplicate(name)){
-                    alert(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
+                    showToast(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
                     return;
                 }
-                if(!config.url){alert('Enter website URL');return;}
+                if(!config.url){showToast('Enter website URL');return;}
             }else if(toolType==='api'){
                 name=(document.getElementById('api-name')||document.getElementById('wiz-name'))?.value?.trim();
                 desc=(document.getElementById('api-desc')||document.getElementById('wiz-desc'))?.value||'';
-                if(!name){alert('Enter tool name');return;}
+                if(!name){showToast('Enter tool name');return;}
                 if(isNameDuplicate(name)){
-                    alert(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
+                    showToast(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
                     return;
                 }
                 api_config={
@@ -3547,9 +3547,9 @@ async function saveToolEdit() {
             else if(toolType==='email'){
                 name = document.getElementById('wiz-name')?.value?.trim();
                 desc = document.getElementById('wiz-desc')?.value || '';
-                if(!name){alert('Enter tool name');return;}
+                if(!name){showToast('Enter tool name');return;}
                 if(isNameDuplicate(name)){
-                    alert(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
+                    showToast(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
                     return;
                 }
                 
@@ -3577,7 +3577,7 @@ async function saveToolEdit() {
                 }
                 
                 if(!config.provider){
-                    alert('Please connect an email provider first');
+                    showToast('Please connect an email provider first');
                     return;
                 }
             }
@@ -3585,9 +3585,9 @@ async function saveToolEdit() {
             else {
                 name = document.getElementById('wiz-name')?.value?.trim();
                 desc = document.getElementById('wiz-desc')?.value || '';
-                if(!name){alert('Enter tool name');return;}
+                if(!name){showToast('Enter tool name');return;}
                 if(isNameDuplicate(name)){
-                    alert(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
+                    showToast(`❌ A tool named "${name}" already exists.\nPlease choose a different name.`);
                     return;
                 }
             }
@@ -3610,7 +3610,7 @@ async function saveToolEdit() {
                     const errorData = await r.json().catch(() => ({}));
                     const errorMsg = errorData.detail || errorData.message || `Error: ${r.status}`;
                     hideProgressModal();
-                    alert('❌ ' + errorMsg);
+                    showToast('❌ ' + errorMsg);
                     return;
                 }
                 
@@ -4079,7 +4079,7 @@ async function saveToolEdit() {
             const aid=document.getElementById('chat-agent').value;
             const inp=document.getElementById('chat-input');
             const m=inp.value.trim();
-            if(!aid){alert('Please select an agent');return;}
+            if(!aid){showToast('Please select an agent');return;}
             if(!m && chatAttachments.length === 0)return;
             inp.value='';
             
