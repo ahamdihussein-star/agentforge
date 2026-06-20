@@ -134,6 +134,10 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Likely causes to investigate (code): the KB tool may not be exposed as a callable tool to the LLM during chat, or the agent's KB search uses a different collection id than where detail-page "Add Entry" content was embedded (`execute_tool` knowledge branch → `search_documents(query, [tool_id])`).
 - **NOTE for Ahmed (needs investigation/fix):** RAG works at the KB level but not when an agent uses the KB. This is the key thing to make the anti-hallucination story real for the demo.
 
+## ✅ Agent TOOL execution verified live (end-user Chat) — narrows the RAG gap
+- Published **Currency Assistant** (gpt-4o, 1 tool) in the end-user **Chat** view: asked for live rates and it **actually called its Exchange Rate tool** → returned real, internally-consistent data (1 EUR = 1.1467 USD, and 1 USD = 0.8719 EUR ≈ 1/1.1467). It also did **not hallucinate** an EGP rate ("not available in the current data"). Tool use + instruction adherence + anti-fabrication all ✅.
+- **Important implication for the KB gap:** since the LLM clearly DOES call API tools, the agent-not-using-its-KB problem is **not** a general "LLM won't call tools" issue — it's specific to the **knowledge tool** path. Most likely the KB either (a) didn't actually attach/persist on the ACME agent, or (b) the agent's KB search queries a different collection/tool_id than where content was embedded. This narrows what to check (and pairs with the "KB wizard sources not persisted" bug family). Still benefits from one Railway log line to confirm which.
+
 ## ✅ gpt-4o path confirmed
 - Switching the agent to **gpt-4o** removed the Gemini 403; chat works. (Saving the draft made the in-wizard test chat use the selected model.)
 
