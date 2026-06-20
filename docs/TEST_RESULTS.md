@@ -89,6 +89,21 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Deployed → Agent Hub shows it `published` with **1 tools**. ✅
 - ⚠️ **To confirm with Ahmed:** the "Select Configured Tool" picker modal is functionally correct (loads tools, selectable, "Add Selected" works) but did **not appear in my automated screenshots** — likely a screenshot-capture limitation of a high-z fixed overlay, possibly a real visibility glitch. Needs human confirmation that the picker is visible on screen.
 
+## 🔧 Bug-fix round 2 (done — pending one deploy + retest)
+1. **Tool picker invisible** — root cause: wizard container is `z-index:9999`, picker was `z-50`. Fixed at the shared helper `ensureModalInBody` (lifts any modal opened from inside the wizard above it). Fixes the tool picker + icon/api-test/kb-view/access-control pickers in one place. Standard z-index → cross-browser. (Confirmed real bug by Ahmed.)
+2. **Tool HTTP client ignored 301 redirects** — added `follow_redirects=True` to both `execute_tool` (agent invocation) and `test_tool` (Test Call) in `api/main.py`.
+3. **Chat timestamps off by the user's UTC offset** ("4h ago" for a fresh message in UTC+4) — `formatTimeAgo` now treats naive server timestamps as UTC (appends `Z` when no TZ marker) + guards negative diffs.
+4. **Chat header stuck on "Select an Agent"** when opening an agent from its Agent Hub card — `loadChatAgents` now caches the list and `onAgentChange` calls `updateChatHeader(agent)`.
+5. **Wizard hard to close** (X scrolls off, no Escape) — added an Escape handler that closes the wizard (and the tool picker first if it's open on top). Backdrop-click close already existed.
+6. **(round 1)** wizard nesting, dashboard Chrome overlap, auth survives restart (+JWT_SECRET_KEY), `update_tool` APIConfig typo, Save-Config no-auth/no-status-check, 123 `alert()`→`showToast()`.
+
+### Re-classified as NOT a bug (verified in code)
+- Chat "Select Agent" control is a native `<select>`; its dropdown is an OS overlay my screenshots can't capture. Works for real users.
+
+### Still open (feature-level, not a quick fix)
+- Agent without a knowledge base fabricates specifics. Real fix = attach a **Knowledge Base (RAG)** tool + stronger default guardrails. The KB tool type exists; to be exercised in the guardrails/RAG test phase.
+- `create_tool` only persists `api_config` when the create payload includes it (`type=='api'`); the wizard currently creates bare then saves config via PUT (which now works). Low priority.
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it
