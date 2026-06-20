@@ -40,7 +40,8 @@ class APITool(BaseTool):
         # Initialize HTTP client
         self.client = httpx.AsyncClient(
             timeout=self.timeout,
-            headers=self._build_default_headers()
+            headers=self._build_default_headers(),
+            follow_redirects=True
         )
     
     def _validate_config(self):
@@ -310,7 +311,7 @@ class WebhookTool(BaseTool):
         self.headers = config.config.get("headers", {})
         self.secret = config.config.get("secret")
         
-        self.client = httpx.AsyncClient(timeout=30)
+        self.client = httpx.AsyncClient(timeout=30, follow_redirects=True)
     
     def _validate_config(self):
         """Validate webhook configuration"""
