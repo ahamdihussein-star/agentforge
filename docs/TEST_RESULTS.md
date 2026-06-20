@@ -116,6 +116,17 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - alert()→toast confirmed (validation shows in-page toasts, not browser popups). ✅
 - Auth survives restarts/redeploys (session held across multiple deploys). ✅
 
+## 🔴 NEW BLOCKER — Gemini/Google API key rejected (403 PERMISSION_DENIED)
+- An agent that uses a **Gemini** model fails at chat with: `403 PERMISSION_DENIED … accessing Gemini API with one or more unrestricted keys … use a new restricted key or restrict your key`.
+- The agent wizard's AI recommendation **auto-selects gemini-1.5-pro** for many goals (it did for the ACME agent), so newly-created agents tend to default to Gemini → they break. Agents on **OpenAI (gpt-4o / gpt-4o-mini)** work fine (Electronics + Currency agents).
+- **Needs Ahmed (credential/settings, I can't fix a key):** either (a) restrict the Gemini API key in Google Cloud per the message, (b) remove the unrestricted Gemini key from Settings so agents fall back to OpenAI, and/or (c) make new agents default to an OpenAI model instead of the AI-recommended Gemini.
+- Also: selecting gpt-4o in the wizard did NOT change the model used by the in-wizard **test chat** (it kept using the draft's gemini) — the test chat seems to use the saved/draft model, so model changes may need a Save first. Worth fixing so the test reflects the selected model.
+
+## 🟠 Wizard polish bugs found while testing RAG
+- **Agent wizard doesn't reset after Discard:** reopening Create showed the previous draft's Name/Goal still populated, so new typing concatenated (e.g. "Picker Test AgentACME Support"). Reset the form on a fresh Create.
+- **Model panel transient "No AI models configured" + "Could not update recommendations. Try again."** appeared after rapid goal edits; recovered on revisit. The recommendation call can fail and leave the model selector in an error state.
+- **KB wizard Sources step not persisted on create** (same family as #7): text added in the wizard is lost (KB created with 0 documents); adding from the detail page works.
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it
