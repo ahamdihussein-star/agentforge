@@ -41,6 +41,13 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 
 ---
 
+## 🔴🔴 DEEPEST root cause — JWT signing secret is ephemeral
+- `core/security/services.py`: `SECRET_KEY = os.environ.get("JWT_SECRET_KEY", secrets.token_hex(32))`.
+- If `JWT_SECRET_KEY` is **not set in Railway**, a fresh random secret is generated on **every process start** → every previously-issued token fails HMAC signature check → `verify_token` returns None → **401 on every restart**, before the session check even runs.
+- Also: `ACCESS_TOKEN_EXPIRE_HOURS=24` → the JWT actually expires in 24h regardless of "Remember me" (login response says remember_me_days but the token's `exp` is +24h).
+- **THE FIX (Railway env):** set a fixed `JWT_SECRET_KEY` variable in Railway → tokens survive restarts. Combined with the session-rehydration code fix below, auth fully survives restarts.
+- This is why even my session-rehydration fix alone didn't make the old token work — the token itself was invalidated by the rotating secret.
+
 ## 🔴 Major finding — sessions are in-memory (root cause of recurring 401s)
 - `security.py` stores active sessions in `security_state.sessions` (a Python dict) — **in-memory**, not the DB.
 - Therefore **every server restart / redeploy wipes ALL sessions** → all users get `401 "Not authenticated"` immediately, even with "Remember me" (the token is long-lived but the server forgets the session on restart).
