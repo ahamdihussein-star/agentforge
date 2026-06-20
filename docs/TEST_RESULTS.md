@@ -142,6 +142,15 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - The visual Workflow Builder rendered the graph correctly with a **branching decision** (Yes → Auto-Approve, No → Manager Approval) converging to Notify → Record → End. Demo-worthy quality.
 - "Test run" dialog correctly auto-derived input fields (Receipt Document + Claimed Amount) from the Collect task.
 
+## 🟢 FIXED this session (pending deploy verification)
+- **Process tool step failed with HTTP 301** (the "Auto-Approve Request" tool_call node returned `HTTP 301: Moved Permanently` and failed the whole run, even though Validate ✅ and the Decision ✅ both worked correctly — 300 < 500 → auto-approve branch chosen). Root cause: the **process executor's HTTP client** (`api/modules/process/service.py:107`) was missing `follow_redirects=True` — same bug class I fixed earlier in tool execution. **Fixed**: added `follow_redirects=True`. Needs deploy + re-test.
+- **Process templates ReferenceError on startup** (`authToken is not defined` at `app-core.js:2430`). `authToken` is an implicit global set only after login, but `loadDynamicProcessTemplates` runs at init before it exists. **Fixed**: defensive read `(typeof authToken !== 'undefined' ? authToken : null) || localStorage...`. Needs deploy.
+- Both files pass syntax checks (node --check / py_compile).
+
+## 🟡 Generation-design note — "Auto-Approve" wired to an arbitrary external tool
+- The AI mapped the **Auto-Approve** step to a `tool_call` (Use Tool) pointing at an existing tool id `9e349e94…` with **empty arguments**. An internal "approve" action arguably shouldn't be an outbound API call to a random catalog tool. Worth reviewing how the generator assigns tools to action nodes (it may grab any available tool). Low priority vs. the 301 fix.
+- Minor display: the AI Validate step shows `Validation Result: [object Object]` in the technical report (should stringify the object).
+
 ## 🟠 NOTE for Ahmed — Process generation/build is SLOW (needs review)
 - "AI Generate Agent Tasks" + "Generate Workflow" + the node-build animation together take tens of seconds; the build animation cycled through its stages and *looked* like it was hanging before the builder finally opened. Ahmed flagged this directly: **too slow, needs review/optimization.** Investigate generation latency + the build/animation step.
 
