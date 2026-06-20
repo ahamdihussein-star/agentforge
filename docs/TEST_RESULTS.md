@@ -61,6 +61,16 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
   - Trade-off noted in code: a logged-out token can be re-accepted if a restart happens before its JWT expiry. Proper Phase-2 fix: DB-backed sessions.
 - **Still recommended (Phase 2):** persist sessions in the DB; add a global 401 handler → re-login screen; replace misleading "Connection error" with "session expired".
 
+## ✅ Auth stability — CONFIRMED FIXED (from Railway logs)
+- After `JWT_SECRET_KEY` (Railway env) + the session-rehydration code fix deployed: server restarted 17:29, login 17:30, and ALL subsequent authed requests returned 200 through 17:34 — no mid-session 401s. `auth_gate ... token_layer_ok=True`. The recurring-logout problem is resolved.
+
+## 🔴 Tool bug — `update_tool` crashes saving API config (FIXED)
+- Railway log: `PUT /api/tools/{id}` → **500** `NameError: name 'APIConfig' is not defined` at `api/main.py:10616` (`tool.api_config = APIConfig(**request.api_config)`).
+- The class is actually **`APIEndpointConfig`** — a typo. **FIXED** (renamed). `py_compile` clean.
+- Effect: "Save Configuration" on a REST API tool (and the wizard's config-save) failed, so the tool stayed "API not configured" and was unusable. Now it can save.
+- Related note: `create_tool` only builds `api_config` when `request.type == 'api'`; the saved tool had empty config and relied on the (broken) PUT to populate it. With the PUT fixed, the flow works; worth confirming the create wizard sends `type:'api'` + `api_config` so config persists on creation too.
+- ✅ Tool CREATION itself works (`POST /api/tools` 200); ✅ tool `/test` endpoint runs (returned "API not configured" only because config wasn't saved).
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it
