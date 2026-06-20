@@ -85,6 +85,12 @@ debug endpoints closed, provider keys masked, fail-open prevented.
 18. 🟡 **[DEFER] Confusing login message** — email login is rejected with "Please sign in using your
     username". Clarify or accept email.
 
+18b. 🟡 **[DEFER] Expired/invalidated session shows raw "Error: HTTP 401".** After a redeploy/restart
+    (server-side sessions are wiped) or a long idle, authed calls return 401 and the UI surfaces a raw
+    "Error: HTTP 401" (e.g. in the wizard test-chat) instead of detecting the expiry and prompting a
+    re-login. Add a global 401 handler that routes to the login screen with a "session expired" notice.
+    NOTE for testing: re-login is expected after every deploy.
+
 ---
 
 ## E. Missing enterprise capabilities (strategic — for the market story)
