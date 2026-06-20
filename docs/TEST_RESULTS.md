@@ -37,6 +37,17 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 
 ---
 
+## 🔴 Major finding — sessions are in-memory (root cause of recurring 401s)
+- `security.py` stores active sessions in `security_state.sessions` (a Python dict) — **in-memory**, not the DB.
+- Therefore **every server restart / redeploy wipes ALL sessions** → all users get `401 "Not authenticated"` immediately, even with "Remember me" (the token is long-lived but the server forgets the session on restart).
+- This ties directly to the known dual-storage / in-memory-state root architecture issue.
+- **UX bugs layered on top:**
+  - Main Chat page shows **"Connection error. Please try again."** on a 401 (misleading — it's auth/session, not connectivity).
+  - Wizard test-chat shows raw **"Error: HTTP 401"**.
+  - Expired token does NOT redirect to login — app keeps showing errors. Should detect 401 → route to login with "session expired".
+- **Fixes:** (Phase 2) persist sessions in the DB so they survive restarts; (quick) global 401 handler → re-login screen with a clear message.
+- **Testing implication:** avoid pushing/redeploying during a test session; do one re-login and keep testing.
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it
