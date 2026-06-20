@@ -753,14 +753,15 @@
             };
             
             try {
-                await fetch(API+'/api/tools/'+toolId, {
+                const r = await fetch(API+'/api/tools/'+toolId, {
                     method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', ...(typeof getAuthHeaders === 'function' ? getAuthHeaders() : {})},
                     body: JSON.stringify({ api_config: config })
                 });
-                alert('✅ Configuration saved!');
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                if (typeof showToast === 'function') showToast('✅ Configuration saved!', 'success'); else alert('✅ Configuration saved!');
             } catch(e) {
-                alert('Failed to save: ' + e.message);
+                if (typeof showToast === 'function') showToast('Failed to save: ' + e.message, 'error'); else alert('Failed to save: ' + e.message);
             }
         }
         
