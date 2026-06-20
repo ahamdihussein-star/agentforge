@@ -2427,7 +2427,7 @@ const API='';
                 }
             }
             try {
-                const token = authToken || localStorage.getItem('agentforge_token');
+                const token = (typeof authToken !== 'undefined' ? authToken : null) || localStorage.getItem('agentforge_token');
                 if (!token) return;
                 const res = await fetch('/process/config/templates', {
                     headers: { 'Authorization': 'Bearer ' + token }
