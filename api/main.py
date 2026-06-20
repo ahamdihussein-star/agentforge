@@ -2768,8 +2768,8 @@ async def execute_tool(tool_id: str, tool_type: str, arguments: Dict) -> Dict:
                         headers[tool.api_config.api_key_name] = tool.api_config.auth_value
                 
                 print(f"   🌐 {method} {url} (clean_args={clean_args})")
-                
-                async with httpx.AsyncClient(timeout=30.0) as client:
+
+                async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
                     if method == 'GET':
                         response = await client.get(url, headers=headers, params=clean_args if clean_args else None)
                     elif method == 'POST':
