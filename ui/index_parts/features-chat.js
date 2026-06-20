@@ -43,9 +43,16 @@
         // Format time ago helper
         function formatTimeAgo(dateStr) {
             if (!dateStr) return '';
-            const date = new Date(dateStr);
+            // Server timestamps are naive UTC (datetime.utcnow().isoformat(), no 'Z').
+            // Without a timezone marker, JS parses them as LOCAL time, which skews the
+            // "x ago" value by the user's UTC offset (e.g. +4h in the UAE → "4h ago" for
+            // a message sent seconds ago). Treat as UTC when no TZ marker is present.
+            let s = String(dateStr);
+            if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) s += 'Z';
+            const date = new Date(s);
             const now = new Date();
-            const diffMs = now - date;
+            let diffMs = now - date;
+            if (diffMs < 0) diffMs = 0;
             const diffMins = Math.floor(diffMs / 60000);
             const diffHours = Math.floor(diffMs / 3600000);
             const diffDays = Math.floor(diffMs / 86400000);
