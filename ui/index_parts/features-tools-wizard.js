@@ -3823,6 +3823,7 @@ async function saveToolEdit() {
                     agentSelect.innerHTML='<option value="">Select Agent...</option>'+chatAgents.map(a=>`<option value="${a.id}">${a.icon || '🤖'} ${a.name}</option>`).join('');
                 }
                 
+                try { window.__chatAgents = chatAgents; } catch (_) {}
                 return chatAgents; // Return agents for verification
             } catch (err) {
                 console.error('loadChatAgents error:', err);
@@ -3844,6 +3845,10 @@ async function saveToolEdit() {
                     return;
                 }
                 
+                // Update the chat header for the selected agent (was staying on "Select an Agent"
+                // when the agent was opened from its Agent Hub card instead of the dropdown).
+                try { const _a = (window.__chatAgents || []).find(a => a.id === id); if (_a) updateChatHeader(_a); } catch (_) {}
+
                 // Show loading state
                 const msgContainer = document.getElementById('chat-messages');
                 if (msgContainer) {
