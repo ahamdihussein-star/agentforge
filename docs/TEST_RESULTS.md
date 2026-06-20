@@ -127,6 +127,16 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - **Model panel transient "No AI models configured" + "Could not update recommendations. Try again."** appeared after rapid goal edits; recovered on revisit. The recommendation call can fail and leave the model selector in an error state.
 - **KB wizard Sources step not persisted on create** (same family as #7): text added in the wizard is lost (KB created with 0 documents); adding from the detail page works.
 
+## 🔴 NEW — Agent does NOT retrieve from its attached Knowledge Base (RAG-into-agent gap)
+- With the **ACME Policy KB** attached to an agent (gpt-4o) and instruction to answer only from it, the agent replied **"I don't have that information in the knowledge base"** for facts that ARE in the KB (17-day returns, 8% restocking, 23-month warranty) — even when told to "search your ACME Policy knowledge base".
+- Yet the **KB tool's own "Ask Knowledge Base"** returns those facts correctly. So embedding/retrieval works standalone, but the **agent chat does not actually retrieve/use the attached KB**.
+- ✅ Good side: the agent did **not hallucinate** — it correctly said it doesn't have the info (instruction adherence + anti-fabrication works). The gap is retrieval, not guardrails.
+- Likely causes to investigate (code): the KB tool may not be exposed as a callable tool to the LLM during chat, or the agent's KB search uses a different collection id than where detail-page "Add Entry" content was embedded (`execute_tool` knowledge branch → `search_documents(query, [tool_id])`).
+- **NOTE for Ahmed (needs investigation/fix):** RAG works at the KB level but not when an agent uses the KB. This is the key thing to make the anti-hallucination story real for the demo.
+
+## ✅ gpt-4o path confirmed
+- Switching the agent to **gpt-4o** removed the Gemini 403; chat works. (Saving the draft made the in-wizard test chat use the selected model.)
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it
